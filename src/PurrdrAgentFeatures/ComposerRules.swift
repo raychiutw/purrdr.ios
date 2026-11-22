@@ -161,21 +161,9 @@ public enum ComposerPaste {
         case system
     }
 
-    public enum AddImageAction: Sendable, Equatable {
-        case openLibrary
-        case askSource
-        case showLimit
-    }
-
     /// Command-V:剪貼簿只有圖片、沒有文字，且還能加圖片時才當附件;其他一律系統貼上。
     public static func action(hasImages: Bool, hasStrings: Bool, remainingSlots: Int) -> Action {
         hasImages && !hasStrings && remainingSlots > 0 ? .attachImages : .system
-    }
-
-    /// 點「加入圖片」:滿了提示;剪貼簿有圖時先問「相簿／貼上圖片」;否則直接開相簿。
-    public static func addImageAction(pasteboardHasImages: Bool, remainingSlots: Int) -> AddImageAction {
-        if remainingSlots <= 0 { return .showLimit }
-        return pasteboardHasImages ? .askSource : .openLibrary
     }
 }
 
@@ -235,10 +223,12 @@ public struct PromptEcho: Sendable, Equatable, Identifiable {
     public var imageFiles: [String]
     /// 已上傳到主機的路徑(重試時照樣送，不重傳)。
     public var imagePaths: [String]
+    /// 一般檔案(非圖片)上傳後的路徑:對話紀錄的使用者訊息裡這些路徑行還在文字裡，配對時要算進去。
+    public var filePaths: [String]
 
     public init(
         id: String, text: String, date: Date, state: State = .sending, knownUserIDs: Set<String>, imageCount: Int = 0,
-        imageFiles: [String] = [], imagePaths: [String] = []
+        imageFiles: [String] = [], imagePaths: [String] = [], filePaths: [String] = []
     ) {
         self.id = id
         self.text = text
@@ -248,6 +238,7 @@ public struct PromptEcho: Sendable, Equatable, Identifiable {
         self.imageCount = imageCount
         self.imageFiles = imageFiles
         self.imagePaths = imagePaths
+        self.filePaths = filePaths
     }
 }
 
@@ -271,7 +262,7 @@ public enum EchoMatching {
         for bubble in bubbles where !consumed.contains(bubble.id) {
             let bubbleKey = key(bubble.text)
             guard let index = remaining.firstIndex(where: {
-                !$0.knownUserIDs.contains(bubble.id) && $0.imageCount == bubble.imageCount && key($0.text) == bubbleKey
+                !$0.knownUserIDs.contains(bubble.id) && $0.imageCount == bubble.imageCount && key(UploadedImages.prompt(text: $0.text, paths: $0.filePaths)) == bubbleKey
             }) else { continue }
             consumed.insert(bubble.id)
             remaining.remove(at: index)
@@ -307,6 +298,26 @@ public enum ConversationEntry: Sendable, Equatable, Identifiable {
         case .item(let item): item.id
         case .echo(let echo): Self.echoIDPrefix + echo.id
         }
+    }
+}
+
+extension ConversationEntry {
+    /// 每一輪第一則 Agent 文字的 id(#351):使用者訊息或回音之後的第一則;只有這一則顯示頭像、名稱與時間。
+    public static func turnStartTextIDs(in entries: [ConversationEntry]) -> Set<String> {
+        var ids: Set<String> = []
+        var turnHasText = false
+        for entry in entries {
+            switch entry {
+            case .echo, .item(.user):
+                turnHasText = false
+            case .item(.agentText(let text)):
+                if !turnHasText { ids.insert(text.id) }
+                turnHasText = true
+            case .item:
+                break
+            }
+        }
+        return ids
     }
 }
 

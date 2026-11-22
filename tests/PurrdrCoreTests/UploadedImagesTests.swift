@@ -33,6 +33,25 @@ struct UploadedImagesTests {
         #expect(bubble.imagePaths == ["/home/me/.purrdr/uploads/a-1.jpg", "/home/me/.purrdr/uploads/b-2.png"])
     }
 
+    @Test("新的上傳資料夾(暫存目錄底下的 purrdr-uploads、Unix 後接 uid、Windows 在 %TEMP%)與舊的 .purrdr/uploads 都認得")
+    func newAndLegacyFolders() throws {
+        let paths = [
+            "/var/folders/zz/demo/T/purrdr-uploads-501/a-1.jpg", "/tmp/purrdr-uploads-1000/b-2.png",
+            #"C:\Users\Demo User\AppData\Local\Temp\purrdr-uploads\c-3.jpg"#, "/Users/me/.purrdr/uploads/d-4.jpg",
+        ]
+        let bubble = try #require(bubble([.text("Compare\n\n" + paths.joined(separator: "\n"))]))
+        #expect(bubble.text == "Compare")
+        #expect(bubble.imagePaths == paths)
+    }
+
+    @Test("名稱只是像的資料夾、非圖片副檔名不是上傳的圖片")
+    func lookalikeFoldersStayText() throws {
+        let lines = ["/tmp/purrdr-uploads-abc/a-1.jpg", "/tmp/purrdr-uploads-501x/a-1.jpg", "/tmp/my-purrdr-uploads/a-1.jpg", "/tmp/purrdr-uploads-501/a-1.pdf"]
+        let bubble = try #require(bubble([.text(lines.joined(separator: "\n"))]))
+        #expect(bubble.imageCount == 0)
+        #expect(bubble.text == lines.joined(separator: "\n"))
+    }
+
     @Test("上傳資料夾外的路徑、句中的路徑是文字，不是圖片")
     func otherPathsStayText() throws {
         let bubble = try #require(bubble([

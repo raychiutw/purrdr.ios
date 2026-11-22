@@ -65,28 +65,35 @@ public struct TopNavigationView: View {
             .sheet(item: $navigation.sheet) { sheet in
                 switch sheet {
                 case .hosts:
-                    HostListView(model: hosts, importURL: $navigation.pendingHostImport, editHostID: $navigation.pendingHostEditor)
+                    HostListView(model: hosts, importURL: $navigation.pendingHostImport, editHostID: $navigation.pendingHostEditor, addHost: $navigation.pendingAddHost)
                 case .settings:
                     SettingsView(
                         model: settings,
-                        attention: { hosts.agentList.attentionCount }, openWelcome: { navigation.showWelcome() }, appLock: appLock
+                        openWelcome: { navigation.showWelcome() }, appLock: appLock,
+                        dataUsage: { hosts.dataUsage() }
                     ) {
                         navigation.sheet = nil
                     }
                 case .member:
                     // 帳號頁(#246)自帶 NavigationStack 與「完成」。
-                    MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync)
+                    MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync,
+                        hosts: hosts)
                         // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
                         .task { await hosts.checkHostServiceVersions() }
                 case .plus:
                     if let plus {
-                        PlusSheet(model: plus, member: member)
+                        PlusSheet(model: plus, member: member, features: PlusFeatureLinks(
+                            status: PlusFeatureStatus(
+                                notifyingHostCount: hosts.hostPushes.notifyingHostNames.count,
+                                isHostSyncOn: hostSync?.isEnabled ?? false,
+                                deviceCount: hosts.pushDevices.flatMap { $0.hasLoaded ? $0.devices.count : nil }),
+                            // 前往帳號頁:換成帳號 sheet(捲到對應區塊留給帳號頁自己)。
+                            open: { _ in navigation.sheet = .member }))
                     }
                 case .welcome:
                     WelcomeView {
-                        // 選 Demo 主機(已有主機時 Demo 也會出現在列表上)並回到列表。
-                        hosts.select(.demo)
-                        navigation.sheet = nil
+                        // 進入 Demo 主機(空列表也進得去)並回到列表。
+                        navigation.welcomeTryDemo(hosts: hosts)
                     } addHost: {
                         navigation.welcomeAddHost()
                     } rate: {
@@ -398,9 +405,9 @@ struct HostFilterMenu: View {
     @Bindable var list: MergedAgentListModel
 
     var body: some View {
-        let current = list.hostFilter.flatMap { list.hostLabel(of: $0) }
+        let current = list.currentHost.flatMap { list.hostLabel(of: $0) }
         Menu {
-            Picker(selection: $list.hostFilter) {
+            Picker(selection: $list.currentHost) {
                 Label("All Hosts", systemImage: "square.grid.2x2")
                     .tag(HostSelection?.none)
                 ForEach(list.hostFilterOptions) { option in
@@ -410,7 +417,7 @@ struct HostFilterMenu: View {
             } label: {
                 Text("Hosts")
             }
-            .accessibilityIdentifier("hostFilter.picker")
+            .accessibilityIdentifier("currentHost.picker")
         } label: {
             // 工具列的 Label 只畫圖示，自己排「主機圖示＋名稱＋▾」(原型 purrdr-screens.html);膠囊由工具列玻璃提供。
             HStack(spacing: 6) {
@@ -434,6 +441,6 @@ struct HostFilterMenu: View {
         }
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
         .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))
-        .accessibilityIdentifier("toolbar.hostFilter")
+        .accessibilityIdentifier("toolbar.currentHost")
     }
 }

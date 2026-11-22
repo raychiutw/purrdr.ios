@@ -78,19 +78,29 @@ public struct SpacesTab: Identifiable, Equatable, Sendable {
         case layout(workspaceID: String, tabID: String)
     }
 
+    /// 列首頭像(#316)。
+    public enum Avatar: Equatable, Sendable {
+        /// Tab 裡第一個 Agent 的種類(herdr 的原始值)與 Tab 內最需要處理的狀態(與 Agents 列同樣折算未讀)。
+        case agent(kind: String, status: AgentStatus)
+        /// 只有終端機：沒有狀態。
+        case terminal
+    }
+
     public var host: HostSelection
     /// Tab id;沒有 Tab 的 pane 是 pane id。
     public var key: String
     public var title: String
     public var target: Target
+    public var avatar: Avatar
 
     public var id: String { "\(host.storedValue)/\(key)" }
 
-    public init(host: HostSelection, key: String, title: String, target: Target) {
+    public init(host: HostSelection, key: String, title: String, target: Target, avatar: Avatar = .terminal) {
         self.host = host
         self.key = key
         self.title = title
         self.target = target
+        self.avatar = avatar
     }
 }
 
@@ -117,7 +127,8 @@ public struct TerminalRow: Identifiable, Equatable, Sendable {
 extension AgentListProjection {
     /// Spaces 檢視(#275):每台主機(順序同合併列表)的每個 workspace(依主機上的順序)一段，段內每個 Tab 一列(依 Tab 順序)。
     /// 沒有任何 pane 的 workspace 不出現。Spaces 檢視沒有搜尋與釘選。
-    package static func spacesSections(sources: [Source]) -> [SpacesSection] {
+    /// - Parameter visible: 目前開著的聊天(頭像狀態的未讀折算與 Agents 列相同)。
+    package static func spacesSections(sources: [Source], visible: Set<ChatRoute> = []) -> [SpacesSection] {
         sources.flatMap { source -> [SpacesSection] in
             guard let snapshot = source.snapshot else { return [] }
             var workspaceIDs = snapshot.workspaces.sorted { $0.number < $1.number }.map(\.id)
@@ -125,7 +136,7 @@ extension AgentListProjection {
                 workspaceIDs.append(id)
             }
             return workspaceIDs.compactMap { workspaceID in
-                let tabs = spacesTabs(workspaceID: workspaceID, host: source.host, snapshot: snapshot)
+                let tabs = spacesTabs(workspaceID: workspaceID, source: source, snapshot: snapshot, visible: visible)
                 guard !tabs.isEmpty else { return nil }
                 let agent = snapshot.agents.first { $0.workspaceID == workspaceID }
                 let label = snapshot.workspaces.first { $0.id == workspaceID }?.label ?? agent.map(AgentRowText.workspaceName) ?? workspaceID
@@ -136,7 +147,8 @@ extension AgentListProjection {
     }
 
     /// 一個 workspace 的 Tab 列：herdr 回報的 Tab(有 pane 的才列),加上沒有 Tab 的 pane(各自一列)。
-    private static func spacesTabs(workspaceID: String, host: HostSelection, snapshot: HostSnapshot) -> [SpacesTab] {
+    private static func spacesTabs(workspaceID: String, source: Source, snapshot: HostSnapshot, visible: Set<ChatRoute>) -> [SpacesTab] {
+        let host = source.host
         let agents = snapshot.agents.filter { $0.workspaceID == workspaceID }
         var panes = snapshot.panes.filter { $0.workspaceID == workspaceID }
         // 只出現在 agents 的 pane(舊版 herdr 的 panes 不含 agent)也算。
@@ -158,15 +170,28 @@ extension AgentListProjection {
                 let title = AgentRowText.title(for: agent, siblings: agents)
                 return tabAgents.count > 1 ? "\(title) +\(tabAgents.count - 1)" : title
             } ?? TerminalRow(pane: first, host: host, hostLabel: nil).program
-            return SpacesTab(host: host, key: tab.id, title: tabTitle(tab.label, contents: contents, position: index + 1), target: target)
+            return SpacesTab(
+                host: host, key: tab.id, title: tabTitle(tab.label, contents: contents, position: index + 1), target: target,
+                avatar: avatar(for: tabAgents, source: source, visible: visible))
         }
         let known = Set(tabs.map(\.id))
         for pane in panes where tabID(of: pane).map({ !known.contains($0) }) ?? true {
             let title = agents.first { $0.paneID == pane.id }.map { AgentRowText.title(for: $0, siblings: agents) }
                 ?? TerminalRow(pane: pane, host: host, hostLabel: nil).program
-            rows.append(SpacesTab(host: host, key: pane.id, title: title, target: .pane(ChatRoute(host: host, paneID: pane.id))))
+            rows.append(SpacesTab(
+                host: host, key: pane.id, title: title, target: .pane(ChatRoute(host: host, paneID: pane.id)),
+                avatar: avatar(for: agents.filter { $0.paneID == pane.id }, source: source, visible: visible)))
         }
         return rows
+    }
+
+    /// Tab 列的頭像(#316):第一個 Agent 的種類;狀態是 Tab 內最需要處理的(需要你 > 工作中 > 未讀 > 閒置),
+    /// 每個 Agent 先照 Agents 列的規則折算(`input_pending`、未讀)。沒有 Agent 是終端機頭像。
+    private static func avatar(for agents: [Agent], source: Source, visible: Set<ChatRoute>) -> SpacesTab.Avatar {
+        guard let first = agents.first else { return .terminal }
+        let statuses = agents.map { ChatUnread.State(agent: $0, source: source, visible: visible).displayStatus($0.effectiveStatus) }
+        let status = statuses.min { $0.urgencyRank < $1.urgencyRank } ?? .unknown
+        return .agent(kind: first.kind, status: status)
     }
 
     /// Tab 名稱：人取的照原文;沒有名稱或是 herdr 的預設數字名稱(「1」「2」…)時用 Tab 裡的內容

@@ -56,6 +56,13 @@ public final class ConversationModel {
     }
 
     public private(set) var phase: Phase = .loading
+    /// 重新載入、換 session 的讀取進行中:畫面保留舊訊息，只顯示不遮擋的更新指示(#329)。
+    public private(set) var isRefreshing = false
+    /// 載入超過這麼久才出現系統進度指示(HIG〈Loading〉:內容理想上立刻出現，等待超過一兩秒才用進度指示)。
+    nonisolated public static let loadingIndicatorDelay: Duration = .seconds(1.5)
+    private var loadingIndicatorArmed = false
+    /// 還沒有任何內容、載入已超過 `loadingIndicatorDelay`:畫面在骨架下方加系統進度指示。有快取或內容先到就不會出現。
+    public var showsLoadingIndicator: Bool { loadingIndicatorArmed && phase == .loading && items.isEmpty }
     public private(set) var items: [ConversationItem] = []
     /// 畫面上是快取的內容(離線)。
     public private(set) var isOffline = false
@@ -65,6 +72,8 @@ public final class ConversationModel {
     public private(set) var title = ""
     public private(set) var agentStatus: AgentStatus?
     public private(set) var metadata = TranscriptMetadata()
+    /// context 百分比與待辦進度(#307),由讀到的對話紀錄推得;標題列與待辦 sheet 用。
+    public private(set) var progress = AgentProgress()
     /// Claude 的背景 agents 窗格(F10「背景 agents 列」),從 pane 畫面解析;沒有窗格是 `nil`。
     public private(set) var agentsPane: AgentsPane?
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
@@ -165,6 +174,20 @@ public final class ConversationModel {
     public var youShouldKnow: YouShouldKnowModel?
     /// 圖片卡片的縮圖載入(#225):聊天所在主機的那份，由 `HostsModel` 接上;沒有時卡片不載入縮圖。
     public var agentFiles: AgentFileLoads?
+    /// 變更頁的 git 讀取(#310):聊天所在主機的連線方式，由 `HostsModel` 接上;沒有時不顯示變更鈕。
+    public var gitChanges: (any GitChangesReading)?
+
+    /// 這個 Agent 工作目錄的變更頁;沒有 git 讀取或還不知道工作目錄時是 `nil`。
+    public func makeChanges() -> ChangesModel? {
+        guard let gitChanges, let cwd = currentAgent?.cwd else { return nil }
+        return ChangesModel(reader: gitChanges, cwd: cwd) { [weak self] in self?.canSendReview ?? false }
+    }
+
+    /// 能不能開變更頁(有 git 讀取、知道 Agent 的工作目錄)。
+    public var canOpenChanges: Bool { gitChanges != nil && currentAgent?.cwd != nil }
+
+    /// 能不能送出變更頁的評論：與輸入列相同的目標條件(唯讀、離線、送出中都不行)。
+    public var canSendReview: Bool { hasTarget && !isReadOnly && !isSending && typedAnswer == nil }
 
     /// 主機取檔的存取範圍(#225):Agent 的工作目錄、目前對話紀錄裡 Agent 寫出的路徑(#229),與對話紀錄本身(附檔資料夾)。
     public var fileAccessScope: HostFileAccessScope {
@@ -192,19 +215,19 @@ public final class ConversationModel {
 
     // MARK: 圖片(F7)
 
-    /// 一則最多幾張圖片。
-    public static let maximumImages = 4
+    /// 一則最多幾個附件(圖片與檔案合計,#352)。
+    public static let maximumAttachments = 10
     /// 輸入列上的圖片附件(送出被接受時才清)。
     public private(set) var attachments: [ComposerAttachment] = []
     @ObservationIgnored private let images: ComposerImages?
     /// 這台主機能不能附加圖片(有上傳器;目前只有 Unix 主機)。
     public var canAttachImages: Bool { images != nil }
-    public var remainingImageSlots: Int { max(0, Self.maximumImages - attachments.count) }
+    public var remainingImageSlots: Int { max(0, Self.maximumAttachments - attachments.count) }
 
     /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過 4 張的部分、原始大小超過單張上限的不加入並提示。
     public func addImages(_ items: [Data]) async {
         guard let images, !items.isEmpty else { return }
-        if items.count > remainingImageSlots { notice = .imageLimit }
+        if items.count > remainingImageSlots { notice = .attachmentLimit }
         for data in items.prefix(remainingImageSlots) {
             // 單張上限以使用者挑的原始圖片判斷，不因縮小而改變(#76)。
             guard data.count <= ImageUploadLimit.maximumSize else {
@@ -223,17 +246,20 @@ public final class ConversationModel {
                 notice = .imageUnreadable
                 continue
             }
-            attachments.append(ComposerAttachment(fileName: name, pixelWidth: prepared.width, pixelHeight: prepared.height))
+            attachments.append(
+                ComposerAttachment(
+                    fileName: HostUploadName(name), byteCount: prepared.jpeg.count, pixelWidth: prepared.width, pixelHeight: prepared.height))
             saveAttachments()
         }
     }
 
-    /// 已滿 4 張時點「加入圖片」:提示上限(F7)。
-    public func noteImageLimit() { notice = .imageLimit }
+    /// 已滿時點「附加」:提示上限(F7)。
+    public func noteImageLimit() { notice = .attachmentLimit }
 
     /// 移除附件。送出(上傳)中不能移除。
     public func removeAttachment(_ id: String) {
         guard !isSending else { return }
+        if let removed = attachments.first(where: { $0.id == id }), removed.kind == .file { images?.store.remove(removed.fileName.value) }
         attachments.removeAll { $0.id == id }
         saveAttachments()
     }
@@ -254,21 +280,26 @@ public final class ConversationModel {
 
     // MARK: 檔案(#286)
 
-    /// 正在上傳到主機的檔案(原始檔名);沒有時是 `nil`。
-    public private(set) var uploadingFileName: String?
+    /// 正在讀取、準備加成附件的檔案(原始檔名);沒有時是 `nil`。
+    public private(set) var loadingFileName: String?
     /// 能不能附加檔案：有上傳到主機、不是唯讀裝置。
     public var canAttachFiles: Bool { images != nil && !isReadOnly }
 
-    /// 附加一般檔案：上傳到主機，把主機上的路徑插入輸入框。已知大小超過上限時不讀內容。
+    /// 附加一般檔案：讀進來存手機副本、在輸入列成一張附件卡，送出時才上傳(#352)。已知大小超過上限時不讀內容。
+    /// 圖片檔(副檔名 png、jpg…)走圖片附件，與相簿一致。
     public func addFile(named originalName: String, size: Int?, load: @Sendable () async throws -> Data) async {
-        guard let images, canAttachFiles, uploadingFileName == nil else { return }
+        guard let images, canAttachFiles, loadingFileName == nil else { return }
+        guard remainingImageSlots > 0 else {
+            notice = .attachmentLimit
+            return
+        }
         let limit = HostUploadLimit.maximumFileSize
         if let size, size > limit {
             notice = .fileTooLarge(size: size, limit: limit)
             return
         }
-        uploadingFileName = originalName
-        defer { uploadingFileName = nil }
+        loadingFileName = originalName
+        defer { loadingFileName = nil }
         let data: Data
         do {
             data = try await load()
@@ -280,12 +311,23 @@ public final class ConversationModel {
             notice = .fileTooLarge(size: data.count, limit: limit)
             return
         }
-        do {
-            let path = try await images.uploader.upload(data, named: images.makeFileName(originalName))
-            insertIntoDraft(path)
-        } catch {
-            notice = Self.uploadNotice(for: error, otherwise: .fileUploadFailed)
+        if UploadedImages.hasImageExtension(originalName) {
+            await addImages([data])
+            return
         }
+        guard remainingImageSlots > 0 else {
+            notice = .attachmentLimit
+            return
+        }
+        let name = images.makeFileName(originalName)
+        do {
+            try images.store.save(data, as: name.value)
+        } catch {
+            notice = .fileUnreadable
+            return
+        }
+        attachments.append(ComposerAttachment(kind: .file, fileName: name, displayName: originalName, byteCount: data.count))
+        saveAttachments()
     }
 
     /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
@@ -309,7 +351,7 @@ public final class ConversationModel {
             let name = attachments[index].fileName
             guard let url = images.store.url(of: name.value) else { throw CocoaError(.fileReadNoSuchFile) }
             let data = try Data(contentsOf: url)
-            let path = try await images.uploader.upload(data, named: HostUploadName(name))
+            let path = try await images.uploader.upload(data, named: name)
             if let current = attachments.firstIndex(where: { $0.fileName == name }) {
                 attachments[current].uploadedPath = path
             }
@@ -331,6 +373,8 @@ public final class ConversationModel {
     public private(set) var stopPhase: StopPhase?
     /// 強制結束的確認對話框是否開著(#220;停止列與「仍在工作」結果共用)。
     public var confirmsForceQuit = false
+    /// 狀態 sheet 是否開著(#349):點標題或工作中膠囊的子 Agent 數都開同一張。
+    public var showsStatusSheet = false
     /// 斷線前 agent 在工作：離線橫幅說明重新連上後才能停止(#220)。
     public private(set) var stopNeedsReconnect = false
     /// 停止中最多等多久，之後當成仍在工作。
@@ -356,11 +400,43 @@ public final class ConversationModel {
     private let cache: any ConversationCache
     private let clock: ConversationClock
     private let openLines: Int
+    private let openMaxBytes: Int
     private let pageLines: Int
     /// 列表傳來的 session:快取只在與它相同時秒開或離線顯示(F5.3、#97)。
     private let knownSessionID: String?
     private let drafts: DraftStore
     private let delivery: PromptDelivery
+    /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
+    private let sendPipeline: SendPipeline
+    /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
+    public var undoSend: UndoSendCountdown? { sendPipeline.step(UndoSendCountdown.self) }
+    /// 管線裡的離線佇列(#301):離線時送出的訊息排在這台主機的佇列;沒有這個步驟時離線不能送出。
+    public var offlineQueue: OfflineQueue? { sendPipeline.step(OfflineQueueStep.self)?.queue }
+    /// 這個聊天(pane)排隊中與沒送出的訊息，畫在對話最下面。
+    public var queuedPrompts: [QueuedPrompt] { offlineQueue?.entries(forPane: paneID) ?? [] }
+
+    /// 放回輸入框：拿出佇列，文字接在目前的草稿前面(不蓋掉新打的)。
+    public func putBack(_ id: QueuedPrompt.ID) {
+        guard let text = offlineQueue?.takeBack(id) else { return }
+        putBackInDraft(text)
+    }
+
+    /// 取消排隊中的訊息，或刪除沒送出的。
+    public func deleteQueued(_ id: QueuedPrompt.ID) {
+        offlineQueue?.remove(id)
+    }
+
+    /// 管線裡的 Send When Done(#305):輸入列的「做完再送」開關與主機上的佇列;沒有這個步驟時是 `nil`。
+    public var sendWhenDone: SendWhenDoneModel? { sendPipeline.step(SendWhenDoneStep.self)?.model }
+
+    /// 編輯 Send When Done 佇列裡的一則:從主機佇列拿掉，文字放回輸入框(接在目前的草稿前面)。
+    public func editSendWhenDone(_ id: SendWhenDoneItem.ID) async {
+        guard let text = await sendWhenDone?.takeBack(id) else { return }
+        putBackInDraft(text)
+    }
+
+    /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
+    public var secretCheck: SecretCheck? { sendPipeline.step(SecretCheck.self) }
     private let slashDiscovery: (any SlashDiscovering)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
@@ -433,16 +509,57 @@ public final class ConversationModel {
     /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
     @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
     private var lastPresenceSeq: UInt64 = 0
+
+    // MARK: 離開期間摘要(#308)
+
+    /// 上次離開這個聊天的時間(由 `MergedAgentListModel.awayStart(for:)` 接上;沒開過的聊天是 `nil`)。
+    @ObservationIgnored public var awayStart: (@MainActor () -> Date?)?
+    /// 第一次讀到離開起點時定下來的(離開起點，進來的時間);之後不變，聊天開著時發生的項目不會被算進去。
+    private var awayLatch: (from: Date, cutoff: Date)?
+    /// 離開超過 15 分鐘回來時的摘要;其餘為 `nil`。
+    package private(set) var awaySummary: AwaySummary?
+    /// 離開期間那段是否收合(只留最後一句)。
+    package var isAwayCollapsed = false
+
+    /// 畫面上要畫的列:收合時藏起離開期間那段(最後一句留著)。
+    package var visibleEntries: [ConversationEntry] {
+        guard isAwayCollapsed, let awaySummary else { return entries }
+        let hidden = awaySummary.hiddenIDs(in: entries.map(\.id))
+        return entries.filter { !hidden.contains($0.id) }
+    }
+
+    /// app 進背景的時間(聊天一直開著時的離開起點，#308)。
+    private var backgroundedAt: Date?
+
+    /// app 進背景或回到前景(由畫面的 scenePhase 回報):進背景記起點，回來時離開起點與這次進來的時間重新定下來，
+    /// 之後的摘要規則同進出聊天畫面(離開 15 分鐘以上才出現)。
+    public func scenePhaseChanged(isBackground: Bool) {
+        if isBackground {
+            if backgroundedAt == nil { backgroundedAt = clock.now() }
+            return
+        }
+        guard let from = backgroundedAt else { return }
+        backgroundedAt = nil
+        awayLatch = (from, clock.now())
+        updateAwaySummary()
+    }
+
+    private func updateAwaySummary() {
+        if awayLatch == nil, !items.isEmpty, let from = awayStart?() { awayLatch = (from, clock.now()) }
+        awaySummary = awayLatch.flatMap { AwaySummary.make(items: items, awayFrom: $0.from, cutoff: $0.cutoff) }
+    }
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
     private var generation = 0
 
     public init(
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
-        cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
+        cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = TranscriptReader.openingLines,
+        openMaxBytes: Int = TranscriptReader.openingMaxBytes, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
         updates: HostUpdates? = nil,
+        sendSteps: [any SendStep] = [],
         sleep: @escaping Sleep = Sleeping.task
     ) {
         self.updates = updates
@@ -454,12 +571,14 @@ public final class ConversationModel {
         self.cache = cache
         self.clock = clock
         self.openLines = openLines
+        self.openMaxBytes = openMaxBytes
         self.pageLines = pageLines
         self.drafts = drafts
         self.haptics = haptics
         self.hostName = hostName
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
+        sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
@@ -503,10 +622,12 @@ public final class ConversationModel {
     }
 
     /// 列表傳來的 session 與快取相同時，立刻顯示快取並從游標續讀(F5.3 第 1 點)。
+    /// 列表還沒給 session(冷啟動、從推播打開)時也先顯示這個聊天上次的快取(#356):之後快照回報的 session 不同，
+    /// 輪詢綁定新 session 時丟掉快取，舊內容留著到新內容讀回來(#329)。
     public func restoreFromCache() async {
-        guard let knownSessionID, items.isEmpty, let cached = await cache.load(chatKey: chatKey),
-              cached.matches(sessionID: knownSessionID) else { return }
-        boundSessionID = knownSessionID
+        guard items.isEmpty, let cached = await cache.load(chatKey: chatKey),
+              knownSessionID.map({ cached.matches(sessionID: $0) }) ?? (cached.parserVersion == CachedConversation.parserVersion) else { return }
+        boundSessionID = cached.sessionID
         file = (cached.path, TranscriptFollow(cursor: cached.cursor, isLive: false), cached.windowStart)
         recent = cached.messages
         segments = [(cached.windowStart, cached.messages.count)]
@@ -533,12 +654,14 @@ public final class ConversationModel {
         await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
+            group.addTask { await self.armLoadingIndicator(sleep: sleep) }
             if let updates {
                 group.addTask { await updates.liveUpdates.attach() }
                 group.addTask { await self.wakeOnChanges(from: updates) }
             }
             while !Task.isCancelled {
                 await poll()
+                await probePermissionModeIfNeeded()
                 do {
                     // 輪詢期間被叫醒就不等。
                     try await pollDue.wait(atMost: pollInterval)
@@ -559,6 +682,14 @@ public final class ConversationModel {
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
+    }
+
+    /// 載入超過 `loadingIndicatorDelay` 還沒有內容才開啟進度指示。
+    private func armLoadingIndicator(sleep: Sleep) async {
+        loadingIndicatorArmed = false
+        guard phase == .loading, items.isEmpty else { return }
+        do { try await sleep(Self.loadingIndicatorDelay) } catch { return }
+        loadingIndicatorArmed = true
     }
 
     /// 目前的 `run()`;舊的 run 晚於新的結束時據此不收新的資源。
@@ -596,6 +727,8 @@ public final class ConversationModel {
         isOffline = false
         stopNeedsReconnect = false
         if banner == .offline { banner = nil }
+        // 重連後的 Agent 列表交給離線佇列比對、補送(#301;主機更新來源讀到的也會交給它)。
+        offlineQueue?.receive(snapshot)
         // 送出時被拒過就維持唯讀。
         if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
@@ -611,20 +744,27 @@ public final class ConversationModel {
         settleStopResult()
         screenThisPoll = nil
         workingScreenDue = workingScreenReads.allowsRead(isWorking: agentStatus == .working, at: clock.now())
-        await refreshPrompt(agent)
-        let suggestionRead = await readSuggestion(agent)
-        await refreshPanel(agent)
-        applySuggestion(suggestionRead, agent: agent)
-        await refreshLivePreview()
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
+        // 讀 Pane 畫面(提問卡、建議提示詞、面板、即時預覽、背景 agents 窗格)排在讀對話紀錄之後(#356):
+        // 慢網路下對話內容先出來，不等這幾個依序的請求。沒有對話紀錄可讀的情況(不支援、還沒有 session)照舊先讀畫面。
+        let readScreens = { [self] in
+            await refreshPrompt(agent)
+            let suggestionRead = await readSuggestion(agent)
+            await refreshPanel(agent)
+            applySuggestion(suggestionRead, agent: agent)
+            await refreshLivePreview()
+            // 背景 agents 窗格只有 Claude 有。
+            if agent.kind == "claude", TranscriptFormat(agentKind: agent.kind) != nil { await readAgentsPaneIfNeeded() }
+        }
         guard TranscriptFormat(agentKind: agent.kind) != nil else {
+            await readScreens()
             unbind()
             phase = .unsupported
             return
         }
-        // 背景 agents 窗格只有 Claude 有。
-        if agent.kind == "claude" { await readAgentsPaneIfNeeded() }
         guard let target = agent.transcriptTarget else {
+            await readScreens()
+            if isRefreshing { clearDisplay() }
             waitForSession(agent)
             return
         }
@@ -632,12 +772,13 @@ public final class ConversationModel {
         if boundSessionID != target.sessionKey {
             // 新的 session(輪替，或回收 slot 中的新聊天):丟掉舊對話、游標與快取(F5.1 第 4 點)。
             if boundSessionID != nil { await cache.remove(chatKey: chatKey) }
-            unbind()
+            unbind(keepingDisplay: true)
             boundSessionID = target.sessionKey
         }
         format = target.format
         followPace?.interval = pollInterval
         await read(target)
+        await readScreens()
     }
 
     /// 背景 agents 窗格的讀取時機(F10、R-W05):工作中約每 6 秒讀(#204);問題開著時沿用上次;閒置時只在上次有窗格、
@@ -654,7 +795,7 @@ public final class ConversationModel {
         guard shouldRead else { return }
         // 這次輪詢找提示時已經讀過畫面就沿用，不再多一個主機指令。
         let read: String?
-        if let screenThisPoll { read = screenThisPoll } else { read = try? await client.readPane(paneID: paneID) }
+        if let screenThisPoll { read = screenThisPoll } else { read = await readScreen() }
         guard let screen = read else { return }
         agentsPane = AgentsPane.parse(screen: screen)
         agentsPaneReadAt = clock.now()
@@ -671,6 +812,7 @@ public final class ConversationModel {
 
     private func read(_ target: TranscriptTarget) async {
         let generation = generation
+        defer { if generation == self.generation { isRefreshing = false } }
         do {
             if let file, following?.path == file.path {
                 // 新內容由追蹤送來(#165),不讀尾端。
@@ -753,6 +895,7 @@ public final class ConversationModel {
             // 新 session 在第一個 prompt 前可能還沒有檔案：可用的空聊天，下次輪詢再找(R-I09)。
             guard generation == self.generation else { return }
             file = nil
+            if isRefreshing { clearDisplay() }
             banner = nil
             phase = .ready
         case TranscriptReadError.unreadable:
@@ -762,12 +905,14 @@ public final class ConversationModel {
             // 不開任何檔、不依新舊猜;下次輪詢重新定位(使用者可能已刪掉多餘的檔)。
             guard generation == self.generation else { return }
             file = nil
+            if isRefreshing { clearDisplay() }
             banner = .ambiguous
             phase = .ready
         case TranscriptReadError.compressed:
             // 只有 `.zst`:不是「還沒有檔案」,也不在手機上解壓;下次輪詢重新定位(Codex 可能又寫了新的 rollout)。
             guard generation == self.generation else { return }
             file = nil
+            if isRefreshing { clearDisplay() }
             banner = .compressed
             phase = .ready
         default:
@@ -780,13 +925,19 @@ public final class ConversationModel {
     /// 讀最後 `openLines` 行並**取代**目前的訊息。
     private func openWindow(path: String, size: Int, generation: Int) async throws {
         // 以剛探測到的大小為上限:agent 同時在寫也不會變成無上限的補讀(§4.7)。
-        let chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines)
+        var chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
         guard generation == self.generation else { return }
+        if chunk.lines.isEmpty, chunk.start > 0 {
+            // 最後一行比 byte 上限還大：放寬成只讀那一行(上限的目的是慢網路下別讀太多，但一行都沒有就沒東西可看)。
+            chunk = try await transcripts.window(path: path, endingAt: size, lines: 1)
+            guard generation == self.generation else { return }
+        }
         file = (path, TranscriptFollow(cursor: chunk.end, isLive: true), chunk.start)
         recent = parse(chunk.lines)
         segments = [(chunk.start, recent.count)]
         olderMessages = []
         metadata = format.latestMetadata(in: chunk.lines)
+        progress = AgentProgress.latest(in: chunk.lines, format: format)
         older = chunk.start > 0 ? .available : .reachedStart
         rebuild()
     }
@@ -796,7 +947,10 @@ public final class ConversationModel {
         let added = parse(chunk.lines).filter { !known.contains($0.id) }
         recent += added
         if !added.isEmpty { segments.append((chunk.start, added.count)) }
-        for line in chunk.lines { format.updateMetadata(&metadata, with: line) }
+        for line in chunk.lines {
+            format.updateMetadata(&metadata, with: line)
+            progress.update(with: line, format: format)
+        }
         trimIfFollowing()
         rebuild()
     }
@@ -856,6 +1010,7 @@ public final class ConversationModel {
     /// 連不上主機：畫面空著時，唯讀顯示同一 session 的快取(只在快取屬於列表看到的 session 時,R-B16)。
     private func showOffline() async {
         isOffline = true
+        isRefreshing = false
         // 斷線前的狀態已過時：不能留著 working 讓停止鈕可按(#220)。
         if agentStatus == .working { stopNeedsReconnect = true }
         agentStatus = nil
@@ -896,10 +1051,13 @@ public final class ConversationModel {
     /// 可送 = 不是唯讀裝置、修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
     /// 自訂回答時改看回答在途與否，而且不能只送圖片(#120)。
     public var canSend: Bool {
-        guard hasTarget, !isReadOnly else { return false }
+        guard !isReadOnly else { return false }
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // 離線時排進離線佇列(#301):只排文字(圖片要上傳到主機)、不排自訂回答。
+        if canQueueOffline { return !isSending && hasText && attachments.isEmpty }
+        guard hasTarget else { return false }
         if typedAnswer != nil { return answerInFlight == nil && hasText }
-        return !isSending && uploadingFileName == nil && (hasText || !attachments.isEmpty)
+        return !isSending && loadingFileName == nil && (hasText || !attachments.isEmpty)
     }
 
     /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
@@ -961,12 +1119,18 @@ public final class ConversationModel {
     /// 強制結束同停止，只對 working 的 agent;唯讀、離線時不可用(#220)。
     public var canForceQuit: Bool { agentStatus == .working && !isReadOnly && !isOffline }
 
+    /// 離線，但知道對象(上次讀到的 Agent),送出會排進離線佇列。
+    public var canQueueOffline: Bool {
+        isOffline && offlineQueue != nil && currentAgent != nil && typedAnswer == nil && phase != .agentGone
+    }
+
     private var hasTarget: Bool {
         phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
     }
 
     /// 送出輸入框的文字(F6.5)。
     ///
+    /// 先經過送出管線(`SendPipeline`,#299):步驟擋下時不碰主機，依步驟決定草稿放回或維持清空。
     /// 輸入框樂觀清空、立刻顯示回音;送出當下重讀**新鮮的** snapshot 重新確認目標 pane(2 秒前的 pane 可能已被回收,R-P06)。
     /// 什麼都沒送出(agent 不在、session 換了、在等回答、herdr 拒絕)→ 拿掉回音、草稿放回;
     /// 送了但不確定(沒有反應、無法確認)→ 回音標示失敗，可重試，**不自動重送**(§7.3)。
@@ -977,6 +1141,19 @@ public final class ConversationModel {
             return
         }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft = ""
+        await submit(text)
+    }
+
+    /// 變更頁組好的評論訊息送給 Agent(#310):與輸入列同一條送出管線;輸入框裡打到一半的字留著，
+    /// 擋下而要放回時評論接在草稿前面。
+    public func sendReview(_ text: String) async {
+        guard canSendReview else { return }
+        await submit(text)
+    }
+
+    /// 送出一段文字：送出管線 → 主機。呼叫端已清空(或不動)輸入框。
+    private func submit(_ text: String) async {
         isSending = true
         updateWorkingSince()
         defer {
@@ -984,13 +1161,29 @@ public final class ConversationModel {
             updateWorkingSince()
         }
         notice = nil
-        draft = ""
+        let outgoing = OutgoingPrompt(
+            text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now(),
+            workspaceID: currentAgent?.workspaceID)
+        // 連線狀態在步驟輪到時才讀:撤回倒數期間可能斷線或恢復。
+        switch await sendPipeline.prepare(outgoing, isHostReachable: { [weak self] in !(self?.isOffline ?? false) }) {
+        case .proceed(let prepared):
+            await deliver(prepared)
+        case .halt(let halt):
+            // 放回的是使用者打的原文(不是步驟改過的);步驟等待期間(撤回倒數)又打了字時，原文放在前面、不蓋掉新打的。
+            if halt.restoresDraft { putBackInDraft(text) }
+        }
+    }
+
+    /// 管線通過後交給主機：回音、上傳圖片、重新確認目標、送出。
+    private func deliver(_ outgoing: OutgoingPrompt) async {
+        let text = outgoing.text
         // 送出後舊建議已不適用;下次完成時重讀(herdr 可能來不及回報工作中,#123)。
         clearSuggestion()
         let sentImages = attachments
         let echo = PromptEcho(
             id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs,
-            imageCount: sentImages.count, imageFiles: sentImages.map(\.fileName.value)
+            imageCount: sentImages.filter { $0.kind == .image }.count,
+            imageFiles: sentImages.filter { $0.kind == .image }.map(\.fileName.value)
         )
         echoes.append(echo)
         rebuildEntries()
@@ -1000,18 +1193,24 @@ public final class ConversationModel {
             paths = try await uploadAttachments()
         } catch {
             removeEcho(echo.id)
-            restoreDraft(text)
+            putBackInDraft(text)
             notice = Self.uploadNotice(for: error, otherwise: .uploadFailed)
             return
         }
-        if let index = echoes.firstIndex(where: { $0.id == echo.id }) { echoes[index].imagePaths = paths }
+        if let index = echoes.firstIndex(where: { $0.id == echo.id }) {
+            echoes[index].imagePaths = paths
+            echoes[index].filePaths = zip(sentImages, paths).filter { $0.0.kind == .file }.map(\.1)
+        }
         let prompt = UploadedImages.prompt(text: text, paths: paths)
         switch await freshTarget() {
         case .success(let agent):
-            apply(await delivery.send(prompt, to: agent), toEcho: echo.id, text: text, isRetry: false)
+            apply(
+                await delivery.send(prompt, to: agent, expectedSession: outgoing.expectedSession), toEcho: echo.id, text: text,
+                isRetry: false)
             // 附件只在送出被接受時清(什麼都沒送出時草稿放回、圖片也留著，已上傳的不重傳)。
             if !Self.nothingSent(notice) {
                 attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
+                for sent in sentImages where sent.kind == .file { images?.store.remove(sent.fileName.value) }
                 saveAttachments()
             }
             if notice == .needsAnswer {
@@ -1021,7 +1220,7 @@ public final class ConversationModel {
             }
         case .failure(let failure):
             removeEcho(echo.id)
-            restoreDraft(text)
+            putBackInDraft(text)
             notice = failure.notice
         }
     }
@@ -1037,7 +1236,9 @@ public final class ConversationModel {
         notice = nil
         switch await freshTarget() {
         case .success(let agent):
-            apply(await delivery.send(prompt, to: agent), toEcho: echoID, text: text, isRetry: true)
+            apply(
+                await delivery.send(prompt, to: agent, expectedSession: boundSessionID ?? knownSessionID), toEcho: echoID, text: text,
+                isRetry: true)
         case .failure(let targetFailure):
             setEcho(echoID, state: .failed(failure))
             notice = targetFailure.notice
@@ -1115,16 +1316,25 @@ public final class ConversationModel {
         answerSent = nil
         answerNotice = nil
         haptics.play(.selection)
+        let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
         do {
             for input in inputs {
                 switch input {
-                case .keys(let keys): try await client.sendKeys(paneID: paneID, keys: keys)
-                case .text(let text): try await client.sendText(paneID: paneID, text: text)
+                case .keys(let keys): try await client.sendKeys(paneID: paneID, keys: keys, expecting: expectation)
+                case .text(let text): try await client.sendText(paneID: paneID, text: text, expecting: expectation)
                 }
             }
         } catch {
             guard answerInFlight == answer else { return }
             clearAnswer()
+            if error as? HostServiceError == .paneChanged {
+                // 什麼都沒送出：題目或對話已變，立刻重讀畫面換上目前的題目。
+                answerNotice = .questionChanged
+                haptics.play(.error)
+                probeScreen = true
+                await poll()
+                return
+            }
             if error as? HostServiceError == .readOnlyDevice {
                 // 卡片改顯示唯讀說明，不另外提示。
                 isReadOnly = true
@@ -1217,7 +1427,7 @@ public final class ConversationModel {
         guard canAnswer(answer) else { return }
         endTypedAnswer()
         await self.answer(answer)
-        if answerNotice == .sendFailed, isTypedAnswerOption(option) {
+        if answerNotice == .sendFailed || answerNotice == .questionChanged, isTypedAnswerOption(option) {
             beginTypedAnswer(option)
             draft = text
         }
@@ -1248,7 +1458,7 @@ public final class ConversationModel {
             update(prompt: nil)
             return
         }
-        screenThisPoll = try? await client.readPane(paneID: agent.paneID)
+        screenThisPoll = await readScreen()
         guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
             if blocked, prompt == nil { prompt = .unrecognized }
@@ -1368,13 +1578,16 @@ public final class ConversationModel {
         case .readOnlyDevice:
             isReadOnly = true
             nothingSent = .readOnlyDevice
+        case .paneChanged:
+            // 主機送出前比對發現對話已變更(#304):與送前重讀 snapshot 發現 session 換了相同。
+            nothingSent = .superseded
         }
         notice = nothingSent
         if isRetry {
             setEcho(id, state: .failed(.noResponse))
         } else {
             removeEcho(id)
-            restoreDraft(text)
+            putBackInDraft(text)
         }
     }
 
@@ -1386,9 +1599,9 @@ public final class ConversationModel {
         }
     }
 
-    /// 被拒的文字放回輸入框(使用者這段時間又打了字就不蓋掉)。
-    private func restoreDraft(_ text: String) {
-        if draft.isEmpty { draft = text }
+    /// 沒送出的文字放回輸入框:接在目前的草稿前面,使用者這段時間打的字不蓋掉(放回輸入框的一律走這裡)。
+    private func putBackInDraft(_ text: String) {
+        draft = draft.isEmpty ? text : text + "\n" + draft
     }
 
     private func setEcho(_ id: String, state: PromptEcho.State) {
@@ -1428,6 +1641,7 @@ public final class ConversationModel {
         let merged = EchoTimeline.merge(items: items, echoes: echoes)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
+        updateAwaySummary()
         refreshAnsweredCard()
     }
 
@@ -1531,7 +1745,7 @@ public final class ConversationModel {
             return
         }
         guard watching || panel != nil || screenThisPoll != nil else { return }
-        if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+        if screenThisPoll == nil { screenThisPoll = await readScreen() }
         guard let screen = screenThisPoll else { return }
         let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
         if next != panel { panel = next }
@@ -1556,6 +1770,179 @@ public final class ConversationModel {
         guard let suggestion else { return false }
         draft = suggestion
         return true
+    }
+
+    /// HTTPS 主機的主機服務太舊、讀不了 Pane 畫面時的說明(#303):「需要你」卡只能給通用鈕，看不到選項、計畫與建議。
+    /// 讀得到畫面或是其他原因失敗時為 `nil`。
+    public private(set) var screenUpdateRequiredMessage: String?
+
+    /// 讀 pane 可見畫面;讀不到回 `nil`(呼叫端各自沿用上次或當成未知)。主機服務太舊時記下說明，讀得到就拿掉。
+    private func readScreen(format: PaneReadFormat = .text) async -> String? {
+        do {
+            let screen = try await client.readPane(paneID: paneID, format: format)
+            screenUpdateRequiredMessage = nil
+            return screen
+        } catch let error as HostServiceError {
+            if case .hostServiceUpdateRequired = error { screenUpdateRequiredMessage = HostErrorText.hostServiceMessage(error) }
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
+    // MARK: - 模型膠囊(#350)
+
+    /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
+    public var modelName: String? { metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+
+    /// 模型選擇 sheet 開著(從送出 `/model` 到選定或取消)。畫面據此不在對話裡重複畫同一張面板卡片。
+    public private(set) var isChoosingModel = false
+
+    /// 能開模型選擇:只有 Claude(`/model` 面板一步選定)、閒置、沒有問題在等、沒有別的面板、
+    /// 非唯讀與離線。工作中時 `/model` 會排進佇列,所以不開放。
+    public var canChooseModel: Bool {
+        currentAgent?.kind == "claude" && hasTarget && !isReadOnly && !isOffline && !isSending && typedAnswer == nil
+            && prompt == nil && panel == nil && agentStatus != .working && agentStatus != .blocked && !isChoosingModel
+    }
+
+    /// 點模型膠囊:送 `/model`(不產生回音泡泡),之後由既有的面板監看讀到畫面上的面板。
+    /// 什麼都沒送出(Agent 不在、對話已變更、唯讀…)時 sheet 不開,原因放在 `notice`。
+    public func beginChoosingModel() async {
+        guard canChooseModel else { return }
+        isChoosingModel = true
+        notice = nil
+        switch await freshTarget() {
+        case .success(let agent):
+            let outcome = await delivery.send("/model", to: agent, expectedSession: boundSessionID ?? knownSessionID)
+            switch outcome {
+            case .submittedCommand:
+                watchForPanel()
+            case .noResponse:
+                notice = .noResponse
+                isChoosingModel = false
+            default:
+                isChoosingModel = false
+            }
+        case .failure(let failure):
+            notice = failure.notice
+            isChoosingModel = false
+        }
+    }
+
+    /// 在 sheet 點選一個模型:移動面板游標到那一列,再按面板自己的 Enter 確認(永不送數字)。
+    public func chooseModel(_ option: SlashPanelOption) async {
+        guard let panel, isChoosingModel else { return }
+        await operatePanel(.select(option))
+        // 面板的 Enter 是「設為預設」(寫進使用者設定);膠囊只改這個 session,所以有 `s`(只用在這個 session)就按它。
+        if let confirm = panel.actions.first(where: { $0.key == "s" }) ?? panel.actions.first(where: { $0.key == "enter" }) {
+            await operatePanel(.action(confirm))
+        }
+        isChoosingModel = false
+    }
+
+    /// sheet 關閉(選定後或使用者下滑／按完成):面板還開著就按 Esc 取消,不改模型。
+    public func finishChoosingModel() async {
+        guard isChoosingModel else { return }
+        isChoosingModel = false
+        if let esc = panel?.actions.first(where: { $0.key == "esc" }) {
+            await operatePanel(.action(esc))
+        }
+    }
+
+    // MARK: - 權限模式(#306)
+
+    /// 從畫面讀到的 Claude 權限模式;還沒讀到或認不出是 `nil`。
+    public private(set) var permissionMode: AgentPermissionMode?
+    /// 正在切到這個模式(膠囊顯示進行中)。
+    public private(set) var switchingPermissionMode: AgentPermissionMode?
+    public var isSwitchingPermissionMode: Bool { switchingPermissionMode != nil }
+    @ObservationIgnored private var permissionModeProbed = false
+
+    /// 只有 Claude Code 有權限模式。
+    public var supportsPermissionMode: Bool { currentAgent?.kind == "claude" }
+
+    /// 膠囊可以操作:讀到目前模式、沒在切換、沒離線;唯讀裝置不行(畫面說明)。
+    public var canSwitchPermissionMode: Bool {
+        supportsPermissionMode && permissionMode != nil && !isSwitchingPermissionMode && !isReadOnly && !isOffline
+    }
+
+    /// 讀一次畫面更新目前模式;認不出沿用上次。
+    public func refreshPermissionMode() async {
+        guard supportsPermissionMode, let screen = await readScreen() else { return }
+        if let mode = PermissionModeScreen.parse(screen) { permissionMode = mode }
+    }
+
+    /// 每次 `run` 第一輪輪詢後讀一次(平常的輪詢不讀畫面,指令預算)。
+    private func probePermissionModeIfNeeded() async {
+        guard !permissionModeProbed, supportsPermissionMode, !isReadOnly, !isOffline else { return }
+        permissionModeProbed = true
+        await refreshPermissionMode()
+    }
+
+    /// 最近一次切換失敗的原因(#306);切換成功、再試或換 Agent 時清掉。膠囊的 sheet 顯示說明與「再試一次」。
+    public private(set) var permissionModeFailure: PermissionModeFailure?
+
+    /// 對上次失敗的目標再切一次。
+    public func retryPermissionMode() async {
+        guard let target = permissionModeFailure?.target else { return }
+        await setPermissionMode(target)
+    }
+
+    /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式,最多 `maximumSwitchAttempts` 次。
+    /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面;按鍵帶 `expected_session`,對話已換掉就不按。
+    /// 目標是略過權限時,輪替一圈回到看過的模式就停(這個 session 啟動時沒開,再按也不會出現)。
+    /// 失敗記在 `permissionModeFailure`,可再試;離開聊天(取消)時直接結束、不算失敗。
+    public func setPermissionMode(_ target: AgentPermissionMode) async {
+        guard supportsPermissionMode, !isSwitchingPermissionMode else { return }
+        guard !isReadOnly else {
+            notice = .readOnlyDevice
+            return
+        }
+        permissionModeFailure = nil
+        switchingPermissionMode = target
+        defer { switchingPermissionMode = nil }
+        guard var current = await readPermissionMode() else {
+            permissionModeFailure = .unreadable(target: target)
+            return
+        }
+        permissionMode = current
+        let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
+        var visited: Set<AgentPermissionMode> = [current]
+        var attempts = 0
+        while current != target, attempts < AgentPermissionMode.maximumSwitchAttempts {
+            do {
+                try await client.sendKeys(paneID: paneID, keys: ["shift+tab"], expecting: expectation)
+            } catch is CancellationError {
+                return
+            } catch {
+                permissionModeFailure = error as? HostServiceError == .paneChanged
+                    ? .paneChanged(target: target) : .keysFailed(target: target)
+                haptics.play(.error)
+                return
+            }
+            attempts += 1
+            do { try await sleep(.milliseconds(300)) } catch { return }
+            guard let read = await readPermissionMode() else { break }
+            let wrapped = read != current && !visited.insert(read).inserted
+            current = read
+            permissionMode = read
+            if wrapped, target == .bypassPermissions, current != target {
+                permissionModeFailure = .bypassUnavailable
+                haptics.play(.error)
+                return
+            }
+        }
+        if current != target {
+            permissionModeFailure = .notReached(attempts: attempts, target: target)
+            haptics.play(.error)
+        } else {
+            haptics.play(.selection)
+        }
+    }
+
+    private func readPermissionMode() async -> AgentPermissionMode? {
+        guard let screen = await readScreen() else { return nil }
+        return PermissionModeScreen.parse(screen)
     }
 
     /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。
@@ -1587,7 +1974,7 @@ public final class ConversationModel {
         guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, screenThisPoll == nil else { return nil }
         let epoch = suggestionEpoch
         suggestionReadsLeft -= 1
-        guard let screen = try? await client.readPane(paneID: paneID, format: .ansi), epoch == suggestionEpoch else { return nil }
+        guard let screen = await readScreen(format: .ansi), epoch == suggestionEpoch else { return nil }
         screenThisPoll = Self.plainText(ansi: screen)
         return SuggestionRead(suggestion: PromptSuggestion.detect(screen: screen), epoch: epoch)
     }
@@ -1618,13 +2005,14 @@ public final class ConversationModel {
 
     /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
-        ConversationHeader(agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName())
+        ConversationHeader(
+            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: progress)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
     public func reload() async {
         await cache.remove(chatKey: chatKey)
-        unbind()
+        unbind(keepingDisplay: true)
         banner = nil
         await poll()
     }
@@ -1652,7 +2040,7 @@ public final class ConversationModel {
     private func refreshLivePreview() async {
         if agentStatus == .working, prompt == nil {
             if workingScreenDue {
-                if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+                if screenThisPoll == nil { screenThisPoll = await readScreen() }
                 screenPreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
             }
         } else {
@@ -1672,7 +2060,8 @@ public final class ConversationModel {
 
     // MARK: - 內部
 
-    private func unbind() {
+    /// 解除目前的對話綁定。`keepingDisplay` 時畫面上的訊息留到新內容讀回來(#329),`isRefreshing` 標示讀取中。
+    private func unbind(keepingDisplay: Bool = false) {
         stopFollowingUpdates()
         if let path = file?.path {
             let transcripts = transcripts
@@ -1682,10 +2071,19 @@ public final class ConversationModel {
         workflowModels = [:]
         boundSessionID = nil
         file = nil
+        isRefreshing = keepingDisplay
+        if keepingDisplay { return }
+        clearDisplay()
+    }
+
+    /// 清掉顯示中的訊息(沒有新內容可換上時，例如新 session 還沒有對話紀錄)。
+    private func clearDisplay() {
+        isRefreshing = false
         recent = []
         segments = []
         olderMessages = []
         metadata = TranscriptMetadata()
+        progress = AgentProgress()
         older = .reachedStart
         rebuild()
     }
@@ -1759,8 +2157,8 @@ public enum SendNotice: Sendable, Equatable {
     case noResponse
     /// 不知道有沒有送到。
     case unconfirmed(UnconfirmedReason)
-    /// 一則最多 4 張圖片(F7)。
-    case imageLimit
+    /// 一則最多 10 個附件(F7、#352)。
+    case attachmentLimit
     /// 讀不出圖片。
     case imageUnreadable
     /// 原始圖片超過單張上限(`ImageUploadLimit.maximumSize`)。
@@ -1779,4 +2177,26 @@ public enum SendNotice: Sendable, Equatable {
     case panelKeysFailed
     /// 這支裝置配對成唯讀，什麼都沒送出。
     case readOnlyDevice
+}
+
+/// 切換權限模式失敗的原因(#306)。
+public enum PermissionModeFailure: Equatable, Sendable {
+    /// 試了 `attempts` 次，畫面上沒有看到 `target`。
+    case notReached(attempts: Int, target: AgentPermissionMode)
+    /// 輪替一圈沒有出現略過權限:這個 session 啟動時沒有開。
+    case bypassUnavailable
+    /// 讀不到畫面，不知道目前是哪個模式。
+    case unreadable(target: AgentPermissionMode)
+    /// 按鍵沒送到主機。
+    case keysFailed(target: AgentPermissionMode)
+    /// 對話已被換成別的(送出前比對不符)，什麼都沒按。
+    case paneChanged(target: AgentPermissionMode)
+
+    /// 再試一次要切到的模式;略過權限沒開時再試沒有意義。
+    public var target: AgentPermissionMode? {
+        switch self {
+        case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
+        case .bypassUnavailable: nil
+        }
+    }
 }

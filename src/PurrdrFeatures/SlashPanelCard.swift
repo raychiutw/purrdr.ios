@@ -7,7 +7,7 @@ import SwiftUI
 /// - 內容層：和「需要你」的提示卡同樣的背景，不用 Liquid Glass。
 /// - 選項列：目前使用中以勾號 + 文字標示(不只靠顏色),游標所在列以填色高亮;點選項只移動游標(送方向鍵),
 ///   由面板自己的動作鈕確認。**永不送數字**(數字在模型選擇器會直接存成預設)。
-/// - effort 滑桿以分段控制呈現，‹ › 調整送 ←/→。
+/// - effort 層級攤開成直排的勾選列(#313),目前那層打勾;‹ › 調整送 ←/→。
 /// - 動作鈕取自面板的提示行(agent 的原文，不翻譯);確認鍵(Enter)是 prominent,取消(Esc)放最後且中性。
 struct SlashPanelCard: View {
     let model: ConversationModel
@@ -103,20 +103,39 @@ struct SlashPanelCard: View {
 
     // MARK: - effort
 
+    /// 層級攤開成直排的勾選列(#313),樣式同上面的選項列;目前的層級打勾。
     private func levels(_ slider: SlashPanelSlider) -> some View {
-        Picker(selection: Binding(
-            get: { slider.current ?? -1 },
-            set: { operate(.level($0)) }
-        )) {
+        VStack(spacing: 0) {
             ForEach(Array(slider.levels.enumerated()), id: \.offset) { index, level in
-                Text(verbatim: level).tag(index)
+                levelRow(level, isCurrent: slider.current == index) { operate(.level(index)) }
             }
-        } label: {
-            Text("Level")
         }
-        .pickerStyle(.segmented)
         .disabled(slider.current == nil)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Level"))
         .accessibilityIdentifier("panel.levels")
+    }
+
+    private func levelRow(_ level: String, isCurrent: Bool, select: @escaping () -> Void) -> some View {
+        Button(action: select) {
+            HStack(spacing: 8) {
+                Text(verbatim: level)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if isCurrent {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(verbatim: level))
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 
     private func adjuster(_ text: String) -> some View {

@@ -23,14 +23,34 @@ public struct PlanUsageView: View {
                     }
                 }
                 .accessibilityIdentifier("planUsage.host")
+            } footer: {
+                costNote
+            }
+            // Agent 與顯示方式攤開成勾選列(#313);顯示方式不再放在「⋯」裡。
+            Section {
                 Picker("Agent", selection: agentSelection) {
                     ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
                         Text(verbatim: agent.name).tag(agent)
                     }
                 }
+                .pickerStyle(.inline)
+                .labelsHidden()
                 .accessibilityIdentifier("planUsage.agent")
-            } footer: {
-                costNote
+            } header: {
+                Text("Agent")
+                    .foregroundStyle(.secondaryText)
+            }
+            Section {
+                Picker("Show", selection: $model.display) {
+                    Text("Remaining").tag(PlanUsageModel.Display.remaining)
+                    Text("Used").tag(PlanUsageModel.Display.used)
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+                .accessibilityIdentifier("planUsage.display")
+            } header: {
+                Text("Show")
+                    .foregroundStyle(.secondaryText)
             }
             Section {
                 content
@@ -100,10 +120,17 @@ public struct PlanUsageView: View {
         case .unsupportedConnection:
             PlanUsageMessage(
                 systemImage: "nosign", title: "Plan usage isn’t available for this connection method",
-                detail: "\(hostName) connects over HTTPS. Choose an SSH host to check plan usage.")
+                detail: "\(hostName) can’t show plan usage. Choose another host.")
         case .failed(let failure):
             PlanUsageMessage(
-                systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(failure.text) Pull down to try again.")
+                systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(failure.text) Pull down to try again."
+            ) {
+                // 要使用者在主機上執行的指令一律有拷貝鈕(#359)。
+                if failure == .codexNotSignedIn {
+                    InstructionView(instruction: AddHostGuideInstruction(text: String(localized: "Run this on the host:"), command: "codex login"))
+                        .padding(.horizontal)
+                }
+            }
         }
         if let message = model.message {
             Label(message, systemImage: "exclamationmark.triangle")
@@ -155,21 +182,18 @@ public struct PlanUsageView: View {
 
     @ToolbarContentBuilder
     private var options: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Menu {
-                Picker("Show", selection: $model.display) {
-                    Text("Show Remaining").tag(PlanUsageModel.Display.remaining)
-                    Text("Show Used").tag(PlanUsageModel.Display.used)
-                }
-                if model.canTurnOff {
+        // 「⋯」只放這頁的動作(#313):沒有可關閉的就不顯示。
+        if model.canTurnOff {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
                     Button("Turn Off Claude Plan Usage", systemImage: "arrow.uturn.backward", role: .destructive) {
                         Task { await model.turnOff() }
                     }
+                } label: {
+                    Label("Plan Usage Options", systemImage: "ellipsis")
                 }
-            } label: {
-                Label("Plan Usage Options", systemImage: "ellipsis")
+                .accessibilityIdentifier("planUsage.menu")
             }
-            .accessibilityIdentifier("planUsage.menu")
         }
     }
 
@@ -192,12 +216,7 @@ public struct PlanUsageView: View {
 
     private var consentMessage: String {
         guard case .confirming(let user) = model.state else { return "" }
-        return String(localized: """
-            Claude Code shares plan usage only with its status line. To show it here, Purrdr will change \
-            ~/.claude/settings.json on this host as the user “\(user)”: the status line command becomes \
-            ~/.purrdr/claude-usage/statusline.sh, which saves the usage and then runs your current status line. \
-            Turning this off restores your original settings.
-            """)
+        return String(localized: "To show plan usage, Purrdr changes one Claude Code setting on this host (signed in as \(user)). Turning this off puts it back.")
     }
 }
 
@@ -206,9 +225,9 @@ extension PlanUsageFailure {
     var text: String {
         switch self {
         case .codexNotFound:
-            String(localized: "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH.")
+            String(localized: "This host can’t find Codex. Install Codex there first.")
         case .codexNotSignedIn:
-            String(localized: "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first.")
+            String(localized: "Codex isn’t signed in on this host. Sign in there with the command below.")
         case .codexUnreadableResponse:
             String(localized: "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help.")
         case .codexTimedOut:

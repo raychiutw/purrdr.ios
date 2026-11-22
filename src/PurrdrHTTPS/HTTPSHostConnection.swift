@@ -12,6 +12,8 @@ public actor HTTPSHostConnection: HostConnection {
     private let address: HostServiceAddress
     private let deviceToken: @Sendable () throws -> String?
     private let transport: any WebSocketConnecting
+    /// 流量計量(#353):WebSocket 收送的訊息位元組;建立後才接上也算。
+    private let trafficSink: TrafficSink
     private let appVersion: String?
     private let heartbeat: HostServiceHeartbeat
     private let quickHeartbeat: HostServiceHeartbeat
@@ -44,15 +46,22 @@ public actor HTTPSHostConnection: HostConnection {
     public init(
         address: HostServiceAddress, deviceToken: @escaping @Sendable () throws -> String?,
         transport: any WebSocketConnecting = URLSessionHostServiceTransport(), appVersion: String? = nil,
-        heartbeat: HostServiceHeartbeat = .standard, quickHeartbeat: HostServiceHeartbeat = .quick, sleep: @escaping Sleep = Sleeping.task
+        heartbeat: HostServiceHeartbeat = .standard, quickHeartbeat: HostServiceHeartbeat = .quick, sleep: @escaping Sleep = Sleeping.task,
+        traffic: TrafficRecording? = nil
     ) {
+        trafficSink = TrafficSink(traffic)
         self.address = address
         self.deviceToken = deviceToken
-        self.transport = transport
+        self.transport = MeteredWebSocketTransport(base: transport, sink: trafficSink)
         self.appVersion = appVersion
         self.heartbeat = heartbeat
         self.quickHeartbeat = quickHeartbeat
         self.sleep = sleep
+    }
+
+    /// 接上流量計量(#353)。
+    public nonisolated func attachTraffic(_ recording: TrafficRecording?) {
+        trafficSink.attach(recording)
     }
 
     /// 握手得到的主機服務與 herdr 伺服器資訊(連線測試顯示用)。
@@ -92,6 +101,12 @@ public actor HTTPSHostConnection: HostConnection {
 
     public func hostServiceVersion() async throws -> String? {
         try await hostServiceInfo().hostServiceVersion
+    }
+
+    /// 主機服務 0.7.0 起在送出前比對(`HostServiceFeature.sendExpectations`);更舊的不認得這些欄位，不帶。
+    /// 連不上時回 `false`:接著的送出自己會回報連線錯誤。
+    public func checksSendExpectations() async -> Bool {
+        HostServiceFeature.sendExpectations.isAvailable(onHostServiceVersion: (try? await hostServiceVersion()) ?? nil)
     }
 
     /// 主機服務版本不足時丟 `HostServiceError.hostServiceUpdateRequired`;門檻見 `HostServiceFeature.minimumVersion`。
@@ -393,12 +408,17 @@ public actor HTTPSHostConnection: HostConnection {
         case .uploadTooLarge: HostUploadError.tooLarge
         case .deviceUnknown: HostServiceError.deviceUnknown
         // 只回覆 `push.*`,由 `HostServicePushPluginInstaller` 依操作直接對應。
-        case .pushPluginFailed, .pushNotPaired, .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
-        // 主機服務 0.7.0 的新訊息(送出前比對、佇列、唯讀 git)才會回;app 還沒送這些訊息，接上時(#298)再給專屬錯誤。
-        case .paneChanged, .cwdNotAllowed, .notGitRepository, .queueFull, .queueItemUnknown: HostServiceError.unexpectedResponse
+        case .pushPluginFailed, .pushNotPaired, .pushSendFailed, .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
         case .hostServiceNotInstalled: HostServiceManagementError.notInstalledCopy
         case .updateInProgress: HostServiceManagementError.updateInProgress
         case .updateFailed: HostServiceManagementError.updateFailed(message.message)
+        case .paneChanged: HostServiceError.paneChanged
+        // 變更頁(#310):Agent 已換資料夾或結束、工作目錄不在 git repo 裡。
+        case .cwdNotAllowed: GitChangesError.cwdNotAllowed
+        case .notGitRepository: GitChangesError.notGitRepository
+        // Send When Done 佇列(#305)。
+        case .queueFull: HostServiceError.queueFull
+        case .queueItemUnknown: HostServiceError.queueItemUnknown
         }
     }
 
@@ -576,6 +596,30 @@ enum HerdrResponseLine {
     /// `agent.prompt` 成功;`delivery` 照主機回報(沒有就省略)。
     static func prompted(id: String?, delivery: String?) throws -> Data {
         try encode(Envelope(id: id, result: Prompted(type: "agent_prompted", delivery: delivery)))
+    }
+
+    /// `pane.read` 的結果:`HerdrClient` 只讀 `read.text`。
+    static func paneRead(id: String?, text: String) throws -> Data {
+        try encode(Envelope(id: id, result: PaneRead(type: "pane_read", read: .init(text: text))))
+    }
+
+    private struct PaneRead: Encodable {
+        var type: String
+        var read: Read
+
+        struct Read: Encodable {
+            var text: String
+        }
+    }
+
+    /// `sessions.list` 的結果(#309):`HerdrClient` 讀 `sessions` 的 id、modified、summary。
+    static func sessionsList(id: String?, sessions: [HostServiceProtocol.HistorySession]) throws -> Data {
+        try encode(Envelope(id: id, result: SessionsListed(type: "sessions_list", sessions: sessions)))
+    }
+
+    private struct SessionsListed: Encodable {
+        var type: String
+        var sessions: [HostServiceProtocol.HistorySession]
     }
 
     static func subscriptionStarted(id: String?) throws -> Data {

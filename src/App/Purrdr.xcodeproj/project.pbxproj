@@ -314,6 +314,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Purrdr uses the camera to take photos for your chats and to scan the pairing QR code a host shows.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Purrdr shows your recent photos so you can attach them to a chat. Photos stay on your device until you send them.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Purrdr uses Face ID to unlock the app when App Lock is on.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -324,7 +325,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.47.0;
+				MARKETING_VERSION = 0.48.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.raychiu.purrdr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -351,6 +352,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Purrdr uses the camera to take photos for your chats and to scan the pairing QR code a host shows.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Purrdr shows your recent photos so you can attach them to a chat. Photos stay on your device until you send them.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Purrdr uses Face ID to unlock the app when App Lock is on.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -361,7 +363,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.47.0;
+				MARKETING_VERSION = 0.48.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.raychiu.purrdr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -379,7 +381,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.47.0;
+				MARKETING_VERSION = 0.48.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.raychiu.purrdr.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -396,7 +398,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.47.0;
+				MARKETING_VERSION = 0.48.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.raychiu.purrdr.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

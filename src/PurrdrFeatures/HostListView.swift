@@ -12,15 +12,18 @@ public struct HostListView: View {
     @Binding var importURL: URL?
     /// 等著開編輯頁的主機(點了主機服務通知);開啟後清掉。
     @Binding var editHostID: UUID?
+    /// 要直接開新增主機引導(Agent 列表空狀態的「新增主機」);開啟後清掉。
+    @Binding var addHost: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var flow = HostListFlow()
     @State private var renaming: HostRenaming?
     @State private var actionError: String?
 
-    public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil), editHostID: Binding<UUID?> = .constant(nil)) {
+    public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil), editHostID: Binding<UUID?> = .constant(nil), addHost: Binding<Bool> = .constant(false)) {
         self.model = model
         _importURL = importURL
         _editHostID = editHostID
+        _addHost = addHost
     }
 
     public var body: some View {
@@ -47,7 +50,7 @@ public struct HostListView: View {
                 }
                 Section {
                     Button {
-                        model.select(.demo)
+                        model.enterDemo()
                         dismiss()
                     } label: {
                         HostRowView(
@@ -70,12 +73,8 @@ public struct HostListView: View {
             .navigationTitle("Hosts")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    // 回到列表的入口旁標示需要處理的 workspace 數(行為規格 F2.8)。
-                    HStack(spacing: 6) {
-                        AttentionBadge(count: model.agentList.attentionCount)
-                        Button("Done") { dismiss() }
-                            .accessibilityIdentifier("sheet.done")
-                    }
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("sheet.done")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
@@ -102,13 +101,15 @@ public struct HostListView: View {
                     .accessibilityIdentifier("hosts.delete.confirm")
                 Button("Cancel", role: .cancel) { flow.cancelDeletion() }
             } message: { _ in
-                Text("This host’s settings and keys are removed from this device, and this device’s pairing is revoked. If Purrdr added this device’s public key to the host, that key is removed too; nothing else on the host changes.")
+                Text("This host is removed from this device, and this device is signed out of it. Nothing else on the host changes.")
             }
         }
         .onAppear(perform: openPendingImport)
         .onChange(of: importURL) { openPendingImport() }
         .onAppear(perform: openPendingEditor)
         .onChange(of: editHostID) { openPendingEditor() }
+        .onAppear(perform: openPendingAdd)
+        .onChange(of: addHost) { openPendingAdd() }
     }
 
     private func hostRow(_ row: HostRow) -> some View {
@@ -131,7 +132,7 @@ public struct HostListView: View {
         // context menu 頂端的動作與滑動動作一致;刪除放最後並標 destructive(HIG 20.3)。
         .swipeActions(edge: .leading) {
             if row.needsPairing {
-                Button("Pair", systemImage: "link") { flow.showDetails(of: row.id) }
+                Button("Pair", systemImage: "link") { openPairing(of: row) }
             } else {
                 Button("Edit", systemImage: "pencil") { flow.showDetails(of: row.id) }
             }
@@ -145,7 +146,7 @@ public struct HostListView: View {
         }
         .contextMenu {
             if row.needsPairing {
-                Button("Pair…", systemImage: "link") { flow.showDetails(of: row.id) }
+                Button("Pair…", systemImage: "link") { openPairing(of: row) }
             } else {
                 Button("Edit", systemImage: "pencil") { flow.showDetails(of: row.id) }
             }
@@ -154,15 +155,7 @@ public struct HostListView: View {
             if row.hostServiceUpdate != nil {
                 Button("Update Host Service…", systemImage: "arrow.up.circle") { flow.path.append(.hostServiceUpdate(row.id)) }
             }
-            // 主機圖示(#37 故事 5、#239):讓多台主機的列一眼分得出來;編輯器也能改。
-            Picker(selection: iconBinding(row.id)) {
-                ForEach(HostIcon.allCases, id: \.self) { icon in
-                    Label(icon.title, systemImage: icon.pickerSymbol)
-                }
-            } label: {
-                Label("Icon", systemImage: row.icon.pickerSymbol)
-            }
-            .pickerStyle(.menu)
+            // 主機圖示在編輯器的圖示格子選(#313:選項不放進選單)。
             Divider()
             Button("Delete…", systemImage: "trash", role: .destructive) { flow.requestDeletion(of: row.id, name: row.title) }
         }
@@ -172,7 +165,7 @@ public struct HostListView: View {
         Button {
             // 還沒配對的 HTTPS 主機連不上：點它直接去配對。
             if row.needsPairing {
-                flow.showDetails(of: row.id)
+                openPairing(of: row)
             } else {
                 model.select(.host(row.id))
                 dismiss()
@@ -189,7 +182,35 @@ public struct HostListView: View {
     private func destination(_ route: HostRoute) -> some View {
         Group {
             switch route {
-            case .add, .edit:
+            case .add:
+                AddHostGuideScreen(make: model.makeAddHostGuide) { _ in
+                    dismiss()  // 主機在存好時已登記(onAdded)
+                } onCancel: {
+                    flow.path.removeLast()
+                } onAdded: { model.didSave($0) } hostPush: { id in
+                    model.hostPushes.first { $0.host == .host(id) }
+                }
+            case .importGuide(let url):
+                AddHostGuideScreen(make: { (try? model.makeImportGuide(url)) ?? model.makeAddHostGuide() }) { _ in
+                    dismiss()  // 主機在存好時已登記(onAdded)
+                } onCancel: {
+                    flow.path.removeLast()
+                } onAdded: { model.didSave($0) } hostPush: { id in
+                    model.hostPushes.first { $0.host == .host(id) }
+                }
+            case .pairGuide(let id):
+                AddHostGuideScreen(
+                    make: {
+                        model.hosts.first { $0.id == id }.flatMap { try? model.makePairingGuide(for: $0) } ?? model.makeAddHostGuide()
+                    }
+                ) { _ in
+                    dismiss()  // 主機在存好時已登記(onAdded)
+                } onCancel: {
+                    flow.path.removeLast()
+                } onAdded: { model.didSave($0) } hostPush: { id in
+                    model.hostPushes.first { $0.host == .host(id) }
+                }
+            case .edit:
                 HostEditorView(
                     model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }),
                     hostSettings: route.hostID.flatMap(model.hostSettings(for:)),
@@ -215,16 +236,8 @@ public struct HostListView: View {
                 if let host = model.hosts.first(where: { $0.id == id }), let link = model.shareLink(for: id) {
                     HostShareView(name: host.name, link: link)
                 }
-            case .importLink(let url):
-                if let editor = try? model.makeImportEditor(url) {
-                    HostEditorView(model: editor) { host in
-                        saved(host)
-                    } onCancel: {
-                        flow.path.removeLast()
-                    } onIconSaved: {
-                        dismiss()
-                    }
-                } else {
+            case .importFailed:
+                do {
                     ContentUnavailableView(
                         "Can’t Add This Host", systemImage: "qrcode",
                         description: Text("This link isn’t a Purrdr host, or it was made by a newer version of Purrdr."))
@@ -271,10 +284,6 @@ public struct HostListView: View {
         self.renaming = nil
     }
 
-    private func iconBinding(_ id: UUID) -> Binding<HostIcon> {
-        Binding { model.icon(for: id) } set: { model.setIcon($0, for: id) }
-    }
-
     private var renamingBinding: Binding<Bool> {
         // setter 留空：按鈕自己處理(見主機編輯器的 alert 同樣做法)。
         Binding { renaming != nil } set: { if !$0 { renaming = nil } }
@@ -292,10 +301,21 @@ public struct HostListView: View {
         Binding { renaming?.name ?? "" } set: { renaming?.name = $0 }
     }
 
+    /// 還沒配對的 HTTPS 主機:新增主機引導直接到配對步驟。
+    private func openPairing(of row: HostRow) {
+        flow.path.append(.pairGuide(row.id))
+    }
+
     private func openPendingImport() {
         guard let url = importURL else { return }
         importURL = nil
-        flow.path = [.importLink(url)]
+        flow.path = [(try? model.makeImportGuide(url)) != nil ? .importGuide(url) : .importFailed]
+    }
+
+    private func openPendingAdd() {
+        guard addHost else { return }
+        addHost = false
+        flow.path = [.add]
     }
 
     private func openPendingEditor() {

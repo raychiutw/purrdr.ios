@@ -69,8 +69,8 @@ public final class HostPickerModel {
     }
 
     /// 新增聊天：預設聊天列表篩選的主機(`nil` 是所有主機)，所有主機時用選取中主機;不記住。
-    public static func newChat(options: [HostOption], listFilter: HostSelection?, selection: HostSelection) -> HostPickerModel {
-        HostPickerModel(options: options, preferred: [listFilter, selection])
+    public static func newChat(options: [HostOption], currentHost: HostSelection?, selection: HostSelection) -> HostPickerModel {
+        HostPickerModel(options: options, preferred: [currentHost, selection])
     }
 
     public var selectedOption: HostOption? { options.first { $0.id == selection } }

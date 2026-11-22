@@ -22,15 +22,14 @@ final class WorkspaceActionsUITests: XCTestCase {
         app.buttons["Workspace"].firstMatch.tap()
 
         let field = app.textFields["workspace.rename.field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5), "沒有重新命名表單")
+        XCTAssertTrue(field.waitUntilExists(timeout: 5), "沒有重新命名表單")
         XCTAssertEqual(field.value as? String, "ledger", "沒有預填 workspace 名稱")
         field.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 10) + "Budget")
         app.buttons["Save"].tap()
 
-        XCTAssertTrue(field.waitForNonExistence(timeout: 5), "儲存後表單沒有關閉")
+        XCTAssertTrue(field.waitUntilGone(timeout: 5), "儲存後表單沒有關閉")
         let renamed = NSPredicate(format: "label CONTAINS %@", "Budget")
-        expectation(for: renamed, evaluatedWith: row("w1:p1", in: app))
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(row("w1:p1", in: app).wait(for: renamed, timeout: 5), "等待的條件沒有成立")
     }
 
     /// 關閉是破壞性動作：先確認，確認後列消失。
@@ -38,17 +37,17 @@ final class WorkspaceActionsUITests: XCTestCase {
     func testCloseWorkspaceAsksFirst() {
         let app = XCUIApplication.launchUITesting()
         let weather = row("w2:p1", in: app)
-        XCTAssertTrue(weather.waitForExistence(timeout: 10))
+        XCTAssertTrue(weather.waitUntilExists(timeout: 10))
 
         weather.swipeLeft()
         app.buttons["Close"].firstMatch.tap()
 
         let confirm = app.buttons["Close Workspace"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "沒有先確認就關閉")
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有先確認就關閉")
         XCTAssertTrue(weather.exists, "確認前列就不見了")
         confirm.tap()
 
-        XCTAssertTrue(row("w2:p1", in: app).waitForNonExistence(timeout: 5), "關閉後列仍在")
+        XCTAssertTrue(row("w2:p1", in: app).waitUntilGone(timeout: 5), "關閉後列仍在")
         XCTAssertTrue(row("w1:p1", in: app).exists)
     }
 
@@ -60,14 +59,14 @@ final class WorkspaceActionsUITests: XCTestCase {
         XCTAssertTrue(app.reveal(ledger))
 
         ledger.swipeRight()
-        XCTAssertTrue(app.buttons["Mute"].firstMatch.waitForExistence(timeout: 5), "往右滑沒有靜音")
+        XCTAssertTrue(app.buttons["Mute"].firstMatch.waitUntilExists(timeout: 5), "往右滑沒有靜音")
         app.buttons["Pin"].firstMatch.tap()
 
         // 釘選後列移到最上方的「已釘選」組;捲回頂端再滑。
         app.collectionViews.firstMatch.swipeDown()
         XCTAssertTrue(app.reveal(ledger))
         ledger.swipeRight()
-        XCTAssertTrue(app.buttons["Unpin"].firstMatch.waitForExistence(timeout: 5), "釘選後沒有變成「取消釘選」")
+        XCTAssertTrue(app.buttons["Unpin"].firstMatch.waitUntilExists(timeout: 5), "釘選後沒有變成「取消釘選」")
     }
 
     /// context menu 的頂端動作與滑動相同，另外有版面圖;從版面圖點 pane 方塊會關閉 sheet。
@@ -75,11 +74,11 @@ final class WorkspaceActionsUITests: XCTestCase {
     func testContextMenuMatchesSwipeAndOpensLayout() {
         let app = XCUIApplication.launchUITesting()
         let notes = row("w3:p1", in: app)
-        XCTAssertTrue(notes.waitForExistence(timeout: 10))
+        XCTAssertTrue(notes.waitUntilExists(timeout: 10))
 
         notes.press(forDuration: 1.2)
         for title in ["Rename Workspace…", "Show Layout", "New Worktree…", "Close Workspace…"] {
-            XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 5), "context menu 沒有「\(title)」")
+            XCTAssertTrue(app.buttons[title].waitUntilExists(timeout: 5), "context menu 沒有「\(title)」")
         }
         // Codex 這列沒有 session:不提供釘選、靜音。
         XCTAssertFalse(app.buttons["Pin"].exists)
@@ -87,14 +86,14 @@ final class WorkspaceActionsUITests: XCTestCase {
 
         let agentBlock = app.buttons["layout.block.w3:p1"]
         let shellBlock = app.buttons["layout.block.w3:p2"]
-        XCTAssertTrue(agentBlock.waitForExistence(timeout: 5), "版面圖沒有 agent 方塊")
+        XCTAssertTrue(agentBlock.waitUntilExists(timeout: 5), "版面圖沒有 agent 方塊")
         XCTAssertTrue(shellBlock.exists, "版面圖沒有 shell 方塊")
         XCTAssertTrue(agentBlock.label.contains("Codex"), "agent 方塊沒有念出 agent:\(agentBlock.label)")
         XCTAssertTrue(shellBlock.label.contains("npm run dev"), "shell 方塊沒有念出程式名:\(shellBlock.label)")
         XCTAssertLessThan(agentBlock.frame.minX, shellBlock.frame.minX, "左右切分的位置不對")
 
         shellBlock.tap()
-        XCTAssertTrue(shellBlock.waitForNonExistence(timeout: 5), "點方塊後版面圖沒有關閉")
+        XCTAssertTrue(shellBlock.waitUntilGone(timeout: 5), "點方塊後版面圖沒有關閉")
     }
 
     /// Demo 主機不建立 worktree:錯誤留在表單裡說明。
@@ -107,10 +106,10 @@ final class WorkspaceActionsUITests: XCTestCase {
         ledger.press(forDuration: 1.2)
         app.buttons["New Worktree…"].tap()
         let branch = app.textFields["workspace.worktree.branch"]
-        XCTAssertTrue(branch.waitForExistence(timeout: 5))
+        XCTAssertTrue(branch.waitUntilExists(timeout: 5))
         branch.typeEnglish("try-sorting")
         app.buttons["Create"].tap()
 
-        XCTAssertTrue(app.descendants(matching: .any)["workspace.worktree.error"].waitForExistence(timeout: 5), "沒有顯示錯誤")
+        XCTAssertTrue(app.descendants(matching: .any)["workspace.worktree.error"].waitUntilExists(timeout: 5), "沒有顯示錯誤")
     }
 }

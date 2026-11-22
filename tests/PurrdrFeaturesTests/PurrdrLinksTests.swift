@@ -15,6 +15,17 @@ struct PurrdrLinksTests {
         #expect(PurrdrLinks.hostServiceGuide.absoluteString == "https://raychiutw.github.io/purrdr/host-service/")
     }
 
+    @Test("配對頁的完整說明連到主機服務網頁的配對一節(繁中與英文各有錨點,網頁上也要有)")
+    func hostServicePairingAnchors() throws {
+        #expect(PurrdrLinks.hostServicePairing(prefersChinese: true).absoluteString == "https://raychiutw.github.io/purrdr/host-service/#pair")
+        #expect(PurrdrLinks.hostServicePairing(prefersChinese: false).absoluteString == "https://raychiutw.github.io/purrdr/host-service/#pair-en")
+        var root = URL(fileURLWithPath: #filePath)
+        while !FileManager.default.fileExists(atPath: root.appending(path: "Package.swift").path) { root.deleteLastPathComponent() }
+        let html = try String(contentsOf: root.appending(path: "docs/site/purrdr/host-service/index.html"), encoding: .utf8)
+        #expect(html.contains("id=\"pair\""))
+        #expect(html.contains("id=\"pair-en\""))
+    }
+
     @Test("使用條款是 Apple 標準 EULA")
     func termsOfUse() {
         #expect(PurrdrLinks.termsOfUse.absoluteString == "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")

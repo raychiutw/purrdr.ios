@@ -106,6 +106,42 @@ struct TranscriptReaderTests {
         #expect(chunk.lines == Self.fixtureLines)
     }
 
+    /// #356:第一次開聊天只讀一小段。byte 上限內不夠 N 行就有多少給多少，不放大區塊。
+    @Test("視窗：有 byte 上限時只取上限內完整的行，不放大區塊到 N 行")
+    func windowWithMaxBytesStopsAtCap() async throws {
+        let (host, path) = try Self.host()
+        let lastTwo = Array(Self.fixtureLines.suffix(2))
+        let twoLinesBytes = lastTwo.reduce(0) { $0 + $1.utf8.count + 1 }
+        // 上限剛好容下最後兩行;區塊起點落在倒數第三行中間，那一行不完整所以不算。
+        let cap = twoLinesBytes + 1
+
+        let chunk = try await TranscriptReader(channel: host).window(path: path, endingAt: Self.fixture.count, lines: 300, maxBytes: cap)
+
+        #expect(chunk.lines == lastTwo)
+        #expect(chunk.start == Self.fixture.count - twoLinesBytes)
+        #expect(chunk.end == Self.fixture.count)
+    }
+
+    @Test("視窗：byte 上限內一行都放不下時範圍是空的(呼叫端自己放寬)")
+    func windowWithMaxBytesSmallerThanLastLineIsEmpty() async throws {
+        let (host, path) = try Self.host()
+
+        let chunk = try await TranscriptReader(channel: host).window(path: path, endingAt: Self.fixture.count, lines: 5, maxBytes: 10)
+
+        #expect(chunk.lines.isEmpty)
+        #expect(chunk.end == Self.fixture.count)
+        #expect(chunk.start == chunk.end)
+    }
+
+    @Test("視窗：byte 上限大到涵蓋整個檔案時，行數上限照常生效")
+    func windowWithLargeMaxBytesStillHonoursLineLimit() async throws {
+        let (host, path) = try Self.host()
+
+        let chunk = try await TranscriptReader(channel: host).window(path: path, endingAt: Self.fixture.count, lines: 3, maxBytes: 1 << 20)
+
+        #expect(chunk.lines == Array(Self.fixtureLines.suffix(3)))
+    }
+
     /// R-B04:Claude 把讀過的圖片以 base64 內嵌，單行可達 1MB。主機上把圖片資料換成空字串，
     /// 但被剝除的行仍是一行，byte 位置照原檔計。
     @Test("視窗：主機上剝除圖片 base64,byte 位置仍以原檔計")

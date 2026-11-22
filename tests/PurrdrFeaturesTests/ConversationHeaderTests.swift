@@ -155,6 +155,46 @@ struct ConversationHeaderTests {
         #expect(!setup.model.stopNeedsReconnect)
     }
 
+    /// #371:對照 `ConversationUITests` 刪掉的斷網 UI 測試(「需要你」的 agent、沒有對話紀錄的 Codex):
+    /// 版面在斷網時仍可操作是 UI 煙霧測試的事，這裡只留下資料面的行為。
+    @Test("離線：「需要你」的 agent 斷線後顯示離線橫幅、保留畫面上的內容")
+    func offlineWhileBlockedKeepsItemsAndShowsBanner() async throws {
+        let setup = try Self.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
+        await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.noSuggestionScreen)
+        await setup.model.poll()
+        let before = setup.model.items.count
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        }
+        await setup.model.poll()
+
+        #expect(setup.model.isOffline)
+        #expect(setup.model.banner == .offline)
+        #expect(setup.model.items.count == before, "斷線期間保留畫面上的內容")
+    }
+
+    @Test("離線：沒有對話紀錄、工作中的 Codex 斷線後顯示離線橫幅，停止要等重新連上")
+    func offlineWhileCodexWorksShowsBanner() async throws {
+        let setup = try ConversationModelTests.setup(transcript: nil, knownSessionID: nil)
+        let codex = ConversationModelTests.snapshot { agent in
+            agent["agent_status"] = "working"
+            agent["agent"] = "codex"
+            agent.removeValue(forKey: "agent_session")
+        }
+        await setup.host.bridge.expect(Self.bridge, reply: codex)
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read(text: Self.writingScreen))
+        await setup.model.poll()
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        }
+        await setup.model.poll()
+
+        #expect(setup.model.isOffline)
+        #expect(setup.model.banner == .offline)
+        #expect(setup.model.stopNeedsReconnect)
+    }
+
     // MARK: - 重新載入與停止
 
     /// #220:強制結束只對 working 的 agent(「需要你」永不中斷);離線時斷線前的 working 已過時。

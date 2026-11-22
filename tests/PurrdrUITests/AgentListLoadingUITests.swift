@@ -10,11 +10,6 @@ final class AgentListLoadingUITests: XCTestCase {
     }
 
     @MainActor
-    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)[identifier].firstMatch
-    }
-
-    @MainActor
     private func capture(_ name: String, _ app: XCUIApplication) {
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = name
@@ -28,21 +23,21 @@ final class AgentListLoadingUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedSlowHost"])
         app.switchListMode(to: "Agents")
 
-        XCTAssertTrue(element("agent.row.\(Self.studio)/w2:p1", in: app).waitForExistence(timeout: 15), "卡住的主機擋住了其他台的列")
-        let status = element("agentList.host.\(Self.slowBox)", in: app)
-        XCTAssertTrue(status.waitForExistence(timeout: 5), "沒有卡住那台主機的連線狀態行")
+        XCTAssertTrue(app.element("agent.row.\(Self.studio)/w2:p1").waitUntilExists(timeout: 15), "卡住的主機擋住了其他台的列")
+        let status = app.element("agentList.host.\(Self.slowBox)")
+        XCTAssertTrue(status.waitUntilExists(timeout: 5), "沒有卡住那台主機的連線狀態行")
         XCTAssertTrue(status.label.contains("Slow Box"), status.label)
         XCTAssertTrue(status.label.contains("Connecting…"), status.label)
         XCTAssertFalse(app.staticTexts["Loading agents…"].exists, "還是整頁轉圈")
         capture("agent-list-connecting", app)
 
-        let retry = element("agentList.host.\(Self.slowBox).retry", in: app)
-        XCTAssertTrue(retry.waitForExistence(timeout: 15), "連線超過 10 秒沒有「再試一次」")
+        let retry = app.element("agentList.host.\(Self.slowBox).retry")
+        XCTAssertTrue(retry.waitUntilExists(timeout: 15), "連線超過 10 秒沒有「再試一次」")
         XCTAssertTrue(status.label.contains("Still connecting…"), status.label)
         capture("agent-list-still-connecting", app)
 
         retry.tap()
-        XCTAssertTrue(retry.waitForNonExistence(timeout: 5), "按了再試一次沒有回到連線中")
+        XCTAssertTrue(retry.waitUntilGone(timeout: 5), "按了再試一次沒有回到連線中")
         XCTAssertTrue(status.label.contains("Connecting…"), status.label)
     }
 
@@ -51,12 +46,12 @@ final class AgentListLoadingUITests: XCTestCase {
     func testNoNetworkShowsOfflineImmediately() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoNoNetwork"])
 
-        let offline = element("agentList.offline", in: app)
-        XCTAssertTrue(offline.waitForExistence(timeout: 5), "沒網路時沒有立刻顯示離線畫面")
+        let offline = app.element("agentList.offline")
+        XCTAssertTrue(offline.waitUntilExists(timeout: 5), "沒網路時沒有立刻顯示離線畫面")
         XCTAssertTrue(app.buttons["agentList.retry"].firstMatch.exists, "離線畫面沒有再試一次")
         capture("agent-list-offline", app)
 
         app.buttons["agentList.retry"].firstMatch.tap()
-        XCTAssertTrue(offline.waitForExistence(timeout: 5), "還是沒網路時再試一次後不該離開離線畫面")
+        XCTAssertTrue(offline.waitUntilExists(timeout: 5), "還是沒網路時再試一次後不該離開離線畫面")
     }
 }

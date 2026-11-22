@@ -12,21 +12,22 @@ import AppKit
 /// 會員、Purrdr Plus、通知與主機同步在帳號頁(聊天列表右上角的帳號鈕)。
 public struct SettingsView: View {
     @Bindable var model: SettingsModel
-    /// 需要處理的 workspace 數(「完成」旁的數字，行為規格 F2.8)。
-    let attention: () -> Int
     /// 再看一次歡迎頁(#34;HIG Onboarding:跳過後在設定找得到)。
     let openWelcome: () -> Void
     /// App 鎖(#284);`nil` 時不顯示。
     let appLock: AppLock?
+    /// 數據用量頁(#354)的 model 工廠;`nil` 時不顯示入口。
+    let dataUsage: (@MainActor () -> DataUsageModel)?
     let done: () -> Void
 
     public init(
-        model: SettingsModel, attention: @escaping () -> Int = { 0 },
-        openWelcome: @escaping () -> Void = {}, appLock: AppLock? = nil, done: @escaping () -> Void
+        model: SettingsModel,
+        openWelcome: @escaping () -> Void = {}, appLock: AppLock? = nil,
+        dataUsage: (@MainActor () -> DataUsageModel)? = nil, done: @escaping () -> Void
     ) {
+        self.dataUsage = dataUsage
         self.model = model
         self.appLock = appLock
-        self.attention = attention
         self.openWelcome = openWelcome
         self.done = done
     }
@@ -40,7 +41,8 @@ public struct SettingsView: View {
                         Text("Light").tag(AppearancePreference.light)
                         Text("Dark").tag(AppearancePreference.dark)
                     }
-                    .pickerStyle(.segmented)
+                    // 選項攤開成勾選列(#313)。
+                    .pickerStyle(.inline)
                     .labelsHidden()
                     .accessibilityIdentifier("settings.appearance")
                 } header: {
@@ -61,8 +63,35 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondaryText)
                 }
 
+                // 送出可撤回(#300):0–10 秒,0 為關閉。
+                Section {
+                    Stepper(value: $model.undoSendSeconds, in: UndoSendSettings.range) {
+                        LabeledContent("Undo Send") {
+                            Text(model.undoSendSeconds == 0 ? String(localized: "Off") : String(localized: "\(model.undoSendSeconds) s"))
+                                .monospacedDigit()
+                        }
+                    }
+                    .accessibilityValue(Text(model.undoSendSeconds == 0
+                        ? String(localized: "Off") : String(localized: "\(model.undoSendSeconds) seconds")))
+                    .accessibilityIdentifier("settings.undoSend")
+                } footer: {
+                    Text("After you send, the message waits this long so you can undo it.")
+                        .foregroundStyle(.secondaryText)
+                }
+
                 if let appLock {
                     AppLockSettingsSection(lock: appLock)
+                }
+
+                if let dataUsage {
+                    Section {
+                        NavigationLink {
+                            DataUsageScreen(make: dataUsage)
+                        } label: {
+                            Label("Data Usage", systemImage: "chart.bar")
+                        }
+                        .accessibilityIdentifier("settings.dataUsage")
+                    }
                 }
 
                 Section {
@@ -82,7 +111,7 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondaryText)
                 } footer: {
                     // 隱私揭露(複製的診斷資料包含什麼)保留;其他功能說明依原型拿掉(#276)。
-                    Text("Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations.")
+                    Text("Diagnostics include the app version, iOS version, and number of hosts — never host names, addresses, account names, or conversations.")
                         .foregroundStyle(.secondaryText)
                 }
 
@@ -102,11 +131,8 @@ public struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    HStack(spacing: 6) {
-                        AttentionBadge(count: attention())
-                        Button("Done", action: done)
-                            .accessibilityIdentifier("sheet.done")
-                    }
+                    Button("Done", action: done)
+                        .accessibilityIdentifier("sheet.done")
                 }
             }
         }

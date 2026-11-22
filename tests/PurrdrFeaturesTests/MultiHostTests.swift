@@ -33,7 +33,7 @@ struct MultiHostTests {
     static let bridge = HerdrCommand.bridge()
     /// 錄製 snapshot 裡的 session(兩台主機都回同一份錄製，所以 pane id 與 session 都相同)。
     static let sessionA = "00000000-0000-0000-0000-000000000002"
-    static let timedOut = "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."
+    static let timedOut = "The host didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices."
 
     static func model(
         _ channels: ChannelsByAddress, preferences: any HostChatPreferencesStore = InMemoryHostChatPreferencesStore(),
@@ -239,6 +239,19 @@ struct MultiHostTests {
 
         #expect(other.header.segments == ["Lab"])
         #expect(selected.header.segments == ["Studio"])
+    }
+
+    @Test("聊天的送出管線有機密偵測(#302),每個聊天各一個")
+    func conversationChecksSecrets() {
+        let model = Self.model(ChannelsByAddress([:]))
+        model.load()
+
+        let first = model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
+        let second = model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
+
+        #expect(first.secretCheck != nil)
+        #expect(second.secretCheck != nil)
+        #expect(first.secretCheck !== second.secretCheck)
     }
 
     @Test("已開啟的聊天：換選取中主機後標題列仍是自己的主機名;主機改名跟著改")

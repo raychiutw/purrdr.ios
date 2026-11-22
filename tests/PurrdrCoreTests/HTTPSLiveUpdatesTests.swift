@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import PurrdrCore
 import PurrdrHTTPS
 import Testing
@@ -8,12 +9,37 @@ import Testing
 @Suite("HTTPS 即時更新")
 struct HTTPSLiveUpdatesTests {
     static func connection(
-        to service: FakeHostService, heartbeat: HostServiceHeartbeat = .standard
+        to service: FakeHostService, heartbeat: HostServiceHeartbeat = .standard, sleep: @escaping Sleep = Sleeping.task
     ) -> HTTPSHostConnection {
-        HTTPSHostConnection(address: service.address, deviceToken: { "token-ok" }, appVersion: "9.9.9", heartbeat: heartbeat)
+        HTTPSHostConnection(address: service.address, deviceToken: { "token-ok" }, appVersion: "9.9.9", heartbeat: heartbeat, sleep: sleep)
     }
 
-    static let shortHeartbeat = HostServiceHeartbeat(interval: .milliseconds(100), timeout: .milliseconds(300))
+    /// 心跳逾時的測試不靠實際時間(#324):間隔與逾時的等待都卡在閘門上，連線與訂閱完成後才由測試打開，
+    /// 打開後等待立刻結束，所以 ping 一送出沒有 pong 就逾時。數值只是讓「誰在等」看得出來，永遠不會真的等。
+    static let gatedHeartbeat = HostServiceHeartbeat(interval: .seconds(1), timeout: .seconds(1))
+
+    /// 超過這個長度的等待代表「一般間隔」,閘門打開也不結束(只有被取消才返回)，用來證明快速偵測有改用短間隔。
+    static let neverElapses = Duration.seconds(1000)
+
+    final class Gate: Sendable {
+        private let isOpen = Mutex(false)
+        private let signal = WakeSignal()
+
+        /// 閘門打開前一直等(取消時丟 `CancellationError`);打開後立刻返回。
+        var sleep: Sleep {
+            { [self] duration in
+                if duration > HTTPSLiveUpdatesTests.neverElapses {
+                    while true { try await signal.wait(atMost: nil) }
+                }
+                while !isOpen.withLock({ $0 }) { try await signal.wait(atMost: nil) }
+            }
+        }
+
+        func open() {
+            isOpen.withLock { $0 = true }
+            signal.wake()
+        }
+    }
 
     @Test("主機服務推送的事件轉成 herdr 事件;訂閱內容原樣送到主機服務")
     func pushedEventsReachHerdrClient() async throws {
@@ -111,8 +137,10 @@ struct HTTPSLiveUpdatesTests {
     func heartbeatTimeoutDropsConnection() async throws {
         let service = try await FakeHostService.start(.init(answersPings: false))
         defer { Task { await service.stop() } }
-        let events = try await HerdrClient(connection: Self.connection(to: service, heartbeat: Self.shortHeartbeat)).subscribe([])
+        let gate = Gate()
+        let events = try await HerdrClient(connection: Self.connection(to: service, heartbeat: Self.gatedHeartbeat, sleep: gate.sleep)).subscribe([])
 
+        gate.open()
         let read = await Self.read(events)
 
         #expect(read == StreamRead(events: [.subscriptionStarted], ending: .failed(String(describing: HostServiceError.connectionLost))))
@@ -122,12 +150,14 @@ struct HTTPSLiveUpdatesTests {
     func quickDetectionUsesShortHeartbeat() async throws {
         let service = try await FakeHostService.start(.init(answersPings: false))
         defer { Task { await service.stop() } }
+        let gate = Gate()
         let connection = HTTPSHostConnection(
             address: service.address, deviceToken: { "token-ok" }, appVersion: "9.9.9",
-            heartbeat: HostServiceHeartbeat(interval: .seconds(3600), timeout: .milliseconds(300)),
-            quickHeartbeat: Self.shortHeartbeat)
+            heartbeat: HostServiceHeartbeat(interval: .seconds(3600), timeout: .seconds(1)), quickHeartbeat: Self.gatedHeartbeat,
+            sleep: gate.sleep)
         let events = try await HerdrClient(connection: connection).subscribe([])
 
+        gate.open()
         await connection.beginQuickDisconnectDetection()
         let read = await Self.read(events)
 

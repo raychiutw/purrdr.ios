@@ -59,6 +59,14 @@ struct ChatColorUsageTests {
         #expect(found.isEmpty, "改用 .tint:\n\(found.joined(separator: "\n"))")
     }
 
+    /// skill／slash 指令名稱、連結與輸入框的綠色都是主色(tint;#329),不另設綠色票、不用 UIKit 系統綠。
+    @Test("指令與輸入框不用系統綠：沒有 skillName 色票、沒有 systemGreen")
+    func noSystemGreenForCommands() throws {
+        let sources = try Self.featureSources()
+        let found = ["skillName", "systemGreen", "systemMint", "systemTeal"].flatMap { Self.violations(of: $0, in: sources) }
+        #expect(found.isEmpty, "指令名稱與輸入框元素改用主色 tint:\n\(found.joined(separator: "\n"))")
+    }
+
     /// 錯誤圖示只在 `ErrorLabel` 與 subagent 狀態圖示(只有圖示、念狀態名)。
     @Test("錯誤訊息不自組 Label,一律用 ErrorLabel")
     func errorsUseErrorLabel() throws {

@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -76,8 +77,8 @@ struct HostEditorModelTests {
         model.herdrSession = session
     }
 
-    @Test("第一次連線先確認 host key 指紋，確認後才登入測試;儲存時存下 pin、herdr 設定與 OS")
-    func firstConnectionConfirmsHostKeyThenSaves() async throws {
+    @Test("Tailscale SSH 第一次連線自動記住 host key,不問;儲存時存下 pin、herdr 設定與 OS")
+    func firstConnectionRemembersHostKeyThenSaves() async throws {
         let store = MemoryHostStore()
         let healthy = await Self.healthyHost(HerdrInstallation(session: "work"))
         let factory = ChannelFactory(await Self.unverifiedHost(), healthy)
@@ -85,10 +86,6 @@ struct HostEditorModelTests {
         Self.fill(model, session: "work")
 
         await model.test()
-        #expect(model.phase == .confirmHostKey(Self.fingerprint))
-        #expect(!model.canSave)
-
-        await model.trustPresentedHostKey()
 
         guard case .tested(let report) = model.phase else { Issue.record("測試沒有成功:\(model.phase)"); return }
         #expect(report.herdrVersion == HerdrVersion("0.9.5"))
@@ -118,11 +115,11 @@ struct HostEditorModelTests {
         #expect(model.save() == nil)
     }
 
-    @Test("編輯主機只改名稱時沿用已存的 pin;改了位址才重新確認")
+    @Test("編輯主機只改名稱時沿用已存的 pin;改了位址就重新記住新主機的 key")
     func pinIsKeptUnlessEndpointChanges() async {
         let existing = HostConfiguration(
             name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint)
-        let factory = ChannelFactory(await Self.healthyHost(), await Self.unverifiedHost())
+        let factory = ChannelFactory(await Self.healthyHost(), await Self.unverifiedHost(), await Self.healthyHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: existing, makeChannel: factory.make)
 
         model.name = "Studio Mac"
@@ -130,11 +127,10 @@ struct HostEditorModelTests {
         model.address = "100.64.0.9"
         await model.test()
 
-        #expect(factory.pins == [Self.fingerprint, nil])
-        #expect(model.phase == .confirmHostKey(Self.fingerprint))
+        #expect(factory.pins == [Self.fingerprint, nil, Self.fingerprint])
     }
 
-    @Test("指紋改變時阻擋並警告，顯示目前出示與已存的指紋;只 pin 剛剛出示的那一把")
+    @Test("指紋改變時阻擋並警告，顯示目前出示與已存的指紋;不能信任新 key、不能儲存")
     func changedHostKeyIsBlocked() async throws {
         let existing = HostConfiguration(
             name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint)
@@ -148,8 +144,9 @@ struct HostEditorModelTests {
         #expect(!model.canSave)
 
         await model.trustPresentedHostKey()
-        #expect(factory.pins == [Self.fingerprint, Self.otherFingerprint])
-        #expect(model.save()?.ssh?.hostKeyPin == Self.otherFingerprint)
+        #expect(factory.pins == [Self.fingerprint], "不該以新 key 重測")
+        #expect(model.phase == .hostKeyChanged(presented: Self.otherFingerprint, pinned: Self.fingerprint))
+        #expect(model.save() == nil)
     }
 
     @Test("herdr 低於 0.9.5:提示版本，使用者確認後才執行 herdr update,再重新測試")
@@ -218,7 +215,7 @@ struct HostEditorModelTests {
         await model.test()
 
         guard case .failed(let message) = model.phase else { Issue.record("\(model.phase)"); return }
-        #expect(message.contains("SSH"))
+        #expect(message.contains("Tailscale"))
     }
 
     @Test("儲存失敗(例如 Keychain 拒絕)時留在編輯器並說明原因")
@@ -231,7 +228,21 @@ struct HostEditorModelTests {
 
         await model.test()
         #expect(model.save() == nil)
-        guard case .failed = model.phase else { Issue.record("\(model.phase)"); return }
+        guard case .failed(let message) = model.phase else { Issue.record("\(model.phase)"); return }
+        // 函式庫的原文不放在說明裡，收進「詳細資訊」(#359)。
+        #expect(!message.contains("SaveFailed"), "說明不直接帶錯誤原文:\(message)")
+        #expect(model.failureDetails?.isEmpty == false)
+    }
+
+    @Test("herdr 回的錯誤原文收進詳細資訊，說明只說 herdr 回報了問題(#359)")
+    func herdrMessageGoesToDetails() {
+        let error = HostProbeError.herdr("unexpected end of JSON input at line 1 column 7")
+
+        let message = HostErrorText.message(for: error)
+
+        #expect(!message.contains("JSON"))
+        #expect(HostErrorText.details(for: error) == "unexpected end of JSON input at line 1 column 7")
+        #expect(HostErrorText.details(for: SSHConnectionError.connectionRefused) == nil)
     }
 
     @Test("必填欄位(名稱、位址、使用者名稱)與埠 1–65535 才能測試")

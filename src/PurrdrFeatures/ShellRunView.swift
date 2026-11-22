@@ -79,6 +79,9 @@ struct ShellRunView: View {
                     Text(date, format: .dateTime.hour().minute())
                         .font(.caption2)
                         .foregroundStyle(.secondaryText)
+                        // AX 字級時時間保持完整大小(不被指令擠小或截斷),讓指令自己換行(#258)。
+                        .fixedSize()
+                        .layoutPriority(1)
                 }
             }
             if !visible.stdout.isEmpty || !visible.stderr.isEmpty {

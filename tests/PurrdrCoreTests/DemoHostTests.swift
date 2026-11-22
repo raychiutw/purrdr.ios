@@ -177,7 +177,7 @@ struct DemoHostTests {
         let host = DemoHost()
         let name = try #require(HostUploadName("mh1a2b3c-k9x2m4p7.jpg"))
         let path = try await SSHHostUploader(channel: host).upload(Data(count: 200_000), named: name)
-        #expect(path == "/Users/demo/.purrdr/uploads/mh1a2b3c-k9x2m4p7.jpg")
+        #expect(path == "/var/folders/zz/demo/T/purrdr-uploads-501/mh1a2b3c-k9x2m4p7.jpg")
         // 大小不符(上傳中斷)時 Demo 也失敗。
         let short = try await host.execute(HostUploadCommand.posix(name: name, size: 10))
         try await short.write(Data(count: 3))
@@ -572,6 +572,24 @@ struct DemoHostTailscaleCheckTests {
 
         await #expect(throws: SSHConnectionError.tailscaleCheckCancelled) { _ = try await pending.value }
         #expect(prompts.urls == [DemoHost.tailscaleCheckURL, nil])
+    }
+}
+
+/// 斷網情境的計時從「對話載入完成」(第一次定位對話紀錄)起算，不是從 app 啟動(#371)。
+@Suite("Demo 主機:斷網的起算點")
+struct DemoHostOfflineStartTests {
+    @Test("斷網從第一次定位對話紀錄起算：定位前一直連得上，定位後過了延遲才斷網")
+    func offlineCountsFromTranscriptLocate() async throws {
+        let host = DemoHost(scenario: .goesOffline(after: .milliseconds(1), hangs: false))
+        _ = try await HerdrClient(channel: host).snapshot()
+        try await Task.sleep(for: .milliseconds(100))
+        _ = try await HerdrClient(channel: host).snapshot()
+
+        let reader = TranscriptReader(channel: host)
+        _ = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        try await Task.sleep(for: .milliseconds(100))
+
+        await #expect(throws: SSHConnectionError.timedOut) { _ = try await HerdrClient(channel: host).snapshot() }
     }
 }
 

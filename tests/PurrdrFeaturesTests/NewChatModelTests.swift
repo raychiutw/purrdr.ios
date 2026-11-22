@@ -192,7 +192,7 @@ struct NewChatModelTests {
 
         model.message = "Fix the CSV quoting"
         #expect(await model.start() == nil)
-        #expect(model.error == String(localized: "There’s no such folder on the host. Check the path, or choose a folder on the host."))
+        #expect(model.error == String(localized: "There’s no such folder on the host. Check the location, or choose a folder on the host."))
     }
 
     @Test("Demo 主機拒絕建立 workspace:說明要用自己的主機(翻譯過的文字，不是 herdr 原文)")

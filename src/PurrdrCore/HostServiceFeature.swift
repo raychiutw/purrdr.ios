@@ -17,6 +17,20 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case pairedDevices
     /// 主機服務代裝推播外掛 `push.*`。
     case pushPlugin
+    /// Agent 觀察者：「可能卡住」「仍在等你」推播、Send When Done(raychiutw/purrdr.host#25)。
+    case agentObserver
+    /// 讀 Pane 畫面 `pane.read`(#303):提問卡、計畫卡、建議提示詞、slash 面板與即時預覽。
+    case paneRead
+    /// 列出資料夾過去的 session 與以 `resume_session` 續接(`sessions.list`／`agent.start`,#309)。
+    case sessionResume
+    /// 送出前比對 `expected_session`,不符回 `pane_changed`(#304、raychiutw/purrdr.host#29)。
+    case sendExpectations
+    /// 變更頁的唯讀 git 讀取 `git.status`／`git.diff`(#310)。
+    case gitChanges
+    /// 測試通知 `push.test`(raychiutw/purrdr.host#60)。
+    case pushTest
+    /// 對話紀錄視窗的位元組上限 `transcript.window` 的 `max_bytes`(#356、raychiutw/purrdr.host#52)。
+    case transcriptWindowMaxBytes
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -28,6 +42,13 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .hostServiceManagement: HostServiceVersion(0, 7, 0)
         case .pairedDevices: HostServiceVersion(0, 7, 0)
         case .pushPlugin: HostServiceVersion(0, 6, 0)
+        case .agentObserver: HostServiceVersion(0, 7, 0)
+        case .paneRead: HostServiceVersion(0, 7, 0)
+        case .sessionResume: HostServiceVersion(0, 7, 0)
+        case .sendExpectations: HostServiceVersion(0, 7, 0)
+        case .gitChanges: HostServiceVersion(0, 7, 0)
+        case .pushTest: HostServiceVersion(0, 11, 0)
+        case .transcriptWindowMaxBytes: HostServiceVersion(0, 11, 0)
         }
     }
 

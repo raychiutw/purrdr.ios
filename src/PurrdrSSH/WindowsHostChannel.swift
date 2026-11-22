@@ -103,7 +103,7 @@ enum WindowsCommand {
         }
         if command == CodexPlanUsageHost.command { return try inline(codexAppServer) }
         if let script = transcript(command) { return viaStdin(script) }
-        if let script = hostFiles(command) { return viaStdin(script) }
+        if let script = hostFiles(command) ?? gitChanges(command) { return viaStdin(script) }
         if let upload = HostUploadCommand.parse(command) {
             return try inline(WindowsScripts.upload(WindowsScripts.hostUpload, arguments: [upload.name.value, String(upload.size)]))
         }
@@ -196,6 +196,12 @@ enum WindowsCommand {
         return nil
     }
 
+    /// 變更頁的唯讀指令(`GitChangesCommand`,#310)→ PowerShell 版。
+    static func gitChanges(_ command: String) -> String? {
+        guard let request = GitChangesCommand.arguments(in: command) else { return nil }
+        return WindowsScripts.hostFiles(WindowsScripts.gitChanges, arguments: request)
+    }
+
     /// `HostFileScript.follow` → PowerShell 版長駐讀取(#203)。參數：閒置與總長秒數。
     static func hostFileFollow(_ command: String) -> String? {
         let prefix = HostFileScript.followInvocation
@@ -218,6 +224,7 @@ enum WindowsCommand {
         (HostFileScript.apply, WindowsScripts.hostFileApply),
         (HostFileScript.newest, WindowsScripts.hostFileNewest),
         (SSHPushPluginInstaller.otherPairingsScript, WindowsScripts.pushPairings),
+        (SSHPushTestNotifier.script, WindowsScripts.pushTest),
     ]
 
     static func inline(_ script: String) throws -> WindowsInvocation {

@@ -61,14 +61,13 @@ struct AgentFileCardDisplay {
         return parts.joined(separator: " · ")
     }
 
-    /// VoiceOver 念的標題：動作、檔名、類型、大小或增刪行數，最後是路徑。
+    /// VoiceOver 念的標題：動作、檔名、類型、大小或增刪行數。路徑是進階資訊(#330)，在揭露控制裡。
     var accessibilityLabel: String {
         var parts = [String(localized: "\(originText) file \(file.name)"), kindText]
         if let byteCount = file.byteCount { parts.append(Int64(byteCount).formatted(.byteCount(style: .file))) }
         if case .edit(let change) = file.snapshot {
             parts.append(String(localized: "\(change.addedLines) lines added, \(change.removedLines) removed"))
         }
-        parts.append(String(localized: "Path: \(file.path)"))
         return parts.joined(separator: ", ")
     }
 
@@ -168,6 +167,7 @@ struct AgentFileCardView: View {
                 .accessibilityAddTraits(context.loads == nil ? [] : .isButton)
                 .accessibilityHint(context.loads == nil ? Text(verbatim: "") : Text("Downloads the file from the host and shows a preview."))
                 .accessibilityAction { if openDisplay.offersOpen { open() } }
+            AgentFileCardDetails(card: card, display: display, identifier: "conversation.agentFile")
             if context.loads != nil {
                 AgentFileOpenRow(card: card, display: openDisplay, open: open, cancel: { context.loads?.cancelOpen(card.file.path) })
             }
@@ -220,6 +220,7 @@ struct AgentFileCardView: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text("Copy Path")) { Clipboard.copy(card.file.path) }
         .accessibilityIdentifier("conversation.agentFile")
         .quickLookPreview($previewFile)
     }
@@ -297,7 +298,8 @@ struct AgentFileOpenRow: View {
     }
 }
 
-/// 檔案卡片與圖片卡片共用的標題列：類型圖示、檔名、路徑、「動作 · 類型 · 大小」與時間;VoiceOver 念完整資訊。
+/// 檔案卡片與圖片卡片共用的標題列(#330):類型圖示、檔名與時間;路徑與「動作 · 類型 · 大小」是進階資訊,
+/// 收在 `AgentFileCardDetails`。VoiceOver 念動作、檔名、類型、大小(不含路徑)。
 struct AgentFileCardHeader: View {
     let card: AgentFileCard
     let display: AgentFileCardDisplay
@@ -310,17 +312,9 @@ struct AgentFileCardHeader: View {
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 28)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: card.file.name)
-                    .font(.subheadline.weight(.semibold))
-                Text(verbatim: card.file.path)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondaryText)
-                Text(verbatim: display.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondaryText)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(verbatim: card.file.name)
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
             if let date = card.date {
                 Text(date, format: .dateTime.hour().minute())
                     .font(.caption2)
@@ -330,6 +324,40 @@ struct AgentFileCardHeader: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(display.accessibilityLabel)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+/// 卡片的進階資訊(#330,HIG Disclosure controls):預設收起，點「Details」才顯示完整路徑與「動作 · 類型 · 大小」。
+/// 展開狀態是每張卡片自己的 `@State`;列表是 lazy 的，捲出畫面再回來會回到收起(預設)。
+struct AgentFileCardDetails: View {
+    let card: AgentFileCard
+    let display: AgentFileCardDisplay
+    let identifier: String
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: card.file.path)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondaryText)
+                    .textSelection(.enabled)
+                Text(verbatim: display.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 4)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Text("Path: \(card.file.path)"))
+            .accessibilityIdentifier("\(identifier).path")
+        } label: {
+            Text("Details")
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+                .frame(minHeight: 44, alignment: .leading)
+                .accessibilityIdentifier("\(identifier).disclosure")
+        }
     }
 }
 

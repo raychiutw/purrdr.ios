@@ -10,7 +10,7 @@ final class SignInUITests: XCTestCase {
     func testAgentListNeedsNoSignIn() {
         let app = XCUIApplication.launchUITesting()
 
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitUntilExists(timeout: 10))
         XCTAssertFalse(app.buttons["member.signIn.apple"].exists)
     }
 
@@ -23,7 +23,7 @@ final class SignInUITests: XCTestCase {
 
             let apple = app.buttons["member.signIn.apple"]
             let google = app.buttons["member.signIn.google"]
-            XCTAssertTrue(apple.waitForExistence(timeout: 10), "沒有 Sign in with Apple 按鈕(\(contentSize ?? "預設字級"))")
+            XCTAssertTrue(apple.waitUntilExists(timeout: 10), "沒有 Sign in with Apple 按鈕(\(contentSize ?? "預設字級"))")
             XCTAssertTrue(google.exists)
             XCTAssertGreaterThanOrEqual(apple.frame.width, google.frame.width, contentSize ?? "預設字級")
             XCTAssertGreaterThanOrEqual(apple.frame.height, google.frame.height, contentSize ?? "預設字級")
@@ -39,14 +39,14 @@ final class SignInUITests: XCTestCase {
         }
     }
 
-    /// 頁首只有標題(#236):登入頁不放功能說明文字。
+    /// 沒登入的帳號頁(#328,原型 A):標題與簡短說明，不放舊版的功能說明文字。
     @MainActor
     func testSignInShowsOnlyTitle() {
         let app = XCUIApplication.launchUITesting()
         openSignIn(in: app)
 
-        XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Sign in to use Purrdr Plus"].exists, "沒有標題")
+        XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Sign In to Purrdr"].exists, "沒有標題")
         let description = app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "A member account is only needed", "never need an account"))
         XCTAssertEqual(description.count, 0, "登入頁仍有說明文字")

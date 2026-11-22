@@ -32,8 +32,9 @@ struct SpacesSectionsContent: View {
         switch tab.target {
         case .pane(let route):
             NavigationLink(value: route) {
-                Text(verbatim: tab.title)
+                SpacesTabLabel(tab: tab)
             }
+            .accessibilityLabel(Text(verbatim: SpacesTabLabel.accessibilityText(tab)))
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
             Button {
@@ -43,8 +44,7 @@ struct SpacesSectionsContent: View {
                 presentation.sheet = .layout(workspaceLabel: tab.title, layout: layout?.onlyTab(tabID))
             } label: {
                 HStack {
-                    Text(verbatim: tab.title)
-                        .foregroundStyle(.primary)
+                    SpacesTabLabel(tab: tab)
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
@@ -53,8 +53,37 @@ struct SpacesSectionsContent: View {
                 }
                 .contentShape(Rectangle())
             }
+            .accessibilityLabel(Text(verbatim: SpacesTabLabel.accessibilityText(tab)))
             .accessibilityHint(Text("Shows this tab’s layout."))
         }
+    }
+}
+
+/// Tab 列的內容(#316):頭像＋右下角狀態與 Tab 名稱。頭像對 VoiceOver 隱藏;列(按鈕本身)念 `accessibilityText`。
+struct SpacesTabLabel: View {
+    let tab: SpacesTab
+
+    var body: some View {
+        HStack(spacing: 12) {
+            switch tab.avatar {
+            case .agent(let kind, let status):
+                AgentStatusAvatar(content: .agent(AgentKind(rawKind: kind)), status: status)
+            case .terminal:
+                AgentStatusAvatar(content: .terminal, status: nil)
+            }
+            // 按鈕列(多個 pane)的 label 會被 tint 染成主色;`.primary` 在按鈕裡解析成 tint,要用 `Color.primary`。
+            Text(verbatim: tab.title)
+                .foregroundStyle(Color.primary)
+        }
+    }
+
+    /// 「名稱, 種類, 狀態」;只有終端機時「名稱, 終端機」。
+    static func accessibilityText(_ tab: SpacesTab) -> String {
+        let parts: [String?] = switch tab.avatar {
+        case .agent(let kind, let status): [tab.title, AgentKind(rawKind: kind).displayName, String(localized: status.title)]
+        case .terminal: [tab.title, String(localized: "Terminal")]
+        }
+        return parts.compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -78,23 +107,28 @@ private struct SpacesSectionHeader: View {
     }
 }
 
-/// Agent 種類頭像：36pt 圓角方塊，白色字母。
+/// Agent 種類頭像：36pt 圓角方塊，白色字母。種類由列的 VoiceOver 句子念(`AgentStatusAvatar` 整個隱藏)。
 struct AgentKindAvatar: View {
     let kind: AgentKind
-    /// VoiceOver 念出種類名稱(Agents 列的文字裡沒有種類);Spaces 列的第三行已有，維持隱藏。
-    var announcesKind = false
+    static let baseSide: CGFloat = 36
+    // 方塊隨字級放大但有上限(#314、使用者決定);字母用實際字級(固定字級的字母會被稽核判為 Dynamic Type 不支援)。
+    private let compact: Bool
+
+    /// `compact` 是對話裡每輪開頭的小頭像(#351,20pt)。
+    init(kind: AgentKind, compact: Bool = false) {
+        self.kind = kind
+        self.compact = compact
+    }
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
-        Text(verbatim: style.letter)
-            .font(.subheadline.bold())
-            .foregroundStyle(.white)
-            // 方塊固定大小，字母跟著放大會超出方塊。
-            .dynamicTypeSize(...DynamicTypeSize.xLarge)
-            .frame(width: 36, height: 36)
-            .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
-            .accessibilityLabel(Text(verbatim: kind.displayName ?? ""))
-            .accessibilityHidden(!announcesKind || kind.displayName == nil)
+        AvatarBox(fill: style.palette.color, compact: compact)
+            .dynamicTypeSize(...AgentStatusAvatar.largestTypeSize)
+            .overlay {
+                Text(verbatim: style.letter)
+                    .font(compact ? .caption2.bold() : .subheadline.bold())
+                    .foregroundStyle(.white)
+            }
     }
 }
 
@@ -125,7 +159,7 @@ extension AgentListMode {
     }
 }
 
-/// 列表第一列的 Agents／Spaces 分段控制(#268):檢視切換只有這一個入口，沒有大標題、也不在任何選單裡。
+/// 列表最上面的 Agents／Spaces 切換(#268;#313:二選一也攤開成兩列勾選，不用分段):檢視切換只有這一個入口，沒有大標題、也不在任何選單裡。
 struct AgentListModeControl: View {
     @Binding var mode: AgentListMode
 
@@ -135,7 +169,8 @@ struct AgentListModeControl: View {
                 Text(mode.title).tag(mode)
             }
         }
-        .pickerStyle(.segmented)
+        .pickerStyle(.inline)
+        .labelsHidden()
         .accessibilityIdentifier("agentList.mode")
     }
 }

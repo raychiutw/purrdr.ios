@@ -36,13 +36,13 @@ extension XCUIApplication {
     func reveal(_ row: XCUIElement, timeout: TimeInterval = 10) -> Bool {
         // iPad 三欄時第一個 collection view 是側欄;捲的是 Agent 列表。
         let list = collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch
-        guard list.waitForExistence(timeout: timeout) else { return false }
+        guard list.waitUntilExists(timeout: timeout) else { return false }
         // 列表載入中：先等一下;畫面上的列都建好之後還是沒有，才往下捲。
-        if !row.waitForExistence(timeout: min(timeout, 4)) {
+        if !row.waitUntilExists(timeout: min(timeout, 4)) {
             for _ in 0..<8 where !row.exists {
                 drag(list)
             }
-            guard row.waitForExistence(timeout: max(timeout - 4, 1)) else { return false }
+            guard row.waitUntilExists(timeout: max(timeout - 4, 1)) else { return false }
         }
         let limit = windows.firstMatch.frame.maxY - 150
         for _ in 0..<3 where row.frame.maxY > limit {
@@ -60,28 +60,34 @@ extension XCUIApplication {
 }
 
 extension XCUIApplication {
-    /// 聊天列表的 Agents／Spaces 分段控制(#268:沒有大標題，檢視只看這裡)。
-    var listModeControl: XCUIElement { segmentedControls["agentList.mode"].firstMatch }
+    /// 聊天列表最上面的 Agents／Spaces 切換(#268:沒有大標題，檢視只看這裡;#313:攤開成兩列勾選)。以「Agents」那一列代表。
+    /// inline Picker 的每一列都帶 Picker 的 identifier(`agentList.mode`),依順序取：第 0 列 Agents、第 1 列 Spaces(繁中介面也找得到)。
+    var listModeControl: XCUIElement { listModeRow(0) }
 
-    /// 分段控制目前選到的檢視(「Agents」或「Spaces」)。
-    var listModeSelection: XCUIElement { listModeControl.buttons.matching(NSPredicate(format: "isSelected == true")).firstMatch }
+    private func listModeRow(_ index: Int) -> XCUIElement {
+        buttons.matching(identifier: "agentList.mode").element(boundBy: index)
+    }
 
-    /// 點 Agents／Spaces 分段控制(#244、#268)。
+    /// 目前選到的檢視(「Agents」或「Spaces」那一列)。
+    var listModeSelection: XCUIElement {
+        buttons.matching(NSPredicate(format: "identifier == 'agentList.mode' AND isSelected == true")).firstMatch
+    }
+
+    /// 點 Agents／Spaces 那一列(#244、#268、#313)。
     @MainActor
     func switchListMode(to mode: String, file: StaticString = #filePath, line: UInt = #line) {
-        let control = listModeControl
-        XCTAssertTrue(control.waitForExistence(timeout: 15), "沒有 Agents／Spaces 切換", file: file, line: line)
-        control.buttons[mode].tap()
+        XCTAssertTrue(listModeControl.waitUntilExists(timeout: 15), "沒有 Agents／Spaces 切換", file: file, line: line)
+        listModeRow(mode == "Spaces" ? 1 : 0).tap()
     }
 
     /// 左上角的主機篩選選了某一項(#244)。
     @MainActor
     func filterHosts(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let filter = buttons["toolbar.hostFilter"].firstMatch
-        XCTAssertTrue(filter.waitForExistence(timeout: 10), "左上角沒有主機篩選", file: file, line: line)
+        let filter = buttons["toolbar.currentHost"].firstMatch
+        XCTAssertTrue(filter.waitUntilExists(timeout: 10), "左上角沒有主機篩選", file: file, line: line)
         filter.tap()
         let item = buttons[name].firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "主機篩選選單沒有 \(name)", file: file, line: line)
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機篩選選單沒有 \(name)", file: file, line: line)
         item.tap()
     }
 }
@@ -91,48 +97,48 @@ extension XCUIApplication {
     @MainActor
     func openMoreMenuItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
         let more = buttons["toolbar.more"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
+        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
         more.tap()
         let item = buttons[identifier].firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "「⋯」選單沒有 \(identifier)", file: file, line: line)
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "「⋯」選單沒有 \(identifier)", file: file, line: line)
         item.tap()
     }
 
     /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
     @MainActor
     func openSignInFromAccount(file: StaticString = #filePath, line: UInt = #line) {
+        // 沒登入時帳號頁直接是登入頁(#328)。
         openAccount(file: file, line: line)
-        let join = buttons["account.plusSetup.action"].firstMatch
-        XCTAssertTrue(join.waitForExistence(timeout: 10), "帳號頁沒有「加入」", file: file, line: line)
-        join.tap()
+        XCTAssertTrue(buttons["member.signIn.apple"].firstMatch.waitUntilExists(timeout: 10), "帳號頁沒有登入頁", file: file, line: line)
     }
 
     /// 開已存主機(`-seedHost` 的 Studio Mac)的主機頁(#274:主機主題、You should know、Codex 啟動器在這裡)。
     @MainActor
     func openSeededHostPage(file: StaticString = #filePath, line: UInt = #line) {
         let more = buttons["toolbar.more"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
+        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
         more.tap()
         buttons["menu.hosts"].firstMatch.tap()
         let info = buttons["hosts.info.5EED0000-0000-4000-8000-000000000001"].firstMatch
-        XCTAssertTrue(info.waitForExistence(timeout: 10), "主機清單沒有 Studio Mac 的 ⓘ", file: file, line: line)
+        XCTAssertTrue(info.waitUntilExists(timeout: 10), "主機清單沒有 Studio Mac 的 ⓘ", file: file, line: line)
         info.tap()
-        XCTAssertTrue(textFields["hostEditor.name"].firstMatch.waitForExistence(timeout: 10), "沒有開出主機頁", file: file, line: line)
+        XCTAssertTrue(textFields["hostEditor.name"].firstMatch.waitUntilExists(timeout: 10), "沒有開出主機頁", file: file, line: line)
     }
 
     /// 開帳號頁：一般字級點右上角的帳號鈕;AX 字級時帳號併在「⋯」選單裡(#268)。
     @MainActor
     func openAccount(file: StaticString = #filePath, line: UInt = #line) {
         let account = buttons["toolbar.account"].firstMatch
-        if account.waitForExistence(timeout: 5) {
+        let more = buttons["toolbar.more"].firstMatch
+        // 依畫面狀態分支，不以逾時當條件：工具列出現時帳號鈕與「⋯」同時存在(一般字級)或只剩「⋯」(AX 字級)。
+        XCTAssertTrue(UITestWait.until(timeout: 15) { account.exists || more.exists }, "工具列沒有帳號鈕也沒有「⋯」", file: file, line: line)
+        if account.exists {
             account.tap()
             return
         }
-        let more = buttons["toolbar.more"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 10), "工具列沒有帳號鈕也沒有「⋯」", file: file, line: line)
         more.tap()
         let item = buttons["menu.account"].firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "「⋯」選單沒有帳號", file: file, line: line)
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "「⋯」選單沒有帳號", file: file, line: line)
         item.tap()
     }
 
@@ -142,7 +148,7 @@ extension XCUIApplication {
     func tapToolbarItem(_ identifier: String, overflowLabel: String, file: StaticString = #filePath, line: UInt = #line) {
         let item = buttons[identifier].firstMatch
         let overflow = buttons["OverflowBarButtonItem"].firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 10) || overflow.exists, "工具列沒有 \(identifier) 也沒有溢出選單", file: file, line: line)
+        XCTAssertTrue(UITestWait.until(timeout: 15) { item.exists || overflow.exists }, "工具列沒有 \(identifier) 也沒有溢出選單", file: file, line: line)
         if item.exists {
             item.tap()
             return
@@ -151,7 +157,7 @@ extension XCUIApplication {
         // 溢出鈕自己的名稱也是「More」。
         let overflowItem = buttons.matching(
             NSPredicate(format: "label == %@ AND identifier != %@", overflowLabel, "OverflowBarButtonItem")).firstMatch
-        XCTAssertTrue(overflowItem.waitForExistence(timeout: 5), "溢出選單裡沒有「\(overflowLabel)」", file: file, line: line)
+        XCTAssertTrue(overflowItem.waitUntilExists(timeout: 5), "溢出選單裡沒有「\(overflowLabel)」", file: file, line: line)
         overflowItem.tap()
     }
 
@@ -197,6 +203,8 @@ extension XCUIElement {
     /// 以英文軟體鍵盤打字：注音等輸入法會把英文變成組字。
     @MainActor
     func typeEnglish(_ text: String) {
+        // 點下輸入框後焦點要一下子才到：沒有焦點就 typeText 會失敗。
+        _ = wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }
         XCUIApplication().switchKeyboard(to: .english)
         typeText(text)
     }

@@ -25,19 +25,32 @@ struct PurrdrApp: App {
     private let welcome: WelcomeModel
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
+    private let recentPhotoSource: RecentPhotoSource
+    /// UI 測試的 `-uiTestingReduceTransparency YES`:玻璃強制不透明。
+    private let forcesOpaqueGlass: Bool
     /// App 鎖(#284):所有視窗共用一份鎖定狀態。
     private let appLock: AppLock
+    /// 數據用量的流量計量(#353)與網路類型監看(監看物件要活著)。
+    private let trafficMeter: TrafficMeter
+    private let trafficNetwork: TrafficNetworkMonitor
     /// 所有場景合併的生命週期(App 鎖依它判斷離開多久)。
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
         let uiTesting = arguments.contains("-uiTesting")
+        // UI 測試(#370):清掉上一個測試留在 UserDefaults 的設定頁偏好,測試之間沒有順序依賴。
+        if uiTesting, let domain = Bundle.main.bundleIdentifier {
+            UITestingPreferences.resetPersistedState(in: .standard, domain: domain)
+        }
         // Tailscale SSH check mode 的提示：所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
-        // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
-        let cache = InMemoryConversationCache()
+        // 對話快取(#356):存在這支裝置的本機 SQLite(Caches,排除備份),重開 app 與從推播冷啟動打開聊天都先顯示。
+        // UI 測試只放記憶體，不讀寫這台模擬器的檔案。
+        let cache: any ConversationCache = uiTesting
+            ? InMemoryConversationCache()
+            : SQLiteConversationCache(file: URL.cachesDirectory.appending(path: "Purrdr/conversations.sqlite"))
         // UI 測試每次啟動都從空白的釘選、靜音與主機圖示開始，不讀寫這台模擬器的 UserDefaults。
         // 釘選、靜音依主機分開(#39);舊版沒有主機身分的資料在第一次啟動時丟棄。
         let preferences: any HostChatPreferencesStore = uiTesting
@@ -65,6 +78,8 @@ struct PurrdrApp: App {
             await plus.refresh()
             return plus.isPlusActive
         }
+        // 測試通知:後台與主機外掛目前沒有這條路徑,正式 app 不提供;UI 測試用替身演出成功與失敗。
+        if uiTesting { push.testNotifications = UITestingPushTestSender(fails: arguments.contains("-uiTestingPushTestFails")) }
         let hosts: HostsModel
         if uiTesting {
             // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
@@ -88,7 +103,9 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
-                listMode: Self.uiTestingListMode(arguments),
+                // 列表檢視(Spaces／Agents)用預設的記憶體實作:每次啟動都從 Agents 開始(同正式 app 沒存過時;
+                // #275 起 Spaces 檢視是 Tab 列、沒有 Agent 列，測 Spaces 的測試自己切過去)。
+                listMode: InMemoryAgentListModeStore(.agents),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
                 makeChannel: { endpoint, _, _ in
                     if endpoint.host == Self.unreachableHost.ssh?.endpoint.host { return DemoUnreachableChannel() as any HostChannel }
@@ -103,7 +120,7 @@ struct PurrdrApp: App {
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, demoFiles: DemoHostFileFetcher(), demoCompanions: Self.demoCompanions(demo),
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
-                selectionStore: UserDefaultsHostSelectionStore(), planUsageSelection: UserDefaultsPlanUsageSelectionStore(),
+                selectionStore: UserDefaultsHostSelectionStore(), currentHost: UserDefaultsCurrentHostStore(), planUsageSelection: UserDefaultsPlanUsageSelectionStore(),
                 hostPicker: UserDefaultsHostPickerStore(),
                 hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
                 // 裝置名稱只帶裝置種類(同公鑰註解),顯示在主機的裝置列表。
@@ -113,7 +130,9 @@ struct PurrdrApp: App {
                 // 最新的主機服務版本從 purrdr.host 的 GitHub Release 取得，主機服務發版時 app 不用改版號(#362)。
                 hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
-                listMode: UserDefaultsAgentListModeStore()
+                listMode: UserDefaultsAgentListModeStore(),
+                // 離線佇列存在本機，App 重開仍在(#301)。
+                offlineQueues: UserDefaultsOfflineQueueStore()
             ) { endpoint, pin, credential in
                 SSHHostChannel(
                     endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer,
@@ -123,8 +142,21 @@ struct PurrdrApp: App {
         }
         // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
         if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
+        // 沒有主機時的空狀態(#332):正式啟動一律從空狀態開始;UI 測試預設直接列 Demo,`-uiTestingNoHosts` 才看空狀態。
+        hosts.demoEntered = uiTesting && !arguments.contains("-uiTestingNoHosts")
         hosts.haptics = SystemHaptics()
+        // 流量計量(#353):存在 Application Support(只在這支裝置;UI 測試只放記憶體)。
+        let trafficStore: any TrafficStore = uiTesting
+            ? InMemoryTrafficStore(days: arguments.contains("-seedDataUsage") ? Self.seededTrafficDays() : [])
+            : FileTrafficStore(url: URL.applicationSupportDirectory.appending(path: "traffic-usage.json"))
+        let trafficMeter = TrafficMeter(store: trafficStore)
+        if uiTesting, arguments.contains("-seedDataUsage") { Self.seedLaunchTraffic(trafficMeter) }
+        trafficNetwork = TrafficNetworkMonitor(meter: trafficMeter)
+        self.trafficMeter = trafficMeter
+        hosts.trafficMeter = trafficMeter
         hosts.reviewPrompt = Self.makeReviewPrompt(uiTesting: uiTesting)
+        // 送出可撤回(#300):UI 測試預設關閉(其他測試送出不等倒數);`-uiTestingUndoSend` 開 10 秒倒數(來得及點撤回)。
+        if uiTesting { hosts.undoSendSeconds = { arguments.contains("-uiTestingUndoSend") ? 10 : 0 } }
         hosts.load()
         _hosts = State(initialValue: hosts)
         // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
@@ -135,6 +167,8 @@ struct PurrdrApp: App {
         welcome = WelcomeModel(store: uiTesting
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
+        recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
+        forcesOpaqueGlass = uiTesting && UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency")
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
     }
 
@@ -150,22 +184,16 @@ struct PurrdrApp: App {
             authenticator: UITestingDeviceOwnerAuthenticator(hasPasscode: !arguments.contains("-uiTestingNoPasscode")), defaults: defaults)
     }
 
+    /// `-uiTestingRecentPhotos`:「＋」面板有 6 張替身照片;沒帶(`-uiTestingPhotosDenied` 或預設)就是沒有相簿權限。UI 測試一律不碰系統相簿。
+    private static func recentPhotoSource(_ arguments: [String]) -> RecentPhotoSource {
+        arguments.contains("-uiTestingRecentPhotos") ? .simulated(count: 6) : .simulatedDenied
+    }
+
     /// `-uiTestingPairingScan`:掃描畫面一開就像掃到配對 QR code;`-uiTestingCameraDenied`:沒有相機權限。
     private static func pairingCodeScanSource(_ arguments: [String]) -> PairingCodeScanSource {
         if arguments.contains("-uiTestingCameraDenied") { return .simulatedCameraDenied }
         guard arguments.contains("-uiTestingPairingScan") else { return .camera }
         return .simulated(payload: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA")
-    }
-
-    /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體，每次啟動都從 Agents 開始(同正式 app 沒存過時;
-    /// #275 起 Spaces 檢視是 Tab 列、沒有 Agent 列，測 Spaces 的測試自己切過去)。
-    /// `-rememberListMode` 改存 UserDefaults(另一個 key,不碰正式的 `agentListMode`),測沒有記錄時的預設與「重新啟動後記住」(#66);
-    /// `-resetListMode` 先清掉上次留下的值。
-    private static func uiTestingListMode(_ arguments: [String]) -> any AgentListModeStore {
-        guard arguments.contains("-rememberListMode") else { return InMemoryAgentListModeStore(.agents) }
-        let key = "uiTesting.agentListMode"
-        if arguments.contains("-resetListMode") { UserDefaults.standard.removeObject(forKey: key) }
-        return UserDefaultsAgentListModeStore(key: key)
     }
 
     /// 成功送出幾次 prompt 後請求評分(#34)。UI 測試只在記憶體計數、不叫出系統的評分對話框(會擋住後面的操作)。
@@ -195,6 +223,36 @@ struct PurrdrApp: App {
             app: app, client: { hosts.herdrClient }, hostCount: { hosts.hosts.count }, defaults: .standard,
             platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks
         )
+    }
+
+    /// UI 測試情境 `-seedDataUsage`(#354):過去 29 天的用量(Studio Mac 每天 Wi-Fi 20 MB 加行動網路 3 MB、Build Box 每天 1 MB、
+    /// 已刪除的主機 2 MB),搭配 `-seedHost`、`-seedUnreachableHost`。
+    private static func seededTrafficDays() -> [TrafficDay] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return (1...29).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            let parts = calendar.dateComponents([.year, .month, .day], from: date)
+            let key = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+            return TrafficDay(day: key, hosts: [
+                seededHost.id.uuidString: [
+                    .wifi: TrafficBytes(sent: 2_000_000, received: 18_000_000),
+                    .cellular: TrafficBytes(sent: 1_000_000, received: 2_000_000),
+                ],
+                unreachableHost.id.uuidString: [.wifi: TrafficBytes(sent: 0, received: 1_000_000)],
+                "9E9E9E9E-0000-4000-8000-000000000001": [.wifi: TrafficBytes(sent: 0, received: 2_000_000)],
+            ])
+        }
+    }
+
+    /// 今天與這次開啟:Studio Mac 行動網路 2 MB(送出 0.5、收到 1.5)加 Wi-Fi 收到 8 MB,共 10 MB。
+    private static func seedLaunchTraffic(_ meter: TrafficMeter) {
+        let id = seededHost.id.uuidString
+        meter.setNetwork(.cellular)
+        meter.record(hostID: id, direction: .sent, bytes: 500_000)
+        meter.record(hostID: id, direction: .received, bytes: 1_500_000)
+        meter.setNetwork(.wifi)
+        meter.record(hostID: id, direction: .received, bytes: 8_000_000)
     }
 
     /// UI 測試情境 `-seedHost`:已存一台主機(通道仍是 Demo 主機)，測主機清單的管理動作。
@@ -247,20 +305,20 @@ struct PurrdrApp: App {
     }
 
     /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成);
-    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止);開啟 ledger 的對話 8 秒後、或每次送出 prompt 後 agent 一次寫出大量輸出(#130);
-    /// 啟動 12 秒後斷網(立刻失敗，或每個指令等 10 秒才失敗,#219);啟動就沒有網路(每個指令等 10 秒才失敗,#221)。
+    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止);開啟 ledger 的對話 5 秒後、或每次送出 prompt 後 agent 一次寫出大量輸出(#130);
+    /// 對話載入完成 1 秒後斷網(立刻失敗，或每個指令等 10 秒才失敗,#219);啟動就沒有網路(每個指令等 10 秒才失敗,#221)。
     /// 情境只能選一個：旗標互斥，同時帶多個時只採用下面順序中的第一個。
     private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
         if arguments.contains("-demoPaneInUse") { return .paneInUse }
         if arguments.contains("-demoTailscaleCheck") { return .tailscaleCheck(completesAfter: nil) }
         if arguments.contains("-demoTailscaleCheckCompletes") { return .tailscaleCheck(completesAfter: .seconds(3)) }
         if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
-        if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(8)) }
+        if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(5)) }
         if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
         if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
-        if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(12), hangs: false) }
-        if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(12), hangs: true) }
+        if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(1), hangs: false) }
+        if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(1), hangs: true) }
         if arguments.contains("-demoNoNetwork") { return .goesOffline(after: .zero, hangs: true) }
         return .standard
     }
@@ -304,10 +362,13 @@ struct PurrdrApp: App {
             .appAppearance()
             .appLockCover(appLock)
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
+            .environment(\.recentPhotoSource, recentPhotoSource)
+            .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in
             appLock.scenePhaseChanged(to: AppLockPhase(phase), at: .now)
+            if phase != .active { trafficMeter.flush() }
         }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in

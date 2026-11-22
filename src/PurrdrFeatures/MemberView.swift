@@ -15,22 +15,25 @@ public struct MemberView: View {
     let pushDevices: PushDevicesModel?
     /// 主機同步(步驟四)。
     let hostSync: HostSyncModel?
+    /// 還沒配對的 HTTPS 主機在通知列開配對(#295;與主機頁同一個編輯器)。
+    let hosts: HostsModel?
     @Environment(\.dismiss) private var dismiss
 
     public init(
         model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
-        hostSync: HostSyncModel? = nil
+        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil
     ) {
         self.model = model
         self.plus = plus
         self.pushes = pushes
         self.pushDevices = pushDevices
         self.hostSync = hostSync
+        self.hosts = hosts
     }
 
     public var body: some View {
         NavigationStack {
-            MemberContent(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync)
+            MemberContent(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
@@ -48,21 +51,23 @@ public struct MemberContent: View {
     let pushes: [HostPush]
     let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
+    let hosts: HostsModel?
 
     public init(
         model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
-        hostSync: HostSyncModel? = nil
+        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil
     ) {
         self.model = model
         self.plus = plus
         self.pushes = pushes
         self.pushDevices = pushDevices
         self.hostSync = hostSync
+        self.hosts = hosts
     }
 
     public var body: some View {
         content
-            .navigationTitle("Account")
+            .navigationTitle(model.phase == .signedOut ? "Sign In" : "Account")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -81,7 +86,10 @@ public struct MemberContent: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.phase == .unknown {
+        if model.phase == .signedOut {
+            // 沒登入直接是登入頁(#328,原型 A);登入完成後 phase 變成 signedIn,換成帳號頁。
+            SignedOutAccountView(model: model)
+        } else if model.phase == .unknown {
             if model.isWorking {
                 ProgressView()
             } else {
@@ -94,12 +102,52 @@ public struct MemberContent: View {
                 }
             }
         } else {
-            AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync)
+            AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts)
         }
     }
 
     private var noticePresented: Binding<Bool> {
         Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
+    }
+}
+
+/// 沒登入的帳號頁(#328,原型 A):Purrdr 圖示、標題、說明與兩個登入鈕,不出現步驟卡。
+struct SignedOutAccountView: View {
+    let model: MemberModel
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.onProminentFill)
+                    .frame(width: 80, height: 80)
+                    .background(.prominentFill, in: RoundedRectangle(cornerRadius: 18))
+                    .accessibilityHidden(true)
+                    .padding(.top, 24)
+                Text("Sign In to Purrdr")
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.center)
+                Text("Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync hosts between iPhone and iPad.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+                    .multilineTextAlignment(.center)
+                Text("Chat and terminal don’t need a member account.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 4)
+            }
+            .padding(.horizontal)
+        }
+        // 識別碼要掛在 ScrollView 本身:掛在 safeAreaInset 外層會蓋掉登入鈕自己的識別碼。
+        .accessibilityIdentifier("account.signedOut")
+        // 登入鈕固定在底部:AX 字級時也不必捲動才看得到(HIG:Sign in with Apple 要一眼看得到)。
+        .safeAreaInset(edge: .bottom) {
+            SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
+                .padding()
+                .background(.bar)
+        }
     }
 }
 
@@ -245,12 +293,17 @@ struct AccountView: View {
     let pushes: [HostPush]
     let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
+    let hosts: HostsModel?
     @State private var confirmingDeletion = false
+    /// 從通知列開配對的主機(#295)。
+    @State private var pairingHost: UUID?
     @State private var signingIn = false
     @State private var showingPlus = false
     @State private var offeringFeatureSetup = false
     /// 每次加一：步驟卡「選擇主機」捲到「通知」區塊。
     @State private var notificationsScrollRequest = 0
+    /// Purrdr Plus 頁點功能列後捲到帳號頁對應的區塊(#323)。
+    @State private var featureScrollRequest: PlusFeature?
 
     private var signedInMember: Member? {
         if case .signedIn(let member) = model.phase { return member }
@@ -259,6 +312,16 @@ struct AccountView: View {
 
     private var notifyingHostNames: [String] { pushes.notifyingHostNames }
 
+    private var plusFeatures: PlusFeatureLinks {
+        PlusFeatureLinks(
+            status: PlusFeatureStatus(
+                notifyingHostCount: notifyingHostNames.count,
+                isHostSyncOn: hostSync?.isEnabled ?? false,
+                deviceCount: pushDevices.flatMap { $0.hasLoaded ? $0.devices.count : nil }),
+            dismissesOnOpen: true,
+            open: { featureScrollRequest = $0 })
+    }
+
     private var progress: PlusSetupProgress? {
         plus.map { PlusSetupProgress(member: model, plus: $0, isNotificationsOn: !notifyingHostNames.isEmpty, hostSync: hostSync) }
     }
@@ -266,6 +329,11 @@ struct AccountView: View {
     var body: some View {
         ScrollViewReader { proxy in
             list
+                .onChange(of: featureScrollRequest) { _, feature in
+                    guard let feature else { return }
+                    featureScrollRequest = nil
+                    withAnimation { proxy.scrollTo(feature, anchor: .top) }
+                }
                 .onChange(of: notificationsScrollRequest) {
                     guard let first = pushes.first else { return }
                     withAnimation { proxy.scrollTo(first.id, anchor: .top) }
@@ -284,15 +352,18 @@ struct AccountView: View {
                 plusSection(plus: plus, progress: progress)
                 if progress.isPlusActive {
                     // 四步完成、步驟卡收合後，通知與主機同步仍可隨時開關(spec #261 原型 A)。
-                    HostPushSection(pushes: pushes) { showingPlus = true }
+                    HostPushSection(pushes: pushes, openPlus: { showingPlus = true }, pair: { pairingHost = $0 })
+                        .id(PlusFeature.notifications)
                 }
                 if signedInMember != nil, let pushDevices {
                     // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
                     PushDevicesSection(model: pushDevices, canRename: progress.isPlusActive)
+                        .id(PlusFeature.devices)
                 }
                 if progress.isPlusActive {
                     if let hostSync, progress.state(of: .syncHosts) == .done {
                         HostSyncSection(model: hostSync, plus: plus, member: model)
+                            .id(PlusFeature.hostSync)
                     }
                 }
             }
@@ -306,11 +377,8 @@ struct AccountView: View {
                     }
                     .accessibilityIdentifier("member.signInMethods")
                     Button("Sign Out") { Task { await model.signOut() } }
-                    Button("Delete Member…", role: .destructive) { confirmingDeletion = true }
+                    Button("Delete Member", role: .destructive) { confirmingDeletion = true }
                         .accessibilityIdentifier("member.delete")
-                } footer: {
-                    Text("Deleting your member account removes it and its data from Purrdr right away. Subscriptions billed by Apple continue until you cancel them in Settings.")
-                        .foregroundStyle(.secondaryText)
                 }
             }
         }
@@ -322,7 +390,18 @@ struct AccountView: View {
         }
         .navigationDestination(isPresented: $showingPlus) {
             if let plus {
-                PlusView(model: plus, member: model)
+                PlusView(model: plus, member: model, features: plusFeatures)
+            }
+        }
+        .navigationDestination(item: $pairingHost) { id in
+            if let hosts, let host = hosts.hosts.first(where: { $0.id == id }) {
+                // 與主機頁點「還沒配對」的主機開的是同一個引導(直接到配對那一步);存好回到帳號頁，那台主機的開關就能用。
+                AddHostGuideScreen(
+                    make: { (try? hosts.makePairingGuide(for: host)) ?? hosts.makeAddHostGuide() },
+                    onSaved: { _ in pairingHost = nil },
+                    onCancel: { pairingHost = nil },
+                    onAdded: { hosts.didSave($0) },
+                    hostPush: { id in hosts.hostPushes.first { $0.host == .host(id) } })
             }
         }
         .onChange(of: signedInMember?.id) { _, id in
@@ -356,7 +435,7 @@ struct AccountView: View {
         Section {
             if progress.isComplete {
                 NavigationLink {
-                    PlusView(model: plus, member: model)
+                    PlusView(model: plus, member: model, features: plusFeatures)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Purrdr Plus · Active")
@@ -370,7 +449,7 @@ struct AccountView: View {
                 PlusSetupCard(progress: progress, notifyingHostNames: notifyingHostNames, isWorking: isStepWorking) { perform($0) }
                 if progress.isPlusActive {
                     NavigationLink {
-                        PlusView(model: plus, member: model)
+                        PlusView(model: plus, member: model, features: plusFeatures)
                     } label: {
                         LabeledContent("Purrdr Plus") { Text(plus.statusText) }
                     }
@@ -422,7 +501,7 @@ struct AccountView: View {
     }
 }
 
-/// 帳號頁頂端的頭像與名稱;未加入會員顯示「?」。
+/// 帳號頁頂端的頭像與名稱;未加入會員顯示人頭圖。
 private struct AccountHeader: View {
     let member: Member?
 
@@ -450,27 +529,33 @@ private struct AccountHeader: View {
     }
 }
 
-/// 帳號頭像：主色填色(`prominentFill`)圓底上的頭像字;沒有字時用人像符號，未加入會員(`nil`)用「?」。帳號鈕與帳號頁共用。
+/// 帳號頭像：主色填色(`prominentFill`)圓底上的頭像字;沒有字時用人像符號，未加入會員(`nil`)用系統人頭圖。帳號鈕與帳號頁共用。
 struct AccountAvatar: View {
     let member: Member?
 
     var body: some View {
-        ZStack {
-            Circle().fill(.prominentFill)
-            Group {
-                if let member {
-                    if let initial = member.avatarInitial {
-                        Text(verbatim: initial)
-                    } else {
-                        Image(systemName: "person.fill")
+        Group {
+            if let member {
+                ZStack {
+                    Circle().fill(.prominentFill)
+                    Group {
+                        if let initial = member.avatarInitial {
+                            Text(verbatim: initial)
+                        } else {
+                            Image(systemName: "person.fill")
+                        }
                     }
-                } else {
-                    // 圖示而非文字：AX 字級時帳號鈕收進溢出選單，選單項目會把畫面上的「?」當名稱。
-                    Image(systemName: "questionmark")
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.onProminentFill)
                 }
+            } else {
+                // 沒登入:系統人頭圖(圖示而非文字，AX 字級時帳號鈕收進溢出選單，選單項目不會把畫面上的符號當名稱)。
+                Image(systemName: "person.crop.circle")
+                    .resizable()
+                    .scaledToFit()
+                    .fontWeight(.light)
+                    .foregroundStyle(.secondaryText)
             }
-            .fontWeight(.semibold)
-            .foregroundStyle(.onProminentFill)
         }
         .accessibilityHidden(true)
     }
@@ -498,9 +583,6 @@ struct SignInMethodsView: View {
                     }
                     .accessibilityIdentifier("member.identity.\(identity.method.rawValue)")
                 }
-            } footer: {
-                Text("Link another sign-in method to reach the same member from either. Keep at least one.")
-                    .foregroundStyle(.secondaryText)
             }
 
             let unlinked = SignInMethod.allCases.filter { member.identity($0) == nil }

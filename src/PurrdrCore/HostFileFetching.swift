@@ -109,7 +109,7 @@ extension HostFileAccessScope {
 /// 主機取檔的存取規則(app 端提前擋;主機端再檢查，是權威)。與主機服務、SSH 取檔腳本共用案例 `vendor/purrdr-host/protocol/host-file-access.json`。
 ///
 /// - Agent 工作目錄之下;工作目錄是根目錄、家目錄或它的上層時不算(等於放行整個家目錄)。
-/// - 或 Agent 在對話紀錄寫出的路徑，且在系統暫存目錄、家目錄的 `.purrdr/uploads`、Windows 的 `AppData\Local\Temp`,
+/// - 或 Agent 在對話紀錄寫出的路徑，且在系統暫存目錄(含它底下的上傳資料夾 `purrdr-uploads[-<uid>]`)、舊版家目錄的 `.purrdr/uploads`(保留一個版本)、Windows 的 `AppData\Local\Temp`,
 ///   或目前對話紀錄的附檔資料夾(`<資料夾>/<檔名去掉副檔名>/tool-results`)。
 /// - 排除清單一律拒絕。app 不知道主機的家目錄，依路徑樣式推測(`/Users/<名稱>`、`/home/<名稱>`、`C:\Users\<名稱>`…)。
 public enum HostFileAccessPolicy {
@@ -128,10 +128,16 @@ public enum HostFileAccessPolicy {
             guard let rootKeys = HostPathKeys(directory), !rootKeys.isTooBroadForWorkingDirectory else { continue }
             if pathKeys.isUnder(rootKeys) { return .allowed(HostFileTarget(path: path, root: directory)) }
         }
-        guard scope.mentionedPaths.contains(path), mentionableLocations(for: pathKeys, in: scope).contains(where: pathKeys.isUnder) else {
+        guard scope.mentionedPaths.contains(path),
+              isInUploadFolder(pathKeys) || mentionableLocations(for: pathKeys, in: scope).contains(where: pathKeys.isUnder) else {
             return .denied
         }
         return .allowed(HostFileTarget(path: path, root: nil))
+    }
+
+    /// 上傳資料夾(暫存目錄底下的 `purrdr-uploads[-<uid>]`,schema 的 `x-upload-folder`):TMPDIR 不在標準位置時也放行。
+    private static func isInUploadFolder(_ path: HostPathKeys) -> Bool {
+        path.segments.dropLast().contains { UploadedImages.isUploadFolderName($0) }
     }
 
     /// 工作目錄以外，Agent 提到時可放行的位置。
@@ -147,6 +153,11 @@ public enum HostFileAccessPolicy {
             locations.append(HostPathKeys(segments: Array(keys.segments.dropLast()) + [stem.isEmpty ? name : stem, "tool-results"], isWindows: keys.isWindows))
         }
         return locations
+    }
+
+    /// 路徑在排除清單裡(變更頁的 diff 也不讀這些檔案，#310)。
+    package static func isExcluded(_ path: String) -> Bool {
+        isExcluded(HostPathSyntax.components(path).map(String.init))
     }
 
     private static func isExcluded(_ segments: [String]) -> Bool {

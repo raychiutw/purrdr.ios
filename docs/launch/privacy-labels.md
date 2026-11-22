@@ -29,7 +29,7 @@ App Store Connect → App → App 隱私權。每題附依據(程式位置)。�
 | 使用資料 → 產品互動、廣告資料、其他 | 否 | 沒有分析;評分提示計數只在 UserDefaults | `src/PurrdrFeatures/ReviewPrompt.swift` |
 | 位置 | 否 | 不使用定位 | 全 repo 沒有 CoreLocation |
 | 健康與健身、財務資訊、聯絡人、敏感資訊、瀏覽紀錄、搜尋紀錄 | 否 | — | — |
-| 其他資料 | 否 | 推播的 workspace 名稱／狀態／pane id 只在轉送當下處理、不保存(見上方判斷基準) | `raychiutw/purrdr.server` 的 `README.md`「推播」 |
+| 其他資料 | 否 | 推播的 workspace 名稱／狀態／pane id 只在轉送當下處理、不保存(見上方判斷基準);「傳送測試通知」帶的電腦名稱同樣只用在該則通知標題、不保存，**不需新增申報**(2026-11-21 檢查：隱私標籤不變，隱私權政策第 5 節已補說明) | `raychiutw/purrdr.server` 的 `README.md`「推播」 |
 
 > 需人工判斷的一點:後台開啟了 Cloudflare Workers Logs(`raychiutw/purrdr.server` 的 `wrangler.jsonc` 的 `observability.enabled`),Cloudflare 會短期保存請求紀錄(可能含 IP 位址)用於除錯。
 > 這是服務供應商為提供服務而處理、只用於維運與除錯，沒有拿來推算位置、也不連結到會員，所以此處**不申報**「粗略位置」或「其他診斷資料」。

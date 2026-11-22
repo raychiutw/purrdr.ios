@@ -34,7 +34,7 @@ struct SnapshotLayoutDecodingTests {
 
         #expect(snapshot.panes.map(\.id) == ["w1:p6", "w1:pA", "w1:pB", "w2:p1"])
         let shell = try #require(snapshot.panes.last)
-        #expect(shell == Pane(id: "w2:p1", workspaceID: "w2", tabID: "w2:t1", agentKind: nil, cwd: "/tmp/scratch"))
+        #expect(shell == Pane(id: "w2:p1", workspaceID: "w2", tabID: "w2:t1", agentKind: nil, cwd: "/tmp/scratch", viewportRows: 32))
         #expect(snapshot.panes.first?.agentKind == "claude")
     }
 

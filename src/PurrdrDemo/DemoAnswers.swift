@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 /// Demo 主機的「需要你」情境(行為規格 F21):各 pane 畫面上的提示、收到按鍵後的變化。
 ///
@@ -51,6 +52,8 @@ struct DemoAnswers {
 
     /// 工作中、可以被停止的 pane。
     static let workingPanes: Set<String> = ["w3:p1"]
+    /// 各 pane 的 Claude 權限模式(#306);沒列的是一般。
+    private(set) var permissionModes: [String: AgentPermissionMode] = [:]
     /// 已經被停止的 pane(變完成)。
     private(set) var stopped: Set<String> = []
     /// 收到 Esc／ctrl+c、還在停止中的 pane(仍是 working,#220)。
@@ -102,6 +105,11 @@ struct DemoAnswers {
 
     /// 收到按鍵：照 Claude 的規則(只送數字;信任提示用方向鍵)推進。
     mutating func receivedKeys(_ keys: [String], paneID: String) {
+        // Shift+Tab 輪替權限模式(#306):一般 → 接受編輯 → Plan → 一般。
+        if keys == ["shift+tab"] {
+            permissionModes[paneID] = (permissionModes[paneID] ?? .normal).next()
+            return
+        }
         if Self.workingPanes.contains(paneID), keys == ["esc"] || keys == ["ctrl+c"] {
             if !stopped.contains(paneID) { stopping.insert(paneID) }
             return
@@ -213,7 +221,7 @@ struct DemoAnswers {
         case nil:
             if let panel = panels[paneID] { panel.screen }
             else if Self.workingPanes.contains(paneID) && !stopped.contains(paneID) { Self.codexWorking }
-            else { Self.idle(suggestion: suggestion(for: paneID), ansi: ansi) }
+            else { Self.idle(suggestion: suggestion(for: paneID), ansi: ansi, mode: permissionModes[paneID] ?? .normal) }
         }
     }
 
@@ -309,7 +317,12 @@ struct DemoAnswers {
         """
 
     /// 完成的 Claude Code:輸入列是 `❯` + NBSP,有建議時接在後面(灰色)。
-    private static func idle(suggestion: String?, ansi: Bool) -> String {
+    private static func idle(suggestion: String?, ansi: Bool, mode: AgentPermissionMode) -> String {
+        let footer = switch mode {
+        case .normal, .bypassPermissions: "? for shortcuts"
+        case .acceptEdits: "⏵⏵ accept edits on (shift+tab to cycle)"
+        case .plan: "⏸ plan mode on (shift+tab to cycle)"
+        }
         let input = suggestion.map { ansi ? "\u{1B}[0m\u{1B}[2m\($0)\u{1B}[0m" : $0 } ?? ""
         return """
             ⏺ All set.
@@ -317,7 +330,7 @@ struct DemoAnswers {
             \(separator)
             ❯\u{00A0}\(input)
             \(separator)
-              ? for shortcuts
+              \(footer)
 
             """
     }

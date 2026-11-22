@@ -59,7 +59,7 @@ struct SpacesLayoutContent: View {
             ContentUnavailableView(
                 "No Layout",
                 systemImage: "rectangle.split.3x1",
-                description: Text("herdr on this host didn’t report a layout.")
+                description: Text("Couldn’t read this host’s layout.")
             )
         }
     }

@@ -1,13 +1,6 @@
 import Foundation
 import PurrdrCore
 
-/// 用密碼加入公鑰的結果。
-public enum AuthorizedKeyInstallOutcome: Sendable, Equatable {
-    case added
-    /// 同一把公鑰已在檔案裡，沒有寫入。
-    case alreadyPresent
-}
-
 public enum AuthorizedKeyInstallError: Error, Equatable {
     /// 主機上的寫入失敗，帶主機的錯誤輸出。
     case failed(String)
@@ -15,7 +8,8 @@ public enum AuthorizedKeyInstallError: Error, Equatable {
     case changedSinceRead
 }
 
-/// 把這支裝置的公鑰寫進主機的 `authorized_keys`(#285,ADR-0002 的寫入例外)。呼叫端以密碼登入的通道執行。
+/// 這支裝置的公鑰在主機 `authorized_keys` 的還原(#285,ADR-0002 的寫入例外)。新增主機引導改成給使用者可拷貝的指令,
+/// app 不再寫入;留著 `restore` 是為了舊版 app 用密碼加進去的那一行,刪除主機時要還原。寫入的實作只在測試支援(`install`)。
 ///
 /// - macOS／Linux 與 Windows 一般使用者：`~/.ssh/authorized_keys`,經 `ReversibleHostWrite`(還原時只拿掉這一行)。
 ///   POSIX 的主機檔案腳本以 `umask 077` 建立資料夾與檔案(700／600),同 `AuthorizedKeyCommand`。
@@ -27,40 +21,16 @@ public struct AuthorizedKeyInstaller: Sendable {
     public static let authorizedKeysPath: HostPath = ".ssh/authorized_keys"
     public static let feature = HostWriteFeature(id: "authorized-key", userFiles: [authorizedKeysPath], createsParentDirectories: true)
     /// Windows 管理員檔案安裝前內容的備份(`feature` 的自有檔案)。
-    static let administratorRecordName = "administrators_authorized_keys.json"
+    package static let administratorRecordName = "administrators_authorized_keys.json"
     /// Windows 管理員檔案的指令名稱：只會送到 Windows 主機，由 `WindowsHostChannel` 換成 PowerShell。
     static let administratorProgram = "purrdr-administrators-authorized-keys"
 
     let channel: any HostChannel
-    let write: ReversibleHostWrite
+    package let write: ReversibleHostWrite
 
     public init(channel: any HostChannel) {
         self.channel = channel
         write = ReversibleHostWrite(channel: channel, feature: Self.feature)
-    }
-
-    @discardableResult
-    public func install(_ key: SSHPublicKey) async throws -> AuthorizedKeyInstallOutcome {
-        let recordPath = Self.feature.ownFile(Self.administratorRecordName)
-        let inspection = try await write.inspect(also: [recordPath])
-        if inspection.read.isWindows, case .administrator(let current) = try await readAdministrator() {
-            if Self.contains(key, in: current) { return .alreadyPresent }
-            let installed = Self.appending(key, to: current ?? Data(), lineEnding: "\r\n")
-            // 重複安裝沿用第一次的備份。
-            let original = Self.administratorRecord(in: inspection).map(\.original) ?? current
-            let record = try JSONEncoder().encode(AdministratorRecord(original: original, installed: installed))
-            try await write.install(also: [recordPath]) { _ in
-                HostWritePlan(userFiles: [:], ownFiles: [Self.administratorRecordName: .init(record)])
-            }
-            try await writeAdministrator(expected: current, contents: installed)
-            return .added
-        }
-        if Self.contains(key, in: inspection.read[Self.authorizedKeysPath]?.contents) { return .alreadyPresent }
-        try await write.install { inspection in
-            let current = inspection.read[Self.authorizedKeysPath]?.contents ?? Data()
-            return HostWritePlan(userFiles: [Self.authorizedKeysPath: Self.appending(key, to: current)], ownFiles: [:])
-        }
-        return .added
     }
 
     /// 還原：使用者檔案拿掉加入的那一行(使用者後來加的行保留);Windows 管理員檔案沒再改過就換回安裝前的內容。
@@ -129,14 +99,14 @@ public struct AuthorizedKeyInstaller: Sendable {
         }
     }
 
-    enum AdministratorState: Equatable {
+    package enum AdministratorState: Equatable {
         /// 不是管理員：改寫家目錄的檔案。
         case standardUser
         /// 管理員;`nil` 是檔案不存在。
         case administrator(Data?)
     }
 
-    private func readAdministrator() async throws -> AdministratorState {
+    package func readAdministrator() async throws -> AdministratorState {
         let output = try await runAdministrator(.read)
         if output == "user" { return .standardUser }
         if output == "missing" { return .administrator(nil) }
@@ -146,7 +116,7 @@ public struct AuthorizedKeyInstaller: Sendable {
         return .administrator(data)
     }
 
-    private func writeAdministrator(expected: Data?, contents: Data?) async throws {
+    package func writeAdministrator(expected: Data?, contents: Data?) async throws {
         switch try await runAdministrator(.write(expected: expected, contents: contents)) {
         case "written": return
         case "changed": throw AuthorizedKeyInstallError.changedSinceRead
@@ -164,36 +134,22 @@ public struct AuthorizedKeyInstaller: Sendable {
     }
 
     /// Windows 管理員檔案安裝前與安裝後的內容。
-    struct AdministratorRecord: Codable {
-        var original: Data?
-        var installed: Data
+    package struct AdministratorRecord: Codable {
+        package var original: Data?
+        package var installed: Data
+
+        package init(original: Data?, installed: Data) {
+            self.original = original
+            self.installed = installed
+        }
     }
 
-    private static func administratorRecord(in inspection: HostWriteInspection) -> AdministratorRecord? {
+    package static func administratorRecord(in inspection: HostWriteInspection) -> AdministratorRecord? {
         guard case .file(let data, _)? = inspection.read[feature.ownFile(administratorRecordName)] else { return nil }
         return try? JSONDecoder().decode(AdministratorRecord.self, from: data)
     }
 
     // MARK: - 內容
-
-    static func contains(_ key: SSHPublicKey, in data: Data?) -> Bool {
-        guard let data else { return false }
-        let wanted = key.openSSH.split(separator: " ").prefix(2).map(String.init)
-        guard wanted.count == 2 else { return false }
-        for line in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline) {
-            // 前面可能有選項(例如 `from="…"`):找相鄰的演算法與 base64。
-            let fields = line.split(whereSeparator: \.isWhitespace).map(String.init)
-            if fields.indices.dropLast().contains(where: { fields[$0] == wanted[0] && fields[$0 + 1] == wanted[1] }) { return true }
-        }
-        return false
-    }
-
-    static func appending(_ key: SSHPublicKey, to current: Data, lineEnding: String = "\n") -> Data {
-        var updated = current
-        if let last = current.last, last != 0x0A { updated.append(Data(lineEnding.utf8)) }
-        updated.append(Data((key.openSSH + lineEnding).utf8))
-        return updated
-    }
 
     static func removing(_ key: SSHPublicKey, from current: Data) -> Data {
         // 以位元組切行：Swift 字串把 CRLF 當成一個字元，Windows 的檔案會切不開。

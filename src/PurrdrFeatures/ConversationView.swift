@@ -12,7 +12,7 @@ import SwiftUI
 /// - 畫面可見且 app 在前景時才輪詢與回報在場。
 /// - 底部是輸入列(`ComposerBar`,功能層 `safeAreaBar`);送出時切回跟隨尾端，讓回音落在視野內。
 public struct ConversationView: View {
-    let model: ConversationModel
+    @Bindable var model: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
     /// Reduce Motion:自動捲到底不做動畫，直接跳過去(HIG:減少自動、重複的動畫)。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -46,17 +46,17 @@ public struct ConversationView: View {
             .toolbar {
                 // 標題是 workspace 名稱，副標是狀態與主機名(#270);右邊只有終端機鈕，重新載入改成下拉。
                 ToolbarItem(placement: .principal) {
-                    ConversationTitleView(title: displayTitle, header: model.header)
+                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header, model: model)
                 }
+                .sharedBackgroundVisibility(.hidden)    // 標題自己是玻璃膠囊，不讓工具列再疊一層(glass on glass)
             }
-            .safeAreaInset(edge: .top, spacing: 0) { banner }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let pane = model.agentsPane, !pane.rows.isEmpty {
-                    AgentsBarView(pane: pane, readAt: model.agentsPaneReadAt, conversation: model)
-                }
-            }
+            .safeAreaBar(edge: .top) { banner }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .forceQuitConfirmation(model: model)
+            .sheet(isPresented: $model.showsStatusSheet) {
+                ConversationStatusSheet(title: displayTitle, model: model)
+            }
+            .secretCheckSheet(model.secretCheck)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerImage = ViewerImage(url: $0) }
@@ -73,6 +73,16 @@ public struct ConversationView: View {
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
                 await model.run()
+            }
+            // 離開期間摘要(#308):app 進背景再回來也算離開。
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { model.scenePhaseChanged(isBackground: true) }
+                if phase == .active { model.scenePhaseChanged(isBackground: false) }
+            }
+            // Send When Done 佇列跟著主機的推送(#305);回到前景時重新讀回。
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                await model.sendWhenDone?.run()
             }
             .onChange(of: ConversationAnnouncer.Input(items: model.items, status: model.agentStatus, title: displayTitle), initial: true) { _, input in
                 announce(announcer.observe(input, now: .now))
@@ -94,12 +104,12 @@ public struct ConversationView: View {
     }
 
     private var displayTitle: String {
-        model.header.title.isEmpty ? String(localized: "Chat") : model.header.title
+        model.statusSummary.header.title.isEmpty ? String(localized: "Chat") : model.statusSummary.header.title
     }
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+        if model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -111,6 +121,28 @@ public struct ConversationView: View {
 
     // MARK: - 訊息
 
+    /// 一個待送項目:依種類用既有的泡泡元件畫(外觀不變，#348 起再統一樣式)。
+    @ViewBuilder
+    private func pendingRow(_ item: PendingItem) -> some View {
+        switch item.kind {
+        case .offlineQueued, .offlineProblem:
+            if let queued = model.queuedPrompts.first(where: { "queued-\($0.id.uuidString)" == item.id }) {
+                QueuedPromptBubbleView(
+                    prompt: queued, putBack: { model.putBack(queued.id) }, delete: { model.deleteQueued(queued.id) })
+            }
+        case .sendWhenDone(let position):
+            // 做完再送的佇列是一個元件畫全部項目，只在第一項處畫一次。
+            if position == 1, let sendWhenDone = model.sendWhenDone {
+                SendWhenDoneQueueView(conversation: model, model: sendWhenDone)
+            }
+        case .undoCountdown:
+            if let undoSend = model.undoSend, let pending = undoSend.pending {
+                PendingSendBubbleView(pending: pending, imageCount: model.attachments.count, undo: undoSend.undo, sendNow: undoSend.sendNow)
+                    .id(ConversationFollowTarget.pendingSendRowID)
+            }
+        }
+    }
+
     private var messages: some View {
         // 捲到最底下那一列用 `ScrollViewProxy`:每次呼叫都會捲;`position` 的值沒變時 SwiftUI 不再捲(#191)。
         ScrollViewReader { proxy in
@@ -118,15 +150,24 @@ public struct ConversationView: View {
         }
     }
 
+    /// 每輪開頭的頭像與名稱(#351)。
+    private var agentTurnHeader: AgentTurnHeader {
+        AgentTurnHeader(kind: AgentKind(rawKind: model.agentKind ?? ""), name: model.agentName)
+    }
+
     private func messageList(_ proxy: ScrollViewProxy) -> some View {
-        ScrollView {
+        let turnStarts = ConversationEntry.turnStartTextIDs(in: model.visibleEntries)
+        return ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 olderRow
-                ForEach(model.entries) { entry in
+                ForEach(model.visibleEntries) { entry in
+                    if let away = model.awaySummary, away.anchorID == entry.id {
+                        AwayDividerView(summary: away, isCollapsed: Binding(get: { model.isAwayCollapsed }, set: { model.isAwayCollapsed = $0 }))
+                    }
                     Group {
                         switch entry {
                         case .item(let item):
-                            ConversationItemView(item: item)
+                            ConversationItemView(item: item, turnHeader: turnStarts.contains(item.id) ? agentTurnHeader : nil)
                         case .echo(let echo):
                             EchoBubbleView(echo: echo) {
                                 Task { await model.retry(echoID: echo.id) }
@@ -135,11 +176,21 @@ public struct ConversationView: View {
                     }
                     .id(entry.id)
                 }
+                // 待送項目(#347):離線排隊、做完再送、撤回倒數統一從 `pendingItems` 讀，接在最後一則訊息後面。
+                ForEach(model.pendingItems) { item in
+                    pendingRow(item)
+                }
+                if let notice = model.sendWhenDone?.notice {
+                    ErrorLabel(notice)
+                        .font(.footnote)
+                        .accessibilityIdentifier("conversation.sendWhenDone.notice")
+                }
                 // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
                 BlockedPromptView(model: model)
                     .id(ConversationFollowTarget.promptRowID)
                 // slash 指令開出的面板(#45):對 herdr 不可見，從畫面讀出後以原生卡片顯示。
-                if let panel = model.panel {
+                // 從模型膠囊開的面板在 sheet 裡選,對話裡不重複畫(#350)。
+                if let panel = model.panel, !model.isChoosingModel {
                     SlashPanelCard(model: model, panel: panel)
                         .id(ConversationFollowTarget.panelRowID)
                 }
@@ -154,11 +205,24 @@ public struct ConversationView: View {
             .scrollTargetLayout()
         }
         .scrollPosition($position)
+        // 捲動與點訊息區都收起鍵盤(#329);用 simultaneousGesture,連結、卡片與按鈕的點擊照常。
+        .scrollDismissesKeyboard(.immediately)
+        .simultaneousGesture(TapGesture().onEnded { KeyboardDismissal.dismiss() })
         .onScrollTargetVisibilityChange(idType: String.self) { ids in
             visibleIDs = ids
             scroll.visibleRowsChanged(count: ids.count)
         }
         .defaultScrollAnchor(.bottom)
+        // 可見範圍改變(鍵盤收放、輸入框長高)時留在底部:收起鍵盤後面板卡片的按鈕不會掉到輸入列底下(#255)。
+        .defaultScrollAnchor(.bottom, for: .sizeChanges)
+        // 重新載入、換 session 讀取中:舊訊息留著，頂端只放一條不遮擋的細進度條(#329)。
+        .overlay(alignment: .top) {
+            if model.isRefreshing {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .accessibilityIdentifier("conversation.refreshing")
+            }
+        }
         // 下拉重新整理(#270,取代標題列的重新載入鈕):重讀後切回跟隨尾端並捲到底(F5.12)。
         .refreshable {
             await model.reload()
@@ -186,19 +250,24 @@ public struct ConversationView: View {
             }
             // 內容剛被重建、停在內容之外(內容突然縮短)就切回跟隨並捲到底，不留空白;一般排版變化不介入(#130)。
             // 可見範圍小時 LazyVStack 可能停在底部卻一列都沒長出來(#191),同樣再捲一次。
+            // 面板卡片(`/model`、`/effort`)在最後:以位移算出的底部不含卡片下半，所以開著時不以位移捲，一律捲到最後一列。
+            let byOffsetAllowed = model.panel == nil
             if !userIsScrolling,
-               scroll.returnsToContent(metrics, at: .now) || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
+               scroll.returnsToContent(metrics, at: .now, byOffsetAllowed: byOffsetAllowed)
+                || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
                 // 先捲到最後一列(LazyVStack 才排出那一列);同一個排版又停在內容之外時，捲到最後一列多捲了一個底部 inset
                 // (可見範圍小、底部 inset 大),改以量到的底部位移再捲一次(#251)。
-                let byOffset = scroll.returnsByOffset(metrics)
-                scroll.returnedToContent(metrics)
+                let byOffset = byOffsetAllowed && scroll.returnsByOffset(metrics)
+                scroll.returnedToContent(metrics, byOffsetAllowed: byOffsetAllowed)
                 if byOffset {
+                    // d92584fb 誤刪了這一行:分支是空的，以位移捲回時什麼都沒捲，對話停在中間(最後一列在輸入列底下)。
+                    position.scrollTo(y: metrics.bottomScrollPositionY)
                 } else {
                     scrollToLastRow(proxy, isNewContent: false)
                 }
             }
             // 以位移捲過後 ScrollPosition 停在那個位移、不跟著底部：內容變高(列排出實際高度)或可見範圍變了(停止列、鍵盤)就以新的底部位移再捲(#251)。
-            if !userIsScrolling, scroll.followsByOffset(metrics) {
+            if !userIsScrolling, model.panel == nil, scroll.followsByOffset(metrics) {
                 scroll.followedByOffset(metrics)
                 position.scrollTo(y: metrics.bottomScrollPositionY)
             }
@@ -244,8 +313,17 @@ public struct ConversationView: View {
         .onChange(of: model.prompt?.signature) {
             if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
         }
-        .onChange(of: model.panel == nil) {
-            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
+        // 面板出現時捲到它;內容更新(選項排出、游標移動)讓卡片長高時也再捲，按鈕不留在輸入列底下。
+        .onChange(of: model.panel) { old, new in
+            // 面板一出現就切回跟隨(使用者剛送出指令，要看的就是這張卡片)。
+            if new != nil, old == nil { scroll.jumpToLatest() }
+            if new != nil, scroll.autoScrollsOnNewContent { scrollToPanel(proxy, appearing: old == nil) }
+        }
+        .onChange(of: model.undoSend?.pending == nil) {
+            // 倒數中的訊息出現：切到跟隨尾端並捲到它(同回音,F6.5)。
+            guard model.undoSend?.pending != nil else { return }
+            scroll.jumpToLatest()
+            withAnimation(scrollAnimation) { proxy.scrollTo(ConversationFollowTarget.pendingSendRowID, anchor: .bottom) }
         }
         .onChange(of: model.echoes.count) { old, new in
             // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。
@@ -273,6 +351,14 @@ public struct ConversationView: View {
     /// 指定列則由 LazyVStack 實際排出那一列(#191)。
     /// `isNewContent`:跟隨新出現的內容(訊息、面板、需要你、工作中指示、回音)時重新計算連續捲回的次數;
     /// 停在內容之外而捲回時不算，否則兩個排版輪流時連續捲回沒有上限(#251)。
+    private func scrollToPanel(_ proxy: ScrollViewProxy, appearing: Bool) {
+        if appearing {
+            withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
+        } else {
+            scrollToLastRow(proxy)
+        }
+    }
+
     private func scrollToLastRow(_ proxy: ScrollViewProxy, isNewContent: Bool = true) {
         if isNewContent { scroll.followedNewContent() }
         let target = ConversationFollowTarget.target(
@@ -304,33 +390,59 @@ public struct ConversationView: View {
 
     // MARK: - 佔位與標示
 
+    /// 沒有快取、也還沒讀到任何訊息時的骨架(#356):三個灰色泡泡，不是整區轉圈(與 Agent 列表的載入骨架同一種 `redacted`)。
+    /// 對 VoiceOver 是一個「載入中」的元素。
+    private var loadingSkeleton: some View {
+        VStack(spacing: 12) {
+            ForEach(0..<3, id: \.self) { index in
+                Text(verbatim: "The latest message from this agent, shown while the conversation loads")
+                    .lineLimit(index == 1 ? 1 : 2)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .frame(maxWidth: 280, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: index == 1 ? .trailing : .leading)
+            }
+        }
+        .padding(.horizontal, 16)
+        .redacted(reason: .placeholder)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading conversation…")
+        .accessibilityIdentifier("conversation.loading")
+    }
+
     @ViewBuilder
     private var placeholder: some View {
         switch model.phase {
         case .loading:
-            ProgressView("Loading conversation…")
-                .accessibilityIdentifier("conversation.loading")
+            VStack(spacing: 20) {
+                loadingSkeleton
+                // 等超過約 1.5 秒才出現，用系統的 ProgressView(HIG〈Progress indicators〉)。
+                if model.showsLoadingIndicator {
+                    ProgressView().accessibilityIdentifier("conversation.loadingIndicator")
+                }
+            }
         case .waitingForSession:
             ContentUnavailableView {
-                Label("Waiting for the Session", systemImage: "hourglass")
+                Label("Getting Ready", systemImage: "hourglass")
             } description: {
                 if model.agentKind == "codex" {
-                    Text("Codex reports its session after you send the first message. Its messages appear here once it does.")
+                    Text("Its messages appear here after you send the first message.")
                 } else {
-                    Text("The agent hasn’t reported which session it’s in yet. Its messages appear here once it does.")
+                    Text("Waiting for the agent to get ready. Its messages appear here soon.")
                 }
             }
         case .missingSession:
             ContentUnavailableView {
                 Label("Can’t Identify This Chat", systemImage: "questionmark.bubble")
             } description: {
-                Text("The agent didn’t report its session, so its messages can’t be told apart from other chats in the same folder. Make sure the herdr integration for this agent is installed; it reports the session when one starts.")
+                Text("This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again.")
             }
         case .unsupported:
             ContentUnavailableView {
                 Label("Chat History Isn’t Available", systemImage: "terminal")
             } description: {
-                Text("This agent’s transcript can’t be read yet. Use the host’s terminal to see it.")
+                Text("This agent’s chat can’t be shown yet. Use the terminal to see it.")
             }
         case .agentGone:
             ContentUnavailableView {
@@ -348,25 +460,27 @@ public struct ConversationView: View {
     }
 
     /// 非干擾式標示：不在進入畫面時跳 alert,也不只用自動消失的 toast(HIG 20.5)。
+    /// 頂列下方唯一的一條浮動橫幅(#348):斷線、對話紀錄問題、唯讀與主機服務版本都在這裡，輸入列與卡片不再重複。
     @ViewBuilder
     private var banner: some View {
-        if let banner = model.banner {
+        if let kind = model.statusSummary.banner {
+            let isOffline = if case .offline = kind { true } else { false }
             HStack {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(banner.text)
+                        kind.text
                         // 斷線前在工作：停止列已收起，說明為什麼不能停(#220)。
-                        if banner == .offline && model.stopNeedsReconnect {
+                        if kind == .offline(needsReconnectToStop: true) {
                             Text("You can stop the agent after reconnecting.")
                         }
                     }
                 } icon: {
-                    Image(systemName: banner.symbol)
+                    Image(systemName: kind.symbol)
                 }
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
                 Spacer(minLength: 8)
-                if banner == .offline {
+                if isOffline {
                     // 中斷標示留在畫面上直到重新連上;也可以手動立刻重試(輪詢本身仍會每幾秒重試)。
                     Button { Task { await model.poll() } } label: {
                         HitTarget("Try Again")
@@ -375,11 +489,33 @@ public struct ConversationView: View {
                     .accessibilityIdentifier("conversation.retry")
                 }
             }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(.bar)
+                .floatingGlass(in: RoundedRectangle(cornerRadius: 20))
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("conversation.banner")
+        }
+    }
+}
+
+extension ConversationStatusSummary.Banner {
+    var text: Text {
+        switch self {
+        case .offline: Text("Offline — showing the last loaded conversation.")
+        case .transcript(let banner): Text(banner.text)
+        case .readOnly: Text("This device is paired read-only, so it can’t send anything to this host.")
+        case .hostServiceUpdateRequired(let message): Text(verbatim: message)
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .offline: "wifi.slash"
+        case .transcript(let banner): banner.symbol
+        case .readOnly: "lock"
+        case .hostServiceUpdateRequired: "arrow.down.circle"
         }
     }
 }
@@ -389,10 +525,10 @@ extension ConversationModel.Banner {
     var text: LocalizedStringKey {
         switch self {
         case .offline: "Offline — showing the last loaded conversation."
-        case .unreadable: "Can’t read this chat’s transcript on the host. Check the file’s permissions."
+        case .unreadable: "Couldn’t open this chat’s record on the host."
         case .readFailed: "Couldn’t update the conversation. Retrying…"
-        case .ambiguous: "More than one transcript matches this chat’s session, so none is shown."
-        case .compressed: "Codex compressed this chat’s transcript, so it can’t be shown here. Open the chat on the host to see it."
+        case .ambiguous: "More than one saved chat matches this one, so none is shown."
+        case .compressed: "Codex shortened this chat, so it can’t be shown here. Open the chat on the host to see it."
         }
     }
 
@@ -411,18 +547,20 @@ extension ConversationModel.Banner {
 
 struct ConversationItemView: View {
     let item: ConversationItem
+    /// 這則是每輪第一則 Agent 文字時帶頭像與名稱(#351)。
+    var turnHeader: AgentTurnHeader?
 
     var body: some View {
         switch item {
         case .user(let bubble):
             UserBubbleView(bubble: bubble)
         case .agentText(let text):
-            AgentMessageView(text: text)
+            AgentMessageView(text: text, turnHeader: turnHeader)
         case .toolRun(let run):
             ToolRunView(run: run)
         case .skill(let skill):
             // skill 名稱用系統綠(實機回報 2026-11-20)。
-            CapsuleNote(text: Text("Loaded skill: \(Text(verbatim: skill.name).foregroundStyle(Color.skillName))"), symbol: "book.closed")
+            CapsuleNote(text: Text("Loaded skill: \(Text(verbatim: skill.name).foregroundStyle(.tint))"), symbol: "book.closed")
                 .accessibilityIdentifier("conversation.skill")
         case .note(let note):
             CapsuleNote(text: note.text, symbol: "info.circle")
@@ -447,6 +585,7 @@ struct ConversationItemView: View {
 /// 文字中的主機路徑可點(#229):在 app 內沿用檔案卡片的開啟流程(圖片看大圖、其他用 QuickLook),不交給系統;點之前不讀檔。
 struct AgentMessageView: View {
     let text: AgentText
+    var turnHeader: AgentTurnHeader?
     @Environment(\.agentImages) private var context
     /// 點了的主機路徑：開啟中或開不了時在訊息下方顯示狀態。
     @State private var openedPath: String?
@@ -456,6 +595,9 @@ struct AgentMessageView: View {
     var body: some View {
         let markdown = MarkdownView(text.markdown)
         VStack(alignment: .leading, spacing: 6) {
+            if let turnHeader {
+                AgentTurnHeaderView(header: turnHeader, date: text.date)
+            }
             markdown
                 .accessibilityElement(children: markdown.hasStructuredBlocks || markdown.hasHostPaths ? .contain : .combine)
                 .accessibilityLabel { label in
@@ -494,6 +636,34 @@ struct AgentMessageView: View {
             }
             if openedPath == path { openedPath = nil }
         }
+    }
+}
+
+/// 每輪開頭的頭像與名稱(#351)。
+struct AgentTurnHeader: Equatable {
+    var kind: AgentKind
+    var name: String
+}
+
+/// Agent 回覆不包泡泡，每輪開頭一列小頭像、名稱與時間(原型 A1 的 `.who`)。時間跟著 Dynamic Type 放大(#258)。
+/// VoiceOver 念在訊息的標籤裡(「Agent:」),這一列隱藏、不重複。
+struct AgentTurnHeaderView: View {
+    let header: AgentTurnHeader
+    let date: Date?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            AgentKindAvatar(kind: header.kind, compact: true)
+            Text(verbatim: header.name)
+                .fontWeight(.semibold)
+            if let date {
+                Text(date, format: .dateTime.hour().minute())
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondaryText)
+        .accessibilityHidden(true)
+        .accessibilityIdentifier("conversation.agent.header")
     }
 }
 
@@ -562,13 +732,13 @@ struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context
 
-    /// 開頭的 skill／slash 指令用系統綠(實機回報 2026-11-20),其餘照泡泡的文字色。
+    /// 開頭的 skill／slash 指令用主色(有主機主題時是主題 accent;#329),其餘照泡泡的文字色。
     static func highlighted(_ text: String) -> AttributedString {
         var attributed = AttributedString(text)
         if let range = SlashToken.range(in: text),
            let start = AttributedString.Index(range.lowerBound, within: attributed),
            let end = AttributedString.Index(range.upperBound, within: attributed) {
-            attributed[start..<end].foregroundColor = .skillName
+            attributed[start..<end].foregroundColor = Color.commandText
         }
         return attributed
     }
@@ -607,10 +777,54 @@ struct UserBubbleView: View {
     }
 }
 
-/// 置中的系統註記膠囊。
+/// 離開期間的分隔線(#308):「你離開期間 · N 輪 · 工作 M 分鐘」,點一下收合或展開那一段(收合時留最後一句)。
+struct AwayDividerView: View {
+    let summary: AwaySummary
+    @Binding var isCollapsed: Bool
+
+    var body: some View {
+        Button {
+            withAnimation { isCollapsed.toggle() }
+        } label: {
+            HStack(spacing: 8) {
+                line
+                HStack(spacing: 4) {
+                    Text(Self.text(summary))
+                    Image(systemName: "chevron.down")
+                        .imageScale(.small)
+                        .rotationEffect(.degrees(isCollapsed ? -90 : 0))
+                        .accessibilityHidden(true)
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+                line
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(Self.text(summary)))
+        .accessibilityValue(isCollapsed ? Text("Collapsed") : Text("Expanded"))
+        .accessibilityHint(isCollapsed ? Text("Shows the messages from while you were away") : Text("Hides the messages from while you were away"))
+        .accessibilityIdentifier("conversation.away")
+    }
+
+    private var line: some View {
+        Rectangle().fill(.separator).frame(height: 1)
+    }
+
+    static func text(_ summary: AwaySummary) -> String {
+        let turns = String(localized: "\(summary.turns) turns")
+        return String(localized: "While you were away · \(turns) · worked \(summary.workMinutes) min")
+    }
+}
+
+/// skill 載入與系統註記:預設收成一行(#349，同工具串),點一下展開全文;大字級不截斷。
 struct CapsuleNote: View {
     let text: Text
     let symbol: String
+    @State private var expanded = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(text: Text, symbol: String) {
         self.text = text
@@ -622,13 +836,16 @@ struct CapsuleNote: View {
     }
 
     var body: some View {
-        Label { text } icon: { Image(systemName: symbol) }
-            .font(.footnote)
-            .foregroundStyle(.secondaryText)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(.fill.tertiary, in: Capsule())
-            .frame(maxWidth: .infinity)
+        Button { expanded.toggle() } label: {
+            Label { text } icon: { Image(systemName: symbol) }
+                .font(.footnote)
+                .foregroundStyle(Color.secondaryText)
+                .lineLimit(expanded || dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

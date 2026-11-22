@@ -17,65 +17,111 @@ struct ConversationFileTests {
     struct Setup {
         let base: ConversationSendTests.Setup
         let uploader: FakeHostUploader
+        let store: FileAttachmentStore
         var model: ConversationModel { base.model }
     }
 
-    static func opened(uploader: FakeHostUploader = FakeHostUploader()) async throws -> Setup {
+    /// `names`:依序給每個加入的檔案的上傳檔名;沒給就都是 `fileName`。
+    static func opened(uploader: FakeHostUploader = FakeHostUploader(), names: [String]? = nil) async throws -> Setup {
+        let sequence = Mutex(names ?? [])
+        let nextName: @Sendable (String) -> HostUploadName = { _ in
+            guard names != nil else { return Self.fileName }
+            return HostUploadName(sequence.withLock { $0.isEmpty ? "mh-extra" : $0.removeFirst() })!
+        }
         let store = FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-attachments-\(UUID().uuidString)"))
         let base = try await ConversationSendTests.opened { client, transcripts, drafts in
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                images: ComposerImages(uploader: uploader, store: store, makeFileName: { _ in Self.fileName })
+                images: ComposerImages(uploader: uploader, store: store, makeFileName: nextName)
             )
         }
-        return Setup(base: base, uploader: uploader)
+        return Setup(base: base, uploader: uploader, store: store)
     }
 
-    @Test("附加檔案：上傳到主機，主機上的路徑插入輸入框")
-    func uploadsAndInsertsPath() async throws {
+    @Test("附加檔案：先留在輸入列成一張附件卡，送出才上傳")
+    func stagesFileAsAttachment() async throws {
         let setup = try await Self.opened()
 
         await setup.model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
 
-        #expect(setup.model.draft == Self.uploadedPath)
+        let attachment = try #require(setup.model.attachments.first)
+        #expect(attachment.kind == .file)
+        #expect(attachment.displayName == "server.log")
+        #expect(attachment.byteCount == 5)
+        #expect(attachment.fileName == Self.fileName)
+        #expect(setup.model.draft.isEmpty)
+        #expect(await setup.uploader.uploads.isEmpty)
+        #expect(setup.model.loadingFileName == nil)
+    }
+
+    @Test("可多選：多個檔案各一張卡，順序照加入")
+    func stagesSeveralFiles() async throws {
+        let setup = try await Self.opened(names: ["mh-a-one.txt", "mh-b-two.zip"])
+
+        await setup.model.addFile(named: "one.txt", size: 1) { Data("1".utf8) }
+        await setup.model.addFile(named: "two.zip", size: 2) { Data("22".utf8) }
+
+        #expect(setup.model.attachments.map(\.displayName) == ["one.txt", "two.zip"])
+    }
+
+    @Test("附件總數上限 10：滿了再加提示，不加入")
+    func attachmentLimit() async throws {
+        let names = (0..<11).map { "mh-\($0)-f.txt" }
+        let setup = try await Self.opened(names: names)
+        for index in 0..<10 { await setup.model.addFile(named: "f\(index).txt", size: 1) { Data("x".utf8) } }
+        #expect(setup.model.remainingImageSlots == 0)
+
+        await setup.model.addFile(named: "extra.txt", size: 1) { Data("x".utf8) }
+
+        #expect(setup.model.attachments.count == ConversationModel.maximumAttachments)
+        #expect(setup.model.notice == .attachmentLimit)
+    }
+
+    @Test("移除附件卡：留在手機上的副本也刪掉")
+    func removingDeletesLocalCopy() async throws {
+        let setup = try await Self.opened()
+        await setup.model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
+        let id = try #require(setup.model.attachments.first).id
+        #expect(setup.store.url(of: id) != nil)
+
+        setup.model.removeAttachment(id)
+
+        #expect(setup.model.attachments.isEmpty)
+        #expect(setup.store.url(of: id) == nil)
+    }
+
+    @Test("送出：檔案附件上傳到主機，prompt 帶路徑，回音記下路徑行好配對對話紀錄")
+    func sendUploadsFilesAndPromptCarriesPaths() async throws {
+        let setup = try await Self.opened()
+        await setup.model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
+        setup.model.draft = "看一下這份 log"
+        await setup.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.snapshot())
+        await setup.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.delivered)
+
+        await setup.model.send()
+
         let uploads = await setup.uploader.uploads
         #expect(uploads.map(\.name) == [Self.fileName])
         #expect(uploads.map(\.data) == [Data("hello".utf8)])
-        #expect(setup.model.uploadingFileName == nil)
+        let requests = await ConversationSendTests.promptRequests(setup.base)
+        #expect(requests.first?.contains(#""text":"看一下這份 log\n\n\#(Self.uploadedPath)""#) == true)
+        #expect(setup.model.attachments.isEmpty)
+        let echo = try #require(setup.model.echoes.first)
+        #expect(echo.imageCount == 0)
+        #expect(echo.filePaths == [Self.uploadedPath])
+        #expect(setup.store.url(of: Self.fileName.value) == nil)
     }
 
-    @Test("已有文字時路徑空一行接在後面，不蓋掉打的字")
-    func appendsPathAfterTypedText() async throws {
+    @Test("挑到的是圖片檔(副檔名 png/jpg…)：走圖片附件，不當一般檔案")
+    func imageFilesBecomeImageAttachments() async throws {
         let setup = try await Self.opened()
-        setup.model.draft = "看一下這份 log"
 
-        await setup.model.addFile(named: "server.log", size: nil) { Data("hello".utf8) }
+        await setup.model.addFile(named: "shot.PNG", size: nil) { TestImage.png(width: 10, height: 10) }
 
-        #expect(setup.model.draft == "看一下這份 log\n\n\(Self.uploadedPath)")
-    }
-
-    @Test("檔名交給檔名產生器的是原始檔名")
-    func passesOriginalNameToNameMaker() async throws {
-        let uploader = FakeHostUploader()
-        let store = FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-attachments-\(UUID().uuidString)"))
-        let received = LockedNames()
-        let base = try await ConversationSendTests.opened { client, transcripts, drafts in
-            ConversationModel(
-                client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
-                knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-                clock: TestClock().clock, drafts: drafts,
-                images: ComposerImages(uploader: uploader, store: store, makeFileName: { original in
-                    received.append(original)
-                    return Self.fileName
-                })
-            )
-        }
-
-        await base.model.addFile(named: "build log (1).txt", size: 1) { Data("x".utf8) }
-
-        #expect(received.names == ["build log (1).txt"])
+        let attachment = try #require(setup.model.attachments.first)
+        #expect(attachment.kind == .image)
     }
 
     @Test("已知大小超過上限：不讀內容、不上傳，提示上限與檔案大小")
@@ -92,7 +138,7 @@ struct ConversationFileTests {
         #expect(setup.model.notice == .fileTooLarge(size: size, limit: HostUploadLimit.maximumFileSize))
         #expect(loaded.names.isEmpty)
         #expect(await setup.uploader.uploads.isEmpty)
-        #expect(setup.model.draft.isEmpty)
+        #expect(setup.model.attachments.isEmpty)
     }
 
     @Test("讀出的內容超過上限(事先不知道大小)也不上傳")
@@ -116,27 +162,31 @@ struct ConversationFileTests {
         #expect(await setup.uploader.uploads.isEmpty)
     }
 
-    @Test("上傳失敗：提示，輸入框不變")
-    func reportsUploadFailure() async throws {
+    @Test("送出時上傳失敗：整則不送，草稿與檔案卡保留，提示上傳失敗")
+    func uploadFailureKeepsFileAttachment() async throws {
         let setup = try await Self.opened(uploader: FakeHostUploader(failure: HostUploadError.interrupted))
+        await setup.model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
         setup.model.draft = "草稿"
 
-        await setup.model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
+        await setup.model.send()
 
-        #expect(setup.model.notice == .fileUploadFailed)
+        #expect(await ConversationSendTests.promptRequests(setup.base).isEmpty)
+        #expect(setup.model.notice == .uploadFailed)
         #expect(setup.model.draft == "草稿")
+        #expect(setup.model.attachments.count == 1)
     }
 
-    @Test("HTTPS 主機的主機服務太舊：提示更新主機服務，輸入框不變(#288)")
+    @Test("HTTPS 主機的主機服務太舊：送出時提示更新主機服務，檔案卡保留(#288)")
     func olderHostServiceAsksForUpdate() async throws {
         let failure = HostServiceError.hostServiceUpdateRequired(.fileUpload, installedVersion: "0.6.2")
         let setup = try await Self.opened(uploader: FakeHostUploader(failure: failure))
+        await setup.model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
         setup.model.draft = "草稿"
 
-        await setup.model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
+        await setup.model.send()
 
         #expect(setup.model.notice == .hostServiceUpdateRequired(installedVersion: "0.6.2"))
-        #expect(setup.model.draft == "草稿")
+        #expect(setup.model.attachments.count == 1)
     }
 
     @Test("更新主機服務的提示沿用主機錯誤的說明")

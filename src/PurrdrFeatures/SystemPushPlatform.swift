@@ -14,6 +14,10 @@ public final class SystemPushPlatform: PushPlatform {
     public static let doneCategory = "AGENT_DONE"
     /// 主機服務事件的通知類別(raychiutw/purrdr.server#11)。
     public static let hostServiceCategory = "HOST_SERVICE_EVENT"
+    /// 「可能卡住」的通知類別(raychiutw/purrdr.server#15,一般等級)。
+    public static let stuckCategory = "AGENT_STUCK"
+    /// 「仍在等你」的通知類別(raychiutw/purrdr.server#15,time-sensitive)。
+    public static let reminderCategory = "AGENT_REMINDER"
 
     private var waiting: [CheckedContinuation<Data, any Error>] = []
 
@@ -60,6 +64,9 @@ public final class SystemPushPlatform: PushPlatform {
     /// 寫在程式碼裡，`scripts/strings.sh` 才抽得到這個 key(否則會當成已不用而移除)。
     static let blockedBody = String(localized: "An agent needs you.", comment: "推播內文(後台 APNs payload 的 loc-key)")
     static let doneBody = String(localized: "An agent finished.", comment: "「完成」推播內文(後台 APNs payload 的 loc-key)")
+    static let stuckBody = String(localized: "An agent may be stuck.", comment: "「可能卡住」推播內文(後台 APNs payload 的 loc-key)")
+    static let reminderBody = String(
+        localized: "An agent is still waiting for you.", comment: "「仍在等你」推播內文(後台 APNs payload 的 loc-key)")
     /// 主機服務事件：標題是 `title-loc-key`,「已更新」以 `loc-args` 帶入版本。
     static let hostServiceTitle = String(localized: "Host service", comment: "主機服務推播標題(後台 APNs payload 的 title-loc-key)")
     static let hostServiceUpdateAvailableBody = String(
@@ -68,6 +75,16 @@ public final class SystemPushPlatform: PushPlatform {
         localized: "Host service updated to %@.", comment: "主機服務推播內文：已更新到某版(後台 APNs payload 的 loc-key,%@ 是版本)")
     static let hostServiceRolledBackBody = String(
         localized: "Host service update failed and was rolled back.", comment: "主機服務推播內文：更新失敗已退回(後台 APNs payload 的 loc-key)")
+
+    /// 測試通知(#328,`event: "test"`):標題 `title-loc-key` 帶主機名稱(`loc-args`),沒有名稱時用不帶參數的版本。
+    static func testTitle(hostName: String) -> String {
+        String(localized: "Test: \(hostName) needs you", comment: "測試通知標題(後台 APNs payload 的 title-loc-key,%@ 是主機清單上的主機名稱)")
+    }
+    static let testTitleWithoutHost = String(
+        localized: "Test: Purrdr needs you", comment: "測試通知標題(沒帶主機名稱時;後台 APNs payload 的 title-loc-key)")
+    static let testBody = String(
+        localized: "This is a test. When an agent needs your reply or finishes, you'll get a notice like this.",
+        comment: "測試通知內文(後台 APNs payload 的 loc-key)")
 
     /// 註冊通知類別(啟動時呼叫一次，不會請求權限)。
     public static func registerCategories() {
@@ -81,6 +98,12 @@ public final class SystemPushPlatform: PushPlatform {
             UNNotificationCategory(
                 identifier: hostServiceCategory, actions: [], intentIdentifiers: [],
                 hiddenPreviewsBodyPlaceholder: String(localized: "Host service update"), options: []),
+            UNNotificationCategory(
+                identifier: stuckCategory, actions: [], intentIdentifiers: [],
+                hiddenPreviewsBodyPlaceholder: String(localized: "An agent may be stuck"), options: []),
+            UNNotificationCategory(
+                identifier: reminderCategory, actions: [], intentIdentifiers: [],
+                hiddenPreviewsBodyPlaceholder: String(localized: "An agent is still waiting for you"), options: []),
         ])
     }
 }

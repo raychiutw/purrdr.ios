@@ -33,9 +33,9 @@ struct HostServiceUpdateView: View {
 
     private var explanation: Text {
         if commands.canUpdateItself {
-            Text("Purrdr host service \(version) is available for \(hostName). The host service updates itself automatically; to update now, run this on the host. Paired devices stay paired.")
+            Text("Purrdr host service \(version) is ready for \(hostName). To update now, run this on the host:")
         } else {
-            Text("Purrdr host service \(version) is available for \(hostName). This host runs \(commands.installedVersion), which can’t update itself: run the install command on the host once. From 0.5.0 on, the host service updates itself, or you can run purrdr-host-service update. Paired devices stay paired.")
+            Text("Purrdr host service \(version) is ready for \(hostName) (now \(commands.installedVersion)). Run the install command on the host once; after that it updates itself.")
         }
     }
 
@@ -50,6 +50,37 @@ struct HostServiceUpdateView: View {
         } header: {
             Text(title)
                 .foregroundStyle(.secondaryText)
+        }
+    }
+}
+
+/// 主機服務太舊、某個功能還不能用:一句動作說明加依已安裝版本的更新指令(可選取、可拷貝)。
+/// 給新增聊天、變更頁這類「要更新才能用」的地方共用;`identifier` 區分各處的 accessibility id。
+struct HostServiceCommandRows: View {
+    let message: LocalizedStringKey
+    let commands: HostServiceUpdateCommands
+    let identifier: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(message, systemImage: "arrow.down.circle")
+            command(String(localized: "macOS and Linux"), commands.posix, key: "posix")
+            command(String(localized: "Windows (PowerShell)"), commands.windows, key: "windows")
+        }
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func command(_ title: String, _ command: String, key: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: title)
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
+            Text(verbatim: command)
+                .font(.footnote.monospaced())
+                .textSelection(.enabled)
+            Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("\(identifier).copy.\(key)")
         }
     }
 }

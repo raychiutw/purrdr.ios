@@ -40,58 +40,102 @@ struct ImageUploadTests {
     }
 
     #if os(macOS)
-    @Test("上傳：bytes 原樣寫進 ~/.purrdr/uploads/<檔名>,回傳絕對路徑;資料夾與檔案僅本人可讀")
+    /// 新的上傳資料夾:暫存目錄(`TMPDIR`)底下的 `purrdr-uploads-<uid>`(名稱來自協定 schema 的 `x-upload-folder`)。
+    static let folderName = "\(HostServiceProtocol.uploadFolder)-\(getuid())"
+    static func folder(of host: LocalShellHost) -> URL { host.temporaryDirectory.appending(path: folderName) }
+    static func put(_ data: Data, in folder: URL, named name: String) throws -> URL {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let url = folder.appending(path: name)
+        try data.write(to: url)
+        return url
+    }
+
+    @Test("上傳：bytes 原樣寫進暫存目錄底下的上傳資料夾，回傳絕對路徑;資料夾與檔案僅本人可讀")
     func uploadsThroughStdinOwnerOnly() async throws {
         let host = try LocalShellHost.temporary(feedsStdin: true)
         let bytes = Data((0..<300_000).map { UInt8(truncatingIfNeeded: $0 &* 7) })
 
         let path = try await SSHHostUploader(channel: host).upload(bytes, named: Self.name)
 
-        let home = host.home.path(percentEncoded: false)
-        #expect(path == (home.hasSuffix("/") ? home : home + "/") + ".purrdr/uploads/\(Self.name.value)")
+        let temporary = host.temporaryDirectory.path(percentEncoded: false)
+        #expect(path == (temporary.hasSuffix("/") ? temporary : temporary + "/") + "\(Self.folderName)/\(Self.name.value)")
         #expect(try Data(contentsOf: URL(filePath: path)) == bytes)
         #expect(try mode(of: URL(filePath: path)) == 0o600)
-        #expect(try mode(of: host.url(".purrdr/uploads")) == 0o700)
-        #expect(try mode(of: host.url(".purrdr")) == 0o700)
+        #expect(try mode(of: Self.folder(of: host)) == 0o700)
+        // 不再寫進家目錄。
+        #expect(!FileManager.default.fileExists(atPath: host.url(".purrdr").path(percentEncoded: false)))
         // 指令列只有檔名與大小,內容一律走 stdin(不受 sshd 單一參數 128 KiB 上限限制)。
         #expect(host.commands.count == 1)
         #expect(host.commands[0].utf8.count < 8 * 1024)
         // 沒有留下暫存檔。
-        #expect(try FileManager.default.contentsOfDirectory(atPath: host.url(".purrdr/uploads").path(percentEncoded: false)) == [Self.name.value])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: Self.folder(of: host).path(percentEncoded: false)) == [Self.name.value])
     }
 
-    @Test("上傳資料夾原本權限太寬：改回僅本人可讀")
-    func tightensExistingUploadFolder() async throws {
+    @Test("TMPDIR 沒設定時用 /tmp(腳本內容)")
+    func fallsBackToTmp() {
+        #expect(HostUploadCommand.posix(name: Self.name, size: 1).contains("${TMPDIR:-/tmp}"))
+    }
+
+    @Test("上傳資料夾已存在但權限太寬：失敗，不寫入、不改權限")
+    func rejectsLooseUploadFolder() async throws {
         let host = try LocalShellHost.temporary(feedsStdin: true)
-        try FileManager.default.createDirectory(at: host.url(".purrdr/uploads"), withIntermediateDirectories: true,
+        try FileManager.default.createDirectory(at: Self.folder(of: host), withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o755])
 
-        _ = try await SSHHostUploader(channel: host).upload(Data("x".utf8), named: Self.name)
-
-        #expect(try mode(of: host.url(".purrdr/uploads")) == 0o700)
+        await #expect(throws: HostUploadError.self) {
+            try await SSHHostUploader(channel: host).upload(Data("x".utf8), named: Self.name)
+        }
+        #expect(try mode(of: Self.folder(of: host)) == 0o755)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: Self.folder(of: host).path(percentEncoded: false)) == [])
     }
 
-    @Test("每次上傳順手刪掉上傳資料夾裡 7 天前的舊檔;較新的與資料夾外的檔案不動")
+    @Test("同名的 symlink 擋在上傳資料夾的位置：失敗，不寫進 symlink 的目標")
+    func rejectsSymlinkedUploadFolder() async throws {
+        let host = try LocalShellHost.temporary(feedsStdin: true)
+        let target = host.url("elsewhere")
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try FileManager.default.createSymbolicLink(at: Self.folder(of: host), withDestinationURL: target)
+
+        await #expect(throws: HostUploadError.self) {
+            try await SSHHostUploader(channel: host).upload(Data("x".utf8), named: Self.name)
+        }
+        #expect(try FileManager.default.contentsOfDirectory(atPath: target.path(percentEncoded: false)) == [])
+    }
+
+    @Test("每次上傳順手刪掉新、舊上傳資料夾裡 7 天前的舊檔;較新的與資料夾外的檔案不動;舊資料夾空了就移除")
     func removesUploadsOlderThanSevenDays() async throws {
         let host = try LocalShellHost.temporary(feedsStdin: true)
         let now = Date()
-        let old = try host.write(Data("old".utf8), to: ".purrdr/uploads/old-1.jpg")
-        let oldTemp = try host.write(Data("partial".utf8), to: ".purrdr/uploads/.upload.abc123")
-        let recent = try host.write(Data("recent".utf8), to: ".purrdr/uploads/recent-1.jpg")
+        let folder = Self.folder(of: host)
+        let old = try Self.put(Data("old".utf8), in: folder, named: "old-1.jpg")
+        let oldTemp = try Self.put(Data("partial".utf8), in: folder, named: ".upload.abc123")
+        let recent = try Self.put(Data("recent".utf8), in: folder, named: "recent-1.jpg")
+        let legacyOld = try host.write(Data("old".utf8), to: ".purrdr/uploads/old-2.jpg")
+        let legacyRecent = try host.write(Data("recent".utf8), to: ".purrdr/uploads/recent-2.jpg")
         let outside = try host.write(Data("mine".utf8), to: "Pictures/old.jpg")
-        try setModified(old, to: now.addingTimeInterval(-8 * 86_400))
-        try setModified(oldTemp, to: now.addingTimeInterval(-8 * 86_400))
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path(percentEncoded: false))
+        for url in [old, oldTemp, legacyOld] { try setModified(url, to: now.addingTimeInterval(-8 * 86_400)) }
         try setModified(recent, to: now.addingTimeInterval(-6 * 86_400))
+        try setModified(legacyRecent, to: now.addingTimeInterval(-6 * 86_400))
         try setModified(outside, to: now.addingTimeInterval(-30 * 86_400))
 
         _ = try await SSHHostUploader(channel: host).upload(Data("new".utf8), named: Self.name)
 
         let manager = FileManager.default
-        #expect(!manager.fileExists(atPath: old.path(percentEncoded: false)))
-        #expect(!manager.fileExists(atPath: oldTemp.path(percentEncoded: false)))
-        #expect(manager.fileExists(atPath: recent.path(percentEncoded: false)))
-        #expect(manager.fileExists(atPath: outside.path(percentEncoded: false)))
-        #expect(manager.fileExists(atPath: host.url(".purrdr/uploads/\(Self.name.value)").path(percentEncoded: false)))
+        func exists(_ url: URL) -> Bool { manager.fileExists(atPath: url.path(percentEncoded: false)) }
+        #expect(!exists(old))
+        #expect(!exists(oldTemp))
+        #expect(!exists(legacyOld))
+        #expect(exists(recent))
+        #expect(exists(legacyRecent))
+        #expect(exists(outside))
+        #expect(exists(folder.appending(path: Self.name.value)))
+        #expect(exists(host.url(".purrdr/uploads")))
+
+        // 舊資料夾清空後移除。
+        try setModified(legacyRecent, to: now.addingTimeInterval(-8 * 86_400))
+        _ = try await SSHHostUploader(channel: host).upload(Data("new".utf8), named: HostUploadName("other-1.jpg")!)
+        #expect(!exists(host.url(".purrdr/uploads")))
     }
 
     @Test("上傳中斷(連線在 bytes 送完前斷了):丟錯，主機上不留下正式檔或暫存檔")
@@ -104,14 +148,15 @@ struct ImageUploadTests {
         }
 
         await host.waitUntilFinished()
-        let left = (try? FileManager.default.contentsOfDirectory(atPath: host.url(".purrdr/uploads").path(percentEncoded: false))) ?? []
+        let left = (try? FileManager.default.contentsOfDirectory(atPath: Self.folder(of: host).path(percentEncoded: false))) ?? []
         #expect(left == [])
     }
 
     @Test("同名檔案已存在：永不覆寫，回報失敗")
     func neverOverwrites() async throws {
         let host = try LocalShellHost.temporary(feedsStdin: true)
-        let existing = try host.write(Data("keep".utf8), to: ".purrdr/uploads/\(Self.name.value)")
+        let existing = try Self.put(Data("keep".utf8), in: Self.folder(of: host), named: Self.name.value)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: Self.folder(of: host).path(percentEncoded: false))
 
         await #expect(throws: HostUploadError.self) {
             try await SSHHostUploader(channel: host).upload(Data("new".utf8), named: Self.name)

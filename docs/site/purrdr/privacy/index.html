@@ -45,7 +45,7 @@
       <li><strong>裝置 SSH 金鑰</strong>:Purrdr 在裝置的 Secure Enclave 產生一把 P-256 金鑰，私鑰無法離開 Secure Enclave;Keychain 只存它的加密參照(僅此裝置)。公鑰附註解 <code>purrdr@iPhone</code>／<code>purrdr@iPad</code>,由你自己加到主機的 <code>authorized_keys</code>。</li>
       <li><strong>會員登入權杖</strong>:登入後的更新權杖存在 Keychain(第一次解鎖後可讀、僅此裝置)。</li>
       <li><strong>App 偏好與狀態</strong>(存在 App 的 UserDefaults):選取中的主機、列表檢視模式、聊天偏好、Return 鍵與觸覺回饋設定、是否看過歡迎頁、評分提示的計數、主機寫入的同意紀錄、推播配對紀錄(隨機裝置代號、配對密鑰的 SHA-256 雜湊、上次的 APNs device token)與主機同步的版本紀錄。</li>
-      <li><strong>對話快取</strong>:只放在記憶體裡，關掉 App 就消失。</li>
+      <li><strong>對話快取</strong>:最近的對話內容會快取在這支裝置的本機資料庫，讓你下次打開聊天時立刻看到;不會備份、不會上傳，在 App 裡刪除主機會一併清掉那台主機的快取，刪除 App 也會移除。</li>
     </ul>
 
     <h2>2. 直接在你的裝置與你的電腦之間傳輸的資料</h2>
@@ -89,6 +89,7 @@
       <li>後台保存：配對密鑰的 SHA-256 雜湊、APNs device token、平台(APNs)與環境(production／sandbox)、建立與更新時間，以及每組密鑰每分鐘的速率限制計數。</li>
     </ul>
     <p>Agent 需要你時，主機外掛只送出 <strong>workspace 名稱、狀態與 pane id</strong>。後台據此組成通知(標題是 workspace 名稱，內文固定是「An agent needs you.」)交給 Apple Push Notification service(APNs)送到你的裝置。這些內容只在轉送當下處理，<strong>後台不保存</strong>;對話內容不會經過後台或 APNs。關閉推播或刪除主機時，App 會撤銷配對並移除主機上的配對檔。</p>
+    <p>你在 App 按「傳送測試通知」時，電腦名稱(你在主機清單替它取的名稱)會經後台與 Apple 推播服務送到你的裝置，<strong>只用在這則通知的標題，後台不保存</strong>。</p>
 
     <h2>6. 主機同步(Purrdr Plus)</h2>
     <p>開啟主機同步後，後台保存你每台主機的：名稱、位址與埠、使用者名稱、連線方式(Tailscale SSH／OpenSSH／HTTPS)、host key 指紋、HTTPS 主機的位址與修改時間(HTTPS 主機的裝置權杖永不上傳);刪除的主機只留 ID 與刪除時間，避免其他裝置把它同步回來。</p>
@@ -121,7 +122,7 @@
 
     <h2>10. 刪除與控制你的資料</h2>
     <ul>
-      <li><strong>刪除會員</strong>:App 的「⋯ → Member → Delete Member…」。我們會先向 Apple 撤銷 Sign in with Apple 授權，再立即刪除會員、登入方式、權杖、訂閱紀錄、推播配對與同步的主機。刪除會員<strong>不會</strong>取消 Apple 的訂閱，請到「設定 › Apple 帳號 › 訂閱」取消。</li>
+      <li><strong>刪除會員</strong>:App 的「⋯ → Member → Delete Member」。我們會先向 Apple 撤銷 Sign in with Apple 授權，再立即刪除會員、登入方式、權杖、訂閱紀錄、推播配對與同步的主機。刪除會員<strong>不會</strong>取消 Apple 的訂閱，請到「設定 › Apple 帳號 › 訂閱」取消。</li>
       <li><strong>只關掉某項功能</strong>:關閉推播會撤銷該主機的配對;解除某個登入方式的連結會刪除那個登入方式的資料。</li>
       <li><strong>裝置上的資料</strong>:在 App 裡刪除主機會一併刪除它的設定與祕密;刪除 App 會移除 UserDefaults 與快取(Keychain 項目依 iOS 行為可能保留到裝置重置)。</li>
       <li>也可以寫信給我們要求查詢或刪除資料。</li>
@@ -160,7 +161,7 @@
       <li><strong>Device SSH key</strong>: Purrdr creates a P-256 key in the device’s Secure Enclave; the private key can’t leave the Secure Enclave, and the Keychain only holds its encrypted reference (this device only). The public key, with the comment <code>purrdr@iPhone</code> or <code>purrdr@iPad</code>, is what you add to your host’s <code>authorized_keys</code>.</li>
       <li><strong>Member sign-in token</strong>: after you sign in, the refresh token is kept in the Keychain (after first unlock, this device only).</li>
       <li><strong>App preferences and state</strong> (the app’s UserDefaults): selected host, list view mode, chat preferences, Return key and haptics settings, whether you’ve seen the welcome screen, review prompt counts, your consent to host writes, push pairing records (a random device code, SHA-256 hashes of pairing keys, the last APNs device token), and host sync bookkeeping.</li>
-      <li><strong>Conversation cache</strong>: kept in memory only and gone when the app quits.</li>
+      <li><strong>Conversation cache</strong>: recent conversation content is cached in a local database on this device so a chat appears instantly the next time you open it. It is not backed up or uploaded; removing a host in the app clears that host’s cache, and deleting the app removes it.</li>
     </ul>
 
     <h2>2. Data sent directly between your device and your computer</h2>
@@ -204,6 +205,7 @@
       <li>Our backend keeps the SHA-256 hash of the pairing key, the APNs device token, the platform (APNs) and environment (production or sandbox), when it was created and updated, and a per-minute rate-limit counter for that key.</li>
     </ul>
     <p>When an agent needs you, the host plugin sends only the <strong>workspace name, the status, and the pane ID</strong>. Our backend builds the notification (the title is the workspace name; the text is always “An agent needs you.”) and hands it to the Apple Push Notification service (APNs) for delivery. This is processed only while it’s being relayed and <strong>is not stored</strong>; conversation content never goes through our backend or APNs. When you turn notifications off or remove the host, the app revokes the pairing and removes the pairing file from the host.</p>
+    <p>When you tap “Send Test Notification” in the app, the computer’s name (the name you gave it in the host list) goes through our backend and the Apple Push Notification service to your device. <strong>It’s used only in the title of that one notification and is not stored.</strong></p>
 
     <h2>6. Host sync (Purrdr Plus)</h2>
     <p>With host sync on, our backend keeps, for each host: its name, address and port, user name, connection method (Tailscale SSH, OpenSSH, or HTTPS), host key fingerprint, the HTTPS address of an HTTPS host, and when it was modified. An HTTPS host’s device token is never uploaded. For a deleted host it keeps only the ID and deletion time, so other devices don’t sync it back.</p>
@@ -236,7 +238,7 @@
 
     <h2>10. Deleting and controlling your data</h2>
     <ul>
-      <li><strong>Delete your member account</strong>: in the app, “⋯ → Member → Delete Member…”. We first revoke Sign in with Apple with Apple, then immediately delete the member, its sign-in methods, tokens, subscription records, push pairings, and synced hosts. Deleting your member account does <strong>not</strong> cancel an Apple subscription — cancel it in Settings › Apple Account › Subscriptions.</li>
+      <li><strong>Delete your member account</strong>: in the app, “⋯ → Member → Delete Member”. We first revoke Sign in with Apple with Apple, then immediately delete the member, its sign-in methods, tokens, subscription records, push pairings, and synced hosts. Deleting your member account does <strong>not</strong> cancel an Apple subscription — cancel it in Settings › Apple Account › Subscriptions.</li>
       <li><strong>Turn off a single feature</strong>: turning off notifications revokes that host’s pairing; unlinking a sign-in method deletes that method’s data.</li>
       <li><strong>On your device</strong>: removing a host in the app deletes its settings and secrets; deleting the app removes its UserDefaults and caches (iOS may keep Keychain items until the device is reset).</li>
       <li>You can also email us to ask what we hold or to have it deleted.</li>

@@ -133,7 +133,7 @@ struct PlanUsageModelTests {
 
         model.appeared()
         await model.untilIdle()
-        #expect(model.state == .failed(.connection("The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet.")))
+        #expect(model.state == .failed(.connection("The host didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices.")))
 
         await gate.connect()
         await model.refresh()
@@ -419,7 +419,7 @@ struct PlanUsageModelTests {
         await model.requestConsent()
 
         #expect(model.state == .needsConsent)
-        #expect(model.message?.contains("isn’t valid JSON") == true)
+        #expect(model.message?.contains("are damaged") == true)
         #expect(try DirectorySnapshot(of: host.home) == before)
     }
 

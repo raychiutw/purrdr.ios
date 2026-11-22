@@ -34,7 +34,7 @@ public actor DemoHost: HostChannel {
         case workingAfterPrompt(for: Duration)
         /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
         case agentFiles
-        /// 聊天中斷網(#219):第一個主機指令(app 啟動)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
+        /// 聊天中斷網(#219):第一次定位對話紀錄(對話載入完成，#371)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
     }
@@ -81,8 +81,8 @@ public actor DemoHost: HostChannel {
     /// 推播外掛是否已安裝(只在記憶體;帳號頁開通知的 UI 測試,#246)。
     private var pushPluginInstalled = false
 
-    /// Demo 家目錄的上傳資料夾。
-    static let uploadFolder = "/Users/demo/" + UploadedImages.folder
+    /// Demo 主機的上傳資料夾(暫存目錄底下,Unix 後接 uid)。
+    static let uploadFolder = "/var/folders/zz/demo/T/" + UploadedImages.folder + "-501"
 
     /// 這個情境的 Claude Code 對話紀錄。
     private var transcripts: [DemoTranscripts.Session] {
@@ -117,7 +117,8 @@ public actor DemoHost: HostChannel {
     public func execute(_ command: String) async throws -> any ExecSession {
         try await passTailscaleCheck()
         try await failIfOffline()
-        scheduleOfflineIfDue()
+        // 對話載入完成(第一次定位對話紀錄)才開始計時斷網，不是 app 啟動(#371)。
+        if DemoTranscripts.isLocate(command) { scheduleOfflineIfDue() }
         if command == HerdrCommand.bridge() {
             let bridge = DemoBridgeSession { [weak self] line in
                 guard let self else { return (Data(), false) }
@@ -162,12 +163,22 @@ public actor DemoHost: HostChannel {
         if let listing = DemoNewChatFolders.respond(to: command) {
             return DemoFinishedSession(events: (listing.stdout.isEmpty ? [] : [.stdout(listing.stdout)]) + [.exit(code: listing.exitCode)])
         }
+        if let git = DemoGitChanges.respond(to: command) {
+            return DemoFinishedSession(events: (git.stdout.isEmpty ? [] : [.stdout(git.stdout)]) + [.exit(code: git.exitCode)])
+        }
         if let request = HostFileRequest(command: command) {
             let result = files.handle(request, now: Date())
             return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
         if let stdout = herdrPluginResponse(to: command) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
+        // 連線測試(新增主機)探測的作業系統與 herdr 版本:Demo 主機是 macOS 上的 herdr 0.9.5。
+        if command == HerdrCommand.operatingSystem {
+            return DemoFinishedSession(events: [.stdout(Data("Darwin\n".utf8)), .exit(code: 0)])
+        }
+        if command == HerdrCommand.version(HerdrInstallation()) {
+            return DemoFinishedSession(events: [.stdout(Data("herdr 0.9.5\n".utf8)), .exit(code: 0)])
         }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
@@ -285,7 +296,7 @@ public actor DemoHost: HostChannel {
     /// 斷網時要以連線中斷結束的請求與訂閱。
     private var openBridges: [DemoBridgeSession] = []
 
-    /// 斷網情境：第一個主機指令時排定斷網。
+    /// 斷網情境：第一次定位對話紀錄(對話載入完成)時排定斷網。
     private func scheduleOfflineIfDue() {
         guard case .goesOffline(let delay, _) = scenario, !offlineScheduled else { return }
         offlineScheduled = true
@@ -714,6 +725,15 @@ enum DemoSnapshot {
         switch method {
         case "session.snapshot":
             return (result(id: id, ["type": "session_snapshot", "snapshot": snapshot(applying: state)]), false)
+        // 連線測試(新增主機)的探測:herdr 版本與 agent 整合。
+        case "ping":
+            return (result(id: id, ["type": "pong", "version": "0.9.5", "protocol": 22]), false)
+        case "integration.list":
+            let integrations: [[String: Any]] = [
+                ["target": "claude", "label": "claude", "command": "claude", "available": true, "state": "current"],
+                ["target": "codex", "label": "codex", "command": "codex", "available": true, "state": "current"],
+            ]
+            return (result(id: id, ["type": "integration_list", "integrations": integrations]), false)
         case "workspace.rename", "workspace.close":
             guard let workspaceID = params["workspace_id"] as? String, workspaceIDs.contains(workspaceID),
                   !state.closed.contains(workspaceID) else {

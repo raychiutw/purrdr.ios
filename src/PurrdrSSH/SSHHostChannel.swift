@@ -59,6 +59,8 @@ public actor SSHHostChannel: HostChannel {
     private let tailscaleCheck: TailscaleCheckObserver?
     private let scheduler: any SSHDeadlineScheduler
     private let diagnostics: SSHConnectionDiagnostics?
+    /// 流量計量(#353):建立後才接上也算(之後開的 channel 起生效)。
+    private nonisolated let trafficSink: TrafficSink
 
     private var connection: SSHConnection?
     private var dial: (id: Int, task: Task<SSHConnection, any Error>)?
@@ -78,8 +80,10 @@ public actor SSHHostChannel: HostChannel {
         credential: @escaping SSHCredentialProvider = { .none },
         tailscaleCheck: TailscaleCheckObserver? = nil,
         scheduler: any SSHDeadlineScheduler = EventLoopDeadlineScheduler(),
-        diagnostics: SSHConnectionDiagnostics? = nil
+        diagnostics: SSHConnectionDiagnostics? = nil,
+        traffic: TrafficRecording? = nil
     ) {
+        trafficSink = TrafficSink(traffic)
         self.diagnostics = diagnostics
         self.endpoint = endpoint
         self.hostKeyPin = hostKeyPin
@@ -90,10 +94,16 @@ public actor SSHHostChannel: HostChannel {
         self.scheduler = scheduler
     }
 
+    /// 接上流量計量(#353):之後開的 channel 收送的位元組都回報給它。
+    public nonisolated func attachTraffic(_ recording: TrafficRecording?) {
+        trafficSink.attach(recording)
+    }
+
     public func execute(_ command: String) async throws -> any ExecSession {
         let connection = try await connected()
         do {
-            let (channel, events) = try await connection.openSession([.exec(command)], timeout: timeouts.channelOpen)
+            let (channel, events) = try await connection.openSession(
+                [.exec(command)], timeout: timeouts.channelOpen, traffic: trafficSink)
             return SSHExecSession(channel: channel, events: events)
         } catch {
             throw drop(connection, after: error)
@@ -104,7 +114,8 @@ public actor SSHHostChannel: HostChannel {
         let connection = try await connected()
         let start: SessionRequest = request.command.map { .exec($0) } ?? .shell
         do {
-            let (channel, events) = try await connection.openSession([.pty(request), start], timeout: timeouts.channelOpen)
+            let (channel, events) = try await connection.openSession(
+                [.pty(request), start], timeout: timeouts.channelOpen, traffic: trafficSink)
             return SSHPTYSession(channel: channel, events: events)
         } catch {
             throw drop(connection, after: error)
@@ -315,7 +326,7 @@ final class SSHConnection: Sendable {
         }
     }
 
-    func openSession(_ requests: [SessionRequest], timeout: TimeAmount) async throws
+    func openSession(_ requests: [SessionRequest], timeout: TimeAmount, traffic: TrafficSink) async throws
         -> (any Channel, AsyncStream<SessionEvent>)
     {
         let (events, continuation) = AsyncStream<SessionEvent>.makeStream()
@@ -335,7 +346,7 @@ final class SSHConnection: Sendable {
                 handler.createChannel(created, channelType: .session) { child, _ in
                     child.eventLoop.makeCompletedFuture {
                         try child.pipeline.syncOperations.addHandler(
-                            SessionHandler(requests: requests, started: started, events: continuation))
+                            SessionHandler(requests: requests, started: started, events: continuation, traffic: traffic))
                     }
                 }
                 created.futureResult.whenFailure { started.fail($0) }
@@ -667,11 +678,22 @@ private final class SessionHandler: ChannelDuplexHandler {
     private var requests: [SessionRequest]
     private let started: EventLoopPromise<any Channel>
     private let events: AsyncStream<SessionEvent>.Continuation
+    private let traffic: TrafficSink
 
-    init(requests: [SessionRequest], started: EventLoopPromise<any Channel>, events: AsyncStream<SessionEvent>.Continuation) {
+    init(
+        requests: [SessionRequest], started: EventLoopPromise<any Channel>, events: AsyncStream<SessionEvent>.Continuation,
+        traffic: TrafficSink
+    ) {
         self.requests = requests
         self.started = started
         self.events = events
+        self.traffic = traffic
+    }
+
+    /// 流量計量(#353):這條 channel 寫出的資料(stdin、輸入)。
+    func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+        if case .byteBuffer(let buffer) = unwrapOutboundIn(data).data { traffic.record(.sent, buffer.readableBytes) }
+        context.write(data, promise: promise)
     }
 
     func handlerAdded(context: ChannelHandlerContext) {
@@ -702,6 +724,7 @@ private final class SessionHandler: ChannelDuplexHandler {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let message = unwrapInboundIn(data)
         guard case .byteBuffer(let buffer) = message.data else { return }
+        traffic.record(.received, buffer.readableBytes)
         let bytes = Data(buffer.readableBytesView)
         switch message.type {
         case .channel: events.yield(.stdout(bytes))
@@ -731,6 +754,7 @@ private final class SessionHandler: ChannelDuplexHandler {
         promise.futureResult.whenFailure { [started] error in started.fail(error) }
         switch requests.removeFirst() {
         case .exec(let command):
+            traffic.record(.sent, command.utf8.count)
             context.triggerUserOutboundEvent(SSHChannelRequestEvent.ExecRequest(command: command, wantReply: true), promise: promise)
         case .shell:
             context.triggerUserOutboundEvent(SSHChannelRequestEvent.ShellRequest(wantReply: true), promise: promise)

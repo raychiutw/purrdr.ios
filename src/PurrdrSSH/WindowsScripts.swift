@@ -88,15 +88,16 @@ enum WindowsScripts {
         """
     }
 
-    /// 視窗：以 `end` 為終點往前取恰好 `lines` 行完整的行(演算法與 POSIX 版相同)。參數：路徑、終點、行數、區塊大小。
+    /// 視窗：以 `end` 為終點往前取恰好 `lines` 行完整的行(演算法與 POSIX 版相同)。參數：路徑、終點、行數、區塊大小、(選用)byte 上限(#356,大於 0 時不放大區塊)。
     static let window = #"""
         PRunBlock {
-        $f=$a[0];$e=[long]$a[1];$n=[int]$a[2];$c=[long]$a[3]
+        $f=$a[0];$e=[long]$a[1];$n=[int]$a[2];$c=[long]$a[3];$g=$false
+        if($a.Count -gt 4 -and [long]$a[4] -gt 0){$c=[long]$a[4];$g=$true}
         try{$h=POpen $f}catch{PFail 5}
         while($true){
         $s=[Math]::Max([long]0,$e-$c);$st=New-Object Collections.Generic.List[long];$z=[long]0
         if($e -gt $s){$b=PRead $h $s ($e-$s);$q=0;$known=($s -eq 0);$i=0;while($i -lt $b.Length){$j=[Array]::IndexOf($b,[byte]10,$i);if($j -lt 0){break};if($known){$st.Add($q)};$known=$true;$z=$j+1;$q=$j+1;$i=$j+1}}
-        if($st.Count -lt $n -and $s -gt 0){$c=$c*4;continue}
+        if($st.Count -lt $n -and $s -gt 0 -and -not $g){$c=$c*4;continue}
         $k=[Math]::Max(0,$st.Count-$n);if($st.Count -gt 0){$x=$s+$st[$k]}else{$x=$s+$z};$y=$s+$z
         break
         }
@@ -225,15 +226,15 @@ enum WindowsScripts {
 
     // MARK: - 上傳(bytes 走 stdin,ADR-0003)
 
-    /// 上傳到主機(圖片與一般檔案)到 `%USERPROFILE%\.purrdr\uploads`:與 POSIX 版相同的檢查與 exit code(64 檔名、71 建立失敗、72 讀 stdin、
-    /// 73 已存在、75 大小不符)。先寫隱藏的暫存檔，大小相同才改名(改名不覆寫);刪掉 7 天前的檔案。參數：檔名、大小。
-    /// 上傳資料夾在使用者設定檔資料夾底下，繼承它的 ACL(只有本人、SYSTEM 與 Administrators)。
+    /// 上傳到主機(圖片與一般檔案)到 `%TEMP%\purrdr-uploads`(與主機服務共用):與 POSIX 版相同的檢查與 exit code(64 檔名、71 建立失敗、72 讀 stdin、
+    /// 73 已存在、75 大小不符)。先寫隱藏的暫存檔，大小相同才改名(改名不覆寫);刪掉新、舊資料夾裡 7 天前的檔案，舊的 `%USERPROFILE%\.purrdr\uploads` 空了就移除。參數：檔名、大小。
+    /// `%TEMP%` 在使用者設定檔資料夾底下，繼承它的 ACL(只有本人、SYSTEM 與 Administrators);上傳資料夾是 reparse point(symlink、junction)時失敗。
     static let hostUpload = #"""
         $n=$a[0];$z=[long]$a[1]
         \#(uploadLimit(transferSizeArgument: 1))
         if($n -cnotmatch '^[A-Za-z0-9-][A-Za-z0-9.-]*$'){exit 64}
-        $d=Join-Path $env:USERPROFILE '.purrdr\uploads'
-        try{[void][IO.Directory]::CreateDirectory($d)}catch{exit 71}
+        $d=Join-Path $env:TEMP '\#(HostServiceProtocol.uploadFolder)'
+        try{[void][IO.Directory]::CreateDirectory($d);if((Get-Item -LiteralPath $d -Force).Attributes -band [IO.FileAttributes]::ReparsePoint){exit 71}}catch{exit 71}
         $t=Join-Path $d ('.upload.'+[Guid]::NewGuid().ToString('N'));$purrdrLimit.Files+=$t
         $p=Join-Path $d $n
         try{
@@ -244,6 +245,11 @@ enum WindowsScripts {
         try{[IO.File]::Move($t,$p)}catch{if(Test-Path -LiteralPath $p){exit 73};exit 71}
         $t=$null
         $old=(Get-Date).AddDays(-7);Get-ChildItem -LiteralPath $d -Force -File|?{$_.LastWriteTime -lt $old}|Remove-Item -Force -ErrorAction SilentlyContinue
+        $legacy=Join-Path $env:USERPROFILE '.purrdr\uploads'
+        if([IO.Directory]::Exists($legacy) -and -not ((Get-Item -LiteralPath $legacy -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){
+        Get-ChildItem -LiteralPath $legacy -Force -File|?{$_.LastWriteTime -lt $old}|Remove-Item -Force -ErrorAction SilentlyContinue
+        if(-not (Get-ChildItem -LiteralPath $legacy -Force|Select-Object -First 1)){Remove-Item -LiteralPath $legacy -Force -ErrorAction SilentlyContinue}
+        }
         PWrite "$p`n"
         }finally{if($t){Remove-Item -LiteralPath $t -Force -ErrorAction SilentlyContinue}}
         """#
@@ -474,6 +480,67 @@ enum WindowsScripts {
     static let pushPairings = #"""
         $d=PPath '.purrdr'
         if([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -Directory|?{$_.Name -clike 'push-*'})){if([IO.File]::Exists((Join-Path $e.FullName 'pairing'))){PWrite "$($e.Name)/pairing`n"}}}
+        $o.Flush()
+        """#
+
+    /// `SSHPushTestNotifier.script`:同樣的檢查、輸出與 exit code(66 沒有配對、70 連不上)。參數：配對資料夾名稱。純 ASCII。
+    static let pushTest = #"""
+        $f=PPath ('.purrdr/'+$a[0]+'/pairing')
+        if(-not [IO.File]::Exists($f)){exit 66}
+        $k=$null;$e=$null
+        foreach($l in [IO.File]::ReadAllLines($f)){if($l.StartsWith('key=')){$k=$l.Substring(4)}elseif($l.StartsWith('endpoint=')){$e=$l.Substring(9)}}
+        if(-not $k -or $k -cnotmatch '^[0-9a-f]{64}$' -or -not $e){exit 66}
+        $n='';if($a.Count -gt 1 -and $a[1]){$n=',"host_name":"'+$a[1]+'"'}
+        $c=0
+        try{$r=Invoke-WebRequest -UseBasicParsing -Uri $e -Method Post -ContentType 'application/json' -Body ('{"key":"'+$k+'","event":"test"'+$n+'}') -TimeoutSec 10;$c=[int]$r.StatusCode}
+        catch{if($_.Exception.Response){$c=[int]$_.Exception.Response.StatusCode}else{[Console]::Error.Write($_.Exception.Message);exit 70}}
+        if($c -eq 410){$cur=$null;foreach($l in [IO.File]::ReadAllLines($f)){if($l.StartsWith('key=')){$cur=$l.Substring(4)}};if($cur -ceq $k){Remove-Item -LiteralPath ([IO.Path]::GetDirectoryName($f)) -Recurse -Force -ErrorAction SilentlyContinue}}
+        PWrite "$c`\n"
+        $o.Flush()
+        """#
+
+    // MARK: - 變更頁的唯讀 git(#310)
+
+    /// `GitChangesCommand.script` 的 PowerShell 版:同樣的參數(`status 工作目錄` 或 `diff 工作目錄 標記 單檔上限 總量上限 (種類 路徑)…`)、
+    /// 輸出格式與 exit code(64 用法、65 不是 repo、66 資料夾不存在、69 沒有 git)。唯讀:`GIT_OPTIONAL_LOCKS=0`、diff 不跑外部程式。
+    /// git 以 Process 啟動、直接讀 stdout 的 bytes(經 console 轉碼會把非 ASCII 路徑弄壞)。純 ASCII。
+    static let gitChanges = #"""
+        $g=Get-Command git -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
+        if(-not $g){exit 69}
+        $env:GIT_OPTIONAL_LOCKS='0';$env:GIT_TERMINAL_PROMPT='0';$env:LC_ALL='C'
+        function PGit([string[]]$x,[long]$max,[string]$dir){
+        $p=New-Object Diagnostics.ProcessStartInfo
+        $p.FileName=$g.Source;$p.WorkingDirectory=$dir;$p.UseShellExecute=$false;$p.RedirectStandardOutput=$true;$p.RedirectStandardError=$true;$p.CreateNoWindow=$true
+        $p.Arguments=(($x|%{'"'+(($_ -replace '(\\+)$','$1$1') -replace '"','\"')+'"'}) -join ' ')
+        $r=[Diagnostics.Process]::Start($p)
+        $e=$r.StandardError.ReadToEndAsync()
+        $m=New-Object IO.MemoryStream;$c=New-Object byte[] 65536
+        while($true){$n=$r.StandardOutput.BaseStream.Read($c,0,$c.Length);if($n -le 0){break}
+        if($max -ge 0 -and $m.Length+$n -gt $max){$m.Write($c,0,[int]($max-$m.Length));try{$r.Kill()}catch{};break}
+        $m.Write($c,0,$n)}
+        $r.WaitForExit()
+        [pscustomobject]@{Out=$m.ToArray();Code=$r.ExitCode}}
+        if($a.Count -lt 2 -or ($a[0] -cne 'status' -and $a[0] -cne 'diff')){exit 64}
+        if(-not [IO.Directory]::Exists($a[1])){exit 66}
+        $t=PGit @('rev-parse','--show-toplevel') -1 $a[1]
+        if($t.Code -ne 0){exit 65}
+        $root=$u.GetString($t.Out).Trim("`r","`n")
+        if($a[0] -ceq 'status'){
+        $b=PGit @('symbolic-ref','--short','-q','HEAD') -1 $root
+        $branch=$u.GetString($b.Out).Trim("`r","`n")
+        PWrite "branch $branch`nroot $root`n"
+        $s=PGit @('-c','core.quotepath=off','status','--porcelain=v1','-z','--untracked-files=all','--no-renames','--ignore-submodules=all') -1 $root
+        $o.Write($s.Out,0,$s.Out.Length)}
+        else{
+        $file=[long]$a[3];$total=[long]$a[4]
+        $base='HEAD';if((PGit @('rev-parse','-q','--verify','HEAD') -1 $root).Code -ne 0){$base='4b825dc642cb6eb9a060e54bf8d69288fbee4904'}
+        $all=New-Object IO.MemoryStream;$i=0
+        for($k=5;$k+1 -lt $a.Count -and $all.Length -le $total;$k+=2){
+        $h=$u.GetBytes("`n$($a[2]) $i`n");$all.Write($h,0,$h.Length)
+        if($a[$k] -ceq 'untracked'){$d=PGit @('diff','--no-index','--no-color','--no-ext-diff','--no-textconv','-U3','--','/dev/null',$a[$k+1]) ($file+1) $root}
+        else{$d=PGit @('diff','--no-color','--no-ext-diff','--no-textconv','-U3',$base,'--',$a[$k+1]) ($file+1) $root}
+        $all.Write($d.Out,0,$d.Out.Length);$i++}
+        $z=$all.ToArray();$n=[Math]::Min([long]$z.Length,$total+1);$o.Write($z,0,[int]$n)}
         $o.Flush()
         """#
 

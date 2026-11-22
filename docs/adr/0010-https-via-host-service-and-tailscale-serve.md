@@ -49,3 +49,12 @@
 ## 更新(2026-11-19):主機端搬到 raychiutw/purrdr.host
 
 主機服務(`host-service/`)、主機外掛(`host-plugin/`)、協定(`protocol/` 的 JSON Schema 與範例)、codegen 與主機服務的 Release 都搬到公開 repo [`raychiutw/purrdr.host`](https://github.com/raychiutw/purrdr.host)(保留歷史)。上面「repo 多一個 Rust 專案與 CI」改成在那個 repo;協定仍是先改 JSON Schema 再產生兩端型別，只是 app 這邊以 `scripts/sync-purrdr-host.sh` 拉回產生的 Swift 型別與 `vendor/purrdr-host/protocol/`,CI 以 `--check` 確認沒被手改。一行安裝指令改從 purrdr.host 的 Release 下載;推播外掛來源改成 `raychiutw/purrdr.host/host-plugin`。
+
+## 更新(2026-11-21):上傳檔改放系統暫存目錄(raychiutw/purrdr.host#40、purrdr.ios#326)
+
+聊天上傳的圖片與檔案只是給 Agent 讀一次的暫存檔，不該和設定、配對、推播外掛一起放在家目錄的 `.purrdr/uploads/`(使用者翻家目錄會看到不認得的圖片，主機服務沒在跑時也只有 7 天清理收尾)。主機服務(app 同步的 0.9.0 已含)與 SSH 上傳腳本改寫到**系統暫存目錄**底下的上傳資料夾，兩條連線方式共用同一個位置：
+
+- 位置:macOS／Linux 取 `TMPDIR`(沒設定用 `/tmp`),Windows 取 `%TEMP%`;資料夾名稱在協定 schema 的 `x-upload-folder`(`purrdr-uploads`),Unix 後接 `-<uid>`(例如 `purrdr-uploads-501`),app 讀同步來的 `HostServiceProtocol.uploadFolder`,不自己寫死。系統自己的暫存清理也會收，主機重開機或清暫存時一起清掉。
+- 安全:`/tmp` 是共用的，所以 Unix 資料夾權限 0700,且已存在時必須是自己的真資料夾(不是 symlink、擁有者是自己、權限剛好 0700),否則上傳失敗、不寫入(SSH 腳本 exit 71);別的使用者事先在 `/tmp` 放同名資料夾或 symlink 不能讓檔案寫進別人控制的地方。Windows 的 `%TEMP%` 在使用者設定檔底下、繼承它的 ACL,資料夾是 reparse point 時失敗。
+- 清理:每次 SSH 上傳順手刪掉新資料夾與舊 `~/.purrdr/uploads/` 裡超過 7 天的檔案,舊資料夾清空後移除;舊資料夾不再寫入。
+- 辨識與取檔:聊天認得「上傳的圖片」同時接受新路徑與舊的 `.purrdr/uploads` 路徑(歷史對話紀錄裡還是舊路徑)。主機取檔的放行規則(app 的 `HostFileAccessPolicy`、SSH 取檔腳本、主機服務)對對話紀錄提到的檔案同時放行新資料夾(暫存目錄底下，TMPDIR 不在標準位置時也靠名稱認得)與舊資料夾；**舊資料夾的放行只保留一個版本**，之後移除。排除清單不變：`.purrdr/host-service`、`.purrdr/push-*` 仍拒讀。

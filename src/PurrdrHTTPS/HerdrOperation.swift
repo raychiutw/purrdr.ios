@@ -13,6 +13,8 @@ enum HerdrMethod: String {
     case workspaceClose = "workspace.close"
     case worktreeCreate = "worktree.create"
     case agentStart = "agent.start"
+    case paneRead = "pane.read"
+    case sessionsList = "sessions.list"
     /// 事件串流，走 `herdrEvents`,不是單次請求。
     case eventsSubscribe = "events.subscribe"
 
@@ -20,6 +22,8 @@ enum HerdrMethod: String {
     var requiredFeature: HostServiceFeature? {
         switch self {
         case .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart: .workspaceOperations
+        case .paneRead: .paneRead
+        case .sessionsList: .sessionResume
         default: nil
         }
     }
@@ -48,13 +52,15 @@ enum HerdrOperation {
             }
         case .paneSendKeys:
             let keys = try JSONDecoder().decode(SendKeysParams.self, from: line.params)
-            self = .request(make: { .paneSendKeys(.init(requestId: $0, paneId: keys.paneID, keys: keys.keys)) }) { id, reply, _ in
+            self = .request(make: { .paneSendKeys(.init(
+                    requestId: $0, paneId: keys.paneID, keys: keys.keys, expectedSession: keys.expectedSession)) }) { id, reply, _ in
                 guard case .paneSendKeysResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
         case .paneSendText:
             let text = try JSONDecoder().decode(SendTextParams.self, from: line.params)
-            self = .request(make: { .paneSendText(.init(requestId: $0, paneId: text.paneID, text: text.text)) }) { id, reply, _ in
+            self = .request(make: { .paneSendText(.init(
+                    requestId: $0, paneId: text.paneID, text: text.text, expectedSession: text.expectedSession)) }) { id, reply, _ in
                 guard case .paneSendTextResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
@@ -64,7 +70,8 @@ enum HerdrOperation {
                 HostServiceProtocol.PromptWait(
                     until: wait.until.compactMap(HostServiceProtocol.AgentStatus.init(rawValue:)), timeoutMs: wait.timeoutMs)
             }
-            self = .request(make: { .agentPrompt(.init(requestId: $0, paneId: prompt.target, text: prompt.text, wait: wait)) }) { id, reply, _ in
+            self = .request(make: { .agentPrompt(.init(
+                    requestId: $0, paneId: prompt.target, text: prompt.text, wait: wait, expectedSession: prompt.expectedSession)) }) { id, reply, _ in
                 guard case .agentPromptResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.prompted(id: id, delivery: result.delivery)
             }
@@ -106,10 +113,30 @@ enum HerdrOperation {
             self = .request(make: {
                 .agentStart(.init(
                     requestId: $0, paneId: params.paneID, name: params.name, kind: params.kind, permissionMode: permissionMode,
-                    timeoutMs: params.timeoutMs))
+                    resumeSession: params.resumeSession, timeoutMs: params.timeoutMs))
             }) { id, reply, _ in
                 guard case .agentStartResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
+            }
+        case .paneRead:
+            let params = try JSONDecoder().decode(PaneReadParams.self, from: line.params)
+            guard let source = HostServiceProtocol.PaneReadSource(rawValue: params.source) else { throw HostServiceError.unsupported(line.method) }
+            let format = try params.format.map { raw in
+                guard let format = HostServiceProtocol.PaneReadFormat(rawValue: raw) else { throw HostServiceError.unsupported(line.method) }
+                return format
+            }
+            self = .request(make: {
+                .paneRead(.init(requestId: $0, paneId: params.paneID, source: source, format: format, lines: params.lines))
+            }) { id, reply, _ in
+                guard case .paneReadResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.paneRead(id: id, text: result.text)
+            }
+        case .sessionsList:
+            let params = try JSONDecoder().decode(SessionsListParams.self, from: line.params)
+            guard let kind = HostServiceProtocol.ResumableAgentKind(rawValue: params.agentKind) else { throw HostServiceError.unsupported(line.method) }
+            self = .request(make: { .sessionsList(.init(requestId: $0, cwd: params.cwd, agentKind: kind)) }) { id, reply, _ in
+                guard case .sessionsListResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.sessionsList(id: id, sessions: result.sessions)
             }
         case .eventsSubscribe:
             throw HostServiceError.unsupported(line.method)
@@ -124,23 +151,28 @@ enum HerdrOperation {
         }
     }
 
+    /// 送出類 params 的 `expected_session`:`HerdrClient` 只在 `checksSendExpectations()` 為真時帶(#304)。
     private struct SendKeysParams: Decodable {
         var paneID: String
         var keys: [String]
+        var expectedSession: String?
 
         enum CodingKeys: String, CodingKey {
             case paneID = "pane_id"
             case keys
+            case expectedSession = "expected_session"
         }
     }
 
     private struct SendTextParams: Decodable {
         var paneID: String
         var text: String
+        var expectedSession: String?
 
         enum CodingKeys: String, CodingKey {
             case paneID = "pane_id"
             case text
+            case expectedSession = "expected_session"
         }
     }
 
@@ -149,6 +181,12 @@ enum HerdrOperation {
         var target: String
         var text: String
         var wait: Wait?
+        var expectedSession: String?
+
+        enum CodingKeys: String, CodingKey {
+            case target, text, wait
+            case expectedSession = "expected_session"
+        }
 
         struct Wait: Decodable {
             var until: [String]
@@ -194,17 +232,42 @@ enum HerdrOperation {
         }
     }
 
+    /// herdr `pane.read` 的 params(`HerdrClient` 送出的形狀;`format` 沒帶是 text)。
+    private struct PaneReadParams: Decodable {
+        var paneID: String
+        var source: String
+        var lines: Int?
+        var format: String?
+
+        enum CodingKeys: String, CodingKey {
+            case paneID = "pane_id"
+            case source, lines, format
+        }
+    }
+
+    private struct SessionsListParams: Decodable {
+        var cwd: String
+        var agentKind: String
+
+        enum CodingKeys: String, CodingKey {
+            case cwd
+            case agentKind = "agent_kind"
+        }
+    }
+
     /// herdr `agent.start` 的 params(`HerdrClient` 送出的形狀)。
     private struct AgentStartParams: Decodable {
         var name: String
         var kind: String
         var paneID: String
         var args: [String]?
+        var resumeSession: String?
         var timeoutMs: Int?
 
         enum CodingKeys: String, CodingKey {
             case name, kind, args
             case paneID = "pane_id"
+            case resumeSession = "resume_session"
             case timeoutMs = "timeout_ms"
         }
     }

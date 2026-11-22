@@ -92,6 +92,10 @@ public struct AgentListView: View {
                 try? await Task.sleep(for: .seconds(1))
             }
         }
+        // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
+        .task(id: model.agentRows.filter(\.isAway).map(\.id)) {
+            await model.refreshAwayTurns()
+        }
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
             guard scenePhase == .active else { return }
             // 同一份列表開在好幾個視窗時，每台主機的即時更新各只跑一份(`AgentListModel.liveUpdates`,#31)。
@@ -130,6 +134,29 @@ public struct AgentListView: View {
         switch model.content {
         case .loading:
             loadingList
+        case .noHosts:
+            // 還沒有任何主機(#332):說明加主要按鈕(系統 glass prominent),次要是試用 Demo。
+            ContentUnavailableView {
+                Label("No Hosts Yet", systemImage: "desktopcomputer")
+            } description: {
+                Text("Add the host where your agents run, and they show up here. Or look around with sample conversations first.")
+            } actions: {
+                if let window {
+                    Button("Add Host") { window.openAddHost() }
+                        .filledProminentButtonStyle()
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.large)
+                        .accessibilityIdentifier("agentList.addHost")
+                }
+                Button("Try the Demo") { model.enterDemo?() }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .foregroundStyle(Color.primary)
+                    .accessibilityIdentifier("agentList.tryDemo")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("agentList.noHosts")
         case .offline:
             // 沒網路就直接說，不等連線逾時(#221);網路恢復後自動重連。
             ContentUnavailableView {
@@ -264,18 +291,12 @@ public struct AgentListView: View {
         }
     }
 
-    /// 列表第一列(#268,原型 purrdr-screens 定案版):Agents／Spaces 分段控制;Agents 檢視下方接著搜尋欄。
+    /// 列表最上面(#268;#313 改成攤開):Agents／Spaces 兩列勾選;Agents 檢視下方接著搜尋欄。
     /// 沒有大標題。Spaces 檢視沒有搜尋(切過去時清掉搜尋字，不留看不見的篩選)。
+    @ViewBuilder
     private var modeRow: some View {
         Section {
-            VStack(spacing: 10) {
-                AgentListModeControl(mode: $model.mode)
-                if model.mode == .agents {
-                    AgentListSearchField(query: $model.query, focused: $searchFocused)
-                }
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            AgentListModeControl(mode: $model.mode)
         }
         #if os(iOS)
         // 貼著導覽列、跟下面的內容只隔一般間距(inset grouped 第一個 section 上方預設有一大段空白)。
@@ -283,6 +304,16 @@ public struct AgentListView: View {
         #endif
         .onChange(of: model.mode) { _, mode in
             if mode == .spaces { model.query = "" }
+        }
+        if model.mode == .agents {
+            Section {
+                AgentListSearchField(query: $model.query, focused: $searchFocused)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            }
+            #if os(iOS)
+            .listSectionSpacing(.compact)
+            #endif
         }
     }
 
@@ -297,7 +328,7 @@ public struct AgentListView: View {
                 ForEach(sections.flatMap(\.rows)) { row in agentRow(row) }
             }
         }
-        if let filtered = model.hostFilter.flatMap({ model.hostLabel(of: $0) }),
+        if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
            model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty {
             // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。
@@ -367,6 +398,8 @@ struct ConversationScreen: View {
     let window: TopNavigationModel?
     let route: ChatRoute?
     @State private var terminal: PaneTerminalModel?
+    /// 推入中的變更頁(#310)。
+    @State private var changes: ChangesModel?
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
@@ -385,6 +418,21 @@ struct ConversationScreen: View {
                     // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
                     ToolbarItem(placement: .primaryAction) {
                         PaneTerminalButton { openTerminal() }
+                    }
+                }
+                // 變更鈕(#310):知道 Agent 的工作目錄、連線方式讀得了 git 才顯示。
+                if model.canOpenChanges {
+                    ToolbarItem(placement: .primaryAction) {
+                        ChangesButton { changes = model.makeChanges() }
+                    }
+                }
+            }
+            .navigationDestination(isPresented: Binding(get: { changes != nil }, set: { if !$0 { changes = nil } })) {
+                if let changes {
+                    ChangesView(model: changes) { message in
+                        // 先回到聊天再送：撤回倒數與機密偵測的確認都在聊天畫面。
+                        self.changes = nil
+                        Task { await model.sendReview(message) }
                     }
                 }
             }
@@ -412,7 +460,7 @@ struct ConversationScreen: View {
     }
 }
 
-/// Agents 檢視的一列(#244 單一清單):列首是 agent 種類頭像，第一行狀態點、名稱與時間，第二行小主機圖示與「主機 · 最後一句」。
+/// Agents 檢視的一列(#244 單一清單):列首是 agent 種類頭像、右下角是狀態(#316),第一行名稱與時間，第二行小主機圖示與「主機 · 最後一句」。
 struct AgentRowView: View {
     let row: AgentRow
     /// 這列所在主機的名稱與圖示(選取中主機也有)。
@@ -423,13 +471,13 @@ struct AgentRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            AgentKindAvatar(kind: AgentKind(rawKind: row.kind), announcesKind: true)
+            AgentStatusAvatar(content: .agent(AgentKind(rawKind: row.kind)), status: row.status)
             VStack(alignment: .leading, spacing: 2) {
                 titleLine
                 previewLine
                     .font(.subheadline)
                     .lineLimit(lines(2))
-                if dynamicTypeSize.isAccessibilitySize { timeText }
+                if dynamicTypeSize.isAccessibilitySize { trailingColumn }
             }
         }
         // 一句念完(#269,spec #267 故事 14):agent、workspace、狀態、主機 · 最後一句、時間;畫面的排列順序不同，不用 `.combine`。
@@ -449,9 +497,19 @@ struct AgentRowView: View {
         let parts: [String?] = [
             AgentKind(rawKind: row.kind).displayName, row.workspace, String(localized: row.status.title),
             row.isPinned ? String(localized: "Pinned") : nil, row.isMuted ? String(localized: "Muted") : nil,
+            row.isAway ? String(localized: "New since you were away") : nil,
             preview.isEmpty ? nil : preview, row.time?.text(),
+            row.progress?.contextPercent.map { String(localized: "Context \($0)%") },
+            row.progress.flatMap { $0.todoTotal > 0 ? String(localized: "Todos \($0.todoDone) of \($0.todoTotal) done") : nil },
         ]
         return parts.compactMap { $0 }.joined(separator: ", ")
+    }
+
+    /// 「While away」,算出輪數後是「While away · +N turns」(#308)。
+    static func awayBadgeText(turns: Int?) -> String {
+        guard let turns, turns > 0 else { return String(localized: "While away") }
+        let turnsText = String(localized: "\(turns) turns")
+        return String(localized: "While away · +\(turnsText)")
     }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
@@ -461,11 +519,6 @@ struct AgentRowView: View {
 
     private var titleLine: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            // 狀態點：形狀與顏色都依狀態(`StatusTone`),VoiceOver 念狀態字。
-            Image(systemName: row.status.symbol)
-                .imageScale(.small)
-                .foregroundStyle(row.status.tone.style)
-                .accessibilityLabel(Text(row.status.title))
             // 第一行是 workspace 名稱(#269,原型 B);聊天標題在對話裡。
             Text(row.workspace)
                 .lineLimit(lines(1))
@@ -482,9 +535,19 @@ struct AgentRowView: View {
                     .foregroundStyle(secondary)
                     .accessibilityLabel(Text("Muted"))
             }
+            // 離開超過 15 分鐘後有新回覆(#308):名稱後的小標籤，文字說明、不只靠顏色。
+            if row.isAway {
+                Text(Self.awayBadgeText(turns: row.awayTurns))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondaryText)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.fill.tertiary, in: Capsule())
+                    .accessibilityHidden(true)
+            }
             if !dynamicTypeSize.isAccessibilitySize {
                 Spacer(minLength: 8)
-                timeText
+                trailingColumn
             }
         }
         .font(.body)
@@ -497,6 +560,10 @@ struct AgentRowView: View {
                 HostIconBadge(icon, diameter: 18)
             }
             previewText
+            if let todos = row.progress, todos.todoTotal > 0 {
+                Spacer(minLength: 4)
+                TodoCount(done: todos.todoDone, total: todos.todoTotal)
+            }
         }
     }
 
@@ -513,6 +580,16 @@ struct AgentRowView: View {
             }
         }
         .foregroundStyle(secondary)
+    }
+
+    /// 右欄：時間，下方是 context 小圓環與百分比(#307;對 VoiceOver 隱藏，念在整列句子裡)。
+    private var trailingColumn: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            timeText
+            if let percent = row.progress?.contextPercent {
+                ContextMeter(percent: percent)
+            }
+        }
     }
 
     @ViewBuilder
@@ -607,24 +684,6 @@ struct AgentSectionHeader: View {
         .foregroundStyle(.secondaryText)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("agentList.section.\(group)")
-    }
-}
-
-/// 導覽入口旁的數字：需要處理的 workspace 數(行為規格 F2.8)。0 不畫;超過 99 顯示「99+」。不設 app 圖示徽章。
-struct AttentionBadge: View {
-    let count: Int
-
-    var body: some View {
-        if count > 0 {
-            Text(verbatim: count > 99 ? "99+" : "\(count)")
-                .font(.footnote.weight(.semibold))
-                .monospacedDigit()
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .hostFill(in: Capsule())
-                .accessibilityLabel(count == 1 ? Text("1 workspace needs you") : Text("\(count) workspaces need you"))
-                .accessibilityIdentifier("attention.badge")
-        }
     }
 }
 

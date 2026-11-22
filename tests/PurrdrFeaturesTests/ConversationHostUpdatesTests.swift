@@ -40,7 +40,8 @@ struct ConversationHostUpdatesTests {
         let updates = HostUpdates(client: HerdrClient(connection: connection), sleep: RecordingSleeper().sleep)
         let task = Task { await updates.liveUpdates.attach() }
         try await waitUntil { await connection.requests.count == 3 }
-        try await HostUpdatesTests.settle()
+        // 同步點(#324):訂閱收到 ack 並對帳完才算連上;聊天只有這時才不自己讀快照，不能靠等一段時間。
+        try await waitUntil { await MainActor.run { updates.isSubscribed } }
         return (updates, task)
     }
 
@@ -99,8 +100,8 @@ struct ConversationHostUpdatesTests {
 
         await connection.send(event: HostUpdatesTests.statusChanged(Self.paneID, status: "blocked"), toSubscription: 0)
 
-        try await waitUntil { await MainActor.run { model.agentStatus == .blocked } }
-        #expect(model.prompt != nil)
+        // 提問卡的畫面讀取排在讀對話紀錄之後(#356),狀態變了之後才出現。
+        try await waitUntil { await MainActor.run { model.agentStatus == .blocked && model.prompt != nil } }
         #expect(await Self.count("session.snapshot", in: connection) == 3)
     }
 
@@ -173,7 +174,8 @@ actor TickSleeper {
     }
 
     private func wait(_ duration: Duration) async throws {
-        guard duration != .seconds(30) else {
+        // 30 秒是預覽輪詢、1.5 秒是載入進度指示的延遲(#356):都不是這裡要量的 2 秒畫面輪詢，不記錄也不返回。
+        guard duration != .seconds(30), duration != ConversationModel.loadingIndicatorDelay else {
             try await Task.sleep(for: .seconds(3600))
             return
         }

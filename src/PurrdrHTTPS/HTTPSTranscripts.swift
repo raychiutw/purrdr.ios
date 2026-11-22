@@ -14,9 +14,9 @@ extension HTTPSHostConnection {
             return try await withDeadline(HostCommandDeadline.standard) {
                 try await self.locate(Self.sessionReference(location), header: readsHeader)
             }
-        case .window(let path, let end, let lines, _):
+        case .window(let path, let end, let lines, _, let maxBytes):
             return try await withDeadline(HostCommandDeadline.maximumRead) {
-                try await self.window(path: path, end: end, lines: lines)
+                try await self.window(path: path, end: end, lines: lines, maxBytes: maxBytes)
             }
         case .tail(let path, let cursor, let limit), .catchUp(let path, let cursor, let limit):
             // 主機服務(#173 起)落後超過上限時從游標分段送出，與 SSH 的分段接著讀相同;#173 之前的主機服務落後超過上限
@@ -57,8 +57,11 @@ extension HTTPSHostConnection {
     }
 
     /// 「起點 終點」一行，再接範圍內的行。
-    private func window(path: String, end: Int, lines: Int) async throws -> Data {
-        let reply = try await send { .transcriptWindow(.init(requestId: $0, path: path, end: end, lines: lines)) }
+    /// `maxBytes` 大於 0 且主機服務有 `max_bytes`(0.11.0 起)時帶上，傳輸量有上限(#356);更舊的主機服務只限行數。
+    private func window(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> Data {
+        let installed = maxBytes > 0 ? ((try? await hostServiceVersion()) ?? nil) : nil
+        let limit: Int? = HostServiceFeature.transcriptWindowMaxBytes.isAvailable(onHostServiceVersion: installed) ? maxBytes : nil
+        let reply = try await send { .transcriptWindow(.init(requestId: $0, path: path, end: end, lines: lines, maxBytes: limit)) }
         guard case .transcriptWindowResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
         return Data("\(result.start) \(result.end)\n".utf8) + Self.recordLines(result.records)
     }

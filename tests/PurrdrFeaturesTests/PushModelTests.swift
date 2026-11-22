@@ -406,8 +406,10 @@ struct PushModelTests {
         let https = HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)
         hostStore.hosts = [MultiHostTests.studio, https]
         let companion = DemoCompanionHost(id: UUID(), name: "Studio Mac", icon: .macMini, channel: FakeHost())
+        // 已在這支裝置配對(沒有權杖的是「需要先配對」,見 HostServiceUpdateTests)。
         let hosts = HostsModel(
-            store: hostStore, demoChannel: FakeHost(), demoCompanions: [companion], push: service(),
+            store: hostStore, demoChannel: FakeHost(), demoCompanions: [companion],
+            hostService: HostServiceAccess(tokens: InMemoryDeviceTokenStore(tokens: [https.id: "token-saved"])), push: service(),
             makeChannel: ChannelsByAddress([:]).make)
         hosts.load()
         hosts.select(.demo)
@@ -423,9 +425,11 @@ struct PushModelTests {
     @Test("HTTPS 主機取不到主機服務連線(例如替身連線):明確標成不支援，不是無聲失效")
     func httpsHostWithoutHostServiceConnectionIsUnsupported() {
         let hostStore = MemoryHostStore()
-        hostStore.hosts = [HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)]
+        let box = HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)
+        hostStore.hosts = [box]
+        let tokens = InMemoryDeviceTokenStore(tokens: [box.id: "token-saved"])
         let hosts = HostsModel(
-            store: hostStore, demoChannel: FakeHost(), hostService: HostServiceAccess { _, _ in FakeHostConnection() },
+            store: hostStore, demoChannel: FakeHost(), hostService: HostServiceAccess(tokens: tokens) { _, _ in FakeHostConnection() },
             push: service(), makeChannel: ChannelsByAddress([:]).make)
         hosts.load()
 
@@ -578,6 +582,126 @@ struct PushModelTests {
         keychain.isUnlocked = true
         await model.requestOn()
         #expect(model.state == .confirming(user: pluginHost.user))
+    }
+
+    // MARK: - 測試通知(#328)
+
+    struct TestSender: PushTestNotificationSending {
+        var failure: (any Error)?
+        let sent: Recorder
+        func sendTest(hostID: String) async throws {
+            await sent.record(hostID)
+            if let failure { throw failure }
+        }
+    }
+
+    actor Recorder {
+        private(set) var hostIDs: [String] = []
+        func record(_ id: String) { hostIDs.append(id) }
+    }
+
+    @Test("測試通知：沒有送出管道時不提供")
+    func testNotificationUnavailableWithoutSender() {
+        let model = model(service())
+
+        #expect(!model.canSendTestNotification)
+    }
+
+    @Test("測試通知：通知開著才能送，成功記下結果")
+    func testNotificationSentWhenOn() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let recorder = Recorder()
+        let service = service()
+        service.testNotifications = TestSender(sent: recorder)
+        let model = model(service)
+        #expect(!model.canSendTestNotification, "通知還沒開不能送")
+        await turnOn(model)
+
+        #expect(model.canSendTestNotification)
+        await model.sendTestNotification()
+
+        #expect(model.testNotification == .sent)
+        #expect(await recorder.hostIDs == ["studio"])
+    }
+
+    @Test("測試通知:這台主機自己的送出管道(SSH)讓按鈕出現")
+    func perHostSenderEnablesTestNotification() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let recorder = Recorder()
+        let model = model(service())
+        model.testSender = TestSender(sent: recorder)
+        await turnOn(model)
+
+        #expect(model.canSendTestNotification)
+        await model.sendTestNotification()
+
+        #expect(model.testNotification == .sent)
+        #expect(await recorder.hostIDs == ["studio"])
+    }
+
+    @Test("測試通知：失敗時說明原因")
+    func testNotificationFailureIsExplained() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let service = service()
+        service.testNotifications = TestSender(failure: BackendError.unreachable, sent: Recorder())
+        let model = model(service)
+        await turnOn(model)
+
+        await model.sendTestNotification()
+
+        guard case .failed(let message) = model.testNotification else {
+            Issue.record("預期失敗,實際 \(model.testNotification)")
+            return
+        }
+        #expect(!message.isEmpty)
+    }
+
+    @Test("測試通知：這支裝置在主機上已沒有有效配對(notPaired)：開關回到未開啟、本機配對紀錄清掉、後台配對撤銷")
+    func testNotificationNotPairedTurnsHostOff() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        backend.on("DELETE", "/v1/members/me/push-pairings", .json(200, "{}"))
+        let service = service()
+        service.testNotifications = TestSender(failure: PushTestNotificationError.notPaired, sent: Recorder())
+        let model = model(service)
+        await turnOn(model)
+        #expect(model.state == .on)
+
+        await model.sendTestNotification()
+
+        #expect(model.state == .off)
+        #expect(store.keyHash(forHost: "studio") == nil)
+        guard case .failed(let message) = model.testNotification else {
+            Issue.record("預期失敗,實際 \(model.testNotification)")
+            return
+        }
+        #expect(!message.isEmpty)
+    }
+
+    struct InternalDetail: Error, LocalizedError {
+        var errorDescription: String? { "SQLITE_CONSTRAINT: foreign key mismatch at 0x7fff" }
+    }
+
+    @Test("測試通知：看不懂的錯誤不把系統原文丟給使用者")
+    func testNotificationFailureHidesTechnicalDetail() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let service = service()
+        service.testNotifications = TestSender(failure: InternalDetail(), sent: Recorder())
+        let model = model(service)
+        await turnOn(model)
+
+        await model.sendTestNotification()
+
+        guard case .failed(let message) = model.testNotification else {
+            Issue.record("預期失敗,實際 \(model.testNotification)")
+            return
+        }
+        #expect(!message.contains("SQLITE"))
+        #expect(!message.isEmpty)
     }
 
     static let studioHash = String(repeating: "1", count: 64)
@@ -776,6 +900,29 @@ struct PushModelTests {
         #expect(request.json?["kinds"] as? [String] == ["blocked", "done"])
     }
 
+    @Test("新開啟的主機預設不收「可能卡住」「仍在等你」(#311)")
+    func stuckAndReminderAreOffByDefault() async {
+        let model = await turnedOnWithPluginHost()
+
+        #expect(!model.kinds.contains(.stuck))
+        #expect(!model.kinds.contains(.reminder))
+    }
+
+    @Test("打開「可能卡住」「仍在等你」:重送註冊的 kinds 帶 stuck、reminder(#311)")
+    func turningOnStuckAndReminderReRegisters() async throws {
+        let model = await turnedOnWithPluginHost()
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
+
+        await model.setKind(.stuck, isOn: true)
+        await model.setKind(.reminder, isOn: true)
+
+        #expect(model.kinds == [.blocked, .done, .stuck, .reminder])
+        let requests = backend.requests(to: "/v1/members/me/push-pairings")
+        #expect(requests.last?.json?["kinds"] as? [String] == ["blocked", "done", "stuck", "reminder"])
+        let reopened = self.model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        #expect(reopened.kinds == [.blocked, .done, .stuck, .reminder])
+    }
+
     @Test("關閉通知時一併忘記那組配對的種類")
     func turningOffForgetsKinds() async throws {
         let model = await turnedOnWithPluginHost()
@@ -881,6 +1028,46 @@ struct PushRouteTests {
         #expect(destination == nil)
     }
 
+    @Test("測試通知的 payload:根層 pairing 與 event=test,沒有 pane")
+    func parsesTestNotification() {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title-loc-key": "Purrdr", "loc-key": "This is a test notification from Purrdr."]],
+            "pairing": "abc", "event": "test",
+        ]
+
+        #expect(PushRoute(userInfo: userInfo) == PushRoute(keyHash: "abc", paneID: nil, event: "test"))
+    }
+
+    @Test("點測試通知:只開 app,不開主機編輯頁也不開聊天")
+    func testNotificationOpensNothing() {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+        model.select(.demo)
+
+        let destination = model.open(PushRoute(keyHash: "abc", paneID: nil, event: "test"), pairings: pairings)
+
+        #expect(destination == nil)
+        #expect(model.agentList.openedChat == nil)
+        #expect(model.selection == .demo)
+    }
+
+    @Test("測試通知失敗:各種原因有各自的說明,需要 Plus 時說明要 Plus")
+    func testNotificationFailuresAreExplainedSeparately() {
+        let errors: [PushTestNotificationError] = [
+            .notPaired, .subscriptionRequired, .rateLimited, .apnsFailed, .curlMissing,
+            .backendUnreachable("curl: (7)"), .backendRejected(statusCode: 500), .failed("x"),
+        ]
+        let messages = errors.map { PushModel.describeTestFailure($0) }
+
+        #expect(messages.allSatisfy { !$0.isEmpty && !$0.contains("curl: (7)") })
+        #expect(Set(messages.prefix(5)).count == 5, "前五種各有專屬說明")
+        #expect(messages[1].contains("Plus"))
+    }
+
     @Test("Agent 通知仍回傳開了哪個聊天")
     func agentNotificationReportsChat() {
         let store = MemoryHostStore()
@@ -898,7 +1085,46 @@ struct PushRouteTests {
     @Test("「主機服務」種類只給 HTTPS 主機選(SSH 主機沒有主機服務)")
     func hostServiceKindOnlyForHTTPSHosts() {
         #expect(PushKind.choices(installsViaHostService: false) == [.blocked, .done])
-        #expect(PushKind.choices(installsViaHostService: true) == [.blocked, .done, .hostService])
+        #expect(PushKind.choices(installsViaHostService: true).contains(.hostService))
+    }
+
+    @Test("「可能卡住」「仍在等你」由主機服務的 Agent 觀察者偵測：只給 HTTPS 主機選(#311)")
+    func stuckAndReminderOnlyForHTTPSHosts() {
+        #expect(PushKind.choices(installsViaHostService: false) == [.blocked, .done])
+        #expect(PushKind.choices(installsViaHostService: true) == [.blocked, .done, .stuck, .reminder, .hostService])
+    }
+
+    @Test("「可能卡住」「仍在等你」要主機服務 0.7.0;版本未知時不擋(#311)")
+    func stuckAndReminderNeedHostService070() {
+        #expect(PushKind.stuck.needsHostServiceUpdate(installedVersion: "0.6.0"))
+        #expect(PushKind.reminder.needsHostServiceUpdate(installedVersion: "0.6.2"))
+        #expect(!PushKind.stuck.needsHostServiceUpdate(installedVersion: "0.7.0"))
+        #expect(!PushKind.reminder.needsHostServiceUpdate(installedVersion: nil))
+        #expect(!PushKind.blocked.needsHostServiceUpdate(installedVersion: "0.6.0"))
+        #expect(!PushKind.hostService.needsHostServiceUpdate(installedVersion: "0.6.0"))
+    }
+
+    @Test("點「可能卡住」「仍在等你」通知：依根層 pairing 與 pane 開那個聊天(#311)",
+          arguments: [("stuck", "AGENT_STUCK", "An agent may be stuck."),
+                      ("reminder", "AGENT_REMINDER", "An agent is still waiting for you.")])
+    func stuckAndReminderNotificationsOpenChat(status: String, category: String, body: String) {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title": "api", "loc-key": body], "category": category],
+            "pairing": "abc", "pane": "w2:p1", "status": status,
+        ]
+        let route = PushRoute(userInfo: userInfo)
+        #expect(route == PushRoute(keyHash: "abc", paneID: "w2:p1"))
+
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+
+        let destination = route.flatMap { model.open($0, pairings: pairings) }
+
+        #expect(destination == .chat(ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1")))
     }
 
     @Test("不認得的配對(主機已移除)不切換")

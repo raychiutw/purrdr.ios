@@ -10,13 +10,18 @@ struct HostPushSection: View {
     let pushes: [HostPush]
     /// 沒有 Purrdr Plus 時開付費牆。
     let openPlus: () -> Void
+    /// 還沒配對的 HTTPS 主機：開那台主機的配對(#295)。
+    var pair: (UUID) -> Void = { _ in }
 
     var body: some View {
         Section {
             ForEach(pushes) { push in
-                HostPushRow(push: push)
+                HostPushRow(push: push, pair: pair)
                 if push.support == .supported, push.model.state == .on {
                     HostPushKindsRow(push: push)
+                }
+                if push.model.canSendTestNotification, push.supportsTestNotification {
+                    HostPushTestRow(push: push)
                 }
                 if case .needsHostService(_, let update) = push.support {
                     HostServicePushUpdateRow(update: update)
@@ -29,15 +34,18 @@ struct HostPushSection: View {
             Text("Notifications")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Purrdr adds a small herdr plugin to each host you turn on. When an agent needs you, the host tells Purrdr’s server, which notifies this device. Notifications show only the workspace name — never what the agent said. Notifications from Windows hosts are best-effort.")
+            Text("Purrdr adds a small helper to each host you turn on. When an agent needs you, this device gets a notification. Notifications show only the workspace name, never what the agent said. On Windows hosts, notifications may be delayed.")
                 .foregroundStyle(.secondaryText)
         }
     }
 }
 
 /// 一台主機的通知列：圖示、名稱、狀態與開關。VoiceOver 念「主機名稱，通知已開啟／未開啟」。
-private struct HostPushRow: View {
+///
+/// 還沒配對的 HTTPS 主機(#295,原型 B):開關照樣顯示但停用，副標以強調色寫「先配對這台主機 ›」,點整列開配對。
+struct HostPushRow: View {
     let push: HostPush
+    let pair: (UUID) -> Void
 
     private var model: PushModel { push.model }
 
@@ -47,10 +55,21 @@ private struct HostPushRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: push.name)
                     .accessibilityHidden(true)
-                status
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
+                if let pairingHost {
+                    Text("Pair This Host First \(Image(systemName: "chevron.forward"))")
+                        .font(.subheadline)
+                        .foregroundStyle(.tint)
+                        .accessibilityLabel(Text("Pair This Host First"))
+                        .accessibilityHint(Text("Notifications can be turned on after this device pairs with the host."))
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { pair(pairingHost) }
+                        .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
+                } else {
+                    status
+                        .font(.subheadline)
+                        .foregroundStyle(.secondaryText)
+                        .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Toggle(isOn: Binding(get: { isOnOrPending }, set: { change(to: $0) })) {
@@ -62,15 +81,27 @@ private struct HostPushRow: View {
             .accessibilityValue(isOnOrPending ? Text("Notifications On") : Text("Notifications Off"))
             .accessibilityIdentifier("account.push.\(push.host.storedValue)")
         }
+        // 要先配對時整列可點(開關停用，點到開關也開配對);其他列不加手勢，開關照常回應。
+        .contentShape(.rect)
+        .gesture(TapGesture().onEnded { if let pairingHost { pair(pairingHost) } }, isEnabled: pairingHost != nil)
         .task {
             // 只查已開啟的主機：未開啟的不為了顯示裝置數另開連線。
             if push.support == .supported, model.state == .on { await model.refreshStatus() }
         }
     }
 
+    /// 要先配對才能開通知的主機。
+    private var pairingHost: UUID? {
+        guard push.support == .needsPairing, case .host(let id) = push.host else { return nil }
+        return id
+    }
+
     @ViewBuilder
     private var status: some View {
         switch push.support {
+        case .needsPairing:
+            // 由 `body` 另外畫成配對入口。
+            EmptyView()
         case .demoHost:
             Text("The demo host can’t send notifications.")
         case .unsupported:
@@ -99,9 +130,9 @@ private struct HostPushRow: View {
                 } else if model.otherDevices > 0 {
                     Text("Off · Other devices here: \(model.otherDevices)")
                 } else if push.installsViaHostService {
-                    Text("Off · Installs via the host service")
+                    Text("Off")
                 } else {
-                    Text("Off · Installs over SSH")
+                    Text("Off")
                 }
             }
         }
@@ -132,6 +163,55 @@ private struct HostPushRow: View {
     }
 }
 
+/// 通知開著的主機:「傳送測試通知」(#328),結果以提示說明,失敗附原因。
+private struct HostPushTestRow: View {
+    let push: HostPush
+
+    private var model: PushModel { push.model }
+
+    var body: some View {
+        Button {
+            Task { await model.sendTestNotification() }
+        } label: {
+            HStack {
+                Text("Send Test Notification")
+                Spacer()
+                if model.testNotification == .sending { ProgressView() }
+            }
+        }
+        .disabled(model.testNotification == .sending)
+        .accessibilityIdentifier("account.push.\(push.host.storedValue).test")
+        .alert(resultTitle, isPresented: resultPresented) {
+            Button("OK", role: .cancel) { model.dismissTestNotification() }
+        } message: {
+            Text(resultMessage)
+        }
+    }
+
+    private var resultPresented: Binding<Bool> {
+        Binding(
+            get: {
+                switch model.testNotification {
+                case .sent, .failed: true
+                case .idle, .sending: false
+                }
+            },
+            set: { if !$0 { model.dismissTestNotification() } })
+    }
+
+    private var resultTitle: LocalizedStringKey {
+        if case .failed = model.testNotification { return "Couldn’t Send Test Notification" }
+        return "Test Notification Sent"
+    }
+
+    private var resultMessage: String {
+        switch model.testNotification {
+        case .failed(let message): message
+        default: String(localized: "It should arrive on this device in a moment.")
+        }
+    }
+}
+
 /// 開著通知的主機可展開選要收的種類(#292);新種類加進 `PushKind` 就會多一列(主機服務只在 HTTPS 主機)。
 private struct HostPushKindsRow: View {
     let push: HostPush
@@ -145,14 +225,37 @@ private struct HostPushKindsRow: View {
                 Toggle(isOn: Binding(get: { model.kinds.contains(kind) }, set: { isOn in change(kind, to: isOn) })) {
                     Text(kind.title)
                 }
-                // 最後一個種類不能關：要不收通知就關閉那台主機。
-                .disabled(model.isUpdatingKinds || model.kinds == [kind])
+                // 最後一個種類不能關：要不收通知就關閉那台主機。主機服務太舊送不出的種類不能開(已開的仍可關)。
+                .disabled(model.isUpdatingKinds || model.kinds == [kind] || needsUpdate(kind))
                 .accessibilityIdentifier("account.push.\(push.host.storedValue).kind.\(kind.rawValue)")
+            }
+            if let version = outdatedObserverVersion {
+                Label("“May Be Stuck” and “Still Waiting for You” need host service \(version) or later.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds.needsHostService")
+            } else if !push.installsViaHostService {
+                Text("“May Be Stuck” and “Still Waiting for You” need the host service (HTTPS connection).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds.needsHostService")
             }
         } label: {
             Text("Notification Types")
                 .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds")
         }
+    }
+
+    private func needsUpdate(_ kind: PushKind) -> Bool {
+        !model.kinds.contains(kind) && kind.needsHostServiceUpdate(installed: push.hostServiceVersion)
+    }
+
+    /// 主機服務太舊、送不出「可能卡住」「仍在等你」時要的最低版本。
+    private var outdatedObserverVersion: String? {
+        guard push.installsViaHostService, PushKind.stuck.needsHostServiceUpdate(installed: push.hostServiceVersion)
+        else { return nil }
+        return HostServiceFeature.agentObserver.minimumVersion.description
     }
 
     private func change(_ kind: PushKind, to isOn: Bool) {
@@ -166,13 +269,15 @@ extension PushKind {
         switch self {
         case .blocked: "Needs You"
         case .done: "Finished"
+        case .stuck: "May Be Stuck"
+        case .reminder: "Still Waiting for You"
         case .hostService: "Host Service"
         }
     }
 
-    /// 那台主機可選的種類：主機服務通知只有 HTTPS 主機(經主機服務)才有。
+    /// 那台主機可選的種類：主機服務通知與 Agent 觀察者的「可能卡住」「仍在等你」只有 HTTPS 主機(經主機服務)才有。
     public static func choices(installsViaHostService: Bool) -> [PushKind] {
-        allCases.filter { $0 != .hostService || installsViaHostService }
+        allCases.filter { installsViaHostService || ($0 != .hostService && $0.requiredHostServiceFeature == nil) }
     }
 }
 
@@ -219,7 +324,7 @@ struct PushProblemRow: View {
             HostServicePushUpdateRow(update: update)
                 .accessibilityIdentifier("settings.push.problem")
         case .deviceIDUnavailable:
-            Label("Couldn’t read this device’s ID from the keychain. Unlock this device and try again.", systemImage: "lock")
+            Label("Couldn’t read this device’s ID. Unlock this device and try again.", systemImage: "lock")
                 .accessibilityIdentifier("settings.push.problem")
         case .failed(let message), .mutedSyncFailed(let message), .kindsUpdateFailed(let message):
             Label { Text(verbatim: message) } icon: { Image(systemName: "exclamationmark.triangle") }
@@ -270,16 +375,16 @@ extension View {
         } message: { push in
             if push.installsViaHostService {
                 if push.model.pluginAlreadyInstalled {
-                    Text("The Purrdr plugin is already on this host. The host service will save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing.")
+                    Text("The Purrdr notification helper is already on this host. The host service will add this device to it. Turning notifications off removes only this device.")
                 } else {
-                    Text("The host service will run “herdr plugin install” on this host as the user running the host service, and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off.")
+                    Text("The host service will install a small notification helper on this host. Turning notifications off removes only this device; the helper is removed when the last device turns off.")
                 }
             } else if push.model.pluginAlreadyInstalled {
                 let user = push.model.confirmingUser ?? ""
-                Text("The Purrdr plugin is already on this host. Purrdr will save a pairing key for this device in ~/.purrdr as \(user). Turning notifications off removes only this device’s pairing.")
+                Text("The Purrdr notification helper is already on this host. Purrdr will add this device to it, as \(user). Turning notifications off removes only this device.")
             } else {
                 let user = push.model.confirmingUser ?? ""
-                Text("Purrdr will run “herdr plugin install” on this host as \(user) and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off.")
+                Text("Purrdr will install a small notification helper on this host, as \(user). Turning notifications off removes only this device; the helper is removed when the last device turns off.")
             }
         }
     }

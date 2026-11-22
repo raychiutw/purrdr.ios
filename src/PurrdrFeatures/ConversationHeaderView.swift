@@ -2,12 +2,13 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 導覽列中間：workspace 名稱與下一行的狀態、主機名(#270)。
+/// 導覽列中間：workspace 名稱與下一行的狀態、主機名、context 百分比(#270、#349)。
 ///
 /// 資訊行寧可整段拿掉也不截斷(`ViewThatFits` 依序試 `displayVariants`);VoiceOver 念完整內容。
 struct ConversationTitleView: View {
     let title: String
     let header: ConversationHeader
+    @Bindable var model: ConversationModel
 
     var body: some View {
         VStack(spacing: 1) {
@@ -17,6 +18,14 @@ struct ConversationTitleView: View {
                 .accessibilityAddTraits(.isHeader)
             ConversationHeaderLine(header: header)
         }
+        // 標題膠囊(#348 A1):浮在內容上的玻璃,內容從底下捲過去;減少透明度時改不透明底。
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .floatingGlass(in: Capsule())
+        // 點標題由下方升起狀態 sheet(#349):context、待辦、背景子 Agent、做完再送開關;一律打得開。
+        .contentShape(Rectangle())
+        .onTapGesture { model.showsStatusSheet = true }
+        .accessibilityAction(named: Text("Show Status")) { model.showsStatusSheet = true }
     }
 }
 
@@ -40,7 +49,7 @@ struct ConversationHeaderLine: View {
         .font(.caption)
         .foregroundStyle(.secondaryText)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(header.lineAccessibilityText))
+        .accessibilityLabel(Text(([header.lineAccessibilityText] + [header.progressText].compactMap { $0 }).joined(separator: ", ")))
         // 只是文字、不能點(#35:沒有這個 trait 時 audit 把它當成觸控目標，報 hit region 太小)。
         .accessibilityAddTraits(.isStaticText)
         .accessibilityIdentifier("conversation.header")

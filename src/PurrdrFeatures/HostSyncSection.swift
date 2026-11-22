@@ -15,7 +15,7 @@ struct HostSyncSection: View {
             Text("Host Sync")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Host names, addresses, user names, connection methods, host key fingerprints, and host icons sync to your other devices through your Purrdr member account. Passwords and private keys never leave this device. Requires Purrdr Plus.")
+            Text("Your hosts’ names, addresses, accounts, and icons sync to your other devices through your Purrdr member account. Passwords and keys never leave this device. Requires Purrdr Plus.")
                 .foregroundStyle(.secondaryText)
         }
     }

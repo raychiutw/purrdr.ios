@@ -143,8 +143,11 @@ public enum TranscriptCommand {
     ///
     /// 從 `end` 往前取一塊(預設 4MB)數換行，不夠就把塊放大 4 倍再數，直到檔頭。視窗終點是塊內最後一個換行之後
     /// (正在寫的未完成行留給追蹤)。先印「起點 終點」,再印範圍內每一行。參數：路徑、終點、行數。
-    public static func window(path: String, end: Int, lines: Int, chunkBytes: Int = 4 << 20) -> String {
-        command(windowScript, arguments: [path, String(end), String(lines), String(chunkBytes)])
+    ///
+    /// `maxBytes` 大於 0(#356,第五個參數)時：只取終點往前 `maxBytes` bytes 內完整的行，不放大區塊，所以傳輸量有上限;
+    /// 範圍內不夠 `lines` 行就回有多少給多少(一行都放不下時範圍是空的)。
+    public static func window(path: String, end: Int, lines: Int, chunkBytes: Int = 4 << 20, maxBytes: Int = 0) -> String {
+        command(windowScript, arguments: [path, String(end), String(lines), String(chunkBytes)] + (maxBytes > 0 ? [String(maxBytes)] : []))
     }
 
     package static let windowScript = #"""
@@ -152,12 +155,14 @@ public enum TranscriptCommand {
         e=$2
         n=$3
         c=$4
+        g=0
+        if [ "${5:-0}" -gt 0 ]; then c=$5; g=1; fi
         if [ ! -r "$f" ]; then exit 5; fi
         while :; do
         s=$((e - c))
         if [ "$s" -lt 0 ]; then s=0; fi
         if [ "$e" -gt "$s" ]; then
-        r=$(tail -c +$((s + 1)) "$f" | head -c $((e - s)) | awk -v s="$s" -v t=$((e - s)) -v n="$n" '{ p = q + length($0) + 1; if (p <= t) { if (NR > 1 || s == 0) { k++; a[k] = q }; z = p }; q = p } END { if (k < n && s > 0) { print "more" } else { i = k - n + 1; if (i < 1) i = 1; b = (k > 0) ? a[i] : z; print (s + b) " " (s + z) } }')
+        r=$(tail -c +$((s + 1)) "$f" | head -c $((e - s)) | awk -v s="$s" -v t=$((e - s)) -v n="$n" -v g="$g" '{ p = q + length($0) + 1; if (p <= t) { if (NR > 1 || s == 0) { k++; a[k] = q }; z = p }; q = p } END { if (k < n && s > 0 && g == 0) { print "more" } else { i = k - n + 1; if (i < 1) i = 1; b = (k > 0) ? a[i] : z; print (s + b) " " (s + z) } }')
         else
         r="$s $s"
         fi

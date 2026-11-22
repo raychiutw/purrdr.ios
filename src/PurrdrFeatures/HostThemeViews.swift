@@ -92,7 +92,7 @@ struct HostThemeSettingsSection: View {
             Text("Appearance")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Color chats and the terminal with this host’s herdr theme. Colors without enough contrast fall back to the system colors.")
+            Text("Use this host’s colors in chats and the terminal.")
                 .foregroundStyle(.secondaryText)
         }
         .alert("Use Host Theme?", isPresented: Binding(get: { model.isConfirming }, set: { _ in })) {
@@ -100,7 +100,7 @@ struct HostThemeSettingsSection: View {
             Button("Use Theme") { Task { await model.confirm() } }
                 .accessibilityIdentifier("hostTheme.confirm")
         } message: {
-            Text("Purrdr reads the theme in ~/.config/herdr/config.toml and adds a reference file at ~/.purrdr/theme/README.md as \(model.confirmingUser). It never changes your herdr settings. Turning this off removes the file.")
+            Text("Purrdr reads this host’s colors and adds a small note file, signed in as \(model.confirmingUser). It never changes your settings. Turning this off removes the file.")
         }
     }
 }

@@ -135,6 +135,13 @@ public struct PushConfiguration: Sendable {
     }
 }
 
+/// 「傳送測試通知」(#328):請後端或主機對這支裝置送一則測試通知。
+/// 正式 app 由主機端送(SSH 主機:`SSHPushTestNotifier` 在主機上對後台 `POST /v1/push` 送 `event: "test"`;HTTPS 主機之後走主機服務);
+/// `PushService.testNotifications` 是全域的替身(UI 測試),優先於各主機自己的送出管道(`PushModel.testSender`)。
+public protocol PushTestNotificationSending: Sendable {
+    func sendTest(hostID: String) async throws
+}
+
 /// 推播的共用部分：後台、權限與 token、配對紀錄、這支裝置。每台主機的開關是 `PushModel`。
 @MainActor
 public final class PushService {
@@ -146,6 +153,8 @@ public final class PushService {
     private let loadDevice: @MainActor () throws -> PushDeviceIdentity
     private var loadedDevice: PushDeviceIdentity?
     private var models: [WeakPushModel] = []
+    /// 傳送測試通知的管道;`nil` 時不提供這個功能。
+    public var testNotifications: (any PushTestNotificationSending)?
 
     /// - Parameters:
     ///   - loadDevice: 這支裝置(Keychain 的推播 id、預設名稱與型號);讀不到(還沒第一次解鎖)時丟錯，之後用到時再試。
@@ -386,6 +395,54 @@ public final class PushModel {
 
     public var isAvailable: Bool { service != nil && installer != nil }
 
+    /// 測試通知的結果。
+    public enum TestNotification: Equatable {
+        case idle
+        case sending
+        case sent
+        case failed(String)
+    }
+
+    public private(set) var testNotification: TestNotification = .idle
+
+    /// 這台主機自己的測試通知送出管道(SSH 主機由 `HostsModel` 接上);`PushService.testNotifications` 有值時以它為準。
+    public var testSender: (any PushTestNotificationSending)?
+
+    private var testNotificationSender: (any PushTestNotificationSending)? { service?.testNotifications ?? testSender }
+
+    /// 通知開著、而且有送出管道時才能送測試通知。
+    public var canSendTestNotification: Bool {
+        state == .on && hostID != nil && testNotificationSender != nil
+    }
+
+    /// 使用者看過結果提示(或重新開始)。
+    public func dismissTestNotification() {
+        if testNotification != .sending { testNotification = .idle }
+    }
+
+    /// 送測試通知;結果在 `testNotification`(失敗附原因)。
+    public func sendTestNotification() async {
+        guard canSendTestNotification, testNotification != .sending,
+              let sender = testNotificationSender, let hostID else { return }
+        testNotification = .sending
+        do {
+            try await sender.sendTest(hostID: hostID)
+            testNotification = .sent
+        } catch PushTestNotificationError.notPaired {
+            // 主機上已沒有有效配對(被刪、後台已撤銷):與改靜音遇到 notPaired 相同，這台回到未開啟並撤銷後台配對，使用者重新開啟。
+            testNotification = .failed(Self.describeTestFailure(PushTestNotificationError.notPaired))
+            if let service, let keyHash = service.store.keyHash(forHost: hostID) {
+                service.store.setKeyHash(nil, forHost: hostID)
+                let session = service.session
+                Task { try? await session.revokePushPairing(keyHash: keyHash) }
+            }
+            state = .off
+            problem = nil
+        } catch {
+            testNotification = .failed(Self.describeTestFailure(error))
+        }
+    }
+
     /// 使用者打開開關。
     public func requestOn() async {
         guard state == .off, let service, let installer else { return }
@@ -497,7 +554,7 @@ public final class PushModel {
             try await installer.remove()
         } catch PushPluginError.pluginUninstallFailed(let message) {
             // 配對已移除(外掛沒有配對就什麼都不送),當成已關閉並說明。
-            problem = .failed(String(localized: "Notifications are off, but herdr couldn’t remove the Purrdr plugin: \(message)"))
+            problem = .failed(String(localized: "Notifications are off, but the notification helper couldn’t be removed: \(message)"))
         } catch {
             state = .on
             problem = Self.problem(for: error)
@@ -567,18 +624,42 @@ public final class PushModel {
         case BackendError.unreachable:
             describe(error)
         case is PushDeviceIDError:
-            String(localized: "Couldn’t read this device’s ID from the keychain. Unlock this device and try again.")
+            String(localized: "Couldn’t read this device’s ID. Unlock this device and try again.")
         default:
             String(localized: "Couldn’t change which notifications this host sends: \(error.localizedDescription)")
+        }
+    }
+
+    package static func describeTestFailure(_ error: any Error) -> String {
+        switch error {
+        case BackendError.unreachable:
+            String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")
+        case BackendError.signedOut:
+            String(localized: "Couldn’t send the test notification because you’re signed out. Sign in again and try once more.")
+        case PushTestNotificationError.notPaired:
+            String(localized: "This device isn’t paired with the host for notifications any more, so they’re now off. Turn them on again.")
+        case PushTestNotificationError.subscriptionRequired:
+            String(localized: "Test notifications need Purrdr Plus.")
+        case PushTestNotificationError.rateLimited:
+            String(localized: "You’ve sent too many notifications in a minute. Wait a moment and try again.")
+        case PushTestNotificationError.apnsFailed:
+            String(localized: "Apple’s notification service didn’t accept the test notification. Try again in a moment.")
+        case PushTestNotificationError.curlMissing:
+            String(localized: "The host needs curl to send a test notification.")
+        case PushTestNotificationError.backendUnreachable:
+            String(localized: "The host couldn’t reach Purrdr’s server. Check the host’s internet connection and try again.")
+        default:
+            // 系統或後台的原文使用者看不懂也幫不上忙:只說沒送出、稍後再試。
+            String(localized: "Couldn’t send the test notification. Try again in a moment.")
         }
     }
 
     static func describe(_ error: any Error) -> String {
         switch error {
         case PushPluginError.pluginInstallFailed(let message):
-            String(localized: "herdr couldn’t install the Purrdr plugin: \(message)")
+            String(localized: "Couldn’t install the notification helper: \(message)")
         case PushPluginError.pluginListFailed(let message):
-            String(localized: "Couldn’t ask herdr about plugins. Make sure herdr is running on the host. \(message)")
+            String(localized: "Couldn’t check notifications on this host. Make sure herdr is running there. \(message)")
         case HostServiceError.readOnlyDevice:
             String(localized: "This device is paired read-only with the host service, so it can’t turn on notifications there.")
         case BackendError.unreachable:
@@ -595,6 +676,8 @@ public struct PushRoute: Equatable, Sendable {
     public var paneID: String?
     /// 主機服務事件(#293,如 `host_service_updated`);有值時開那台主機的編輯頁，不開聊天。
     public var event: String?
+    /// 帳號頁「傳送測試通知」(#328)的 `event`:只開 app,不開任何畫面。
+    public static let testEvent = "test"
 
     public init(keyHash: String, paneID: String?, event: String? = nil) {
         self.keyHash = keyHash

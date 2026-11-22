@@ -45,7 +45,7 @@
     <p>安裝失敗時，訊息會說明發生什麼與原因，最後一行 <code>Next:</code> 是下一步要執行的完整指令。</p>
     <p>也可以從 <a href="https://github.com/raychiutw/purrdr.host/releases">GitHub Releases</a> 手動下載壓縮檔(附 <code>SHA256SUMS</code>),解壓後執行 <code>purrdr-host-service install</code>。</p>
 
-    <h2>配對 iPhone／iPad</h2>
+    <h2 id="pair">配對 iPhone／iPad</h2>
     <p>0.10.0 起可以打短指令 <code>purrdr</code>(<code>purrdr help</code> 列出所有指令)。更舊的版本請把下面的 <code>purrdr</code> 換成 <code>purrdr-host-service</code>;自動更新到 0.10.0 的主機在服務重新啟動後就有 <code>purrdr</code>。</p>
     <ol>
       <li>在電腦上執行 <code>purrdr pair</code>。0.6.0 以前的安裝(或加了 <code>--no-path</code>)不在 PATH,要用完整路徑:macOS／Linux 是 <code>~/.purrdr/host-service/bin/purrdr-host-service pair</code>,Windows PowerShell 是 <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; pair</code>。畫面會顯示 QR code、HTTPS 位址與一次性配對碼。</li>
@@ -102,7 +102,7 @@
     <p>If the install fails, the message says what happened and why, and its last <code>Next:</code> line is the full command to run next.</p>
     <p>You can also download an archive from <a href="https://github.com/raychiutw/purrdr.host/releases">GitHub Releases</a> (with <code>SHA256SUMS</code>), extract it, and run <code>purrdr-host-service install</code>.</p>
 
-    <h2>Pairing your iPhone or iPad</h2>
+    <h2 id="pair-en">Pairing your iPhone or iPad</h2>
     <p>From 0.10.0 you can type the short command <code>purrdr</code> (<code>purrdr help</code> lists every command). On older versions, replace <code>purrdr</code> below with <code>purrdr-host-service</code>; hosts that updated themselves to 0.10.0 get <code>purrdr</code> once the service restarts.</p>
     <ol>
       <li>On the computer, run <code>purrdr pair</code>. Installs older than 0.6.0 (or with <code>--no-path</code>) aren’t on PATH, so use the full path: <code>~/.purrdr/host-service/bin/purrdr-host-service pair</code> on macOS and Linux, or <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; pair</code> in Windows PowerShell. It shows a QR code, the HTTPS address, and a one-time pairing code.</li>

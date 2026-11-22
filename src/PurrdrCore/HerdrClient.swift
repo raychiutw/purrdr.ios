@@ -16,6 +16,11 @@ public struct HerdrClient: Sendable {
         try await connection.isReadOnlyDevice()
     }
 
+    /// 主機服務的版本;沒有主機服務的連線方式(SSH)是 `nil`,連不上時丟錯誤。
+    public func hostServiceVersion() async throws -> String? {
+        try await connection.hostServiceVersion()
+    }
+
     /// 關掉底層連線(卡住的請求跟著失敗);下一個請求重新連線。
     public func disconnect() async {
         await connection.disconnect()
@@ -147,10 +152,25 @@ public struct HerdrClient: Sendable {
 
     /// 在 pane 的 shell 啟動 agent(`agent.start`)。`arguments` 是交給 agent 的參數(CLI 的 `--` 之後)。
     /// 我方期限 = herdr 的等待 + 60 秒：絕不比 herdr 先放棄，否則重試會在同一個 pane 再啟動一個 agent。
-    public func startAgent(name: String, kind: String, paneID: String, arguments: [String], timeout: Duration) async throws {
+    /// `resumeSession`(#309)是要續接的 session id;只有主機服務(HTTPS)認得，herdr 本身沒有這個參數。
+    public func startAgent(
+        name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration
+    ) async throws {
         let params = AgentStartParams(
-            name: name, kind: kind, paneID: paneID, args: arguments.isEmpty ? nil : arguments, timeoutMs: Self.milliseconds(timeout))
+            name: name, kind: kind, paneID: paneID, args: arguments.isEmpty ? nil : arguments, resumeSession: resumeSession,
+            timeoutMs: Self.milliseconds(timeout))
         _ = try await request(method: "agent.start", params: params, as: TypedResult.self, deadline: timeout + .seconds(60))
+    }
+
+    /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。只有主機服務(HTTPS)提供;
+    /// 其他主機丟 herdr 的未知 method 錯誤，呼叫端先以主機服務版本判斷。
+    public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
+        let result = try await request(method: "sessions.list", params: SessionsListParams(cwd: cwd, agentKind: agent), as: SessionsListResult.self)
+        return result.sessions.map { entry in
+            ResumableSession(
+                id: entry.id, modified: try? Date(entry.modified, strategy: .iso8601),
+                summary: entry.summary.flatMap { $0.isEmpty ? nil : $0 })
+        }
     }
 
     // MARK: - 送出 prompt 與按鍵(行為規格 F6.5、§3.6)
@@ -160,11 +180,14 @@ public struct HerdrClient: Sendable {
     ///
     /// herdr 的錯誤 envelope 丟 `HerdrError.herdr`;其他錯誤(通道失敗、沒有回應、期限到)都代表
     /// **不知道有沒有送到**,呼叫端絕不可重送(§7.3)。
-    public func prompt(target: String, text: String, wait: Duration?) async throws -> PromptReply {
-        let params = PromptParams(
-            target: target, text: text,
-            wait: wait.map { PromptParams.Wait(until: ["working", "blocked"], timeoutMs: Self.milliseconds($0)) }
-        )
+    ///
+    /// `expecting` 交給主機在送出前比對(`SendExpectation`);不符時丟 `HostServiceError.paneChanged`,什麼都沒送出。
+    public func prompt(target: String, text: String, wait: Duration?, expecting: SendExpectation = .none) async throws -> PromptReply {
+        let params = Expecting(
+            PromptParams(
+                target: target, text: text,
+                wait: wait.map { PromptParams.Wait(until: ["working", "blocked"], timeoutMs: Self.milliseconds($0)) }),
+            await checked(expecting))
         let result = try await request(
             method: "agent.prompt", params: params, as: PromptResult.self, deadline: (wait ?? .zero) + HostCommandDeadline.standard)
         return PromptReply(writtenOnly: result.delivery == "written_to_pty")
@@ -182,13 +205,19 @@ public struct HerdrClient: Sendable {
     }
 
     /// `pane.send_keys`(herdr 鍵名語法：`enter`、`esc`、`ctrl+c`,§3.4)。
-    public func sendKeys(paneID: String, keys: [String]) async throws {
-        _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys), as: TypedResult.self)
+    public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation = .none) async throws {
+        _ = try await request(method: "pane.send_keys", params: Expecting(SendKeysParams(paneID: paneID, keys: keys), await checked(expecting)), as: TypedResult.self)
     }
 
     /// `pane.send_text`:把文字原樣打進 pane(不含 Enter)。用在 Claude 問題卡「Type something.」的自訂回答(#120)。
-    public func sendText(paneID: String, text: String) async throws {
-        _ = try await request(method: "pane.send_text", params: SendTextParams(paneID: paneID, text: text), as: TypedResult.self)
+    public func sendText(paneID: String, text: String, expecting: SendExpectation = .none) async throws {
+        _ = try await request(method: "pane.send_text", params: Expecting(SendTextParams(paneID: paneID, text: text), await checked(expecting)), as: TypedResult.self)
+    }
+
+    /// 主機會比對時才帶比對欄位;herdr(SSH 主機)與舊版主機服務不認得它們。
+    private func checked(_ expectation: SendExpectation) async -> SendExpectation {
+        guard !expectation.isEmpty, await connection.checksSendExpectations() else { return .none }
+        return expectation
     }
 
     private static func milliseconds(_ duration: Duration) -> Int {
@@ -255,6 +284,23 @@ private struct WireRequest<Params: Encodable>: Encodable {
 }
 
 private struct NoParams: Encodable {}
+
+/// 送出類請求的參數加上送出前比對(#304):`SendExpectation` 直接編碼成 `expected_session`(沒有就不編碼),
+/// 各請求的參數型別不必逐欄重複。
+private struct Expecting<Base: Encodable>: Encodable {
+    var base: Base
+    var expectation: SendExpectation
+
+    init(_ base: Base, _ expectation: SendExpectation) {
+        self.base = base
+        self.expectation = expectation
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        try base.encode(to: encoder)
+        try expectation.encode(into: encoder)
+    }
+}
 
 private struct PromptParams: Encodable {
     var target: String
@@ -350,13 +396,35 @@ private struct AgentStartParams: Encodable {
     var kind: String
     var paneID: String
     var args: [String]?
+    var resumeSession: String?
     var timeoutMs: Int
 
     enum CodingKeys: String, CodingKey {
         case name, kind, args
         case paneID = "pane_id"
+        case resumeSession = "resume_session"
         case timeoutMs = "timeout_ms"
     }
+}
+
+private struct SessionsListParams: Encodable {
+    var cwd: String
+    var agentKind: String
+
+    enum CodingKeys: String, CodingKey {
+        case cwd
+        case agentKind = "agent_kind"
+    }
+}
+
+private struct SessionsListResult: Decodable {
+    struct Entry: Decodable {
+        var id: String
+        var modified: String
+        var summary: String?
+    }
+
+    var sessions: [Entry]
 }
 
 /// `workspace_created` 與 `worktree_created` 共用:都有 workspace 與 root_pane。
@@ -543,6 +611,15 @@ private struct WirePane: Decodable {
     var label: String?
     var terminalTitleStripped: String?
     var restoreError: String?
+    var scroll: Scroll?
+
+    struct Scroll: Decodable {
+        var viewportRows: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case viewportRows = "viewport_rows"
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
@@ -553,12 +630,14 @@ private struct WirePane: Decodable {
         case label
         case terminalTitleStripped = "terminal_title_stripped"
         case restoreError = "restore_error"
+        case scroll
     }
 
     var pane: Pane {
         Pane(
             id: paneID, workspaceID: workspaceID, tabID: tabID, agentKind: agent.nonEmpty, cwd: cwd.nonEmpty,
-            label: label.nonEmpty, terminalTitle: terminalTitleStripped.nonEmpty, restoreError: restoreError.nonEmpty
+            label: label.nonEmpty, terminalTitle: terminalTitleStripped.nonEmpty, restoreError: restoreError.nonEmpty,
+            viewportRows: scroll?.viewportRows
         )
     }
 }

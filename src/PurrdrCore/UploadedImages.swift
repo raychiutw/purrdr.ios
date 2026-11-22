@@ -6,9 +6,18 @@ import Foundation
 /// 讀回：Claude 把路徑行換成 `[Image #N]`,另記一個 `[Image: source: <路徑>]`;Codex 保留原行。
 /// 兩種都變成圖片，`[Image #N]` 移除，剩下的必須剛好是使用者打的字(回音才配得上)。
 public enum UploadedImages {
-    /// 主機上的上傳資料夾(相對家目錄;`HostUploadCommand` 寫到這裡)。
-    public static let folder = ".purrdr/uploads"
+    /// 主機上的上傳資料夾名稱,在系統暫存目錄底下(Unix 之後接 `-<uid>`;名稱來自協定 schema 的 `x-upload-folder`,
+    /// `HostUploadCommand` 與主機服務寫到這裡)。
+    public static let folder = HostServiceProtocol.uploadFolder
+    /// 舊版的上傳資料夾(相對家目錄,不再寫入;歷史對話紀錄與取檔還認得,保留一個版本)。
+    public static let legacyFolder = ".purrdr/uploads"
     static let extensions = ["jpg", "jpeg", "png", "heic", "webp"]
+
+    /// 檔名的副檔名是不是圖片(對話紀錄會把這種上傳路徑當圖片;其他副檔名的檔案路徑留在文字裡)。
+    public static func hasImageExtension(_ fileName: String) -> Bool {
+        guard let dot = fileName.lastIndex(of: "."), dot != fileName.startIndex else { return false }
+        return extensions.contains(fileName[fileName.index(after: dot)...].lowercased())
+    }
 
     public static func prompt(text: String, paths: [String]) -> String {
         guard !paths.isEmpty else { return text }
@@ -41,14 +50,24 @@ public enum UploadedImages {
         return path.isEmpty ? nil : path
     }
 
-    /// 一整行是上傳資料夾底下的圖片絕對路徑。Windows 主機是 `C:\Users\<使用者>\.purrdr\uploads\…`
-    /// (使用者資料夾名稱可以有空白;POSIX 路徑不接受空白)。
+    /// 一整行是上傳資料夾底下的圖片絕對路徑:暫存目錄底下的 `purrdr-uploads`(Unix 後接 `-<uid>`)或舊的家目錄 `.purrdr/uploads`。
+    /// Windows 主機的使用者資料夾名稱可以有空白(POSIX 路徑不接受空白)。
     static func isUploadPath(_ line: String) -> Bool {
         guard HostPathSyntax.isAbsolute(line), HostPathSyntax.isWindowsDrivePath(line) || !line.contains(" ") else { return false }
         let components = HostPathSyntax.components(line)
-        guard components.count >= 4, let name = components.last,
-              components[components.count - 2] == "uploads", components[components.count - 3] == ".purrdr",
-              let ext = name.split(separator: ".").last, name.contains(".") else { return false }
-        return extensions.contains(ext.lowercased())
+        guard components.count >= 3, let name = components.last, let ext = name.split(separator: ".").last, name.contains("."),
+              extensions.contains(ext.lowercased()) else { return false }
+        let parent = components[components.count - 2]
+        if isUploadFolderName(parent) { return true }
+        return components.count >= 4 && parent == "uploads" && components[components.count - 3] == ".purrdr"
+    }
+
+    /// 暫存目錄底下的上傳資料夾名稱:`purrdr-uploads` 或 `purrdr-uploads-<uid>`。
+    package static func isUploadFolderName<S: StringProtocol>(_ name: S) -> Bool {
+        if name == folder { return true }
+        let prefix = folder + "-"
+        guard name.hasPrefix(prefix) else { return false }
+        let uid = name.dropFirst(prefix.count)
+        return !uid.isEmpty && uid.allSatisfy(\.isASCII) && uid.allSatisfy(\.isNumber)
     }
 }

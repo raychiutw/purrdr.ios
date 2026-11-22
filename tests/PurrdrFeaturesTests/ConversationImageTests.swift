@@ -43,12 +43,12 @@ struct ConversationImageTests {
     }
 
     static func uploadedFiles(_ setup: Setup) -> [String] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: setup.uploads.url(".purrdr/uploads").path(percentEncoded: false))) ?? []).sorted()
+        ((try? FileManager.default.contentsOfDirectory(atPath: setup.uploads.temporaryDirectory.appending(path: "\(HostServiceProtocol.uploadFolder)-\(getuid())").path(percentEncoded: false))) ?? []).sorted()
     }
 
     static func uploadPath(_ setup: Setup, _ name: String) -> String {
-        let home = setup.uploads.home.path(percentEncoded: false)
-        return (home.hasSuffix("/") ? home : home + "/") + ".purrdr/uploads/" + name
+        let temporary = setup.uploads.temporaryDirectory.path(percentEncoded: false)
+        return (temporary.hasSuffix("/") ? temporary : temporary + "/") + "\(HostServiceProtocol.uploadFolder)-\(getuid())/" + name
     }
 
     // MARK: - 加入
@@ -68,18 +68,18 @@ struct ConversationImageTests {
         #expect(CGImageSourceGetType(source) as String? == UTType.jpeg.identifier)
     }
 
-    @Test("一則最多 4 張：滿了再加會提示，不加入")
-    func atMostFourImages() async throws {
+    @Test("附件最多 10 個：滿了再加會提示，不加入")
+    func atMostTenAttachments() async throws {
         let setup = try await Self.opened()
         let image = TestImage.png(width: 10, height: 10)
 
-        await setup.model.addImages([image, image, image])
+        await setup.model.addImages(Array(repeating: image, count: 9))
         #expect(setup.model.remainingImageSlots == 1)
         await setup.model.addImages([image, image])
 
-        #expect(setup.model.attachments.count == 4)
+        #expect(setup.model.attachments.count == 10)
         #expect(setup.model.remainingImageSlots == 0)
-        #expect(setup.model.notice == .imageLimit)
+        #expect(setup.model.notice == .attachmentLimit)
     }
 
     @Test("讀不出圖片的資料不加入，並提示")

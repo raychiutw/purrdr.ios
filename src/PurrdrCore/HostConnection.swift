@@ -35,6 +35,9 @@ public protocol HostConnection: Sendable {
     /// 主機上 Purrdr 主機服務的版本(畫面據此提示更新，#198);沒有主機服務的連線方式(SSH)是 `nil`。
     func hostServiceVersion() async throws -> String?
 
+    /// 主機會不會在送出前比對 `SendExpectation`(#304)。`false` 時 herdr 請求不帶比對欄位(SSH 主機、舊版主機服務)。
+    func checksSendExpectations() async -> Bool
+
     /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
     func beginQuickDisconnectDetection() async
 
@@ -52,6 +55,9 @@ extension HostConnection {
     public func isReadOnlyDevice() async throws -> Bool { false }
 
     public func hostServiceVersion() async throws -> String? { nil }
+
+    /// herdr 不認得比對欄位：SSH 主機的對象由送出前重讀的 snapshot 確認。
+    public func checksSendExpectations() async -> Bool { false }
 }
 
 extension HostConnection {
@@ -64,8 +70,8 @@ public enum TranscriptRequest: Sendable, Equatable {
     case locateClaude(sessionID: String, projectFolder: String)
     /// 任一種 agent 的對話紀錄位置與大小;`readsHeader` 時多印檔案開頭(header 檢查)。
     case locate(TranscriptTarget.Location, readsHeader: Bool)
-    /// 以 `end` 為終點的最後 `lines` 行。
-    case window(path: String, end: Int, lines: Int, chunkBytes: Int)
+    /// 以 `end` 為終點的最後 `lines` 行;`maxBytes` 大於 0 時範圍不超過該 byte 數(只回範圍內完整的行，#356)。
+    case window(path: String, end: Int, lines: Int, chunkBytes: Int, maxBytes: Int)
     /// 游標之後新增的完整行。
     case tail(path: String, from: Int, limit: Int)
     /// 從游標讀最多 `limit` bytes 的完整行，即使後面還有(即時追蹤的分段追趕，#130)。

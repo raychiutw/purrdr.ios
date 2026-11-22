@@ -45,6 +45,7 @@ struct ComposerBar: View {
     @State private var availableHeight: CGFloat?
     /// 輸入框回報的「展開」鈕顯示條件。
     @State private var showsExpandButton = false
+    @State private var isDropTargeted = false
     @State private var isExpanded = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -73,11 +74,9 @@ struct ComposerBar: View {
     }
 
     var body: some View {
-        if model.isReadOnly {
-            ReadOnlyComposerNotice()
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-        } else {
+        // 唯讀裝置(#60):沒有輸入框與送出鈕;說明只在頂部浮動橫幅出現一次(#348),輸入列不重複。
+        // 這裡讀 `model.isReadOnly` 而不是橫幅:離線時橫幅是「離線」,但輸入列仍然不能送。
+        if !model.isReadOnly {
             composer
                 .onChange(of: model.lastSlashInsertion) { _, insertion in
                     // 選定後念出插入了哪個指令(文中選定時輸入框其他文字不變，光看朗讀不知道插了什麼,#230)。
@@ -99,7 +98,7 @@ struct ComposerBar: View {
             if let notice = model.notice {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
-            if let fileName = model.uploadingFileName {
+            if let fileName = model.loadingFileName {
                 FileUploadProgressView(fileName: fileName)
             }
             if let option = model.typedAnswer {
@@ -148,7 +147,19 @@ struct ComposerBar: View {
                         .padding(.top, 4)
                     buttonRow
                 }
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+                .floatingGlass(in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("composer.card")
+                .onDrop(of: ComposerDrop.types, isTargeted: $isDropTargeted) { ComposerDrop.handle($0, into: model) }
+                .overlay {
+                    if isDropTargeted {
+                        RoundedRectangle(cornerRadius: Self.cardCornerRadius)
+                            .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2.5, dash: [8, 6]))
+                            .overlay { Text("Drop to Attach").font(.headline).foregroundStyle(.tint) }
+                            .background(.softAccentFill(opacity: 0.1), in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+                            .allowsHitTesting(false)
+                    }
+                }
                 .overlay {
                     // 聚焦時中性邊框(F6.1);主色只留給送出鈕(HIG CO-4,#236)。
                     RoundedRectangle(cornerRadius: Self.cardCornerRadius)
@@ -315,7 +326,11 @@ struct ComposerBar: View {
     private var buttonRow: some View {
         HStack(spacing: 8) {
             if model.canAttachImages && model.typedAnswer == nil {
-                AddImageButton(model: model, isInCard: true)
+                AttachButton(model: model, isInCard: true)
+            }
+            if model.supportsPermissionMode && model.typedAnswer == nil {
+                ModelCapsule(model: model)
+                PermissionModeCapsule(model: model)
             }
             Spacer(minLength: 0)
             if isFocused {
@@ -342,6 +357,8 @@ struct ComposerBar: View {
     }
 
     private func send() {
+        // 送出就收起鍵盤，看得到 Agent 的回覆;被步驟擋下放回草稿時，再點輸入框繼續打(#329)。
+        isFocused = false
         Task { await model.send() }
     }
 
@@ -429,7 +446,7 @@ extension View {
 /// Shell 模式提示(F6.4):Claude 聊天的草稿以 `!` 開頭時，說明這會在 agent 的 shell 執行，不會送給 Claude。
 struct ShellModeHint: View {
     var body: some View {
-        Label("This runs in the agent’s shell and won’t be sent to Claude.", systemImage: "terminal")
+        Label("This runs on the host and won’t be sent to Claude.", systemImage: "terminal")
             .font(.footnote)
             .foregroundStyle(.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -437,21 +454,6 @@ struct ShellModeHint: View {
             .padding(.vertical, 8)
             .background(.bar, in: RoundedRectangle(cornerRadius: 12))
             .accessibilityIdentifier("composer.shellHint")
-    }
-}
-
-/// 唯讀裝置(#60):輸入列換成說明，沒有輸入框與送出鈕。
-struct ReadOnlyComposerNotice: View {
-    var body: some View {
-        Label("This device is paired read-only, so it can’t send anything to this host.", systemImage: "lock")
-            .font(.footnote)
-            .foregroundStyle(.secondaryText)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(.bar, in: RoundedRectangle(cornerRadius: 12))
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("composer.readOnly")
     }
 }
 
@@ -532,10 +534,10 @@ extension SendNotice {
         case .noResponse: String(localized: "The agent didn’t pick up the message. It may be stuck on a prompt; check the terminal, then try again.")
         case .unconfirmed(.connectionLost): String(localized: "The connection dropped while sending. The message may have arrived; check the chat before sending again.")
         case .unconfirmed(.mayBeInTerminal): String(localized: "Couldn’t confirm delivery. The message may be stuck in the terminal.")
-        case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
+        case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but Codex hasn’t confirmed it yet. Check the host before trying again.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
-        case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
+        case .attachmentLimit: String(localized: "You can attach up to 10 items to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
         case .imageTooLarge: String(localized: "This image is over 20 MB.")
         case .uploadFailed: String(localized: "Couldn’t upload the image to the host. Your message wasn’t sent; try again.")
@@ -559,7 +561,7 @@ extension SendNotice {
         case .readOnlyDevice: "lock"
         case .offline: "wifi.slash"
         case .rejected, .noResponse, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
-        case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"
+        case .attachmentLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .fileTooLarge, .fileUnreadable: "doc"
         case .fileUploadFailed: "exclamationmark.triangle"
         case .hostServiceUpdateRequired: "arrow.down.circle"
@@ -617,6 +619,107 @@ struct EchoBubbleView: View {
                     .font(.caption.weight(.semibold))
                     .accessibilityIdentifier("conversation.echo.retry")
             }
+        }
+    }
+}
+
+/// 撤回倒數中的訊息(#300,原型 #t300-b):虛線、半透明的使用者泡泡，下方「N 秒後送出 · 撤回 · 立即送出」。
+/// 訊息還只在本機;倒數結束、立即送出後換成一般的回音，撤回時文字放回輸入框。
+struct PendingSendBubbleView: View {
+    let pending: UndoSendCountdown.Pending
+    /// 一起送出的圖片數(還在輸入框的附件)。
+    let imageCount: Int
+    let undo: () -> Void
+    let sendNow: () -> Void
+
+    var body: some View {
+        PendingBubbleRow(
+            text: pending.text.isEmpty ? String(localized: "\(imageCount) Attachments") : pending.text,
+            bubbleLabel: Text("Your message, not sent yet. \(pending.text)")
+        ) {
+            HStack(spacing: 4) {
+                Text("Sending in \(pending.remainingSeconds)s")
+                    .foregroundStyle(.secondaryText)
+                    .monospacedDigit()
+                    .accessibilityIdentifier("conversation.pendingSend.countdown")
+                Text(verbatim: "·").foregroundStyle(.secondaryText).accessibilityHidden(true)
+                Button(action: undo) { HitTarget("Undo") }
+                    .fontWeight(.semibold)
+                    .accessibilityIdentifier("conversation.pendingSend.undo")
+                Text(verbatim: "·").foregroundStyle(.secondaryText).accessibilityHidden(true)
+                Button(action: sendNow) { HitTarget("Send Now") }
+                    .accessibilityIdentifier("conversation.pendingSend.sendNow")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("conversation.pendingSend")
+        .onAppear {
+            AccessibilityNotification.Announcement(String(localized: "Sending in \(pending.remainingSeconds) seconds. Undo is available.")).post()
+        }
+    }
+}
+
+/// 離線佇列裡的訊息(#301,原型 #t301-b 泡泡上標「排隊中」):半透明的使用者泡泡，下方「排隊中 · 連上後送出」;
+/// 長按取消。沒送出的泡泡紅框，下方寫原因與「放回輸入框」「刪除」。
+struct QueuedPromptBubbleView: View {
+    let prompt: QueuedPrompt
+    let putBack: () -> Void
+    let delete: () -> Void
+
+    var body: some View {
+        PendingBubbleRow(text: prompt.text, isProblem: prompt.problem != nil, bubbleLabel: accessibilityLabel) {
+            status
+        }
+        .contextMenu {
+            if prompt.problem == nil {
+                Button("Cancel Sending", systemImage: "xmark", role: .destructive, action: delete)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("conversation.queued")
+    }
+
+    private var accessibilityLabel: Text {
+        if let problem = prompt.problem {
+            Text(verbatim: "\(problem.text) \(prompt.text)")
+        } else {
+            Text("Your message, queued until reconnected. \(prompt.text)")
+        }
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if let problem = prompt.problem {
+            HStack(spacing: 4) {
+                ErrorLabel(problem.text)
+                    .accessibilityIdentifier("conversation.queued.problem")
+                Button(action: putBack) { HitTarget("Put Back") }
+                    .fontWeight(.semibold)
+                    .accessibilityIdentifier("conversation.queued.putBack")
+                Button(role: .destructive, action: delete) { HitTarget("Delete") }
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("conversation.queued.delete")
+            }
+        } else {
+            HStack(spacing: 4) {
+                Label("Queued · Sends when reconnected", systemImage: "clock")
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("conversation.queued.status")
+                Button(action: delete) { HitTarget("Cancel") }
+                    .accessibilityIdentifier("conversation.queued.cancel")
+            }
+        }
+    }
+}
+
+extension QueuedPrompt.Problem {
+    var text: String {
+        switch self {
+        case .expired: String(localized: "This message waited more than 10 minutes, so it wasn’t sent.")
+        case .conversationChanged: String(localized: "The conversation changed, so this message wasn’t sent.")
+        case .needsAnswer: String(localized: "The agent is waiting for your answer, so this message wasn’t sent.")
+        case .notDelivered: String(localized: "The host didn’t accept this message.")
+        case .mayHaveBeenSent: String(localized: "This message may have arrived. Check the chat before sending it again.")
         }
     }
 }
@@ -912,8 +1015,8 @@ final class KeyHandlingTextView: UITextView {
         setNeedsLayout()
     }
 
-    /// 開頭的 skill／slash 指令用系統綠(實機回報 2026-11-20),其餘是主要文字色。組字中不動(改屬性會打斷組字)。
-    func highlightSlashToken() {
+    /// 開頭的 skill／slash 指令用主色(`tintColor`,跟著 SwiftUI 的 tint 與主機主題;#329),其餘是主要文字色。組字中不動(改屬性會打斷組字)。
+    func highlightSlashToken(force: Bool = false) {
         guard markedTextRange == nil else { return }
         let storage = textStorage
         let whole = NSRange(location: 0, length: storage.length)
@@ -921,20 +1024,24 @@ final class KeyHandlingTextView: UITextView {
         var current: NSRange?
         if storage.length > 0 {
             var effective = NSRange()
-            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == Self.skillColor {
+            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == tintColor {
                 current = effective
             }
         }
-        guard current != token else { return }
+        guard force || current != token else { return }
         storage.beginEditing()
         storage.addAttribute(.foregroundColor, value: UIColor.label, range: whole)
-        if let token { storage.addAttribute(.foregroundColor, value: Self.skillColor, range: token) }
+        if let token { storage.addAttribute(.foregroundColor, value: tintColor as UIColor, range: token) }
         storage.endEditing()
         // 接著打的字照一般顏色，不延續指令的綠色。
         typingAttributes[.foregroundColor] = UIColor.label
     }
 
-    private static let skillColor = UIColor(Color.skillName)
+    /// 主題、深淺色或高對比改變時 tint 跟著變:重畫指令著色。
+    override func tintColorDidChange() {
+        super.tintColorDidChange()
+        highlightSlashToken(force: true)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()

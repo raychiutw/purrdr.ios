@@ -19,6 +19,8 @@ actor HostServiceSession {
     /// 開著的串流(串流識別碼 → 收訊息的方式)。
     private var streams: [String: OpenStream] = [:]
     private var ending: (any Error)?
+    /// 收 `queue.changed` 推送的觀察者(Send When Done,#305);推送不屬於任何串流，每個觀察者都收到。
+    private var queueObservers: [UUID: AsyncThrowingStream<HostServiceProtocol.QueueChanged, any Error>.Continuation] = [:]
     private var nextRequestNumber = 0
     private var nextStreamNumber = 0
     private var reader: Task<Void, Never>?
@@ -129,6 +131,23 @@ actor HostServiceSession {
     struct StreamReply {
         var reply: HostServiceProtocol.ServerMessage
         var messages: Messages
+    }
+
+    /// 開始收 `queue.changed` 推送;連線結束時以結束原因結束。呼叫端先開再讀佇列，才不會漏掉中間的變動。
+    func observeQueueChanges() -> AsyncThrowingStream<HostServiceProtocol.QueueChanged, any Error> {
+        let (changes, continuation) = AsyncThrowingStream<HostServiceProtocol.QueueChanged, any Error>.makeStream()
+        if let ending {
+            continuation.finish(throwing: ending)
+            return changes
+        }
+        let id = UUID()
+        queueObservers[id] = continuation
+        continuation.onTermination = { _ in Task { await self.stopObservingQueue(id) } }
+        return changes
+    }
+
+    private func stopObservingQueue(_ id: UUID) {
+        queueObservers[id] = nil
     }
 
     /// 送出沒有回應的訊息(串流上的輸入),與請求排在同一個佇列。連線已結束時丟結束原因;送出失敗時連線結束。
@@ -327,6 +346,8 @@ actor HostServiceSession {
         }
         if let streamID = message.streamID { return push(message, to: streamID) }
         switch message {
+        case .queueChanged(let change):
+            for continuation in queueObservers.values { continuation.yield(change) }
         case .errorMessage(let error) where error.requestId == nil:
             // 權杖無效或已撤銷：主機服務接著會以 4401 關閉。
             if let rejection = HostServiceError(tokenRejection: error.code) { end(with: rejection) }
@@ -365,6 +386,9 @@ actor HostServiceSession {
         let openStreams = streams
         streams = [:]
         for case .delivering(let continuation) in openStreams.values { continuation.finish(throwing: error) }
+        let observers = queueObservers
+        queueObservers = [:]
+        for continuation in observers.values { continuation.finish(throwing: error) }
         let waiters = closeWaiters
         closeWaiters = [:]
         for continuation in waiters.values { continuation.resume(returning: error) }
@@ -402,6 +426,7 @@ extension HostServiceProtocol.ServerMessage {
              .pushInstallResult,
              .pushRemoveResult,
              .pushUpdateMutedResult,
+             .pushTestResult,
              .workspaceCreateResult,
              .workspaceRenameResult,
              .workspaceCloseResult,
@@ -422,6 +447,7 @@ extension HostServiceProtocol.ServerMessage {
              .queueAddResult,
              .queueRemoveResult,
              .queueReorderResult,
+             // 不屬於任何串流的推送：`deliver` 交給 `queue.changed` 的觀察者(Send When Done,#305)。
              .queueChanged: nil
         }
     }
@@ -455,6 +481,7 @@ extension HostServiceProtocol.ServerMessage {
         case .pushInstallResult(let message): message.requestId
         case .pushRemoveResult(let message): message.requestId
         case .pushUpdateMutedResult(let message): message.requestId
+        case .pushTestResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
         case .transcriptPreviewsResult(let message): message.requestId
         case .transcriptSubagentResult(let message): message.requestId

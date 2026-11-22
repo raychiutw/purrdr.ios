@@ -204,9 +204,9 @@ struct TranscriptPlan {
         case .locate(let location, let readsHeader):
             command = TranscriptCommand.locate(location, readsHeader: readsHeader)
             deadline = HostCommandDeadline.standard
-        case .window(let path, let end, let lines, let chunkBytes):
-            command = TranscriptCommand.window(path: path, end: end, lines: lines, chunkBytes: chunkBytes)
-            deadline = HostCommandDeadline.transfer(bytes: chunkBytes)
+        case .window(let path, let end, let lines, let chunkBytes, let maxBytes):
+            command = TranscriptCommand.window(path: path, end: end, lines: lines, chunkBytes: chunkBytes, maxBytes: maxBytes)
+            deadline = HostCommandDeadline.transfer(bytes: maxBytes > 0 ? min(chunkBytes, maxBytes) : chunkBytes)
         case .tail(let path, let cursor, let limit):
             command = TranscriptCommand.tail(path: path, from: cursor, limit: limit)
             deadline = HostCommandDeadline.transfer(bytes: limit)

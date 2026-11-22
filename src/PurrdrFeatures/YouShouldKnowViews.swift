@@ -157,7 +157,7 @@ extension View {
             Button("Allow") { Task { await model.confirmConsent() } }
                 .accessibilityIdentifier("youShouldKnow.allow")
         } message: {
-            Text("To mark notes, Purrdr updates Claude Code’s notes file in ~/.claude/plugins/store as \(model.pendingConsent?.user ?? ""). You can undo Purrdr’s changes in Settings.")
+            Text("To mark notes, Purrdr updates Claude Code’s notes on this host, as \(model.pendingConsent?.user ?? ""). You can undo Purrdr’s changes in Settings.")
         }
     }
 }

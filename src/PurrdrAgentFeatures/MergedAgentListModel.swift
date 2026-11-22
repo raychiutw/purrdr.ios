@@ -52,6 +52,8 @@ public final class MergedAgentListModel {
     public enum Content: Equatable {
         /// 第一次載入、還沒有任何列：列表骨架與各主機的連線狀態(不整頁轉圈,#221)。
         case loading
+        /// 還沒有加入任何主機、也沒試用 Demo(#332):說明與「新增主機」「試用 Demo」按鈕。
+        case noHosts
         /// 裝置沒有網路、也沒有任何列：離線畫面與再試一次(不等連線逾時,#221)。
         case offline
         /// 沒有任何列，每台主機都讀不到:選取中主機的錯誤佔滿畫面。
@@ -106,14 +108,23 @@ public final class MergedAgentListModel {
         }
     }
 
-    /// 主機篩選(#244);`nil` 是所有主機。選某台主機時同時設成選取中主機，選回所有主機時選取中主機不變。
-    public var hostFilter: HostSelection? {
+    /// 目前主機(#334):全 app 共用的主機範圍，`nil` 是所有主機;列表的主機篩選只是改它的控制。
+    /// 選某台主機時同時設成選取中主機，選回所有主機時選取中主機不變。
+    public var currentHost: HostSelection? {
         didSet {
-            if let hostFilter, hostFilter != oldValue { selectHost?(hostFilter) }
+            guard currentHost != oldValue else { return }
+            currentHostDidChange?(currentHost)
+            if let currentHost { selectHost?(currentHost) }
         }
     }
-    /// 篩選選了某台主機時，把它設成選取中主機(主機清單接上)。
+    /// 目前主機改變時通知(主機清單接上，存到本機)。
+    public var currentHostDidChange: (@MainActor (HostSelection?) -> Void)?
+    /// 目前主機是某台主機時，把它設成選取中主機(主機清單接上)。
     public var selectHost: (@MainActor (HostSelection) -> Void)?
+    /// 沒有主機時等著第一台主機(#332):由 `HostsModel` 依「沒有已存主機、也還沒試用 Demo」設定。
+    public var isAwaitingFirstHost = false
+    /// 空狀態的「試用 Demo」:由 `HostsModel` 接上。
+    public var enterDemo: (@MainActor () -> Void)?
 
     /// 篩選選單的主機項目(依列表的主機順序)。
     public var hostFilterOptions: [HostOption] {
@@ -130,6 +141,33 @@ public final class MergedAgentListModel {
 
     private let modeStore: any AgentListModeStore
 
+    /// 離開期間的輪數讀取(路徑與開啟時間 → 輪數);`nil` 時由各主機的列表讀對話紀錄(#308)。
+    @ObservationIgnored public var awayTurnCounter: (@MainActor (ChatRoute, Date) async -> Int?)?
+    /// 已算出的輪數,依「聊天 + 開啟時間」;開啟時間變了(又進過聊天)就作廢。
+    private var awayTurnCounts: [ChatRoute: (openedAt: Date, turns: Int)] = [:]
+
+    /// 替有「離開期間」徽章的列算輪數(每個聊天、每個開啟時間只算一次;畫面在列表出現與列變動時呼叫)。
+    public func refreshAwayTurns() async {
+        let visible = visibleChats
+        for source in sources {
+            guard let snapshot = source.list.snapshot else { continue }
+            let projection = projectionSource(of: source)
+            for agent in snapshot.agents {
+                let route = ChatRoute(host: source.host, paneID: agent.paneID)
+                guard ChatUnread.State(agent: agent, source: projection, visible: visible).isAway,
+                      let session = agent.sessionID, let openedAt = source.actions.preferences.opened[session] else { continue }
+                if awayTurnCounts[route]?.openedAt == openedAt { continue }
+                let turns: Int?
+                if let awayTurnCounter {
+                    turns = await awayTurnCounter(route, openedAt)
+                } else {
+                    turns = await source.list.awayTurns(paneID: agent.paneID, openedAt: openedAt)
+                }
+                if let turns { awayTurnCounts[route] = (openedAt, turns) }
+            }
+        }
+    }
+
     public init(modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
         self.modeStore = modeStore
         // 未知或缺值(新安裝)一律是 Agents。
@@ -138,14 +176,27 @@ public final class MergedAgentListModel {
 
     /// 對話出現在畫面上：記下開啟時間(這之前的回覆都算讀過)。
     public func chatAppeared(_ route: ChatRoute) {
+        // 第一個視窗進來時，先記下上次離開的時間(markOpened 會蓋掉它)，離開期間摘要要用(#308)。
+        if visibleCounts[route] == nil, let opened = openedAt(route) { awayStarts[route] = opened }
         visibleCounts[route, default: 0] += 1
         markOpened(route)
+    }
+
+    /// 這個聊天這次開著之前，上次離開的時間(#308)。開著期間不變;只有進聊天(`chatAppeared`)之後才有，沒開過的聊天是 `nil`。
+    public func awayStart(for route: ChatRoute) -> Date? { awayStarts[route] }
+
+    private var awayStarts: [ChatRoute: Date] = [:]
+
+    private func openedAt(_ route: ChatRoute) -> Date? {
+        guard let session = snapshot(for: route.host)?.agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return nil }
+        return actions(for: route.host)?.preferences.opened[session]
     }
 
     /// 對話離開畫面：再記一次開啟時間(看著的時候來的回覆也算讀過)。
     public func chatDisappeared(_ route: ChatRoute) {
         markOpened(route)
         if let count = visibleCounts[route] { visibleCounts[route] = count > 1 ? count - 1 : nil }
+        if visibleCounts[route] == nil { awayStarts[route] = nil }
     }
 
     /// 以列表看到的 session 記開啟時間;沒有 session 時不記(行為規格 F2.6:否則下一個用這個 pane 的聊天會被當成讀過)。
@@ -160,7 +211,7 @@ public final class MergedAgentListModel {
     package func update(sources: [Source], selected: HostSelection) {
         self.selected = selected
         self.sources = sources.filter { $0.host == selected } + sources.filter { $0.host != selected }
-        if let hostFilter, !sources.contains(where: { $0.host == hostFilter }) { self.hostFilter = nil }
+        if let currentHost, !sources.contains(where: { $0.host == currentHost }) { self.currentHost = nil }
         applyLayoutSubscription()
     }
 
@@ -175,21 +226,26 @@ public final class MergedAgentListModel {
 
     /// 套用主機篩選後的來源。
     private var filteredProjectionSources: [AgentListProjection.Source] {
-        guard let hostFilter else { return projectionSources }
-        return projectionSources.filter { $0.host == hostFilter }
+        guard let currentHost else { return projectionSources }
+        return projectionSources.filter { $0.host == currentHost }
     }
 
-    private var projectionSources: [AgentListProjection.Source] {
-        sources.map { source in
-            AgentListProjection.Source(
-                host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
-                name: source.name, icon: source.icon, snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
+    private var projectionSources: [AgentListProjection.Source] { sources.map(projectionSource(of:)) }
+
+    private func projectionSource(of source: Source) -> AgentListProjection.Source {
+        var projection = AgentListProjection.Source(
+            host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
+            name: source.name, icon: source.icon, snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
+        for (route, count) in awayTurnCounts where route.host == source.host {
+            let session = source.list.snapshot?.agents.first { $0.paneID == route.paneID }?.sessionID
+            if let session, source.actions.preferences.opened[session] == count.openedAt { projection.awayTurns[route.paneID] = count.turns }
         }
+        return projection
     }
 
     /// Spaces 檢視(#275):每個「主機 · workspace」一段，段內每個 Tab 一列;套用主機篩選，沒有搜尋。
     public var spacesSections: [SpacesSection] {
-        AgentListProjection.spacesSections(sources: filteredProjectionSources)
+        AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats)
     }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。
@@ -198,7 +254,7 @@ public final class MergedAgentListModel {
     /// 讀不到的主機(保留它最後的列)。
     public var failures: [HostFailure] {
         sources.compactMap { source in
-            guard hostFilter == nil || source.host == hostFilter, case .failed(let message) = source.list.phase else { return nil }
+            guard currentHost == nil || source.host == currentHost, case .failed(let message) = source.list.phase else { return nil }
             return HostFailure(host: source.host, name: source.name, message: message)
         }
     }
@@ -213,7 +269,7 @@ public final class MergedAgentListModel {
     public func hostStatuses(at now: Date) -> [HostLoadStatus] {
         sources.compactMap { source in
             // 沒網路時連不上是確定的：列表只顯示離線，不逐台顯示連線中。
-            guard isNetworkAvailable, hostFilter == nil || source.host == hostFilter, source.list.phase == .loading else { return nil }
+            guard isNetworkAvailable, currentHost == nil || source.host == currentHost, source.list.phase == .loading else { return nil }
             let elapsed = now.timeIntervalSince(source.list.updates.connectingSince)
             let state: HostLoadStatus.State = elapsed >= Self.slowConnectionThreshold ? .stillConnecting : .connecting
             return HostLoadStatus(host: source.host, name: source.name, icon: source.icon, state: state)
@@ -226,6 +282,7 @@ public final class MergedAgentListModel {
     }
 
     public var content: Content {
+        if isAwaitingFirstHost { return .noHosts }
         if hasAgents { return .list }
         if !isNetworkAvailable { return .offline }
         if let message = allFailedMessage { return .failed(message) }

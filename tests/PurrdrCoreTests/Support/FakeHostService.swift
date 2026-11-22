@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 import NIOCore
 import NIOHTTP1
@@ -84,6 +85,8 @@ final class FakeHostService: Sendable {
         var fileReplies: [String: [String]] = [:]
         /// 已配對裝置訊息(`devices.list`／`devices.revoke`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
         var deviceReplies: [String: [String]] = [:]
+        /// git 讀取訊息(`git.status`／`git.diff`,#310)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
+        var gitReplies: [String: [String]] = [:]
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
@@ -110,10 +113,21 @@ final class FakeHostService: Sendable {
         var pushStatusFailure: String?
         /// 有值時 `push.remove` 移除外掛失敗(`push_plugin_failed`);配對已移除。
         var pushRemoveFailure: String?
+        /// 有值時 `push.test` 以 `push_send_failed` 失敗(帶這個訊息,後台的錯誤碼或 `http <狀態碼>`)。
+        var pushTestFailure: String?
+        /// `false` 時這支裝置沒有推播配對,`push.test` 回 `push_not_paired`;預設已配對。
+        var pushTestPaired = true
         /// 上傳收滿時回報的路徑;`nil` 時是 `/Users/demo/.purrdr/uploads/<主機產生的名稱>[.<副檔名>]`。
         var uploadedPath: String?
         /// 有值時 `file.upload.start` 以這個錯誤碼失敗。
         var uploadStartError: String?
+        /// `pane.read` 的畫面(#303):pane id → 畫面文字(`format` 是 `text` 或沒帶時);沒有的 pane 以 herdr 的 `pane_not_found` 失敗。
+        var paneScreens: [String: String] = [:]
+        /// `pane.read` 帶 `format: ansi` 時的畫面：pane id → 含 ANSI 的文字;沒有時回 `paneScreens` 的。
+        var ansiPaneScreens: [String: String] = [:]
+        /// 送出前比對(#304)用的 pane → Agent session id;預設同 `server.agents-list-result.json`。
+        /// 送出訊息帶 `expected_session`／`expected_screen` 時照主機服務的規則比對，不符回 `pane_changed`、不送。
+        var paneSessions: [String: String] = ["w1:p6": "00000000-0000-0000-0000-000000000001"]
     }
 
     /// 進行中的上傳(仿照主機服務的 `PendingUpload`)。
@@ -390,7 +404,18 @@ final class FakeHostService: Sendable {
             }
             object["request_id"] = requestID
             return [.text(Self.json(object))]
-        case "devices.list", "devices.revoke":
+        case "git.status", "git.diff":
+            let reply = state.withLock { state -> String? in
+                guard let queue = state.settings.gitReplies[type], let first = queue.first else { return nil }
+                if queue.count > 1 { state.settings.gitReplies[type] = Array(queue.dropFirst()) }
+                return first
+            }
+            guard let reply, var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
+                return [.text(Self.error(requestID, "invalid_message"))]
+            }
+            object["request_id"] = requestID
+            return [.text(Self.json(object))]
+        case "devices.list", "devices.revoke", "queue.list", "queue.add", "queue.remove", "queue.reorder":
             let reply = state.withLock { state -> String? in
                 guard let queue = state.settings.deviceReplies[type], let first = queue.first else { return nil }
                 if queue.count > 1 { state.settings.deviceReplies[type] = Array(queue.dropFirst()) }
@@ -404,6 +429,14 @@ final class FakeHostService: Sendable {
         case "pane.send_keys", "pane.send_text", "agent.prompt":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
+            }
+            let target = message["pane_id"] as? String ?? ""
+            if let expected = message["expected_session"] as? String, settings.paneSessions[target] != expected {
+                return [.text(Self.error(requestID, "pane_changed", message: "pane \(target) is no longer session \(expected)"))]
+            }
+            if let expected = message["expected_screen"] as? String,
+               Self.fingerprint(settings.paneScreens[target] ?? "") != expected {
+                return [.text(Self.error(requestID, "pane_changed", message: "the screen of pane \(target) has changed"))]
             }
             if type == "agent.prompt", let herdrCode = settings.promptHerdrError {
                 return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
@@ -424,8 +457,17 @@ final class FakeHostService: Sendable {
             return [.text(Self.example("server.\(type.replacingOccurrences(of: ".", with: "-"))-result.json", requestID: requestID))]
         case "host_service.status", "host_service.update", "host_service.set_auto_update":
             return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
-        case "push.status", "push.install", "push.remove", "push.update_muted":
+        case "push.status", "push.install", "push.remove", "push.update_muted", "push.test":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
+        case "sessions.list":
+            // 範例(兩個 session);`cwd` 為 `/empty` 表示資料夾沒有過去的 session(#309)。
+            if message["cwd"] as? String == "/empty" { return [.text(Self.example("server.sessions-list-result.json", requestID: requestID, changing: ["sessions": [Any]()]))] }
+            return [.text(Self.example("server.sessions-list-result.json", requestID: requestID))]
+        case "pane.read":
+            let paneID = message["pane_id"] as? String ?? ""
+            let screen = message["format"] as? String == "ansi" ? settings.ansiPaneScreens[paneID] ?? settings.paneScreens[paneID] : settings.paneScreens[paneID]
+            guard let screen else { return [.text(Self.error(requestID, "herdr_error", message: "pane_not_found", herdrCode: "pane_not_found"))] }
+            return [.text(Self.example("server.pane-read-result.json", requestID: requestID, changing: ["text": screen]))]
         case "file.upload.start", "file.upload.chunk":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
@@ -492,6 +534,10 @@ final class FakeHostService: Sendable {
             switch type {
             case "push.status":
                 if let failure = settings.pushStatusFailure { return errorReply("push_plugin_failed", failure) }
+            case "push.test":
+                guard settings.pushTestPaired else { return errorReply("push_not_paired", "not paired") }
+                if let failure = settings.pushTestFailure { return errorReply("push_send_failed", failure) }
+                return ["type": "push.test.result", "request_id": requestID as Any]
             case "push.update_muted":
                 // 已配對時只改靜音清單，不碰外掛(主機服務的規則)。
                 guard host.pairings[deviceID] != nil else { return errorReply("push_not_paired", "not paired") }
@@ -679,6 +725,11 @@ final class FakeHostService: Sendable {
         object["request_id"] = requestID
         object["herdr_code"] = herdrCode
         return json(object)
+    }
+
+    /// 主機服務的畫面指紋：文字 UTF-8 bytes 的 SHA-256(小寫 hex)。
+    private static func fingerprint(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     private static func json(_ object: [String: Any]) -> String {

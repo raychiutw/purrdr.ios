@@ -32,7 +32,20 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public let paneID: String
     public let title: String
 
+    public private(set) var sizeMode: TerminalSizeMode
+    /// 電腦上 Pane 目前的格數(保留模式下取自 full frame)。
+    public private(set) var displaySize: TerminalGridSize?
+    public var supportsSizeMode: Bool { !isViewOnly }
+    public var keepsDesktopLayout: Bool { supportsSizeMode && sizeMode == .keepDesktop }
+    /// 保留電腦版面卻讀不到 Pane 在電腦上的格數(電腦沒開 herdr 等),這次是以手機的格數接上的(#357)。
+    public private(set) var keepDesktopFallback = false
+
+    private let defaults: UserDefaults
+    /// 保留模式下最後一次看到的電腦格數;換成配合手機後還要靠它還原。
+    private var desktopSize: TerminalGridSize?
     private let client: PaneTerminalClient
+    /// 讀 Pane 在電腦上的格數;保留模式接上時 handshake 帶它，herdr 一接上就把 Pane 改成 handshake 的尺寸(#357)。
+    private let nativeSize: (@Sendable () async -> TerminalGridSize?)?
     private let resizeDebounce: Duration
     /// 去抖用的等待;測試注入假的。
     private let sleep: Sleep
@@ -47,8 +60,12 @@ public final class PaneTerminalModel: TerminalSessionModel {
 
     public init(
         client: PaneTerminalClient, paneID: String, title: String, resizeDebounce: Duration = .milliseconds(250),
-        sleep: @escaping Sleep = Sleeping.task
+        sleep: @escaping Sleep = Sleeping.task, defaults: UserDefaults = .standard,
+        nativeSize: (@Sendable () async -> TerminalGridSize?)? = nil
     ) {
+        self.nativeSize = nativeSize
+        self.defaults = defaults
+        self.sizeMode = TerminalSizeSettings.mode(in: defaults)
         self.client = client
         self.paneID = paneID
         self.title = title
@@ -113,6 +130,8 @@ public final class PaneTerminalModel: TerminalSessionModel {
             connect(takeover: false)
             return
         }
+        // 保留電腦版面:手機大小只記著(切換模式時用),不送給主機。
+        guard !keepsDesktopLayout else { return }
         resizeTask?.cancel()
         let debounce = resizeDebounce
         let sleep = sleep
@@ -165,11 +184,21 @@ public final class PaneTerminalModel: TerminalSessionModel {
         self.outbox = outbox
         let client = client
         let paneID = paneID
+        let lookup = sizeMode == .keepDesktop ? nativeSize : nil
+        let wantsDesktop = sizeMode == .keepDesktop
         Task { [weak self] in
+            // 保留電腦版面:帶 Pane 目前的格數,讀不到才退回手機的格數。
+            var handshake = size
+            var fellBack = wantsDesktop
+            if let native = await lookup?() {
+                handshake = (min(native.columns, Self.maxColumns), min(native.rows, Self.maxRows))
+                fellBack = false
+            }
+            if let self, self.generation == generation { self.keepDesktopFallback = fellBack }
             let connection: PaneTerminalConnection
             do {
                 connection = try await client.control(
-                    target: paneID, columns: size.columns, rows: size.rows, takeover: takeover
+                    target: paneID, columns: handshake.columns, rows: handshake.rows, takeover: takeover
                 )
             } catch {
                 self?.finish(.disconnected, generation: generation)
@@ -203,8 +232,13 @@ public final class PaneTerminalModel: TerminalSessionModel {
         case .frame(let frame):
             if status == .connecting {
                 status = .connected
-                // 開啟期間尺寸變了：handshake 用的是舊格數，補送一次。
-                sendResizeIfNeeded()
+                // 開啟期間尺寸變了：handshake 用的是舊格數，補送一次(保留模式不送)。
+                if !keepsDesktopLayout { sendResizeIfNeeded() }
+            }
+            if frame.full, keepsDesktopLayout {
+                let size = TerminalGridSize(columns: frame.columns, rows: frame.rows)
+                desktopSize = size
+                displaySize = size
             }
             render(frame.bytes)
         case .closed(let reason):
@@ -213,8 +247,8 @@ public final class PaneTerminalModel: TerminalSessionModel {
             finish(.disconnected, generation: generation)
         case .failed(_, let message):
             finish(.unavailable(message.contains("command not found")
-                ? String(localized: "herdr isn’t installed on this host, or isn’t on its PATH.")
-                : (message.isEmpty ? String(localized: "herdr couldn’t open this pane.") : message)), generation: generation)
+                ? String(localized: "herdr isn’t installed on this host.")
+                : (message.isEmpty ? String(localized: "Couldn’t open this Pane.") : message)), generation: generation)
         }
     }
 
@@ -298,6 +332,25 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int) {
         guard isInteractive, rows > 0 else { return }
         outbox?.yield(.input(.scroll(direction, lines: rows, column: 0, row: 0, source: .pageKey)))
+    }
+
+    // MARK: - 大小模式
+
+    /// 切換大小模式並記在這支裝置。已連線時:換成配合手機立刻送一次手機的格數;換回保留則把電腦原本的格數還回去。
+    public func setSizeMode(_ mode: TerminalSizeMode) {
+        guard mode != sizeMode else { return }
+        sizeMode = mode
+        TerminalSizeSettings.setMode(mode, in: defaults)
+        guard isInteractive else { return }
+        switch mode {
+        case .fitPhone:
+            sentSize = nil
+            sendResizeIfNeeded()
+        case .keepDesktop:
+            guard let desktopSize else { return }
+            sentSize = (desktopSize.columns, desktopSize.rows)
+            outbox?.yield(.input(.resize(columns: desktopSize.columns, rows: desktopSize.rows)))
+        }
     }
 
     // MARK: - 字級

@@ -224,3 +224,147 @@
 fixture 裡的 terminal id(`term_660523e11df7c5`)是當次測試 pane 的隨機 id,已不存在。
 
 重新錄製：建一個專用 workspace(`herdr workspace create --no-focus`),在該 pane 換成上述乾淨 bash,執行 `docs/research/tools/session-control/runfx.sh <terminal_id> <pane_id>`,再以 `PII_PATTERN='<自己的帳號|主機名|家目錄>' python3 export.py fx <輸出目錄>` 匯出。
+
+## controller 不送 resize 時的尺寸行為(#357)
+
+背景:行為規格寫 controller 的 `terminal.resize` 會改變 Pane 的 PTY 尺寸,接上期間鎖在 controller 尺寸,離開時恢復。#357 的「保留電腦版面」模式因此**不送 `terminal.resize`**,以 full frame 的 `width`／`height` 當顯示格數。這份實作只依文件推論,**尚未在真主機驗證**,下列項目要在 SSH 與 HTTPS 各驗一次:
+
+1. 接上前後,電腦上該 Pane 的欄列數不變(`herdr pane list` 或在電腦上看版面)。
+2. 第一個 frame(`full: true`)的 `width`／`height` 是 Pane 原本的尺寸,而不是 handshake 的 `--cols`／`--rows`。
+3. **handshake 本身需要 `--cols`／`--rows`**(`HerdrCommand.terminalSessionControl`;HTTPS 的 `pane.terminal.open` 同):保留模式目前帶的是手機視圖放得下的格數。若 herdr 接上時就把 Pane 鎖成這個尺寸,保留模式沒有效果;替代方案是 handshake 改帶 Pane 目前的尺寸(需另有來源,例如 snapshot 或先 observe 一次讀到第一個 frame)。
+4. 離開(release)後 Pane 回到原尺寸。
+5. 電腦端調整視窗時,controller 是否收到新的 full frame(畫面隨之重新縮放,故事 16)。
+
+驗證結果在下方「真主機驗證」:第 2、3 項**不成立**,`PaneTerminalModel.connect` 已改成 handshake 帶 Pane 目前的尺寸。
+
+### 真主機驗證(#357,2026-11-21)
+
+> 標記沿用本文件:**【實測】**、**【原始碼】**(herdr 0.9.5,commit `2ecf19a`)、**【推論】**。
+
+**結論:herdr 0.9.5 的 `terminal session control` 一定會把 Pane 的 PTY 改成 handshake 的尺寸,沒有「不改尺寸」的 controller 模式。** #357 現在「不送 `terminal.resize`、handshake 帶手機格數」的做法**沒有保留效果**:電腦上的 Pane 從接上那一刻就變成手機的欄列數。要保留，handshake 必須帶 Pane **目前的 PTY 尺寸**;唯一完全不碰尺寸的接法是 `observe`(但它不收輸入)。
+
+#### 環境與方法
+
+| 項目 | 值 |
+|---|---|
+| 主機 | macOS(Darwin 27.2.0,arm64),herdr 0.9.5 |
+| 隔離 | 獨立具名 session `herdr --session purrdr-357-test server`,只建一個測試 workspace;每個指令都帶 `--session purrdr-357-test`。測完 `herdr session stop` + `herdr session delete`,`herdr session list` 只剩 `default`。使用者的 `default` session 沒有被任何指令指到 |
+| 模擬電腦 | 以 Python `pty.fork` 開 `herdr --session purrdr-357-test`(TUI client),視窗 160×50;要先清掉 `HERDR_*` 環境變數，否則被擋(`error: nested herdr is disabled by default.`) |
+| 量尺寸 | PTY 實際尺寸:在 Pane 裡 `herdr pane run w1:p1 'clear; stty size'` 再 `herdr pane read`;另記 `herdr pane layout --pane w1:p1` 的 `rect` 與 `herdr pane get` 的 `scroll.viewport_rows` |
+| controller | pipe(非 TTY)啟動 `herdr --session purrdr-357-test terminal session control w1:p1 [--cols N --rows N]`,記錄每個 full frame 的 `width`／`height`,最後送 `{"type":"terminal.release"}` |
+| 腳本 | scratchpad `h357/h.py`(驅動)、`t2.py`～`t5.py`(閒置、observe 裁切、split、alternate screen、observe + 電腦改視窗);未進 repo |
+| 未涵蓋 | 沒有經過 SSH(本機沒有 sshd)與主機服務;兩者都只是轉呼叫同一個 CLI(見「SSH 與 HTTPS」),【推論】行為相同 |
+
+#### 1. Pane 原本的尺寸怎麼查【實測】
+
+電腦 client 160×50,單一 Pane:
+
+```
+[desktop baseline] area=134x49 rect=134x49 viewport_rows=49 | stty rows=49 cols=133
+```
+
+- 左側 sidebar 占 26 欄、狀態列 1 列，所以 layout 是 134×49。
+- **`rect.width` 不是 PTY 欄數**:PTY 是 133 欄。差的 1 欄是 scrollbar gutter。
+- split 成左右兩個 Pane 後:`rect` 67×49,PTY `stty rows=47 cols=64`(邊框左右 2 欄、上下 2 列，再加 gutter 1 欄);`viewport_rows` 是 47。
+- 同一個 split Pane 進 alternate screen 時欄數變 65、離開回 64(`47 64` → `47 65` → `47 64`)。
+- 【原始碼】`src/ui/panes.rs`:PTY = `rect` 扣掉邊框(`pane_borders`、`pane_gaps`、`pane_outer_borders`,只在多 Pane 或設定為 always 時有)再扣 scrollbar gutter 1 欄(`pane_scrollbars = true` **且不在 alternate screen**,寬度 ≤ 4 時不扣)。
+- **列數有精確來源**:`panes[].scroll.viewport_rows`(snapshot、`pane list`、`pane get` 都有)就是 PTY 列數(上面 49、47;controller 接上 50×30 期間變成 30)。
+- **欄數沒有 API**:`herdr api schema --json` 裡跟尺寸有關的欄位只有 `height`、`width`(layout 的 rect)、`viewport_row(s)`;`pane get`、`pane process-info`、`pane read` 都不帶欄數。只能從 `rect.width` 依上面規則推算，推算結果受主機設定與 alternate screen 影響。
+- 沒有電腦 client(headless)時，layout 是設定的 headless 尺寸(預設 120×40,`config.rs` `DEFAULT_HEADLESS_COLS/ROWS`),PTY 起始是 119×40(扣 gutter)。
+
+#### 2. 以 Purrdr 現在的方式接上(手機尺寸 50×30)【實測】
+
+```
+[before]           area=134x49 rect=134x49 viewport_rows=49 | stty rows=49 cols=133
+$ herdr --session purrdr-357-test terminal session control w1:p1 --cols 50 --rows 30
+[after handshake]  full frames (w,h,t_ms)=[(50, 30, 245)]
+[during]           area=134x49 rect=134x49 viewport_rows=30 | stty rows=30 cols=50
+[final]            terminal.closed reason=detached
+[after release]    area=134x49 rect=134x49 viewport_rows=49 | stty rows=49 cols=133
+```
+
+- **接上就變成 50×30**,不需要任何 `terminal.resize`。第一個 full frame 是 50×30(不是 Pane 原尺寸),所以文件待驗證第 2 項不成立。
+- layout `rect` 不變(電腦上框的大小不變，裡面的程式畫成 50×30)。
+- 不送 resize 閒置 6 秒，一直維持 50×30(t≈1、3、6 秒都是 `stty rows=30 cols=50`,沒有額外 full frame)。
+- release 後回到電腦 layout 的 133×49。
+- 【原始碼】`src/server/headless.rs` `attach_terminal_client`:接上時無條件 `runtime.resize(rows, cols, …)`,並把 terminal 加進 `direct_attach_resize_locks`;`src/ui/panes.rs` 的版面重算對鎖住的 terminal 跳過 resize。
+
+#### 3. 不帶 `--cols`／`--rows`【實測】
+
+```
+$ herdr --session purrdr-357-test terminal session control w1:p1
+[after handshake]  full frames (w,h,t_ms)=[(120, 40, 16)]
+[during]           area=134x49 rect=134x49 viewport_rows=40 | stty rows=40 cols=120
+[after release]    area=134x49 rect=134x49 viewport_rows=49 | stty rows=49 cols=133
+```
+
+- **變成 120×40**,不是 Pane 原尺寸。【原始碼】`src/cli.rs`:CLI 自己預設 `cols = 120`、`rows = 40` 再送給 server,server 分不出「沒帶」。
+- `observe` 不帶尺寸時 frame 也是 120×40。
+
+#### 4. 帶 Pane 原本的欄列數【實測】
+
+```
+$ … control w1:p1 --cols 133 --rows 49
+[after handshake]  full frames (w,h,t_ms)=[(133, 49, 249)]
+[during]           area=134x49 rect=134x49 viewport_rows=49 | stty rows=49 cols=133
+[after release]    area=134x49 rect=134x49 viewport_rows=49 | stty rows=49 cols=133
+```
+
+- **完全一致時 Pane 不變**,第一個 full frame 就是 133×49。
+- 用 `rect` 直接當欄數(134×49)會差 1 欄:接上期間 `stty rows=49 cols=134`,release 後回 133。所以要扣 gutter。
+- 接上期間不送 resize,Pane 維持(見第 2 項的閒置測試，機制相同)。
+- **鎖住的副作用**:接上 133×49 後電腦把視窗改成 140×44 → layout 變 114×43,但 PTY 仍是 `stty rows=49 cols=133`;controller 收到一個 133×49 的 full frame(尺寸沒變)。release 後 Pane 才變成 113×43。所以「保留」只保留接上那一刻的尺寸，接上期間電腦改版面不會生效。
+- **離開後是否恢復，取決於電腦上有沒有開著 herdr client**:
+  - 有 client:release 後回到電腦 layout 的尺寸(上面每個情境都是)。
+  - 沒有 client(headless):**不恢復**,停在最後一個 controller 的尺寸:
+    ```
+    [before]        area=120x40 rect=120x40 viewport_rows=40 | stty rows=40 cols=119
+    $ … control w1:p1 --cols 50 --rows 30
+    [after release] area=120x40 rect=120x40 viewport_rows=30 | stty rows=30 cols=50
+    ```
+    下一個不帶尺寸的 control 把它改成 120×40,release 後也停在 120×40。電腦 client 關掉時同樣不會改回(`desktop detached` 後仍是 `stty rows=49 cols=133` 或上次的值)。這時 `rect` 是 headless 的 120×40,與 PTY 無關;`viewport_rows` 仍是真的 PTY 列數(30)。
+
+#### 5. 觀察模式(observe)【實測】
+
+```
+$ … observe w1:p1 --cols 50 --rows 30
+[after handshake]  full frames (w,h,t_ms)=[(50, 30, 248)]
+[during]           area=134x49 rect=134x49 viewport_rows=49 | stty rows=49 cols=133
+```
+
+- **observe 不改、不鎖 Pane 尺寸**。接著電腦改視窗為 140×44:Pane 照常變成 113×43,observer(viewport 133×49)收到一個 full frame,尺寸仍是自己的 133×49。
+- observer 的 viewport 比 Pane 小時**從左上角裁切**:Pane 133×49 畫滿 132 個 `L` + `R`、46 行 `rowN`、最後一行 `BOTTOM`;50×30 的 observer 只看到 50 個 `L`、`row1`～`row29`,沒有 `R` 與 `BOTTOM`(游標所在的底部看不到)。viewport 等於或大於 Pane(133×49、160×60)時內容完整。
+- observe 的 stdin 不讀(前面「接管與 observer」已實測),所以不能打字;也不能送 `terminal.resize` 改 viewport。
+- 【原始碼】`observe_terminal_client` 只設 `TerminalObserve` 模式，不呼叫 `runtime.resize`、不加 resize lock。
+- herdr 0.9.5 沒有其他接法:`terminal attach`(只有 `--takeover`)與 `agent attach` 都是 direct attach,同樣走 `attach_terminal_client` 改尺寸。
+
+#### 6. 外部參考【原始碼】
+
+- herdrchat:Pane 終端機是在 PTY 裡跑 `herdr agent attach <pane>`,PTY 尺寸取自畫面第一次 `onSizeChange`(`modules/herdr-ssh/README.md`:`cols: 80, rows: 24, // from the view's first onSizeChange`),一律用手機尺寸，沒有保留電腦版面的做法。
+- Heeler(Windows 路線):`terminal session control <target> --cols <view> --rows <view>`,同樣帶畫面尺寸(`Sources/Heeler/Transport/HeelerSSHTransport.swift`)。它的相容性紀錄(`docs/agents/herdr-compatibility.md`,herdr 0.9.3)也記到:headless Pane 起始 120×40,client 接上後 Pane 變成 client 的尺寸，離開後保留(40×30 接上後一直是 40×30)——與上面第 4 項的 headless 結果一致。
+
+#### SSH 與 HTTPS
+
+- SSH:`HerdrCommand.terminalSessionControl` 組 `terminal session control '<target>' --cols N --rows N`,行為即上面的實測。
+- HTTPS:協定 `pane.terminal.open` 的 `columns`、`rows` 是**必填**(`vendor/purrdr-host/protocol/host-service.schema.json`,主機服務 0.9.0);主機服務 `host-service/service/src/pane_terminal.rs` 照樣轉成 `--cols`／`--rows` 給 `control`(唯讀裝置給 `observe`)。所以 HTTPS 也是「帶什麼就鎖成什麼」;就算協定改成可省略，herdr 也只會變成 120×40,**省略尺寸不是解法**。
+- 唯讀裝置(主機服務以 observe 接上)本來就不改電腦上的尺寸;它要的是 viewport 不小於 Pane,否則從左上角裁切、看不到底部。
+
+#### 對 #357 的建議
+
+1. **handshake 帶 Pane 目前的 PTY 尺寸**(保留模式；SSH 與 HTTPS 相同，HTTPS 以 `pane.terminal.open` 的 `columns`／`rows` 帶):
+   - 列數 = 開啟前從 snapshot(或 `pane.get`)讀到的 `scroll.viewport_rows`,精確。
+   - 欄數 = 對應 layout 的 `rect.width` 推算:單一 Pane、預設設定扣 1(gutter);多 Pane 另扣左右邊框。推算可能差 1～2 欄(主機改過 `pane_borders`／`pane_gaps`／`pane_outer_borders`／`pane_scrollbars`,或 Pane 正在 alternate screen 時不扣 gutter),差多少 PTY 就變多少。【推論】差 1 欄對多數 TUI 只是重排一次，可接受;要精確只能等 herdr 提供欄數(可向上游提)。
+   - 列數也可以用 `rect.height` 減邊框交叉核對;兩者不一致時以 `viewport_rows` 為準。
+   - **headless 主機(電腦沒開 herdr client)不能用 `rect`**:它是 120×40 的 headless 尺寸，與 PTY 無關(上一支手機留下的尺寸)。【推論】這時「電腦版面」不存在，保留模式可直接用手機尺寸，或至少用 `viewport_rows` 加一個合理欄數;判斷方式可比對 `viewport_rows` 與 `rect.height`(headless 時 rect 恆為設定的 headless 尺寸)。
+2. **接上期間不送 `terminal.resize`**(現行做法正確),顯示格數以 full frame 的 `width`／`height` 為準。
+3. 電腦端接上期間改視窗不會生效(Pane 被鎖住),controller 只收到一個尺寸不變的 full frame。若要跟著電腦版面，需要偵測 layout 變化(`layout.updated` 事件或重讀 snapshot)後自己送 `terminal.resize` 成新的 PTY 尺寸——這會變成「主動跟隨」而不是「不碰」;或在 UI 說明「接上期間電腦上的 Pane 尺寸固定」。
+4. **真正不碰電腦尺寸的替代方案**:以 `observe`(viewport = 推算出的 Pane 尺寸或更大)看畫面，輸入改走 herdr API 的 `pane.send_text`／`pane.send_keys`(不需要 attach 擁有權)。observe 不鎖、不改尺寸，電腦改版面會即時生效;代價是捲動、滑鼠、`page_key` 等只在 control 串流上的訊息沒有，且 viewport 固定(Pane 變大時從左上裁切，要重開 observe)。HTTPS 需要主機服務讓非唯讀裝置也能選 observe(協定加欄位)。
+5. 待驗證：經真正的 SSH 與主機服務各跑一次第 2、4 項(預期相同);電腦 client 停在**別的** workspace／tab 時，目標 Pane 的 PTY 尺寸與 `rect` 的關係(本次只測了顯示中的 tab)。
+
+#### app 的做法(#357)
+
+- 保留電腦版面時 handshake 帶 Pane 目前的尺寸:列數取 snapshot 的 `panes[].scroll.viewport_rows`,欄數由 layout 的 `rect.width` 推算(多 Pane 扣左右邊框各 2 欄、不在 alternate screen 扣 scrollbar 1 欄)。換算規則是核心的 `HostSnapshot.nativeSize(ofPane:isAlternateScreen:)`,案例就是上面的實測數字(`PaneNativeSizeTests`)。app 目前不知道 Pane 是否在 alternate screen,一律當成不在(最多差 1 欄,TUI 只是重排一次)。
+- 電腦沒開 herdr(headless)時 layout 恆為 120×40、與 PTY 無關,換算回 `nil`,退回手機的格數,並在大小 sheet 的 footer 說明(`PaneTerminalModel.keepDesktopFallback`)。
+- 接上期間不送 `terminal.resize`;電腦端在接上期間改視窗不會生效(Pane 被鎖住),sheet 的 footer 也說明。
+- 唯讀裝置(observe)同樣帶推算出的尺寸,viewport 才不會比 Pane 小而被從左上角裁切。
+- 尚未驗證:經真正的 SSH 與主機服務各跑一次;電腦 client 停在別的 workspace／tab 時的 `rect` 與 PTY 關係。

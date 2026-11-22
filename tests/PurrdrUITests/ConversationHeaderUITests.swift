@@ -6,97 +6,83 @@ final class ConversationHeaderUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    @MainActor
-    private func open(paneID: String) -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting()
-        let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
-        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        row.tap()
-        return app
-    }
-
-    @MainActor
-    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)[identifier].firstMatch
-    }
-
     /// 標題列(#270,原型 purrdr-screens 定案版):標題是 workspace 名稱，下一行是狀態與主機名;右邊只有終端機鈕，
     /// 沒有重新載入(改成下拉重新整理)。不在工作中沒有停止列。
     @MainActor
     func testHeaderShowsWorkspaceStatusAndHost() {
-        let app = open(paneID: "w1:p1")
-        XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10))
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
+        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))
 
         XCTAssertTrue(app.navigationBars.staticTexts["ledger"].firstMatch.exists, "標題不是 workspace 名稱")
-        let header = element("conversation.header", in: app)
-        XCTAssertTrue(header.waitForExistence(timeout: 5), "標題下沒有資訊行")
-        XCTAssertEqual(header.label, "Done, Demo", "資訊行應只有狀態與主機名")
-        XCTAssertFalse(element("conversation.reload", in: app).exists, "標題列不該再有重新載入")
-        XCTAssertFalse(element("stopBar", in: app).exists, "不在工作中不該有停止列")
+        let header = app.element("conversation.header")
+        XCTAssertTrue(header.waitUntilExists(timeout: 5), "標題下沒有資訊行")
+        XCTAssertEqual(header.label, "Done, Demo, 10%", "資訊行應只有狀態、主機名與 context 百分比(待辦在狀態 sheet，#349)")
+        XCTAssertFalse(app.element("conversation.reload").exists, "標題列不該再有重新載入")
+        XCTAssertFalse(app.element("stopBar").exists, "不在工作中不該有停止列")
 
         // 下拉重新整理：重讀後對話仍在。
         let list = app.scrollViews.firstMatch
         list.swipeDown()
         list.swipeDown()
-        XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "下拉重新整理後沒有重讀對話")
+        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10), "下拉重新整理後沒有重讀對話")
     }
 
     /// 工作中(#220):輸入卡片最上面有停止列，送出鈕照舊。
     /// 點停止送 Esc:停止中按鈕念「Stopping…」且停用，停下後顯示「Stopped」,約 2 秒後停止列收起、工作中指示消失。
     @MainActor
     func testWorkingAgentStopsFromStopBar() {
-        let app = open(paneID: "w3:p1")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w3:p1")
 
-        let working = element("conversation.working", in: app)
-        XCTAssertTrue(working.waitForExistence(timeout: 10), "工作中沒有指示")
-        XCTAssertTrue(element("conversation.header", in: app).label.hasPrefix("Working"))
-        XCTAssertFalse(element("conversation.stop", in: app).exists, "標題列不該再有停止")
-        XCTAssertTrue(element("composer.send", in: app).exists, "送出鈕應該維持原樣")
+        let working = app.element("conversation.working")
+        XCTAssertTrue(working.waitUntilExists(timeout: 10), "工作中沒有指示")
+        XCTAssertTrue(app.element("conversation.header").label.hasPrefix("Working"))
+        XCTAssertFalse(app.element("conversation.stop").exists, "標題列不該再有停止")
+        XCTAssertTrue(app.element("composer.send").exists, "送出鈕應該維持原樣")
 
-        let stop = element("stopBar.stop", in: app)
-        XCTAssertTrue(stop.waitForExistence(timeout: 5), "工作中沒有停止列的停止鈕")
+        let stop = app.element("stopBar.stop")
+        XCTAssertTrue(stop.waitUntilExists(timeout: 5), "工作中沒有停止列的停止鈕")
         XCTAssertEqual(stop.label, "Stop Codex")
         stop.tap()
 
-        let stopping = element("stopBar.stopping", in: app)
+        let stopping = app.element("stopBar.stopping")
         // 停止中不到 1 秒，waitForExistence 第一次檢查就要等約 1 秒：直接查。
         XCTAssertTrue(stopping.exists, "按下後沒有顯示停止中")
         XCTAssertFalse(stopping.isEnabled, "停止中應該停用")
 
-        let result = element("stopBar.result", in: app)
-        XCTAssertTrue(result.waitForExistence(timeout: 10), "停下後沒有顯示結果")
+        let result = app.element("stopBar.result")
+        XCTAssertTrue(result.waitUntilExists(timeout: 10), "停下後沒有顯示結果")
         XCTAssertTrue(result.label.contains("Stopped"), "結果應該是已停止：\(result.label)")
-        XCTAssertTrue(element("stopBar", in: app).waitForNonExistence(timeout: 6), "已停止沒有自動收起")
-        XCTAssertTrue(working.waitForNonExistence(timeout: 5), "停下後指示沒有消失")
+        XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 6), "已停止沒有自動收起")
+        XCTAssertTrue(working.waitUntilGone(timeout: 5), "停下後指示沒有消失")
     }
 
     /// 長按停止鈕開出選單，「Force Quit…」要先在確認對話框確認才送 Ctrl-C。
     @MainActor
     func testForceQuitFromLongPressNeedsConfirmation() {
-        let app = open(paneID: "w3:p1")
-        let stop = element("stopBar.stop", in: app)
-        XCTAssertTrue(stop.waitForExistence(timeout: 10))
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w3:p1")
+        let stop = app.element("stopBar.stop")
+        XCTAssertTrue(stop.waitUntilExists(timeout: 10))
 
         stop.press(forDuration: 1.0)
         let menuItem = app.buttons["Force Quit…"]
-        XCTAssertTrue(menuItem.waitForExistence(timeout: 5), "長按沒有強制結束的選項")
+        XCTAssertTrue(menuItem.waitUntilExists(timeout: 5), "長按沒有強制結束的選項")
         menuItem.tap()
 
         let confirm = app.buttons["stopBar.forceQuit.confirm"].firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "強制結束沒有先確認")
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "強制結束沒有先確認")
         XCTAssertTrue(app.staticTexts["Force Quit Codex?"].exists, "確認對話框標題不對")
         confirm.tap()
 
-        XCTAssertTrue(element("conversation.working", in: app).waitForNonExistence(timeout: 15), "強制結束後仍在工作")
-        XCTAssertTrue(element("stopBar", in: app).waitForNonExistence(timeout: 10), "強制結束後停止列還在")
+        XCTAssertTrue(app.element("conversation.working").waitUntilGone(timeout: 15), "強制結束後仍在工作")
+        XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 10), "強制結束後停止列還在")
     }
 
     /// 「需要你」的 agent 永不中斷：沒有停止列。
     @MainActor
     func testNeedsYouAgentHasNoStopBar() {
-        let app = open(paneID: "w2:p1")
-        XCTAssertTrue(element("conversation.header", in: app).waitForExistence(timeout: 10))
-        XCTAssertTrue(element("conversation.header", in: app).label.hasPrefix("Needs"), "應該是需要你")
-        XCTAssertFalse(element("stopBar", in: app).exists, "需要你不該有停止列")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
+        XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.element("conversation.header").label.hasPrefix("Needs"), "應該是需要你")
+        XCTAssertFalse(app.element("stopBar").exists, "需要你不該有停止列")
     }
 }
