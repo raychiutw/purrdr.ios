@@ -24,34 +24,38 @@ struct HostOverviewView: View {
 
     var body: some View {
         List {
-            HostStatusRow(overview: overview, retry: retry, pair: pair, update: { if let hostID { openRoute(.edit(hostID)) } })
-            if overview.showsUsage, let usage {
-                UsageSectionContainer(host: overview.host, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false)
-                    .id(overview.host)
-            }
-            if overview.showsHostService, let hostID, let models = statusCache.models(for: hostID, hosts: hosts) {
-                hostService(hostID, models)
-            }
-            if overview.status == .demo {
-                demoSections
-            } else {
-                thisHostSection
-                if let hostID {
+            Group {
+                HostStatusRow(overview: overview, retry: retry, pair: pair, update: { if let hostID { openRoute(.edit(hostID)) } })
+                if overview.showsUsage, let usage {
+                    UsageSectionContainer(host: overview.host, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false)
+                        .id(overview.host)
+                }
+                if overview.showsHostService, let hostID, let models = statusCache.models(for: hostID, hosts: hosts) {
+                    hostService(hostID, models)
+                }
+                if overview.status == .demo {
+                    demoSections
+                } else {
+                    thisHostSection
+                    if let hostID {
+                        Section {
+                            Button("Remove Host", role: .destructive) { removeHost(hostID) }
+                                .frame(maxWidth: .infinity)
+                                .accessibilityIdentifier("hosts.delete")
+                        }
+                    }
+                }
+                if let message = actionError ?? hosts.loadError {
                     Section {
-                        Button("Remove Host", role: .destructive) { removeHost(hostID) }
-                            .frame(maxWidth: .infinity)
-                            .accessibilityIdentifier("hosts.delete")
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
+                            .accessibilityIdentifier("hosts.error")
                     }
                 }
             }
-            if let message = actionError ?? hosts.loadError {
-                Section {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(.secondaryText)
-                        .accessibilityIdentifier("hosts.error")
-                }
-            }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392、設計稿第 15 組)。
+            .listRowBackground(AppSurface.groupedRow)
         }
         .appGroupedList()
         .accessibilityIdentifier("sheet.hosts")
@@ -159,14 +163,14 @@ struct HostOverviewView: View {
             .accessibilityIdentifier("hosts.notifications")
         } else {
             Button(action: openPlus) {
+                // 設計稿第 28 組:標題下一行寫原因,鎖頭在列的最右邊。
                 HStack {
-                    Text("Notifications")
-                    Spacer()
-                    Label("Needs Purrdr Plus", systemImage: "lock.fill")
+                    HostRowLabel(title: "Notifications", subtitle: "Needs Purrdr Plus")
+                    Spacer(minLength: 8)
+                    Image(systemName: "lock.fill")
                         .font(.subheadline)
                         .foregroundStyle(.secondaryText)
                 }
-                .frame(minHeight: 44)
             }
             .foregroundStyle(.primary)
             .accessibilityElement(children: .ignore)

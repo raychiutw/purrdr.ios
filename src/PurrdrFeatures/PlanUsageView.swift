@@ -16,35 +16,39 @@ public struct PlanUsageView: View {
 
     public var body: some View {
         List {
-            Section {
-                Picker("Host", selection: hostSelection) {
-                    ForEach(model.hosts) { option in
-                        HostMenuLabel(option.name, icon: option.icon).tag(option.id)
+            Group {
+                Section {
+                    Picker("Host", selection: hostSelection) {
+                        ForEach(model.hosts) { option in
+                            HostMenuLabel(option.name, icon: option.icon).tag(option.id)
+                        }
                     }
+                    .accessibilityIdentifier("planUsage.host")
+                } footer: {
+                    costNote
                 }
-                .accessibilityIdentifier("planUsage.host")
-            } footer: {
-                costNote
-            }
-            // Agent 攤開成勾選列(#313);已用／剩餘是全域偏好,在設定 tab(#393)。
-            Section {
-                Picker("Agent", selection: agentSelection) {
-                    ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
-                        Text(verbatim: agent.name).tag(agent)
+                // Agent 攤開成勾選列(#313);已用／剩餘是全域偏好,在設定 tab(#393)。
+                Section {
+                    Picker("Agent", selection: agentSelection) {
+                        ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
+                            Text(verbatim: agent.name).tag(agent)
+                        }
                     }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                    .accessibilityIdentifier("planUsage.agent")
+                } header: {
+                    Text("Agent")
+                        .foregroundStyle(.secondaryText)
                 }
-                .pickerStyle(.inline)
-                .labelsHidden()
-                .accessibilityIdentifier("planUsage.agent")
-            } header: {
-                Text("Agent")
-                    .foregroundStyle(.secondaryText)
+                Section {
+                    content
+                } footer: {
+                    footnote
+                }
             }
-            Section {
-                content
-            } footer: {
-                footnote
-            }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+            .listRowBackground(AppSurface.groupedRow)
         }
         .appGroupedList()
         .navigationTitle("Plan Usage")

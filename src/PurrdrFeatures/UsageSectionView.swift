@@ -65,7 +65,7 @@ struct UsageSectionView: View {
                     .frame(minHeight: 44, alignment: .leading)
                     .accessibilityIdentifier("usage.unsupported")
             } else {
-                ForEach(model.entries) { entry in
+                ForEach(visibleEntries) { entry in
                     entryContent(entry)
                 }
             }
@@ -77,6 +77,21 @@ struct UsageSectionView: View {
                     if scenePhase == .active { model.appeared() } else { model.disappeared() }
                 }
                 .onDisappear { model.disappeared() }
+        }
+    }
+
+    /// 主機連不上又沒讀過資料時(讀取失敗),「啟用用量顯示」沒有意義(也進不了同意流程),且各 Agent 的錯誤文字相同:
+    /// 只留一則錯誤說明,不同時顯示「啟用」與錯誤。
+    private var visibleEntries: [UsageSectionModel.Entry] {
+        let entries = model.entries
+        guard entries.contains(where: { if case .failed = $0.state { true } else { false } }) else { return entries }
+        var seenFailureTexts = Set<String>()
+        return entries.filter { entry in
+            switch entry.state {
+            case .needsEnable: false
+            case .failed(let failure): seenFailureTexts.insert(failure.text).inserted
+            default: true
+            }
         }
     }
 

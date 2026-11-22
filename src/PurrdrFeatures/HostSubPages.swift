@@ -17,21 +17,25 @@ struct HostNotificationsPage: View {
 
     var body: some View {
         List {
-            if let push {
-                switchSection(push)
-                if push.support == .supported, push.model.state == .on {
-                    kindsSection(push)
-                    if push.model.canSendTestNotification, push.supportsTestNotification {
-                        Section { HostPushTestRow(push: push) }
+            Group {
+                if let push {
+                    switchSection(push)
+                    if push.support == .supported, push.model.state == .on {
+                        kindsSection(push)
+                        if push.model.canSendTestNotification, push.supportsTestNotification {
+                            Section { HostPushTestRow(push: push) }
+                        }
+                    }
+                    if case .needsHostService(_, let update) = push.support {
+                        Section { HostServicePushUpdateRow(update: update) }
+                    }
+                    if push.support == .supported, let problem = push.model.problem, problem.needsOwnRow {
+                        Section { problemRow(problem, push) }
                     }
                 }
-                if case .needsHostService(_, let update) = push.support {
-                    Section { HostServicePushUpdateRow(update: update) }
-                }
-                if push.support == .supported, let problem = push.model.problem, problem.needsOwnRow {
-                    Section { problemRow(problem, push) }
-                }
             }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+            .listRowBackground(AppSurface.groupedRow)
         }
         .appGroupedList()
         .navigationTitle("Notifications")
@@ -187,21 +191,25 @@ struct HostSettingsPage: View {
 
     var body: some View {
         List {
-            HostThemeSettingsSection(model: settings.hostTheme)
-            YouShouldKnowSettingsSection(model: settings.youShouldKnow)
-            CodexLauncherSection(model: settings.codexLauncher)
-            Section {
-                // 用量擷取的啟用與還原(經同意修改主機上 Claude Code 的 status line 設定,可完整還原)。
-                NavigationLink {
-                    PlanUsageScreen(model: hosts.planUsage(host: .host(hostID), agent: .claudeCode))
-                } label: {
-                    HostRowLabel(title: "Usage Capture")
+            Group {
+                HostThemeSettingsSection(model: settings.hostTheme)
+                YouShouldKnowSettingsSection(model: settings.youShouldKnow)
+                CodexLauncherSection(model: settings.codexLauncher)
+                Section {
+                    // 用量擷取的啟用與還原(經同意修改主機上 Claude Code 的 status line 設定,可完整還原)。
+                    NavigationLink {
+                        PlanUsageScreen(model: hosts.planUsage(host: .host(hostID), agent: .claudeCode))
+                    } label: {
+                        HostRowLabel(title: "Usage Capture")
+                    }
+                    .accessibilityIdentifier("hosts.settings.usageCapture")
+                } footer: {
+                    Text("These features write settings on the host. Each can be fully put back.")
+                        .foregroundStyle(.secondaryText)
                 }
-                .accessibilityIdentifier("hosts.settings.usageCapture")
-            } footer: {
-                Text("These features write settings on the host. Each can be fully put back.")
-                    .foregroundStyle(.secondaryText)
             }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+            .listRowBackground(AppSurface.groupedRow)
         }
         .appGroupedList()
         .navigationTitle("Settings for This Host")
@@ -219,7 +227,11 @@ struct HostPairedDevicesPage: View {
 
     var body: some View {
         List {
-            PairedDevicesSection(model: model)
+            Group {
+                PairedDevicesSection(model: model)
+            }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+            .listRowBackground(AppSurface.groupedRow)
         }
         .appGroupedList()
         .navigationTitle("Paired Devices")

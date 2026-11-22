@@ -22,6 +22,12 @@ struct PlusCardView: View {
                             .foregroundStyle(.orange)
                             .accessibilityHidden(true)
                     }
+                    if case .active = card.kind {
+                        // 設計稿第 27 組:已開通的標題前有綠色打勾圖示。
+                        Image(systemName: "checkmark.circle")
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityHidden(true)
+                    }
                     Text(title)
                         .font(.headline)
                 }
@@ -158,11 +164,16 @@ struct LockedFeatureRow: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                    Label(reason.shortText, systemImage: "lock.fill")
+                    Text(reason.shortText)
                         .font(.subheadline)
                         .foregroundStyle(.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // 設計稿第 27 組:鎖頭在列的最右邊。
+                Image(systemName: "lock.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityHidden(true)
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())

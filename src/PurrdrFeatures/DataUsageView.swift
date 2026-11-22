@@ -389,18 +389,22 @@ private struct DataUsageHostSheet: View {
             let detail = model.detail(forHost: hostID)
             let row = model.hostRows.first { $0.id == hostID }
             List {
-                Section {
-                    LabeledContent("Received", value: DataUsageFormat.bytes(detail?.received ?? 0))
-                    LabeledContent("Sent", value: DataUsageFormat.bytes(detail?.sent ?? 0))
-                    LabeledContent("Cellular", value: DataUsageFormat.bytes(detail?.cellular ?? 0))
-                } header: {
-                    Text(model.period.hostsHeader).foregroundStyle(.secondaryText)
+                Group {
+                    Section {
+                        LabeledContent("Received", value: DataUsageFormat.bytes(detail?.received ?? 0))
+                        LabeledContent("Sent", value: DataUsageFormat.bytes(detail?.sent ?? 0))
+                        LabeledContent("Cellular", value: DataUsageFormat.bytes(detail?.cellular ?? 0))
+                    } header: {
+                        Text(model.period.hostsHeader).foregroundStyle(.secondaryText)
+                    }
+                    Section {
+                        LabeledContent("Total", value: DataUsageFormat.bytes(detail?.thirtyDayTotal ?? 0))
+                    } header: {
+                        Text("Last 30 Days").foregroundStyle(.secondaryText)
+                    }
                 }
-                Section {
-                    LabeledContent("Total", value: DataUsageFormat.bytes(detail?.thirtyDayTotal ?? 0))
-                } header: {
-                    Text("Last 30 Days").foregroundStyle(.secondaryText)
-                }
+                // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+                .listRowBackground(AppSurface.groupedRow)
             }
             .appGroupedList()
             .monospacedDigit()
