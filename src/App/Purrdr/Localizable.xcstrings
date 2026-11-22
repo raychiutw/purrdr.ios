@@ -604,6 +604,17 @@
         }
       }
     },
+    "%lld running" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個執行中"
+          }
+        }
+      }
+    },
     "%lld s" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1986,6 +1997,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法開啟。"
+          }
+        }
+      }
+    },
+    "Can’t reach the host, so the mode can’t be changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連不上主機,所以無法切換模式。"
           }
         }
       }
@@ -4271,6 +4293,17 @@
         }
       }
     },
+    "Extra High" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超高"
+          }
+        }
+      }
+    },
     "Failed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4751,6 +4784,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱藏結果"
+          }
+        }
+      }
+    },
+    "High" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高"
           }
         }
       }
@@ -5847,6 +5891,17 @@
         }
       }
     },
+    "Low" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低"
+          }
+        }
+      }
+    },
     "Mac" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5946,6 +6001,17 @@
         }
       }
     },
+    "Max" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最高"
+          }
+        }
+      }
+    },
     "May Be Stuck" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5953,6 +6019,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可能卡住"
+          }
+        }
+      }
+    },
+    "Medium" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中"
           }
         }
       }
@@ -7317,17 +7394,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟模型清單。"
-          }
-        }
-      }
-    },
-    "Opens the list of modes." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟模式清單。"
           }
         }
       }
@@ -9554,6 +9620,17 @@
         }
       }
     },
+    "Shows context and permission mode." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示 context 與權限模式。"
+          }
+        }
+      }
+    },
     "Shows the background agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10645,6 +10722,17 @@
         }
       }
     },
+    "The agent is waiting for your reply. Answer first, then change the mode." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 正在等你回覆。先回答,再切換模式。"
+          }
+        }
+      }
+    },
     "The agent is working. Its reply will appear here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11389,6 +11477,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置以唯讀方式與主機服務配對，無法在這台主機開啟通知。"
+          }
+        }
+      }
+    },
+    "This device is paired read-only, so it can’t change the mode." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置是唯讀配對,無法切換模式。"
           }
         }
       }
@@ -12259,6 +12358,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天"
+          }
+        }
+      }
+    },
+    "Todos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待辦"
           }
         }
       }

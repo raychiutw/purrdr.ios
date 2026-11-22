@@ -7,6 +7,8 @@ import SwiftUI
 struct ModelCapsule: View {
     let model: ConversationModel
 
+    static let height: Double = 34
+
     @State private var isPresented = false
 
     private var title: String { model.modelName ?? String(localized: "Model") }
@@ -27,7 +29,7 @@ struct ModelCapsule: View {
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 12)
-            .frame(height: PermissionModeCapsule.height)
+            .frame(height: Self.height)
         }
         .composerSecondaryButtonStyle()
         .buttonBorderShape(.capsule)
@@ -44,7 +46,7 @@ struct ModelCapsule: View {
 }
 
 /// 模型選擇 sheet:勾選列攤開 `/model` 面板的選項;面板還沒出現時轉圈。
-private struct ModelSheet: View {
+struct ModelSheet: View {
     let model: ConversationModel
     @Environment(\.dismiss) private var dismiss
 

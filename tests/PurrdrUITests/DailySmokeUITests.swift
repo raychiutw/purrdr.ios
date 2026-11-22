@@ -75,14 +75,17 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("conversation.shell").waitUntilExists(timeout: 15), "對話紀錄沒有接上 shell 區塊")
             app.dismissKeyboard()
         }
-        step("權限膠囊") {
-            let capsule = app.element("composer.permissionMode")
-            XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有權限模式膠囊")
-            capsule.tap()
+        step("標題面板與權限模式") {
+            let header = app.element("conversation.header")
+            XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
+            header.tap()
+            XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
             let accept = app.buttons["Accept Edits"].firstMatch
-            XCTAssertTrue(accept.waitUntilExists(timeout: 10), "sheet 裡沒有 Accept Edits")
+            XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits")
             accept.tap()
-            XCTAssertTrue(capsule.wait(for: NSPredicate(format: "value == 'Accept Edits'"), timeout: 10), "沒有切換成 Accept Edits")
+            XCTAssertTrue(accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Accept Edits")
+            app.buttons["Done"].tap()
+            XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "面板沒有關閉")
         }
         step("變更頁") {
             app.conversationMoreItem("changes.open").tap()

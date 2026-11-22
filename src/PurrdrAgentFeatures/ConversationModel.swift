@@ -1845,6 +1845,24 @@ public final class ConversationModel {
     /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
     public var modelName: String? { metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
 
+    /// 面板「模型」列的值:「Opus 5.5 · 中」;沒有 effort 時只有模型名,還沒讀到是 `nil`。
+    public var modelSummary: String? {
+        guard let name = modelName else { return nil }
+        guard let effort = metadata.effort.flatMap(Self.effortName(of:)) else { return name }
+        return "\(name) · \(effort)"
+    }
+
+    static func effortName(of level: String) -> String? {
+        switch level.lowercased() {
+        case "low": String(localized: "Low")
+        case "medium": String(localized: "Medium")
+        case "high": String(localized: "High")
+        case "xhigh": String(localized: "Extra High")
+        case "max": String(localized: "Max")
+        default: level.isEmpty ? nil : level
+        }
+    }
+
     /// 模型選擇 sheet 開著(從送出 `/model` 到選定或取消)。畫面據此不在對話裡重複畫同一張面板卡片。
     public private(set) var isChoosingModel = false
 
@@ -1919,7 +1937,22 @@ public final class ConversationModel {
 
     /// 膠囊可以操作:讀到目前模式、沒在切換、沒離線;唯讀裝置不行(畫面說明)。
     public var canSwitchPermissionMode: Bool {
-        supportsPermissionMode && permissionMode != nil && !isSwitchingPermissionMode && !isReadOnly && !isOffline
+        supportsPermissionMode && permissionMode != nil && !isSwitchingPermissionMode && permissionModeLock == nil
+    }
+
+    /// 面板的權限選項為什麼停用(#380);可切換時是 `nil`。
+    public enum PermissionModeLock: Equatable, Sendable {
+        case readOnlyDevice
+        case offline
+        /// Agent 在等使用者回覆:這時 Shift+Tab 會變成「核准」。
+        case waitingForYou
+    }
+
+    public var permissionModeLock: PermissionModeLock? {
+        if isReadOnly { return .readOnlyDevice }
+        if isOffline { return .offline }
+        if agentStatus == .blocked { return .waitingForYou }
+        return nil
     }
 
     /// 讀一次畫面更新目前模式;認不出沿用上次。
@@ -2062,7 +2095,8 @@ public final class ConversationModel {
     /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
         ConversationHeader(
-            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: progress)
+            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: progress,
+            permissionMode: supportsPermissionMode ? permissionMode : nil)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。

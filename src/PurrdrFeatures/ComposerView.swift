@@ -332,7 +332,6 @@ struct ComposerBar: View {
             }
             if model.supportsPermissionMode && model.typedAnswer == nil {
                 ModelCapsule(model: model)
-                PermissionModeCapsule(model: model)
             }
             Spacer(minLength: 0)
             if isFocused {
