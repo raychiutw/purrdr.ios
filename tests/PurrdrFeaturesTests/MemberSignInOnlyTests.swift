@@ -101,4 +101,31 @@ struct MemberSignInOnlyTests {
         #expect(!model.memberNotFound)
         #expect(model.lastSignIn?.memberCreated == false)
     }
+
+    @Test("登入時後台自動併進同 email 的既有會員(autoLinked):登入成功並提示,不當成新會員")
+    func autoLinkedSignInTellsTheMember() async {
+        backend.on("POST", "/v1/sessions", .json(200, Replies.session(refreshToken: "r", memberCreated: false, autoLinked: true, member: Replies.appleMember)))
+        let model = makeModel()
+        await model.restore()
+
+        _ = model.beginAppleAuthorization(linking: false, joining: false)
+        await model.completeAppleAuthorization(idToken: "t", authorizationCode: "c")
+
+        #expect(model.lastSignIn?.memberCreated == false)
+        #expect(model.lastSignIn?.autoLinked == true)
+        #expect(model.notice == .autoLinked)
+    }
+
+    @Test("一般登入(沒有自動合併):不提示")
+    func plainSignInHasNoNotice() async {
+        backend.on("POST", "/v1/sessions", .json(200, Replies.session(refreshToken: "r", memberCreated: false, member: Replies.appleMember)))
+        let model = makeModel()
+        await model.restore()
+
+        _ = model.beginAppleAuthorization(linking: false, joining: false)
+        await model.completeAppleAuthorization(idToken: "t", authorizationCode: "c")
+
+        #expect(model.lastSignIn?.autoLinked == false)
+        #expect(model.notice == nil)
+    }
 }

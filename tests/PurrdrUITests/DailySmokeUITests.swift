@@ -168,8 +168,8 @@ final class DailySmokeUITests: XCTestCase {
     /// 沒有「⋯」選單;對話隱藏 tab bar、返回後回來。
     @MainActor
     func testTabsAndSignedOutAccount() {
-        // `-uiTestingSignUp`:沒登入,Apple／Google 按鈕直接登入假後台(下面的加入流程用)。
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSignUp"])
+        // `-uiTestingNoMember`:沒登入,Apple／Google 按鈕直接登入假後台;登入頁查無會員(404 member_not_found),加入頁照舊新建(#453)。
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoMember"])
 
         step("沒有「⋯」選單,右上依 tab 不同") {
             XCTAssertTrue(app.buttons["toolbar.newChat"].firstMatch.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天")
@@ -216,8 +216,17 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["account.entry.join"].exists, "沒有「加入會員」")
             XCTAssertFalse(app.buttons["member.signIn.apple"].exists, "選擇前不該先看到 Apple 登入鈕")
         }
+        step("登入頁查無會員:擋下並問要不要加入,確認才進加入流程") {
+            app.buttons["account.entry.signIn"].tap()
+            XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "沒有登入頁")
+            app.buttons["member.signIn.apple"].tap()
+
+            XCTAssertTrue(app.alerts["No Member Found"].waitUntilExists(timeout: 10), "查無會員沒有擋下並詢問")
+            XCTAssertFalse(app.element("account.join.paywall").exists, "查無會員不該直接進加入流程")
+            app.alerts["No Member Found"].buttons["member.notFound.join"].firstMatch.tap()
+        }
         step("加入會員:略過 Plus,通知鎖定,完成頁是會員已建立") {
-            app.buttons["account.entry.join"].tap()
+            // 上一步按了「加入」已在加入第 1 步(不再回選擇頁)。
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "加入第 1 步沒有 Apple 註冊鈕")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
             XCTAssertTrue(app.buttons["member.entry.back"].exists, "第 1 步左上應是返回")

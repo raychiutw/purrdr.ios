@@ -10962,6 +10962,17 @@
         }
       }
     },
+    "Signed In to Your Existing Member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已登入你原有的會員"
+          }
+        }
+      }
+    },
     "Signed Out" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12709,6 +12720,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這次開啟"
+          }
+        }
+      }
+    },
+    "This account uses the same verified email as an existing member, so it now signs in to that member." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個帳號的已驗證 email 與既有會員相同,所以現在會登入那個會員。"
           }
         }
       }

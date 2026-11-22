@@ -13,6 +13,8 @@ public actor MemberSession {
         public var member: Member
         /// 這次登入是否新建了會員。
         public var memberCreated: Bool
+        /// 新身分的已驗證 email 與既有會員相同,後台自動歸到那個會員(`autoLinked`)。
+        public var autoLinked: Bool = false
     }
 
     public struct LinkResult: Sendable, Equatable {
@@ -42,7 +44,7 @@ public actor MemberSession {
     ///   - deviceID: 這支裝置在後台的 id(app 存在 Keychain 的 UUID);登入時帶上,讓後台一支裝置只留一個工作階段。讀不到時回 `nil`,照常登入。
     ///   - diagnostics: 診斷事件(只有結果碼,不含個資)。
     ///   - supportsSignInOnly: 後台是否有「登入不新建會員」選項(`createMember: false`,查無會員回 404 `member_not_found`,#434)。
-    ///     後台目前沒有,預設 `false`:登入照舊(查無會員會新建);後台上線該選項後在 composition root 開啟。
+    ///     後台已上線(purrdr.server#34),composition root 開啟;預設 `false`:登入照舊(查無會員會新建)。
     public init(
         transport: any BackendTransport, tokenStore: any TokenStore, now: @escaping @Sendable () -> Date = { Date() },
         deviceID: @escaping @Sendable () -> String? = { nil }, diagnostics: @escaping MemberDiagnostics = { _ in },
@@ -73,7 +75,7 @@ public actor MemberSession {
         let session = try Wire.decode(Wire.Session.self, from: response)
         try adopt(session)
         diagnostics(.signedIn)
-        return SignInResult(member: try session.member.domain(), memberCreated: session.memberCreated ?? false)
+        return SignInResult(member: try session.member.domain(), memberCreated: session.memberCreated ?? false, autoLinked: session.autoLinked ?? false)
     }
 
     /// 目前登入的會員;沒有登入過時回傳 `nil`。登入已失效時丟 `BackendError.signedOut`。
@@ -368,6 +370,7 @@ private enum Wire {
         var accessTokenExpiresAt: String
         var refreshToken: String
         var memberCreated: Bool?
+        var autoLinked: Bool?
         var member: MemberBody
     }
 

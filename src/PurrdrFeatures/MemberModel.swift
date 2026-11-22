@@ -28,6 +28,8 @@ public final class MemberModel {
         public var id: Int
         /// 後台回報這次登入新建了會員。
         public var memberCreated: Bool
+        /// 後台把這個登入方式自動歸進 email 相同的既有會員。
+        public var autoLinked: Bool = false
     }
 
     public private(set) var lastSignIn: SignInEvent?
@@ -248,7 +250,8 @@ public final class MemberModel {
                 phase = .signedIn(result.member)
                 localState?.activate(result.member)
                 signInCount += 1
-                lastSignIn = SignInEvent(id: signInCount, memberCreated: result.memberCreated)
+                lastSignIn = SignInEvent(id: signInCount, memberCreated: result.memberCreated, autoLinked: result.autoLinked)
+                if result.autoLinked { notice = .autoLinked }
             }
         }
     }
@@ -325,6 +328,8 @@ public enum MemberNotice: Equatable {
     case methodAlreadyLinked
     /// 兩個會員已合併成一個。
     case merged
+    /// 登入時後台發現 email 與既有會員相同,自動歸到那個會員(不是新會員)。
+    case autoLinked
     /// 會員已刪除;提醒 Apple 訂閱要自行取消。
     case deleted
     /// 登入已失效，要重新登入。

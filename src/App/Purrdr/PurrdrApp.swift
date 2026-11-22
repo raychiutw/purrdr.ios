@@ -206,7 +206,7 @@ struct PurrdrApp: App {
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
         allowsTestingLinks = uiTesting
         usesTestingSignIn = uiTesting
-            && (arguments.contains("-uiTestingSignUp") || arguments.contains("-uiTestingLinkMerge")
+            && (arguments.contains("-uiTestingSignUp") || arguments.contains("-uiTestingNoMember") || arguments.contains("-uiTestingLinkMerge")
                 || arguments.contains("-uiTestingLinkMergeBlocked"))
         forcesOpaqueGlass = uiTesting && UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency")
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
@@ -386,7 +386,7 @@ struct PurrdrApp: App {
         }
         if uiTesting, let backend = uiTestingMemberBackend(arguments) {
             let tokens = backend.startsSignedIn ? InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken) : InMemoryTokenStore()
-            return MemberSession(transport: backend, tokenStore: tokens, deviceID: deviceID)
+            return MemberSession(transport: backend, tokenStore: tokens, deviceID: deviceID, supportsSignInOnly: true)
         }
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
         let tokenStore: any TokenStore = uiTesting ? InMemoryTokenStore() : KeychainTokenStore()
@@ -394,7 +394,9 @@ struct PurrdrApp: App {
         if uiTesting { diagnostics = { _ in } }
         return MemberSession(
             transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore, deviceID: deviceID,
-            diagnostics: diagnostics)
+            diagnostics: diagnostics,
+            // 後台 `createMember: false`(purrdr.server#34 已上線):登入頁查無會員不新建,改問要不要加入(#434、#453)。
+            supportsSignInOnly: true)
     }
 
     /// 這支裝置(#266):推播 id 存 Keychain(讀不到時稍後再試),名稱預設是系統的裝置名稱(使用者可在帳號頁改)。
@@ -425,6 +427,10 @@ struct PurrdrApp: App {
         }
         if arguments.contains("-uiTestingMember") { return UITestingBackendTransport(isPlusActive: false) }
         // 沒登入,按 Apple／Google 登入或註冊會直接登入假後台(登入與加入流程,#408)。
+        // 沒登入且這個帳號沒有會員:登入頁擋下並問要不要加入(#453)。
+        if arguments.contains("-uiTestingNoMember") {
+            return UITestingBackendTransport(scenario: .none, startsSignedIn: false, hasNoMember: true)
+        }
         if arguments.contains("-uiTestingSignUp") { return UITestingBackendTransport(isPlusActive: false, startsSignedIn: false) }
         return nil
     }

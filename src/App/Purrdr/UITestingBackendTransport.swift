@@ -42,6 +42,8 @@ final class UITestingBackendTransport: BackendTransport {
     let linkFindsAnotherMember: Bool
     /// 兩邊都有有效訂閱(`-uiTestingLinkMergeBlocked`):摘要的 `canMerge` 是 `false`。
     let mergeBlocked: Bool
+    /// `-uiTestingNoMember`(#453):沒有會員的帳號。登入頁(`createMember: false`)回 404 `member_not_found`,加入頁照舊新建。
+    let hasNoMember: Bool
     /// 這個會員已綁定 Google(連結或合併成功之後)。
     private let googleLinked = Mutex(false)
 
@@ -64,7 +66,8 @@ final class UITestingBackendTransport: BackendTransport {
         self.init(scenario: isPlusActive ? .active : .none, startsSignedIn: startsSignedIn)
     }
 
-    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, mergeBlocked: Bool = false) {
+    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, mergeBlocked: Bool = false, hasNoMember: Bool = false) {
+        self.hasNoMember = hasNoMember
         self.scenario = scenario
         self.startsSignedIn = startsSignedIn
         self.linkFindsAnotherMember = linkFindsAnotherMember
@@ -82,7 +85,9 @@ final class UITestingBackendTransport: BackendTransport {
         switch (request.method, request.path) {
         case ("POST", "/v1/sessions"):
             // 登入或註冊:ID token 含 `new` 的是新會員(`memberCreated: true`),其餘是既有會員。
-            let idToken = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["idToken"] as? String
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let idToken = body?["idToken"] as? String
+            if hasNoMember, body?["createMember"] as? Bool == false { return Self.error(404, "member_not_found") }
             let created = idToken?.contains("new") == true
             return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","memberCreated":\#(created),"autoLinked":false,"member":\#(memberBody)}"#)
         case ("POST", "/v1/sessions/refresh"):

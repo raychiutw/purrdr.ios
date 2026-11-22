@@ -359,9 +359,9 @@ enum Replies {
     ]}
     """#
 
-    static func session(accessToken: String = "access-1", expiresIn seconds: TimeInterval = 900, refreshToken: String, memberCreated: Bool = true, member: String) -> String {
+    static func session(accessToken: String = "access-1", expiresIn seconds: TimeInterval = 900, refreshToken: String, memberCreated: Bool = true, autoLinked: Bool = false, member: String) -> String {
         let expiresAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(seconds))
-        return #"{"accessToken": "\#(accessToken)", "accessTokenExpiresAt": "\#(expiresAt)", "refreshToken": "\#(refreshToken)", "memberCreated": \#(memberCreated), "member": \#(member)}"#
+        return #"{"accessToken": "\#(accessToken)", "accessTokenExpiresAt": "\#(expiresAt)", "refreshToken": "\#(refreshToken)", "memberCreated": \#(memberCreated), "autoLinked": \#(autoLinked), "member": \#(member)}"#
     }
 
     static func error(_ code: String, _ message: String = "Something happened.") -> String {

@@ -77,6 +77,14 @@ public struct MemberContent: View {
 
     public var body: some View {
         content
+            // 登入頁查無這個帳號的會員:擋下並問要不要加入,確認才進加入流程(#434)。掛在 content 上,與下面的 notice alert 分開。
+            .alert("No Member Found", isPresented: Binding(get: { model.memberNotFound }, set: { if !$0 { model.dismissMemberNotFound() } })) {
+                Button("Join") { entry.switchToJoin() }
+                    .accessibilityIdentifier("member.notFound.join")
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("We couldn’t find a member for this account. Do you want to join?")
+            }
             .navigationTitle(entry.navigationTitle(phase: model.phase, hasPlus: plus != nil))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -91,14 +99,6 @@ public struct MemberContent: View {
         }
         .onChange(of: model.phase) { _, phase in
             if phase == .signedOut { entry.reset() }
-        }
-        // 登入頁查無這個帳號的會員:擋下並問要不要加入,確認才進加入流程(#434)。
-        .alert("No Member Found", isPresented: Binding(get: { model.memberNotFound }, set: { if !$0 { model.dismissMemberNotFound() } })) {
-            Button("Join") { entry.switchToJoin() }
-                .accessibilityIdentifier("member.notFound.join")
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("We couldn’t find a member for this account. Do you want to join?")
         }
         .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
             if notice == .deleted {
@@ -906,6 +906,7 @@ extension MemberNotice {
         case .subscriptionInUse: "Subscription Belongs to Another Member"
         case .methodAlreadyLinked: "Already Linked"
         case .merged: "Members Combined"
+        case .autoLinked: "Signed In to Your Existing Member"
         case .deleted: "Member Deleted"
         case .signedOut: "Signed Out"
         case .signOutBackendUnreachable: "Can’t Reach Purrdr"
@@ -924,6 +925,8 @@ extension MemberNotice {
             String(localized: "This member already has that kind of sign-in method. Unlink it first.")
         case .merged:
             String(localized: "Both sign-in methods now sign in to the same member. Hosts and notification devices were combined.")
+        case .autoLinked:
+            String(localized: "This account uses the same verified email as an existing member, so it now signs in to that member.")
         case .deleted:
             String(localized: "Your member account and its data were deleted. If you subscribed to Purrdr Plus, cancel it in Settings › Apple Account › Subscriptions so you aren’t charged again.")
         case .signedOut:
