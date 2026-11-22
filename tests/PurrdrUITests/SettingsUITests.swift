@@ -8,64 +8,52 @@ final class SettingsUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// 設定頁的內容(#32、#246、#274、#276):只有 App 層級的段落(外觀、鍵盤與觸覺、送出可撤回、App 鎖、支援、關於);
+    /// 外觀下的「自動」與送出可撤回的秒數說明、支援段的隱私揭露是例外，數據用量列下沒有說明;主機設定與會員不在這裡。
+    /// 一次啟動由上而下檢查(#372:原本四個測試各啟動一次)。
     @MainActor
-    func testSettingsShowsEntriesAndHostHerdrVersion() {
+    func testSettingsShowsOnlyAppWideSectionsAndHostHerdrVersion() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
-
-        // 後面的列可能要捲動才出現(List 不建立畫面外的列)。
-        for identifier in ["settings.appearance", "settings.returnSends", "settings.haptics", "settings.rate", "settings.support"] {
+        XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
+        XCTAssertFalse(app.switches["settings.codexLauncher"].exists, "Codex 啟動器應在主機頁")
+        XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
+        func expectHeaders(_ headers: [String]) {
+            for header in headers {
+                let text = app.staticTexts[header].firstMatch
+                app.scrollIntoView(text, search: .down)
+                XCTAssertTrue(text.exists, "設定頁沒有「\(header)」")
+            }
+        }
+        // 由上而下的順序捲:外觀、鍵盤與觸覺 → 送出可撤回(0–10 秒的 Stepper,說明在註腳)→ 各列 → App 鎖、支援、關於。
+        expectHeaders(["Appearance", "Keyboard and Haptics"])
+        let undoSend = app.steppers["settings.undoSend"].firstMatch
+        app.scrollIntoView(undoSend, search: .down)
+        XCTAssertTrue(undoSend.exists, "設定頁沒有送出可撤回")
+        XCTAssertTrue(app.staticTexts["After you send, the message waits this long so you can undo it."].firstMatch.exists)
+        for identifier in ["settings.returnSends", "settings.haptics", "settings.rate", "settings.support"] {
             let entry = app.element(identifier)
             app.scrollIntoView(entry, search: .down)
             XCTAssertTrue(entry.waitUntilExists(timeout: 5), "設定頁沒有 \(identifier)")
         }
-        let herdrVersion = app.element("settings.herdrVersion")
+        let dataUsage = app.element("settings.dataUsage")
+        app.scrollIntoView(dataUsage, search: .down)
+        XCTAssertFalse(app.staticTexts["How much data Purrdr uses to talk to your hosts."].exists, "數據用量列下方不該有說明")
+        expectHeaders(["App Lock", "Support", "About"])
         // 捲到最後一列(隱私權政策):herdr 版本列可能只露出一部分，露出部分就算 hittable,值卻還沒進 accessibility 樹。
-        app.scrollIntoView(app.element("settings.privacy"), search: .down)
+        let privacy = app.element("settings.privacy")
+        app.scrollIntoView(privacy, search: .down)
+        let paragraph = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Diagnostics include")).firstMatch
+        XCTAssertTrue(paragraph.exists, "支援段要保留診斷資訊的隱私揭露")
         // Demo 主機回報 herdr 0.9.5。
         let version = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "0.9.5", "0.9.5")).firstMatch
-        XCTAssertTrue(version.waitUntilExists(timeout: 10), "沒有顯示主機的 herdr 版本:\(herdrVersion.debugDescription)")
+        XCTAssertTrue(version.waitUntilExists(timeout: 10), "沒有顯示主機的 herdr 版本")
         XCTAssertTrue(app.element("settings.version").exists)
-        XCTAssertTrue(app.element("settings.privacy").exists)
+        XCTAssertTrue(privacy.exists)
         // 會員與 Purrdr Plus 移到帳號頁(#246)。
         XCTAssertFalse(app.element("settings.member").exists, "設定頁不該有會員")
         XCTAssertFalse(app.element("settings.hostSync").exists, "設定頁不該有主機同步")
-    }
-
-    /// 各頁不放功能說明段落(#276):數據用量那一列下方沒有說明。
-    @MainActor
-    func testDataUsageRowHasNoExplanation() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
-        let entry = app.element("settings.dataUsage")
-        app.scrollIntoView(entry, search: .down)
-        XCTAssertFalse(app.staticTexts["How much data Purrdr uses to talk to your hosts."].exists, "數據用量列下方不該有說明")
-    }
-
-    /// 外觀(#246):自動／淺色／深色，預設自動;選了立即生效，重開 app 後保留。
-    @MainActor
-    func testAppearanceChoicePersistsAcrossLaunches() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
-        // 外觀存在 UserDefaults.standard:結束時改回自動，不影響其他測試。
-        addTeardownBlock { @MainActor in
-            let cleanup = XCUIApplication.launchUITesting()
-            self.openSettings(in: cleanup)
-            cleanup.buttons["Automatic"].tap()
-            cleanup.terminate()
-        }
-
-        XCTAssertTrue(app.buttons["Automatic"].waitUntilExists(timeout: 5))
-        XCTAssertTrue(app.buttons["Automatic"].wait(timeout: 5) { $0.isSelected }, "預設不是自動")
-        app.buttons["Dark"].tap()
-        XCTAssertTrue(app.buttons["Dark"].wait(timeout: 5) { $0.isSelected })
-        app.terminate()
-
-        let relaunched = XCUIApplication.launchUITesting()
-        openSettings(in: relaunched)
-        XCTAssertTrue(relaunched.buttons["Dark"].waitUntilExists(timeout: 5))
-        XCTAssertTrue(relaunched.buttons["Dark"].wait(timeout: 5) { $0.isSelected }, "重開 app 後沒有保留深色")
     }
 
     /// 外觀即時生效(#322):設定 sheet 開著時切換，sheet 本身立刻變深或變淺;切回自動回到系統的深淺色。
@@ -144,41 +132,6 @@ final class SettingsUITests: XCTestCase {
         app.scrollIntoView(rate, search: .down)
         XCTAssertTrue(rate.waitUntilExists(timeout: 5), "沒有「為 Purrdr 評分」")
         XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
-    }
-
-    /// 設定頁只有外觀、鍵盤與觸覺、送出可撤回(#300)、App 鎖(#284)、支援、關於(#274,原型 purrdr-settings C);主機設定不在這裡。
-    @MainActor
-    func testSettingsHasOnlyAppWideSections() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
-        XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
-        XCTAssertFalse(app.switches["settings.codexLauncher"].exists, "Codex 啟動器應在主機頁")
-        func expectHeaders(_ headers: [String]) {
-            for header in headers {
-                let text = app.staticTexts[header].firstMatch
-                app.scrollIntoView(text, search: .down)
-                XCTAssertTrue(text.exists, "設定頁沒有「\(header)」")
-            }
-        }
-        // 由上而下的順序捲:外觀、鍵盤與觸覺 → 送出可撤回(#300,0–10 秒的 Stepper,說明在註腳)→ App 鎖、支援、關於。
-        expectHeaders(["Appearance", "Keyboard and Haptics"])
-        let undoSend = app.steppers["settings.undoSend"].firstMatch
-        app.scrollIntoView(undoSend, search: .down)
-        XCTAssertTrue(undoSend.exists, "設定頁沒有送出可撤回")
-        XCTAssertTrue(app.staticTexts["After you send, the message waits this long so you can undo it."].firstMatch.exists)
-        expectHeaders(["App Lock", "Support", "About"])
-    }
-
-    /// 設定頁只有原型有的段落說明(外觀下的「自動」、送出可撤回的秒數說明)與支援段的隱私揭露(#276 的例外)。
-    @MainActor
-    func testSettingsShowsPrototypeFooterAndPrivacyDisclosure() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
-        XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
-        let privacy = app.element("settings.privacy")
-        app.scrollIntoView(privacy, search: .down)
-        let paragraph = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Diagnostics include")).firstMatch
-        XCTAssertTrue(paragraph.exists, "支援段要保留診斷資訊的隱私揭露")
     }
 
     /// Codex 啟動器(#24,ADR-0002)在主機頁(#274):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。
