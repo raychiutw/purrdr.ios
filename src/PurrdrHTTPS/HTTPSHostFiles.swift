@@ -5,7 +5,7 @@ import PurrdrCore
 /// 存取規則以主機服務為準(`target.root` 不送)。主機服務沒有這兩個訊息(`HostServiceFeature.fileFetch`)時回 `unsupported` 不送出。
 extension HTTPSHostConnection: HostFileFetching {
     public func status(of target: HostFileTarget) async throws -> HostFileStatus {
-        try await requireFileFetch()
+        try await requireFileFetch(for: target)
         let reply = try await withDeadline(HostCommandDeadline.standard) {
             try await self.send { .fileStat(.init(requestId: $0, path: target.path)) }
         }
@@ -18,7 +18,7 @@ extension HTTPSHostConnection: HostFileFetching {
     }
 
     public func read(_ target: HostFileTarget, version: HostFileVersion, offset: Int, length: Int) async throws -> Data {
-        try await requireFileFetch()
+        try await requireFileFetch(for: target)
         let reply = try await withDeadline(HostCommandDeadline.transfer(bytes: length * 4 / 3)) {
             try await self.send {
                 .fileRead(.init(requestId: $0, path: target.path, version: version.checksum, offset: offset, length: length))
@@ -32,9 +32,12 @@ extension HTTPSHostConnection: HostFileFetching {
     }
 
     /// 版本不足仍回 `HostFileFetchError.unsupported`:檔案卡片的說明不變。
-    private func requireFileFetch() async throws {
+    /// 使用者上傳檔(`isUserUpload`)要 0.13.0:更舊的主機服務會回 `denied`，所以不送出、回 `unsupported`
+    /// (畫面顯示「Image」字樣而不是「不開啟這個位置」);請求本身仍只送路徑，放行由主機服務判斷(#430)。
+    private func requireFileFetch(for target: HostFileTarget) async throws {
         do {
             try await requireHostService(.fileFetch)
+            if target.isUserUpload { try await requireHostService(.userUploadFetch) }
         } catch HostServiceError.hostServiceUpdateRequired {
             throw HostFileFetchError.unsupported
         }

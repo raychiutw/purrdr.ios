@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 使用者送出、手機上沒有副本的圖片(#428):經主機取檔從上傳資料夾讀回縮圖。規則與快取同 Agent 圖片卡片
 /// (自動載入 8 MiB、版本沒變只查狀態);超過上限顯示大小等點擊,被主機清掉顯示「主機上已找不到」,
-/// 主機服務太舊或讀不到時退回「Image」字樣。縮圖點開用與 Agent 圖片相同的全螢幕檢視。
+/// 主機服務太舊(0.13.0 之前，`HostServiceFeature.userUploadFetch`)或讀不到時退回「Image」字樣、不顯示錯誤說明。縮圖點開用與 Agent 圖片相同的全螢幕檢視。
 struct HostSentImageView: View {
     let path: String
     /// 這是同一則訊息的第幾張(VoiceOver 念「Image N」)。
@@ -50,7 +50,7 @@ struct HostSentImageView: View {
             .accessibilityLabel(Text("Image \(index + 1)"))
             .accessibilityHint(Text("Opens the image full screen."))
             .accessibilityIdentifier("conversation.sentImage.thumbnail")
-        } else if let note = display.note {
+        } else if let note = display.note, state != .unsupported {
             VStack(alignment: .trailing, spacing: 4) {
                 Label("Image", systemImage: "photo")
                     .font(.caption)

@@ -130,4 +130,46 @@ struct HTTPSHostFileFetchTests {
 
         #expect(result == .loaded(Data("hello".utf8), version: Self.version))
     }
+
+    static let uploadTarget = HostFileTarget(path: "/var/folders/zz/T/purrdr-uploads-501/a.png", root: nil, isUserUpload: true)
+
+    @Test("使用者上傳檔：0.13.0 之前的主機服務不送出，回 unsupported(畫面顯示「Image」字樣，不是拒絕)(#430)")
+    func userUploadOnOlderHostServiceIsUnsupportedWithoutSending() async throws {
+        let service = try await Self.start([:], hostServiceVersion: "0.12.0")
+        defer { Task { await service.stop() } }
+        let connection = Self.connection(service)
+
+        await #expect(throws: HostFileFetchError.unsupported) { try await connection.status(of: Self.uploadTarget) }
+        await #expect(throws: HostFileFetchError.unsupported) {
+            try await connection.read(Self.uploadTarget, version: Self.version, offset: 0, length: 5)
+        }
+        #expect(service.messages(ofType: "file.stat").isEmpty)
+        #expect(service.messages(ofType: "file.read").isEmpty)
+    }
+
+    @Test("使用者上傳檔：0.13.0 起照常查狀態與讀取，只送路徑，由主機服務判斷放行(#430)")
+    func userUploadOnCurrentHostServiceIsSentAsPathOnly() async throws {
+        let service = try await Self.start(
+            [
+                "file.stat": [#"{"type":"file.stat.result","status":"file","version":"9f86d081","size":5}"#],
+                "file.read": [#"{"type":"file.read.result","status":"file","offset":0,"bytes":"aGVsbG8="}"#],
+            ], hostServiceVersion: "0.13.0")
+        defer { Task { await service.stop() } }
+        let connection = Self.connection(service)
+
+        #expect(try await connection.status(of: Self.uploadTarget) == .file(version: Self.version, size: 5))
+        #expect(try await connection.read(Self.uploadTarget, version: Self.version, offset: 0, length: 5) == Data("hello".utf8))
+        let sent = try #require(service.messages(ofType: "file.stat").first)
+        #expect(sent["path"] as? String == Self.uploadTarget.path)
+        #expect(sent["root"] == nil)
+    }
+
+    @Test("一般取檔不受影響：0.12.0 的主機服務仍可讀 Agent 的檔案(#430)")
+    func regularFetchStillWorksBeforeUserUploadFeature() async throws {
+        let service = try await Self.start(
+            ["file.stat": [#"{"type":"file.stat.result","status":"file","version":"9f86d081","size":5}"#]], hostServiceVersion: "0.12.0")
+        defer { Task { await service.stop() } }
+
+        #expect(try await Self.connection(service).status(of: Self.target) == .file(version: Self.version, size: 5))
+    }
 }
