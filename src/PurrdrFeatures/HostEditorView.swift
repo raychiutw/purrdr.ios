@@ -113,6 +113,7 @@ struct HostEditorView: View {
                 HostStatusSections(models: hostStatus)
             }
         }
+        .appGroupedList()
         .refreshable(refreshHostStatus)
         // 捲動表單就收起鍵盤(#312):`.interactively` 只在手指拖進鍵盤時才收，往下捲看下面的按鈕時鍵盤仍擋著。
         // 數字鍵盤與多行私鑰沒有能收鍵盤的 return,另有鍵盤上方的「完成」。

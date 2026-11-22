@@ -125,6 +125,7 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondaryText)
                 }
             }
+            .appGroupedList()
             .accessibilityIdentifier("sheet.settings")
             .navigationTitle("Settings")
             .toolbar {

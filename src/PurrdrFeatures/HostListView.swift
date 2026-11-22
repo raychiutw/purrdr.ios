@@ -97,6 +97,7 @@ public struct HostListView: View {
                     }
                 }
             }
+            .appGroupedList()
             .accessibilityIdentifier("sheet.hosts")
             .task { await model.checkHostServiceVersions() }
             .navigationTitle("Hosts")

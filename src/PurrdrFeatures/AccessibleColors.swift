@@ -60,7 +60,21 @@ enum AccessibleColors {
     )
 }
 
+extension AccessibleColors {
+    /// 紅字按鈕(刪除、重設、強制結束;#379):系統紅 #FF453A 在深色的 #2C2C2E 以上只有約 4.1:1,
+    /// 所以文字改用這組(圖示、填色與分隔等非文字仍用系統紅)。
+    static let destructiveText = ContrastPalette(
+        light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白底 5.4:1
+        dark: ThemeColor(red: 0xFF, green: 0x8A, blue: 0x82),              // 設計稿 redtext;對 #3A3A3C 以上 ≥ 4.5:1
+        lightHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11), // 白底 8.1:1
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0xC7, blue: 0xC2)
+    )
+}
+
 extension ShapeStyle where Self == Color {
+    /// 紅字按鈕的文字顏色(`AccessibleColors.destructiveText`)。
+    static var destructiveText: Color { AccessibleColors.destructiveText.color }
+
     /// 承載資訊的次要文字顏色(取代系統 `.secondary`／`.tertiary` 文字)。圖示、分隔線、底色等純裝飾仍用系統階層色。
     static var secondaryText: Color { AccessibleColors.secondaryText.color }
 

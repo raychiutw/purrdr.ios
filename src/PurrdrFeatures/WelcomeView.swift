@@ -57,6 +57,7 @@ public struct WelcomeView: View {
                         .accessibilityIdentifier("welcome.rate")
                 }
             }
+            .appGroupedList()
             .accessibilityIdentifier("sheet.welcome")
             .navigationTitle("Welcome")
             .toolbar {

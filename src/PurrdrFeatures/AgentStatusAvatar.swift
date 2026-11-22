@@ -99,7 +99,7 @@ extension ShapeStyle where Self == Color {
     /// `insetGrouped` 列表的列底色(狀態符號的圓底，跟列背景融在一起)。
     static var listRowSurface: Color {
         #if canImport(UIKit)
-        Color(uiColor: .secondarySystemGroupedBackground)
+        AppSurface.groupedRow
         #else
         Color(nsColor: .controlBackgroundColor)
         #endif

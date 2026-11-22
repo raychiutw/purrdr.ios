@@ -50,22 +50,20 @@ struct ExpandedComposer: View {
     }
 
     private var actions: some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(spacing: 8) {
-                if model.canAttachImages && model.typedAnswer == nil {
-                    AttachButton(model: model, identifier: "composer.expanded.attach")
-                }
-                Spacer()
-                Button(action: collapse) {
-                    Text("Done")
-                        .padding(.horizontal, 8)
-                        .frame(minHeight: 30)
-                }
-                .buttonStyle(.glass)
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("composer.expanded.done")
-                ComposerSendButton(model: model, identifier: "composer.expanded.send", action: send)
+        HStack(spacing: 8) {
+            if model.canAttachImages && model.typedAnswer == nil {
+                AttachButton(model: model, identifier: "composer.expanded.attach")
             }
+            Spacer()
+            Button(action: collapse) {
+                Text("Done")
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 30)
+            }
+            .composerSecondaryButtonStyle()
+            .frame(minHeight: 44)
+            .accessibilityIdentifier("composer.expanded.done")
+            ComposerSendButton(model: model, identifier: "composer.expanded.send", action: send)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

@@ -254,7 +254,7 @@ private struct StopBarButtonStyle: ButtonStyle {
         // 看得到的是 32pt 高的淡填色膠囊(原型的「停止」),點擊範圍仍是 44pt。
         configuration.label
             .padding(.horizontal, 12)
-            .foregroundStyle(configuration.role == .destructive ? Color.red : Color.primary)
+            .foregroundStyle(configuration.role == .destructive ? Color.destructiveText : Color.primary)
             .background(.fill.tertiary, in: Capsule().inset(by: 6))
             .opacity(configuration.isPressed ? 0.6 : 1)
             .contentShape(Capsule())

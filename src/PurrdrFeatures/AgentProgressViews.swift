@@ -120,6 +120,7 @@ struct ConversationStatusSheet: View {
                         .accessibilityIdentifier("status.empty")
                 }
             }
+            .appGroupedList()
             .navigationTitle(title)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

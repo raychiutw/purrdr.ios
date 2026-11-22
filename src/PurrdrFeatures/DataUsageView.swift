@@ -127,7 +127,7 @@ public struct DataUsageView: View {
             selectionDetail
         }
         .padding(14)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
+        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func legend(for bars: [DataUsageBar]) -> some View {
@@ -184,7 +184,7 @@ public struct DataUsageView: View {
                             .accessibilityIdentifier("dataUsage.host.\(row.id)")
                     }
                 }
-                .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
+                .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
             }
         }
     }
@@ -196,8 +196,8 @@ public struct DataUsageView: View {
             Text("Reset Statistics").frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.red)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
+        .foregroundStyle(.destructiveText)
+        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityIdentifier("dataUsage.reset")
     }
 
@@ -367,6 +367,7 @@ private struct DataUsageOptionsSheet: View {
                     .accessibilityIdentifier("dataUsage.categoryOptions")
                 }
             }
+            .appGroupedList()
             .navigationTitle(sheet == .period ? Text("Period") : Text("Category"))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -403,6 +404,7 @@ private struct DataUsageHostSheet: View {
                     Text("Last 30 Days").foregroundStyle(.secondaryText)
                 }
             }
+            .appGroupedList()
             .monospacedDigit()
             .accessibilityIdentifier("dataUsage.hostDetail")
             .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Host") : (row?.name ?? ""))
@@ -583,7 +585,7 @@ extension DataUsageSegment.Kind {
 
 private enum DataUsageColors {
     #if canImport(UIKit)
-    static let groupedBackground = Color(uiColor: .systemGroupedBackground)
+    static let groupedBackground = AppSurface.groupedPage
     static let neutral = Color(uiColor: .systemGray)
     #else
     static let groupedBackground = Color(nsColor: .windowBackgroundColor)

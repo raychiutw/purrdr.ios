@@ -419,6 +419,7 @@ struct WorkflowScreen: View {
                 }
             }
         }
+        .appGroupedList()
         .navigationTitle(model.run?.name ?? model.card.name)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

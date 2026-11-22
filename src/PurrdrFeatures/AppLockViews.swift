@@ -71,7 +71,7 @@ struct AppLockScreen: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .background(AppSurface.page)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("appLock.screen")
     }

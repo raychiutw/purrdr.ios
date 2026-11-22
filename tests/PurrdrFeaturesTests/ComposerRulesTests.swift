@@ -10,11 +10,16 @@ import Testing
 struct ComposerRulesTests {
     // MARK: - 送出鈕外觀
 
-    @Test("送出鈕：可送或送出中是主色填色;不能送(輸入框空白)是中性停用樣式，深色模式不會變成黑色實心圓")
+    @Test("送出鈕：可送是主色填色、送出中是不可點的主色填色(不套系統停用外觀，深色不變黑色圓);不能送(輸入框空白)是中性停用樣式")
     func sendButtonAppearance() {
         #expect(ComposerSendAppearance(canSend: true, isSending: false) == .prominent)
-        #expect(ComposerSendAppearance(canSend: false, isSending: true) == .prominent)
+        #expect(ComposerSendAppearance(canSend: false, isSending: true) == .sending)
+        #expect(ComposerSendAppearance(canSend: true, isSending: true) == .sending)
         #expect(ComposerSendAppearance(canSend: false, isSending: false) == .neutralDisabled)
+        // 只有 .prominent 可點;送出中與停用都不可點,送出中另以 allowsHitTesting 擋掉,不套系統 disabled
+        #expect(ComposerSendAppearance.prominent.isTappable)
+        #expect(!ComposerSendAppearance.sending.isTappable)
+        #expect(!ComposerSendAppearance.neutralDisabled.isTappable)
     }
 
     // MARK: - 硬體鍵盤(F6.3)

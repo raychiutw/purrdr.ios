@@ -38,14 +38,19 @@ public enum ComposerKeys {
     }
 }
 
-/// 送出鈕的外觀：可送或送出中是主色填色，不能送是中性停用樣式(`.fill.tertiary` 底、次要色箭頭)。
+/// 送出鈕的外觀：可送是主色填色；送出中是同樣的主色填色但不可點(不套系統 disabled，
+/// 系統 prominent 的停用外觀在深色模式是黑色實心圓);不能送是中性停用樣式(`.fill.tertiary` 底、次要色箭頭)。
 public enum ComposerSendAppearance: Sendable, Equatable {
     case prominent
+    case sending
     case neutralDisabled
 
     public init(canSend: Bool, isSending: Bool) {
-        self = canSend || isSending ? .prominent : .neutralDisabled
+        self = if isSending { .sending } else if canSend { .prominent } else { .neutralDisabled }
     }
+
+    /// 只有可送時點得到;送出中與不能送都不可點。
+    public var isTappable: Bool { self == .prominent }
 }
 
 // MARK: - 長高

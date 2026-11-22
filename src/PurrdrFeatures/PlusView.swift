@@ -57,6 +57,7 @@ public struct PlusView: View {
             }
             legalSection
         }
+        .appGroupedList()
         .accessibilityIdentifier("plus.list")
         .disabled(model.isWorking)
         .navigationTitle("Purrdr Plus")

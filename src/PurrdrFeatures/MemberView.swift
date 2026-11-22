@@ -275,7 +275,7 @@ struct SignInButtons: View {
                 .minimumScaleFactor(0.7)
                 .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
                 .foregroundStyle(.primary)
-                .background(.background, in: RoundedRectangle(cornerRadius: Self.cornerRadius))
+                .background(AppSurface.page, in: RoundedRectangle(cornerRadius: Self.cornerRadius))
                 .overlay(RoundedRectangle(cornerRadius: Self.cornerRadius).strokeBorder(.secondary, lineWidth: 1))
                 .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         }
@@ -382,6 +382,7 @@ struct AccountView: View {
                 }
             }
         }
+        .appGroupedList()
         .accessibilityIdentifier("sheet.account")
         .disabled(model.isWorking)
         .navigationDestination(isPresented: $signingIn) {
@@ -596,6 +597,7 @@ struct SignInMethodsView: View {
                 }
             }
         }
+        .appGroupedList()
         .disabled(model.isWorking)
         .navigationTitle("Sign-In Methods")
         #if os(iOS)

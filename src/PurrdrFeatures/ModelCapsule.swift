@@ -29,7 +29,7 @@ struct ModelCapsule: View {
             .padding(.horizontal, 12)
             .frame(height: PermissionModeCapsule.height)
         }
-        .composerSecondaryButtonStyle(isInCard: true)
+        .composerSecondaryButtonStyle()
         .buttonBorderShape(.capsule)
         .frame(minHeight: 44)
         .disabled(!model.canChooseModel)
@@ -88,6 +88,7 @@ private struct ModelSheet: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle("Model")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

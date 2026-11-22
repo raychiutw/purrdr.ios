@@ -321,6 +321,7 @@ struct RenameWorkspaceSheet: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle("Rename Workspace")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -397,6 +398,7 @@ struct NewWorktreeSheet: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle("New Worktree")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

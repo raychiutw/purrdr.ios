@@ -123,6 +123,7 @@ public struct NewChatView: View {
                     .listRowBackground(Color.clear)
                 }
             }
+            .appGroupedList()
             .accessibilityIdentifier("sheet.newChat")
             .navigationTitle("New Chat")
             #if os(iOS)
@@ -306,6 +307,7 @@ struct FolderPickerView: View {
                     }
                 }
             }
+            .appGroupedList()
             .accessibilityIdentifier("folderPicker.list")
         }
     }

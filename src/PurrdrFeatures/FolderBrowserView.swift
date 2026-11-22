@@ -109,6 +109,7 @@ public struct FolderBrowserView: View {
                     }
                 }
             }
+            .appGroupedList()
             .refreshable { await model.load() }
             .accessibilityIdentifier("files.list")
         }

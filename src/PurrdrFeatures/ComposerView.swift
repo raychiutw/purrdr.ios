@@ -328,7 +328,7 @@ struct ComposerBar: View {
     private var buttonRow: some View {
         HStack(spacing: 8) {
             if model.canAttachImages && model.typedAnswer == nil {
-                AttachButton(model: model, isInCard: true)
+                AttachButton(model: model)
             }
             if model.supportsPermissionMode && model.typedAnswer == nil {
                 ModelCapsule(model: model)
@@ -338,7 +338,7 @@ struct ComposerBar: View {
             if isFocused {
                 hideKeyboardButton
             }
-            ComposerSendButton(model: model, identifier: "composer.send", isInCard: true, action: send)
+            ComposerSendButton(model: model, identifier: "composer.send", action: send)
         }
         .padding(.horizontal, 6)
         .padding(.bottom, 6)
@@ -351,8 +351,7 @@ struct ComposerBar: View {
             Image(systemName: "keyboard.chevron.compact.down")
                 .frame(width: 30, height: 30)
         }
-        .composerSecondaryButtonStyle(isInCard: true)
-        .buttonBorderShape(.circle)
+        .composerCircleButtonStyle()
         .frame(minWidth: 44, minHeight: 44)
         .accessibilityLabel(Text("Hide Keyboard"))
         .accessibilityIdentifier("composer.hideKeyboard")
@@ -374,15 +373,20 @@ struct ComposerBar: View {
 }
 
 /// 送出鈕：唯一 tinted 主要動作(44pt),送出中顯示轉圈。輸入列與展開畫面共用。
+/// 外觀一律無陰影(bordered 系列，不用玻璃)。
 struct ComposerSendButton: View {
     let model: ConversationModel
     let identifier: String
-    /// 放在輸入列的玻璃卡片裡(#187):不再疊玻璃。
-    var isInCard = false
     let action: () -> Void
 
+    private var appearance: ComposerSendAppearance {
+        ComposerSendAppearance(canSend: model.canSend, isSending: model.isSending)
+    }
+
     var body: some View {
-        styled(Button(action: action) {
+        styled(Button {
+            if appearance.isTappable { action() }
+        } label: {
             Group {
                 if model.isSending {
                     ProgressView()
@@ -396,27 +400,20 @@ struct ComposerSendButton: View {
         })
         .buttonBorderShape(.circle)
         .frame(minWidth: 44, minHeight: 44)
-        .disabled(!model.canSend)
+        // 送出中不用 .disabled:系統 prominent 的停用外觀在深色模式是黑色實心圓。改以不接受點擊表示。
+        .allowsHitTesting(appearance.isTappable)
+        .disabled(appearance == .neutralDisabled)
         .accessibilityLabel(model.isSending ? Text("Sending") : Text("Send"))
         .accessibilityIdentifier(identifier)
     }
 
     @ViewBuilder
     private func styled(_ button: some View) -> some View {
-        switch ComposerSendAppearance(canSend: model.canSend, isSending: model.isSending) {
-        case .prominent:
-            if isInCard {
-                button.filledProminentButtonStyle()
-            } else {
-                button.filledGlassProminentButtonStyle()
-            }
+        switch appearance {
+        case .prominent, .sending:
+            button.filledProminentButtonStyle()
         case .neutralDisabled:
-            // 系統 prominent 的停用外觀在深色模式是黑色實心圓(onAccent 黑字)，幾乎看不見。
-            if isInCard {
-                button.buttonStyle(NeutralDisabledSendButtonStyle())
-            } else {
-                button.buttonStyle(.glass).foregroundStyle(.secondaryText)
-            }
+            button.buttonStyle(NeutralDisabledSendButtonStyle())
         }
     }
 }
@@ -431,15 +428,36 @@ private struct NeutralDisabledSendButtonStyle: ButtonStyle {
     }
 }
 
+/// 輸入列的圓形次要鈕(加入、收起鍵盤):無陰影的中性填色圓;停用(例如送出中)時仍看得見,只是字色換成次要文字色。
+/// 不用系統 `.bordered` 的停用外觀,它在深色模式幾乎看不見。
+struct ComposerCircleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        ComposerCircleButtonBody(configuration: configuration)
+    }
+}
+
+private struct ComposerCircleButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .foregroundStyle(isEnabled ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondaryText))
+            .padding(7)
+            .background(.fill.tertiary, in: Circle())
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
 extension View {
-    /// 輸入列次要圓鈕(加入圖片、收起鍵盤):卡片內用中性色的 bordered(紅色只給送出),卡片外用玻璃(#187)。
-    @ViewBuilder
-    func composerSecondaryButtonStyle(isInCard: Bool) -> some View {
-        if isInCard {
-            buttonStyle(.bordered).tint(.primary)
-        } else {
-            buttonStyle(.glass)
-        }
+    /// 輸入列次要圓鈕(加入圖片、收起鍵盤):中性色、無陰影(紅色只給送出)。
+    func composerSecondaryButtonStyle() -> some View {
+        buttonStyle(.bordered).tint(.primary)
+    }
+
+    /// 輸入列的圓形次要鈕外觀(`ComposerCircleButtonStyle`)。
+    func composerCircleButtonStyle() -> some View {
+        buttonStyle(ComposerCircleButtonStyle())
     }
 }
 
@@ -699,7 +717,7 @@ struct QueuedPromptBubbleView: View {
                     .fontWeight(.semibold)
                     .accessibilityIdentifier("conversation.queued.putBack")
                 Button(role: .destructive, action: delete) { HitTarget("Delete") }
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.destructiveText)
                     .accessibilityIdentifier("conversation.queued.delete")
             }
         } else {
