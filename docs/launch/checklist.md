@@ -52,6 +52,27 @@
 | 3.3 | app 的 `BackendConfiguration.baseURL`、`googleClientID` 換成真值(`src/App/Purrdr/BackendConfiguration.swift`) | 主 session | ✅ 2026-11-19 |
 | 3.4 | 主機外掛的公開來源：已併入公開 repo `raychiutw/purrdr.host` 的 `host-plugin/`(app 以 `herdr plugin install raychiutw/purrdr.host/host-plugin` 安裝),不另開 repo | 主 session | ✅ 2026-11-19 |
 
+## 3B. 會員架構重做上線(#402、#414)
+
+上線順序固定:**後台遷移 → 後台部署 → 新版 app 發版**。遷移與部署由使用者本人執行;app 端不對線上後台做任何遷移或寫入。細節見 `raychiutw/purrdr.server` 的 `README.md`「0009 遷移」。
+
+| # | 步驟 | 誰做 | 狀態 |
+|---|---|---|---|
+| 3B.1 | 套用前記下 D1 bookmark:`npx wrangler d1 time-travel info purrdr`(回滾用) | 使用者 | ⬜ |
+| 3B.2 | 後台套用遷移 0009:`npx wrangler d1 migrations apply purrdr --remote`;緊接著 `npx wrangler deploy`(兩步連續做,中間舊版 Worker 讀不了新表) | 使用者 | ⬜ |
+| 3B.3 | 驗證遷移結果:會員數、有效訂閱數與遷移前一致;`pending_review` 的訂閱有哪些 | 使用者 | ⬜ |
+| 3B.4 | 通知網址:App Store Server Notifications Production 與 Sandbox 皆為 `https://purrdr-backend.lean-lean.workers.dev/v1/app-store/notifications`、Version 2;Google Play RTDN 等 Android 上線前再設 | 使用者 | ✅(見 1.8)|
+| 3B.5 | app 版本:遞增 `MARKETING_VERSION`(4 處)、`CHANGELOG.md` 寫「登入需要重新登入一次」 | 本 repo(發版 PR) | ⬜ |
+| 3B.6 | **使用者本人同意後才發版**(合併進 `master` 觸發 TestFlight) | 使用者 | ⬜ |
+| 3B.7 | TestFlight 內部測試以舊版升級:開 app 看到「Signed Out」提示、重新登入一次、通知與主機同步為未開啟、(有兩個訂閱者)帳號頁有待處理提示 | 使用者 | ⬜ |
+
+app 端行為(升級時,#414):
+- 啟動先清掉舊的全域通知與同步狀態(`MemberLocalState.removeLegacyGlobalState`:`push.pairings`、`push.registeredTokens`、`push.kinds`、`hostSync.enabled`、`hostSync.journal`;新格式已依會員分區,不受影響)。
+- 舊的更新權杖被後台拒絕(401 `invalid_refresh_token`)才登出並提示重新登入;連不上後台時不登出、不清權杖(`MemberUpgradeTests`)。重新登入後通知與同步從「未開啟」開始。
+- 兩個訂閱合併後,沒保留的那筆 `pendingReview`,帳號頁提示到商店取消。
+
+**回滾**:D1 migration 不能 down。出問題時 `npx wrangler d1 time-travel restore purrdr --bookmark=<3B.1 的 bookmark>`,再 `npx wrangler rollback` 退回上一版 Worker;還原會丟掉套用後新登入與新訂閱,要在新版 app 發版前決定。新版 app 發出後不能只退後台(舊版 app 讀不了新契約)。
+
 ## 3A. 主機服務發行(#198)
 
 主機服務與它的 Release workflow 已搬到公開 repo `raychiutw/purrdr.host`(`host-service-release.yml`,GitHub environment `release`);以下步驟都在那個 repo 做。目前 macOS 執行檔只以 Developer ID 簽章、**不公證**(environment `release` 沒有 App Store Connect API key 時只簽章)。

@@ -207,7 +207,7 @@ struct PurrdrApp: App {
         allowsTestingLinks = uiTesting
         usesTestingSignIn = uiTesting
             && (arguments.contains("-uiTestingSignUp") || arguments.contains("-uiTestingNoMember") || arguments.contains("-uiTestingLinkMerge")
-                || arguments.contains("-uiTestingLinkMergeBlocked"))
+                || arguments.contains("-uiTestingLinkMergeBlocked") || arguments.contains("-uiTestingUpgradedMember"))
         forcesOpaqueGlass = uiTesting && UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency")
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
     }
@@ -385,7 +385,8 @@ struct PurrdrApp: App {
             return MemberSession(transport: UITestingOfflineBackend(), tokenStore: tokens, deviceID: deviceID)
         }
         if uiTesting, let backend = uiTestingMemberBackend(arguments) {
-            let tokens = backend.startsSignedIn ? InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken) : InMemoryTokenStore()
+            let seed = backend.startsWithStaleToken ? UITestingBackendTransport.staleRefreshToken : UITestingBackendTransport.refreshToken
+            let tokens = backend.startsSignedIn ? InMemoryTokenStore(refreshToken: seed) : InMemoryTokenStore()
             return MemberSession(transport: backend, tokenStore: tokens, deviceID: deviceID, supportsSignInOnly: true)
         }
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
@@ -424,6 +425,10 @@ struct PurrdrApp: App {
         if arguments.contains("-uiTestingLinkMerge") || arguments.contains("-uiTestingLinkMergeBlocked") {
             return UITestingBackendTransport(
                 scenario: .none, linkFindsAnotherMember: true, mergeBlocked: arguments.contains("-uiTestingLinkMergeBlocked"))
+        }
+        // 從舊版升級(#414):舊的更新權杖被拒絕、要重新登入一次;重新登入後的訂閱有待處理的合併提示。
+        if arguments.contains("-uiTestingUpgradedMember") {
+            return UITestingBackendTransport(scenario: .pendingReview, startsWithStaleToken: true)
         }
         if arguments.contains("-uiTestingMember") { return UITestingBackendTransport(isPlusActive: false) }
         // 沒登入,按 Apple／Google 登入或註冊會直接登入假後台(登入與加入流程,#408)。

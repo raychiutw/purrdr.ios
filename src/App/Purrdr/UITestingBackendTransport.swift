@@ -9,6 +9,8 @@ import Synchronization
 final class UITestingBackendTransport: BackendTransport {
     /// 啟動時就有的更新權杖(MemberSession 以它換成上面的會員)。
     static let refreshToken = "ui-testing-refresh"
+    /// 舊版 app 在後台遷移前發的更新權杖(#414):遷移後一律被拒絕(401 `invalid_refresh_token`),使用者要重新登入一次。
+    static let staleRefreshToken = "ui-testing-stale-refresh"
     /// 這支裝置在 UI 測試的 id(composition root 帶給推播)。
     static let thisDeviceID = "5eed0000-0000-4000-8000-0000000000d1"
     static let studioIPadID = "5eed0000-0000-4000-8000-0000000000d2"
@@ -44,6 +46,8 @@ final class UITestingBackendTransport: BackendTransport {
     let mergeBlocked: Bool
     /// `-uiTestingNoMember`(#453):沒有會員的帳號。登入頁(`createMember: false`)回 404 `member_not_found`,加入頁照舊新建。
     let hasNoMember: Bool
+    /// `-uiTestingUpgradedMember`(#414):啟動時帶著遷移前的更新權杖(後台拒絕),重新登入後的訂閱是升級合併後有待處理訂閱的情境。
+    let startsWithStaleToken: Bool
     /// 這個會員已綁定 Google(連結或合併成功之後)。
     private let googleLinked = Mutex(false)
 
@@ -66,8 +70,9 @@ final class UITestingBackendTransport: BackendTransport {
         self.init(scenario: isPlusActive ? .active : .none, startsSignedIn: startsSignedIn)
     }
 
-    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, mergeBlocked: Bool = false, hasNoMember: Bool = false) {
+    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, mergeBlocked: Bool = false, hasNoMember: Bool = false, startsWithStaleToken: Bool = false) {
         self.hasNoMember = hasNoMember
+        self.startsWithStaleToken = startsWithStaleToken
         self.scenario = scenario
         self.startsSignedIn = startsSignedIn
         self.linkFindsAnotherMember = linkFindsAnotherMember
@@ -91,6 +96,8 @@ final class UITestingBackendTransport: BackendTransport {
             let created = idToken?.contains("new") == true
             return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","memberCreated":\#(created),"autoLinked":false,"member":\#(memberBody)}"#)
         case ("POST", "/v1/sessions/refresh"):
+            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            if body?["refreshToken"] as? String == Self.staleRefreshToken { return Self.error(401, "invalid_refresh_token") }
             return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","member":\#(memberBody)}"#)
         case ("GET", "/v1/members/me"):
             return Self.json(#"{"member":\#(memberBody)}"#)
