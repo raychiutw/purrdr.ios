@@ -52,6 +52,23 @@ struct AddHostGuideView: View {
     @FocusState private var focus: AddHostGuideModel.Field?
 
     var body: some View {
+        ScrollViewReader { scroller in
+            scrollContent
+                // 展開「Enter It Manually」後欄位會落在底部面板底下點不到:捲到配對頁最下面(面板上緣)。
+                .onChange(of: manualExpanded) { _, expanded in
+                    guard expanded else { return }
+                    // 展開動畫與版面更新完才捲得到新的底部。
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(350))
+                        withAnimation { scroller.scrollTo(Self.pairBottomID, anchor: .bottom) }
+                    }
+                }
+        }
+    }
+
+    private static let pairBottomID = "guide.pairBottom"
+
+    private var scrollContent: some View {
         ScrollView {
             VStack(spacing: 16) {
                 hero
@@ -231,6 +248,7 @@ struct AddHostGuideView: View {
                         .font(.footnote)
                 }
                 .accessibilityIdentifier("guide.pairingHelp")
+                .id(Self.pairBottomID)
             }
         case .enable:
             instructions(model.enableInstructions)

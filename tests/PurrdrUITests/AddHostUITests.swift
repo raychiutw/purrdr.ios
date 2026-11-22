@@ -17,10 +17,15 @@ final class AddHostUITests: XCTestCase {
         let denied = app.descendants(matching: .any)["scanner.denied"]
         XCTAssertTrue(denied.waitUntilExists(timeout: 5), "沒有說明相機權限")
         app.buttons["scanner.manual"].firstMatch.tap()
+        // 掃描畫面收起的動畫還在跑時點輸入框,焦點會被收起的 sheet 搶走:等它離開再繼續。
+        XCTAssertTrue(denied.waitUntilGone(timeout: 5), "掃描畫面沒有收起")
 
         app.buttons["Enter It Manually"].firstMatch.tapWhenReady()
         let code = app.textFields["guide.field.pairingCode"]
         XCTAssertTrue(code.waitUntilExists(timeout: 5))
+        // 展開後頁面自己捲到欄位在底部面板上方(不然點到面板的「掃描」):等捲完再點。
+        let panel = app.descendants(matching: .any)["guide.panel"].firstMatch
+        XCTAssertTrue(UITestWait.until(timeout: 5) { code.frame.maxY < panel.frame.minY }, "配對碼欄位被底部面板蓋住:\(code.frame) \(panel.frame)")
         code.tap()
         code.typeEnglish("K7QM-2XPA")
         XCTAssertEqual(code.value as? String, "K7QM-2XPA")

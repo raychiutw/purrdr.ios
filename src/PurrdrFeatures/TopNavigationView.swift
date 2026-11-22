@@ -406,6 +406,9 @@ struct HostFilterMenu: View {
                     .accessibilityHidden(true)
             }
             .padding(.trailing, 4)
+            // 放在 principal 位置沒有工具列鈕的內距:自己撐到 44pt 觸控目標(HIG),不然只剩圖示的 24pt 高。
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
         .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))

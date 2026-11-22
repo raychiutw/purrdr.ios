@@ -152,7 +152,10 @@ extension XCUIApplication {
         // 沒登入時帳號頁先選登入或加入(#408):選「登入」進登入頁。
         openAccount(file: file, line: line)
         let signIn = buttons["account.entry.signIn"].firstMatch
-        XCTAssertTrue(signIn.waitUntilExists(timeout: 10), "帳號頁沒有選擇頁", file: file, line: line)
+        XCTAssertTrue(element("account.signedOut").waitUntilExists(timeout: 10), "帳號頁沒有選擇頁", file: file, line: line)
+        // 大字級下選擇頁的列在畫面外(lazy,不在 accessibility tree):先捲到看得到。
+        scrollIntoView(signIn, search: .down)
+        XCTAssertTrue(signIn.waitUntilExists(timeout: 5), "選擇頁沒有「登入」", file: file, line: line)
         signIn.tap()
         XCTAssertTrue(buttons["member.signIn.apple"].firstMatch.waitUntilExists(timeout: 10), "沒有登入頁", file: file, line: line)
     }

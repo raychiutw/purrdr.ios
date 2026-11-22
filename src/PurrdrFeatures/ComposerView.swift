@@ -81,6 +81,13 @@ struct ComposerBar: View {
                     guard let insertion else { return }
                     AccessibilityNotification.Announcement(String(localized: "Inserted /\(insertion.name)")).post()
                 }
+        } else if case .needsYou = model.topAccessory {
+            // 唯讀裝置仍要看得到 Agent 在等什麼(題目與詳情);卡片自己不放選項(#60、#349)。
+            GlassEffectContainer(spacing: ComposerKeyboardLayout.spacing) {
+                NeedsYouCard(model: model)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
         }
     }
 
