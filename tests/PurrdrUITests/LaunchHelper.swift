@@ -209,3 +209,26 @@ extension XCUIElement {
         typeText(text)
     }
 }
+
+extension XCUIApplication {
+    /// 不重啟換字級(#373):以測試連結 `purrdr://testing-content-size` 把字級類別套到視窗(只在 `-uiTesting` 生效)。
+    /// `nil` 回到系統字級。換完等畫面停下。
+    @MainActor
+    func setContentSize(_ category: String?) {
+        var link = "purrdr://testing-content-size"
+        if let category { link += "?category=\(category)" }
+        open(URL(string: link)!)
+        waitForVisualSettle()
+    }
+}
+
+extension XCUIApplication {
+    /// 不重啟換淺色／深色(#373):以測試連結 `purrdr://testing-appearance` 套到視窗。`nil` 跟隨系統。
+    @MainActor
+    func setAppearance(_ style: String?) {
+        var link = "purrdr://testing-appearance"
+        if let style { link += "?style=\(style)" }
+        open(URL(string: link)!)
+        waitForVisualSettle()
+    }
+}

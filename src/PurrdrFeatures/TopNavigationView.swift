@@ -32,6 +32,7 @@ public struct TopNavigationView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.allowsTestingLinks) private var allowsTestingLinks
     /// 從「⋯」選單推進來的主機工具(登入 Shell、檔案瀏覽、方案用量)。
     @State private var hostTool: HostTool?
 
@@ -117,6 +118,14 @@ public struct TopNavigationView: View {
             .task { if let welcome { navigation.launched(welcome: welcome) } }
             // 冷啟動與從背景回來的深層連結都會走到這裡。
             .onOpenURL { navigation.open($0) }
+            // UI 測試:不重啟換字級(`purrdr://testing-content-size`),套到視窗讓 SwiftUI 與 UIKit 都跟著變。
+            .task(id: allowsTestingLinks) { navigation.allowsTestingLinks = allowsTestingLinks }
+            .onChange(of: navigation.testingContentSizeCategory) { _, category in
+                TestingContentSize.apply(category)
+            }
+            .onChange(of: navigation.testingAppearance) { _, appearance in
+                TestingContentSize.apply(appearance: appearance)
+            }
             // StoreKit 的交易更新(續訂、別台裝置購買、兌換 Offer Code、未 finish 的交易)從啟動就要接。
             .task { await plus?.observeTransactionUpdates() }
             // 主機同步(開啟時):啟動時拿別台裝置的修改。

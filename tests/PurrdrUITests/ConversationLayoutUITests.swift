@@ -7,13 +7,6 @@ final class ConversationLayoutUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    @MainActor
-    private func capture(_ name: String) {
-        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        shot.name = name
-        shot.lifetime = .keepAlways
-        add(shot)
-    }
 
     /// 最後一則訊息不被浮在內容上的輸入框遮住:最後一則的底緣在輸入框頂緣之上。
     @MainActor
@@ -55,17 +48,4 @@ final class ConversationLayoutUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(bar.frame.minX, 15, "膠囊超出左右邊界")
     }
 
-    /// 淺色、深色與減少透明度各存一張截圖(減少透明度:玻璃改不透明底，內容仍可讀)。
-    @MainActor
-    func testFloatingScreenshots() {
-        for (name, flags) in [
-            ("light", ["-appearance", "light"]), ("dark", ["-appearance", "dark"]),
-            ("reduce-transparency", ["-appearance", "light", "-uiTestingReduceTransparency", "YES"]),
-        ] {
-            let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: flags)
-            XCTAssertTrue(app.element("composer.card").waitUntilExists(timeout: 10), "沒有輸入框卡片(\(name))")
-            capture("chat-floating-\(name)")
-            app.terminate()
-        }
-    }
 }

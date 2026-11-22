@@ -8,15 +8,13 @@ public enum ConversationFollowTarget: Equatable, Sendable {
     case bottomEdge
 
     public static let workingRowID = "working"
-    public static let panelRowID = "panel"
     public static let promptRowID = "prompt"
     /// 撤回倒數中的訊息(#300)。
     public static let pendingSendRowID = "pendingSend"
 
-    /// 列表最底下那一列：工作中指示、面板、問題卡片、最後一列對話依序優先。
-    public static func target(showsWorkingRow: Bool, showsPanel: Bool, showsPromptCard: Bool, lastEntryID: String?) -> Self {
+    /// 列表最底下那一列：工作中指示、問題卡片、最後一列對話依序優先。
+    public static func target(showsWorkingRow: Bool, showsPromptCard: Bool, lastEntryID: String?) -> Self {
         if showsWorkingRow { return .row(workingRowID) }
-        if showsPanel { return .row(panelRowID) }
         if showsPromptCard { return .row(promptRowID) }
         return lastEntryID.map(Self.row) ?? .bottomEdge
     }

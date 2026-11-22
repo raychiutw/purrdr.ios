@@ -6,6 +6,7 @@ import PurrdrFeatures
 import PurrdrSSH
 import StoreKit
 import SwiftUI
+import UIKit
 
 /// 唯一的 composition root:組裝主機儲存、主機通道、Purrdr 後台與畫面 model。
 ///
@@ -13,6 +14,8 @@ import SwiftUI
 /// 一律只用 Demo 主機：主機存在記憶體、不碰 Keychain,任何主機的通道也都是 Demo 主機，不連網路。
 @main
 struct PurrdrApp: App {
+    /// UI 測試時關掉 UIKit 與 SwiftUI 的動畫(#374)。
+    nonisolated(unsafe) static var disablesAnimations = false
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @State private var hosts: HostsModel
     private let member: MemberModel
@@ -28,6 +31,8 @@ struct PurrdrApp: App {
     private let recentPhotoSource: RecentPhotoSource
     /// UI 測試的 `-uiTestingReduceTransparency YES`:玻璃強制不透明。
     private let forcesOpaqueGlass: Bool
+    /// `-uiTesting`:處理 `purrdr://testing-…` 測試連結(不重啟換字級)。
+    private let allowsTestingLinks: Bool
     /// App 鎖(#284):所有視窗共用一份鎖定狀態。
     private let appLock: AppLock
     /// 數據用量的流量計量(#353)與網路類型監看(監看物件要活著)。
@@ -43,6 +48,9 @@ struct PurrdrApp: App {
         if uiTesting, let domain = Bundle.main.bundleIdentifier {
             UITestingPreferences.resetPersistedState(in: .standard, domain: domain)
         }
+        // UI 測試(#374):關掉動畫，XCTest 每次互動前等動畫結束的 1 秒左右就不用等。要驗動畫本身的測試帶 `-uiTestingAnimations`。
+        Self.disablesAnimations = uiTesting && !arguments.contains("-uiTestingAnimations")
+        if Self.disablesAnimations { UIView.setAnimationsEnabled(false) }
         // Tailscale SSH check mode 的提示：所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
@@ -168,6 +176,7 @@ struct PurrdrApp: App {
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
+        allowsTestingLinks = uiTesting
         forcesOpaqueGlass = uiTesting && UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency")
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
     }
@@ -360,10 +369,12 @@ struct PurrdrApp: App {
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
                 welcome: welcome, appLock: appLock)
             .appAppearance()
+            .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
             .appLockCover(appLock)
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
+            .environment(\.allowsTestingLinks, allowsTestingLinks)
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in
@@ -375,6 +386,7 @@ struct PurrdrApp: App {
             if let window {
                 PaneWindowView(window: window, hosts: hosts)
                     .appAppearance()
+                    .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
                     .appLockCover(appLock)
             }
         }

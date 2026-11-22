@@ -52,36 +52,6 @@ final class PlusUITests: XCTestCase {
         }
     }
 
-    /// 選年繳時，說明跟著換成年繳的價格與期間。
-    @MainActor
-    func testDisclosureFollowsSelectedPlan() {
-        let app = XCUIApplication.launchUITesting()
-        openPlus(in: app)
-        let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
-        XCTAssertTrue(yearly.waitUntilExists(timeout: 15))
-
-        yearly.tap()
-
-        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "\(String(describing: yearly.value))")
-        let disclosure = app.staticTexts["plus.disclosure"]
-        app.scrollIntoView(disclosure, search: .down)
-        XCTAssertTrue(disclosure.label.contains("$39.99"), disclosure.label)
-        XCTAssertTrue(disclosure.label.contains("year"), disclosure.label)
-    }
-
-    /// 方案卡片有按壓回饋後(#234),按住一下再放開仍選取該方案。
-    @MainActor
-    func testHeldPlanCardStillSelects() {
-        let app = XCUIApplication.launchUITesting()
-        openPlus(in: app)
-        let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
-        XCTAssertTrue(yearly.waitUntilExists(timeout: 15))
-
-        yearly.press(forDuration: 0.3)
-
-        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "\(String(describing: yearly.value))")
-    }
-
     /// 訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
     @MainActor
     func testSubscribingNeedsSignInAndPaywallCanBeClosed() {
@@ -102,15 +72,25 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitUntilExists(timeout: 5))
     }
 
-    /// 頁首只有標題(#236):沒有裝飾圖示、重複的大標題與「聊天與終端機免費」說明;方案內容仍要寫出來(App Store 3.1.2)。
+    /// 頁首只有標題(#236);選年繳時說明跟著換成年繳的價格與期間;方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
+    /// 一次啟動做完(#372:原本三個測試各啟動一次)。方案內容仍要寫出來(App Store 3.1.2)。
     @MainActor
-    func testPaywallShowsOnlyTitleAtTop() {
+    func testPaywallHeaderAndPlanSelection() {
         let app = XCUIApplication.launchUITesting()
         openPlus(in: app)
 
         XCTAssertTrue(app.staticTexts["plus.benefits"].waitUntilExists(timeout: 10), "沒有方案內容")
         XCTAssertFalse(app.scrollViews.staticTexts["Purrdr Plus"].exists, "內容裡重複了標題")
         XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
+
+        let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
+        XCTAssertTrue(yearly.waitUntilExists(timeout: 15))
+        yearly.press(forDuration: 0.3)
+        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "\(String(describing: yearly.value))")
+        let disclosure = app.staticTexts["plus.disclosure"]
+        app.scrollIntoView(disclosure, search: .down)
+        XCTAssertTrue(disclosure.label.contains("$39.99"), disclosure.label)
+        XCTAssertTrue(disclosure.label.contains("year"), disclosure.label)
     }
 
     /// 已訂閱(#323):方案區塊有「管理訂閱」,「你的 Plus 包含」逐項帶目前狀態,點了到帳號頁;不再只有一張卡片。
@@ -144,26 +124,6 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["sheet.account"].firstMatch.waitUntilExists(timeout: 10), "點功能列沒有到帳號頁")
     }
 
-    /// 截圖(淺色、深色 × 已訂閱、付費牆),附件給人工確認。
-    @MainActor
-    func testPlusPageScreenshots() {
-        for (appearance, member) in [("light", "-uiTestingPlusMember"), ("dark", "-uiTestingPlusMember"), ("light", "-uiTestingMember"), ("dark", "-uiTestingMember")] {
-            let app = XCUIApplication.launchUITesting(flags: [member, "-seedHost", "-appearance", appearance])
-            openPlus(in: app)
-            _ = app.descendants(matching: .any)[member == "-uiTestingPlusMember" ? "plus.manage" : Self.monthly].firstMatch.waitUntilExists(timeout: 15)
-            let name = "plus-\(member == "-uiTestingPlusMember" ? "subscribed" : "paywall")-\(appearance)"
-            let attachment = XCTAttachment(screenshot: app.screenshot())
-            attachment.name = name
-            attachment.lifetime = .keepAlways
-            add(attachment)
-            app.swipeUp()
-            let second = XCTAttachment(screenshot: app.screenshot())
-            second.name = name + "-2"
-            second.lifetime = .keepAlways
-            add(second)
-            app.terminate()
-        }
-    }
 
     @MainActor
     private func openPlus(in app: XCUIApplication) {
