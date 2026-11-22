@@ -28,6 +28,8 @@ struct PurrdrApp: App {
     private let recentPhotoSource: RecentPhotoSource
     /// UI 測試的 `-uiTestingReduceTransparency YES`:玻璃強制不透明。
     private let forcesOpaqueGlass: Bool
+    /// `-uiTesting`:處理 `purrdr://testing-…` 測試連結(不重啟換字級)。
+    private let allowsTestingLinks: Bool
     /// App 鎖(#284):所有視窗共用一份鎖定狀態。
     private let appLock: AppLock
     /// 數據用量的流量計量(#353)與網路類型監看(監看物件要活著)。
@@ -168,6 +170,7 @@ struct PurrdrApp: App {
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
+        allowsTestingLinks = uiTesting
         forcesOpaqueGlass = uiTesting && UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency")
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
     }
@@ -364,6 +367,7 @@ struct PurrdrApp: App {
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
+            .environment(\.allowsTestingLinks, allowsTestingLinks)
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in

@@ -26,6 +26,40 @@ struct TopNavigationModelTests {
         #expect(model.sheet == .plus)
     }
 
+    @Test("UI 測試連結 purrdr://testing-content-size 換字級，只在開啟測試連結時生效")
+    func testingContentSizeLinkChangesCategoryOnlyWhenAllowed() throws {
+        let category = "UICTContentSizeCategoryAccessibilityXXXL"
+        let link = try #require(URL(string: "purrdr://testing-content-size?category=\(category)"))
+        let model = TopNavigationModel()
+
+        #expect(!model.open(link))
+        #expect(model.testingContentSizeCategory == nil)
+
+        model.allowsTestingLinks = true
+        #expect(model.open(link))
+        #expect(model.testingContentSizeCategory == category)
+        #expect(model.sheet == nil)
+
+        // 沒帶 category 回到系統字級。
+        #expect(model.open(try #require(URL(string: "purrdr://testing-content-size"))))
+        #expect(model.testingContentSizeCategory == nil)
+    }
+
+    @Test("UI 測試連結 purrdr://testing-appearance 換淺色或深色，只在開啟測試連結時生效")
+    func testingAppearanceLinkChangesStyleOnlyWhenAllowed() throws {
+        let dark = try #require(URL(string: "purrdr://testing-appearance?style=dark"))
+        let model = TopNavigationModel()
+
+        #expect(!model.open(dark))
+        #expect(model.testingAppearance == nil)
+
+        model.allowsTestingLinks = true
+        #expect(model.open(dark))
+        #expect(model.testingAppearance == "dark")
+        #expect(model.open(try #require(URL(string: "purrdr://testing-appearance"))))
+        #expect(model.testingAppearance == nil)
+    }
+
     @Test("主機分享連結(掃 QR code 或點連結)開啟主機 sheet,並帶著要匯入的連結")
     func hostLinkOpensHostsForImport() throws {
         let model = TopNavigationModel()

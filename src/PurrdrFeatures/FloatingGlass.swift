@@ -23,6 +23,8 @@ extension EnvironmentValues {
     /// UI 測試用:強制玻璃走不透明(模擬器無法用啟動參數開系統的「減少透明度」)。由 app 的 composition root 依啟動參數
     /// `-uiTestingReduceTransparency YES` 注入,畫面不自己讀 `UserDefaults`。
     @Entry public var forcesOpaqueGlass = false
+    /// UI 測試用:處理 `purrdr://testing-…` 測試連結(不重啟換字級)。由 composition root 依 `-uiTesting` 注入。
+    @Entry public var allowsTestingLinks = false
 }
 
 extension View {

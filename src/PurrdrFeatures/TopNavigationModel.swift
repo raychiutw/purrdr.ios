@@ -34,6 +34,13 @@ public final class TopNavigationModel {
     /// iPad 的版面圖浮動卡片。
     public let layoutCard = LayoutCardModel()
 
+    /// UI 測試用:是否處理 `purrdr://testing-…` 測試連結。只有 `-uiTesting` 啟動時由 composition root 開啟,正式 app 一律忽略。
+    public var allowsTestingLinks = false
+    /// 測試連結指定的字級類別名稱(`UICTContentSizeCategory…`);`nil` 是系統字級。畫面把它套到視窗,讓 UI 測試不重啟就能換字級。
+    public private(set) var testingContentSizeCategory: String?
+    /// 測試連結指定的外觀(`light`／`dark`);`nil` 跟隨系統。
+    public private(set) var testingAppearance: String?
+
     public init() {}
 
     /// 套用側欄 workspace 篩選後的列表;空的分組不顯示。篩選的 workspace 已不在主機上時(被關掉了)顯示全部。
@@ -128,6 +135,15 @@ public final class TopNavigationModel {
         case "plus":
             // 付費牆(#246):「⋯」選單不再有 Purrdr Plus,未加入會員也能從連結看方案。
             sheet = .plus
+        case "testing-content-size":
+            // UI 測試不重啟換 Dynamic Type:`purrdr://testing-content-size?category=<類別>`,沒帶就回到系統字級。
+            guard allowsTestingLinks else { return false }
+            testingContentSizeCategory = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "category" }?.value
+        case "testing-appearance":
+            guard allowsTestingLinks else { return false }
+            testingAppearance = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "style" }?.value
         case "host", "pair":
             // 系統相機掃 QR code(主機分享連結，或主機配對指令的 `purrdr://pair?…`)或點連結都會走到這裡;
             // 內容在主機 sheet 裡解析與說明。
