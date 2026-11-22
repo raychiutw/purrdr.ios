@@ -2,15 +2,6 @@ import XCTest
 
 /// 無障礙稽核的共用部分(#35):跑 `performAccessibilityAudit`,把每一筆問題印出來，套用排除清單。
 extension XCTestCase {
-    /// 對目前畫面在預設字級與 AX5 各跑一次稽核,不重啟 app(#373):量完換回預設字級，流程接著往下走。
-    @MainActor
-    func auditBothSizes(_ app: XCUIApplication, _ screen: String, types: XCUIAccessibilityAuditType = .all) throws {
-        try audit(app, screen, types: types)
-        app.setContentSize(AccessibilityAuditUITests.ax5)
-        defer { app.setContentSize(nil) }
-        try audit(app, screen, contentSize: AccessibilityAuditUITests.ax5, types: types)
-    }
-
     /// 對目前畫面跑 accessibility audit。排除清單以外的問題一律記成測試失敗(`performAccessibilityAudit` 自己記)。
     @MainActor
     func audit(

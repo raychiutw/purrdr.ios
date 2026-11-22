@@ -37,6 +37,9 @@
          <TestPlanReference
             reference = "container:TestPlans/Daily.xctestplan">
          </TestPlanReference>
+         <TestPlanReference
+            reference = "container:TestPlans/Audit.xctestplan">
+         </TestPlanReference>
       </TestPlans>
    </TestAction>
    <LaunchAction

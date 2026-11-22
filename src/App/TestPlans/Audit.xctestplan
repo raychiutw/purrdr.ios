@@ -1,0 +1,29 @@
+{
+  "configurations": [
+    {
+      "id": "9F1C2A44-6E7B-4C1D-8A3E-2B5D7F901A11",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "testTimeoutsEnabled": true,
+    "defaultTestExecutionTimeAllowance": 180,
+    "maximumTestExecutionTimeAllowance": 300
+  },
+  "testTargets": [
+    {
+      "parallelizable": false,
+      "target": {
+        "containerPath": "container:Purrdr.xcodeproj",
+        "identifier": "4D4D00000000000000000011",
+        "name": "PurrdrUITests"
+      },
+      "selectedTests": [
+        "AccessibilityAuditUITests",
+        "ScreenshotTourUITests"
+      ]
+    }
+  ],
+  "version": 1
+}

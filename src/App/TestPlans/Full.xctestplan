@@ -20,7 +20,9 @@
         "name": "PurrdrUITests"
       },
       "skippedTests": [
-        "DailySmokeUITests"
+        "DailySmokeUITests",
+        "AccessibilityAuditUITests",
+        "ScreenshotTourUITests"
       ]
     }
   ],
