@@ -113,7 +113,7 @@ public struct AgentPresentation: Equatable, Sendable {
     }
 }
 
-/// Agent 設定檔(ADR-0013)。目前有顯示、對話紀錄、輸入與畫面組;session 組由後續票加入。
+/// Agent 設定檔(ADR-0013)。有顯示、對話紀錄、輸入、畫面與 session 組。
 /// 沒有的那組是 `nil`,表示那項功能不提供。
 public struct AgentProfile: Equatable, Sendable {
     public let id: AgentID
@@ -124,20 +124,43 @@ public struct AgentProfile: Equatable, Sendable {
     public let input: InputDialect
     /// 畫面組:從 pane 畫面讀面板、權限模式、建議(通用設定檔什麼都不讀)。
     public let screen: ScreenDialect
+    /// session 組:新聊天、恢復、標題規則(通用設定檔不能開新聊天、不能恢復)。
+    public let session: SessionDialect
 
-    public init(id: AgentID, presentation: AgentPresentation, transcript: TranscriptDialect? = nil, input: InputDialect, screen: ScreenDialect = .generic) {
+    public init(
+        id: AgentID, presentation: AgentPresentation, transcript: TranscriptDialect? = nil, input: InputDialect,
+        screen: ScreenDialect = .generic, session: SessionDialect = .generic
+    ) {
         self.id = id
         self.presentation = presentation
         self.transcript = transcript
         self.input = input
         self.screen = screen
+        self.session = session
     }
 }
 
 /// Agent 設定檔目錄:依種類回傳設定檔,認不得的種類回通用設定檔(照原文顯示、中性頭像)。
 public enum AgentCatalog {
     public static func profile(for id: AgentID) -> AgentProfile {
-        AgentProfile(id: id, presentation: presentation(for: id), transcript: transcript(for: id), input: input(for: id), screen: screen(for: id))
+        AgentProfile(
+            id: id, presentation: presentation(for: id), transcript: transcript(for: id), input: input(for: id), screen: screen(for: id),
+            session: session(for: id)
+        )
+    }
+
+    /// app 能開新聊天的種類(新聊天畫面的選單順序)。
+    public static let startableAgents: [AgentID] = [.claude, .codex, .grok, .agy, .pi, .omp]
+
+    private static func session(for id: AgentID) -> SessionDialect {
+        switch id {
+        case .claude: .claude
+        case .codex: .codex
+        case .grok: .grok
+        case .agy: .antigravity
+        case .pi, .omp: .piJournal
+        default: .generic
+        }
     }
 
     private static func screen(for id: AgentID) -> ScreenDialect {

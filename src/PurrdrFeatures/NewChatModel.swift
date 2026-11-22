@@ -101,7 +101,7 @@ public final class FolderPickerModel {
 public final class NewChatModel {
     /// 主機上的資料夾(可以打 `~/…`,或從資料夾瀏覽挑)。
     public var folder = ""
-    public var agent: NewChatAgent = .claude {
+    public var agent: AgentID = .claude {
         didSet { if agent != oldValue { choice = .new } }
     }
     /// agent 就緒後送出的第一則訊息。
@@ -163,7 +163,7 @@ public final class NewChatModel {
     }
 
     /// 讀清單的條件變了(資料夾或 agent)就重讀;畫面以它當 `.task(id:)`。
-    public var sessionsKey: String { "\(agent.rawValue)|\(trimmedFolder)" }
+    public var sessionsKey: String { "\(agent.canonicalName)|\(trimmedFolder)" }
 
     /// 讀這個資料夾過去的 session(#309)。換了資料夾或 agent 時選擇回到「新的聊天」。
     public func refreshSessions() async {

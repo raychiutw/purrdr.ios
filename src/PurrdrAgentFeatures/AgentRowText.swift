@@ -46,40 +46,9 @@ package enum AgentRowText {
         return folders.contains(label.lowercased()) ? nil : label
     }
 
-    /// Session 標題：哪個欄位才是標題依 agent 種類而定;預設終端機標題、resume 指令、像 session id 的字串都不算。
+    /// Session 標題:哪個欄位才是標題依 Agent 設定檔的 session 組而定。
     package static func sessionTitle(of agent: Agent) -> String? {
-        let candidate: String? = switch agent.kind {
-        // Codex 的 `title` 是被截斷的第一個 prompt;真正的名稱是終端機標題去掉結尾「 | 資料夾」。
-        case "codex": agent.terminalTitle.flatMap { title in
-            title.range(of: " | ", options: .backwards).map { String(title[..<$0.lowerBound]) }
-        }
-        case "grok": agent.terminalTitle.flatMap(grokTitle)
-        default: agent.sessionTitle ?? agent.terminalTitle
-        }
-        guard let title = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
-              !isDefaultTerminalTitle(title) else { return nil }
-        return title
-    }
-
-    /// Grok:取「 - grok」前一段，去掉前導 spinner 與「Action Required」。
-    private static func grokTitle(_ terminalTitle: String) -> String? {
-        var title = terminalTitle
-        if let suffix = title.range(of: " - grok", options: [.backwards, .caseInsensitive]) {
-            title = String(title[..<suffix.lowerBound])
-        }
-        title = title.replacingOccurrences(of: "Action Required", with: "")
-        title = String(title.drop { !$0.isLetter && !$0.isNumber })
-        return title
-    }
-
-    private static let defaultTitles: Set<String> = ["claude code", "claude", "codex", "grok", "omp", "agy"]
-
-    private static func isDefaultTerminalTitle(_ title: String) -> Bool {
-        let lowered = title.lowercased()
-        if defaultTitles.contains(lowered) { return true }
-        if lowered.contains("--resume") || lowered.contains("--continue") || lowered.hasPrefix("codex resume") { return true }
-        // 含 UUID 片段(8-4 位十六進位)的多半是 session id。
-        return lowered.contains(/[0-9a-f]{8}-[0-9a-f]{4}/)
+        AgentCatalog.profile(forHerdrName: agent.kind).session.title(sessionTitle: agent.sessionTitle, terminalTitle: agent.terminalTitle)
     }
 
     /// 依主機的路徑語法(#26:Windows 是 `C:\…`)。
