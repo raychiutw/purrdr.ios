@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>新增主機引導</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:1880px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="8">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}}">
+<div class="scrimbg"></div>
+<div class="sheet" style="top:48px">
+<div class="grabber"></div>
+<div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="{{s.leftLabel}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{s.leftIcon}}"></path></svg></button><div class="st">新增主機</div><span class="meta" style="padding-right:4px">{{s.step}}</span></div>
+<div style="font-size:22px;font-weight:700;padding:8px 4px 4px">{{s.q}}</div>
+<div class="meta" style="padding:0 4px 12px;font-size:15px;line-height:1.4">{{s.hint}}</div>
+<sc-if value="{{s.methods}}" hint-placeholder-val="{{false}}">
+<div class="card">
+<sc-for list="{{methods}}" as="m" hint-placeholder-count="3"><button class="cell"><span class="cb"><span class="main"><span style="display:flex;align-items:center;gap:8px">{{m.name}}<sc-if value="{{m.rec}}" hint-placeholder-val="{{false}}"><span class="pill">推薦</span></sc-if></span><span class="sub">{{m.desc}}</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button></sc-for>
+</div>
+<div class="sh">還沒準備好主機?</div>
+<div class="card"><button class="cell"><span class="cb"><span class="main"><span>體驗範例主機</span><span class="sub">用範例對話試每個畫面,隨時可移除</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button></div>
+</sc-if>
+<sc-if value="{{s.form}}" hint-placeholder-val="{{false}}">
+<div class="card">
+<div class="cell"><span class="cb"><label class="main" style="flex-grow:0;width:70px">位址</label><span style="flex-grow:1" class="mono">ray-mini.tail1234.ts.net<span class="caret"></span></span></span></div>
+<div class="cell"><span class="cb"><label class="main" style="flex-grow:0;width:70px">帳號</label><span style="flex-grow:1;color:var(--sec)">ray</span></span></div>
+</div>
+<div class="sf">在電腦上執行 <span class="mono">tailscale status</span> 可以看到這台的位址。</div>
+</sc-if>
+<sc-if value="{{s.fail}}" hint-placeholder-val="{{false}}">
+<div class="card" style="padding:14px 16px;display:flex;gap:10px;align-items:flex-start"><svg width="20" height="20" viewBox="0 0 24 24" fill="var(--red)" aria-hidden="true" style="flex-shrink:0;margin-top:1px"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg><span style="font-size:15px;line-height:1.45">連不上 ray-mini.tail1234.ts.net:這支手機不在同一個 Tailscale 網路。打開 Tailscale App 登入同一個帳號後再試一次。</span></div>
+</sc-if>
+<sc-if value="{{s.done}}" hint-placeholder-val="{{false}}">
+<div class="card"><div class="cell"><span class="cb"><span style="width:10px;height:10px;border-radius:5px;background:var(--accent)" aria-hidden="true"></span><span class="main"><span>Ray Mac Mini</span><span class="sub">Tailscale SSH · herdr 0.9.6 · 3 個 Agent</span></span></span></div></div>
+</sc-if>
+<sc-if value="{{s.btn}}" hint-placeholder-val="{{false}}"><div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;flex-direction:column;gap:6px"><button class="btn-prom" style="width:100%">{{s.btn}}</button><sc-if value="{{s.btn2}}" hint-placeholder-val="{{false}}"><button class="btn-plain" style="width:100%">{{s.btn2}}</button></sc-if></div></sc-if>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const X = 'M6 6l12 12M18 6L6 18', BK = 'M15 5l-7 7 7 7';
+    const B = { methods: false, form: false, fail: false, done: false, btn: '', btn2: '', leftIcon: BK, leftLabel: '返回' };
+    const S = [
+      { n: '第 1 步:連線方式', step: '1 / 3', q: '要怎麼連到這台主機?', hint: '一台裝了 herdr 的電腦。不確定就選推薦的。', methods: true, leftIcon: X, leftLabel: '取消' },
+      { n: '第 2 步:位址', step: '2 / 3', q: '這台主機的位址', hint: 'Tailscale 上的名稱或 IP。', form: true, btn: '測試連線' },
+      { n: '測試連線失敗', step: '2 / 3', q: '連不上這台主機', hint: '', fail: true, btn: '再試一次', btn2: '修改位址' },
+      { n: '完成', step: '3 / 3', q: '已加入 Ray Mac Mini', hint: '在聊天 tab 就能看到它的 Agent。', done: true, btn: '開始使用' }
+    ];
+    const screens = [];
+    for (const cls of ['dark', 'light']) for (const s of S) screens.push({ ...B, ...s, cls, label: (cls === 'dark' ? '深色' : '淺色') + ' · ' + s.n });
+    return {
+      screens,
+      methods: [
+        { name: 'Tailscale SSH', desc: '主機已開 Tailscale SSH,不用金鑰', rec: true },
+        { name: 'OpenSSH', desc: '用這支裝置的金鑰或密碼登入', rec: false },
+        { name: '主機服務(HTTPS)', desc: '在主機安裝服務後用配對碼配對', rec: false }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

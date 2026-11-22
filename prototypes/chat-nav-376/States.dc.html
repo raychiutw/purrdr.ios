@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>空與不支援狀態</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:3910px;height:1880px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="18">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}}">
+<div class="top">
+<sc-if value="{{s.back}}" hint-placeholder-val="{{false}}"><button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button></sc-if>
+<sc-if value="{{s.search}}" hint-placeholder-val="{{false}}"><div style="position:absolute;left:0;right:0;top:4px;display:flex;align-items:center;gap:8px"><div class="search" style="margin:0;flex-grow:1;height:44px;color:var(--text)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg><span>xyz<span class="caret"></span></span></div><button class="btn-plain" style="padding:0 4px">取消</button></div></sc-if>
+<sc-if value="{{s.centerText}}" hint-placeholder-val="{{false}}"><div class="top-c"><div class="plaintitle"><span class="t1">{{s.centerText}}</span><sc-if value="{{s.centerSub}}" hint-placeholder-val="{{false}}"><span class="t2">{{s.centerSub}}</span></sc-if></div></div></sc-if>
+<sc-if value="{{s.centerHost}}" hint-placeholder-val="{{false}}"><div class="top-c"><button class="hostcap glass">{{s.centerHost}}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div></sc-if>
+<sc-if value="{{s.right}}" hint-placeholder-val="{{false}}"><div class="grp glass top-r"><button aria-label="{{s.rightLabel}}" disabled="{{s.rightOff}}" style="color:{{s.rightColor}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{s.rightIcon}}"></path></svg></button><button aria-label="帳號"><span class="avatar">R</span></button></div></sc-if>
+</div>
+<div class="cuv" style="bottom:120px;top:120px">
+<svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{s.icon}}"></path></svg>
+<div class="ttl">{{s.ttl}}</div>
+<div class="msg">{{s.msg}}</div>
+<sc-if value="{{s.prim}}" hint-placeholder-val="{{false}}"><button class="btn-prom" style="margin-top:8px">{{s.prim}}</button></sc-if>
+<sc-if value="{{s.tint}}" hint-placeholder-val="{{false}}"><button class="btn-tint" style="margin-top:8px">{{s.tint}}</button></sc-if>
+<sc-if value="{{s.plain}}" hint-placeholder-val="{{false}}"><button class="btn-plain">{{s.plain}}</button></sc-if>
+</div>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{s.tabs}}" as="b" hint-placeholder-count="4"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3910,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabsFor = (a, badge) => TABS.map(([name, icon], i) => ({ name, icon, on: i === a ? 'on' : '', cur: i === a ? 'page' : 'false', badge: i === 0 ? badge : 0, label: i === 0 && badge ? '聊天,' + badge + ' 個 Agent 需要你' : name }));
+    const ICON = {
+      desk: 'M3 4h18v12H3z M8 20h8 M12 16v4', folderX: 'M2.5 6.5h6.5l2 2h10.5v10.5H2.5z M9 11l6 6 M15 11l-6 6', folder: 'M2.5 6.5h6.5l2 2h10.5v10.5H2.5z',
+      warn: 'M12 3l10 18H2z M12 10v5 M12 18v.5', search: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z M15.5 15.5L21 21',
+      wifiX: 'M2 8.5a15 15 0 0 1 20 0 M5.5 12a10 10 0 0 1 13 0 M9 15.5a5 5 0 0 1 6 0 M12 19h.01 M3 3l18 18', check: 'M5 12.5l4.5 4.5L19 7 M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0'
+    };
+    const compose = 'M11 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6 M9.5 14.5l.8-3.3 8.4-8.4a1.8 1.8 0 0 1 2.5 2.5l-8.4 8.4z';
+    const plus = 'M12 5v14M5 12h14';
+    const B = { back: false, search: false, centerText: '', centerSub: '', centerHost: '', right: true, rightOff: false, rightColor: 'var(--text)', prim: '', tint: '', plain: '' };
+    const S = [
+      { n: '聊天 · 沒有主機', tab: 0, badge: 0, centerText: '聊天', rightIcon: compose, rightLabel: '新增聊天(沒有主機,停用)', rightOff: true, rightColor: 'var(--dis)', icon: ICON.desk, ttl: '還沒有主機', msg: '加入一台裝了 herdr 的主機,就能在這裡看到它的 Agent。', prim: '新增主機', plain: '體驗範例主機' },
+      { n: '檔案 · 沒有主機', tab: 1, badge: 0, centerText: '檔案', rightIcon: plus, rightLabel: '上傳(沒有主機,停用)', rightOff: true, rightColor: 'var(--dis)', icon: ICON.desk, ttl: '還沒有主機', msg: '加入主機後,就能瀏覽它的檔案。', prim: '新增主機' },
+      { n: '主機 · 沒有主機', tab: 2, badge: 0, centerText: '主機', rightIcon: plus, rightLabel: '新增主機', icon: ICON.desk, ttl: '還沒有主機', msg: '用 Tailscale SSH、OpenSSH 或主機服務連到你的電腦。', prim: '新增主機', plain: '體驗範例主機' },
+      { n: '檔案 · 主機不支援', tab: 1, badge: 1, centerHost: 'Build Box', rightIcon: plus, rightLabel: '上傳(這台主機不支援,停用)', rightOff: true, rightColor: 'var(--dis)', icon: ICON.folderX, ttl: '這台主機不能瀏覽檔案', msg: '透過主機服務連線的主機目前不支援檔案。換一台 SSH 主機就能瀏覽。', tint: '換主機' },
+      { n: '檔案 · 空資料夾', tab: 1, badge: 1, centerHost: 'Ray Mac Mini', rightIcon: plus, rightLabel: '上傳到這個資料夾', icon: ICON.folder, ttl: '這個資料夾是空的', msg: '~/Projects/notes/drafts', tint: '上傳檔案' },
+      { n: '檔案 · 讀取失敗', tab: 1, badge: 1, centerHost: 'Ray Mac Mini', rightIcon: plus, rightLabel: '上傳到這個資料夾', icon: ICON.warn, ttl: '讀不到這個資料夾', msg: '權限不足:/private/var/log', tint: '再試一次' },
+      { n: '聊天 · 搜尋找不到', tab: 0, badge: 1, search: true, right: false, icon: ICON.search, ttl: '找不到「xyz」', msg: '在所有主機的 Agent 名稱裡都沒有找到,換個關鍵字試試。' },
+      { n: '聊天 · 沒有網路', tab: 0, badge: 0, centerText: '聊天', rightIcon: compose, rightLabel: '新增聊天(沒有網路,停用)', rightOff: true, rightColor: 'var(--dis)', icon: ICON.wifiX, ttl: '沒有網路連線', msg: '連上網路後會自動重新整理。目前顯示的是上次的內容。', tint: '再試一次' },
+      { n: 'Git · 沒有變更', tab: 0, badge: 1, back: true, right: false, centerText: 'Git 變更', centerSub: 'main', icon: ICON.check, ttl: '沒有變更', msg: '工作目錄和最後一次 commit 相同。' }
+    ];
+    const screens = [];
+    for (const cls of ['dark', 'light']) for (const s of S) screens.push({ ...B, ...s, cls, tabs: tabsFor(s.tab, s.badge), label: (cls === 'dark' ? '深色' : '淺色') + ' · ' + s.n });
+    return { screens };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>Spaces 檢視</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="4">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone grouped {{s.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="檢視:Spaces,點兩下切到 Agents,長按選擇"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z"></path></svg></button>
+<div class="top-c"><button class="hostcap glass" aria-label="目前主機:所有主機,點兩下更改"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3z M8 20h8 M12 16v4"></path></svg>所有主機<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="grp glass top-r"><button aria-label="新增聊天"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6 M9.5 14.5l.8-3.3 8.4-8.4a1.8 1.8 0 0 1 2.5 2.5l-8.4 8.4z"></path></svg></button><button aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="gl">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+<div style="display:flex;align-items:center"><div class="sh" style="flex-grow:1">{{g.title}}</div><button class="ib" style="background:transparent;color:var(--sec)" aria-label="{{g.title}} 的版面圖"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M12 4v16M12 12h9"></path></svg></button></div>
+<div class="card">
+<sc-for list="{{g.tabs}}" as="t" hint-placeholder-count="2">
+<button class="cell" aria-label="{{t.a11y}}"><span class="lead"><span class="av" style="width:36px;height:36px"><span class="face {{t.kind}}" style="width:36px;height:36px;border-radius:11px;font-size:15px" aria-hidden="true">{{t.av}}</span><sc-if value="{{t.st}}" hint-placeholder-val="{{true}}"><span class="sb {{t.st}}" style="border-color:var(--card)" aria-hidden="true">{{t.badge}}</span></sc-if></span></span><span class="cb"><span class="main"><span>{{t.name}}</span><span class="sub">{{t.sub}}</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+</sc-for>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{s.menu}}" hint-placeholder-val="{{false}}">
+<div class="mscrim"></div>
+<div class="menu glass" style="top:108px;left:16px;width:230px">
+<sc-for list="{{views}}" as="v" hint-placeholder-count="2"><button class="mi"><span class="ck"><sc-if value="{{v.on}}" hint-placeholder-val="{{false}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="已選取"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if></span><span class="mt">{{v.name}}</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{v.icon}}"></path></svg></button></sc-for>
+</div>
+</sc-if>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{tabs}}" as="b" hint-placeholder-count="4"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 0 ? 'on' : '', cur: i === 0 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
+    const ST = { need: ['!', '需要你'], work: ['•••', '工作中'], done: ['✓', '完成'], '': ['', ''] };
+    const T = (name, sub, av, kind, st) => ({ name, sub, av, kind, st, badge: ST[st][0], a11y: name + ',' + sub + (st ? ',' + ST[st][1] : '') });
+    const groups = [
+      { title: 'Ray Mac Mini · purrdr.ios', tabs: [T('Tab 1', 'Claude Code · 2 個 Pane', 'C', 'claude', 'work'), T('Tab 2', 'Claude Code', 'C', 'claude', 'done')] },
+      { title: 'Ray Mac Mini · weather-app', tabs: [T('Tab 1', 'Claude Code', 'C', 'claude', 'need')] },
+      { title: 'Ray PC · notes', tabs: [T('Tab 1', 'Codex · 2 個 Pane', 'X', 'codex', 'work'), T('Tab 2', 'shell', '$', 'shell', '')] }
+    ];
+    return {
+      tabs, groups,
+      screens: [
+        { cls: 'dark', menu: false, label: '深色 · Spaces 檢視(左上一鍵切換)' },
+        { cls: 'dark', menu: true, label: '深色 · 長按左上出選單' },
+        { cls: 'light', menu: false, label: '淺色 · Spaces 檢視' },
+        { cls: 'light', menu: true, label: '淺色 · 長按選單' }
+      ],
+      views: [
+        { name: 'Agents', on: false, icon: 'M9 11a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z M3 19.5c0-3.2 2.7-5.3 6-5.3s6 2.1 6 5.3 M16.5 10.8a2.6 2.6 0 1 0 0-5.2 M17 14.2c2.5.3 4.5 2.1 4.5 5.3' },
+        { name: 'Spaces', on: true, icon: 'M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

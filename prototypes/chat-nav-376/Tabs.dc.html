@@ -2,64 +2,46 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<title>四個 tab 與切換主機</title>
+<title>聊天 tab 與切換主機</title>
 <script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
 </head>
 <body>
 <x-dc>
-<helmet>
-<style>
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif}
-.dark{--bg:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--track:rgba(120,120,128,.36);--text:#FFFFFF;--sec:#AEAEB2;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--glass:rgba(44,44,46,.86);--glassline:rgba(255,255,255,.14);--orange:#FF9F0A;--red:#FF453A;--gray:#8E8E93;--claude:#4A3A33;--claudefg:#F0B8A0;--codex:#2F3A48;--codexfg:#A9C4E8}
-.light{--bg:#FFFFFF;--card:#FFFFFF;--fill:rgba(120,120,128,.16);--track:rgba(120,120,128,.2);--text:#000000;--sec:#636366;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--on:#FFFFFF;--glass:rgba(255,255,255,.88);--glassline:rgba(0,0,0,.08);--orange:#FF9500;--red:#FF3B30;--gray:#8E8E93;--claude:#F6E3DA;--claudefg:#8A4A30;--codex:#DDE7F4;--codexfg:#2F4F7A}
-.dark{--u-ok:#6FAE98;--u-warn:#C99A6A;--u-high:#C98078;--track:rgba(120,120,128,.28)}
-.light{--u-ok:#5E9583;--u-warn:#A9784A;--u-high:#B0645D;--track:rgba(120,120,128,.16)}
-.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6)}
-</style>
-</helmet>
-<div style="width:1760px;height:980px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#E4E4E9">
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
 <sc-for list="{{screens}}" as="s" hint-placeholder-count="4">
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{s.label}}</div>
-<div class="{{s.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
-<button class="glass" style="height:44px;border-radius:22px;padding:0 14px;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px;font-weight:500">Agents<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
-<button class="glass" aria-expanded="{{s.menu}}" style="height:44px;border-radius:22px;padding:0 14px;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px;font-weight:600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg>所有主機<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
-<div class="glass" style="height:44px;border-radius:22px;display:flex;align-items:center;gap:2px;padding:0 4px">
-<button aria-label="新增聊天" style="width:36px;height:36px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;justify-content:center;padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
-<button aria-label="帳號" style="width:32px;height:32px;border-radius:16px;border:none;background:var(--accent);color:var(--on);font-size:14px;font-weight:600;padding:0">R</button>
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="檢視:Agents,點兩下切到 Spaces"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{I.person2}}"></path></svg></button>
+<div class="top-c"><button class="hostcap glass" aria-expanded="{{s.menu}}" aria-label="目前主機:所有主機,點兩下更改"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{I.desk}}"></path></svg>所有主機<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{I.chevD}}"></path></svg></button></div>
+<div class="grp glass top-r"><button aria-label="新增聊天"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{I.compose}}"></path></svg></button><button aria-label="帳號"><span class="avatar">R</span></button></div>
 </div>
-</div>
-<div style="position:absolute;top:116px;left:0;right:0;bottom:0;display:flex;flex-direction:column">
-<div style="margin:6px 16px 6px;height:38px;border-radius:12px;background:var(--fill);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--sec);font-size:17px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg><label>搜尋 Agent</label></div>
+<div class="content">
+<div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg><span>搜尋 Agent</span></div>
 <sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
-<button style="border:none;background:transparent;color:var(--text);display:flex;gap:12px;padding:12px 16px 0;text-align:left;align-items:flex-start">
-<span style="position:relative;width:44px;height:44px;flex-shrink:0"><span style="width:44px;height:44px;border-radius:13px;background:{{r.avBg}};color:{{r.avFg}};font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center">{{r.av}}</span><span role="img" aria-label="{{r.status}}" style="position:absolute;right:-4px;bottom:-4px;width:20px;height:20px;border-radius:10px;background:{{r.dot}};color:{{r.badgeFg}};border:2.5px solid var(--bg);box-sizing:border-box;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">{{r.badge}}</span></span>
-<span style="flex-grow:1;display:flex;flex-direction:column;gap:3px;padding-bottom:12px;border-bottom:solid 1px var(--sep);min-width:0">
-<span style="display:flex;align-items:baseline;gap:8px"><span style="font-size:17px;font-weight:600">{{r.title}}</span><span style="font-size:13px;color:var(--sec);flex-grow:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{r.host}}</span><span style="font-size:14px;color:var(--sec)">{{r.time}}</span></span>
-<span style="display:flex;align-items:center;gap:6px;font-size:15px"><span style="flex-grow:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{r.pvColor}};font-weight:{{r.pvWeight}}">{{r.preview}}</span><svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="none" stroke="var(--track)" stroke-width="3"></circle><circle cx="11" cy="11" r="8" fill="none" stroke="{{r.ring}}" stroke-width="3" stroke-linecap="round" stroke-dasharray="{{r.dash}}" transform="rotate(-90 11 11)"></circle></svg><span style="color:var(--sec)">{{r.pct}}</span></span>
+<button class="row" aria-label="{{r.a11y}}">
+<span class="av"><span class="face {{r.kind}}" aria-hidden="true">{{r.av}}</span><span class="sb {{r.st}}" aria-hidden="true">{{r.badge}}</span></span>
+<span class="rowbody">
+<span class="l1"><span class="name">{{r.title}}</span><span class="host">{{r.host}}</span><span class="time">{{r.time}}</span></span>
+<span class="l2"><span class="pv {{r.pvc}}">{{r.preview}}</span><svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="none" stroke="var(--track)" stroke-width="3"></circle><circle cx="11" cy="11" r="8" fill="none" stroke="{{r.ring}}" stroke-width="3" stroke-linecap="round" stroke-dasharray="{{r.dash}}" transform="rotate(-90 11 11)"></circle></svg><span class="pct">{{r.pct}}</span></span>
 </span>
 </button>
 </sc-for>
 </div>
 <sc-if value="{{s.menu}}" hint-placeholder-val="{{false}}">
-<div style="position:absolute;inset:0;background:rgba(0,0,0,.18);z-index:2"></div>
-<div class="glass" style="position:absolute;top:108px;left:70px;right:70px;border-radius:24px;padding:6px 0;z-index:3">
+<div class="mscrim"></div>
+<div class="menu glass" style="top:108px;left:65px;right:65px">
 <sc-for list="{{hosts}}" as="h" hint-placeholder-count="4">
-<button style="width:100%;min-height:52px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:12px;padding:0 16px;font-size:17px;text-align:left">
-<span style="width:20px;display:flex;justify-content:center"><sc-if value="{{h.on}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="已選取"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if></span>
-<span style="flex-grow:1;display:flex;flex-direction:column;gap:1px"><span>{{h.name}}</span><span style="font-size:13px;color:var(--sec)">{{h.sub}}</span></span>
-</button>
+<button class="mi"><span class="ck"><sc-if value="{{h.on}}" hint-placeholder-val="{{false}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="已選取"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if></span><span class="mt"><span>{{h.name}}</span><span class="ms">{{h.sub}}</span></span></button>
 </sc-for>
-<div style="height:1px;background:var(--sep);margin:4px 16px"></div>
-<button style="width:100%;min-height:50px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:12px;padding:0 16px;font-size:17px;text-align:left"><span style="width:20px;display:flex;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span><span>新增主機…</span></button>
+<div class="msep"></div>
+<button class="mi"><span class="ck"></span><span class="mt">新增主機…</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="{{I.plus}}"></path></svg></button>
 </div>
 </sc-if>
-<nav class="glass" aria-label="分頁" style="position:absolute;left:20px;right:20px;bottom:30px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:space-around;padding:0 6px;z-index:1">
-<sc-for list="{{tabs}}" as="b" hint-placeholder-count="4">
-<a href="#" aria-current="{{b.cur}}" style="flex-grow:1;height:54px;border-radius:27px;background:{{b.bg}};color:{{b.fg}};text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500"><svg width="24" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{b.icon}}"></path></svg><span>{{b.name}}</span></a>
-</sc-for>
-</nav>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{tabs}}" as="b" hint-placeholder-count="4"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
 </div>
 </div>
 </sc-for>
@@ -68,41 +50,38 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFa
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
 class Component extends DCLogic {
   renderVals() {
+    const I = {
+      person2: 'M9 11a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z M3 19.5c0-3.2 2.7-5.3 6-5.3s6 2.1 6 5.3 M16.5 10.8a2.6 2.6 0 1 0 0-5.2 M17 14.2c2.5.3 4.5 2.1 4.5 5.3',
+      desk: 'M3 4h18v12H3z M8 20h8 M12 16v4', chevD: 'M6 9l6 6 6-6', plus: 'M12 5v14M5 12h14',
+      compose: 'M11 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6 M9.5 14.5l.8-3.3 8.4-8.4a1.8 1.8 0 0 1 2.5 2.5l-8.4 8.4z'
+    };
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 0 ? 'on' : '', cur: i === 0 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
     const C = 50.3;
-    const row = (av, title, status, kind, host, time, pct, preview) => {
-      const tone = { need: ['var(--orange)', 'var(--text)', 600], work: ['var(--accent)', 'var(--sec)', 400], done: ['var(--gray)', 'var(--sec)', 400] }[kind];
+    const ST = { need: ['!', '需要你'], work: ['•••', '工作中'], done: ['✓', '完成'] };
+    const row = (av, kind, title, st, host, time, pct, preview) => {
       const ring = pct >= 85 ? 'var(--u-high)' : pct >= 70 ? 'var(--u-warn)' : 'var(--u-ok)';
-      const claude = av === 'C';
-      const badge = { need: '!', work: '•••', done: '✓' }[kind];
-      const badgeFg = { need: '#000000', work: 'var(--on)', done: '#FFFFFF' }[kind];
-      return { av, title, status, host, time, badge, badgeFg,
-        preview: kind === 'need' ? '需要你:' + preview : preview,
-        pvColor: kind === 'need' ? 'var(--text)' : 'var(--sec)', pvWeight: kind === 'need' ? 600 : 400, pct: pct + '%', dot: tone[0], stColor: tone[1], stWeight: tone[2], ring, dash: (C * pct / 100).toFixed(1) + ' 60',
-        avBg: claude ? 'var(--claude)' : 'var(--codex)', avFg: claude ? 'var(--claudefg)' : 'var(--codexfg)' };
+      const pv = st === 'need' ? '需要你:' + preview : preview;
+      return { av, kind, title, st, host, time, badge: ST[st][0], pct: pct + '%', ring, dash: (C * pct / 100).toFixed(1) + ' 60', preview: pv, pvc: st === 'need' ? 'need' : '',
+        a11y: (kind === 'claude' ? 'Claude Code' : 'Codex') + ',' + title + ',' + ST[st][1] + ',' + host + ',' + pv + ',Context ' + pct + '%,' + time };
     };
     const rows = [
-      row('C', 'weather-app', '需要你', 'need', 'Ray Mac Mini', '09:51', 18, '要我直接改 Info.plist 嗎?'),
-      row('C', 'purrdr.ios', '工作中', 'work', 'Ray Mac Mini', '09:50', 42, '正在跑 UI 日常組…'),
-      row('X', 'notes', '工作中', 'work', 'Ray PC', '09:40', 71, '整理 Markdown 匯出格式'),
-      row('C', 'ledger', '完成', 'done', 'Ray Mac Mini', '昨天', 88, 'CSV 匯出已修好,測試通過'),
-      row('C', 'trip-planner', '完成', 'done', 'Ray PC', '週三', 24, '行程頁改好了')
+      row('C', 'claude', 'weather-app', 'need', 'Ray Mac Mini', '09:51', 18, '要我直接改 Info.plist 嗎?'),
+      row('C', 'claude', 'purrdr.ios', 'work', 'Ray Mac Mini', '09:50', 42, '正在跑 UI 日常組…'),
+      row('X', 'codex', 'notes', 'work', 'Ray PC', '09:40', 71, '整理 Markdown 匯出格式'),
+      row('C', 'claude', 'ledger', 'done', 'Ray Mac Mini', '昨天', 88, 'CSV 匯出已修好,測試通過'),
+      row('C', 'claude', 'trip-planner', 'done', 'Ray PC', '週三', 24, '行程頁改好了')
     ];
-    const tabs = [
-      { name: '聊天', icon: 'M4 5h16v11H9l-5 4V5z' },
-      { name: '檔案', icon: 'M3 6h6l2 2h10v11H3z' },
-      { name: '主機', icon: 'M3 4h18v12H3z M8 20h8 M12 16v4' },
-      { name: '設定', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19 12l2-1-1-3-2 .3-1.5-1.5L17 5l-3-1-1 2h-2L10 4 7 5l.5 2.3L6 8.8 4 8.5l-1 3 2 1v2l-2 1 1 3 2-.3 1.5 1.5L7 21l3 1 1-2h2l1 2 3-1-.5-2.3 1.5-1.5 2 .3 1-3-2-1z' }
-    ].map((t, i) => ({ ...t, cur: i === 0 ? 'page' : 'false', bg: i === 0 ? 'var(--fill)' : 'transparent', fg: i === 0 ? 'var(--accent)' : 'var(--text)' }));
     return {
+      I, tabs, rows,
       screens: [
-        { cls: 'dark', menu: false, label: '深色 · 聊天 tab(往下拉出現搜尋)' },
-        { cls: 'dark', menu: true, label: '深色 · 點中間標題切換主機' },
+        { cls: 'dark', menu: false, label: '深色 · 聊天 tab' },
+        { cls: 'dark', menu: true, label: '深色 · 切換目前主機' },
         { cls: 'light', menu: false, label: '淺色 · 聊天 tab' },
-        { cls: 'light', menu: true, label: '淺色 · 切換主機' }
+        { cls: 'light', menu: true, label: '淺色 · 切換目前主機' }
       ],
-      rows, tabs,
       hosts: [
-        { name: '所有主機', sub: '聊天合併顯示', on: true },
+        { name: '所有主機', sub: '合併顯示所有主機的 Agent', on: true },
         { name: 'Ray Mac Mini', sub: 'Tailscale SSH · 線上', on: false },
         { name: 'Ray PC', sub: 'OpenSSH · 線上', on: false },
         { name: 'Build Box', sub: 'HTTPS · 離線', on: false }

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>聊天的狀態</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:4310px;height:1880px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="12">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-label="{{s.title}},{{s.st}},{{s.host}}"><span class="t1">{{s.title}}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="t2"><span class="sb {{s.sb}} sm" aria-hidden="true">{{s.sbt}}</span><span>{{s.st}} · {{s.host}}</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<sc-if value="{{s.banner}}" hint-placeholder-val="{{false}}"><div class="banner glass" role="status"><span class="sb need" aria-hidden="true">!</span><span style="flex-grow:1">weather-app 需要你</span><button class="btn-tint">前往</button></div></sc-if>
+<sc-if value="{{s.skel}}" hint-placeholder-val="{{false}}">
+<div class="msgs" aria-label="載入中"><div class="skel" style="height:16px;width:85%"></div><div class="skel" style="height:16px;width:70%"></div><div class="skel" style="height:40px;width:55%;align-self:flex-end;border-radius:20px"></div><div class="skel" style="height:16px;width:90%"></div><div class="skel" style="height:16px;width:60%"></div></div>
+</sc-if>
+<sc-if value="{{s.normal}}" hint-placeholder-val="{{true}}">
+<div class="msgs" style="top:{{s.msgTop}}"><div>我已經把上限改成 5 行,測試也一起更新。</div><div class="bubble">幫我開 PR</div><div>好,PR 已開好,CI 正在跑。</div>
+<sc-if value="{{s.queued}}" hint-placeholder-val="{{false}}"><div class="bubble" style="border:1px dashed var(--sec);background:var(--fill);opacity:.85">CI 過了就合併</div><div class="meta" style="align-self:flex-end;margin-top:-8px">做完再送 · 等 Agent 完成後送出(長按可取消)</div></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{s.roNeed}}" hint-placeholder-val="{{false}}">
+<div class="msgs"><div>我要在 Info.plist 加入相機權限的說明文字。</div>
+<div class="qcard">
+<div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg>要允許編輯這個檔案嗎?</div>
+<div class="opts"><button disabled style="color:var(--dis)">允許</button><button disabled style="color:var(--dis)">這個 session 都允許</button><button disabled style="color:var(--dis)">不要,告訴 Agent 怎麼做…</button></div>
+<div style="font-size:13px;color:var(--sec)">這支裝置只能看,不能回答。請在主機上或可寫入的裝置上回答。</div>
+</div></div>
+</sc-if>
+<sc-if value="{{s.roWork}}" hint-placeholder-val="{{false}}">
+<div class="msgs"><div class="bubble">跑一次 UI 日常組</div><div>好,我先建置再跑日常組。</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:104px;display:flex;justify-content:center;z-index:3"><div class="glass" role="status" style="height:44px;border-radius:22px;padding:0 16px;display:flex;align-items:center;gap:8px;font-size:15px"><span class="sb work sm" aria-hidden="true">•••</span>工作中 · 唯讀裝置不能停止</div></div>
+</sc-if>
+<sc-if value="{{s.roPanel}}" hint-placeholder-val="{{false}}">
+<div class="panel glass">
+<div class="ph2">用量 · Claude · Build Box</div>
+<div style="padding:2px 18px 8px;font-size:15px;color:var(--sec)">這台主機的用量要等主機服務支援後才會顯示。</div>
+<button class="prow" disabled style="color:var(--dis)"><span style="flex-grow:1">模型</span><span>Opus 5.5 · 中</span></button>
+<div class="prow" style="color:var(--dis)"><span style="flex-grow:1">做完再送</span><span class="toggle" role="switch" aria-checked="false" aria-disabled="true" aria-label="做完再送" style="opacity:.5"></span></div>
+<div style="height:1px;background:var(--sep);margin:6px 0"></div>
+<div class="ph2">權限模式</div>
+<button class="prow" disabled style="color:var(--dis)"><span style="flex-grow:1">一般</span></button>
+<button class="prow" disabled style="color:var(--dis)"><span style="flex-grow:1">接受編輯</span><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--dis)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="已選取"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></button>
+<div style="padding:4px 18px 6px;font-size:13px;color:var(--sec);line-height:1.4">這支裝置只能看,不能切換模型、權限模式或做完再送。</div>
+</div>
+</sc-if>
+<sc-if value="{{s.err}}" hint-placeholder-val="{{false}}"><div style="position:absolute;left:16px;right:16px;bottom:{{s.errBottom}};display:flex;align-items:center;gap:8px;font-size:15px;z-index:3"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--red)" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg><span style="flex-grow:1">切換模型失敗:主機沒有回應</span><button class="btn-plain" style="font-size:15px">再試一次</button></div></sc-if>
+<sc-if value="{{s.collapsed}}" hint-placeholder-val="{{true}}">
+<div class="composer glass">
+<button class="cbtn {{s.plusCls}}" aria-label="加入" disabled="{{s.ro}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">{{s.ph}}</label>
+<button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</sc-if>
+<sc-if value="{{s.expanded}}" hint-placeholder-val="{{false}}">
+<div class="composer-x glass" style="bottom:34px">
+<div class="txt">接著跑完整組<span class="caret"></span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button class="chip" aria-label="{{s.chipA11y}}" disabled="{{s.chipOff}}" style="color:{{s.chipColor}}"><sc-if value="{{s.spin}}" hint-placeholder-val="{{false}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"></path></svg></sc-if><span>{{s.chip}}</span><span style="color:var(--sec)">{{s.chipEffort}}</span></button>
+<span style="flex-grow:1"></span>
+<button class="cbtn send" aria-label="送出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":4310,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const B = { roNeed: false, roWork: false, roPanel: false, title: 'purrdr.ios', host: 'Ray Mac Mini', sb: 'done', sbt: '✓', st: '完成', banner: false, skel: false, normal: true, queued: false, err: false, errBottom: '170px', collapsed: true, expanded: false, ro: false, plusCls: '', ph: '訊息', msgTop: '120px',
+      chip: 'Opus 5.5', chipEffort: '中', chipA11y: '模型 Opus 5.5,投入程度中', chipOff: false, chipColor: 'var(--text)', spin: false };
+    const S = [
+      { n: '唯讀裝置', ro: true, plusCls: 'off', ph: '這支裝置只能看,不能送出' },
+      { n: '唯讀 · 需要你', title: 'weather-app', sb: 'need', sbt: '!', st: '需要你', normal: false, roNeed: true, ro: true, plusCls: 'off', ph: '這支裝置只能看,不能送出' },
+      { n: '唯讀 · 工作中(無停止)', sb: 'work', sbt: '•••', st: '工作中', normal: false, roWork: true, ro: true, plusCls: 'off', ph: '這支裝置只能看,不能送出' },
+      { n: '唯讀 · 標題面板', title: 'ci-runner', host: 'Build Box', sb: 'need', sbt: '!', st: '需要你', normal: false, roPanel: true, ro: true, plusCls: 'off', ph: '這支裝置只能看,不能送出' },
+      { n: '做完再送(排隊中)', sb: 'work', sbt: '•••', st: '工作中', queued: true },
+      { n: '模型切換中', collapsed: false, expanded: true, chip: '切換中…', chipEffort: '', chipA11y: '正在切換模型', chipOff: true, chipColor: 'var(--sec)', spin: true },
+      { n: '模型切換失敗', collapsed: false, expanded: true, err: true, errBottom: '196px' },
+      { n: 'Codex(只顯示模型)', title: 'notes', host: 'Ray PC', sb: 'work', sbt: '•••', st: '工作中', collapsed: false, expanded: true, chip: 'Codex 預設模型', chipEffort: '', chipA11y: 'Codex 預設模型,在主機上調整', chipOff: true, chipColor: 'var(--sec)' },
+      { n: '第一次載入', skel: true, normal: false },
+      { n: '其他 Agent 需要你', banner: true, msgTop: '186px' }
+    ];
+    const screens = [];
+    for (const cls of ['dark', 'light']) for (const s of S) screens.push({ ...B, ...s, cls, label: (cls === 'dark' ? '深色' : '淺色') + ' · ' + s.n });
+    return { screens };
+  }
+}
+</script>
+</body>
+</html>

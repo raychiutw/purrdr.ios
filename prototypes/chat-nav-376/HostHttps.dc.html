@@ -2,71 +2,73 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<title>主機 tab:HTTPS 主機</title>
+<title>主機 tab 的狀態</title>
 <script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
 </head>
 <body>
 <x-dc>
-<helmet>
-<style>
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif}
-.dark{--bg:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--text:#FFFFFF;--sec:#AEAEB2;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--glass:rgba(44,44,46,.86);--glassline:rgba(255,255,255,.14);--red:#FF453A;--toggleon:#3CCF9E}
-.light{--bg:#F2F2F7;--card:#FFFFFF;--fill:rgba(120,120,128,.16);--text:#000000;--sec:#636366;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--on:#FFFFFF;--glass:rgba(255,255,255,.88);--glassline:rgba(0,0,0,.08);--red:#D70015;--toggleon:#0B7A5C}
-.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6)}
-</style>
-</helmet>
-<div style="width:900px;height:980px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#E4E4E9">
-<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · HTTPS 主機(有主機服務、無用量)</div>
-<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
-<span style="width:84px"></span>
-<button class="glass" style="height:44px;border-radius:22px;padding:0 14px;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px;font-weight:600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 7h6M9 11h6"></path></svg>Build Box<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
-<div class="glass" style="height:44px;border-radius:22px;display:flex;align-items:center;gap:2px;padding:0 4px">
-<button aria-label="新增聊天" style="width:36px;height:36px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;justify-content:center;padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
-<button aria-label="帳號" style="width:32px;height:32px;border-radius:16px;border:none;background:var(--accent);color:var(--on);font-size:14px;font-weight:600;padding:0">R</button>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:2620px;height:1880px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="12">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone grouped {{s.cls}}">
+<div class="top">
+<div class="top-c"><button class="hostcap glass" aria-label="選取中主機:{{s.host}},點兩下更改"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3z M8 20h8 M12 16v4"></path></svg>{{s.host}}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="grp glass top-r"><button aria-label="新增主機"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button><button aria-label="帳號"><span class="avatar">R</span></button></div>
 </div>
+<div class="gl">
+<div class="card" style="margin-top:4px;padding:12px 16px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:10px"><sc-if value="{{s.err}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--red)" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg></sc-if><sc-if value="{{s.okdot}}" hint-placeholder-val="{{true}}"><span style="width:10px;height:10px;border-radius:5px;background:{{s.dot}}" aria-hidden="true"></span></sc-if><span style="display:flex;flex-direction:column;gap:2px;flex-grow:1"><span style="font-size:17px">{{s.stTitle}}</span><span style="font-size:13px;color:var(--sec)">{{s.stSub}}</span></span></div>
+<sc-if value="{{s.stAction}}" hint-placeholder-val="{{false}}"><button class="{{s.stBtn}}" style="align-self:flex-start">{{s.stAction}}</button></sc-if>
 </div>
-<div style="position:absolute;top:116px;left:16px;right:16px;bottom:0;display:flex;flex-direction:column;gap:8px;overflow:hidden">
-<div style="background:var(--card);border-radius:22px;padding:14px 18px;display:flex;align-items:center;gap:12px">
-<span style="width:10px;height:10px;border-radius:5px;background:var(--accent)"></span>
-<span style="flex-grow:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:17px">線上</span><span style="font-size:14px;color:var(--sec)">HTTPS · buildbox.tail1234.ts.net</span></span>
-</div>
-<div style="font-size:13px;color:var(--sec);padding:10px 18px 2px">主機服務</div>
-<div style="background:var(--card);border-radius:22px;overflow:hidden">
-<div style="min-height:50px;display:flex;align-items:center;padding:0 18px;font-size:17px;border-bottom:solid 1px var(--sep)"><span style="flex-grow:1">版本</span><span style="color:var(--sec)">0.11.0</span></div>
-<button style="width:100%;min-height:50px;border:none;background:transparent;color:var(--accent);display:flex;align-items:center;padding:0 18px;font-size:17px;text-align:left;border-bottom:solid 1px var(--sep)">更新到 0.12.0</button>
-<div style="min-height:50px;display:flex;align-items:center;padding:0 18px;font-size:17px;border-bottom:solid 1px var(--sep)"><label style="flex-grow:1">自動更新</label><div style="width:52px;height:32px;border-radius:16px;background:var(--toggleon);position:relative"><div style="position:absolute;top:2px;right:2px;width:28px;height:28px;border-radius:14px;background:#FFFFFF"></div></div></div>
-<button style="width:100%;min-height:50px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:8px;padding:0 18px;font-size:17px;text-align:left"><span style="flex-grow:1">已配對的裝置</span><span style="color:var(--sec)">2</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button>
-</div>
-<div style="font-size:13px;color:var(--sec);padding:10px 18px 2px">這台主機</div>
-<div style="background:var(--card);border-radius:22px;overflow:hidden">
-<div style="min-height:50px;display:flex;align-items:center;padding:0 18px;font-size:17px;border-bottom:solid 1px var(--sep)"><label style="flex-grow:1">通知</label><div style="width:52px;height:32px;border-radius:16px;background:var(--toggleon);position:relative"><div style="position:absolute;top:2px;right:2px;width:28px;height:28px;border-radius:14px;background:#FFFFFF"></div></div></div>
-<button style="width:100%;min-height:50px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;padding:0 18px;font-size:17px;text-align:left"><span style="flex-grow:1">編輯主機</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button>
-</div>
-<div style="background:var(--card);border-radius:22px;margin-top:12px"><button style="width:100%;min-height:50px;border:none;background:transparent;color:var(--red);font-size:17px">刪除主機</button></div>
-</div>
-<nav class="glass" aria-label="分頁" style="position:absolute;left:20px;right:20px;bottom:30px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:space-around;padding:0 6px;z-index:1">
-<sc-for list="{{tabs}}" as="b" hint-placeholder-count="4">
-<a href="#" aria-current="{{b.cur}}" style="flex-grow:1;height:54px;border-radius:27px;background:{{b.bg}};color:{{b.fg}};text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500"><svg width="24" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{b.icon}}"></path></svg><span>{{b.name}}</span></a>
+<sc-if value="{{s.useBars}}" hint-placeholder-val="{{false}}">
+<div class="sh">方案用量(最後讀到的資料 · 08:12)</div>
+<div class="card" style="padding:12px 16px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:space-between;font-size:15px"><span>Claude · 5 小時</span><span><b style="font-weight:600">38%</b> <span style="color:var(--sec)">已用</span></span></div><div class="bar"><div style="width:38%;background:var(--u-ok)"></div></div></div>
+</sc-if>
+<sc-if value="{{s.useEnable}}" hint-placeholder-val="{{false}}">
+<div class="sh">方案用量</div>
+<div class="card" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px"><span style="font-size:15px;line-height:1.4">要在這裡看到 Claude 的 5 小時與 7 天用量,需要在這台主機上啟用用量擷取(會修改 Claude Code 的 status line 設定,可完整還原)。</span><button class="btn-tint" style="align-self:flex-start">啟用用量顯示</button></div>
+</sc-if>
+<div class="sh">這台主機</div>
+<div class="card">
+<sc-for list="{{s.items}}" as="it" hint-placeholder-count="3">
+<button class="cell {{it.cls}}" disabled="{{it.off}}"><span class="cb"><span class="main"><span>{{it.name}}</span><sc-if value="{{it.sub}}" hint-placeholder-val="{{false}}"><span class="sub">{{it.sub}}</span></sc-if></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
 </sc-for>
-</nav>
+</div>
+<div class="card" style="margin-top:20px"><button class="cell danger"><span class="cb" style="justify-content:center">{{s.remove}}</span></button></div>
+</div>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{tabs}}" as="b" hint-placeholder-count="4"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
 </div>
 </div>
 </sc-for>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":900,"height":980}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2620,"height":1880}}'>
 class Component extends DCLogic {
   renderVals() {
-    const tabs = [
-      { name: '聊天', icon: 'M4 5h16v11H9l-5 4V5z' },
-      { name: '檔案', icon: 'M3 6h6l2 2h10v11H3z' },
-      { name: '主機', icon: 'M3 4h18v12H3z M8 20h8 M12 16v4' },
-      { name: '設定', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19 12l2-1-1-3-2 .3-1.5-1.5L17 5l-3-1-1 2h-2L10 4 7 5l.5 2.3L6 8.8 4 8.5l-1 3 2 1v2l-2 1 1 3 2-.3 1.5 1.5L7 21l3 1 1-2h2l1 2 3-1-.5-2.3 1.5-1.5 2 .3 1-3-2-1z' }
-    ].map((t, i) => ({ ...t, cur: i === 2 ? 'page' : 'false', bg: i === 2 ? 'var(--fill)' : 'transparent', fg: i === 2 ? 'var(--accent)' : 'var(--text)' }));
-    return { themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }], tabs };
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 2 ? 'on' : '', cur: i === 2 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
+    const it = (name, sub, off) => ({ name, sub: sub || '', off: !!off, cls: off ? 'dis' : '' });
+    const base = { err: false, okdot: true, dot: 'var(--accent)', stAction: '', stBtn: 'btn-tint', useBars: false, useEnable: false, remove: '移除主機' };
+    const states = [
+      { name: '離線', host: 'Build Box', err: true, okdot: false, stTitle: '連不上這台主機', stSub: '主機離線或不在 Tailscale 上 · 最後連線 08:12', stAction: '再試一次', useBars: true,
+        items: [it('通知', '需要你'), it('登入 Shell', '連上後才能使用', true), it('編輯主機')] },
+      { name: '範例主機', host: '範例主機', stTitle: '範例主機', stSub: '用範例對話試每個畫面,不會連到任何電腦', remove: '移除範例主機',
+        items: [it('新增你自己的主機')] },
+      { name: '這支裝置未配對', host: 'Build Box', okdot: false, err: true, stTitle: '這支裝置尚未配對', stSub: '這台主機是從其他裝置同步來的', stAction: '輸入配對碼', stBtn: 'btn-prom',
+        items: [it('編輯主機')] },
+      { name: '唯讀裝置', host: 'Build Box', stTitle: '線上 · 唯讀', stSub: '這支裝置只能看,不能送出或回答',
+        items: [it('通知', '需要你'), it('這台主機的設定', '唯讀裝置無法更改', true), it('編輯主機')] },
+      { name: 'herdr 需要更新', host: 'Ray PC', err: true, okdot: false, stTitle: 'herdr 0.9.3 太舊', stSub: 'Purrdr 需要 herdr 0.9.5 以上', stAction: '更新 herdr', stBtn: 'btn-prom',
+        items: [it('登入 Shell'), it('編輯主機')] },
+      { name: '用量尚未啟用', host: 'Ray PC', stTitle: '線上', stSub: 'OpenSSH · herdr 0.9.6', useEnable: true,
+        items: [it('通知', '需要你、完成'), it('登入 Shell'), it('這台主機的設定')] }
+    ];
+    const screens = [];
+    for (const cls of ['dark', 'light']) for (const s of states) screens.push({ ...base, ...s, cls, label: (cls === 'dark' ? '深色' : '淺色') + ' · ' + s.name });
+    return { tabs, screens };
   }
 }
 </script>

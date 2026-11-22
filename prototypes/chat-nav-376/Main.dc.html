@@ -4,74 +4,47 @@
 <meta charset="utf-8">
 <title>聊天輸入區</title>
 <script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
 </head>
 <body>
 <x-dc>
-<helmet>
-<style>
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif}
-.dark{--bg:#1C1C1E;--grouped:#1C1C1E;--card:#2C2C2E;--card2:#3A3A3C;--fill:rgba(120,120,128,.32);--text:#FFFFFF;--sec:#AEAEB2;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--glass:rgba(58,58,60,.74);--glassline:rgba(255,255,255,.14);--kb:#2A2A2C;--key:#545458;--bubble:#2C2C2E}
-.light{--bg:#FFFFFF;--grouped:#F2F2F7;--card:#FFFFFF;--card2:#E5E5EA;--fill:rgba(120,120,128,.16);--text:#000000;--sec:#636366;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--on:#FFFFFF;--glass:rgba(255,255,255,.80);--glassline:rgba(0,0,0,.08);--kb:#D1D3D9;--key:#FFFFFF;--bubble:#E9E9EB}
-.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6)}
-</style>
-</helmet>
-<div style="width:1760px;height:980px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#E4E4E9">
-<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · 收合(未聚焦、空白)</div>
-<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
-<button aria-label="返回" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
-<button class="glass" style="height:52px;min-width:170px;border-radius:26px;padding:0 22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--text)"><span style="font-size:17px;font-weight:600">purrdr.ios</span><span style="font-size:13px;color:var(--sec)">● 完成 · Ray Mac Mini</span></button>
-<button aria-label="終端機與 Git 變更" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="4">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回,另外 1 個 Agent 需要你" style="width:auto;padding:0 12px 0 8px;gap:4px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg><span class="sb need sm" aria-hidden="true" style="width:20px;height:20px;border-radius:10px;font-size:12px">1</span></button>
+<div class="top-c"><button class="titlecap glass" aria-label="purrdr.ios,自動模式,完成,Ray Mac Mini"><span class="t1">purrdr.ios<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="t2"><span>⏵⏵ 自動</span><span>·</span><span class="sb done sm" aria-hidden="true">✓</span><span>完成 · Ray Mac Mini</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
 </div>
-<div style="position:absolute;top:130px;left:20px;right:20px;display:flex;flex-direction:column;gap:14px;font-size:17px;line-height:1.45">
-<div>CI 失敗的原因是 <span style="font-family:ui-monospace,Menlo,monospace;font-size:15px">ComposerRules</span> 的單元測試還在檢查 8 行上限。</div>
+<div class="msgs">
+<sc-if value="{{s.full}}" hint-placeholder-val="{{true}}"><div>CI 失敗的原因是 <span class="mono" style="font-size:15px">ComposerRules</span> 的單元測試還在檢查 8 行上限。</div></sc-if>
 <div>我已經把上限改成 5 行,測試也一起更新,現在全部通過。</div>
-<div style="align-self:flex-end;background:var(--bubble);border-radius:20px;padding:10px 16px;max-width:260px">幫我開 PR</div>
-<div style="align-self:flex-end;font-size:13px;color:var(--sec);margin-top:-8px">09:45</div>
+<div class="bubble">幫我開 PR</div>
+<div class="meta" style="align-self:flex-end;margin-top:-8px">09:45</div>
 <div>好,PR 已開好,CI 正在跑。</div>
 </div>
-<div class="glass" style="position:absolute;left:16px;right:16px;bottom:34px;height:56px;border-radius:28px;display:flex;align-items:center;gap:8px;padding:0 8px;box-sizing:border-box">
-<button aria-label="加入" style="width:40px;height:40px;border-radius:20px;border:none;background:var(--fill);color:var(--text);display:flex;align-items:center;justify-content:center;padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
-<label style="flex-grow:1;font-size:17px;color:var(--sec)">訊息</label>
-<button aria-label="送出(沒有內容,停用)" style="width:40px;height:40px;border-radius:20px;border:none;background:var(--fill);color:var(--sec);display:flex;align-items:center;justify-content:center;padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+<sc-if value="{{s.full}}" hint-placeholder-val="{{true}}">
+<div class="composer glass">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">訊息</label>
+<button class="cbtn off" aria-label="送出,沒有內容時停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</sc-if>
+<sc-if value="{{s.kb}}" hint-placeholder-val="{{false}}">
+<div class="composer-x glass">
+<div class="txt">CI 過了之後幫我合併,再把 CHANGELOG 補上 0.49.0 那段<span class="caret"></span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button class="chip" aria-label="模型 Opus 5.5,投入程度中,點兩下更改"><span>Opus 5.5</span><span style="color:var(--sec)">中</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<span style="flex-grow:1"></span>
+<button class="cbtn send" aria-label="送出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
 </div>
 </div>
-</div>
-</sc-for>
-<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · 展開(聚焦,上限 5 行)</div>
-<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
-<button aria-label="返回" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
-<button class="glass" style="height:52px;min-width:170px;border-radius:26px;padding:0 22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--text)"><span style="font-size:17px;font-weight:600">purrdr.ios</span><span style="font-size:13px;color:var(--sec)">● 完成 · Ray Mac Mini</span></button>
-<button aria-label="終端機與 Git 變更" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
-</div>
-<div style="position:absolute;top:130px;left:20px;right:20px;display:flex;flex-direction:column;gap:14px;font-size:17px;line-height:1.45">
-<div>我已經把上限改成 5 行,測試也一起更新,現在全部通過。</div>
-<div style="align-self:flex-end;background:var(--bubble);border-radius:20px;padding:10px 16px;max-width:260px">幫我開 PR</div>
-<div>好,PR 已開好,CI 正在跑。</div>
-</div>
-<div class="glass" style="position:absolute;left:8px;right:8px;bottom:308px;border-radius:26px;padding:14px 12px 10px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px">
-<div style="font-size:17px;line-height:1.4;padding:0 6px;min-height:48px">CI 過了之後幫我合併,再把 CHANGELOG 補上 0.49.0 那段<span style="display:inline-block;width:2px;height:20px;background:var(--accent);vertical-align:-4px;margin-left:1px"></span></div>
-<div style="display:flex;align-items:center;gap:8px">
-<button aria-label="加入" style="width:40px;height:40px;border-radius:20px;border:none;background:var(--fill);color:var(--text);display:flex;align-items:center;justify-content:center;padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
-<button style="height:40px;border-radius:20px;border:none;background:var(--fill);color:var(--text);display:flex;align-items:center;gap:6px;padding:0 14px;font-size:15px"><span>Opus 5.5</span><span style="color:var(--sec)">中</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
-<div style="flex-grow:1"></div>
-<button aria-label="送出" style="width:40px;height:40px;border-radius:20px;border:none;background:var(--accent);color:var(--on);display:flex;align-items:center;justify-content:center;padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
-</div>
-</div>
-<div style="position:absolute;left:0;right:0;bottom:0;height:300px;background:var(--kb);border-radius:28px 28px 0 0;padding:52px 4px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:10px">
-<sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
-<div style="display:flex;justify-content:center;gap:6px">
-<sc-for list="{{r.keys}}" as="k" hint-placeholder-count="10">
-<div style="width:{{k.w}}px;height:44px;border-radius:8px;background:var(--key)"></div>
-</sc-for>
-</div>
-</sc-for>
-</div>
+<div class="kb"><sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><div class="kr"><sc-for list="{{r.keys}}" as="k" hint-placeholder-count="10"><div class="key" style="width:{{k.w}}px"></div></sc-for></div></sc-for></div>
+</sc-if>
 </div>
 </div>
 </sc-for>
@@ -82,7 +55,12 @@ class Component extends DCLogic {
   renderVals() {
     const row = (n, w) => ({ keys: Array.from({ length: n }, () => ({ w })) });
     return {
-      themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }],
+      screens: [
+        { cls: 'dark', full: true, kb: false, label: '深色 · 收合(未聚焦、空白)' },
+        { cls: 'dark', full: false, kb: true, label: '深色 · 展開(上限 5 行)' },
+        { cls: 'light', full: true, kb: false, label: '淺色 · 收合' },
+        { cls: 'light', full: false, kb: true, label: '淺色 · 展開' }
+      ],
       rows: [row(10, 32), row(10, 32), row(9, 34), { keys: [{ w: 84 }, { w: 180 }, { w: 84 }] }]
     };
   }

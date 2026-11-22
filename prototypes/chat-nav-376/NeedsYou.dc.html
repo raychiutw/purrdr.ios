@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>需要你與工作中</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="col">
+<div class="cap">{{t.name}} · 需要你:權限確認</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-label="weather-app,接受編輯模式,需要你,Ray Mac Mini"><span class="t1">weather-app<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="t2"><span>接受編輯</span><span>·</span><span class="sb need sm" aria-hidden="true">!</span><span>需要你 · Ray Mac Mini</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="msgs">
+<div>我要在 Info.plist 加入相機權限的說明文字。</div>
+<div class="qcard">
+<div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg>要允許編輯這個檔案嗎?</div>
+<div class="mono" style="background:var(--fill);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text)">Edit · weather-app/Info.plist</div>
+<div class="opts"><button>允許</button><button>這個 session 都允許</button><button>不要,告訴 Agent 怎麼做…</button></div>
+</div>
+</div>
+<div class="composer glass">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">或告訴 Agent 怎麼做</label>
+<button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 工作中(可停止)</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-label="purrdr.ios,略過權限模式,工作中,Ray Mac Mini"><span class="t1">purrdr.ios<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="t2"><svg width="12" height="12" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"></path></svg><span>略過權限</span><span>·</span><span class="sb work sm" aria-hidden="true">•••</span><span>工作中</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="msgs">
+<div class="bubble">跑一次 UI 日常組</div>
+<div>好,我先建置再跑日常組。</div>
+<div class="meta" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg>3 個步驟 · Bash xcodebuild test</div>
+</div>
+<div style="position:absolute;left:16px;right:16px;bottom:104px;display:flex;justify-content:center;align-items:center;gap:8px;z-index:3">
+<div class="glass" role="status" style="height:44px;border-radius:22px;padding:0 16px;display:flex;align-items:center;gap:8px;font-size:15px"><span class="sb work sm" aria-hidden="true">•••</span>工作中 · 2 分 10 秒</div>
+<button class="glass" style="height:44px;border-radius:22px;padding:0 16px;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px;font-weight:600" aria-label="停止 Agent"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>停止</button>
+</div>
+<div class="composer glass">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">訊息</label>
+<button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }] };
+  }
+}
+</script>
+</body>
+</html>

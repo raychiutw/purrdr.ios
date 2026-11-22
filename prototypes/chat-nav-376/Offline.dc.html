@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>連線中斷與離線排隊</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="col">
+<div class="cap">{{t.name}} · 聊天列表:一台主機連不上</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="檢視:Agents,點兩下切到 Spaces"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z M3 19.5c0-3.2 2.7-5.3 6-5.3s6 2.1 6 5.3 M16.5 10.8a2.6 2.6 0 1 0 0-5.2 M17 14.2c2.5.3 4.5 2.1 4.5 5.3"></path></svg></button>
+<div class="top-c"><button class="hostcap glass" aria-label="目前主機:所有主機,點兩下更改">所有主機<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="grp glass top-r"><button aria-label="新增聊天"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6 M9.5 14.5l.8-3.3 8.4-8.4a1.8 1.8 0 0 1 2.5 2.5l-8.4 8.4z"></path></svg></button><button aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="content">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+<button class="row" aria-label="{{r.a11y}}"><span class="av"><span class="face claude" aria-hidden="true">C</span><span class="sb {{r.st}}" aria-hidden="true">{{r.badge}}</span></span><span class="rowbody"><span class="l1"><span class="name">{{r.title}}</span><span class="host">{{r.host}}</span><span class="time">{{r.time}}</span></span><span class="l2"><span class="pv {{r.pvc}}">{{r.preview}}</span></span></span></button>
+</sc-for>
+<div class="sh" style="padding-top:22px">連線中斷</div>
+<div style="margin:0 16px;background:var(--code);border-radius:20px;padding:12px 12px 12px 16px;display:flex;align-items:center;gap:12px">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="var(--red)" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg>
+<span style="flex-grow:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:17px">Build Box</span><span class="meta">主機離線或不在 Tailscale 上</span></span>
+<button class="btn-tint">再試一次</button>
+</div>
+</div>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{tabs}}" as="b" hint-placeholder-count="4"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 聊天:離線與排隊訊息</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-label="purrdr.ios,離線,Ray Mac Mini"><span class="t1">purrdr.ios<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="t2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0 M5.5 12a10 10 0 0 1 13 0 M9 15.5a5 5 0 0 1 6 0 M3 3l18 18"></path></svg><span>離線 · Ray Mac Mini</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="banner glass" role="status"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--red)" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg><span style="flex-grow:1">連不上 Ray Mac Mini</span><button class="btn-tint">再試一次</button></div>
+<div class="msgs" style="top:186px">
+<div>好,PR 已開好,CI 正在跑。</div>
+<div class="bubble" style="border:1px dashed var(--sec);background:var(--fill);opacity:.85" aria-label="排隊中的訊息:CI 過了就合併,長按可取消">CI 過了就合併</div>
+<div class="meta" style="align-self:flex-end;margin-top:-8px;display:flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>排隊中 · 連上後送出 · 長按可取消</div>
+</div>
+<div style="position:absolute;left:16px;right:16px;bottom:100px;font-size:13px;color:var(--sec);text-align:center">離線時只能送文字;附件要連上後才能加入。</div>
+<div class="composer glass">
+<button class="cbtn off" aria-label="加入,離線時停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">訊息(連上後送出)</label>
+<button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 0 ? 'on' : '', cur: i === 0 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
+    return {
+      tabs,
+      themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }],
+      rows: [
+        { title: 'weather-app', host: 'Ray Mac Mini', time: '09:51', preview: '需要你:要我直接改 Info.plist 嗎?', pvc: 'need', st: 'need', badge: '!', a11y: 'Claude Code,weather-app,需要你' },
+        { title: 'purrdr.ios', host: 'Ray Mac Mini', time: '09:50', preview: '正在跑 UI 日常組…', pvc: '', st: 'work', badge: '•••', a11y: 'Claude Code,purrdr.ios,工作中' },
+        { title: 'ci-runner', host: 'Build Box', time: '08:12', preview: '最後的內容(主機連不上)', pvc: '', st: 'unk', badge: '?', a11y: 'Claude Code,ci-runner,狀態未知,主機連不上' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -4,76 +4,69 @@
 <meta charset="utf-8">
 <title>終端機</title>
 <script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
 </head>
 <body>
 <x-dc>
-<helmet>
-<style>
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif}
-.term{--bg:#141416;--text:#E5E5EA;--sec:#AEAEB2;--accent:#3CCF9E;--fill:rgba(120,120,128,.32);--glass:rgba(44,44,46,.86);--glassline:rgba(255,255,255,.14);--kb:#2A2A2C;--key:#545458;--blue:#8FB8E8;--green:#8CC9A8;--yellow:#D9C38A}
-.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6)}
-</style>
-</helmet>
-<div style="width:900px;height:980px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#E4E4E9">
-<sc-for list="{{screens}}" as="s" hint-placeholder-count="2">
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{s.label}}</div>
-<div class="term" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
-<button aria-label="返回" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
-<div class="glass" style="height:52px;border-radius:26px;padding:0 22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span style="font-size:17px;font-weight:600">purrdr.ios</span><span style="font-size:13px;color:var(--sec)"><span style="color:var(--accent)">●</span> 已連線 · Ray Mac Mini</span></div>
-<button class="glass" style="height:44px;border-radius:22px;padding:0 12px;color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,monospace">120×40</button>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:2190px;height:980px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="5">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone term">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><div class="plaintitle"><span class="t1">{{s.title}}</span><span class="t2"><span style="color:{{s.dot}}" aria-hidden="true">●</span> {{s.status}}</span></div></div>
+<button class="ib glass top-r" aria-label="字級"><span style="font-size:15px;font-weight:600">Aa</span></button>
 </div>
-<div style="position:absolute;top:122px;left:12px;right:12px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;line-height:1.55;white-space:pre;color:var(--text);overflow:hidden"><span style="color:var(--green)">ray@mini</span> <span style="color:var(--blue)">~/Projects/purrdr.ios</span> (fix/composer)
+<sc-if value="{{s.banner}}" hint-placeholder-val="{{false}}">
+<div class="banner glass" role="status"><svg width="18" height="18" viewBox="0 0 24 24" fill="{{s.bannerIcon}}" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg><span style="flex-grow:1">{{s.banner}}</span><button class="btn-tint">{{s.bannerAction}}</button></div>
+</sc-if>
+<div class="tout" style="top:{{s.outTop}}"><span style="color:var(--tgreen)">ray@mini</span> <span style="color:var(--tblue)">~/Projects/purrdr.ios</span>
 $ swift test --filter ComposerRules
-Building for debugging...
 [12/12] Compiling PurrdrAgentFeatures
-Test Suite 'ComposerRules' started
-<span style="color:var(--green)">✔</span> 收合時只有一列
-<span style="color:var(--green)">✔</span> 聚焦或有文字展開成兩列
-<span style="color:var(--green)">✔</span> 展開上限 5 行
-<span style="color:var(--green)">✔</span> 超過 5 行在框內捲動
-Test Suite passed · 12 tests · 0.41s
-
-<span style="color:var(--green)">ray@mini</span> <span style="color:var(--blue)">~/Projects/purrdr.ios</span> (fix/composer)
+<span style="color:var(--tgreen)">✔</span> 收合時只有一列
+<span style="color:var(--tgreen)">✔</span> 聚焦或有文字展開成兩列
+<span style="color:var(--tgreen)">✔</span> 展開上限 5 行
+Test Suite passed · 12 tests
+<span style="color:var(--tgreen)">ray@mini</span> <span style="color:var(--tblue)">~/Projects/purrdr.ios</span>
 $ git status --short
- <span style="color:var(--yellow)">M</span> src/PurrdrAgentFeatures/ComposerRules.swift
- <span style="color:var(--yellow)">M</span> src/PurrdrFeatures/ComposerView.swift
-<span style="color:var(--green)">??</span> tests/.../ComposerLayoutTests.swift
-
-<span style="color:var(--green)">ray@mini</span> <span style="color:var(--blue)">~/Projects/purrdr.ios</span> (fix/composer)
+ <span style="color:var(--tyellow)">M</span> src/PurrdrAgentFeatures/ComposerRules.swift
+ <span style="color:var(--tyellow)">M</span> src/PurrdrFeatures/ComposerView.swift
+<span style="color:var(--tgreen)">ray@mini</span> <span style="color:var(--tblue)">~/Projects/purrdr.ios</span>
 $ <span style="display:inline-block;width:7px;height:14px;background:var(--accent);vertical-align:-2px"></span></div>
-<div class="glass" style="position:absolute;left:8px;right:8px;bottom:{{s.barBottom}};height:48px;border-radius:24px;display:flex;align-items:center;gap:6px;padding:0 8px;overflow:hidden;z-index:2">
-<sc-for list="{{keys}}" as="k" hint-placeholder-count="9">
-<button style="height:36px;min-width:40px;border:none;border-radius:12px;background:var(--fill);color:var(--text);font-size:14px;padding:0 10px;flex-shrink:0">{{k}}</button>
-</sc-for>
+<div class="keybar glass" style="bottom:{{s.barBottom}};padding-right:6px">
+<div style="flex-grow:1;min-width:0;display:flex;gap:6px;overflow:hidden" aria-label="可橫向捲動的按鍵"><sc-for list="{{keys}}" as="k" hint-placeholder-count="10"><button class="tk" aria-label="{{k.a}}">{{k.t}}</button></sc-for></div>
+<span style="width:1px;height:28px;background:var(--sep);flex-shrink:0"></span>
+<button class="tk" aria-label="貼上">貼上</button>
+<button class="tk" aria-label="收起鍵盤"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="11" rx="2"></rect><path d="M6 8h1M10 8h1M14 8h1M18 8h0M7 11.5h10 M9 19l3 2.5 3-2.5"></path></svg></button>
 </div>
 <sc-if value="{{s.kb}}" hint-placeholder-val="{{false}}">
-<div style="position:absolute;left:0;right:0;bottom:0;height:300px;background:var(--kb);border-radius:28px 28px 0 0;padding:52px 4px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:10px">
-<sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
-<div style="display:flex;justify-content:center;gap:6px">
-<sc-for list="{{r.keys}}" as="q" hint-placeholder-count="10">
-<div style="width:{{q.w}}px;height:44px;border-radius:8px;background:var(--key)"></div>
-</sc-for>
-</div>
-</sc-for>
-</div>
+<div class="kb"><sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><div class="kr"><sc-for list="{{r.keys}}" as="q" hint-placeholder-count="10"><div class="key" style="width:{{q.w}}px"></div></sc-for></div></sc-for></div>
 </sc-if>
 </div>
 </div>
 </sc-for>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":900,"height":980}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2190,"height":980}}'>
 class Component extends DCLogic {
   renderVals() {
     const row = (n, w) => ({ keys: Array.from({ length: n }, () => ({ w })) });
+    const base = { title: 'purrdr.ios', status: '已連線 · 手機尺寸 46×38', dot: 'var(--accent)', banner: '', bannerAction: '', bannerIcon: 'var(--red)', kb: false, barBottom: '28px', outTop: '120px' };
     return {
       screens: [
-        { label: 'Pane 終端機(深淺模式都是全螢幕深色)', kb: false, barBottom: '30px' },
-        { label: '終端機 · 鍵盤展開(按鍵列在鍵盤上方)', kb: true, barBottom: '308px' }
+        { ...base, label: 'Pane 終端機(手機寬度折行;離開即還原電腦尺寸)' },
+        { ...base, kb: true, barBottom: '306px', label: '鍵盤展開(不改尺寸,捲到游標)' },
+        { ...base, status: '連線中斷', dot: 'var(--red)', banner: '連線中斷,主機上的 Pane 已還原尺寸', bannerAction: '重新連線', outTop: '186px', label: '連線中斷' },
+        { ...base, status: '主機上正在操作', dot: 'var(--orange)', banner: '主機上有人正在操作這個 Pane', bannerAction: '接管', bannerIcon: 'var(--orange)', outTop: '186px', label: '主機上正在操作' },
+        { ...base, title: '登入 Shell', status: '已連線 · Ray Mac Mini', label: '登入 Shell(手機自己的 shell)' }
       ],
-      keys: ['Esc', 'Tab', 'Ctrl', 'Alt', '↑', '↓', '←', '→', '|', '~'],
+      keys: [
+        { t: 'Esc', a: 'Escape' }, { t: 'Tab', a: 'Tab' }, { t: 'Ctrl', a: 'Control' }, { t: 'Alt', a: 'Option' },
+        { t: '↑', a: '向上' }, { t: '↓', a: '向下' }, { t: '←', a: '向左' }, { t: '→', a: '向右' },
+        { t: 'Home', a: 'Home' }, { t: 'End', a: 'End' }
+      ],
       rows: [row(10, 32), row(10, 32), row(9, 34), { keys: [{ w: 84 }, { w: 180 }, { w: 84 }] }]
     };
   }

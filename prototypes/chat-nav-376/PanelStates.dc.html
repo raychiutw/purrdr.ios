@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>標題面板的特殊狀態</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="col">
+<div class="cap">{{t.name}} · HTTPS 主機、Agent 等你回覆</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-expanded="true" aria-label="ci-runner,接受編輯模式,需要你,Build Box"><span class="t1">ci-runner<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg></span><span class="t2"><span>接受編輯</span><span>·</span><span class="sb need sm" aria-hidden="true">!</span><span>需要你 · Build Box</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="panel glass">
+<div class="ph2">用量 · Build Box</div>
+<div style="padding:2px 18px 8px;font-size:15px;color:var(--sec);line-height:1.4">這台主機的用量要等主機服務支援後才會顯示。</div>
+<div style="display:flex;align-items:center;gap:12px;padding:6px 18px">
+<svg width="32" height="32" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--track)" stroke-width="4"></circle><circle cx="18" cy="18" r="14" fill="none" stroke="var(--u-ok)" stroke-width="4" stroke-linecap="round" stroke-dasharray="16 88" transform="rotate(-90 18 18)"></circle></svg>
+<div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:15px">Context <b style="font-weight:600">18%</b> 已用</span><span style="font-size:13px;color:var(--sec)">由對話紀錄估算</span></div>
+</div>
+<button class="prow" disabled style="color:var(--dis)"><span style="flex-grow:1">模型</span><span>Opus 5.5 · 中</span></button>
+<div class="prow" style="color:var(--dis)"><span style="flex-grow:1">做完再送</span><span class="toggle" role="switch" aria-checked="false" aria-disabled="true" aria-label="做完再送" style="opacity:.5"></span></div>
+<div style="height:1px;background:var(--sep);margin:6px 0"></div>
+<div class="ph2">權限模式</div>
+<sc-for list="{{modes}}" as="m" hint-placeholder-count="4"><button class="prow" disabled style="color:var(--dis)"><span style="flex-grow:1">{{m.name}}</span><sc-if value="{{m.on}}" hint-placeholder-val="{{false}}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--dis)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="已選取"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if></button></sc-for>
+<div style="padding:4px 18px 6px;font-size:13px;color:var(--sec);line-height:1.4">Agent 正在等你回覆。先回答,再切換模型與權限模式。</div>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · Codex、用量尚未啟用</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-expanded="true" aria-label="notes,工作中,Ray PC"><span class="t1">notes<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg></span><span class="t2"><span class="sb work sm" aria-hidden="true">•••</span><span>工作中 · Ray PC</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="panel glass">
+<div class="ph2">用量 · Codex · Ray PC</div>
+<div style="padding:6px 18px 2px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:space-between;font-size:15px"><span>5 小時</span><span><b style="font-weight:600">12%</b> <span style="color:var(--sec)">已用 · 12 分鐘前</span></span></div><div class="bar"><div style="width:12%;background:var(--u-ok)"></div></div></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 18px 4px">
+<svg width="32" height="32" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--track)" stroke-width="4"></circle><circle cx="18" cy="18" r="14" fill="none" stroke="var(--u-ok)" stroke-width="4" stroke-linecap="round" stroke-dasharray="45 88" transform="rotate(-90 18 18)"></circle></svg>
+<div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:15px">Context <b style="font-weight:600">51%</b> 已用</span><span style="font-size:13px;color:var(--sec)">130k / 258k</span></div>
+</div>
+<div class="prow"><span style="flex-grow:1">模型</span><span style="color:var(--sec)">Codex 預設模型</span></div>
+<div style="height:1px;background:var(--sep);margin:6px 0"></div>
+<div class="ph2">權限</div>
+<div class="prow"><span style="flex-grow:1">核准政策</span><span style="color:var(--sec)">需要時詢問</span></div>
+<div style="padding:0 18px 6px;font-size:13px;color:var(--sec);line-height:1.4">Codex 的權限請在主機上用 /permissions 調整。</div>
+<div style="height:1px;background:var(--sep);margin:6px 0"></div>
+<div class="ph2">Claude 用量</div>
+<div style="padding:2px 18px 8px;display:flex;flex-direction:column;gap:10px"><span style="font-size:15px;line-height:1.4">要看到 Claude 的用量,需要在 Ray PC 上啟用用量擷取。</span><button class="btn-tint" style="align-self:flex-start">啟用用量顯示</button></div>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }],
+      modes: [{ name: '一般', on: false }, { name: '接受編輯', on: true }, { name: '規劃', on: false }, { name: '自動', on: false }]
+    };
+  }
+}
+</script>
+</body>
+</html>

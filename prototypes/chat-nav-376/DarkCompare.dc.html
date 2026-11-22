@@ -4,59 +4,37 @@
 <meta charset="utf-8">
 <title>深色底對照</title>
 <script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
 </head>
 <body>
 <x-dc>
-<helmet>
-<style>
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif}
-.black{--bg:#000000;--card:#1C1C1E;--fill:rgba(120,120,128,.32);--track:rgba(120,120,128,.36);--text:#FFFFFF;--sec:#AEAEB2;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--glass:rgba(30,30,32,.86);--glassline:rgba(255,255,255,.14);--orange:#FF9F0A;--gray:#8E8E93;--bubble:#1C1C1E}
-.lift{--bg:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--track:rgba(120,120,128,.36);--text:#FFFFFF;--sec:#AEAEB2;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--glass:rgba(58,58,60,.80);--glassline:rgba(255,255,255,.14);--orange:#FF9F0A;--gray:#8E8E93;--bubble:#2C2C2E}
-.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6)}
-</style>
-</helmet>
-<div style="width:1760px;height:980px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#E4E4E9">
-<sc-for list="{{variants}}" as="v" hint-placeholder-count="2">
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{v.name}} · 聊天列表</div>
-<div class="{{v.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between">
-<button class="glass" style="height:44px;border-radius:22px;padding:0 14px;color:var(--text);font-size:15px;font-weight:500">Agents ▾</button>
-<button class="glass" style="height:44px;border-radius:22px;padding:0 14px;color:var(--text);font-size:15px;font-weight:600">所有主機 ▾</button>
-<div class="glass" style="height:44px;border-radius:22px;display:flex;align-items:center;gap:2px;padding:0 4px"><button aria-label="新增聊天" style="width:36px;height:36px;border:none;background:transparent;color:var(--text);font-size:22px;padding:0">+</button><button aria-label="帳號" style="width:32px;height:32px;border-radius:16px;border:none;background:var(--accent);color:var(--on);font-size:14px;font-weight:600;padding:0">R</button></div>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="4">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}}">
+<sc-if value="{{s.list}}" hint-placeholder-val="{{true}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="檢視:Agents"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z M3 19.5c0-3.2 2.7-5.3 6-5.3s6 2.1 6 5.3 M16.5 10.8a2.6 2.6 0 1 0 0-5.2 M17 14.2c2.5.3 4.5 2.1 4.5 5.3"></path></svg></button>
+<div class="top-c"><button class="hostcap glass">所有主機<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="grp glass top-r"><button aria-label="新增聊天"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6 M9.5 14.5l.8-3.3 8.4-8.4a1.8 1.8 0 0 1 2.5 2.5l-8.4 8.4z"></path></svg></button><button aria-label="帳號"><span class="avatar">R</span></button></div>
 </div>
-<div style="position:absolute;top:120px;left:16px;right:16px;display:flex;flex-direction:column;gap:10px">
-<sc-for list="{{rows}}" as="r" hint-placeholder-count="5">
-<div style="background:var(--card);border-radius:20px;padding:12px 14px;display:flex;gap:12px;align-items:center">
-<span style="position:relative;width:42px;height:42px;flex-shrink:0"><span style="width:42px;height:42px;border-radius:12px;background:var(--fill);display:flex;align-items:center;justify-content:center;font-weight:700">{{r.av}}</span><span role="img" aria-label="{{r.status}}" style="position:absolute;right:-4px;bottom:-4px;width:20px;height:20px;border-radius:10px;background:{{r.dot}};color:{{r.badgeFg}};border:2.5px solid var(--card);box-sizing:border-box;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">{{r.badge}}</span></span>
-<span style="flex-grow:1;display:flex;flex-direction:column;gap:3px"><span style="display:flex;justify-content:space-between"><span style="font-size:16px;font-weight:600">{{r.title}}</span><span style="font-size:13px;color:var(--sec)">{{r.time}}</span></span><span style="font-size:14px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{r.preview}}</span></span>
+<div class="content">
+<div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4.5 4.5"></path></svg><span>搜尋 Agent</span></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="5"><button class="row"><span class="av"><span class="face {{r.kind}}" aria-hidden="true">{{r.av}}</span><span class="sb {{r.st}}" aria-hidden="true">{{r.badge}}</span></span><span class="rowbody"><span class="l1"><span class="name">{{r.title}}</span><span class="host">{{r.host}}</span><span class="time">{{r.time}}</span></span><span class="l2"><span class="pv {{r.pvc}}">{{r.preview}}</span></span></span></button></sc-for>
 </div>
-</sc-for>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{tabs}}" as="b" hint-placeholder-count="4"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
+</sc-if>
+<sc-if value="{{s.chat}}" hint-placeholder-val="{{false}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass"><span class="t1">purrdr.ios<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="t2"><span class="sb done sm" aria-hidden="true">✓</span><span>完成 · Ray Mac Mini</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
 </div>
-<div class="glass" style="position:absolute;left:20px;right:20px;bottom:30px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:space-around;font-size:12px"><span style="color:var(--accent);font-weight:600">聊天</span><span>檔案</span><span>主機</span><span>設定</span></div>
-</div>
-</div>
-</sc-for>
-<sc-for list="{{variants}}" as="v" hint-placeholder-count="2">
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{v.name}} · 對話</div>
-<div class="{{v.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between">
-<button aria-label="返回" class="glass" style="width:44px;height:44px;border-radius:22px;color:var(--text);font-size:20px;padding:0">‹</button>
-<button class="glass" style="height:52px;min-width:170px;border-radius:26px;padding:0 22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--text)"><span style="font-size:17px;font-weight:600">purrdr.ios</span><span style="font-size:13px;color:var(--sec)">● 完成 · Ray Mac Mini</span></button>
-<button aria-label="終端機與 Git 變更" class="glass" style="width:44px;height:44px;border-radius:22px;color:var(--text);font-size:18px;padding:0">⋯</button>
-</div>
-<div style="position:absolute;top:132px;left:20px;right:20px;display:flex;flex-direction:column;gap:14px;font-size:17px;line-height:1.45">
-<div>CI 失敗的原因是單元測試還在檢查 8 行上限。我已經改成 5 行,現在全部通過。</div>
-<div style="background:var(--card);border-radius:12px;padding:12px;font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--sec)">swift test --filter ComposerRules<br>✔ 12 tests passed</div>
-<div style="align-self:flex-end;background:var(--bubble);border-radius:20px;padding:10px 16px">幫我開 PR</div>
-<div>好,PR 已開好,CI 正在跑。</div>
-</div>
-<div class="glass" style="position:absolute;left:16px;right:16px;bottom:34px;height:56px;border-radius:28px;display:flex;align-items:center;gap:8px;padding:0 8px;box-sizing:border-box">
-<button aria-label="加入" style="width:40px;height:40px;border-radius:20px;border:none;background:var(--fill);color:var(--text);font-size:22px;padding:0">+</button>
-<label style="flex-grow:1;font-size:17px;color:var(--sec)">訊息</label>
-<button aria-label="送出(停用)" style="width:40px;height:40px;border-radius:20px;border:none;background:var(--fill);color:var(--sec);font-size:18px;padding:0">↑</button>
-</div>
+<div class="msgs"><div>CI 失敗的原因是單元測試還在檢查 8 行上限。我已經改成 5 行,現在全部通過。</div><div class="mono" style="background:var(--code);border-radius:12px;padding:12px;font-size:13px;color:var(--sec)">swift test --filter ComposerRules<br>✔ 12 tests passed</div><div class="bubble">幫我開 PR</div><div>好,PR 已開好,CI 正在跑。</div></div>
+<div class="composer glass"><button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button><label class="ph">訊息</label><button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button></div>
+</sc-if>
 </div>
 </div>
 </sc-for>
@@ -65,14 +43,21 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFa
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
 class Component extends DCLogic {
   renderVals() {
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 0 ? 'on' : '', cur: i === 0 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
     return {
-      variants: [{ cls: 'black', name: '純黑(現況)' }, { cls: 'lift', name: '提亮(建議)' }],
+      tabs,
+      screens: [
+        { cls: 'dark black', list: true, chat: false, label: '純黑(現況)· 聊天列表' },
+        { cls: 'dark', list: true, chat: false, label: '提亮(定案)· 聊天列表' },
+        { cls: 'dark black', list: false, chat: true, label: '純黑(現況)· 對話' },
+        { cls: 'dark', list: false, chat: true, label: '提亮(定案)· 對話' }
+      ],
       rows: [
-        { av: 'C', title: 'weather-app', time: '09:51', status: '需要你', dot: 'var(--orange)', badge: '!', badgeFg: '#000000', preview: '需要你:要我直接改 Info.plist 嗎?' },
-        { av: 'C', title: 'purrdr.ios', time: '09:50', status: '工作中', dot: 'var(--accent)', badge: '•••', badgeFg: '#000000', preview: '正在跑 UI 日常組…' },
-        { av: 'X', title: 'notes', time: '09:40', status: '工作中', dot: 'var(--accent)', badge: '•••', badgeFg: '#000000', preview: '整理 Markdown 匯出格式' },
-        { av: 'C', title: 'ledger', time: '昨天', status: '完成', dot: 'var(--gray)', badge: '✓', badgeFg: '#FFFFFF', preview: 'CSV 匯出已修好,測試通過' },
-        { av: 'C', title: 'trip-planner', time: '週三', status: '完成', dot: 'var(--gray)', badge: '✓', badgeFg: '#FFFFFF', preview: '行程頁改好了' }
+        { title: 'weather-app', host: 'Ray Mac Mini', time: '09:51', av: 'C', kind: 'claude', st: 'need', badge: '!', preview: '需要你:要我直接改 Info.plist 嗎?', pvc: 'need' },
+        { title: 'purrdr.ios', host: 'Ray Mac Mini', time: '09:50', av: 'C', kind: 'claude', st: 'work', badge: '•••', preview: '正在跑 UI 日常組…', pvc: '' },
+        { title: 'notes', host: 'Ray PC', time: '09:40', av: 'X', kind: 'codex', st: 'work', badge: '•••', preview: '整理 Markdown 匯出格式', pvc: '' },
+        { title: 'ledger', host: 'Ray Mac Mini', time: '昨天', av: 'C', kind: 'claude', st: 'done', badge: '✓', preview: 'CSV 匯出已修好', pvc: '' }
       ]
     };
   }

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>歡迎頁、範例主機與 App 鎖</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1330px;height:1880px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="6">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}}">
+<sc-if value="{{s.welcome}}" hint-placeholder-val="{{false}}">
+<div class="scrimbg"></div>
+<div class="sheet" style="top:48px">
+<div class="grabber"></div>
+<div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="關閉"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><span></span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:8px 8px 0">
+<div style="width:84px;height:84px;border-radius:20px;background:var(--scard);display:flex;align-items:center;justify-content:center"><svg width="52" height="52" viewBox="0 0 24 24" fill="var(--accent)" aria-hidden="true"><circle cx="6" cy="8" r="2"></circle><circle cx="10" cy="5.5" r="2.3"></circle><circle cx="14.5" cy="5.5" r="2.3"></circle><circle cx="18.5" cy="8" r="2"></circle><path d="M5 14a7 6 0 0 1 14 0c0 3-3 5-7 5H7l-2 2v-7z"></path></svg></div>
+<div style="font-size:28px;font-weight:700">歡迎使用 Purrdr</div>
+<div class="msg" style="font-size:15px;color:var(--sec);line-height:1.45">在手機上看、回覆、操作你電腦上的 coding agent。</div>
+</div>
+<div class="sh">開始前需要</div>
+<div class="card">
+<div class="cell"><span class="cb"><span class="main"><span>一台裝了 herdr 的電腦</span><span class="sub">macOS、Linux 或 Windows</span></span></span></div>
+<div class="cell"><span class="cb"><span class="main"><span>手機連得到那台電腦</span><span class="sub">Tailscale、OpenSSH 或主機服務</span></span></span></div>
+</div>
+<div style="position:absolute;left:16px;right:16px;bottom:34px;display:flex;flex-direction:column;gap:8px"><button class="btn-prom" style="width:100%">新增主機</button><button class="btn-tint" style="width:100%;height:50px;border-radius:25px;font-size:17px">體驗範例主機</button></div>
+</div>
+</sc-if>
+<sc-if value="{{s.demo}}" hint-placeholder-val="{{false}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="檢視:Agents,點兩下切到 Spaces"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z M3 19.5c0-3.2 2.7-5.3 6-5.3s6 2.1 6 5.3 M16.5 10.8a2.6 2.6 0 1 0 0-5.2 M17 14.2c2.5.3 4.5 2.1 4.5 5.3"></path></svg></button>
+<div class="top-c"><button class="hostcap glass">範例主機<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="grp glass top-r"><button aria-label="新增聊天"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6 M9.5 14.5l.8-3.3 8.4-8.4a1.8 1.8 0 0 1 2.5 2.5l-8.4 8.4z"></path></svg></button><button aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="content">
+<div style="margin:4px 16px 6px;background:var(--code);border-radius:16px;padding:8px 8px 8px 14px;display:flex;align-items:center;gap:10px;font-size:15px"><span style="flex-grow:1">正在看範例主機的範例對話</span><button class="btn-tint" style="font-weight:500">新增主機</button></div>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+<button class="row"><span class="av"><span class="face {{r.kind}}" aria-hidden="true">{{r.av}}</span><span class="sb {{r.st}}" aria-hidden="true">{{r.badge}}</span></span><span class="rowbody"><span class="l1"><span class="name">{{r.title}}</span><span class="host">範例主機</span><span class="time">{{r.time}}</span></span><span class="l2"><span class="pv {{r.pvc}}">{{r.preview}}</span></span></span></button>
+</sc-for>
+</div>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{tabs}}" as="b" hint-placeholder-count="4"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
+</sc-if>
+<sc-if value="{{s.lock}}" hint-placeholder-val="{{false}}">
+<div style="position:absolute;inset:0;background:var(--gbg)"></div>
+<div class="cuv">
+<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"></rect><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path></svg>
+<div class="ttl">Purrdr 已鎖定</div>
+<div class="msg">用 Face ID 解鎖後繼續。從通知打開的對話會在解鎖後開啟。</div>
+<button class="btn-prom" style="margin-top:8px">用 Face ID 解鎖</button>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 0 ? 'on' : '', cur: i === 0 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
+    const S = [
+      { n: '歡迎頁', welcome: true, demo: false, lock: false },
+      { n: '範例主機啟用後', welcome: false, demo: true, lock: false },
+      { n: 'App 鎖', welcome: false, demo: false, lock: true }
+    ];
+    const screens = [];
+    for (const cls of ['dark', 'light']) for (const s of S) screens.push({ ...s, cls, label: (cls === 'dark' ? '深色' : '淺色') + ' · ' + s.n });
+    return {
+      screens, tabs,
+      rows: [
+        { title: 'weather-app', time: '09:51', av: 'C', kind: 'claude', st: 'need', badge: '!', preview: '需要你:要讀取相機嗎?', pvc: 'need' },
+        { title: 'notes', time: '09:40', av: 'X', kind: 'codex', st: 'work', badge: '•••', preview: '整理 Markdown 匯出格式', pvc: '' },
+        { title: 'ledger', time: '昨天', av: 'C', kind: 'claude', st: 'done', badge: '✓', preview: 'CSV 匯出已修好', pvc: '' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

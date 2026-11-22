@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>主機 tab 的子頁</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:2190px;height:1880px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="8">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone grouped {{s.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回 Ray Mac Mini"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><div class="plaintitle"><span class="t1">{{s.title}}</span><span class="t2">Ray Mac Mini</span></div></div>
+</div>
+<div class="gl">
+<sc-if value="{{s.main}}" hint-placeholder-val="{{false}}">
+<div class="card" style="margin-top:4px"><div class="cell"><span class="cb"><span style="width:10px;height:10px;border-radius:5px;background:var(--accent)" aria-hidden="true"></span><span class="main"><span>線上</span><span class="sub">{{s.mainSub}}</span></span></span></div></div>
+<div class="sh">這台主機</div>
+<div class="card"><button class="cell"><span class="cb"><span class="main">編輯主機</span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button></div>
+<div class="card" style="margin-top:20px"><button class="cell danger"><span class="cb" style="justify-content:center">{{s.aBtn}}</span></button></div>
+</sc-if>
+<sc-if value="{{s.notif}}" hint-placeholder-val="{{false}}">
+<div class="card" style="margin-top:4px"><div class="cell"><span class="cb"><span class="main">這台主機的通知</span><span class="toggle on" role="switch" aria-checked="true" aria-label="這台主機的通知"></span></span></div></div>
+<div class="sh">通知種類</div>
+<div class="card">
+<div class="cell"><span class="cb"><span class="main"><span>需要你</span><span class="sub">Agent 等你回答或確認權限</span></span><span class="toggle on" role="switch" aria-checked="true" aria-label="需要你"></span></span></div>
+<div class="cell"><span class="cb"><span class="main"><span>完成</span><span class="sub">Agent 做完一輪工作</span></span><span class="toggle on" role="switch" aria-checked="true" aria-label="完成"></span></span></div>
+</div>
+<div class="sf">至少要留一種。收通知的裝置在帳號頁的「通知裝置」管理。</div>
+</sc-if>
+<sc-if value="{{s.cfg}}" hint-placeholder-val="{{false}}">
+<div class="card" style="margin-top:4px">
+<div class="cell"><span class="cb"><span class="main"><span>使用主機主題</span><span class="sub">套用 herdr 的配色</span></span><span class="toggle" role="switch" aria-checked="false" aria-label="使用主機主題"></span></span></div>
+<button class="cell"><span class="cb"><span class="main"><span>You should know</span><span class="sub">2 則註記</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+<button class="cell"><span class="cb"><span class="main"><span>Codex 啟動器</span><span class="sub">已安裝</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+<button class="cell"><span class="cb"><span class="main"><span>用量擷取</span><span class="sub">已啟用,可完整還原</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+</div>
+<div class="sf">這些功能會寫入主機上的設定,都可以完整還原。</div>
+</sc-if>
+<sc-if value="{{s.share}}" hint-placeholder-val="{{false}}">
+<div class="card" style="margin-top:4px;padding:24px;display:flex;flex-direction:column;align-items:center;gap:14px">
+<div role="img" aria-label="Ray Mac Mini 的分享 QR code" style="width:200px;height:200px;border-radius:16px;background:#FFFFFF;display:grid;grid-template-columns:repeat(8, minmax(0, 1fr));gap:4px;padding:16px;box-sizing:border-box">
+<sc-for list="{{qr}}" as="q" hint-placeholder-count="64"><span style="background:{{q}};border-radius:2px"></span></sc-for>
+</div>
+<div style="font-size:15px;color:var(--sec);text-align:center;line-height:1.4">在另一支裝置用相機掃描,就能加入這台主機。只包含名稱與位址,不含金鑰或權杖。</div>
+<button class="btn-tint">分享連結…</button>
+</div>
+</sc-if>
+</div>
+<sc-if value="{{s.alert}}" hint-placeholder-val="{{false}}">
+<div style="position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:9"></div>
+<div role="alertdialog" aria-label="{{s.aTitle}}" style="position:absolute;left:50px;right:50px;top:300px;border-radius:24px;background:var(--scard);z-index:10;overflow:hidden;text-align:center">
+<div style="padding:22px 18px 16px;display:flex;flex-direction:column;gap:8px"><div style="font-size:17px;font-weight:600">{{s.aTitle}}</div><div style="font-size:13px;line-height:1.45">{{s.aMsg}}</div></div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px"><button style="height:48px;border:none;border-radius:24px;background:transparent;color:var(--redtext);font-size:17px;font-weight:600">{{s.aBtn}}</button><button style="height:48px;border:none;border-radius:24px;background:var(--fill);color:var(--text);font-size:17px">取消</button></div>
+</div>
+</sc-if>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{tabs}}" as="b" hint-placeholder-count="4"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2190,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 2 ? 'on' : '', cur: i === 2 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
+    const B = { notif: false, cfg: false, share: false, alert: false, main: false, mainSub: '' };
+    const S = [
+      { n: '通知種類', title: '通知', notif: true },
+      { n: '這台主機的設定', title: '這台主機的設定', cfg: true },
+      { n: '分享', title: '分享', share: true },
+      { n: '移除主機確認(主機 tab 主頁)', title: '主機', main: true, mainSub: 'Tailscale SSH · herdr 0.9.6', alert: true, aTitle: '要從這支裝置移除「Ray Mac Mini」嗎?', aMsg: '只會從 Purrdr 移除,主機本身與上面的 Agent 不受影響。這支裝置放進主機的公鑰會一併還原。', aBtn: '移除主機' },
+      { n: '移除範例主機確認(主機 tab 主頁)', title: '主機', main: true, mainSub: '範例主機 · 不會連到任何電腦', alert: true, aTitle: '要移除範例主機嗎?', aMsg: '範例對話會從列表消失。之後可以在「新增主機…」或設定的歡迎頁再加回來。', aBtn: '移除範例主機' }
+    ].map((s) => ({ aTitle: '', aMsg: '', aBtn: '', ...s }));
+    const screens = [];
+    for (const cls of ['dark', 'light']) for (const s of S) screens.push({ ...B, ...s, cls, label: (cls === 'dark' ? '深色' : '淺色') + ' · ' + s.n });
+    const qr = Array.from({ length: 64 }, (_, i) => ((i * 37 + (i >> 3) * 11) % 5 < 2 ? '#000000' : '#FFFFFF'));
+    return { tabs, screens, qr };
+  }
+}
+</script>
+</body>
+</html>

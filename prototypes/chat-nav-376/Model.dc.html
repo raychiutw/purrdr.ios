@@ -4,76 +4,45 @@
 <meta charset="utf-8">
 <title>模型選擇與投入程度</title>
 <script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
 </head>
 <body>
 <x-dc>
-<helmet>
-<style>
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif}
-.dark{--bg:#1C1C1E;--sheet:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--text:#FFFFFF;--sec:#AEAEB2;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--glass:rgba(58,58,60,.8);--glassline:rgba(255,255,255,.14);--warnbg:rgba(255,159,10,.2);--warn:#FFB340;--toggle:rgba(120,120,128,.4)}
-.light{--bg:#FFFFFF;--sheet:#F2F2F7;--card:#FFFFFF;--fill:rgba(120,120,128,.16);--text:#000000;--sec:#636366;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--glass:rgba(255,255,255,.85);--glassline:rgba(0,0,0,.08);--warnbg:rgba(255,149,0,.16);--warn:#8A5100;--toggle:rgba(120,120,128,.2)}
-.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
-</style>
-</helmet>
-<div style="width:1760px;height:980px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#E4E4E9">
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
 <sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · 模型選擇</div>
-<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:#000;color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;inset:0;background:var(--bg);opacity:.55"></div>
-<div style="position:absolute;left:0;right:0;top:48px;bottom:0;background:var(--sheet);border-radius:38px 38px 0 0;padding:8px 16px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
-<div style="width:40px;height:5px;border-radius:3px;background:var(--fill);align-self:center"></div>
-<div style="display:flex;align-items:center;position:relative;height:44px">
-<button aria-label="關閉" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-<div style="position:absolute;left:0;right:0;text-align:center;font-size:17px;font-weight:600;pointer-events:none">模型選擇</div>
-</div>
-<div style="background:var(--card);border-radius:26px;overflow:hidden">
+<div class="col">
+<div class="cap">{{t.name}} · 模型選擇(medium)</div>
+<div class="phone {{t.cls}}">
+<div class="msgs" style="opacity:.5"><div>我已經把上限改成 5 行。</div><div class="bubble">幫我開 PR</div></div>
+<div class="scrimbg"></div>
+<div class="sheet" style="top:330px">
+<div class="grabber"></div>
+<div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="關閉"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><div class="st">模型選擇</div><span></span></div>
+<div class="card">
 <sc-for list="{{models}}" as="m" hint-placeholder-count="4">
-<button style="width:100%;border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:12px;padding:14px 20px;text-align:left;border-bottom:{{m.line}}">
-<span style="flex-grow:1;display:flex;flex-direction:column;gap:3px"><span style="font-size:17px">{{m.name}}</span><span style="font-size:14px;color:var(--sec)">{{m.desc}}</span></span>
-<sc-if value="{{m.on}}" hint-placeholder-val="{{false}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="已選取"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if>
-</button>
+<button class="cell" role="menuitemradio" aria-checked="{{m.on}}"><span class="cb"><span class="main"><span>{{m.name}}</span><span class="sub">{{m.desc}}</span></span><sc-if value="{{m.on}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if></span></button>
 </sc-for>
 </div>
-<button style="background:var(--card);border:none;border-radius:26px;min-height:56px;color:var(--text);display:flex;align-items:center;gap:10px;padding:0 20px;font-size:17px">
-<span style="flex-grow:1;text-align:left">投入程度</span>
-<span style="font-size:13px;color:var(--sec);background:var(--fill);border-radius:12px;padding:3px 9px">推薦</span>
-<span style="color:var(--sec)">中</span>
-<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
-</button>
-<button style="background:var(--card);border:none;border-radius:26px;min-height:56px;color:var(--text);display:flex;align-items:center;gap:10px;padding:0 20px;font-size:17px">
-<span style="flex-grow:1;text-align:left">更多模型</span>
-<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
-</button>
+<div class="card" style="margin-top:16px"><button class="cell"><span class="cb"><span class="main">投入程度</span><span class="pill">推薦</span><span class="val">中</span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button></div>
 </div>
 </div>
 </div>
-<div style="display:flex;flex-direction:column;gap:16px">
-<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · 投入程度</div>
-<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:#000;color:var(--text);box-shadow:0 0 0 8px #0E0E10">
-<div style="position:absolute;inset:0;background:var(--bg);opacity:.55"></div>
-<div style="position:absolute;left:0;right:0;top:48px;bottom:0;background:var(--sheet);border-radius:38px 38px 0 0;padding:8px 16px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
-<div style="width:40px;height:5px;border-radius:3px;background:var(--fill);align-self:center"></div>
-<div style="display:flex;align-items:center;position:relative;height:44px">
-<button aria-label="返回" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
-<div style="position:absolute;left:0;right:0;text-align:center;font-size:17px;font-weight:600;pointer-events:none">投入程度</div>
-</div>
-<div style="background:var(--card);border-radius:26px;overflow:hidden">
+<div class="col">
+<div class="cap">{{t.name}} · 投入程度(子頁)</div>
+<div class="phone {{t.cls}}">
+<div class="msgs" style="opacity:.5"><div>我已經把上限改成 5 行。</div></div>
+<div class="scrimbg"></div>
+<div class="sheet" style="top:250px">
+<div class="grabber"></div>
+<div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="返回模型選擇"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><div class="st">投入程度</div><span></span></div>
+<div class="card">
 <sc-for list="{{levels}}" as="l" hint-placeholder-count="5">
-<button style="width:100%;min-height:54px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:10px;padding:0 20px;font-size:17px;text-align:left;border-bottom:{{l.line}}">
-<span>{{l.name}}</span>
-<sc-if value="{{l.rec}}" hint-placeholder-val="{{false}}"><span style="font-size:13px;color:var(--sec);background:var(--fill);border-radius:12px;padding:3px 9px">推薦</span></sc-if>
-<sc-if value="{{l.warn}}" hint-placeholder-val="{{false}}"><span style="font-size:13px;color:var(--warn);background:var(--warnbg);border-radius:12px;padding:3px 9px;display:flex;align-items:center;gap:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2L12 3z"></path><path d="M12 10v5M12 18v.5"></path></svg>3.5× 或更多使用量</span></sc-if>
-<span style="flex-grow:1"></span>
-<sc-if value="{{l.on}}" hint-placeholder-val="{{false}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="已選取"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if>
-</button>
+<button class="cell" role="menuitemradio" aria-checked="{{l.on}}"><span class="cb"><span>{{l.name}}</span><sc-if value="{{l.rec}}" hint-placeholder-val="{{false}}"><span class="pill">推薦</span></sc-if><sc-if value="{{l.warn}}" hint-placeholder-val="{{false}}"><span class="warnpill"><svg width="13" height="13" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg>3.5× 或更多使用量</span></sc-if><span style="flex-grow:1"></span><sc-if value="{{l.on}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if></span></button>
 </sc-for>
 </div>
-<div style="background:var(--card);border-radius:26px;min-height:56px;display:flex;align-items:center;gap:10px;padding:0 20px;font-size:17px">
-<label for="ultracode" style="flex-grow:1">Ultracode</label>
-<div style="width:52px;height:32px;border-radius:16px;background:var(--toggle);position:relative"><div style="position:absolute;top:2px;left:2px;width:28px;height:28px;border-radius:14px;background:#FFFFFF"></div></div>
-</div>
-<div style="font-size:13px;line-height:1.45;color:var(--sec);padding:0 20px;margin-top:-10px">較高的投入程度回應更詳盡,但需要更長時間,也更快用掉使用量。改了會成為新 session 的預設。</div>
+<div class="card" style="margin-top:16px"><div class="cell"><span class="cb"><span class="main">Ultracode</span><span class="toggle" role="switch" aria-checked="false" aria-label="Ultracode"></span></span></div></div>
+<div class="sf">較高的投入程度回應更詳盡,但更久、也更快用掉使用量。改了會成為新 session 的預設。</div>
 </div>
 </div>
 </div>
@@ -83,17 +52,17 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFa
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
 class Component extends DCLogic {
   renderVals() {
-    const line = 'solid 1px var(--sep)';
-    const models = [
-      { name: 'Opus 5.5', desc: '適合複雜工作與日常任務', on: true },
-      { name: 'Fable 5.2', desc: '應對最艱難的挑戰', on: false },
-      { name: 'Sonnet 5.5', desc: '處理較簡單的任務,效率最高', on: false },
-      { name: 'Haiku 5.5', desc: '最快速,適合快速解答', on: false }
-    ].map((m, i, a) => ({ ...m, line: i < a.length - 1 ? line : 'none' }));
-    const levels = [
-      { name: '低' }, { name: '中', rec: true, on: true }, { name: '高' }, { name: '超高' }, { name: '最高', warn: true }
-    ].map((l, i, a) => ({ rec: false, warn: false, on: false, ...l, line: i < a.length - 1 ? line : 'none' }));
-    return { themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }], models, levels };
+    return {
+      themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }],
+      models: [
+        { name: 'Opus 5.5', desc: '適合複雜工作與日常任務', on: true },
+        { name: 'Fable 5.2', desc: '應對最艱難的挑戰', on: false },
+        { name: 'Sonnet 5.5', desc: '處理較簡單的任務,效率最高', on: false },
+        { name: 'Haiku 5.5', desc: '最快速,適合快速解答', on: false }
+      ],
+      levels: [{ name: '低' }, { name: '中', rec: true, on: true }, { name: '高' }, { name: '超高' }, { name: '最高', warn: true }]
+        .map((l) => ({ rec: false, warn: false, on: false, ...l }))
+    };
   }
 }
 </script>
