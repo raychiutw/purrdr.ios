@@ -11,14 +11,27 @@ struct AnswerKeysTests {
         PromptOption(number: number, label: "Option", checked: checked, keys: keys)
     }
 
-    @Test("Claude、Grok、Antigravity 的編號選項只送數字(多一個 Enter 會回答下一題)", arguments: ["claude", "grok", "agy", "antigravity"])
+    @Test("Claude、Antigravity 的編號選項只送數字(多一個 Enter 會回答下一題)", arguments: ["claude", "agy", "antigravity", "antigravity-cli"])
     func digitOnlyAgents(kind: String) {
         #expect(AnswerKeys.keys(for: .option(Self.option(2)), agentKind: kind) == ["2"])
     }
 
-    @Test("Codex、Pi、OMP 與不認得的 agent:數字再 Enter(Codex 的數字只移動游標)", arguments: ["codex", "pi", "omp", "opencode", ""])
+    @Test("Codex:數字再 Enter(數字只移動游標)", arguments: ["codex"])
     func digitThenEnterAgents(kind: String) {
         #expect(AnswerKeys.keys(for: .option(Self.option(3)), agentKind: kind) == ["3", "enter"])
+    }
+
+    /// #440:回答按鍵沒驗證過就不送(送錯鍵可能誤放行危險操作);畫面改讓使用者打字或到終端機操作。
+    @Test("按鍵沒驗證過的 agent(Grok、Pi、OMP)與只有顯示資訊的 agent 不送任何回答按鍵", arguments: ["grok", "grok-build", "pi", "omp", "opencode", "copilot", "somebody-new", ""])
+    func unverifiedAgentsSendNothing(kind: String) {
+        let option = Self.option(2)
+        #expect(AnswerKeys.keys(for: .option(option), agentKind: kind) == nil)
+        #expect(AnswerKeys.keys(for: .option(Self.option(nil, keys: ["down", "enter"])), agentKind: kind) == nil)
+        #expect(AnswerKeys.keys(for: .continueMultiSelect, agentKind: kind) == nil)
+        #expect(AnswerKeys.keys(for: .closePicker, agentKind: kind) == nil)
+        #expect(AnswerKeys.keys(for: .generic(.confirm), agentKind: kind) == nil)
+        #expect(AnswerKeys.keys(for: .generic(.escape), agentKind: kind) == nil)
+        #expect(AnswerKeys.inputs(for: .option(option), agentKind: kind) == nil)
     }
 
     @Test("編號 1–9 以外不能從手機回答(「10」會先選 1,再送出雜訊)", arguments: [10, 11, 0])

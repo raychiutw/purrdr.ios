@@ -217,8 +217,8 @@ struct PromptDeliveryTests {
     func antigravitySlashByHerdrName() {
         for kind in ["agy", "antigravity", "antigravity-cli"] { #expect(PromptDelivery.isSlashCommand("/model", kind: kind)) }
         #expect(!PromptDelivery.isSlashCommand("/model", kind: "opencode"))
-        #expect(AnswerKeys.answersWithDigitAlone("agy"))
-        #expect(AnswerKeys.answersWithDigitAlone("antigravity-cli"))
+        #expect(AgentCatalog.profile(forHerdrName: "agy").input.answers?.digitAnswer == .digitAlone)
+        #expect(AgentCatalog.profile(forHerdrName: "antigravity-cli").input.answers?.digitAnswer == .digitAlone)
     }
 
     @Test("Slash 指令的判斷：斜線後是字母開頭的名稱，接空白或結尾;路徑與一般文字不算")
