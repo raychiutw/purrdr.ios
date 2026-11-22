@@ -21,7 +21,10 @@
       },
       "skippedTests": [
         "DailySmokeUITests",
-        "AccessibilityAuditUITests"
+        "AccessibilityAuditUITests",
+        "AddHostGuideUITests/testAccessibilityAudit()",
+        "IPadLayoutUITests/testAccessibilityAuditThreeColumns()",
+        "IPadLayoutUITests/testAccessibilityAuditLayoutCard()"
       ]
     }
   ],

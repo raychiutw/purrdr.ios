@@ -20,7 +20,10 @@
         "name": "PurrdrUITests"
       },
       "selectedTests": [
-        "AccessibilityAuditUITests"
+        "AccessibilityAuditUITests",
+        "AddHostGuideUITests/testAccessibilityAudit()",
+        "IPadLayoutUITests/testAccessibilityAuditThreeColumns()",
+        "IPadLayoutUITests/testAccessibilityAuditLayoutCard()"
       ]
     }
   ],
