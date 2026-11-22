@@ -16,7 +16,7 @@ public enum TranscriptFormat: Sendable, Equatable, Hashable, Codable {
 
     /// herdr 回報的 Agent 種類 → 格式;沒有可讀對話紀錄的種類回傳 `nil`。
     public init?(agentKind: String) {
-        switch agentKind {
+        switch AgentKindName.canonical(agentKind) {
         case "claude": self = .claude
         case "grok": self = .grok
         case "agy": self = .antigravity

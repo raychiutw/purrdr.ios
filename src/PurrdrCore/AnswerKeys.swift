@@ -120,6 +120,6 @@ public enum AnswerKeys {
     /// 數字本身就是回答的 agent(R-Q03):多一個 Enter 會回答下一題(Claude)或落進輸入框(Antigravity)。
     /// 其他 agent(Codex、Pi、OMP、不認得的)的數字只移動游標，要再按 Enter。
     public static func answersWithDigitAlone(_ agentKind: String) -> Bool {
-        ["claude", "grok", "agy", "antigravity"].contains(agentKind)
+        ["claude", "grok", "agy"].contains(AgentKindName.canonical(agentKind))
     }
 }

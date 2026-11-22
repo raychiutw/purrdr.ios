@@ -27,7 +27,7 @@ public enum AgentSlashMenu: Sendable, Equatable {
     case discovered
 
     public init(agentKind: String) {
-        switch agentKind {
+        switch AgentKindName.canonical(agentKind) {
         case "claude": self = .discovered
         case "grok": self = .fixed(Self.grok)
         case "agy": self = .fixed(Self.antigravity)

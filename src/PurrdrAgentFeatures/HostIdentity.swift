@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 // 多主機合併列表(#39)的主機身分。pane id(`w1:p1`)與 session 在每台主機都可能重複，
 // 所以列、聊天、釘選／靜音、草稿與對話快取的鍵一律帶主機身分(`HostSelection.storedValue`:主機 id,Demo 是 `demo`)。
@@ -245,16 +246,16 @@ private final class ScopedChatPreferencesStore: ChatPreferencesStore {
 /// 種類名稱本身在副標裡，圖示對 VoiceOver 隱藏。
 public enum AgentKindSymbol {
     public static func name(for kind: String) -> String {
-        switch kind {
+        switch AgentKindName.canonical(kind) {
         case "claude": "sparkle"
         case "codex": "chevron.left.forwardslash.chevron.right"
         case "grok": "bolt"
-        case "agy", "antigravity": "arrow.up.forward.circle"
+        case "agy": "arrow.up.forward.circle"
         case "gemini": "star"
         case "pi": "function"
         case "omp": "hexagon"
-        case "open_code": "curlybraces"
-        case "github_copilot": "airplane"
+        case "opencode": "curlybraces"
+        case "copilot": "airplane"
         case "cline": "line.diagonal"
         case "amp": "waveform"
         case "droid": "cpu"

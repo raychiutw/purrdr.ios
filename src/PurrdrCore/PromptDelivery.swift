@@ -162,7 +162,7 @@ public struct PromptDelivery: Sendable {
     }
 
     public static func isSlashCommand(_ text: String, kind: String) -> Bool {
-        guard ["claude", "codex", "grok", "antigravity"].contains(kind), text.hasPrefix("/") else { return false }
+        guard ["claude", "codex", "grok", "agy"].contains(AgentKindName.canonical(kind)), text.hasPrefix("/") else { return false }
         let name = text.dropFirst().prefix { !$0.isWhitespace }
         guard let first = name.first, first.isASCII, first.isLetter else { return false }
         return !name.contains("/")

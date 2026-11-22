@@ -98,12 +98,12 @@ package enum AgentKind: Equatable {
     case unknown(String)
 
     package init(rawKind: String) {
-        self = switch rawKind {
+        self = switch AgentKindName.canonical(rawKind) {
         case "claude": .claudeCode
         case "codex": .codex
         case "gemini": .gemini
-        case "open_code": .openCode
-        case "github_copilot": .copilot
+        case "opencode": .openCode
+        case "copilot": .copilot
         default: .unknown(rawKind)
         }
     }
@@ -127,10 +127,10 @@ package enum AgentKind: Equatable {
 
     /// 沒有專屬樣式的種類。
     private static func otherDisplayName(_ kind: String) -> String? {
-        switch kind {
+        switch AgentKindName.canonical(kind) {
         case "": nil
         case "grok": "Grok"
-        case "agy", "antigravity": "Antigravity"
+        case "agy": "Antigravity"
         case "pi": "Pi"
         case "omp": "OMP"
         case "cline": "Cline"

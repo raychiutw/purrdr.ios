@@ -213,6 +213,14 @@ struct PromptDeliveryTests {
         #expect(await sleeper.requested == [.seconds(20)])
     }
 
+    @Test("agy 與它的別名的 slash 指令算指令;不認得 slash 的 agent 不算(#435)")
+    func antigravitySlashByHerdrName() {
+        for kind in ["agy", "antigravity", "antigravity-cli"] { #expect(PromptDelivery.isSlashCommand("/model", kind: kind)) }
+        #expect(!PromptDelivery.isSlashCommand("/model", kind: "opencode"))
+        #expect(AnswerKeys.answersWithDigitAlone("agy"))
+        #expect(AnswerKeys.answersWithDigitAlone("antigravity-cli"))
+    }
+
     @Test("Slash 指令的判斷：斜線後是字母開頭的名稱，接空白或結尾;路徑與一般文字不算")
     func slashCommandDetection() {
         #expect(PromptDelivery.isSlashCommand("/model", kind: "claude"))
