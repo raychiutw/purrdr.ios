@@ -141,10 +141,10 @@ struct WindowsRealHostIntegrationTests {
         let claude = try await reader.locate(sessionID: id, cwd: #"C:\work"#)
         #expect(claude == TranscriptFile(path: claudeFile, size: body.count))
         for target in [
-            TranscriptTarget(format: .codex, location: .codex(sessionID: id), sessionKey: id),
-            TranscriptTarget(format: .grok, location: .grok(sessionID: id), sessionKey: id),
-            TranscriptTarget(format: .piJournal, location: .piJournal(sessionID: id), sessionKey: id),
-            TranscriptTarget(format: .antigravity, location: .antigravity(sessionID: id), sessionKey: id),
+            TranscriptTarget.id(.codex, id),
+            TranscriptTarget.id(.grok, id),
+            TranscriptTarget.id(.piJournal, id),
+            TranscriptTarget.id(.antigravity, id),
         ] {
             do {
                 let file = try await reader.locate(target)

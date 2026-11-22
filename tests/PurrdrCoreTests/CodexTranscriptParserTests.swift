@@ -10,7 +10,7 @@ struct CodexTranscriptParserTests {
     static let lines = Fixtures.otherAgentTranscriptLines("codex/rollout.jsonl")
 
     static func items() -> [ConversationItem] {
-        Conversation.items(from: lines.flatMap(TranscriptFormat.codex.messages(in:)))
+        Conversation.items(from: lines.flatMap(TranscriptDialect.codex.messages(in:)))
     }
 
     static func line(_ type: String, _ payload: [String: Any], timestamp: String = "2026-11-14T10:00:00.000Z") -> String {
@@ -21,8 +21,8 @@ struct CodexTranscriptParserTests {
 
     @Test("Agent 種類 codex 用 rollout 解析器，且標示未實測")
     func codexKindUsesRolloutParser() {
-        #expect(TranscriptFormat(agentKind: "codex") == .codex)
-        #expect(TranscriptFormat.codex.isVerified == false)
+        #expect(AgentCatalog.profile(forHerdrName: "codex").transcript == .codex)
+        #expect(TranscriptDialect.codex.isVerified == false)
     }
 
     /// 只有 `response_item` 成為泡泡;`event_msg` 是同一輪的重複(R-I16)。developer 角色、`# AGENTS.md`、
@@ -64,7 +64,7 @@ struct CodexTranscriptParserTests {
 
     @Test("模型與 effort 取最後的 turn_context;context 取 last_token_usage.input_tokens(cached 不重加)")
     func metadata() {
-        let metadata = TranscriptFormat.codex.latestMetadata(in: Self.lines)
+        let metadata = TranscriptDialect.codex.latestMetadata(in: Self.lines)
         #expect(metadata == TranscriptMetadata(model: "gpt-5.5", contextTokens: 18234, effort: "medium", approvalPolicy: "on-request"))
     }
 
@@ -73,17 +73,17 @@ struct CodexTranscriptParserTests {
         let line = Self.line("response_item", ["type": "message", "role": "user", "content": [["type": "input_text", "text": "again"]]])
         let later = Self.line("response_item", ["type": "message", "role": "user", "content": [["type": "input_text", "text": "again"]]],
                               timestamp: "2026-11-14T10:05:00.000Z")
-        let first = try #require(TranscriptFormat.codex.messages(in: line).first)
+        let first = try #require(TranscriptDialect.codex.messages(in: line).first)
         #expect(first.id.hasPrefix("codex:2026-11-14T10:00:00.000Z:"))
-        #expect(TranscriptFormat.codex.messages(in: line).first?.id == first.id)
-        #expect(TranscriptFormat.codex.messages(in: later).first?.id != first.id)
+        #expect(TranscriptDialect.codex.messages(in: line).first?.id == first.id)
+        #expect(TranscriptDialect.codex.messages(in: later).first?.id != first.id)
         #expect(first.date == ISO8601DateFormatter().date(from: "2026-11-14T10:00:00Z"))
     }
 
     @Test("錯誤判斷:Script failed、aborted by user、Exit code N;第一個 exit code 為準")
     func errorHeuristics() {
         func isError(_ output: String) -> Bool {
-            let parts = TranscriptFormat.codex.messages(in: Self.line("response_item", ["type": "function_call_output", "call_id": "c", "output": output]))
+            let parts = TranscriptDialect.codex.messages(in: Self.line("response_item", ["type": "function_call_output", "call_id": "c", "output": output]))
                 .flatMap(\.parts)
             guard case .toolResult(_, _, let error)? = parts.first else { return false }
             return error
@@ -101,7 +101,7 @@ struct CodexTranscriptParserTests {
     @Test("使用者文字：整段 permissions 區塊移除、send_user_message_question_reply 顯示其內容")
     func userTextCleaning() {
         func text(_ raw: String) -> String? {
-            let parts = TranscriptFormat.codex.messages(in: Self.line("response_item", ["type": "message", "role": "user",
+            let parts = TranscriptDialect.codex.messages(in: Self.line("response_item", ["type": "message", "role": "user",
                 "content": [["type": "input_text", "text": raw]]])).flatMap(\.parts)
             guard case .text(let value)? = parts.first else { return nil }
             return value
@@ -113,9 +113,9 @@ struct CodexTranscriptParserTests {
 
     @Test("reasoning 只取 summary 當 thinking;agent_message 是 sidechain 的「作者 → 收件者」")
     func reasoningAndAgentMessages() throws {
-        let reasoning = TranscriptFormat.codex.messages(in: Self.line("response_item", ["type": "reasoning", "summary": [], "encrypted_content": "x"]))
+        let reasoning = TranscriptDialect.codex.messages(in: Self.line("response_item", ["type": "reasoning", "summary": [], "encrypted_content": "x"]))
         #expect(reasoning.isEmpty)
-        let message = try #require(TranscriptFormat.codex.messages(in: Self.line("response_item",
+        let message = try #require(TranscriptDialect.codex.messages(in: Self.line("response_item",
             ["type": "agent_message", "author": "planner", "recipient": "worker", "content": [["type": "input_text", "text": "Run the tests"]]])).first)
         #expect(message.isSidechain)
         #expect(message.parts == [.text("planner → worker: Run the tests")])

@@ -20,7 +20,7 @@ struct TranscriptFollowViewTests {
     static func answering(_ connection: FakeHostConnection) async {
         await connection.answerTranscripts { request in
             switch request {
-            case .locateClaude, .locate:
+            case .locate:
                 return Data("\(path)\n\(size)\n".utf8)
             case .window:
                 return Data(("0 \(size)\n" + lines.map { "\($0.utf8.count)\t\($0)\n" }.joined()).utf8)

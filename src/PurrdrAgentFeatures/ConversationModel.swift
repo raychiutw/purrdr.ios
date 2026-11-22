@@ -569,8 +569,8 @@ public final class ConversationModel {
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
-    /// 對話紀錄的格式，依 Agent 種類(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
-    private var format: TranscriptFormat = .claude
+    /// 對話紀錄的方言，依 Agent 設定檔(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
+    private var dialect: TranscriptDialect = .claude
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
     /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
     /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
@@ -690,7 +690,7 @@ public final class ConversationModel {
             agent = snapshot?.agents.first { $0.paneID == paneID }
         }
         guard let agent else { return nil }
-        switch AgentSlashMenu(agentKind: agent.kind) {
+        switch AgentCatalog.profile(forHerdrName: agent.kind).transcript?.slashMenu ?? .none {
         case .none:
             return nil
         case .fixed(let commands):
@@ -781,7 +781,7 @@ public final class ConversationModel {
     /// 讀這個 session 的 status line 狀態(#388):只有 Claude Code、知道 session id 時;至少隔 `sessionStatusInterval` 秒才再讀。
     /// 讀不到(沒有檔案、未安裝、舊版主機服務、連線錯誤)一律清成 `nil`,畫面退回對話紀錄算法、不空白。
     package func refreshSessionStatusIfDue() async {
-        guard let reader = sessionStatusReader, format == .claude, let session = boundSessionID ?? knownSessionID,
+        guard let reader = sessionStatusReader, dialect.readsSessionStatus, let session = boundSessionID ?? knownSessionID,
               ClaudeSessionStatus.isValidSessionID(session) else {
             sessionStatus = nil
             return
@@ -858,16 +858,17 @@ public final class ConversationModel {
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         // 讀 Pane 畫面(提問卡、建議提示詞、面板、即時預覽、背景 agents 窗格)排在讀對話紀錄之後(#356):
         // 慢網路下對話內容先出來，不等這幾個依序的請求。沒有對話紀錄可讀的情況(不支援、還沒有 session)照舊先讀畫面。
+        let agentDialect = AgentCatalog.profile(forHerdrName: agent.kind).transcript
         let readScreens = { [self] in
             await refreshPrompt(agent)
             let suggestionRead = await readSuggestion(agent)
             await refreshPanel(agent)
             applySuggestion(suggestionRead, agent: agent)
             await refreshLivePreview()
-            // 背景 agents 窗格只有 Claude 有。
-            if agent.kind == "claude", TranscriptFormat(agentKind: agent.kind) != nil { await readAgentsPaneIfNeeded() }
+            // 背景 agents 窗格只有支援 subagent 的方言(Claude)有。
+            if agentDialect?.supportsSubagents == true { await readAgentsPaneIfNeeded() }
         }
-        guard TranscriptFormat(agentKind: agent.kind) != nil else {
+        guard agentDialect != nil else {
             await readScreens()
             unbind()
             phase = .unsupported
@@ -886,7 +887,7 @@ public final class ConversationModel {
             unbind(keepingDisplay: true)
             boundSessionID = target.sessionKey
         }
-        format = target.format
+        dialect = target.dialect
         followPace?.interval = pollInterval
         await read(target)
         await readScreens()
@@ -1047,9 +1048,9 @@ public final class ConversationModel {
         recent = parse(chunk.lines)
         segments = [(chunk.start, recent.count)]
         olderMessages = []
-        metadata = format.latestMetadata(in: chunk.lines)
+        metadata = dialect.latestMetadata(in: chunk.lines)
         notePermissionModes(in: chunk.lines)
-        progress = AgentProgress.latest(in: chunk.lines, format: format)
+        progress = AgentProgress.latest(in: chunk.lines, dialect: dialect)
         older = chunk.start > 0 ? .available : .reachedStart
         rebuild()
         try await readEarlierUntilMessages(path: path, generation: generation)
@@ -1080,8 +1081,8 @@ public final class ConversationModel {
         recent += added
         if !added.isEmpty { segments.append((chunk.start, added.count)) }
         for line in chunk.lines {
-            format.updateMetadata(&metadata, with: line)
-            progress.update(with: line, format: format)
+            dialect.updateMetadata(&metadata, with: line)
+            progress.update(with: line, dialect: dialect)
         }
         notePermissionModes(in: chunk.lines)
         trimIfFollowing()
@@ -2549,7 +2550,7 @@ public final class ConversationModel {
 
     private func parse(_ lines: [String]) -> [TranscriptMessage] {
         var seen = Set<String>()
-        return lines.flatMap(format.messages(in:)).filter { seen.insert($0.id).inserted }
+        return lines.flatMap(dialect.messages(in:)).filter { seen.insert($0.id).inserted }
     }
 }
 

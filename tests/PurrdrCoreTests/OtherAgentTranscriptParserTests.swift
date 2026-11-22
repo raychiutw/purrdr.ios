@@ -10,12 +10,12 @@ struct GrokTranscriptParserTests {
     static let lines = Fixtures.otherAgentTranscriptLines("grok/updates.jsonl")
 
     static func items() -> [ConversationItem] {
-        Conversation.items(from: lines.flatMap(TranscriptFormat.grok.messages(in:)))
+        Conversation.items(from: lines.flatMap(TranscriptDialect.grok.messages(in:)))
     }
 
     @Test("Agent 種類 grok 用 ACP log 解析器")
     func grokKindUsesACPParser() {
-        #expect(TranscriptFormat(agentKind: "grok") == .grok)
+        #expect(AgentCatalog.profile(forHerdrName: "grok").transcript == .grok)
     }
 
     @Test("使用者訊息、工具串、agent 文字;Grok 自己寫的 prompt(syntheticPrompt)不顯示")
@@ -51,19 +51,19 @@ struct GrokTranscriptParserTests {
 
     @Test("id 取 eventId、時間取 agentTimestampMs,沒有時退用行雜湊與 timestamp 秒數")
     func idsAndDates() throws {
-        let messages = Self.lines.flatMap(TranscriptFormat.grok.messages(in:))
+        let messages = Self.lines.flatMap(TranscriptDialect.grok.messages(in:))
         let first = try #require(messages.first)
         #expect(first.id == "acp:ev-1")
         #expect(first.date == Date(timeIntervalSince1970: 1_792_073_586.001))
         let last = try #require(messages.last)
         #expect(last.id.hasPrefix("line-"))
         #expect(last.date == Date(timeIntervalSince1970: 1_792_073_592))
-        #expect(TranscriptFormat.grok.messages(in: Self.lines[11]).map(\.id) == [last.id])
+        #expect(TranscriptDialect.grok.messages(in: Self.lines[11]).map(\.id) == [last.id])
     }
 
     @Test("Header:模型取任何 update 的 _meta.modelId;沒有 context")
     func metadata() {
-        let metadata = TranscriptFormat.grok.latestMetadata(in: Self.lines)
+        let metadata = TranscriptDialect.grok.latestMetadata(in: Self.lines)
         #expect(metadata == TranscriptMetadata(model: "grok-5-fast"))
     }
 }
@@ -84,12 +84,12 @@ struct AntigravityTranscriptParserTests {
     static let lines = Fixtures.otherAgentTranscriptLines("antigravity/transcript.jsonl")
 
     static func items(_ lines: [String] = lines) -> [ConversationItem] {
-        Conversation.items(from: lines.flatMap(TranscriptFormat.antigravity.messages(in:)))
+        Conversation.items(from: lines.flatMap(TranscriptDialect.antigravity.messages(in:)))
     }
 
     @Test("Agent 種類 agy 用 agy steps 解析器")
     func agyKindUsesStepsParser() {
-        #expect(TranscriptFormat(agentKind: "agy") == .antigravity)
+        #expect(AgentCatalog.profile(forHerdrName: "agy").transcript == .antigravity)
     }
 
     @Test("只有 USER_EXPLICIT 是人打的(取 USER_REQUEST 內文);PLANNER_RESPONSE 是 agent;其他 step 不顯示")
@@ -137,14 +137,14 @@ struct AntigravityTranscriptParserTests {
 
     @Test("id 是 agy:<created_at>:<step_index>,時間取 created_at")
     func idsAndDates() throws {
-        let first = try #require(TranscriptFormat.antigravity.messages(in: Self.lines[0]).first)
+        let first = try #require(TranscriptDialect.antigravity.messages(in: Self.lines[0]).first)
         #expect(first.id == "agy:2026-10-12T08:00:00Z:0")
         #expect(first.date == Date(timeIntervalSince1970: 1_791_792_000))
     }
 
     @Test("Header:模型取 USER_INPUT 的 Model Selection 切換;context = input_tokens + cache_read_tokens")
     func metadata() {
-        let metadata = TranscriptFormat.antigravity.latestMetadata(in: Self.lines)
+        let metadata = TranscriptDialect.antigravity.latestMetadata(in: Self.lines)
         #expect(metadata == TranscriptMetadata(model: "Gemini 3.5 Flash", contextTokens: 11200))
     }
 }
@@ -154,14 +154,14 @@ struct PiJournalParserTests {
     static let lines = Fixtures.otherAgentTranscriptLines("pi/session.jsonl")
 
     static func items() -> [ConversationItem] {
-        Conversation.items(from: lines.flatMap(TranscriptFormat.piJournal.messages(in:)))
+        Conversation.items(from: lines.flatMap(TranscriptDialect.piJournal.messages(in:)))
     }
 
     @Test("Agent 種類 pi 與 omp 共用 journal 解析器")
     func piAndOMPShareJournalParser() {
-        #expect(TranscriptFormat(agentKind: "pi") == .piJournal)
-        #expect(TranscriptFormat(agentKind: "omp") == .piJournal)
-        #expect(TranscriptFormat(agentKind: "opencode") == nil)
+        #expect(AgentCatalog.profile(forHerdrName: "pi").transcript == .piJournal)
+        #expect(AgentCatalog.profile(forHerdrName: "omp").transcript == .piJournal)
+        #expect(AgentCatalog.profile(forHerdrName: "opencode").transcript == nil)
     }
 
     /// 依檔案順序讀(不重建分支樹);system 訊息與 header、模型／思考層級變更不產生內容。
@@ -198,10 +198,10 @@ struct PiJournalParserTests {
 
     @Test("id 是 omp:<entry id>;時間取 message.timestamp(毫秒),沒有時取 entry 的 ISO 時間")
     func idsAndDates() throws {
-        let user = try #require(TranscriptFormat.piJournal.messages(in: Self.lines[4]).first)
+        let user = try #require(TranscriptDialect.piJournal.messages(in: Self.lines[4]).first)
         #expect(user.id == "omp:9a000004")
         #expect(user.date == Date(timeIntervalSince1970: 1_792_054_802))
-        let note = try #require(TranscriptFormat.piJournal.messages(in: Self.lines[12]).first)
+        let note = try #require(TranscriptDialect.piJournal.messages(in: Self.lines[12]).first)
         #expect(note.id == "omp:9a00000c")
         #expect(note.date == Date(timeIntervalSince1970: 1_791_969_090))
     }
@@ -209,7 +209,7 @@ struct PiJournalParserTests {
     /// R-I18:中斷的輪次 usage 是 0,不算 context;模型與 effort 分別取最後的值。
     @Test("Header:模型取 model_change／assistant、effort 取 thinking_level_change、中斷輪次不算 context")
     func metadata() {
-        let metadata = TranscriptFormat.piJournal.latestMetadata(in: Self.lines)
+        let metadata = TranscriptDialect.piJournal.latestMetadata(in: Self.lines)
         #expect(metadata == TranscriptMetadata(model: "gpt-5.6", contextTokens: 2800, effort: "high"))
     }
 
@@ -219,7 +219,7 @@ struct PiJournalParserTests {
         let lines = Array(Self.lines[0...9]) + [
             #"{"type":"message","id":"e1","timestamp":"2026-10-14T09:13:00.000Z","message":{"role":"assistant","content":[],"model":"claude-sonnet-5","usage":{"input":7,"cacheRead":0,"cacheWrite":0},"stopReason":"error","errorMessage":"overloaded"}}"#,
         ]
-        #expect(TranscriptFormat.piJournal.latestMetadata(in: lines).contextTokens == 2800)
+        #expect(TranscriptDialect.piJournal.latestMetadata(in: lines).contextTokens == 2800)
     }
 
     @Test("Header:contextSnapshot.promptTokens 優先;model_change 的 model 帶 provider 前綴，顯示時去掉")
@@ -228,7 +228,7 @@ struct PiJournalParserTests {
             #"{"type":"model_change","id":"m1","timestamp":"2026-10-14T09:00:00.000Z","model":"openai/gpt-5.6"}"#,
             #"{"type":"message","id":"a1","timestamp":"2026-10-14T09:00:01.000Z","message":{"role":"assistant","content":[],"usage":{"input":10,"cacheRead":20,"cacheWrite":30},"contextSnapshot":{"promptTokens":4321},"stopReason":"stop"}}"#,
         ]
-        let metadata = TranscriptFormat.piJournal.latestMetadata(in: lines)
+        let metadata = TranscriptDialect.piJournal.latestMetadata(in: lines)
         #expect(metadata.model == "openai/gpt-5.6")
         #expect(metadata.model.map(TranscriptMetadata.displayName(ofModel:)) == "gpt-5.6")
         #expect(metadata.contextTokens == 4321)

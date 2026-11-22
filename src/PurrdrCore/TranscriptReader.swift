@@ -91,16 +91,12 @@ public struct TranscriptReader: Sendable {
         self.marker = marker
     }
 
-    /// 找出 Claude Code session 的對話紀錄並取得大小。
+    /// 找出 Claude Code session 的對話紀錄並取得大小(含 worktree 後備)。
     ///
     /// - Throws: `TranscriptReadError.absent`(還沒有檔案，例如新 session 還沒送第一個 prompt:等待即可)、
     ///   `.unreadable`(權限)、`.invalidReference`(id 不安全，不執行任何指令)。
     public func locate(sessionID: String, cwd: String) async throws -> TranscriptFile {
-        guard ClaudeTranscript.isSafeSessionID(sessionID) else { throw TranscriptReadError.invalidReference }
-        let output = try await run(.locateClaude(sessionID: sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: cwd)))
-        let lines = output.lines
-        guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]) else { throw TranscriptReadError.changed }
-        return TranscriptFile(path: lines[0], size: size)
+        try await locate(TranscriptLocation(locator: .claude, reference: .id(sessionID), cwd: cwd))
     }
 
     /// 找出任一種 agent 的對話紀錄並取得大小。
@@ -108,31 +104,20 @@ public struct TranscriptReader: Sendable {
     /// - Throws: `.absent`(還沒有檔案)、`.unreadable`(權限)、`.ambiguous`(不只一個候選)、`.mismatch`(header 不符)、
     ///   `.invalidReference`(id 或路徑不安全，不執行任何指令)。
     public func locate(_ target: TranscriptTarget) async throws -> TranscriptFile {
-        let expectedSuffix: String?
-        switch target.location {
-        case .claude(let sessionID, let cwd):
-            return try await locate(sessionID: sessionID, cwd: cwd)
-        case .grok(let id):
-            guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
-            expectedSuffix = "\(id)/updates.jsonl"
-        case .antigravity(let id), .piJournal(let id), .codex(let id):
-            guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
-            expectedSuffix = nil
-        case .reportedPath(let path):
-            guard Self.isValidPath(path) else { throw TranscriptReadError.invalidReference }
-            expectedSuffix = nil
+        try await locate(target.location)
+    }
+
+    func locate(_ location: TranscriptLocation) async throws -> TranscriptFile {
+        guard location.isSafe else { throw TranscriptReadError.invalidReference }
+        let locator = location.locator
+        let lines = try await run(.locate(location)).lines
+        guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]) else { throw TranscriptReadError.changed }
+        if case .id(let id) = location.reference, let pathCheck = locator.pathCheck, !pathCheck(lines[0], id) {
+            throw TranscriptReadError.changed
         }
-        let readsHeader = target.format == .piJournal || target.format == .codex
-        let lines = try await run(.locate(target.location, readsHeader: readsHeader)).lines
-        guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]),
-              expectedSuffix.map({ Self.hasComponents(lines[0], $0) }) ?? true else { throw TranscriptReadError.changed }
-        if case .codex(let id) = target.location {
-            // 路徑必須是 `-<id>(_<rolloutId>)?.jsonl`;第一行是這個 session 的 session_meta(§4.2)。
-            guard Self.isCodexRollout(lines[0], id: id) else { throw TranscriptReadError.changed }
-            guard lines.count >= 3, CodexTranscriptParser.headerMatches(lines[2], expectedID: id) else { throw TranscriptReadError.mismatch }
-        } else if readsHeader {
-            let expectedID: String? = if case .piJournal(let id) = target.location { id } else { nil }
-            guard PiJournalParser.headerMatches(Array(lines.dropFirst(2)), expectedID: expectedID) else { throw TranscriptReadError.mismatch }
+        if let headerCheck = locator.headerCheck {
+            let expectedID: String? = if case .id(let id) = location.reference { id } else { nil }
+            guard headerCheck(Array(lines.dropFirst(2)), expectedID) else { throw TranscriptReadError.mismatch }
         }
         return TranscriptFile(path: lines[0], size: size)
     }
@@ -330,7 +315,9 @@ public struct PreviewRequest: Sendable, Equatable {
 
     /// Claude Code session 的預覽。
     public init(key: String, sessionID: String, cwd: String) {
-        self.init(key: key, target: TranscriptTarget(format: .claude, location: .claude(sessionID: sessionID, cwd: cwd), sessionKey: sessionID))
+        self.init(key: key, target: TranscriptTarget(
+            dialect: .claude, location: TranscriptLocation(locator: .claude, reference: .id(sessionID), cwd: cwd), sessionKey: sessionID
+        ))
     }
 }
 
@@ -410,18 +397,15 @@ extension TranscriptReader {
             let change = range?.change ?? .whole
             // 附加與沒變沿用上次整段讀取時的 header 檢查(錨點相同才算同一個檔)。
             if change == .whole {
-                if request.target.format == .piJournal {
-                    let expectedID: String? = if case .piJournal(let id) = request.target.location { id } else { nil }
-                    guard PiJournalParser.headerMatches(headers[request.key] ?? [], expectedID: expectedID) else { continue }
-                }
-                if case .codex(let id) = request.target.location {
-                    guard let header = headers[request.key]?.first, CodexTranscriptParser.headerMatches(header, expectedID: id) else { continue }
+                if let headerCheck = request.target.location.locator.headerCheck {
+                    let expectedID: String? = if case .id(let id) = request.target.location.reference { id } else { nil }
+                    guard headerCheck(headers[request.key] ?? [], expectedID) else { continue }
                 }
             }
             // 檔尾的第一行多半被切在中間，解析時自然略過。
-            var preview = change == .unchanged ? nil : Conversation.preview(of: lines.flatMap(request.target.format.messages(in:)))
+            var preview = change == .unchanged ? nil : Conversation.preview(of: lines.flatMap(request.target.dialect.messages(in:)))
             if preview != nil {
-                let progress = AgentProgress.latest(in: lines, format: request.target.format)
+                let progress = AgentProgress.latest(in: lines, dialect: request.target.dialect)
                 preview?.progress = progress.isEmpty ? nil : progress
             }
             readings[request.key] = PreviewReading(version: range?.version, change: change, preview: preview)

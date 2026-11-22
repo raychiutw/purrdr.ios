@@ -6,13 +6,9 @@ import PurrdrCore
 extension HTTPSHostConnection {
     func transcript(_ request: TranscriptRequest) async throws -> Data {
         switch request {
-        case .locateClaude(let sessionID, _):
+        case .locate(let location):
             return try await withDeadline(HostCommandDeadline.standard) {
-                try await self.locate(.init(kind: "id", value: sessionID), header: false)
-            }
-        case .locate(let location, let readsHeader):
-            return try await withDeadline(HostCommandDeadline.standard) {
-                try await self.locate(Self.sessionReference(location), header: readsHeader)
+                try await self.locate(location.sessionReference, header: location.locator.readsHeader)
             }
         case .window(let path, let end, let lines, _, let maxBytes):
             return try await withDeadline(HostCommandDeadline.maximumRead) {
@@ -33,14 +29,6 @@ extension HTTPSHostConnection {
             return try await readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
         case .delegationLines(let path, let callID, let agentID, let knownChecksum):
             return try await delegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
-        }
-    }
-
-    /// herdr 回報的 session 參照;主機服務依它與 snapshot 找檔，app 不送路徑規則。
-    static func sessionReference(_ location: TranscriptTarget.Location) -> HostServiceProtocol.SessionReference {
-        switch location {
-        case .claude(let id, _), .grok(let id), .antigravity(let id), .piJournal(let id), .codex(let id): .init(kind: "id", value: id)
-        case .reportedPath(let path): .init(kind: "path", value: path)
         }
     }
 

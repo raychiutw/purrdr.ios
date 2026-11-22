@@ -15,10 +15,10 @@ public struct SlashCommand: Sendable, Equatable, Hashable {
     }
 }
 
-/// 某種 agent 打 `/` 時的選單來源(行為規格 F9.1、#37 G17)。
+/// 某種 agent 打 `/` 時的選單來源(Agent 設定檔對話紀錄組的 `slashMenu`)(行為規格 F9.1、#37 G17)。
 ///
 /// 這裡只是**資料來源**:選單畫面、篩選與挑選規則(F9.3)屬於 Slash 選單那張票(#15)。
-public enum AgentSlashMenu: Sendable, Equatable {
+public enum SlashMenuSource: Sendable, Equatable {
     /// 沒有選單(Pi、OMP,以及其他 agent)。
     case none
     /// 固定清單(Grok、Antigravity、Codex)。【未實測】取自各自的官方文件，沒有在真實 agent 上比對過。
@@ -26,19 +26,9 @@ public enum AgentSlashMenu: Sendable, Equatable {
     /// 由主機上發現(Claude:內建、專案、使用者、plugin 指令;#15)。
     case discovered
 
-    public init(agentKind: String) {
-        switch AgentKindName.canonical(agentKind) {
-        case "claude": self = .discovered
-        case "grok": self = .fixed(Self.grok)
-        case "agy": self = .fixed(Self.antigravity)
-        case "codex": self = .fixed(Self.codex)
-        default: self = .none
-        }
-    }
-
     /// Grok Build TUI 的指令(docs.x.ai/build/modes-and-commands,2026-11 取用)。別名不另列;
     /// 依功能開關才出現的(`/auto`、`/imagine`…)照列，由 Grok 自己拒絕。
-    static let grok: [SlashCommand] = [
+    static let grokCommands: [SlashCommand] = [
         // Session 與導覽
         SlashCommand(name: "help", summary: "Browse commands and keyboard shortcuts"),
         SlashCommand(name: "new", summary: "Start a new session"),
@@ -112,7 +102,7 @@ public enum AgentSlashMenu: Sendable, Equatable {
 
     /// Antigravity CLI(`agy`)的指令(antigravity.google/docs/features?tab=cli,2026-11 取用)。文件只為部分指令附
     /// 說明，其餘的說明是依名稱與文件內文寫的簡述。
-    static let antigravity: [SlashCommand] = [
+    static let antigravityCommands: [SlashCommand] = [
         SlashCommand(name: "help", summary: "Show commands and shortcuts"),
         SlashCommand(name: "model", summary: "Choose the model"),
         SlashCommand(name: "effort", summary: "Set reasoning effort"),
@@ -157,7 +147,7 @@ public enum AgentSlashMenu: Sendable, Equatable {
     /// slash 指令頁已改版、目前沒有 CLI 清單)。依原始碼的宣告順序(也是 Codex 選單的順序);說明取自 `description()`,
     /// 句首改大寫。只在 debug build 出現的(`rollout`、`test-approval`、`debug-m-*`)不列;依平台或功能開關才出現的照列，
     /// 由 Codex 自己拒絕。別名(`cwd`、`pet`、`clean`)不另列。
-    static let codex: [SlashCommand] = [
+    static let codexCommands: [SlashCommand] = [
         SlashCommand(name: "model", summary: "Choose what model and reasoning effort to use"),
         SlashCommand(name: "presets", summary: "Run or save reusable prompts and slash commands"),
         SlashCommand(name: "daybreak", summary: "Turn Daybreak on or off"),

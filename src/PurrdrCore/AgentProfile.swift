@@ -113,21 +113,36 @@ public struct AgentPresentation: Equatable, Sendable {
     }
 }
 
-/// Agent 設定檔(ADR-0013)。目前只有顯示組;對話紀錄、輸入、畫面、session 各組由後續票加入。
+/// Agent 設定檔(ADR-0013)。目前有顯示組與對話紀錄組;輸入、畫面、session 各組由後續票加入。
+/// 沒有的那組是 `nil`,表示那項功能不提供。
 public struct AgentProfile: Equatable, Sendable {
     public let id: AgentID
     public let presentation: AgentPresentation
+    /// 對話紀錄組:沒有可讀的對話紀錄的 Agent 為 `nil`。
+    public let transcript: TranscriptDialect?
 
-    public init(id: AgentID, presentation: AgentPresentation) {
+    public init(id: AgentID, presentation: AgentPresentation, transcript: TranscriptDialect? = nil) {
         self.id = id
         self.presentation = presentation
+        self.transcript = transcript
     }
 }
 
 /// Agent 設定檔目錄:依種類回傳設定檔,認不得的種類回通用設定檔(照原文顯示、中性頭像)。
 public enum AgentCatalog {
     public static func profile(for id: AgentID) -> AgentProfile {
-        AgentProfile(id: id, presentation: presentation(for: id))
+        AgentProfile(id: id, presentation: presentation(for: id), transcript: transcript(for: id))
+    }
+
+    private static func transcript(for id: AgentID) -> TranscriptDialect? {
+        switch id {
+        case .claude: .claude
+        case .codex: .codex
+        case .grok: .grok
+        case .agy: .antigravity
+        case .pi, .omp: .piJournal
+        default: nil
+        }
     }
 
     /// 直接從 herdr 的字串取設定檔(轉換只在 `AgentID`)。

@@ -5,14 +5,18 @@ import Testing
 /// 各 agent 打 `/` 時的選單來源(行為規格 F9.1、#37 G17)。Grok、Antigravity 用固定清單(取自各自的官方文件,
 /// 【未實測】);Pi／OMP 沒有選單;Claude 的清單由主機上發現(#15)。
 @Suite("Slash 選單來源")
-struct AgentSlashMenuTests {
+struct SlashMenuSourceTests {
+    static func menu(_ kind: String) -> SlashMenuSource {
+        AgentCatalog.profile(forHerdrName: kind).transcript?.slashMenu ?? SlashMenuSource.none
+    }
+
     @Test("Grok 與 Antigravity 有各自的固定清單;Pi、OMP 沒有選單;Claude 由主機發現")
     func menuSourceByAgentKind() {
-        #expect(AgentSlashMenu(agentKind: "pi") == .none)
-        #expect(AgentSlashMenu(agentKind: "omp") == .none)
-        #expect(AgentSlashMenu(agentKind: "amp") == .none)
-        #expect(AgentSlashMenu(agentKind: "claude") == .discovered)
-        guard case .fixed(let grok) = AgentSlashMenu(agentKind: "grok"), case .fixed(let agy) = AgentSlashMenu(agentKind: "agy") else {
+        #expect(Self.menu("pi") == .none)
+        #expect(Self.menu("omp") == .none)
+        #expect(Self.menu("amp") == .none)
+        #expect(Self.menu("claude") == .discovered)
+        guard case .fixed(let grok) = Self.menu("grok"), case .fixed(let agy) = Self.menu("agy") else {
             Issue.record("Grok／agy 沒有固定清單")
             return
         }
@@ -27,7 +31,7 @@ struct AgentSlashMenuTests {
     @Test("固定清單的名稱不重複，且只含選單比對用的字元")
     func fixedListsAreWellFormed() {
         for kind in ["grok", "agy", "codex"] {
-            guard case .fixed(let commands) = AgentSlashMenu(agentKind: kind) else {
+            guard case .fixed(let commands) = Self.menu(kind) else {
                 Issue.record("\(kind) 沒有固定清單")
                 continue
             }
@@ -40,7 +44,7 @@ struct AgentSlashMenuTests {
     /// (`codex-rs/tui/src/slash_command.rs`,2026-11-16 取用),【未實測】;只在 debug build 出現的不列。
     @Test("Codex 有自己的固定清單(內建指令);debug 專用的不列")
     func codexHasFixedList() {
-        guard case .fixed(let codex) = AgentSlashMenu(agentKind: "codex") else {
+        guard case .fixed(let codex) = Self.menu("codex") else {
             Issue.record("Codex 沒有固定清單")
             return
         }

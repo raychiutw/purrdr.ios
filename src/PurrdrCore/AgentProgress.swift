@@ -42,9 +42,9 @@ public struct AgentProgress: Sendable, Equatable {
     public var isEmpty: Bool { contextPercent == nil && todos.isEmpty }
 
     /// 依序看過 `lines`，較晚的值覆蓋較早的。
-    public static func latest(in lines: [String], format: TranscriptFormat) -> AgentProgress {
+    public static func latest(in lines: [String], dialect: TranscriptDialect) -> AgentProgress {
         var progress = AgentProgress()
-        for line in lines { progress.update(with: line, format: format) }
+        for line in lines { progress.update(with: line, dialect: dialect) }
         return progress
     }
 
@@ -56,13 +56,9 @@ public struct AgentProgress: Sendable, Equatable {
         return merged
     }
 
-    public mutating func update(with line: String, format: TranscriptFormat) {
+    public mutating func update(with line: String, dialect: TranscriptDialect) {
         guard let object = ClaudeTranscriptParser.jsonObject(line) else { return }
-        switch format {
-        case .claude: updateClaude(object, line: line)
-        case .codex: updateCodex(object)
-        default: break
-        }
+        dialect.updateProgress(&self, object: object, line: line)
         if let tokens {
             if tokens > Self.standardWindow { sawOneMillionWindow = true }
             let limit = window ?? (sawOneMillionWindow ? Self.oneMillionWindow : Self.contextWindow(forModel: model))
@@ -78,7 +74,7 @@ public struct AgentProgress: Sendable, Equatable {
         (model?.lowercased().contains("[1m]") ?? false) ? oneMillionWindow : standardWindow
     }
 
-    private mutating func updateClaude(_ object: [String: Any], line: String) {
+    mutating func updateClaude(_ object: [String: Any], line: String) {
         // 子 Agent(sidechain)的用量、模型與待辦不屬於這個對話。
         guard object["isSidechain"] as? Bool != true else { return }
         if object["type"] as? String == "user" {
@@ -100,7 +96,7 @@ public struct AgentProgress: Sendable, Equatable {
         }
     }
 
-    private mutating func updateCodex(_ object: [String: Any]) {
+    mutating func updateCodex(_ object: [String: Any]) {
         guard let payload = object["payload"] as? [String: Any] else { return }
         switch (object["type"] as? String, payload["type"] as? String) {
         case ("event_msg", "token_count"):

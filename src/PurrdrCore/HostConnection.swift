@@ -66,10 +66,9 @@ extension HostConnection {
 
 /// 一次對話紀錄讀取。參數已由 `TranscriptReader` 驗證過安全性。
 public enum TranscriptRequest: Sendable, Equatable {
-    /// Claude Code session 的對話紀錄位置與大小。
-    case locateClaude(sessionID: String, projectFolder: String)
-    /// 任一種 agent 的對話紀錄位置與大小;`readsHeader` 時多印檔案開頭(header 檢查)。
-    case locate(TranscriptTarget.Location, readsHeader: Bool)
+    /// 任一種 agent 的對話紀錄位置與大小(通用的定位請求,位置規則帶在 `TranscriptLocation`);
+    /// 位置規則要檢查 header 時多印檔案開頭。
+    case locate(TranscriptLocation)
     /// 以 `end` 為終點的最後 `lines` 行;`maxBytes` 大於 0 時範圍不超過該 byte 數(只回範圍內完整的行，#356)。
     case window(path: String, end: Int, lines: Int, chunkBytes: Int, maxBytes: Int)
     /// 游標之後新增的完整行。

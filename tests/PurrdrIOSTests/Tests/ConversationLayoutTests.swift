@@ -44,7 +44,7 @@ struct ConversationLayoutTests {
         let total = Self.bytes(lines)
         await connection.answerTranscripts { request in
             switch request {
-            case .locateClaude, .locate:
+            case .locate:
                 return Data("\(Self.path)\n\(total)\n".utf8)
             case .window:
                 return Data(("0 \(total)\n" + lines.map { "\($0.utf8.count)\t\($0)\n" }.joined()).utf8)

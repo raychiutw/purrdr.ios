@@ -158,7 +158,6 @@ enum WindowsCommand {
 
     static let transcriptScripts: [(posix: String, windows: String)] = {
         var scripts: [(String, String)] = [
-            (TranscriptCommand.claudeLocateScript, WindowsScripts.claudeLocate),
             (TranscriptCommand.windowScript, WindowsScripts.window),
             (TranscriptCommand.tailScript, WindowsScripts.tail),
             (TranscriptCommand.catchUpScript, WindowsScripts.catchUp),
@@ -170,14 +169,10 @@ enum WindowsCommand {
             (ClaudeSlashCommand.manifestsScript, WindowsScripts.slashManifests),
             (ClaudeSlashCommand.scanScript, WindowsScripts.slashScan),
         ]
-        let locations: [(TranscriptTarget.Location, String)] = [
-            (.claude(sessionID: "", cwd: ""), "claude"), (.grok(sessionID: ""), "grok"), (.antigravity(sessionID: ""), "agy"),
-            (.piJournal(sessionID: ""), "pi"), (.codex(sessionID: ""), "codex"), (.reportedPath(""), "path"),
-        ]
-        for (location, type) in locations {
-            for header in [false, true] {
-                scripts.append((TranscriptCommand.locateScript(location, readsHeader: header), WindowsScripts.locate(type: type, header: header)))
-            }
+        for locator in TranscriptLocator.all {
+            let windows = locator.usesProjectFolder
+                ? WindowsScripts.claudeLocate : WindowsScripts.locate(type: locator.lookupName, header: locator.readsHeader)
+            scripts.append((TranscriptCommand.locateScript(locator), windows))
         }
         return scripts
     }()

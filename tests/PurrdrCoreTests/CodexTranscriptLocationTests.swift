@@ -23,8 +23,8 @@ struct CodexTranscriptLocationTests {
     @Test("Codex 的 session id 決定讀取目標;以路徑回報不接受")
     func sessionReferenceBecomesTarget() throws {
         let target = try Self.target
-        #expect(target.format == .codex)
-        #expect(target.location == .codex(sessionID: Self.id))
+        #expect(target.dialect == .codex)
+        #expect(target.location == .id(.codex, Self.id))
         #expect(target.sessionKey == Self.id)
         #expect(Self.agent(AgentSessionReference(kind: "path", value: "/home/demo/.codex/sessions/a.jsonl")).transcriptTarget == nil)
         #expect(Self.agent(AgentSessionReference(kind: "id", value: "x'; rm -rf ~")).transcriptTarget == nil)
@@ -113,7 +113,7 @@ struct CodexTranscriptLocationTests {
         try host.write(Self.data, to: Self.dated)
         let otherID = "0000c0de-0000-4000-8000-000000000002"
         try host.write(Self.data, to: ".codex/sessions/2026/11/14/rollout-2026-11-14T11-00-00-\(otherID).jsonl")
-        let other = TranscriptTarget(format: .codex, location: .codex(sessionID: otherID), sessionKey: otherID)
+        let other = TranscriptTarget.id(.codex, otherID)
 
         let previews = try await TranscriptReader(channel: host, marker: { "MARK" })
             .previewReadings(of: [PreviewRequest(key: "w3:p1", target: Self.target), PreviewRequest(key: "w4:p1", target: other)]).compactMapValues(\.preview)

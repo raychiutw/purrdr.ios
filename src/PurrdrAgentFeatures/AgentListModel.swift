@@ -25,7 +25,7 @@ public final class AgentListModel {
               let chunk = try? await transcripts.window(
                   path: file.path, endingAt: file.size, lines: 400, maxBytes: 256 << 10)
         else { return nil }
-        let items = Conversation.items(from: chunk.lines.flatMap(target.format.messages(in:)))
+        let items = Conversation.items(from: chunk.lines.flatMap(target.dialect.messages(in:)))
         return AwaySummary.make(items: items, awayFrom: openedAt, cutoff: now)?.turns
     }
     private let sleep: Sleep
