@@ -86,6 +86,11 @@ public final class SettingsModel {
         didSet { appearance.store(in: defaults) }
     }
 
+    /// 方案用量顯示已用或剩餘(#393;全域偏好,預設剩餘)。存在 `PlanUsageModel.Display.storageKey`,方案用量畫面出現時讀。
+    public var planUsageDisplay: PlanUsageModel.Display {
+        didSet { planUsageDisplay.store(in: defaults) }
+    }
+
     /// 送出可撤回的秒數(#300;預設 3、0–10,0 為關閉)。存在 `UndoSendSettings.secondsKey`,下一則送出就生效。
     public var undoSendSeconds: Int {
         didSet {
@@ -117,6 +122,7 @@ public final class SettingsModel {
         returnSends = defaults.object(forKey: ComposerSettings.returnSendsKey) as? Bool ?? true
         hapticsEnabled = HapticSettings.isEnabled(defaults)
         appearance = AppearancePreference.stored(in: defaults)
+        planUsageDisplay = PlanUsageModel.Display.stored(in: defaults)
         undoSendSeconds = UndoSendSettings.seconds(in: defaults)
     }
 

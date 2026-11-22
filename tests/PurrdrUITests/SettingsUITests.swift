@@ -126,6 +126,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(app.listModeControl.label, "檢視:Agents", "切換鈕沒有念出目前檢視")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["設定"].waitUntilExists(timeout: 5), "設定頁標題不是繁體中文")
+        XCTAssertTrue(app.staticTexts["用量顯示"].waitUntilExists(timeout: 5), "設定沒有「用量顯示」")
         // Codex 區在上面，評分列要捲動才出現。
         let rate = app.buttons["為 Purrdr 評分"]
         app.scrollIntoView(rate, search: .down)

@@ -232,6 +232,40 @@ struct SettingsModelTests {
         #expect(model.herdrVersion == .reported("0.9.6"))
     }
 
+    @Test("用量顯示預設剩餘,改了存起來;方案用量畫面的 model 讀同一個 key")
+    func planUsageDisplayDefaultsRemainingAndPersists() {
+        let defaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!
+        let model = Self.model(defaults: defaults)
+        #expect(model.planUsageDisplay == .remaining)
+
+        model.planUsageDisplay = .used
+
+        #expect(Self.model(defaults: defaults).planUsageDisplay == .used)
+        let hostID = HostSelection.host(UUID())
+        let usage = PlanUsageModel(
+            hosts: [HostOption(id: hostID, name: "Mac")], fallback: hostID, store: InMemoryPlanUsageSelectionStore(),
+            defaults: defaults
+        ) { _, _ in nil }
+        #expect(usage.display == .used)
+    }
+
+    @Test("方案用量畫面開著期間在設定改了用量顯示,下次出現就跟著變")
+    func planUsageReadsDisplayAgainWhenAppearing() {
+        let defaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!
+        let hostID = HostSelection.host(UUID())
+        let usage = PlanUsageModel(
+            hosts: [HostOption(id: hostID, name: "Mac")], fallback: hostID, store: InMemoryPlanUsageSelectionStore(),
+            defaults: defaults
+        ) { _, _ in nil }
+        #expect(usage.display == .remaining)
+
+        Self.model(defaults: defaults).planUsageDisplay = .used
+        usage.appeared()
+
+        #expect(usage.display == .used)
+        usage.disappeared()
+    }
+
     @Test("版本字顯示 app 版本與 build")
     func versionText() {
         #expect(Self.model().appVersionText == "1.2.3 (45)")

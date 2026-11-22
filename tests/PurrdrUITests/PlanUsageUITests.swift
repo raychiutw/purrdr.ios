@@ -35,9 +35,9 @@ final class PlanUsageUITests: XCTestCase {
         let host = app.element("planUsage.host")
         XCTAssertTrue(host.waitUntilExists(timeout: 5), "沒有主機選單")
         XCTAssertTrue(texts(of: host).contains("Demo"), "主機選單不是 Demo:\(texts(of: host))")
-        // Agent 與顯示方式攤開成勾選列(#313)。
+        // Agent 攤開成勾選列(#313);已用／剩餘在設定 tab(#393),這裡沒有。
         XCTAssertTrue(app.buttons["Claude Code"].isSelected, "Agent 不是 Claude Code")
-        XCTAssertTrue(app.buttons["Remaining"].isSelected, "預設不是顯示剩餘")
+        XCTAssertFalse(app.element("planUsage.display").exists, "方案用量畫面還有顯示方式選項")
 
         let consent = app.buttons["planUsage.consent"]
         XCTAssertTrue(consent.waitUntilExists(timeout: 10), "沒有請使用者同意")
@@ -56,9 +56,12 @@ final class PlanUsageUITests: XCTestCase {
         let week = app.element("planUsage.period.week")
         XCTAssertTrue(week.label.contains("39% left"), "每週不是剩餘比例:\(week.label)")
 
+        // 在設定 tab 改成已用,回來就是已用比例(#393)。
+        app.openSettingsTab()
         let showUsed = app.buttons["Used"]
-        XCTAssertTrue(app.scrollIntoView(showUsed), "沒有「Used」選項")
+        XCTAssertTrue(app.scrollIntoView(showUsed), "設定沒有「Used」選項")
         showUsed.tap()
+        app.openTab(.hosts)
         XCTAssertTrue(fiveHour.waitForLabel(containing: "38% used", timeout: 5), "沒切換成已用比例:\(fiveHour.label)")
 
         app.element("planUsage.menu").tap()

@@ -182,18 +182,34 @@ public final class PlanUsageModel {
         case turningOff
     }
 
-    public enum Display: Equatable { case remaining, used }
+    public enum Display: String, Equatable, Sendable {
+        case remaining, used
+
+        /// 設定 tab「用量顯示」存的 key(#393);設定與方案用量畫面讀同一個。
+        public static let storageKey = "planUsage.display"
+
+        /// 存著的選擇;沒存過或讀不懂是「剩餘」。
+        public static func stored(in defaults: UserDefaults) -> Display {
+            defaults.string(forKey: storageKey).flatMap(Display.init(rawValue:)) ?? .remaining
+        }
+
+        public func store(in defaults: UserDefaults) {
+            defaults.set(rawValue, forKey: Self.storageKey)
+        }
+    }
 
     public private(set) var state: State = .loading
     public private(set) var host: HostSelection
     public private(set) var agent: PlanUsageAgent
-    public var display: Display = .remaining
+    /// 已用或剩餘(全域偏好,在設定 tab 改;這裡只讀,畫面每次出現時重讀)。
+    public private(set) var display: Display
     /// 同意或關閉失敗的說明。
     public private(set) var message: String?
     public let hosts: [HostOption]
 
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     private let store: any PlanUsageSelectionStore
+    private let defaults: UserDefaults
     private let currentHostChanged: (HostSelection) -> Void
     private let now: () -> Date
     private let sleep: Sleep
@@ -208,11 +224,14 @@ public final class PlanUsageModel {
         currentHost: HostSelection? = nil, currentHostChanged: @escaping (HostSelection) -> Void = { _ in },
         now: @escaping () -> Date = Date.init,
         sleep: @escaping Sleep = Sleeping.task,
+        defaults: UserDefaults = .standard,
         source: @escaping (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     ) {
         self.hosts = hosts
         self.source = source
         self.store = store
+        self.defaults = defaults
+        display = Display.stored(in: defaults)
         self.currentHostChanged = currentHostChanged
         self.now = now
         self.sleep = sleep
@@ -241,6 +260,7 @@ public final class PlanUsageModel {
     /// 畫面出現：依目前的選擇查一次。
     public func appeared() {
         isVisible = true
+        display = Display.stored(in: defaults)
         restart()
     }
 

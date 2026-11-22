@@ -26,7 +26,7 @@ public struct PlanUsageView: View {
             } footer: {
                 costNote
             }
-            // Agent 與顯示方式攤開成勾選列(#313);顯示方式不再放在「⋯」裡。
+            // Agent 攤開成勾選列(#313);已用／剩餘是全域偏好,在設定 tab(#393)。
             Section {
                 Picker("Agent", selection: agentSelection) {
                     ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
@@ -38,18 +38,6 @@ public struct PlanUsageView: View {
                 .accessibilityIdentifier("planUsage.agent")
             } header: {
                 Text("Agent")
-                    .foregroundStyle(.secondaryText)
-            }
-            Section {
-                Picker("Show", selection: $model.display) {
-                    Text("Remaining").tag(PlanUsageModel.Display.remaining)
-                    Text("Used").tag(PlanUsageModel.Display.used)
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
-                .accessibilityIdentifier("planUsage.display")
-            } header: {
-                Text("Show")
                     .foregroundStyle(.secondaryText)
             }
             Section {

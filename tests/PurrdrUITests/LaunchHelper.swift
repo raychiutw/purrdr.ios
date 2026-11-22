@@ -96,6 +96,17 @@ enum AppTab: String {
     case hosts = "Hosts"
     case traffic = "Traffic"
     case settings = "Settings"
+
+    /// 繁體中文介面的 tab 標籤。
+    var traditionalChinese: String {
+        switch self {
+        case .chats: "聊天"
+        case .files: "檔案"
+        case .hosts: "主機"
+        case .traffic: "流量"
+        case .settings: "設定"
+        }
+    }
 }
 
 extension XCUIApplication {
@@ -103,9 +114,10 @@ extension XCUIApplication {
     @MainActor
     func openTab(_ tab: AppTab, file: StaticString = #filePath, line: UInt = #line) {
         // iPad 寬視窗的 tab bar 在上方(浮動工具列),不一定在 `tabBars` 底下:找不到再找一般按鈕。
-        var button = tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch
+        let labels = NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", tab.rawValue, tab.traditionalChinese)
+        var button = tabBars.buttons.matching(labels).firstMatch
         if !button.waitUntilExists(timeout: 3) {
-            button = buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch
+            button = buttons.matching(labels).firstMatch
         }
         XCTAssertTrue(button.waitUntilExists(timeout: 10), "tab bar 沒有 \(tab.rawValue)", file: file, line: line)
         if !button.isSelected { button.tap() }

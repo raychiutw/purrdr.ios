@@ -9455,17 +9455,6 @@
         }
       }
     },
-    "Show" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示"
-          }
-        }
-      }
-    },
     "Show All" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13095,6 +13084,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在上傳「%@」"
+          }
+        }
+      }
+    },
+    "Usage Display" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量顯示"
           }
         }
       }

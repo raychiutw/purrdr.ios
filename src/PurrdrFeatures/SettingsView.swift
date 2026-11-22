@@ -6,31 +6,18 @@ import UIKit
 import AppKit
 #endif
 
-/// 設定 sheet(#274,原型 purrdr-settings C):外觀、鍵盤與觸覺、App 鎖(#284)、支援、關於。
+/// 設定 tab(#274、#393):外觀、用量顯示、鍵盤與觸覺、送出可撤回、App 鎖(#284)、支援、關於。
 /// 主機主題、You should know、Codex 啟動器在各主機的主機頁(作用在那台主機)。
 ///
-/// 會員、Purrdr Plus、通知與主機同步在帳號頁(聊天列表右上角的帳號鈕)。
+/// 會員、Purrdr Plus、通知與主機同步在帳號頁(各 tab 最右上角的帳號鈕)。
 public struct SettingsView: View {
     @Bindable var model: SettingsModel
     /// 再看一次歡迎頁(#34;HIG Onboarding:跳過後在設定找得到)。
     let openWelcome: () -> Void
     /// App 鎖(#284);`nil` 時不顯示。
     let appLock: AppLock?
-    /// 設定 tab 最右上角的帳號鈕(#390);`nil` 時(舊的 sheet 用法)改放右上「Done」。
-    let account: AnyView?
-    let done: (() -> Void)?
-
-    public init(
-        model: SettingsModel,
-        openWelcome: @escaping () -> Void = {}, appLock: AppLock? = nil,
-        done: @escaping () -> Void
-    ) {
-        self.model = model
-        self.appLock = appLock
-        self.openWelcome = openWelcome
-        self.account = nil
-        self.done = done
-    }
+    /// 設定 tab 最右上角的帳號鈕(#390)。
+    let account: AnyView
 
     /// 設定 tab:大標題「Settings」、右上只有帳號鈕。
     init(model: SettingsModel, openWelcome: @escaping () -> Void, appLock: AppLock?, account: AnyView) {
@@ -38,7 +25,6 @@ public struct SettingsView: View {
         self.appLock = appLock
         self.openWelcome = openWelcome
         self.account = account
-        self.done = nil
     }
 
     public var body: some View {
@@ -59,6 +45,20 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondaryText)
                 } footer: {
                     Text("Automatic follows your device’s Light or Dark setting.")
+                        .foregroundStyle(.secondaryText)
+                }
+
+                // 方案用量顯示已用或剩餘(#393;全域,方案用量畫面沿用)。
+                Section {
+                    Picker("Usage Display", selection: $model.planUsageDisplay) {
+                        Text("Used").tag(PlanUsageModel.Display.used)
+                        Text("Remaining").tag(PlanUsageModel.Display.remaining)
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                    .accessibilityIdentifier("settings.planUsageDisplay")
+                } header: {
+                    Text("Usage Display")
                         .foregroundStyle(.secondaryText)
                 }
 
@@ -129,16 +129,8 @@ public struct SettingsView: View {
             .accessibilityIdentifier("sheet.settings")
             .navigationTitle("Settings")
             .toolbar {
-                if let done {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done", action: done)
-                            .accessibilityIdentifier("sheet.done")
-                    }
-                }
-                if let account {
-                    ToolbarItem(placement: .primaryAction) { account }
-                        .sharedBackgroundVisibility(.hidden)
-                }
+                ToolbarItem(placement: .primaryAction) { account }
+                    .sharedBackgroundVisibility(.hidden)
             }
         }
         .task { await model.load() }
