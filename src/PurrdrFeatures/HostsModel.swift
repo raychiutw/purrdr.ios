@@ -150,6 +150,8 @@ public final class HostsModel {
     private var members: [HostSelection: HostMember] = [:]
     /// 主機頁的 Codex 啟動器(#274):每台主機一份，主機刪除時丟掉。
     private var codexLaunchers: [UUID: CodexLauncherModel] = [:]
+    /// 依 Agent 種類接上主機能力的對照表(#443)。
+    private let agentHostServices = AgentHostServices()
     /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
     private let demoConsent: any HostWriteConsentStore
     /// 真主機的主機寫入同意(以主機 id 為鍵);移除主機時清除。
@@ -262,7 +264,9 @@ public final class HostsModel {
         if let launcher = codexLaunchers[id] {
             return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
         }
-        let launcher = CodexLauncherModel(host: CodexLauncherHost(channel: member.channel), hostID: id.uuidString, consent: hostConsent)
+        guard let launcher = agentHostServices.launcher(for: .codex, channel: member.channel, hostID: id.uuidString, consent: hostConsent) else {
+            return nil
+        }
         codexLaunchers[id] = launcher
         return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
     }
@@ -314,12 +318,10 @@ public final class HostsModel {
             let member = member(for: host)
             (channel, cost, hostID, files) = (member.channel, .transfer, id.uuidString, member.hostFiles)
         }
-        switch agent {
-        case .claudeCode:
-            return .claude(channel: channel, files: files, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent)
-        case .codex:
-            return .codex(channel: channel, cost: cost)
-        }
+        return agentHostServices.planUsage(
+            for: agent.agentID,
+            ssh: AgentHostServices.SSHContext(
+                channel: channel, files: files, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent))
     }
 
     /// 某台主機上某個 Pane 的終端機 model(標題)。
@@ -447,7 +449,7 @@ public final class HostsModel {
         let member = member(for: route.host)
         let model = ConversationModel(
             client: member.client, transcripts: member.transcripts, paneID: route.paneID, knownSessionID: sessionID,
-            cache: conversationCache(for: route.host), drafts: member.drafts, slashDiscovery: ClaudeSlashDiscovery(channel: member.channel),
+            cache: conversationCache(for: route.host), drafts: member.drafts, slashDiscovery: agentHostServices.slashDiscovery(for: .claude, channel: member.channel),
             haptics: haptics,
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { [weak self] in self?.name(of: route.host) },
