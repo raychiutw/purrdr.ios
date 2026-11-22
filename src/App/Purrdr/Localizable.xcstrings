@@ -4568,6 +4568,17 @@
         }
       }
     },
+    "Fastest for quick answers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最快，適合快速回答"
+          }
+        }
+      }
+    },
     "File" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4762,6 +4773,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不知道資料夾"
+          }
+        }
+      }
+    },
+    "For complex work and everyday tasks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適合複雜工作與日常任務"
+          }
+        }
+      }
+    },
+    "For your toughest challenges" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適合最艱難的挑戰"
           }
         }
       }
@@ -6470,6 +6503,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有不只一份紀錄符合這段對話，因此都不顯示。"
+          }
+        }
+      }
+    },
+    "Most efficient for simpler tasks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "較簡單的任務，效率最高"
           }
         }
       }
@@ -9341,6 +9385,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "必填"
+          }
+        }
+      }
+    },
+    "Requires usage credits" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要用量額度"
           }
         }
       }

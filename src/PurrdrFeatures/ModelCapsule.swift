@@ -101,15 +101,8 @@ private struct ModelListPage: View {
                 Section {
                     Picker(String(localized: "Model"), selection: selection(panel)) {
                         ForEach(panel.options) { option in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(verbatim: option.label)
-                                if let detail = option.detail {
-                                    Text(verbatim: detail)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondaryText)
-                                }
-                            }
-                            .tag(option.index)
+                            ModelRow(option: option, entry: model.catalogEntry(for: option))
+                                .tag(option.index)
                         }
                     }
                     .pickerStyle(.inline)
@@ -125,8 +118,8 @@ private struct ModelListPage: View {
                             Text("Effort")
                                 .foregroundStyle(.primary)
                             Spacer()
-                            if model.effortDisplayName == ConversationModel.effortName(of: "medium") {
-                                RecommendedBadge()
+                            if let badge = model.metadata.effort.flatMap({ model.effortOption($0)?.badge }) {
+                                CatalogBadgeView(badge: badge)
                             }
                             Text(verbatim: model.effortDisplayName ?? "")
                                 .foregroundStyle(.secondaryText)
@@ -208,11 +201,8 @@ private struct EffortPage: View {
                         ForEach(Array(slider.levels.enumerated()), id: \.offset) { index, level in
                             HStack(spacing: 8) {
                                 Text(verbatim: ConversationModel.effortName(of: level) ?? level)
-                                if level.lowercased() == "medium" {
-                                    RecommendedBadge()
-                                }
-                                if level.lowercased() == "max" {
-                                    HeavyUsageBadge()
+                                if let badge = model.effortOption(level)?.badge {
+                                    CatalogBadgeView(badge: badge)
                                 }
                             }
                             .tag(index)
@@ -276,25 +266,81 @@ private struct EffortPage: View {
     }
 }
 
-private struct RecommendedBadge: View {
+/// 模型列:名稱、一行描述(目錄的描述,繁中依模型 id 對照內建表;對不到目錄用面板自己的描述)與目錄的模型徽章。
+private struct ModelRow: View {
+    let option: SlashPanelOption
+    let entry: ModelCatalogEntry?
+
+    private var detail: String? {
+        entry.flatMap(ModelCatalogText.description(for:)) ?? option.detail
+    }
+
     var body: some View {
-        Text("Recommended")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Color.secondaryText)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(.fill.tertiary, in: Capsule())
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: option.label)
+                if let detail {
+                    Text(verbatim: detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondaryText)
+                }
+            }
+            if let badge = entry?.badge {
+                Spacer(minLength: 8)
+                CatalogBadgeView(badge: badge)
+            }
+        }
     }
 }
 
-private struct HeavyUsageBadge: View {
+/// 目錄的徽章(#385):一般徽章是次要文字色的小膠囊;警示(使用量倍率)是主要色文字配橙色三角形,不用橙色文字。
+private struct CatalogBadgeView: View {
+    let badge: ModelBadge
+
     var body: some View {
-        Label("3.5× or more usage", systemImage: "exclamationmark.triangle")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Color.secondaryText)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(.fill.tertiary, in: Capsule())
+        Group {
+            if badge.variant == .warning {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .accessibilityHidden(true)
+                    Text(verbatim: ModelCatalogText.badge(badge.message))
+                        .foregroundStyle(.primary)
+                }
+            } else {
+                Text(verbatim: ModelCatalogText.badge(badge.message))
+                    .foregroundStyle(Color.secondaryText)
+            }
+        }
+        .font(.caption2.weight(.semibold))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(.fill.tertiary, in: Capsule())
+    }
+}
+
+/// 目錄文字的在地化(#385):描述依模型 id 對照內建表(只在目錄的英文原文與表內相同時才套用,目錄改寫了就顯示目錄的英文);
+/// 徽章文字只翻已知的兩句,其他原文顯示。
+enum ModelCatalogText {
+    static func description(for entry: ModelCatalogEntry) -> String? {
+        let known: (english: String, localized: String)? = switch entry.id {
+        case "claude-opus-5-5": ("For complex work and everyday tasks", String(localized: "For complex work and everyday tasks"))
+        case "claude-sonnet-5-5": ("Most efficient for simpler tasks", String(localized: "Most efficient for simpler tasks"))
+        case "claude-fable-5-2": ("For your toughest challenges", String(localized: "For your toughest challenges"))
+        case "claude-haiku-5-5": ("Fastest for quick answers", String(localized: "Fastest for quick answers"))
+        default: nil
+        }
+        if let known, known.english == entry.description { return known.localized }
+        return entry.description
+    }
+
+    static func badge(_ message: String) -> String {
+        switch message {
+        case "Recommended": String(localized: "Recommended")
+        case "3.5× or more usage": String(localized: "3.5× or more usage")
+        case "Requires usage credits": String(localized: "Requires usage credits")
+        default: message
+        }
     }
 }
 

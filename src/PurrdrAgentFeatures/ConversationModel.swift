@@ -524,6 +524,7 @@ public final class ConversationModel {
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
     public var secretCheck: SecretCheck? { sendPipeline.step(SecretCheck.self) }
     private let slashDiscovery: (any SlashDiscovering)?
+    private let modelCatalogProvider: (any ModelCatalogProviding)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
     @ObservationIgnored public var onPromptDelivered: (@MainActor () -> Void)?
@@ -648,8 +649,10 @@ public final class ConversationModel {
         images: ComposerImages? = nil,
         updates: HostUpdates? = nil,
         sendSteps: [any SendStep] = [],
+        modelCatalog: (any ModelCatalogProviding)? = nil,
         sleep: @escaping Sleep = Sleeping.task
     ) {
+        self.modelCatalogProvider = modelCatalog
         self.updates = updates
         self.images = images
         self.client = client
@@ -2011,6 +2014,39 @@ public final class ConversationModel {
 
     @ObservationIgnored private var effortBaseline: EffortBaseline?
 
+    // MARK: - 模型目錄(#385)
+
+    /// 模型清單的描述、effort 與徽章來源:一開始是內建對照表(沒有目錄時 sheet 仍可用),開 sheet 時依序問主機快取、公開目錄,
+    /// 讀到就換上(讀不到維持內建,不報錯)。
+    public private(set) var modelCatalog = ResolvedModelCatalog(catalog: .builtIn, source: .builtIn)
+
+    @ObservationIgnored private var catalogTask: Task<Void, Never>?
+
+    private func refreshModelCatalog() {
+        guard let provider = modelCatalogProvider else { return }
+        catalogTask?.cancel()
+        catalogTask = Task { [weak self] in
+            let resolved = await provider.catalog()
+            guard !Task.isCancelled, let self else { return }
+            if resolved != modelCatalog { modelCatalog = resolved }
+        }
+    }
+
+    /// 面板上的一列對到目錄的哪個模型(名稱、簡稱或 id 相符);對不到是 `nil`,畫面維持面板自己的描述、不顯示徽章。
+    public func catalogEntry(for option: SlashPanelOption) -> ModelCatalogEntry? {
+        modelCatalog.catalog.entry(named: option.label)
+    }
+
+    /// 目前模型在目錄裡的項目(依對話紀錄的模型 id);投入程度子頁的徽章取自它。
+    public var currentModelEntry: ModelCatalogEntry? {
+        metadata.model.flatMap { modelCatalog.catalog.entry(id: $0) }
+    }
+
+    /// 目前模型的某個 effort 層級在目錄裡的選項(名稱與徽章);目錄沒有就是 `nil`。
+    public func effortOption(_ level: String) -> EffortOption? {
+        currentModelEntry?.effort(level)
+    }
+
     /// 點模型膠囊:送 `/model`(不產生回音泡泡),之後由既有的面板監看讀到畫面上的面板。
     /// 什麼都沒送出(Agent 不在、對話已變更、唯讀…)時 sheet 只顯示目前模型與原因,原因放在 `notice`。
     public func beginChoosingModel() async {
@@ -2020,6 +2056,7 @@ public final class ConversationModel {
         modelPanelUnreadable = false
         effortBaseline = nil
         notice = nil
+        refreshModelCatalog()
         await sendModelCommand()
     }
 

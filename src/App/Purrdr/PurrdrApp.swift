@@ -147,7 +147,9 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck,
                 listMode: UserDefaultsAgentListModeStore(),
                 // 離線佇列存在本機，App 重開仍在(#301)。
-                offlineQueues: UserDefaultsOfflineQueueStore()
+                offlineQueues: UserDefaultsOfflineQueueStore(),
+                // 模型目錄的公開來源(#385);UI 測試不給,不連網路。
+                publicModelCatalog: URLSessionPublicModelCatalog()
             ) { endpoint, pin, credential in
                 SSHHostChannel(
                     endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer,

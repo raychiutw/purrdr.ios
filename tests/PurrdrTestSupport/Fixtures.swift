@@ -90,6 +90,16 @@ public enum Fixtures {
         return data
     }
 
+    /// Claude Code 的模型目錄(`Fixtures/claude-code/model-catalog/<名稱>`,#385):`host-cache-cc.json` 是作者 Mac 上
+    /// `~/.claude/cache/model-catalog/` 的快取(組織 id 換成假值),`public-catalog.json` 是公開目錄(只留 `model_selector_config`)。
+    public static func modelCatalog(_ name: String) -> Data {
+        guard let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures/claude-code/model-catalog"),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到 Fixtures/claude-code/model-catalog/\(name)")
+        }
+        return data
+    }
+
     /// 對話紀錄的每一行(不含換行)。
     public static func transcriptLines(_ name: String = "session.jsonl") -> [String] {
         transcript(name).split(separator: 0x0A).map { String(decoding: $0, as: UTF8.self) }

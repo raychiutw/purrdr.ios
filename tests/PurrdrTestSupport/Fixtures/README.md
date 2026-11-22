@@ -183,3 +183,7 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
   `webwright` 在專案層 `settings.local.json` 設成 `false`;專案層 skills／commands(作者 Mac 沒有)寫在測試裡;
   `skill_listing` 的增量行(`isInitial: false`)以錄製行為底改動。
 - 存檔後以 `grep` 確認沒有真實的使用者名稱、主機名或專案名。
+
+## Claude Code 模型目錄(`claude-code/model-catalog/`,#385)
+
+`host-cache-cc.json`:作者 Mac 上 `~/.claude/cache/model-catalog/tok-*-cc.json`(Claude Code 的模型目錄快取，13 個模型含 Max 的使用量倍率徽章),組織 id 換成 `00000000-…-0001`,其餘原樣,2026-11-22。`public-catalog.json`:`https://downloads.claude.ai/model-catalog/v1/catalog.json` 的內容，只留 `surfaces.cc.model_selector_config`(去掉簽章與其他 surface),2026-11-22。只讀取來源，不改動。

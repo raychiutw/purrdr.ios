@@ -133,6 +133,8 @@ public final class HostsModel {
     /// 主機服務的更新提示(#198)。
     private let hostServiceUpdates: HostServiceUpdates
     /// HTTPS 主機回報的主機服務版本(`checkHostServiceVersions` 讀到的)。
+    /// 模型目錄的第二層(公開目錄);`nil`(UI 測試)不連網路。
+    private let publicModelCatalog: (any PublicModelCatalogFetching)?
     private var hostServiceVersions: [UUID: String] = [:]
     /// 最新的主機服務版本(`checkHostServiceVersions` 從 `hostServiceUpdates.releases` 取得;取不到是 `nil`,#362)。
     private var latestHostServiceVersion: String?
@@ -186,6 +188,7 @@ public final class HostsModel {
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
         offlineQueues: any OfflineQueueStore = InMemoryOfflineQueueStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
+        publicModelCatalog: (any PublicModelCatalogFetching)? = nil,
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
@@ -213,6 +216,7 @@ public final class HostsModel {
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
+        self.publicModelCatalog = publicModelCatalog
         offlineQueueStore = offlineQueues
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
@@ -455,7 +459,9 @@ public final class HostsModel {
                 SendWhenDoneStep(model: SendWhenDoneModel(host: member.sendWhenDoneHost, paneID: route.paneID)),
                 UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 }),
                 OfflineQueueStep(queue: offlineQueue(for: route.host)),
-            ])
+            ],
+            // 模型目錄(#385):主機快取 → 公開目錄 → 內建對照表。
+            modelCatalog: ModelCatalogResolver(host: SSHModelCatalogReader(channel: member.channel), publicCatalog: publicModelCatalog))
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
         // 圖片縮圖讀聊天所在的主機(#225)。
