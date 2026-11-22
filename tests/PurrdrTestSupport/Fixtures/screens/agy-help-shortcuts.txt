@@ -1,0 +1,32 @@
+  You selected Green.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Antigravity CLI   general    commands    shortcuts   (←/→ or tab to cycle)
+Keyboard Shortcuts
+  /keybindings to customize
+
+  alt+m                           Send with opposite Queued Messages setting
+  alt+v, ctrl+v                   Paste image/video
+  ctrl+_, ctrl+shift+-            Undo
+  ctrl+c, esc                     Go back / dismiss
+  ctrl+d                          Exit
+  ctrl+end                        Go to bottom
+  ctrl+g                          Open prompt in $EDITOR
+  ctrl+home                       Go to top
+  ctrl+k                          Approve subagent fast
+  ctrl+l                          Clear CLI screen
+  ctrl+o                          Toggle trajectory view
+  ctrl+r                          Review artifact
+  ctrl+shift+z                    Redo
+  ctrl+y                          Yank (paste from kill ring)
+  ctrl+z                          Suspend CLI
+  enter                           Send message or confirm
+  f2                              Rename
+  f4                              Delete
+  f5                              Start voice dictation
+> shift+down                      Half page down
+  [5-24 of 27 items]
+
+Keyboard: ↑/↓ Navigate  ←/→ Switch View  esc Close

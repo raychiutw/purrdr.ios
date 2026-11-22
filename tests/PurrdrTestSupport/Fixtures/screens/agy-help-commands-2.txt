@@ -1,0 +1,33 @@
+  ▄▀▀      ▀▀▄
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Antigravity CLI   general    commands    shortcuts   (←/→ or tab to cycle)
+Available Commands
+
+  /model                          Set a model, or run a single prompt on another model
+  /open                           Open a file or view opened/edited files
+  /permissions                    Manage tool permissions
+  /plugin                         Manage, discover, install, uninstall, enable, and disable plugins
+  /projects                       Create and edit projects
+  /record                         Dictate a prompt using your microphone
+  /remote-control                 Turn on remote control for this session (off to disable)
+  /rename                         Rename the current conversation
+  /resume (switch, conversation)  Browse and resume past conversations
+  /rewind (undo)                  Rewind conversation to a previous message
+  /skills                         List available skills
+  /statusline                     Toggle the statusline
+  /tasks                          View background tasks
+  /thinking                       Toggle streaming the model's full thinking in the transcript
+  /title                          Toggle custom terminal window title
+  /usage (quota)                  View model quota usage
+  /voice                          Dictate a prompt or talk with the agent by voice
+  /goal                           Run until the specified goal is completely finished.
+  /compact                        Compact the conversation now (summarize history to free up the context window).
+> /schedule                       Run an instruction on a recurring schedule or as a one-time timer.
+  [22-41 of 51 items]
+
+Keyboard: ↑/↓ Navigate  ←/→ Switch View  esc Close
+
+                                                                                                                                             Gemini 4 Neon · medium
