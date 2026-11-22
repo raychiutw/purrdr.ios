@@ -55,6 +55,12 @@ final class TerminalTextInputView: UIView, UITextInput {
         set { super.accessibilityFrame = newValue }
     }
 
+    /// 系統畫的輸入法指示膠囊(聽寫、「國」)以 tint 為底、白字(#396):深色模式換成白字夠對比的同色相。
+    override var tintColor: UIColor! {
+        get { super.tintColor.indicatorTint(for: traitCollection.userInterfaceStyle) }
+        set { super.tintColor = newValue }
+    }
+
     /// 觸控穿過去給終端機畫面(點連結、選取、捲動)。
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         false

@@ -1044,17 +1044,26 @@ final class KeyHandlingTextView: UITextView {
         var current: NSRange?
         if storage.length > 0 {
             var effective = NSRange()
-            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == tintColor {
+            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == accentTint {
                 current = effective
             }
         }
         guard force || current != token else { return }
         storage.beginEditing()
         storage.addAttribute(.foregroundColor, value: UIColor.label, range: whole)
-        if let token { storage.addAttribute(.foregroundColor, value: tintColor as UIColor, range: token) }
+        if let token { storage.addAttribute(.foregroundColor, value: accentTint, range: token) }
         storage.endEditing()
         // 接著打的字照一般顏色，不延續指令的綠色。
         typingAttributes[.foregroundColor] = UIColor.label
+    }
+
+    /// 繼承來的主色(跟著 SwiftUI 的 tint 與主機主題):指令著色用它。
+    private var accentTint: UIColor { super.tintColor }
+
+    /// 系統畫的輸入法指示膠囊(聽寫、「國」)以這個色為底、白字(#396):深色模式換成白字夠對比的同色相;游標與選取也跟著用它。
+    override var tintColor: UIColor! {
+        get { super.tintColor.indicatorTint(for: traitCollection.userInterfaceStyle) }
+        set { super.tintColor = newValue }
     }
 
     /// 主題、深淺色或高對比改變時 tint 跟著變:重畫指令著色。
