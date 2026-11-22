@@ -82,5 +82,38 @@ struct AppAppearanceTests {
         try await choose(.dark, expecting: .dark, in: [first, second])
         try await choose(.light, expecting: .light, in: [first, second])
     }
+
+    // MARK: - 底色層次(#379)
+
+    private static func rgb(_ color: UIColor, in window: UIWindow) -> String {
+        var (red, green, blue, alpha) = (CGFloat(0), CGFloat(0), CGFloat(0), CGFloat(0))
+        color.resolvedColor(with: window.traitCollection).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func hex(_ value: CGFloat) -> String { String(format: "%02X", Int((value * 255).rounded())) }
+        return "#" + hex(red) + hex(green) + hex(blue)
+    }
+
+    @Test("深色:頁面 #1C1C1E、卡片與 grouped 列 #2C2C2E、再內一層 #3A3A3C(不再是純黑)")
+    func darkSurfacesAreRaised() async throws {
+        defaults.removeObject(forKey: AppearancePreference.storageKey)
+        let window = try await mountWindow()
+        defer { window.isHidden = true; defaults.removeObject(forKey: AppearancePreference.storageKey) }
+        try await choose(.dark, expecting: .dark, in: [window])
+        #expect(Self.rgb(.systemBackground, in: window) == "#1C1C1E")
+        #expect(Self.rgb(.systemGroupedBackground, in: window) == "#1C1C1E")
+        #expect(Self.rgb(.secondarySystemBackground, in: window) == "#2C2C2E")
+        #expect(Self.rgb(.secondarySystemGroupedBackground, in: window) == "#2C2C2E")
+        #expect(Self.rgb(.tertiarySystemGroupedBackground, in: window) == "#3A3A3C")
+    }
+
+    @Test("淺色底色不變:白、grouped #F2F2F7")
+    func lightSurfacesUnchanged() async throws {
+        defaults.removeObject(forKey: AppearancePreference.storageKey)
+        let window = try await mountWindow()
+        defer { window.isHidden = true; defaults.removeObject(forKey: AppearancePreference.storageKey) }
+        try await choose(.light, expecting: .light, in: [window])
+        #expect(Self.rgb(.systemBackground, in: window) == "#FFFFFF")
+        #expect(Self.rgb(.systemGroupedBackground, in: window) == "#F2F2F7")
+        #expect(Self.rgb(.secondarySystemGroupedBackground, in: window) == "#FFFFFF")
+    }
 }
 #endif

@@ -48,6 +48,23 @@ private struct AppAppearanceModifier: ViewModifier {
 }
 
 #if os(iOS)
+/// 視窗層級的外觀與底色層次(#379)。
+///
+/// 深色頁面底色由系統的純黑改為提亮值:視窗固定用 `elevated` 介面層級,系統的語意底色就整組上移一階——
+/// 頁面(`systemBackground`、`systemGroupedBackground`)#1C1C1E、卡片與 grouped 列(`secondarySystemBackground`、
+/// `secondarySystemGroupedBackground`)#2C2C2E、再內一層 #3A3A3C。所有畫面用的是語意色,所以全 app 一致、
+/// 切換畫面不跳色,「增加對比」與淺色(介面層級對淺色沒有影響)照系統。
+/// sheet 本來就是 elevated,所以與頁面同色階(以系統分隔線與暗化層區分)。
+package enum AppWindowSurface {
+    package static func apply(to window: UIWindow, style: UIUserInterfaceStyle) {
+        if window.overrideUserInterfaceStyle != style {
+            window.overrideUserInterfaceStyle = style
+        }
+        // 不先讀:UITraitOverrides 取沒設過的 trait 會觸發 assertion。
+        window.traitOverrides.userInterfaceLevel = .elevated
+    }
+}
+
 /// 把外觀套到自己所在的 UIWindow。
 private struct WindowAppearanceApplier: UIViewRepresentable {
     let style: UIUserInterfaceStyle
@@ -74,8 +91,8 @@ private struct WindowAppearanceApplier: UIViewRepresentable {
         }
 
         private func apply() {
-            guard let window, window.overrideUserInterfaceStyle != style else { return }
-            window.overrideUserInterfaceStyle = style
+            guard let window else { return }
+            AppWindowSurface.apply(to: window, style: style)
         }
     }
 }

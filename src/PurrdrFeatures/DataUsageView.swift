@@ -176,7 +176,7 @@ public struct DataUsageView: View {
             Text("Reset Statistics").frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.red)
+        .foregroundStyle(.destructiveText)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityIdentifier("dataUsage.reset")
     }

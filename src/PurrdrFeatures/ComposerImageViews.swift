@@ -245,8 +245,6 @@ struct AttachmentStrip: View {
 struct AttachButton: View {
     let model: ConversationModel
     var identifier = "composer.attach"
-    /// 放在輸入列的玻璃卡片裡(#187):不再疊玻璃。
-    var isInCard = false
     @Environment(\.recentPhotoSource) private var recentPhotos
     @State private var showsPanel = false
     @State private var next: AttachPanel.Choice?
@@ -262,8 +260,7 @@ struct AttachButton: View {
             Image(systemName: "plus")
                 .frame(width: 30, height: 30)
         }
-        .composerSecondaryButtonStyle(isInCard: isInCard)
-        .buttonBorderShape(.circle)
+        .composerCircleButtonStyle()
         .frame(minWidth: 44, minHeight: 44)
         .disabled(model.isSending || model.loadingFileName != nil)
         .accessibilityLabel(Text("Attach"))
@@ -388,6 +385,14 @@ struct AttachPanel: View {
                             .symbolRenderingMode(.palette)
                             .foregroundStyle(.white, .tint)
                             .padding(4)
+                    } else {
+                        // 未選的圈:白色圈框加半透明黑底,在淺色與深色的照片上都 ≥ 3:1(非文字,#379)。
+                        Circle()
+                            .fill(.black.opacity(0.35))
+                            .overlay { Circle().strokeBorder(.white, lineWidth: 2) }
+                            .frame(width: 22, height: 22)
+                            .padding(4)
+                            .accessibilityHidden(true)
                     }
                 }
         }

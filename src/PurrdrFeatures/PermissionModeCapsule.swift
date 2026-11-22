@@ -39,7 +39,7 @@ struct PermissionModeCapsule: View {
             .padding(.horizontal, 12)
             .frame(height: Self.height)
         }
-        .composerSecondaryButtonStyle(isInCard: true)
+        .composerSecondaryButtonStyle()
         .buttonBorderShape(.capsule)
         .frame(minHeight: 44)
         .disabled(!model.canSwitchPermissionMode)
