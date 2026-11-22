@@ -325,6 +325,8 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
         guard let object = ClaudeTranscriptParser.jsonObject(line) else { return }
         switch object["type"] as? String {
         case "assistant":
+            // 子 Agent(sidechain)的用量與模型不屬於這個對話。
+            guard object["isSidechain"] as? Bool != true else { return }
             let message = object["message"] as? [String: Any] ?? [:]
             let model = message["model"] as? String
             guard model != "<synthetic>", object["isApiErrorMessage"] as? Bool != true else { return }
