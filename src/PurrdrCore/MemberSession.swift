@@ -117,6 +117,14 @@ public actor MemberSession {
         return try Wire.decode(Wire.SubscriptionEnvelope.self, from: response).subscription?.domain()
     }
 
+    /// 把屬於另一個會員的 App Store 訂閱轉給目前會員(呼叫端先要求裝置擁有者驗證)。
+    /// 目前會員已有有效訂閱丟 `.backend(409, subscription_already_active)`;回傳目前會員的新訂閱。
+    public func transferAppStoreSubscription(_ signedTransaction: String) async throws -> MemberSubscription? {
+        let body = try JSONEncoder().encode(["signedTransaction": signedTransaction])
+        let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/subscription/transfer", body: body))
+        return try Wire.decode(Wire.SubscriptionEnvelope.self, from: response).subscription?.domain()
+    }
+
     // MARK: - 主機同步
 
     /// 主機同步(要有效的 Purrdr Plus):送出這支裝置的變更，回傳後台套用後的整份清單與刪除紀錄。
@@ -177,6 +185,19 @@ public actor MemberSession {
         _ = try await authorized(BackendRequest(method: "DELETE", path: "/v1/members/me/push-devices/\(deviceID)"))
     }
 
+    // MARK: - 登入中的裝置(#409)
+
+    /// 自己未撤銷、未過期的工作階段(每支裝置一個)。
+    public func signInDevices() async throws -> [SignInDevice] {
+        let response = try await authorized(BackendRequest(method: "GET", path: "/v1/members/me/sessions"))
+        return try Wire.decode(Wire.Sessions.self, from: response).sessions.map { try $0.domain() }
+    }
+
+    /// 撤銷自己另一支裝置的工作階段(呼叫端先要求裝置擁有者驗證)。撤銷目前這個丟 409 `cannot_revoke_current_session`;已撤銷的再撤銷也成功。
+    public func revokeSignInDevice(_ id: String) async throws {
+        _ = try await authorized(BackendRequest(method: "DELETE", path: "/v1/members/me/sessions/\(id)"))
+    }
+
     // MARK: - 權杖
 
     private func authorized(_ request: BackendRequest) async throws -> BackendResponse {
@@ -234,7 +255,7 @@ public actor MemberSession {
             case .unreachable: diagnostics(.refreshUnavailable(reason: "unreachable"))
             case .backend(let status, let code, _): diagnostics(.refreshUnavailable(reason: "\(status) \(code)"))
             case .invalidResponse: diagnostics(.refreshUnavailable(reason: "invalid_response"))
-            case .signedOut: break
+            case .signedOut, .subscriptionInUse: break
             }
             throw error
         }
@@ -281,6 +302,10 @@ public actor MemberSession {
         guard (200..<300).contains(response.status) else {
             guard let envelope = try? JSONDecoder().decode(Wire.ErrorEnvelope.self, from: response.body) else {
                 throw BackendError.backend(status: response.status, code: "unknown", message: "")
+            }
+            if envelope.error.code == BackendErrorCode.subscriptionInUse {
+                throw BackendError.subscriptionInUse(
+                    ownerEmail: envelope.error.details?.ownerEmail, canTransfer: envelope.error.details?.canTransfer ?? true)
             }
             throw BackendError.backend(status: response.status, code: envelope.error.code, message: envelope.error.message)
         }
@@ -349,6 +374,8 @@ private enum Wire {
         var expiresAt: String
         var gracePeriodExpiresAt: String?
         var willAutoRenew: Bool?
+        /// 後台目前的 API 形狀沒有這個欄位(只在資料庫);之後加上時帳號頁就會提示。
+        var pendingReview: Bool?
 
         func domain() throws -> MemberSubscription {
             guard let status = MemberSubscription.Status(rawValue: status),
@@ -357,7 +384,8 @@ private enum Wire {
             else { throw BackendError.invalidResponse }
             return MemberSubscription(
                 status: status, store: store, productID: productId, expiresAt: expiresAt,
-                gracePeriodExpiresAt: gracePeriodExpiresAt.flatMap(Wire.date), willAutoRenew: willAutoRenew
+                gracePeriodExpiresAt: gracePeriodExpiresAt.flatMap(Wire.date), willAutoRenew: willAutoRenew,
+                pendingReview: pendingReview ?? false
             )
         }
     }
@@ -510,12 +538,45 @@ private enum Wire {
         }
     }
 
+    struct Sessions: Decodable {
+        var sessions: [SessionBody]
+    }
+
+    struct SessionBody: Decodable {
+        var id: String
+        var deviceName: String?
+        var deviceModel: String?
+        var lastActiveAt: String
+        var current: Bool
+
+        func domain() throws -> SignInDevice {
+            guard let lastActive = Wire.date(lastActiveAt) else { throw BackendError.invalidResponse }
+            return SignInDevice(id: id, name: deviceName, model: deviceModel, lastActiveAt: lastActive, isCurrent: current)
+        }
+    }
+
     struct ErrorEnvelope: Decodable {
         var error: Body
 
         struct Body: Decodable {
             var code: String
             var message: String
+            /// `subscription_in_use` 的 `details`;其他錯誤的 `details`(例如合併摘要)形狀不同,讀不懂就略過。
+            var details: InUseDetails?
+
+            enum CodingKeys: String, CodingKey { case code, message, details }
+
+            init(from decoder: any Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                code = try container.decode(String.self, forKey: .code)
+                message = try container.decode(String.self, forKey: .message)
+                details = try? container.decodeIfPresent(InUseDetails.self, forKey: .details)
+            }
+        }
+
+        struct InUseDetails: Decodable {
+            var ownerEmail: String?
+            var canTransfer: Bool?
         }
     }
 

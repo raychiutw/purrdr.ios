@@ -71,15 +71,21 @@ struct PurrdrApp: App {
         let partition = MemberPartition()
         if !uiTesting { MemberLocalState.removeLegacyGlobalState() }
         let localState = MemberLocalState(partition: partition, session: session)
+        // 轉移訂閱、撤銷其他裝置前確認是本人(#409);UI 測試的替身一律通過。
+        let owner: any DeviceOwnerAuthenticating = uiTesting
+            ? UITestingDeviceOwnerAuthenticator(hasPasscode: true) : SystemDeviceOwnerAuthenticator()
+        let confirmOwner: @MainActor @Sendable () async -> Bool = { await owner.authenticate(.confirmAccountChange) == .success }
         member = MemberModel(
             session: session,
             google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID)),
-            localState: localState
+            localState: localState,
+            confirmOwner: confirmOwner
         )
         // StoreKit:在 Xcode 執行時，scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品，不連 App Store。
         // UI 測試用內容相同的替身(不連網路;命令列 xcodebuild test 不套用 StoreKit 設定檔)。
-        let store: any PlusStore = uiTesting ? UITestingPlusStore() : StoreKitPlusStore()
-        let plus = SubscriptionModel(session: session, store: store)
+        let store: any PlusStore = uiTesting
+            ? UITestingPlusStore(hasCurrentTransaction: arguments.contains("-uiTestingOwnedByOtherMember")) : StoreKitPlusStore()
+        let plus = SubscriptionModel(session: session, store: store, confirmOwner: confirmOwner)
         self.plus = plus
         // 推播(#29):UI 測試不請求權限、不註冊 APNs、配對只在記憶體。
         let push = PushService(
@@ -403,6 +409,12 @@ struct PurrdrApp: App {
 
     private static func uiTestingMemberBackend(_ arguments: [String]) -> UITestingBackendTransport? {
         if arguments.contains("-uiTestingPlusMember") { return UITestingBackendTransport(isPlusActive: true) }
+        // 帳號頁 Plus 卡的各狀態(#409)。
+        let scenarios: [(flag: String, scenario: UITestingBackendTransport.Scenario)] = [
+            ("-uiTestingGooglePlayMember", .googlePlay), ("-uiTestingGraceMember", .grace), ("-uiTestingExpiredMember", .expired),
+            ("-uiTestingOwnedByOtherMember", .ownedByAnotherMember), ("-uiTestingPendingReviewMember", .pendingReview),
+        ]
+        if let match = scenarios.first(where: { arguments.contains($0.flag) }) { return UITestingBackendTransport(scenario: match.scenario) }
         if arguments.contains("-uiTestingMember") { return UITestingBackendTransport(isPlusActive: false) }
         // 沒登入,按 Apple／Google 登入或註冊會直接登入假後台(登入與加入流程,#408)。
         if arguments.contains("-uiTestingSignUp") { return UITestingBackendTransport(isPlusActive: false, startsSignedIn: false) }

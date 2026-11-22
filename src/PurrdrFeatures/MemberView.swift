@@ -289,7 +289,8 @@ struct SignInButtons: View {
 
 // MARK: - 帳號頁
 
-/// 帳號頁：頭像、步驟卡(完成後收成一列)、每台主機的通知、通知裝置、主機同步、登入方式、登出、刪除會員。
+/// 帳號頁(#409、設計稿第 27 組):會員資訊、Purrdr Plus 卡(各狀態)、Plus 功能(沒有 Plus 時鎖定但列仍可點並說明)、
+/// 通知裝置、登入方式、登入中的裝置、登出、刪除會員。
 struct AccountView: View {
     let model: MemberModel
     let plus: SubscriptionModel?
@@ -301,8 +302,11 @@ struct AccountView: View {
     /// 從通知列開配對的主機(#295)。
     @State private var pairingHost: UUID?
     @State private var showingPlus = false
+    @State private var managingSubscription = false
     @State private var offeringFeatureSetup = false
-    /// 每次加一：步驟卡「選擇主機」捲到「通知」區塊。
+    /// 點了鎖定的功能列:說明原因與下一步。
+    @State private var lockedFeature: AccountFeature?
+    /// 每次加一：開通後「全部開啟」捲到「通知」區塊。
     @State private var notificationsScrollRequest = 0
     /// Purrdr Plus 頁點功能列後捲到帳號頁對應的區塊(#323)。
     @State private var featureScrollRequest: PlusFeature?
@@ -313,6 +317,10 @@ struct AccountView: View {
     }
 
     private var notifyingHostNames: [String] { pushes.notifyingHostNames }
+
+    private var account: AccountState {
+        AccountState(authentication: signedInMember != nil ? .signedIn : .signedOut, plus: plus?.plusStatus ?? .none)
+    }
 
     private var plusFeatures: PlusFeatureLinks {
         PlusFeatureLinks(
@@ -364,23 +372,19 @@ struct AccountView: View {
                 }
             }
 
-            if let plus, let progress {
-                plusSection(plus: plus, progress: progress)
-                if progress.isPlusActive {
-                    // 四步完成、步驟卡收合後，通知與主機同步仍可隨時開關(spec #261 原型 A)。
-                    HostPushSection(pushes: pushes, openPlus: { showingPlus = true }, pair: { pairingHost = $0 })
-                        .id(PlusFeature.notifications)
+            if let plus {
+                if let subscription = plus.subscription, subscription.pendingReview {
+                    Section {
+                        ErrorLabel(String(localized: "Your two old members were combined. Another subscription (\(subscription.store.displayName)) needs your attention: cancel it there to avoid paying twice."))
+                        .accessibilityIdentifier("account.pendingReview")
+                    }
                 }
+                plusSection(plus: plus)
+                featureSections(plus: plus)
                 if signedInMember != nil, let pushDevices {
                     // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
-                    PushDevicesSection(model: pushDevices, canRename: progress.isPlusActive)
+                    PushDevicesSection(model: pushDevices, canRename: account.hasPlus)
                         .id(PlusFeature.devices)
-                }
-                if progress.isPlusActive {
-                    if let hostSync, progress.state(of: .syncHosts) == .done {
-                        HostSyncSection(model: hostSync, plus: plus, member: model)
-                            .id(PlusFeature.hostSync)
-                    }
                 }
             }
 
@@ -389,9 +393,23 @@ struct AccountView: View {
                     NavigationLink {
                         SignInMethodsView(model: model, member: member)
                     } label: {
-                        Text("Sign-In Methods")
+                        LabeledContent("Sign-In Methods") {
+                            Text(verbatim: member.identities.map(\.method.shortName).formatted(.list(type: .and)))
+                        }
                     }
                     .accessibilityIdentifier("member.signInMethods")
+                    NavigationLink {
+                        SignInDevicesView(model: model.signInDevices)
+                    } label: {
+                        LabeledContent("Signed-In Devices") {
+                            if let count = model.signInDevices.devices?.count {
+                                Text("\(count) devices")
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("member.signInDevices")
+                }
+                Section {
                     Button("Sign Out") { Task { await model.signOut() } }
                     Button("Delete Member", role: .destructive) { confirmingDeletion = true }
                         .accessibilityIdentifier("member.delete")
@@ -423,9 +441,33 @@ struct AccountView: View {
             showingPlus = false
             offeringFeatureSetup = true
         }
-        .task(id: signedInMember?.id) { await plus?.refresh() }
+        .task(id: signedInMember?.id) {
+            await plus?.refresh()
+            await model.signInDevices.load()
+        }
+        .manageSubscriptions(isPresented: $managingSubscription)
         .hostPushConfirmation(pushes)
         .pushDevicesDialogs(signedInMember != nil ? pushDevices : nil, notifyingHostNames: notifyingHostNames)
+        .alert(plus?.notice?.title ?? "", isPresented: subscriptionNoticePresented, presenting: plus?.notice) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { notice in
+            Text(notice.message)
+        }
+        .alert(
+            Text(verbatim: lockReason?.shortText ?? ""), isPresented: lockedPresented, presenting: lockReason
+        ) { reason in
+            switch reason {
+            case .plusRequired, .subscriptionEnded:
+                Button("Purrdr Plus") { showingPlus = true }
+                    .accessibilityIdentifier("account.locked.openPlus")
+            default:
+                EmptyView()
+            }
+            Button("OK", role: .cancel) {}
+                .accessibilityIdentifier("account.locked.ok")
+        } message: { reason in
+            Text(verbatim: reason.explanation)
+        }
         .alert("Purrdr Plus Is On", isPresented: $offeringFeatureSetup) {
             Button("Later", role: .cancel) {}
             Button("Turn On All") { turnOnAll() }
@@ -440,62 +482,71 @@ struct AccountView: View {
         }
     }
 
-    @ViewBuilder
-    private func plusSection(plus: SubscriptionModel, progress: AccountSetupProgress) -> some View {
+    /// 付費牆(PlusView)開著時它自己顯示提示,帳號頁不重複顯示。
+    private var subscriptionNoticePresented: Binding<Bool> {
+        Binding(
+            get: { plus?.notice != nil && !showingPlus },
+            set: { if !$0 { plus?.notice = nil } })
+    }
+
+    private var lockReason: FeatureLockReason? {
+        guard let lockedFeature, case .locked(let reason) = account.availability(of: lockedFeature) else { return nil }
+        return reason
+    }
+
+    private var lockedPresented: Binding<Bool> {
+        Binding(get: { lockedFeature != nil && lockReason != nil }, set: { if !$0 { lockedFeature = nil } })
+    }
+
+    private func plusSection(plus: SubscriptionModel) -> some View {
         Section {
-            if progress.isComplete {
-                NavigationLink {
-                    PlusView(model: plus, member: model, features: plusFeatures)
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Purrdr Plus · Active")
-                        Text(plus.statusText)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondaryText)
-                    }
-                }
-                .accessibilityIdentifier("member.plus")
-            } else {
-                PlusSetupCard(progress: progress, notifyingHostNames: notifyingHostNames, isWorking: isStepWorking) { perform($0) }
-                if progress.isPlusActive {
-                    NavigationLink {
-                        PlusView(model: plus, member: model, features: plusFeatures)
-                    } label: {
-                        LabeledContent("Purrdr Plus") { Text(plus.statusText) }
-                    }
-                    .accessibilityIdentifier("member.plus")
-                }
-            }
+            PlusCardView(
+                card: plus.plusCard, subscription: plus.subscription, isWorking: plus.isWorking || model.isWorking,
+                perform: { perform($0, plus: plus) }, manage: { managingSubscription = true })
+        } header: {
+            Text("Purrdr Plus")
+                .foregroundStyle(.secondaryText)
         } footer: {
-            VStack(alignment: .leading, spacing: 4) {
-                if let hint = progress.lockedFeatureHint {
-                    Text(hint.text)
-                        .accessibilityIdentifier("account.lockedHint")
-                }
-                if plus.needsRenewal {
-                    Text("Your subscription has ended. Notifications and host sync are paused until you subscribe again.")
-                }
-                Text("Chat and terminal don’t need a member account or subscription.")
-            }
-            .foregroundStyle(.secondaryText)
+            Text("Chat and terminal don’t need a member account or subscription.")
+                .foregroundStyle(.secondaryText)
         }
     }
 
-    private var isStepWorking: Bool {
-        pushes.contains { push in
-            switch push.model.state {
-            case .checking, .turningOn, .confirming: true
-            case .off, .on, .turningOff: false
+    /// 有 Plus:通知與主機同步照常開關;沒有:鎖定列(文字對比 ≥ 4.5:1,列仍可點並說明原因)。
+    @ViewBuilder
+    private func featureSections(plus: SubscriptionModel) -> some View {
+        if account.hasPlus {
+            HostPushSection(pushes: pushes, openPlus: { showingPlus = true }, pair: { pairingHost = $0 })
+                .id(PlusFeature.notifications)
+            if let hostSync {
+                HostSyncSection(model: hostSync, plus: plus, member: model)
+                    .id(PlusFeature.hostSync)
+            }
+        } else if signedInMember != nil {
+            Section {
+                lockedRow(.hostSync, symbol: "arrow.triangle.2.circlepath", title: "Host Sync", identifier: "account.locked.hostSync")
+                lockedRow(.notifications, symbol: "bell.badge", title: "Notifications", identifier: "account.locked.notifications")
+            } header: {
+                Text("Plus Features")
+                    .foregroundStyle(.secondaryText)
             }
         }
     }
 
-    private func perform(_ step: AccountSetupProgress.Step) {
-        switch step {
-        case .joinMember: break  // 已登入才會看到帳號頁,這一步已完成
-        case .activatePlus: showingPlus = true
-        case .turnOnNotifications: notificationsScrollRequest += 1
-        case .syncHosts: Task { await hostSync?.setEnabled(true) }
+    @ViewBuilder
+    private func lockedRow(_ feature: AccountFeature, symbol: String, title: LocalizedStringKey, identifier: String) -> some View {
+        if case .locked(let reason) = account.availability(of: feature) {
+            LockedFeatureRow(symbol: symbol, title: title, reason: reason, identifier: identifier) { lockedFeature = feature }
+        }
+    }
+
+    private func perform(_ button: PlusCard.Button, plus: SubscriptionModel) {
+        switch button {
+        case .activatePlus, .renew: showingPlus = true
+        case .restorePurchases: Task { await plus.restore() }
+        case .transferSubscription: Task { await plus.transferSubscription() }
+        case .updatePaymentMethod: managingSubscription = true
+        case .retry: Task { await plus.refresh() }
         }
     }
 
@@ -508,6 +559,116 @@ struct AccountView: View {
         } else {
             notificationsScrollRequest += 1
         }
+    }
+}
+
+extension AccountSetupProgress {
+    /// 由會員、訂閱、通知(至少一台主機開啟)與主機同步的目前狀態組成(#246、#263);帳號頁用它判斷剛開通時要不要問「全部開啟」。
+    @MainActor
+    init(member: MemberModel, plus: SubscriptionModel, isNotificationsOn: Bool, hostSync: HostSyncModel?) {
+        let isMember = if case .signedIn = member.phase { true } else { false }
+        self.init(
+            account: AccountState(authentication: isMember ? .signedIn : .signedOut, plus: PlusStatus(subscription: plus.subscription)),
+            isNotificationsOn: isNotificationsOn,
+            isHostSyncOn: hostSync?.isEnabled == true)
+    }
+}
+
+extension MemberSubscription.Store {
+    var displayName: String {
+        switch self {
+        case .appStore: String(localized: "App Store")
+        case .googlePlay: String(localized: "Google Play")
+        }
+    }
+}
+
+/// 登入中的裝置(#409):每支裝置一列,可撤銷其他裝置(= 把它登出,要先確認是本人)。
+struct SignInDevicesView: View {
+    @Bindable var model: SignInDevicesModel
+
+    var body: some View {
+        List {
+            Section {
+                if let devices = model.devices {
+                    ForEach(devices) { device in
+                        SignInDeviceRow(device: device, isBusy: model.busyDeviceIDs.contains(device.id)) {
+                            model.pendingRevoke = device
+                        }
+                    }
+                } else if model.problem == nil {
+                    ProgressView()
+                }
+                if let problem = model.problem {
+                    ErrorLabel(problem)
+                        .accessibilityIdentifier("account.signInDevices.problem")
+                    Button("Try Again") { Task { await model.load() } }
+                }
+            } footer: {
+                Text("Signing out another device means it has to sign in again. To sign out this device, use Sign Out on the account page.")
+                    .foregroundStyle(.secondaryText)
+            }
+        }
+        .appGroupedList()
+        .accessibilityIdentifier("account.signInDevices")
+        .navigationTitle("Signed-In Devices")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .task { await model.load() }
+        .confirmationDialog(
+            Text(verbatim: model.pendingRevoke.map { String(localized: "Sign out \($0.displayName)?") } ?? ""),
+            isPresented: Binding(get: { model.pendingRevoke != nil }, set: { if !$0 { model.pendingRevoke = nil } }),
+            titleVisibility: .visible, presenting: model.pendingRevoke
+        ) { device in
+            Button("Sign Out", role: .destructive) { Task { await model.revoke(device) } }
+                .accessibilityIdentifier("account.signInDevices.confirm")
+        } message: { _ in
+            Text("This device will have to sign in again.")
+        }
+    }
+}
+
+private struct SignInDeviceRow: View {
+    let device: SignInDevice
+    let isBusy: Bool
+    let signOut: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: device.model == "iPad" ? "ipad" : "iphone")
+                .frame(width: 28)
+                .foregroundStyle(.secondaryText)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: device.displayName)
+                if device.isCurrent {
+                    Text("This device")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondaryText)
+                } else {
+                    Text("Last active \(device.lastActiveAt.formatted(.relative(presentation: .named)))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            if !device.isCurrent {
+                Button("Sign Out", role: .destructive, action: signOut)
+                    .disabled(isBusy)
+                    .accessibilityIdentifier("account.signInDevice.signOut.\(device.id)")
+            }
+        }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("account.signInDevice.\(device.id)")
+    }
+}
+
+extension SignInDevice {
+    var displayName: String {
+        name ?? model ?? String(localized: "Unnamed Device")
     }
 }
 
@@ -533,6 +694,11 @@ private struct AccountHeader: View {
             }
             .font(.title3.bold())
             .multilineTextAlignment(.center)
+            if let member, !member.identities.isEmpty {
+                Text(verbatim: member.identities.map(\.method.shortName).formatted(.list(type: .and)))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+            }
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
@@ -616,6 +782,14 @@ struct SignInMethodsView: View {
 }
 
 extension SignInMethod {
+    /// 帳號頁摘要用的短名稱(「Apple、Google」)。
+    var shortName: String {
+        switch self {
+        case .apple: "Apple"
+        case .google: "Google"
+        }
+    }
+
     var displayName: String {
         switch self {
         case .apple: String(localized: "Sign in with Apple")

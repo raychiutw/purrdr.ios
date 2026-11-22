@@ -14,7 +14,28 @@ final class UITestingBackendTransport: BackendTransport {
     static let studioIPadID = "5eed0000-0000-4000-8000-0000000000d2"
     static let legacyDeviceID = "legacy-5eed00000000000000000000000000d3"
 
-    let isPlusActive: Bool
+    /// 假後台的訂閱情境(#409,帳號頁 Plus 卡各狀態)。
+    enum Scenario: Equatable {
+        /// 沒有訂閱。
+        case none
+        /// App Store 訂閱生效中。
+        case active
+        /// Google Play 訂閱(iOS 只顯示來源)。
+        case googlePlay
+        /// 帳單寬限期。
+        case grace
+        /// 已到期。
+        case expired
+        /// 這個 Apple 帳號的訂閱屬於另一個會員:提交交易回 `subscription_in_use`,轉移後變成生效中。
+        case ownedByAnotherMember
+        /// 生效中,但升級合併後有另一個待處理的訂閱。
+        case pendingReview
+    }
+
+    let scenario: Scenario
+    var isPlusActive: Bool { Self.entitles(scenario) }
+    /// 轉移成功之後(`.ownedByAnotherMember`)。
+    private let transferred = Mutex(false)
     /// 一開始就有更新權杖(已登入)。`false` 是 `-uiTestingSignUp`:沒登入,Apple／Google 按鈕直接以固定憑證登入這個假後台(#408)。
     let startsSignedIn: Bool
 
@@ -33,9 +54,20 @@ final class UITestingBackendTransport: BackendTransport {
         Device(id: legacyDeviceID, name: nil, model: nil, keyHashes: [], hostCount: 1, lastRegisteredAt: 1_794_643_200_000),
     ])
 
-    init(isPlusActive: Bool, startsSignedIn: Bool = true) {
-        self.isPlusActive = isPlusActive
+    convenience init(isPlusActive: Bool, startsSignedIn: Bool = true) {
+        self.init(scenario: isPlusActive ? .active : .none, startsSignedIn: startsSignedIn)
+    }
+
+    init(scenario: Scenario, startsSignedIn: Bool = true) {
+        self.scenario = scenario
         self.startsSignedIn = startsSignedIn
+    }
+
+    private static func entitles(_ scenario: Scenario) -> Bool {
+        switch scenario {
+        case .active, .googlePlay, .grace, .pendingReview: true
+        case .none, .expired, .ownedByAnotherMember: false
+        }
     }
 
     func send(_ request: BackendRequest) async throws -> BackendResponse {
@@ -50,7 +82,20 @@ final class UITestingBackendTransport: BackendTransport {
         case ("GET", "/v1/members/me"):
             return Self.json(#"{"member":\#(Self.memberJSON)}"#)
         case ("GET", "/v1/members/me/subscription"):
-            return Self.json(isPlusActive ? #"{"subscription":\#(Self.subscription)}"# : #"{"subscription":null}"#)
+            return Self.json(subscriptionJSON.map { #"{"subscription":\#($0)}"# } ?? #"{"subscription":null}"#)
+        case ("POST", "/v1/members/me/subscription/app-store"):
+            // 這個 Apple 帳號的訂閱屬於另一個會員(轉移前)。
+            if scenario == .ownedByAnotherMember, !transferred.withLock({ $0 }) {
+                return BackendResponse(status: 409, body: Data(Self.inUse.utf8))
+            }
+            return Self.json(#"{"subscription":\#(Self.subscription())}"#)
+        case ("POST", "/v1/members/me/subscription/transfer"):
+            transferred.withLock { $0 = true }
+            return Self.json(#"{"subscription":\#(Self.subscription()),"appAccountTokenUpdated":true}"#)
+        case ("GET", "/v1/members/me/sessions"):
+            return Self.json(Self.sessionsJSON)
+        case ("DELETE", let path) where path.hasPrefix("/v1/members/me/sessions/"):
+            return BackendResponse(status: 204, body: Data())
         case ("POST", "/v1/members/me/hosts/sync"):
             return Self.syncResponse(echoing: request.body)
         case ("POST", "/v1/members/me/push-pairings"):
@@ -145,8 +190,39 @@ final class UITestingBackendTransport: BackendTransport {
     static let memberJSON =
         #"{"id":"ui-testing-member","identities":[{"provider":"apple","email":"ray@example.com","linkedAt":"2026-01-01T00:00:00.000Z"}]}"#
 
-    private static let subscription =
-        #"{"status":"active","store":"app_store","productId":"com.raychiu.purrdr.plus.yearly","expiresAt":"2099-01-01T00:00:00.000Z","willAutoRenew":true}"#
+    /// 目前情境的訂閱 JSON;沒有訂閱(或轉移前屬於別人)是 `nil`。
+    private var subscriptionJSON: String? {
+        switch scenario {
+        case .none: return nil
+        case .active: return Self.subscription()
+        case .googlePlay: return Self.subscription(store: "google_play")
+        case .grace: return Self.subscription(status: "in_grace_period", graceUntil: "2099-01-05T00:00:00.000Z")
+        case .expired: return Self.subscription(status: "expired", expiresAt: "2026-11-20T00:00:00.000Z")
+        case .ownedByAnotherMember: return transferred.withLock { $0 } ? Self.subscription() : nil
+        case .pendingReview: return Self.subscription(pendingReview: true)
+        }
+    }
+
+    private static func subscription(
+        status: String = "active", store: String = "app_store", expiresAt: String = "2099-01-01T00:00:00.000Z", graceUntil: String? = nil,
+        pendingReview: Bool = false
+    ) -> String {
+        let grace = graceUntil.map { #""\#($0)""# } ?? "null"
+        return #"{"status":"\#(status)","store":"\#(store)","productId":"com.raychiu.purrdr.plus.yearly","expiresAt":"\#(expiresAt)","gracePeriodExpiresAt":\#(grace),"willAutoRenew":true,"pendingReview":\#(pendingReview)}"#
+    }
+
+    private static let inUse =
+        #"{"error":{"code":"subscription_in_use","message":"UI testing backend","details":{"ownerEmail":"r***@icloud.com","canTransfer":true}}}"#
+
+    /// 登入中的裝置:這支與另一支 iPad。
+    private static let sessionsJSON = #"""
+        {"sessions":[
+          {"id":"ui-session-this","deviceId":"5eed0000-0000-4000-8000-0000000000d1","deviceName":"iPhone","deviceModel":"iPhone",
+           "createdAt":"2026-11-01T00:00:00.000Z","lastActiveAt":"2026-11-21T08:00:00.000Z","expiresAt":"2027-02-01T00:00:00.000Z","current":true},
+          {"id":"ui-session-ipad","deviceId":"5eed0000-0000-4000-8000-0000000000d2","deviceName":"Studio iPad","deviceModel":"iPad",
+           "createdAt":"2026-10-01T00:00:00.000Z","lastActiveAt":"2026-11-20T08:00:00.000Z","expiresAt":"2027-01-01T00:00:00.000Z","current":false}
+        ]}
+        """#
 
     /// 後台只有這支裝置送來的主機：上傳的原樣回傳，刪除的列進 `deletedHostIds`。
     private static func syncResponse(echoing body: Data?) -> BackendResponse {

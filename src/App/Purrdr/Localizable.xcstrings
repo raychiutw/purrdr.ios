@@ -593,17 +593,6 @@
         }
       }
     },
-    "%lld of %lld Done" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "完成 %1$lld／%2$lld"
-          }
-        }
-      }
-    },
     "%lld of %lld agents done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1106,17 +1095,6 @@
         }
       }
     },
-    "Activate" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開通"
-          }
-        }
-      }
-    },
     "Activate Purrdr Plus" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1124,6 +1102,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開通 Purrdr Plus"
+          }
+        }
+      }
+    },
+    "Activate to get notifications and sync your host list." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開通後可以收通知、同步主機清單。"
           }
         }
       }
@@ -1278,6 +1267,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在這一行寫評論。"
+          }
+        }
+      }
+    },
+    "After you move it, the payment method and renewal date stay the same and future renewals go to this member. The original member loses Plus, and its notifications and host sync stop." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉移後,付款方式與續訂日不變,之後的續訂歸這個會員;原會員會失去 Plus,它的通知與主機同步會停止。"
           }
         }
       }
@@ -2122,6 +2122,17 @@
         }
       }
     },
+    "Can’t Move the Subscription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法轉移訂閱"
+          }
+        }
+      }
+    },
     "Can’t Open Folder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2195,6 +2206,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法開啟。"
+          }
+        }
+      }
+    },
+    "Can’t check Plus right now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法確認 Plus"
+          }
+        }
+      }
+    },
+    "Can’t check your subscription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法確認你的訂閱"
           }
         }
       }
@@ -2485,6 +2518,17 @@
         }
       }
     },
+    "Checking your account" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在確認帳號"
+          }
+        }
+      }
+    },
     "Checking…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2540,17 +2584,6 @@
         }
       }
     },
-    "Choose Hosts" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇主機"
-          }
-        }
-      }
-    },
     "Choose Model" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2558,17 +2591,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "模型選擇"
-          }
-        }
-      }
-    },
-    "Choose hosts to notify" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇要通知的主機"
           }
         }
       }
@@ -2925,6 +2947,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認(Return)"
+          }
+        }
+      }
+    },
+    "Confirm it’s you to move your subscription to this member account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認是你本人,才能把訂閱轉移到這個會員。"
           }
         }
       }
@@ -3402,6 +3435,17 @@
         }
       }
     },
+    "Couldn’t load your devices. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法載入裝置清單,請再試一次。"
+          }
+        }
+      }
+    },
     "Couldn’t notify Purrdr, so this device’s notification pairing may still be active. You can sign out anyway." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3827,6 +3871,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法送出:%@"
+          }
+        }
+      }
+    },
+    "Couldn’t sign out that device. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法登出那支裝置,請再試一次。"
           }
         }
       }
@@ -4524,6 +4579,17 @@
         }
       }
     },
+    "Ended on %@. Notifications and host sync have stopped. Your data is still there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 到期。通知與主機同步已停止,資料都還在。"
+          }
+        }
+      }
+    },
     "Ends on %@. It won’t renew." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4619,6 +4685,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已到期"
+          }
+        }
+      }
+    },
+    "Explains what to do next." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "說明接下來要做什麼。"
           }
         }
       }
@@ -4931,17 +5008,6 @@
         }
       }
     },
-    "Free trial available" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可免費試用"
-          }
-        }
-      }
-    },
     "From" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5114,6 +5180,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Google API key"
+          }
+        }
+      }
+    },
+    "Google Play" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google Play"
           }
         }
       }
@@ -5858,6 +5935,17 @@
         }
       }
     },
+    "It’s under %@. After you move it, the payment method and renewal date stay the same and future renewals go to this member. The original member loses Plus, and its notifications and host sync stop." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前在 %@ 名下。轉移後,付款方式與續訂日不變,之後的續訂歸這個會員;原會員會失去 Plus,它的通知與主機同步會停止。"
+          }
+        }
+      }
+    },
     "I’ve Got Tailscale on Both" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5898,17 +5986,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JWT"
-          }
-        }
-      }
-    },
-    "Join" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入"
           }
         }
       }
@@ -6063,6 +6140,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次更新"
+          }
+        }
+      }
+    },
+    "Last active %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後上線 %@"
           }
         }
       }
@@ -6294,6 +6382,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已鎖定"
+          }
+        }
+      }
+    },
+    "Locked. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已鎖定。%@"
           }
         }
       }
@@ -6617,6 +6716,17 @@
         }
       }
     },
+    "Move to This Member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉移到這個會員"
+          }
+        }
+      }
+    },
     "Moves the panel’s selection to this option." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6800,17 +6910,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一個 Agent"
-          }
-        }
-      }
-    },
-    "Next Step" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下一步"
           }
         }
       }
@@ -7057,6 +7156,17 @@
         }
       }
     },
+    "Not Activated" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未開通"
+          }
+        }
+      }
+    },
     "Not Available" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7152,17 +7262,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未訂閱"
-          }
-        }
-      }
-    },
-    "Not Yet" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒到"
           }
         }
       }
@@ -7365,24 +7464,35 @@
         }
       }
     },
-    "Notifications and host sync need Purrdr Plus. Activate it next." : {
+    "Notifications and host sync belong to your Purrdr member account. Sign in first." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通知與主機同步需要 Purrdr Plus，下一步請開通。"
+            "value" : "通知與主機同步屬於你的 Purrdr 會員,請先登入。"
           }
         }
       }
     },
-    "Notifications and host sync need Purrdr Plus. Join as a member first." : {
+    "Notifications and host sync have stopped. Your data is still there." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通知與主機同步需要 Purrdr Plus，請先加入會員。"
+            "value" : "通知與主機同步已停止,資料都還在。"
+          }
+        }
+      }
+    },
+    "Notifications and host sync need Purrdr Plus. Activate it from the Purrdr Plus card above." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知與主機同步需要 Purrdr Plus。請從上方的 Purrdr Plus 卡開通。"
           }
         }
       }
@@ -8366,6 +8476,17 @@
         }
       }
     },
+    "Payment problem. Plus still works" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "付款有問題,Plus 仍可使用"
+          }
+        }
+      }
+    },
     "Period" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8538,6 +8659,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要看用量,請先把主機服務更新到 %@ 以上。更新方式在主機上操作。"
+          }
+        }
+      }
+    },
+    "Plus Features" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus 功能"
           }
         }
       }
@@ -8762,13 +8894,13 @@
         }
       }
     },
-    "Purrdr Plus · Active" : {
+    "Purrdr Plus now belongs to this member account. The payment method and renewal date stay the same." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr Plus・已開通"
+            "value" : "Purrdr Plus 現在屬於這個會員。付款方式與續訂日不變。"
           }
         }
       }
@@ -8780,6 +8912,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會在你開啟的每台主機加裝一個小幫手。Agent 需要你時，這支裝置會收到通知。通知只顯示 Workspace 名稱，絕不包含 Agent 說的內容。Windows 主機的通知可能會延遲。"
+          }
+        }
+      }
+    },
+    "Purrdr can’t check your subscription right now. Try again when you’re online." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 暫時無法確認你的訂閱,連上網路後再試一次。"
           }
         }
       }
@@ -8813,6 +8956,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會修改 %@ 上 Claude Code 的 status line,讓它存下方案用量。隨時可以關閉並還原。"
+          }
+        }
+      }
+    },
+    "Purrdr couldn’t be reached. You’re still signed in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時連不上 Purrdr,你仍是登入狀態。"
           }
         }
       }
@@ -8857,6 +9011,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%2$@ 有新版的主機服務 %1$@。要立刻更新，請在那台主機執行："
+          }
+        }
+      }
+    },
+    "Purrdr is still checking your account. Try again in a moment." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 還在確認你的帳號,請稍後再試。"
           }
         }
       }
@@ -9396,6 +9561,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "改裝置名稱需要 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "Renew Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續訂 Purrdr Plus"
           }
         }
       }
@@ -10016,17 +10192,6 @@
         }
       }
     },
-    "Set Up Purrdr Plus" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定 Purrdr Plus"
-          }
-        }
-      }
-    },
     "Set a device passcode in the Settings app to use App Lock." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10170,17 +10335,6 @@
         }
       }
     },
-    "Share hosts between iPhone and iPad" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iPhone、iPad 共用主機"
-          }
-        }
-      }
-    },
     "Share to Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10320,6 +10474,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示歡迎頁"
+          }
+        }
+      }
+    },
+    "Showing your last known status." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示的是上次的資料。"
           }
         }
       }
@@ -10511,6 +10676,17 @@
         }
       }
     },
+    "Sign in required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要登入"
+          }
+        }
+      }
+    },
     "Sign in to the host with a password or key." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10555,17 +10731,6 @@
         }
       }
     },
-    "Sign in with Apple or Google" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用 Apple 或 Google 登入"
-          }
-        }
-      }
-    },
     "Sign in with Google" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10599,6 +10764,17 @@
         }
       }
     },
+    "Sign out %@?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要登出「%@」嗎?"
+          }
+        }
+      }
+    },
     "Sign up with Apple" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10628,6 +10804,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已登出"
+          }
+        }
+      }
+    },
+    "Signed-In Devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入中的裝置"
+          }
+        }
+      }
+    },
+    "Signing out another device means it has to sign in again. To sign out this device, use Sign Out on the account page." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登出其他裝置後,它需要重新登入。要登出這支裝置,請用帳號頁的「登出」。"
           }
         }
       }
@@ -10925,6 +11123,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "訂閱"
+          }
+        }
+      }
+    },
+    "Subscribed through Google Play. Manage it in Google Play. To switch to the App Store, cancel in Google Play first and wait for the current period to end." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 Google Play 訂閱。請在 Google Play 管理。要改用 App Store,請先在 Google Play 取消並等目前週期結束。"
+          }
+        }
+      }
+    },
+    "Subscribed through the App Store" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 App Store 訂閱"
+          }
+        }
+      }
+    },
+    "Subscribed through the App Store · Ends on %@. It won’t renew." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 App Store 訂閱 · %@ 到期,不會續訂。"
+          }
+        }
+      }
+    },
+    "Subscribed through the App Store · Renews on %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 App Store 訂閱 · %@ 續訂"
+          }
+        }
+      }
+    },
+    "Subscription Moved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱已轉移"
+          }
+        }
+      }
+    },
+    "Subscription belongs to another member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱屬於另一個會員"
+          }
+        }
+      }
+    },
+    "Subscription ended" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱已結束"
           }
         }
       }
@@ -11367,6 +11642,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 已換資料夾"
+          }
+        }
+      }
+    },
+    "The App Store couldn’t renew. Update your payment method by %@, or Plus will stop." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store 無法續訂,請在 %@ 前更新付款方式,否則 Plus 會停止。"
+          }
+        }
+      }
+    },
+    "The App Store couldn’t renew. Update your payment method, or Plus will stop." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store 無法續訂,請更新付款方式,否則 Plus 會停止。"
           }
         }
       }
@@ -12141,6 +12438,28 @@
         }
       }
     },
+    "This Apple Account’s subscription belongs to another member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Apple 帳號的訂閱屬於另一個會員"
+          }
+        }
+      }
+    },
+    "This Apple Account’s subscription belongs to another member. Move it to this member from the Purrdr Plus card above." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Apple 帳號的訂閱屬於另一個會員。請從上方的 Purrdr Plus 卡把它轉移到這個會員。"
+          }
+        }
+      }
+    },
     "This Device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12291,6 +12610,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機還沒有 git。安裝後請點「再試一次」。"
+          }
+        }
+      }
+    },
+    "This device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置"
           }
         }
       }
@@ -12456,6 +12786,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置已被主機移除。請編輯主機，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
+    "This device will have to sign in again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置需要重新登入。"
           }
         }
       }
@@ -12886,6 +13227,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這份清單可能不完整：主機列出所有指令花了太久。"
+          }
+        }
+      }
+    },
+    "This member already has a subscription, and a member can have only one. To move this one, cancel the other first and wait for its period to end." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個會員已有訂閱,一個會員只能有一個。要轉移這個,請先取消另一個並等它的週期結束。"
           }
         }
       }
@@ -13473,17 +13825,6 @@
         }
       }
     },
-    "Turn On" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟"
-          }
-        }
-      }
-    },
     "Turn On All" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13776,7 +14117,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未命名裝置"
+            "value" : "未命名的裝置"
           }
         }
       }
@@ -13887,6 +14228,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要更新這台主機上的註記嗎？"
+          }
+        }
+      }
+    },
+    "Update Payment Method" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新付款方式"
           }
         }
       }
@@ -14933,13 +15285,24 @@
         }
       }
     },
-    "Your subscription has ended. Notifications and host sync are paused until you subscribe again." : {
+    "Your subscription has ended, so notifications and host sync are paused. Renew it from the Purrdr Plus card above." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你的訂閱已結束。通知與主機同步會暫停，直到你再次訂閱。"
+            "value" : "你的訂閱已結束,通知與主機同步已暫停。請從上方的 Purrdr Plus 卡續訂。"
+          }
+        }
+      }
+    },
+    "Your two old members were combined. Another subscription (%@) needs your attention: cancel it there to avoid paying twice." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的兩個舊會員已合併。另一個訂閱(%@)標為待處理:請在該商店取消,避免重複付費。"
           }
         }
       }

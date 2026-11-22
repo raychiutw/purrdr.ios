@@ -285,6 +285,9 @@ final class DailySmokeUITests: XCTestCase {
         step("帳號頁與通知裝置") {
             back(app)
             app.openAccountSheet()
+            let card = app.element("account.plusCard.status")
+            XCTAssertTrue(card.waitUntilExists(timeout: 10), "帳號頁沒有 Plus 卡")
+            XCTAssertTrue(card.label.contains("Active"), "有 Plus 的卡不是已開通:\(card.label)")
             let device = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'account.pushDevice.' AND label CONTAINS 'Studio iPad'")).firstMatch
             XCTAssertTrue(app.scrollSheet("sheet.account", to: device, search: .down, timeout: 10), "帳號頁沒有通知裝置")

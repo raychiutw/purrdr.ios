@@ -6,7 +6,7 @@ import Testing
 struct AccessibilityContainerIdentifierTests {
     /// 裡面還有自己 identifier 的子元素的容器(檔名、identifier)。
     static let containers: [(file: String, identifier: String)] = [
-        ("PlusSetupCard.swift", "account.plusSetup"),
+        ("PlusCardView.swift", "account.plusCard"),
         ("AgentImageCardView.swift", "agentImage.viewer"),
         ("PairingCodeScanner.swift", "scanner.denied"),
         ("AgentListView.swift", "agentList.offline"),

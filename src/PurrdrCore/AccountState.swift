@@ -28,7 +28,8 @@ public enum PlusStatus: Equatable, Sendable {
         switch subscription.status {
         case .active: self = .active(source: subscription.store)
         case .inGracePeriod: self = .billingGrace(source: subscription.store)
-        case .expired, .revoked: self = .expired(source: subscription.store)
+        // 帳單重試期後台判定沒有權限(README「狀態轉換」):與到期同樣鎖住功能。
+        case .expired, .revoked, .billingRetry: self = .expired(source: subscription.store)
         }
     }
 

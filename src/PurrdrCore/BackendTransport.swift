@@ -47,6 +47,8 @@ public enum BackendError: Error, Equatable {
     case invalidResponse
     /// 沒有登入，或登入已失效(更新權杖被拒)。
     case signedOut
+    /// 409 `subscription_in_use`:這個商店訂閱已屬於另一個會員(`ownerEmail` 是遮蔽的 email;`canTransfer` 是目前會員沒有佔著有效訂閱名額)。
+    case subscriptionInUse(ownerEmail: String?, canTransfer: Bool)
 }
 
 /// 後台錯誤碼(`raychiutw/purrdr.server` 的 README「錯誤碼」)。app 依 `BackendError.backend` 的 `code` 判斷。

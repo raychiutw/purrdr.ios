@@ -41,10 +41,18 @@ public final class MemberModel {
     /// 通知與主機同步的本機狀態依會員分區(#405);`nil` 時不管本機狀態(只有測試)。
     private let localState: MemberLocalState?
 
-    public init(session: MemberSession, google: GoogleSignIn, localState: MemberLocalState? = nil) {
+    /// 登入中的裝置(#409):帳號頁列出並撤銷其他裝置。
+    public let signInDevices: SignInDevicesModel
+
+    /// - Parameter confirmOwner: 撤銷其他裝置等會改動帳號的操作前,要求裝置擁有者驗證;`nil` 時不驗證(只有測試)。
+    public init(
+        session: MemberSession, google: GoogleSignIn, localState: MemberLocalState? = nil,
+        confirmOwner: (@MainActor @Sendable () async -> Bool)? = nil
+    ) {
         self.session = session
         self.google = google
         self.localState = localState
+        signInDevices = SignInDevicesModel(session: session, confirmOwner: confirmOwner)
     }
 
     /// 啟動時讀取登入狀態;沒有登入過時不連後台。

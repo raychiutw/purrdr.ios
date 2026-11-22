@@ -64,3 +64,23 @@ public struct SignInCredential: Sendable, Equatable {
         self.authorizationCode = authorizationCode
     }
 }
+
+/// 登入中的裝置(後台的工作階段,每支裝置一個):帳號頁「登入中的裝置」列出,撤銷另一支等於把它登出。
+public struct SignInDevice: Equatable, Identifiable, Sendable {
+    /// 工作階段 id(撤銷用)。
+    public var id: String
+    public var name: String?
+    /// 後台的 `deviceModel`(`iPhone`、`iPad`…);沒有時是 `nil`。
+    public var model: String?
+    public var lastActiveAt: Date
+    /// 發出目前存取權杖的那支(這支裝置):不能撤銷,要登出請用「登出」。
+    public var isCurrent: Bool
+
+    public init(id: String, name: String?, model: String?, lastActiveAt: Date, isCurrent: Bool) {
+        self.id = id
+        self.name = name
+        self.model = model
+        self.lastActiveAt = lastActiveAt
+        self.isCurrent = isCurrent
+    }
+}

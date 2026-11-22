@@ -24,6 +24,8 @@ public enum AppLockAuthenticationResult: Sendable, Equatable {
 /// 為什麼要驗證(系統畫面的說明文字由平台實作決定)。
 public enum AppLockAuthenticationPurpose: Sendable, Equatable {
     case unlock, turnOn
+    /// 轉移訂閱等會改動帳號的操作(#409):確認是裝置擁有者本人。
+    case confirmAccountChange
 }
 
 /// 驗證裝置擁有者(iOS 是 `LocalAuthentication` 的 `deviceOwnerAuthentication`,允許改用裝置密碼)。

@@ -11,22 +11,14 @@ final class PushSettingsUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 步驟卡「選擇主機」捲到「通知」區塊;開那台主機先確認(對話框寫主機名稱),確認後步驟完成並列出主機名稱。
+    /// 帳號頁的「通知」區塊:開那台主機先確認(對話框寫主機名稱),確認後開關變成開啟。
     @MainActor
-    func testChooseHostsScrollsToNotificationsAndTurnsOnHost() {
+    func testTurnsOnHostFromAccountNotifications() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
         app.openAccountSheet()
 
-        let notifications = app.element("account.plusSetup.notifications")
-        XCTAssertTrue(notifications.waitUntilExists(timeout: 10))
-        notifications.expectValue("Next Step")
-        let action = app.buttons["account.plusSetup.action"]
-        XCTAssertEqual(action.label, "Choose Hosts")
-        action.tap()
-
         let toggle = app.switches["account.push.\(Self.seededHost)"]
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有主機的通知開關")
-        XCTAssertTrue(toggle.isHittable, "沒有捲到「通知」區塊")
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: toggle, search: .down, timeout: 10), "沒有主機的通知開關")
         XCTAssertEqual(toggle.label, "Studio Mac")
         XCTAssertEqual(toggle.value as? String, "Notifications Off")
         toggle.tap()
@@ -37,11 +29,6 @@ final class PushSettingsUITests: XCTestCase {
         install.tap()
 
         toggle.expectValue("Notifications On")
-        // 「選擇主機」把列表捲到「通知」,步驟卡捲出畫面(lazy List 不在樹裡):捲回頂端再看步驟。
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: notifications, search: .up, limit: 6), "捲回頂端後沒有步驟卡")
-        notifications.expectValue("Done")
-        XCTAssertTrue(notifications.label.contains("Studio Mac"), "步驟沒有列出開啟的主機:\(notifications.label)")
-        app.element("account.plusSetup.sync").expectValue("Next Step")
     }
 
     /// 還沒配對的 HTTPS 主機(#295):點通知列開與主機頁相同的配對;配對存好回到帳號頁，開關就能點。

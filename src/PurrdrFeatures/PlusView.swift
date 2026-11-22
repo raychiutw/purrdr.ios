@@ -494,6 +494,7 @@ extension SubscriptionModel {
         case nil: "Not Subscribed"
         case .active: "Active"
         case .inGracePeriod: "Payment Issue"
+        case .billingRetry: "Payment Issue"
         case .expired: "Expired"
         case .revoked: "Ended"
         }
@@ -510,6 +511,8 @@ extension SubscriptionNotice {
         case .inUseByAnotherMember: "Used by Another Member"
         case .purchaseNotDelivered: "Almost Done"
         case .signInRequired: "Sign In to Continue"
+        case .transferred: "Subscription Moved"
+        case .transferBlocked: "Can’t Move the Subscription"
         case .failed: "Couldn’t Finish"
         }
     }
@@ -530,6 +533,10 @@ extension SubscriptionNotice {
             String(localized: "You’ve paid, but Purrdr couldn’t be reached to turn on Purrdr Plus. It will finish automatically next time you open Purrdr online.")
         case .signInRequired:
             String(localized: "Purrdr Plus belongs to your Purrdr member account. Sign in, and your purchase is added automatically.")
+        case .transferred:
+            String(localized: "Purrdr Plus now belongs to this member account. The payment method and renewal date stay the same.")
+        case .transferBlocked:
+            String(localized: "This member already has a subscription, and a member can have only one. To move this one, cancel the other first and wait for its period to end.")
         case .failed:
             String(localized: "Something went wrong. Try again.")
         }
