@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>帳號頁的狀態</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:3910px;height:1880px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="18">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}}">
+<div class="scrimbg"></div>
+<div class="sheet" style="top:48px">
+<div class="grabber"></div>
+<div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="關閉"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><div class="st">帳號</div><span></span></div>
+<div class="gl2">
+<sc-if value="{{s.banner}}" hint-placeholder-val="{{false}}"><div role="status" style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;border-radius:16px;background:var(--scard);font-size:15px;line-height:1.4"><svg width="18" height="18" viewBox="0 0 24 24" fill="{{s.bannerColor}}" aria-hidden="true" style="flex-shrink:0;margin-top:1px"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg><span>{{s.banner}}</span></div></sc-if>
+<div class="card"><div class="cell"><span class="cb"><span class="avatar" style="width:44px;height:44px;border-radius:22px;font-size:18px">R</span><span class="main"><span style="font-weight:600">Ray</span><span class="sub">r***@gmail.com · Apple、Google</span></span></span></div></div>
+<div class="sh">Purrdr Plus</div>
+<div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:flex-start;gap:10px">
+<sc-if value="{{s.ok}}" hint-placeholder-val="{{false}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><circle cx="12" cy="12" r="9.5"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg></sc-if>
+<sc-if value="{{s.warn}}" hint-placeholder-val="{{false}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true" style="flex-shrink:0"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg></sc-if>
+<span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:17px;font-weight:600">{{s.plusTitle}}</span><span style="font-size:14px;color:var(--sec);line-height:1.4">{{s.plusSub}}</span></span>
+</div>
+<sc-if value="{{s.prim}}" hint-placeholder-val="{{false}}"><button class="btn-prom" style="width:100%">{{s.prim}}</button></sc-if>
+<sc-if value="{{s.tint}}" hint-placeholder-val="{{false}}"><button class="btn-tint" style="width:100%">{{s.tint}}</button></sc-if>
+<sc-if value="{{s.plain}}" hint-placeholder-val="{{false}}"><button class="btn-plain" style="align-self:center">{{s.plain}}</button></sc-if>
+</div>
+<div class="sh">Plus 功能</div>
+<div class="card">
+<div class="cell"><span class="cb"><span class="main"><span>主機同步</span><span class="sub">{{s.syncSub}}</span></span><sc-if value="{{s.locked}}" hint-placeholder-val="{{false}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2" stroke-linecap="round" aria-label="需要 Purrdr Plus" role="img"><rect x="5" y="10.5" width="14" height="10" rx="2.5"></rect><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path></svg></sc-if><sc-if value="{{s.unlocked}}" hint-placeholder-val="{{true}}"><span class="toggle on" role="switch" aria-checked="true" aria-label="主機同步"></span></sc-if></span></div>
+<button class="cell"><span class="cb"><span class="main"><span>通知</span><span class="sub">{{s.notifSub}}</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+</div>
+<div class="sh">通知裝置</div>
+<div class="card"><button class="cell"><span class="cb"><span class="main"><span>通知裝置</span><span class="sub">2 台 · 可改名或只關閉通知</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button></div>
+<div class="card" style="margin-top:16px">
+<button class="cell"><span class="cb"><span class="main">登入方式</span><span class="val">Apple、Google</span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+<button class="cell"><span class="cb"><span class="main">登入中的裝置</span><span class="val">3 台</span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+</div>
+<div class="card" style="margin-top:16px"><button class="cell danger"><span class="cb">登出</span></button><button class="cell danger"><span class="cb">刪除會員…</span></button></div>
+</div>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":3910,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ON = { locked: false, unlocked: true, featCls: '', syncSub: '2 台主機', notifSub: '2 台主機開啟' };
+    const OFF = { locked: true, unlocked: false, featCls: 'dis', syncSub: '需要 Purrdr Plus', notifSub: '需要 Purrdr Plus' };
+    const B = { banner: '', bannerColor: 'var(--orange)', ok: false, warn: false, prim: '', tint: '', plain: '' };
+    const S = [
+      { n: '有 Plus(App Store)', ok: true, plusTitle: '已開通', plusSub: '透過 App Store 訂閱 · 年繳 · 2027 年 11 月 21 日續訂', tint: '管理訂閱', ...ON },
+      { n: '沒有 Plus', plusTitle: '尚未開通', plusSub: '開通後可以收通知、同步主機清單。', prim: '開通 Purrdr Plus', plain: '恢復購買', ...OFF },
+      { n: 'Google Play 訂閱', ok: true, plusTitle: '已開通', plusSub: '透過 Google Play 訂閱 · 請在 Google Play 管理。要改用 App Store,請先在 Google Play 取消並等目前週期結束。', ...ON },
+      { n: '訂閱屬於其他會員', warn: true, plusTitle: '這個 Apple 帳號的訂閱屬於另一個會員', plusSub: '目前在 r***@icloud.com 名下。轉移後,付款方式與續訂日不變,之後的續訂歸這個會員;原會員會失去 Plus,它的通知與主機同步會停止。', prim: '轉移到這個會員', plain: '恢復購買', ...OFF },
+      { n: '轉移被擋下', warn: true, plusTitle: '已開通(透過 Google Play),無法轉移', plusSub: '這個 Apple 帳號另有一個 App Store 訂閱屬於別的會員。一個會員只能有一個訂閱;要轉移,請先在 Google Play 取消並等週期結束。', ...ON },
+      { n: '帳單寬限期', warn: true, plusTitle: '付款有問題,Plus 仍可使用', plusSub: 'App Store 無法續訂,請在 12 月 5 日前更新付款方式,否則 Plus 會停止。', prim: '更新付款方式', ...ON },
+      { n: '已到期', plusTitle: '已到期', plusSub: '11 月 20 日到期。通知與主機同步已停止,資料都還在。', prim: '續訂 Purrdr Plus', plain: '恢復購買', ...OFF },
+      { n: '暫時連不上(仍是登入)', banner: '暫時連不上 Purrdr,你仍是登入狀態。顯示的是上次的資料。', bannerColor: 'var(--sec)', ok: true, plusTitle: '已開通', plusSub: '透過 App Store 訂閱 · 上次確認 10 分鐘前', tint: '管理訂閱', ...ON },
+      { n: '升級後待處理', banner: '你的兩個舊會員已合併。另一個訂閱(Google Play)標為待處理:請在 Google Play 取消,避免重複付費。', ok: true, plusTitle: '已開通', plusSub: '透過 App Store 訂閱 · 到期較晚,已保留這一個', tint: '管理訂閱', ...ON }
+    ];
+    const screens = [];
+    for (const cls of ['dark', 'light']) for (const s of S) screens.push({ ...B, ...s, cls, label: (cls === 'dark' ? '深色' : '淺色') + ' · ' + s.n });
+    return { screens };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>帳號子頁與確認</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:4340px;height:1880px">
+<sc-for list="{{screens}}" as="s" hint-placeholder-count="14">
+<div class="col">
+<div class="cap">{{s.label}}</div>
+<div class="phone {{s.cls}} {{s.grp}}">
+<sc-if value="{{s.inSheet}}" hint-placeholder-val="{{true}}">
+<div class="scrimbg"></div>
+<div class="sheet" style="top:48px">
+<div class="grabber"></div>
+<div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="{{s.leftLabel}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{s.leftIcon}}"></path></svg></button><div class="st">{{s.title}}</div><span></span></div>
+<div class="gl2">
+<sc-if value="{{s.methods}}" hint-placeholder-val="{{false}}">
+<div class="card">
+<div class="cell"><span class="cb"><span class="main"><span>Apple</span><span class="sub">r***@privaterelay.appleid.com · 加入時使用</span></span><button class="btn-plain" style="font-size:15px;color:var(--redtext)">移除</button></span></div>
+<div class="cell"><span class="cb"><span class="main"><span>Google</span><span class="sub">r***@gmail.com</span></span><button class="btn-plain" style="font-size:15px;color:var(--redtext)">移除</button></span></div>
+</div>
+<div class="sf">至少要保留一種登入方式。移除或新增都要確認身分。</div>
+<div class="card" style="margin-top:16px"><button class="cell link"><span class="cb">新增登入方式…</span></button></div>
+</sc-if>
+<sc-if value="{{s.merge}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;flex-direction:column;gap:10px;padding:16px 4px 0">
+<div style="font-size:22px;font-weight:700">這個 Google 帳號已經是會員</div>
+<div style="font-size:15px;color:var(--sec);line-height:1.45">r***@gmail.com 已經屬於另一個會員。要把兩個會員合併成一個嗎?合併後兩種方式都能登入同一個會員,主機清單與通知裝置會合在一起。</div>
+</div>
+<div class="card" style="margin-top:16px">
+<div class="cell"><span class="cb"><span class="main"><span>目前的會員</span><span class="sub">Apple · 有 Purrdr Plus(App Store)</span></span></span></div>
+<div class="cell"><span class="cb"><span class="main"><span>另一個會員</span><span class="sub">Google · 沒有訂閱 · 1 台主機</span></span></span></div>
+</div>
+<div class="sf">兩邊都有有效訂閱時無法合併,要先取消其中一個。</div>
+<div style="margin-top:auto;padding-bottom:34px;display:flex;flex-direction:column;gap:2px"><button class="btn-prom" style="width:100%">確認合併</button><button class="btn-plain">取消</button></div>
+</sc-if>
+<sc-if value="{{s.predelete}}" hint-placeholder-val="{{false}}">
+<div style="font-size:22px;font-weight:700;padding:12px 4px 4px">刪除會員前,先處理訂閱</div>
+<div style="font-size:15px;color:var(--sec);line-height:1.45;padding:0 4px 12px">{{s.preMsg}}</div>
+<sc-if value="{{s.preApple}}" hint-placeholder-val="{{true}}"><div class="card"><button class="cell link"><span class="cb">管理訂閱</span></button></div></sc-if>
+<div style="margin-top:auto;padding-bottom:34px;display:flex;flex-direction:column;gap:2px"><button class="btn-tint" style="width:100%;height:50px;border-radius:25px;color:var(--redtext)">繼續刪除會員</button><button class="btn-plain">取消</button></div>
+</sc-if>
+<sc-if value="{{s.pushdev}}" hint-placeholder-val="{{false}}">
+<div class="card">
+<sc-for list="{{pdev}}" as="d" hint-placeholder-count="2"><button class="cell"><span class="cb"><span class="main"><span>{{d.name}}</span><span class="sub">{{d.sub}}</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button></sc-for>
+</div>
+<div class="sf">點一下可以重新命名,或只關閉那支裝置的通知(不會登出)。</div>
+</sc-if>
+<sc-if value="{{s.devices}}" hint-placeholder-val="{{false}}">
+<div class="card">
+<sc-for list="{{devs}}" as="d" hint-placeholder-count="3"><div class="cell"><span class="cb"><span class="main"><span>{{d.name}}</span><span class="sub">{{d.sub}}</span></span><sc-if value="{{d.revoke}}" hint-placeholder-val="{{false}}"><button class="btn-plain" style="font-size:15px;color:var(--redtext)">撤銷</button></sc-if></span></div></sc-for>
+</div>
+<div class="sf">撤銷後,那支裝置會登出並停止收通知;需要確認身分。</div>
+</sc-if>
+<sc-if value="{{s.acct}}" hint-placeholder-val="{{false}}">
+<div class="card"><div class="cell"><span class="cb"><span class="avatar" style="width:44px;height:44px;border-radius:22px;font-size:18px">R</span><span class="main"><span style="font-weight:600">Ray</span><span class="sub">r***@gmail.com · Apple、Google</span></span></span></div></div>
+<div class="sh">Purrdr Plus</div>
+<div class="card" style="padding:14px 16px"><span style="font-size:17px;font-weight:600">已開通</span><br><span class="meta">透過 App Store 訂閱</span></div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{s.hostLock}}" hint-placeholder-val="{{false}}">
+<div class="top">
+<div class="top-c"><button class="hostcap glass">Ray Mac Mini<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="grp glass top-r"><button aria-label="新增主機"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button><button aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="gl">
+<div class="card" style="margin-top:4px"><div class="cell"><span class="cb"><span style="width:10px;height:10px;border-radius:5px;background:var(--accent)" aria-hidden="true"></span><span class="main"><span>線上</span><span class="sub">Tailscale SSH · herdr 0.9.6</span></span></span></div></div>
+<div class="sh">這台主機</div>
+<div class="card">
+<button class="cell"><span class="cb"><span class="main"><span>通知</span><span class="sub">{{s.lockSub}}</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2" stroke-linecap="round" role="img" aria-label="需要 Purrdr Plus"><rect x="5" y="10.5" width="14" height="10" rx="2.5"></rect><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path></svg><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+<button class="cell"><span class="cb"><span class="main">登入 Shell</span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+</div>
+<div class="sf">{{s.lockFoot}}</div>
+</div>
+<nav class="tabbar glass" aria-label="分頁"><sc-for list="{{tabs}}" as="b" hint-placeholder-count="5"><a href="#" class="tab {{b.on}}" aria-current="{{b.cur}}" aria-label="{{b.label}}"><span class="tabicon"><svg width="26" height="24" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="{{b.icon}}"></path></svg><sc-if value="{{b.badge}}" hint-placeholder-val="{{false}}"><span class="tbadge" aria-hidden="true">{{b.badge}}</span></sc-if></span><span>{{b.name}}</span></a></sc-for></nav>
+</sc-if>
+<sc-if value="{{s.alert}}" hint-placeholder-val="{{false}}">
+<div style="position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:9"></div>
+<div role="alertdialog" aria-label="{{s.aTitle}}" style="position:absolute;left:44px;right:44px;top:260px;border-radius:24px;background:var(--scard);z-index:10;overflow:hidden;text-align:center">
+<div style="padding:22px 18px 14px;display:flex;flex-direction:column;gap:8px;align-items:center"><div style="font-size:17px;font-weight:600">{{s.aTitle}}</div><div style="font-size:13px;line-height:1.45">{{s.aMsg}}</div><div class="meta" style="font-size:12px">按下後會用裝置的生物辨識或密碼確認身分。</div></div>
+<div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px"><button style="height:48px;border:none;border-radius:24px;background:{{s.aBg}};color:{{s.aFg}};font-size:17px;font-weight:600">{{s.aBtn}}</button><button style="height:48px;border:none;border-radius:24px;background:var(--fill);color:var(--text);font-size:17px">取消</button></div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":4340,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['流量', 'M8 2.5l5 5H9.6V15H6.4V7.5H3z M16 21.5l-5-5h3.4V9h3.2v7.5H21z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 2 ? 'on' : '', cur: i === 2 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
+    const BK = 'M15 5l-7 7 7 7';
+    const B = { inSheet: true, grp: '', methods: false, merge: false, devices: false, predelete: false, preApple: true, preMsg: '', pushdev: false, acct: false, hostLock: false, alert: false, leftIcon: BK, leftLabel: '返回帳號', title: '', aBg: 'transparent', aFg: 'var(--redtext)' };
+    const S = [
+      { n: '登入方式', title: '登入方式', methods: true },
+      { n: '新增 Google 時發現已是會員', title: '新增登入方式', merge: true },
+      { n: '登入中的裝置', title: '登入中的裝置', devices: true },
+      { n: '轉移訂閱確認', acct: true, alert: true, aTitle: '轉移 Purrdr Plus 到這個會員?', aMsg: '付款方式與續訂日不變。r***@icloud.com 會失去 Plus,它的通知與主機同步會停止;之後的續訂歸目前的會員。', aBtn: '轉移', aBg: 'var(--accent)', aFg: 'var(--on)' },
+      { n: '登出確認', acct: true, alert: true, aTitle: '要登出嗎?', aMsg: '登出前會停止這支裝置的通知並暫停主機同步。主機與聊天仍可使用,不需要會員。', aBtn: '登出' },
+      { n: '刪除前:先處理 App Store 訂閱', title: '刪除會員', predelete: true, preMsg: '你有透過 App Store 的 Purrdr Plus。刪除會員不會取消訂閱,Apple 會繼續收費。請先取消訂閱,再繼續刪除。' },
+      { n: '刪除前:Google Play 訂閱', title: '刪除會員', predelete: true, preApple: false, preMsg: '你有透過 Google Play 的 Purrdr Plus。刪除會員不會取消訂閱,Google 會繼續收費。請先到 Google Play 取消,再繼續刪除。' },
+      { n: '通知裝置', title: '通知裝置', pushdev: true },
+      { n: '刪除會員確認', acct: true, alert: true, aTitle: '刪除會員?', aMsg: '會員資料、主機同步與所有裝置的通知會從伺服器刪除,無法復原。', aBtn: '刪除會員' },
+      { n: '主機 tab:沒有 Plus 時通知鎖定', inSheet: false, hostLock: true, grp: 'grouped', lockSub: '需要 Purrdr Plus', lockFoot: '點「通知」可以開通 Purrdr Plus。沒登入時會先問要登入還是加入會員。' }
+    ];
+    const screens = [];
+    for (const cls of ['dark', 'light']) for (const s of S) screens.push({ ...B, ...s, cls, label: (cls === 'dark' ? '深色' : '淺色') + ' · ' + s.n });
+    return {
+      tabs, screens,
+      pdev: [{ name: 'Ray 的 iPhone', sub: '這支裝置 · 通知開啟' }, { name: 'Ray 的 iPad', sub: '通知開啟 · 昨天收到' }],
+      devs: [
+        { name: 'Ray 的 iPhone', sub: '這支裝置 · iPhone 17', revoke: false },
+        { name: 'Ray 的 iPad', sub: '昨天 · iPad Pro', revoke: true },
+        { name: 'Pixel 9', sub: '3 天前 · Android', revoke: true }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
