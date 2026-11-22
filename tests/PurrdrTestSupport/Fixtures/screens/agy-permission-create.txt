@@ -1,0 +1,33 @@
+      ▄▀▀▄        Antigravity CLI 1.5.14
+     ▀▀▀▀▀▀       demo@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Neon (Medium)
+   ▄▀▀    ▀▀▄     /Users/demo/Projects/fixture-work
+  ▄▀▀      ▀▀▄
+
+> /help
+  ⎿  Exited /help command
+
+> /model
+  ⎿  Exited /model command
+
+> /effort
+  ⎿  Exited /effort command
+
+────────────────────────────────────────────────────────────
+> Create a new file named note.txt in the current folder containing the single line: hi. Do nothing else.
+
+○ Thought for 5.0s (Attempting to create a new file named `note.txt` containing the text "hi". Checking if the operation completes successfully.)
+● Edited 1 file (note.txt) (ctrl+o to expand)
+
+Create file
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/Users/demo/Projects/fixture-work/note.txt  +1
+  1  +  hi
+
+Allow creation of this file?
+> 1. Yes, allow creation
+  2. No, deny creation
+
+  ↑/↓ Navigate · f full diff
+esc to cancel                                                                                                                                Gemini 4 Neon · medium

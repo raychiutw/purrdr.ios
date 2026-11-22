@@ -1,0 +1,26 @@
+
+      ▄▀▀▄        Antigravity CLI 1.5.14
+     ▀▀▀▀▀▀       demo@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Neon (Medium)
+   ▄▀▀    ▀▀▄     /Users/demo/Projects/fixture-work
+  ▄▀▀      ▀▀▄
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Antigravity CLI   general    commands    shortcuts   (←/→ or tab to cycle)
+Antigravity CLI understands your codebase, makes edits with your permission,
+and executes commands — right from your terminal.
+
+Version 1.5.14
+demo@example.com (Google AI Pro)
+Workspace:      /Users/demo/Projects/fixture-work
+Project Config: ~/.gemini/config/projects/default-cli-project.json
+Log File:       ~/.gemini/antigravity-cli/log/cli-20260101_000000.log
+
+Quick Reference
+  /  Type / to see available commands
+
+Keyboard: ↑/↓ Navigate  ←/→ Switch View  esc Close
+
+                                                                                                                                             Gemini 4 Neon · medium

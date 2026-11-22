@@ -1,0 +1,33 @@
+────────────────────────────────────────────────────────────
+> Edit sample.txt: replace the word hello with hello world. Do nothing else.
+
+○ Thought for 6.9s (Initial hypothesis: The file `sample.txt` needs modification. Confirming its current content is essential before proceeding with the edit...)
+● Explored 1 file (sample.txt) (ctrl+o to expand)
+
+⚠ Statusline Error
+  ⎿  ⚠ Statusline error:
+     command failed: signal: killed (stderr: )
+     Full logs at: /Users/demo/.gemini/antigravity-cli/log/cli-20260101_000000.log
+
+● Edited 1 file (sample.txt) (ctrl+o to expand)
+
+Pending edit
+  ⎿  User declined the tool call
+
+────────────────────────────────────────────────────────────
+> Use your ask_question tool to ask me one single-choice question: which color should the button be? Options: Red, Green, Blue. Do not do anything else.
+
+? Which color should the button be?
+
+Question
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+Question 1/1: Which color should the button be?
+
+> 1. Red
+  2. Green
+  3. Blue
+  4. Write-in...
+
+  ↑/↓ Navigate · enter Select · esc Skip
+esc to cancel                                                                                                                                Gemini 4 Neon · medium

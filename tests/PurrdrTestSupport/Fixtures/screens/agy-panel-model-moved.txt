@@ -1,0 +1,33 @@
+     ▀▀▀▀▀▀       demo@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Neon (Medium)
+   ▄▀▀    ▀▀▄     /Users/demo/Projects/fixture-work
+  ▄▀▀      ▀▀▄
+
+> /help
+  ⎿  Exited /help command
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Switch Model
+
+  Search:
+          ────────────────────
+
+  Gemini 4 Neon         (current)
+> Gemini 4 Argon
+  Gemini 4 Hydrogen
+  Orchestrator
+  Gemini 3.8 Flash
+  Claude Opus 5.5
+  Claude Sonnet 5.5
+  GPT-OSS 120B (Medium)
+  Gemini 4 Carbon
+
+  Effort  ◂        ●━━━━━━━━━━━━━━●━━━━━━━━━━━━━━◉        ▸
+                  low          medium          high
+            Deeper reasoning for complex problems — slower but stronger
+
+Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back
+
+                                                                                                                                             Gemini 4 Neon · medium

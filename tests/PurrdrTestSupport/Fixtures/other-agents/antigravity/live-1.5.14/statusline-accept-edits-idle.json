@@ -1,0 +1,61 @@
+{
+  "cwd": "/Users/demo/Projects/fixture-work",
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "conversation_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/Users/demo/.gemini/antigravity/brain/.system_generated/logs/transcript.jsonl",
+  "model": {
+    "id": "Gemini 4 Neon (Medium)",
+    "display_name": "Gemini 4 Neon (Medium)",
+    "effort": "medium"
+  },
+  "workspace": {
+    "current_dir": "/Users/demo/Projects/fixture-work",
+    "project_dir": "/Users/demo/Projects/fixture-work"
+  },
+  "version": "1.5.14",
+  "context_window": {
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "context_window_size": 1048576,
+    "used_percentage": 0,
+    "remaining_percentage": 100,
+    "current_usage": null
+  },
+  "exceeds_200k_tokens": null,
+  "product": "antigravity",
+  "quota": {
+    "3p-5h": {
+      "remaining_fraction": 1,
+      "reset_time": "2026-11-22T21:33:11Z",
+      "reset_in_seconds": 17955
+    },
+    "3p-weekly": {
+      "remaining_fraction": 0.96662,
+      "reset_time": "2026-11-26T05:38:57Z",
+      "reset_in_seconds": 306301
+    },
+    "gemini-5h": {
+      "remaining_fraction": 0.9078501,
+      "reset_time": "2026-11-22T18:30:05Z",
+      "reset_in_seconds": 6969
+    },
+    "gemini-argon-wtu-weekly": {
+      "remaining_fraction": 0.6158729,
+      "reset_time": "2026-11-29T04:27:59Z",
+      "reset_in_seconds": 561243
+    },
+    "gemini-weekly": {
+      "remaining_fraction": 0.9723442,
+      "reset_time": "2026-11-29T05:20:28Z",
+      "reset_in_seconds": 564392
+    }
+  },
+  "agent_state": "idle",
+  "cycle_mode": "accept-edits",
+  "sandbox": {
+    "enabled": false
+  },
+  "plan_tier": "Google AI Pro",
+  "email": "demo@example.com",
+  "terminal_width": 163
+}

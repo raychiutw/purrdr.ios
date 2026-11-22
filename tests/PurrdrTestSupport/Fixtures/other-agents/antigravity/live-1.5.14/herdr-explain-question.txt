@@ -1,0 +1,5 @@
+agent: agy
+state: blocked
+manifest: remote:/Users/demo/.local/state/herdr/agent-detection/remote/agy.toml 2026.10.05.1
+rule: question_prompt (region=bottom_non_empty_lines(2) priority=290)
+evidence: "  ↑/↓ Navigate · enter Select · esc Skip\nesc to cancel                                                                                                                                Gemini 4 Neon · medium\n"

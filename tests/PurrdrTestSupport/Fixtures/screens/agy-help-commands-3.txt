@@ -1,0 +1,33 @@
+  ⎿  Exited /help command
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Antigravity CLI   general    commands    shortcuts   (←/→ or tab to cycle)
+Available Commands
+
+  /skills                         List available skills
+  /statusline                     Toggle the statusline
+  /tasks                          View background tasks
+  /thinking                       Toggle streaming the model's full thinking in the transcript
+  /title                          Toggle custom terminal window title
+  /usage (quota)                  View model quota usage
+  /voice                          Dictate a prompt or talk with the agent by voice
+  /goal                           Run until the specified goal is completely finished.
+  /compact                        Compact the conversation now (summarize history to free up the context window).
+  /schedule                       Run an instruction on a recurring schedule or as a one-time timer.
+  /browser                        Invoke a browser agent for web tasks.
+  /plan                           Plan carefully before executing a task.
+  /grill-me                       Interview me to align on a plan.
+  /teamwork                       Invoke a team of agents to autonomously tackle large projects.
+  /learn                          Reflect on recent successes or corrections to capture reusable skills or rules.
+  /boost                          Invoke the Boost multi-agent orchestrator for complex tasks.
+  /agy-customizations             Comprehensive guide and reference for the Antigravity Customization System. Use to explain how customizations work, their load...
+  /antigravity-guide              Provides a comprehensive guide, quick reference, and sitemap for Google Antigravity (AGY), including the Antigravity CLI (agy)...
+  /run-workflow                   How to write and run a dynamic workflow script with the `run_workflow` tool: a Python script that orchestrates many agents wit...
+> /swarm                          (Preview & Quota Heavy) Run a swarm: several agents working in parallel on one task, each in its own conversation, collaborati...
+  [32-51 of 51 items]
+
+Keyboard: ↑/↓ Navigate  ←/→ Switch View  esc Close
+
+                                                                                                                                              Gemini 4 Neon · medium
