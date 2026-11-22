@@ -2430,17 +2430,6 @@
         }
       }
     },
-    "Clear Search" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清除搜尋"
-          }
-        }
-      }
-    },
     "Close" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6397,17 +6386,6 @@
         }
       }
     },
-    "No Matching Agents" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有符合的 Agent"
-          }
-        }
-      }
-    },
     "No Matching Commands" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10192,6 +10170,28 @@
         }
       }
     },
+    "Switches to Agents." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換到 Agents 檢視。"
+          }
+        }
+      }
+    },
+    "Switches to Spaces." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換到 Spaces 檢視。"
+          }
+        }
+      }
+    },
     "Sync Host List" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12494,17 +12494,6 @@
         }
       }
     },
-    "Try a different name, agent, folder, or host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "試試其他名稱、Agent、資料夾或主機。"
-          }
-        }
-      }
-    },
     "Try the Demo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13315,6 +13304,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢視"
+          }
+        }
+      }
+    },
+    "View: Agents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢視:Agents"
+          }
+        }
+      }
+    },
+    "View: Spaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢視:Spaces"
           }
         }
       }

@@ -65,7 +65,7 @@ final class SpacesUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         app.switchListMode(to: "Spaces")
         XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 10))
-        XCTAssertEqual(app.listModeSelection.label, "Spaces")
+        XCTAssertEqual(app.listModeName, "Spaces")
 
         app.switchListMode(to: "Agents")
 
@@ -73,6 +73,6 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(app.element("agent.row.demo/w3:p1").waitUntilExists(timeout: 5))
         XCTAssertFalse(app.element("spaces.tab.demo/w3:t1").exists, "Agents 檢視不該有 Tab 列")
         XCTAssertFalse(app.element("agentList.section.needsYou").exists, "Agents 檢視是單一清單，不該有分段標題")
-        XCTAssertEqual(app.listModeSelection.label, "Agents")
+        XCTAssertEqual(app.listModeName, "Agents")
     }
 }

@@ -73,10 +73,12 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 沒有大標題、也沒有標題選單(#268):導覽列只有主機篩選、「⋯」與帳號，檢視切換只用列表第一列的分段控制。
-        // 標題仍設定，給返回鈕與 VoiceOver 用，只是不畫在導覽列上。
+        // 沒有大標題(#268):導覽列左上是 Agents／Spaces 一鍵切換、中間主機選單、右上新增聊天與帳號(#391)。
+        // 標題仍設定，給返回鈕與 VoiceOver 用(導覽列中間由主機選單佔用)。
+        // 系統搜尋欄(#391):列表在頂端時預設顯示、往上捲才收起;範圍是目前主機(所有主機就搜全部)。
+        // Agents 檢視比對 Agent、資料夾與主機,Spaces 檢視比對 workspace 與 Tab 名稱。
+        .agentListSearch(text: $model.query, focused: $searchFocused)
         .navigationTitle(model.mode.title)
-        .toolbar(removing: .title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -101,6 +103,12 @@ public struct AgentListView: View {
             // 同一份列表開在好幾個視窗時，每台主機的即時更新各只跑一份(`AgentListModel.liveUpdates`,#31)。
             await model.run()
         }
+    }
+
+    /// 搜尋了但沒有任何符合(顯示「找不到」,連線錯誤區塊先收起,免得疊在說明上)。
+    private var searchHasNoMatch: Bool {
+        guard !model.query.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        return model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty
     }
 
     private var hasConnectingHosts: Bool { !model.hostStatuses(at: now).isEmpty }
@@ -207,7 +215,6 @@ public struct AgentListView: View {
     /// 第一次載入、還沒有任何列：大標題、各主機的連線狀態與列表骨架(不整頁轉圈,#221)。
     private var loadingList: some View {
         List {
-            modeRow
             hostStatusRows
             Section {
                 ForEach(0..<3, id: \.self) { index in
@@ -252,14 +259,12 @@ public struct AgentListView: View {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             if window != nil {
                 List(selection: selection) {
-                    modeRow
                     hostStatusRows
                     listRows(sections)
                 }
                 .environment(\.selectedChatRoute, window?.selectedChat)
             } else {
                 List {
-                    modeRow
                     hostStatusRows
                     listRows(sections)
                 }
@@ -273,12 +278,9 @@ public struct AgentListView: View {
         // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
         .id(model.mode)
         .overlay {
-            if (model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty), !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
-                ContentUnavailableView(
-                    "No Matching Agents",
-                    systemImage: "magnifyingglass",
-                    description: Text("Try a different name, agent, folder, or host.")
-                )
+            if searchHasNoMatch {
+                ContentUnavailableView.search(text: model.query)
+                    .accessibilityIdentifier("agentList.noMatches")
             }
         }
         // 版面圖選的 Pane:聊天推入對話(或在對話欄打開);Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
@@ -288,40 +290,13 @@ public struct AgentListView: View {
             case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
             }
         }
-        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(搜尋欄只在 Agents 檢視，要求時先換過去)。
+        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(兩種檢視都有搜尋,#391)。
         .onChange(of: window?.isSearchFocused ?? false) { _, focused in
             guard focused else { return }
-            model.mode = .agents
             searchFocused = true
         }
         .onChange(of: searchFocused) { _, focused in
             if !focused { window?.isSearchFocused = false }
-        }
-    }
-
-    /// 列表最上面(#268;#313 改成攤開):Agents／Spaces 兩列勾選;Agents 檢視下方接著搜尋欄。
-    /// 沒有大標題。Spaces 檢視沒有搜尋(切過去時清掉搜尋字，不留看不見的篩選)。
-    @ViewBuilder
-    private var modeRow: some View {
-        Section {
-            AgentListModeControl(mode: $model.mode)
-        }
-        #if os(iOS)
-        // 貼著導覽列、跟下面的內容只隔一般間距(inset grouped 第一個 section 上方預設有一大段空白)。
-        .listSectionSpacing(.compact)
-        #endif
-        .onChange(of: model.mode) { _, mode in
-            if mode == .spaces { model.query = "" }
-        }
-        if model.mode == .agents {
-            Section {
-                AgentListSearchField(query: $model.query, focused: $searchFocused)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-            }
-            #if os(iOS)
-            .listSectionSpacing(.compact)
-            #endif
         }
     }
 
@@ -347,7 +322,7 @@ public struct AgentListView: View {
                     .accessibilityIdentifier("agentList.filterEmpty")
             }
         }
-        if !failures.isEmpty {
+        if !failures.isEmpty, !searchHasNoMatch {
             // 讀不到的主機：列已經在畫面上時，錯誤放在列下方，不把列推走(行為規格 F2.9)。不用 alert,也不自動消失:
             // 重新連上才會消失;列保持最後一次讀到的樣子(HIG 20.5)。每台主機一行「主機名：原因」(#37 故事 3)。
             Section {

@@ -108,6 +108,11 @@ public final class MergedAgentListModel {
         }
     }
 
+    /// 左上角的一鍵切換(#391):Agents 與 Spaces 互換(`mode` 的 didSet 負責存起來)。
+    public func toggleMode() {
+        mode = mode == .agents ? .spaces : .agents
+    }
+
     /// 目前主機(#334):全 app 共用的主機範圍，`nil` 是所有主機;列表的主機篩選只是改它的控制。
     /// 選某台主機時同時設成選取中主機，選回所有主機時選取中主機不變。
     public var currentHost: HostSelection? {
@@ -252,9 +257,9 @@ public final class MergedAgentListModel {
         return projection
     }
 
-    /// Spaces 檢視(#275):每個「主機 · workspace」一段，段內每個 Tab 一列;套用主機篩選，沒有搜尋。
+    /// Spaces 檢視(#275):每個「主機 · workspace」一段，段內每個 Tab 一列;套用目前主機與搜尋(workspace、Tab 名稱,#391)。
     public var spacesSections: [SpacesSection] {
-        AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats)
+        AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats, query: query)
     }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。

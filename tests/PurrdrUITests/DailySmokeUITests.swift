@@ -29,7 +29,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(ledger.label.contains("ledger"), "列沒有 workspace 名稱:\(ledger.label)")
         }
         step("搜尋篩選列表") {
-            let search = app.textFields["agentList.search"].firstMatch
+            let search = app.searchFields.firstMatch
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
@@ -37,11 +37,29 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "不符合的列仍在")
             search.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 7) + "\n")
             XCTAssertTrue(ledger.waitUntilExists(timeout: 5), "清掉搜尋後列表沒有回來")
+            // 搜尋啟用時導覽列換成搜尋欄:取消後才看得到左上角的切換鈕。
+            app.cancelSearchIfActive()
         }
-        step("Spaces 檢視") {
+        step("Spaces 檢視:一鍵切換、搜尋 workspace 與長按選單") {
             app.switchListMode(to: "Spaces")
             XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")), "Spaces 沒有 workspace 段落")
-            app.switchListMode(to: "Agents")
+            let search = app.searchFields.firstMatch
+            XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
+            search.tap()
+            search.typeEnglish("weather")
+            XCTAssertTrue(app.element("spaces.section.demo/w2").waitUntilExists(timeout: 5), "搜尋 workspace 名稱找不到 weather-app")
+            XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilGone(timeout: 5), "不符合的 workspace 仍在")
+            search.typeEnglish("zzz")
+            XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "Spaces 搜尋不到時沒有說明")
+            let clear = app.buttons["Clear text"].firstMatch
+            XCTAssertTrue(clear.waitUntilExists(timeout: 5), "搜尋欄沒有清除鈕")
+            clear.tap()
+            XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 5), "清掉搜尋後 Spaces 沒有回來")
+            app.cancelSearchIfActive()
+            app.listModeControl.press(forDuration: 1.0)
+            XCTAssertTrue(app.buttons["Agents"].firstMatch.waitUntilExists(timeout: 5), "長按切換鈕沒有出現選單")
+            app.buttons["Agents"].firstMatch.tap()
+            XCTAssertTrue(app.listModeControl.waitForLabel("View: Agents", timeout: 5), "從選單選 Agents 沒有切換")
         }
         step("打開聊天並送出") {
             XCTAssertTrue(app.reveal(ledger))
@@ -259,5 +277,21 @@ final class DailySmokeUITests: XCTestCase {
             app.buttons["welcome.demo"].tap()
             XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有回到列表")
         }
+    }
+}
+
+
+extension XCUIApplication {
+    /// 搜尋啟用時導覽列換成搜尋欄與取消:取消後才看得到左上角的切換鈕(已經收起就不動)。
+    @MainActor
+    func cancelSearchIfActive() {
+        guard !listModeControl.isHittable else { return }
+        let cancel = navigationBars.buttons.matching(NSPredicate(format: "label IN {'Cancel', 'Close', 'Dismiss'}")).firstMatch
+        if cancel.waitUntilExists(timeout: 5) {
+            cancel.tap()
+        } else {
+            print("SEARCH-CANCEL-MISSING", navigationBars.firstMatch.debugDescription)
+        }
+        _ = listModeControl.waitUntilExists(timeout: 5)
     }
 }

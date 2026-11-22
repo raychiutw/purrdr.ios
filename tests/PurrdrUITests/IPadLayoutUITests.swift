@@ -76,14 +76,14 @@ final class IPadLayoutUITests: XCTestCase {
 
         let control = app.listModeControl
         XCTAssertTrue(control.waitUntilExists(timeout: 5), "列表欄沒有 Agents／Spaces 切換")
-        XCTAssertEqual(app.listModeSelection.label, "Spaces")
+        XCTAssertEqual(app.listModeName, "Spaces")
         let list = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch.frame
         XCTAssertTrue(list.insetBy(dx: -1, dy: -1).contains(control.frame), "切換不在列表欄:\(control.frame) 列表 \(list)")
         XCTAssertFalse(app.staticTexts["agentList.title"].exists, "列表欄不該有大標題(#268)")
 
         app.switchListMode(to: "Agents")
         XCTAssertTrue(card.waitUntilGone(timeout: 5), "沒有切到 Agents 檢視")
-        XCTAssertEqual(app.listModeSelection.label, "Agents")
+        XCTAssertEqual(app.listModeName, "Agents")
     }
 
     /// 側欄選 workspace:列表只留那個 workspace 的 Agent;選「All Workspaces」回到全部。

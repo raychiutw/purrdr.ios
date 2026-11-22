@@ -219,8 +219,12 @@ public struct TopNavigationView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        // 聊天 tab 的主機選單(#244):改「目前主機」,含所有主機;選某台時同時設成選取中主機。
-        ToolbarItem(placement: Self.hostPlacement) {
+        // 左上:Agents／Spaces 一鍵切換(只有符號,#391)。
+        ToolbarItem(placement: Self.modePlacement) {
+            AgentListModeButton(list: hosts.agentList)
+        }
+        // 中間:聊天 tab 的主機選單(#244):改「目前主機」,含所有主機;選某台時同時設成選取中主機。
+        ToolbarItem(placement: .principal) {
             HostFilterMenu(list: hosts.agentList) { navigation.openAddHost() }
         }
         // 右上:新增聊天(`square.and.pencil`),最右上角是帳號鈕。
@@ -271,9 +275,9 @@ public struct TopNavigationView: View {
 
 extension TopNavigationView {
     #if os(iOS)
-    static let hostPlacement = ToolbarItemPlacement.topBarLeading
+    static let modePlacement = ToolbarItemPlacement.topBarLeading
     #else
-    static let hostPlacement = ToolbarItemPlacement.navigation
+    static let modePlacement = ToolbarItemPlacement.navigation
     #endif
 }
 

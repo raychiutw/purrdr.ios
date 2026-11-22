@@ -65,7 +65,7 @@ final class AgentListUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
 
-        let search = app.textFields["agentList.search"].firstMatch
+        let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
         search.tap()
         search.typeEnglish("weather")
@@ -75,30 +75,27 @@ final class AgentListUITests: XCTestCase {
         XCTAssertFalse(row("w3:p1", in: app).exists, "不符合的列仍在")
 
         search.typeEnglish("zzz")
-        XCTAssertTrue(app.staticTexts["No Matching Agents"].waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
+        XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
     }
 
-    /// 聊天列表頂部(#268,原型 purrdr-screens 定案版):沒有大標題、沒有標題選單;導覽列下方直接是 Agents／Spaces 切換(#313 攤開成兩列勾選)，
-    /// Agents 檢視的搜尋在它下方(Spaces 沒有搜尋);列表上沒有滑動提示與註記卡。
+    /// 聊天列表頂部(#391):沒有大標題;導覽列左上是 Agents／Spaces 一鍵切換符號,中間是主機選單,系統搜尋欄在導覽列下方、列表在頂端時預設顯示;
+    /// 列表上沒有滑動提示與註記卡。
     @MainActor
-    func testChatListTopHasNoLargeTitleAndSearchUnderModeControl() {
+    func testChatListTopHasModeButtonAndSystemSearch() {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
         XCTAssertFalse(app.staticTexts["agentList.title"].exists, "不該有大標題")
-        XCTAssertFalse(app.navigationBars.buttons["Agents"].exists, "導覽列不該有標題(含標題選單)")
         let control = app.listModeControl
         XCTAssertTrue(control.exists)
         let bar = app.navigationBars.firstMatch.frame
-        XCTAssertLessThan(control.frame.minY - bar.maxY, 30, "Agents／Spaces 切換不在導覽列正下方:\(control.frame) 導覽列 \(bar)")
-        let search = app.textFields["agentList.search"].firstMatch
-        XCTAssertTrue(search.exists, "Agents 檢視沒有搜尋欄")
-        XCTAssertGreaterThan(search.frame.minY, control.frame.maxY, "搜尋欄不在 Agents／Spaces 切換下方")
-        XCTAssertFalse(app.searchFields.firstMatch.exists, "不該有系統搜尋欄(底部工具列)")
+        XCTAssertTrue(bar.insetBy(dx: -1, dy: -1).contains(control.frame), "切換鈕不在導覽列內:\(control.frame) 導覽列 \(bar)")
+        let host = app.buttons["toolbar.currentHost"].firstMatch
+        XCTAssertLessThan(control.frame.minX, host.frame.minX, "切換鈕不在主機選單左邊")
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.exists, "列表在頂端時沒有顯示系統搜尋欄")
+        XCTAssertGreaterThan(search.frame.minY, bar.minY, "搜尋欄不在導覽列下方")
         XCTAssertFalse(app.descendants(matching: .any)["agentList.swipeHint"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["youShouldKnow.listRow"].exists)
-
-        app.switchListMode(to: "Spaces")
-        XCTAssertTrue(search.waitUntilGone(timeout: 5), "Spaces 檢視不該有搜尋欄")
     }
 
     /// AX 字級下 5 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。
