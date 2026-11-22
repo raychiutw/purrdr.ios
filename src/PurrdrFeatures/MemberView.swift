@@ -348,6 +348,20 @@ struct AccountView: View {
             }
             .listRowBackground(Color.clear)
 
+            if model.isConnectionLimited {
+                // 後台暫時連不上(#406):登入仍然有效,不是被登出。
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Can’t reach Purrdr for now. You’re still signed in.", systemImage: "wifi.exclamationmark")
+                            .foregroundStyle(.secondaryText)
+                        Button("Try Again") { Task { await model.restore() } }
+                            .accessibilityIdentifier("account.connectionLimited.retry")
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("account.connectionLimited")
+                }
+            }
+
             if let plus, let progress {
                 plusSection(plus: plus, progress: progress)
                 if progress.isPlusActive {

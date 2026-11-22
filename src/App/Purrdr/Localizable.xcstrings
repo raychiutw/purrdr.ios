@@ -2078,6 +2078,17 @@
         }
       }
     },
+    "Can’t reach Purrdr for now. You’re still signed in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時連不上 Purrdr，你仍是登入狀態。"
+          }
+        }
+      }
+    },
     "Can’t reach the host, so the mode can’t be changed." : {
       "extractionState" : "manual",
       "localizations" : {

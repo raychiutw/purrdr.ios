@@ -48,3 +48,29 @@ public enum BackendError: Error, Equatable {
     /// 沒有登入，或登入已失效(更新權杖被拒)。
     case signedOut
 }
+
+/// 後台錯誤碼(`raychiutw/purrdr.server` 的 README「錯誤碼」)。app 依 `BackendError.backend` 的 `code` 判斷。
+public enum BackendErrorCode {
+    /// 401:更新權杖無效、過期、工作階段已撤銷,或寬限(60 秒)外重用舊權杖。**唯一**表示「要重新登入」的訊號。
+    public static let invalidRefreshToken = "invalid_refresh_token"
+    /// 401:存取權杖無效、過期,或會員已刪除(先換權杖重送一次)。
+    public static let invalidAccessToken = "invalid_access_token"
+    /// 409:連結時身分屬於另一個會員(`error.details` 是合併摘要)。
+    public static let mergeRequired = "merge_required"
+    /// 409:確認合併時兩邊都有有效訂閱。
+    public static let subscriptionConflict = "subscription_conflict"
+    /// 409:會員已有另一個有效訂閱。
+    public static let subscriptionAlreadyActive = "subscription_already_active"
+    /// 409:轉移的訂閱已屬於目前會員。
+    public static let subscriptionAlreadyOwned = "subscription_already_owned"
+    /// 409:訂閱已屬於另一個會員(`error.details` 是 `ownerEmail`、`canTransfer`)。
+    public static let subscriptionInUse = "subscription_in_use"
+    /// 404:轉移的訂閱沒登記在任何會員。
+    public static let subscriptionNotFound = "subscription_not_found"
+    /// 409:已經有同一種登入方式。
+    public static let providerAlreadyLinked = "provider_already_linked"
+    /// 400:Google Play 購買驗不過。
+    public static let invalidPurchase = "invalid_purchase"
+    /// 502/503:暫時問不到商店。
+    public static let storeUnavailable = "store_unavailable"
+}

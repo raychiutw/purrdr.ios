@@ -348,15 +348,37 @@ struct PurrdrApp: App {
         return .standard
     }
 
+    /// 登入時帶給後台的這支裝置 id:正式是推播共用的 Keychain id,UI 測試是固定值。
+    private static func memberDeviceID(uiTesting: Bool) -> @Sendable () -> String? {
+        if uiTesting { return { UITestingBackendTransport.thisDeviceID } }
+        return {
+            guard let id = try? KeychainPushDeviceID().load() else { return nil }
+            return id.backendValue
+        }
+    }
+
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
     /// `-uiTestingMember`／`-uiTestingPlusMember`:改用假後台，以已登入的會員啟動(帳號頁的開通流程,#246)。
     private static func makeMemberSession(uiTesting: Bool, arguments: [String]) -> MemberSession {
+        // 登入時帶這支裝置的 id(與推播共用,Keychain);讀不到時不帶,照常登入。UI 測試用固定 id。
+        let deviceID = memberDeviceID(uiTesting: uiTesting)
+        if uiTesting, arguments.contains("-uiTestingMemberOffline") {
+            // 已登入過(有更新權杖與會員快照),但後台一律連不上:帳號頁「暫時連不上,你仍是登入狀態」。
+            let tokens = InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken)
+            try? tokens.setMemberSnapshot(Data(UITestingBackendTransport.memberJSON.utf8))
+            return MemberSession(transport: UITestingOfflineBackend(), tokenStore: tokens, deviceID: deviceID)
+        }
         if uiTesting, let backend = uiTestingMemberBackend(arguments) {
-            return MemberSession(transport: backend, tokenStore: InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken))
+            return MemberSession(
+                transport: backend, tokenStore: InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken), deviceID: deviceID)
         }
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
         let tokenStore: any TokenStore = uiTesting ? InMemoryTokenStore() : KeychainTokenStore()
-        return MemberSession(transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore)
+        var diagnostics: MemberDiagnostics = MemberLog.system
+        if uiTesting { diagnostics = { _ in } }
+        return MemberSession(
+            transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore, deviceID: deviceID,
+            diagnostics: diagnostics)
     }
 
     /// 這支裝置(#266):推播 id 存 Keychain(讀不到時稍後再試),名稱預設是系統的裝置名稱(使用者可在帳號頁改)。

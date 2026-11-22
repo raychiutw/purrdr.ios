@@ -26,6 +26,19 @@ final class AccountUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Not a Member Yet"].exists)
     }
 
+    /// 登入保留(#406):後台連不上時仍是登入狀態,帳號頁說明「暫時連不上」,不是登入頁。
+    @MainActor
+    func testUnreachableBackendKeepsSignedIn() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMemberOffline"])
+        app.openAccountSheet()
+
+        XCTAssertTrue(app.element("account.connectionLimited").waitUntilExists(timeout: 10), "沒有「暫時連不上」說明")
+        XCTAssertTrue(app.staticTexts["Can’t reach Purrdr for now. You’re still signed in."].exists)
+        XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.exists, "連不上時不顯示登入中的會員")
+        XCTAssertTrue(app.buttons["account.connectionLimited.retry"].exists, "沒有再試一次")
+        XCTAssertFalse(app.element("account.signedOut").exists, "連不上不該變成登入頁")
+    }
+
     /// 帳號鈕在最右上角(HIG),新增聊天在它左邊。
     @MainActor
     func testAccountButtonIsRightmostAfterNewChat() {

@@ -38,9 +38,9 @@ final class UITestingBackendTransport: BackendTransport {
     func send(_ request: BackendRequest) async throws -> BackendResponse {
         switch (request.method, request.path) {
         case ("POST", "/v1/sessions/refresh"):
-            return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","member":\#(Self.member)}"#)
+            return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","member":\#(Self.memberJSON)}"#)
         case ("GET", "/v1/members/me"):
-            return Self.json(#"{"member":\#(Self.member)}"#)
+            return Self.json(#"{"member":\#(Self.memberJSON)}"#)
         case ("GET", "/v1/members/me/subscription"):
             return Self.json(isPlusActive ? #"{"subscription":\#(Self.subscription)}"# : #"{"subscription":null}"#)
         case ("POST", "/v1/members/me/hosts/sync"):
@@ -134,7 +134,7 @@ final class UITestingBackendTransport: BackendTransport {
         return String(decoding: data, as: UTF8.self)
     }
 
-    private static let member =
+    static let memberJSON =
         #"{"id":"ui-testing-member","identities":[{"provider":"apple","email":"ray@example.com","linkedAt":"2026-01-01T00:00:00.000Z"}]}"#
 
     private static let subscription =
@@ -152,5 +152,12 @@ final class UITestingBackendTransport: BackendTransport {
 
     private static func json(_ text: String) -> BackendResponse {
         BackendResponse(status: 200, body: Data(text.utf8))
+    }
+}
+
+/// UI 測試的「暫時連不上」(`-uiTestingMemberOffline`):後台一律連不上。
+struct UITestingOfflineBackend: BackendTransport {
+    func send(_ request: BackendRequest) async throws -> BackendResponse {
+        throw BackendError.unreachable
     }
 }

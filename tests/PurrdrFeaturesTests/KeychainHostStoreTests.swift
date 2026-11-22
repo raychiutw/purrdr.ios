@@ -11,6 +11,10 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
     var addStatus: OSStatus = errSecSuccess
     /// 有值時讀取一律回這個狀態(例如還沒第一次解鎖)。
     var copyStatus: OSStatus?
+    /// 不是 `errSecSuccess` 時,更新一律回這個狀態(項目不變)。
+    var updateStatus: OSStatus = errSecSuccess
+    /// 被刪過的 account(依序)。
+    var deletedAccounts: [String] = []
 
     func add(_ attributes: [String: Any]) -> OSStatus {
         guard addStatus == errSecSuccess else { return addStatus }
@@ -24,6 +28,7 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
     func update(_ query: [String: Any], _ attributes: [String: Any]) -> OSStatus {
         let account = query[kSecAttrAccount as String] as! String
         guard items[account] != nil else { return errSecItemNotFound }
+        guard updateStatus == errSecSuccess else { return updateStatus }
         items[account] = attributes[kSecValueData as String] as? Data
         return errSecSuccess
     }
@@ -44,6 +49,7 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
 
     func delete(_ query: [String: Any]) -> OSStatus {
         let account = query[kSecAttrAccount as String] as! String
+        deletedAccounts.append(account)
         return items.removeValue(forKey: account) == nil ? errSecItemNotFound : errSecSuccess
     }
 }

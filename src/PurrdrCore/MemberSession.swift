@@ -2,10 +2,11 @@ import Foundation
 
 /// 與 Purrdr 後台的會員連線：登入、權杖管理、會員操作。
 ///
-/// - 更新權杖存在 `TokenStore`(iOS 是 Keychain),存取權杖只放記憶體。
-/// - 存取權杖快過期或被後台拒絕(401)時，自動用更新權杖換一組新的再重送一次;同時間只會有一個換權杖的請求
-///   (更新權杖用一次就作廢，兩個同時換會讓其中一個失效)。
-/// - 更新權杖被拒時清掉本機的登入狀態，丟 `BackendError.signedOut`。
+/// - 存取權杖與更新權杖都存在 `TokenStore`(iOS 是 Keychain),重開 app 不必先換權杖(#406)。
+///   換到新權杖時先寫新的(更新權杖優先)、成功才換掉記憶體;寫入失敗不動舊的,60 秒內重送舊更新權杖會拿回同一組新權杖。
+/// - 存取權杖快過期或被後台拒絕(401)時，自動用更新權杖換一組新的再重送一次;同時間只會有一個換權杖的請求。
+/// - **只有後台明確拒絕**(401 `invalid_refresh_token`:工作階段被撤銷、過期或重用舊權杖)才清掉本機的登入狀態、丟 `BackendError.signedOut`;
+///   連不上、逾時、5xx 與其他錯誤都保留登入(丟 `.unreachable` 或 `.backend`)。
 /// - wire format(camelCase JSON)只在這個檔案處理，契約見 `raychiutw/purrdr.server` 的 `README.md`。
 public actor MemberSession {
     public struct SignInResult: Sendable, Equatable {
@@ -26,20 +27,38 @@ public actor MemberSession {
     private let transport: any BackendTransport
     private let tokenStore: any TokenStore
     private let now: @Sendable () -> Date
+    private let deviceID: @Sendable () -> String?
+    private let diagnostics: MemberDiagnostics
     private var accessToken: (token: String, expiresAt: Date)?
     private var renewal: Task<Member, any Error>?
 
-    public init(transport: any BackendTransport, tokenStore: any TokenStore, now: @escaping @Sendable () -> Date = { Date() }) {
+    /// - Parameters:
+    ///   - deviceID: 這支裝置在後台的 id(app 存在 Keychain 的 UUID);登入時帶上,讓後台一支裝置只留一個工作階段。讀不到時回 `nil`,照常登入。
+    ///   - diagnostics: 診斷事件(只有結果碼,不含個資)。
+    public init(
+        transport: any BackendTransport, tokenStore: any TokenStore, now: @escaping @Sendable () -> Date = { Date() },
+        deviceID: @escaping @Sendable () -> String? = { nil }, diagnostics: @escaping MemberDiagnostics = { _ in }
+    ) {
         self.transport = transport
         self.tokenStore = tokenStore
         self.now = now
+        self.deviceID = deviceID
+        self.diagnostics = diagnostics
+    }
+
+    /// 本機留著的會員快照(上次成功讀到的);沒有登入或沒有快照是 `nil`。不連後台。
+    public func cachedMember() throws -> Member? {
+        guard try tokenStore.refreshToken() != nil, let data = try tokenStore.memberSnapshot() else { return nil }
+        return try? JSONDecoder().decode(Wire.MemberBody.self, from: data).domain()
     }
 
     /// 用 Apple 或 Google 的憑證登入;沒有會員時後台會建立一個。
     public func signIn(_ credential: SignInCredential) async throws -> SignInResult {
-        let response = try await send(BackendRequest(method: "POST", path: "/v1/sessions", body: try Wire.encode(credential)))
+        let response = try await send(BackendRequest(
+            method: "POST", path: "/v1/sessions", body: try Wire.encode(credential, deviceID: deviceID()?.lowercased(), isSignIn: true)))
         let session = try Wire.decode(Wire.Session.self, from: response)
         try adopt(session)
+        diagnostics(.signedIn)
         return SignInResult(member: try session.member.domain(), memberCreated: session.memberCreated ?? false)
     }
 
@@ -47,20 +66,25 @@ public actor MemberSession {
     public func currentMember() async throws -> Member? {
         guard try tokenStore.refreshToken() != nil else { return nil }
         let response = try await authorized(BackendRequest(method: "GET", path: "/v1/members/me"))
-        return try Wire.decode(Wire.MemberEnvelope.self, from: response).member.domain()
+        let body = try Wire.decode(Wire.MemberEnvelope.self, from: response).member
+        remember(body)
+        return try body.domain()
     }
 
     /// 連結另一種登入方式。
     public func link(_ credential: SignInCredential) async throws -> LinkResult {
         let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/identities", body: try Wire.encode(credential)))
         let link = try Wire.decode(Wire.Link.self, from: response)
+        remember(link.member)
         return LinkResult(member: try link.member.domain(), mergedMemberID: link.mergedMemberId)
     }
 
     /// 解除連結(後台要求至少保留一種)。
     public func unlink(_ method: SignInMethod) async throws -> Member {
         let response = try await authorized(BackendRequest(method: "DELETE", path: "/v1/members/me/identities/\(method.rawValue)"))
-        return try Wire.decode(Wire.MemberEnvelope.self, from: response).member.domain()
+        let body = try Wire.decode(Wire.MemberEnvelope.self, from: response).member
+        remember(body)
+        return try body.domain()
     }
 
     /// 刪除會員：後台撤銷 Sign in with Apple 權杖並刪除所有資料;成功後清掉本機的登入狀態。
@@ -161,13 +185,18 @@ public actor MemberSession {
         do {
             return try await send(request)
         } catch let BackendError.backend(status, _, _) where status == 401 {
+            // 被拒的存取權杖記憶體與本機都不再用(否則下次又讀回來);換新失敗時更新權杖仍留著。
             accessToken = nil
+            try? tokenStore.setAccessToken(nil)
             request.accessToken = try await validAccessToken()
             return try await send(request)
         }
     }
 
     private func validAccessToken() async throws -> String {
+        if accessToken == nil, let stored = try? tokenStore.accessToken() {
+            accessToken = (stored.token, stored.expiresAt)
+        }
         if let accessToken, accessToken.expiresAt.timeIntervalSince(now()) > Self.accessTokenRenewalMargin {
             return accessToken.token
         }
@@ -192,22 +221,51 @@ public actor MemberSession {
             let response = try await send(BackendRequest(method: "POST", path: "/v1/sessions/refresh", body: body))
             let session = try Wire.decode(Wire.Session.self, from: response)
             try adopt(session)
+            remember(session.member)
+            diagnostics(.refreshed)
             return try session.member.domain()
-        } catch let BackendError.backend(status, _, _) where status == 401 {
+        } catch let BackendError.backend(status, code, _) where status == 401 && code == BackendErrorCode.invalidRefreshToken {
+            // 後台明確拒絕:工作階段已撤銷、過期,或寬限外重用舊權杖。這是唯一會登出的情況。
+            diagnostics(.refreshRejected(code: code))
             try clear()
             throw BackendError.signedOut
+        } catch let error as BackendError {
+            switch error {
+            case .unreachable: diagnostics(.refreshUnavailable(reason: "unreachable"))
+            case .backend(let status, let code, _): diagnostics(.refreshUnavailable(reason: "\(status) \(code)"))
+            case .invalidResponse: diagnostics(.refreshUnavailable(reason: "invalid_response"))
+            case .signedOut: break
+            }
+            throw error
         }
     }
 
+    /// 存下新權杖:先寫更新權杖(失去它就登出,最重要),再寫存取權杖,最後才換記憶體。
+    /// 任何一步寫入失敗都丟出、不動舊的;60 秒內用舊更新權杖重換會拿回同一組新權杖。
     private func adopt(_ session: Wire.Session) throws {
         guard let expiresAt = Wire.date(session.accessTokenExpiresAt) else { throw BackendError.invalidResponse }
-        try tokenStore.setRefreshToken(session.refreshToken)
+        do {
+            try tokenStore.setRefreshToken(session.refreshToken)
+            try tokenStore.setAccessToken(StoredAccessToken(token: session.accessToken, expiresAt: expiresAt))
+        } catch {
+            diagnostics(.tokenStorageFailed)
+            throw error
+        }
         accessToken = (session.accessToken, expiresAt)
+    }
+
+    /// 留下會員快照(盡力而為):連不上後台時仍知道是誰登入。
+    private func remember(_ member: Wire.MemberBody) {
+        guard let data = try? JSONEncoder().encode(member) else { return }
+        try? tokenStore.setMemberSnapshot(data)
     }
 
     private func clear() throws {
         accessToken = nil
         try tokenStore.setRefreshToken(nil)
+        try tokenStore.setAccessToken(nil)
+        try tokenStore.setMemberSnapshot(nil)
+        diagnostics(.cleared)
     }
 
     /// 送出請求;非 2xx 轉成 `BackendError.backend`,傳輸層的錯誤一律是 `.unreachable`。
@@ -237,6 +295,9 @@ private enum Wire {
         var idToken: String
         var nonce: String
         var authorizationCode: String?
+        /// 登入時才帶(連結另一種登入方式不帶)。
+        var deviceId: String?
+        var platform: String?
     }
 
     struct Session: Decodable {
@@ -256,11 +317,11 @@ private enum Wire {
         var mergedMemberId: String?
     }
 
-    struct MemberBody: Decodable {
+    struct MemberBody: Codable {
         var id: String
         var identities: [Identity]
 
-        struct Identity: Decodable {
+        struct Identity: Codable {
             var provider: String
             var email: String?
             var linkedAt: String
@@ -458,12 +519,15 @@ private enum Wire {
         }
     }
 
-    static func encode(_ credential: SignInCredential) throws -> Data {
+    /// `deviceID` 非 `nil` 表示是「登入」:帶上這支裝置的 id 與平台。連結另一種登入方式(`nil`)只送憑證。
+    static func encode(_ credential: SignInCredential, deviceID: String? = nil, isSignIn: Bool = false) throws -> Data {
         try JSONEncoder().encode(Credential(
             provider: credential.method.rawValue,
             idToken: credential.idToken,
             nonce: credential.nonce,
-            authorizationCode: credential.authorizationCode
+            authorizationCode: credential.authorizationCode,
+            deviceId: deviceID,
+            platform: isSignIn ? "ios" : nil
         ))
     }
 
@@ -480,3 +544,21 @@ private enum Wire {
         (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text)) ?? (try? Date.ISO8601FormatStyle().parse(text))
     }
 }
+
+/// 會員流程的診斷事件(#406):只有結果碼,不含 email、權杖或會員 ID。
+public enum MemberDiagnosticEvent: Equatable, Sendable {
+    /// 登入成功。
+    case signedIn
+    /// 換權杖成功。
+    case refreshed
+    /// 後台明確拒絕更新權杖(登入失效、被撤銷或重用舊權杖)。
+    case refreshRejected(code: String)
+    /// 換權杖時連不上或後台暫時出錯(保留登入)。
+    case refreshUnavailable(reason: String)
+    /// 權杖寫不進本機存放。
+    case tokenStorageFailed
+    /// 登出或刪除會員後清掉本機登入資料。
+    case cleared
+}
+
+public typealias MemberDiagnostics = @Sendable (MemberDiagnosticEvent) -> Void

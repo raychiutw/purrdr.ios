@@ -17,9 +17,13 @@ public final class MemberModel {
     public private(set) var phase: Phase = .unknown
     /// 正在跟 Apple／Google／後台溝通;畫面據此停用按鈕、顯示進度。
     public private(set) var isWorking = false
+    /// 已登入、但這一刻連不上 Purrdr 後台(#406):帳號頁顯示「暫時連不上,你仍是登入狀態」。連得上就消失。
+    public private(set) var isConnectionLimited = false
     /// 要提示使用者的事(錯誤或完成通知)。畫面顯示後設回 `nil`。
     public var notice: MemberNotice?
 
+    /// 目前這次操作是否以「暫時連不上」收尾(讀到本機快照就算成功,但後台沒答)。
+    private var endedLimited = false
     private let session: MemberSession
     private let google: GoogleSignIn
     private var pendingApple: (nonce: String, linking: Bool)?
@@ -32,10 +36,22 @@ public final class MemberModel {
         self.localState = localState
     }
 
-    /// 啟動時讀取登入狀態;沒有登入過時不連後台。連不上時維持 `.unknown` 並提示。
+    /// 啟動時讀取登入狀態;沒有登入過時不連後台。
+    /// 連不上或後台暫時出錯時**不登出**(#406):本機有上次讀到的會員就維持登入、標成 `isConnectionLimited`;
+    /// 沒有(升級前登入的)就維持 `.unknown` 並提示。只有後台明確拒絕才回到未登入。
     public func restore() async {
         await run {
-            if let member = try await session.currentMember() {
+            let member: Member?
+            do {
+                member = try await session.currentMember()
+            } catch let error where Self.isTemporary(error) {
+                guard let cached = try await session.cachedMember() else { throw error }
+                phase = .signedIn(cached)
+                localState?.activate(cached)
+                endedLimited = true
+                return
+            }
+            if let member {
                 phase = .signedIn(member)
                 localState?.activate(member)
             } else {
@@ -152,19 +168,34 @@ public final class MemberModel {
         return false
     }
 
+    /// 連不上、逾時或後台暫時出錯(5xx):登入仍然有效,稍後再試。
+    private static func isTemporary(_ error: any Error) -> Bool {
+        switch error as? BackendError {
+        case .unreachable: true
+        case .backend(let status, _, _): status >= 500
+        default: false
+        }
+    }
+
     /// 執行一個會員操作，把錯誤轉成提示。
     private func run(_ operation: () async throws -> Void) async {
         isWorking = true
         defer { isWorking = false }
+        endedLimited = false
         do {
             try await operation()
+            // 後台答得上來:不再是暫時連不上(restore 靠本機快照撐住時例外)。
+            isConnectionLimited = endedLimited
         } catch BackendError.signedOut {
             phase = .signedOut
+            isConnectionLimited = false
             localState?.discardAll()
             notice = .signedOut
-        } catch let BackendError.backend(_, code, message) {
+        } catch let BackendError.backend(status, code, message) {
+            if status >= 500, case .signedIn = phase { isConnectionLimited = true }
             notice = MemberNotice(code: code, message: message)
         } catch BackendError.unreachable {
+            if case .signedIn = phase { isConnectionLimited = true }
             notice = .failed(String(localized: "Couldn’t reach Purrdr. Check your connection and try again."))
         } catch {
             notice = .failed(String(localized: "Something went wrong. Try again."))
