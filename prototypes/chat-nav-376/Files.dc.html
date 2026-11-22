@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>檔案 tab 與檔案預覽</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif}
+.dark{--bg:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--text:#FFFFFF;--sec:#AEAEB2;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--glass:rgba(44,44,46,.86);--glassline:rgba(255,255,255,.14);--code:#2C2C2E;--kw:#C9A2E8;--str:#E8B48C}
+.light{--bg:#FFFFFF;--card:#F2F2F7;--fill:rgba(120,120,128,.16);--text:#000000;--sec:#636366;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--on:#FFFFFF;--glass:rgba(255,255,255,.88);--glassline:rgba(0,0,0,.08);--code:#F2F2F7;--kw:#7A3EA8;--str:#9A4A1A}
+.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6)}
+</style>
+</helmet>
+<div style="width:1760px;height:980px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#E4E4E9">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · 檔案 tab</div>
+<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
+<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
+<span style="width:84px"></span>
+<button class="glass" style="height:44px;border-radius:22px;padding:0 14px;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px;font-weight:600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="10" rx="2"></rect><path d="M8 19h8"></path></svg>Ray Mac Mini<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+<div class="glass" style="height:44px;border-radius:22px;display:flex;align-items:center;gap:2px;padding:0 4px">
+<button aria-label="新增聊天" style="width:36px;height:36px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;justify-content:center;padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button aria-label="帳號" style="width:32px;height:32px;border-radius:16px;border:none;background:var(--accent);color:var(--on);font-size:14px;font-weight:600;padding:0">R</button>
+</div>
+</div>
+<div style="position:absolute;top:116px;left:0;right:0;bottom:0;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:4px;padding:6px 12px 10px">
+<button style="height:36px;border:none;border-radius:18px;background:var(--fill);color:var(--text);padding:0 12px;font-size:15px">~</button><span style="color:var(--sec)">›</span>
+<button style="height:36px;border:none;border-radius:18px;background:var(--fill);color:var(--text);padding:0 12px;font-size:15px">Projects</button><span style="color:var(--sec)">›</span>
+<button style="height:36px;border:none;border-radius:18px;background:transparent;color:var(--text);padding:0 8px;font-size:15px;font-weight:600">purrdr.ios</button>
+<span style="flex-grow:1"></span>
+<button aria-label="上傳" style="width:36px;height:36px;border:none;border-radius:18px;background:var(--fill);color:var(--text);display:flex;align-items:center;justify-content:center;padding:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"></path></svg></button>
+</div>
+<sc-for list="{{items}}" as="f" hint-placeholder-count="8">
+<button style="border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:14px;padding:0 16px;text-align:left">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="{{f.ic}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{f.icon}}"></path></svg>
+<span style="flex-grow:1;display:flex;flex-direction:column;gap:2px;padding:11px 0;border-bottom:solid 1px var(--sep)"><span style="font-size:17px">{{f.name}}</span><span style="font-size:13px;color:var(--sec)">{{f.meta}}</span></span>
+</button>
+</sc-for>
+</div>
+<nav class="glass" aria-label="分頁" style="position:absolute;left:20px;right:20px;bottom:30px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:space-around;padding:0 6px;z-index:1">
+<sc-for list="{{tabs}}" as="b" hint-placeholder-count="4">
+<a href="#" aria-current="{{b.cur}}" style="flex-grow:1;height:54px;border-radius:27px;background:{{b.bg}};color:{{b.fg}};text-decoration:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500"><svg width="24" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{b.icon}}"></path></svg><span>{{b.name}}</span></a>
+</sc-for>
+</nav>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · 檔案預覽(第二層,tab bar 隱藏)</div>
+<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
+<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
+<button aria-label="返回" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="glass" style="height:52px;border-radius:26px;padding:0 22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span style="font-size:17px;font-weight:600">README.md</span><span style="font-size:13px;color:var(--sec)">4.2 KB · 今天 09:12</span></div>
+<button aria-label="分享" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 12v8h14v-8"></path></svg></button>
+</div>
+<div style="position:absolute;top:126px;left:16px;right:16px;bottom:24px;background:var(--code);border-radius:16px;padding:16px;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;color:var(--text);overflow:hidden"><span style="color:var(--kw)"># Purrdr</span>
+
+在 iPhone 與 iPad 上,看、回覆、操作你電腦上由 herdr 管理的 coding agent。
+
+<span style="color:var(--kw)">## 主要功能</span>
+
+- 所有 Agent 一個列表
+- 在聊天裡回答 Agent 的提問
+- 需要時開一個完整的終端機
+- 直接連到你自己的電腦
+
+<span style="color:var(--kw)">## 安裝</span>
+
+需要 iOS 26 以上。
+<span style="color:var(--str)">`swift test`</span> 跑全部測試。</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const folder = 'M3 6.5h6l2 2h10V19H3z';
+    const file = 'M6 3h8l5 5v13H6z M14 3v5h5';
+    const items = [
+      { name: 'src', meta: '資料夾 · 8 項', icon: folder, ic: 'var(--accent)' },
+      { name: 'tests', meta: '資料夾 · 6 項', icon: folder, ic: 'var(--accent)' },
+      { name: 'docs', meta: '資料夾 · 12 項', icon: folder, ic: 'var(--accent)' },
+      { name: 'scripts', meta: '資料夾 · 14 項', icon: folder, ic: 'var(--accent)' },
+      { name: 'AGENTS.md', meta: '38 KB · 今天 09:40', icon: file, ic: 'var(--sec)' },
+      { name: 'CHANGELOG.md', meta: '9 KB · 昨天', icon: file, ic: 'var(--sec)' },
+      { name: 'DESIGN.md', meta: '61 KB · 今天 08:12', icon: file, ic: 'var(--sec)' },
+      { name: 'Package.swift', meta: '3 KB · 11 月 20 日', icon: file, ic: 'var(--sec)' },
+      { name: 'README.md', meta: '4 KB · 今天 09:12', icon: file, ic: 'var(--sec)' }
+    ];
+    const tabs = [
+      { name: '聊天', icon: 'M4 5h16v11H9l-5 4V5z' },
+      { name: '檔案', icon: 'M3 6h6l2 2h10v11H3z' },
+      { name: '主機', icon: 'M3 4h18v12H3z M8 20h8 M12 16v4' },
+      { name: '設定', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19 12l2-1-1-3-2 .3-1.5-1.5L17 5l-3-1-1 2h-2L10 4 7 5l.5 2.3L6 8.8 4 8.5l-1 3 2 1v2l-2 1 1 3 2-.3 1.5 1.5L7 21l3 1 1-2h2l1 2 3-1-.5-2.3 1.5-1.5 2 .3 1-3-2-1z' }
+    ].map((t, i) => ({ ...t, cur: i === 1 ? 'page' : 'false', bg: i === 1 ? 'var(--fill)' : 'transparent', fg: i === 1 ? 'var(--accent)' : 'var(--text)' }));
+    return { themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }], items, tabs };
+  }
+}
+</script>
+</body>
+</html>

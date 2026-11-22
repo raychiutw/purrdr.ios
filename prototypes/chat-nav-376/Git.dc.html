@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>Git 變更與單檔 diff</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif}
+.dark{--bg:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--text:#FFFFFF;--sec:#AEAEB2;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--glass:rgba(44,44,46,.86);--glassline:rgba(255,255,255,.14);--addbg:rgba(111,174,152,.16);--add:#6FAE98;--delbg:rgba(201,128,120,.12);--del:#C98078}
+.light{--bg:#FFFFFF;--card:#F2F2F7;--fill:rgba(120,120,128,.16);--text:#000000;--sec:#636366;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--glass:rgba(255,255,255,.88);--glassline:rgba(0,0,0,.08);--addbg:rgba(94,149,131,.13);--add:#4F8572;--delbg:rgba(176,100,93,.10);--del:#A0574F}
+.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6)}
+</style>
+</helmet>
+<div style="width:1760px;height:980px;box-sizing:border-box;padding:40px;display:flex;gap:40px;background:#E4E4E9">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · Git 變更清單</div>
+<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
+<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
+<button aria-label="返回" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="glass" style="height:52px;border-radius:26px;padding:0 22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span style="font-size:17px;font-weight:600">Git 變更</span><span style="font-size:13px;color:var(--sec)">fix/composer · 3 個檔案</span></div>
+<span style="width:44px"></span>
+</div>
+<div style="position:absolute;top:126px;left:0;right:0;display:flex;flex-direction:column">
+<sc-for list="{{changes}}" as="c" hint-placeholder-count="3">
+<button style="border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:14px;padding:0 16px;text-align:left">
+<span style="width:28px;height:28px;border-radius:8px;background:var(--fill);font-family:ui-monospace,Menlo,monospace;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center" aria-label="{{c.kindName}}">{{c.kind}}</span>
+<span style="flex-grow:1;display:flex;flex-direction:column;gap:2px;padding:12px 0;border-bottom:solid 1px var(--sep);min-width:0"><span style="font-size:17px">{{c.name}}</span><span style="font-size:13px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{c.path}}</span></span>
+<span style="font-family:ui-monospace,Menlo,monospace;font-size:13px;display:flex;gap:6px"><span style="color:var(--add)">{{c.plus}}</span><span style="color:var(--del)">{{c.minus}}</span></span>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+</button>
+</sc-for>
+</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font-size:16px;font-weight:600;color:#3A3A3C;height:20px">{{t.name}} · 單檔 diff</div>
+<div class="{{t.cls}}" style="width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--bg);color:var(--text);box-shadow:0 0 0 8px #0E0E10">
+<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:2">
+<button aria-label="返回" class="glass" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--text);padding:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="glass" style="height:52px;border-radius:26px;padding:0 22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span style="font-size:17px;font-weight:600">ComposerRules.swift</span><span style="font-size:13px;color:var(--sec)">修改 · +6 −9</span></div>
+<span style="width:44px"></span>
+</div>
+<div style="position:absolute;top:126px;left:0;right:0;bottom:0;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.7">
+<div style="padding:6px 16px;color:var(--sec);background:var(--card)">@@ -81,14 +81,11 @@</div>
+<sc-for list="{{lines}}" as="l" hint-placeholder-count="14">
+<div style="display:flex;background:{{l.bg}};color:{{l.fg}};text-decoration:{{l.deco}}"><span style="width:28px;text-align:right;padding-right:8px;color:var(--sec);flex-shrink:0">{{l.no}}</span><span style="width:14px;flex-shrink:0;color:{{l.signColor}}">{{l.sign}}</span><span style="white-space:pre;overflow:hidden">{{l.text}}</span></div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const changes = [
+      { kind: 'M', kindName: '修改', name: 'ComposerRules.swift', path: 'src/PurrdrAgentFeatures', plus: '+6', minus: '−9' },
+      { kind: 'M', kindName: '修改', name: 'ComposerView.swift', path: 'src/PurrdrFeatures', plus: '+48', minus: '−71' },
+      { kind: 'A', kindName: '新增', name: 'ComposerLayoutTests.swift', path: 'tests/PurrdrFeaturesTests', plus: '+92', minus: '' }
+    ];
+    const L = (no, sign, text) => {
+      const add = sign === '+', del = sign === '−';
+      return { no, sign, text,
+        bg: add ? 'var(--addbg)' : del ? 'var(--delbg)' : 'transparent',
+        fg: del ? 'var(--sec)' : 'var(--text)', deco: del ? 'line-through' : 'none',
+        signColor: add ? 'var(--add)' : del ? 'var(--del)' : 'var(--sec)' };
+    };
+    const lines = [
+      L('81', ' ', '  /// 輸入框的行數上限'),
+      L('82', '−', '  static let maxLines = 8'),
+      L('83', '−', '  static let maxShare = 0.4'),
+      L('82', '+', '  static let maxLines = 5'),
+      L('84', ' ', ''),
+      L('85', ' ', '  static func height('),
+      L('86', ' ', '    lines: Int,'),
+      L('87', '−', '    available: CGFloat'),
+      L('87', '+', '    lineHeight: CGFloat'),
+      L('88', ' ', '  ) -> CGFloat {'),
+      L('89', '−', '    let cap = available * maxShare'),
+      L('90', '−', '    return min(cap, …)'),
+      L('89', '+', '    let n = min(lines, maxLines)'),
+      L('90', '+', '    return CGFloat(n) * lineHeight'),
+      L('91', ' ', '  }')
+    ];
+    return { themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }], changes, lines };
+  }
+}
+</script>
+</body>
+</html>
