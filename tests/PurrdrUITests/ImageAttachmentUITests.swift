@@ -86,10 +86,10 @@ final class ImageAttachmentUITests: XCTestCase {
         // 最新的泡泡貼著輸入列：點圖片上緣，避免點到浮在上面的輸入列。
         image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
 
-        let viewer = app.element("image.viewer")
-        XCTAssertTrue(viewer.waitUntilExists(timeout: 5), "點泡泡圖片沒有全螢幕檢視")
-        viewer.tap()
-        XCTAssertTrue(viewer.waitUntilGone(timeout: 5), "點一下沒有關閉全螢幕檢視")
+        let viewer = app.element("imageViewer")
+        XCTAssertTrue(viewer.waitUntilExists(timeout: 5), "點泡泡圖片沒有圖片檢視器")
+        app.element("imageViewer.done").tap()
+        XCTAssertTrue(viewer.waitUntilGone(timeout: 5), "按 Done 沒有關閉圖片檢視器")
     }
 
     /// 「＋」念「附加」、至少 44pt;點了升起面板:最近的照片(替身)、所有照片、檔案、貼上(#352)。

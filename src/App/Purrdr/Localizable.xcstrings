@@ -5803,6 +5803,17 @@
         }
       }
     },
+    "Image %lld of %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 張，共 %lld 張"
+          }
+        }
+      }
+    },
     "Image on the host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7064,6 +7075,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一個 Agent"
+          }
+        }
+      }
+    },
+    "Next Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一張圖片"
           }
         }
       }
@@ -8901,6 +8923,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上一個 Agent"
+          }
+        }
+      }
+    },
+    "Previous Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一張圖片"
           }
         }
       }
@@ -11732,17 +11765,6 @@
         }
       }
     },
-    "Tap to close." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點一下關閉。"
-          }
-        }
-      }
-    },
     "Terminal" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13413,6 +13435,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支 iPhone 和那台主機要連同一個 Wi-Fi。"
+          }
+        }
+      }
+    },
+    "This image can't be opened." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟這張圖片。"
           }
         }
       }

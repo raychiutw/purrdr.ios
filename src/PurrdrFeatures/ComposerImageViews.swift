@@ -9,20 +9,14 @@ import UIKit
 
 // MARK: - 泡泡圖片(F7;#37 故事 35)
 
-/// 泡泡圖片要用的東西：主機路徑或副本檔名 → 手機上的副本、打開全螢幕檢視。
+/// 泡泡圖片要用的東西：主機路徑或副本檔名 → 手機上的副本、打開圖片檢視器(#426)。
 struct BubbleImageContext {
     var localImage: (String) -> URL? = { _ in nil }
-    var show: (URL) -> Void = { _ in }
+    var show: (ImageViewerItem) -> Void = { _ in }
 }
 
 extension EnvironmentValues {
     @Entry var bubbleImages = BubbleImageContext()
-}
-
-/// 全螢幕檢視的圖片。
-struct ViewerImage: Identifiable, Equatable {
-    let url: URL
-    var id: URL { url }
 }
 
 /// 泡泡裡的圖片：長邊 220pt、依比例;點開全螢幕。手機上沒有副本(例如別台裝置送的)時顯示「Image」標籤(圖在主機上)。
@@ -32,6 +26,7 @@ struct BubbleImagesView: View {
     /// 每張圖在主機上的路徑(依序對應 `images`);手機沒有副本時經主機取檔讀回縮圖(#428)。
     var hostPaths: [String?] = []
     @Environment(\.bubbleImages) private var context
+    @Environment(\.agentImages) private var agentImages
 
     static let longEdge: CGFloat = 220
 
@@ -40,7 +35,7 @@ struct BubbleImagesView: View {
             ForEach(Array(images.enumerated()), id: \.offset) { index, url in
                 if let url, let size = BubbleImageCache.size(of: url) {
                     Button {
-                        context.show(url)
+                        open(tapped: index)
                     } label: {
                         BubbleImageCache.image(at: url)
                             .resizable()
@@ -53,7 +48,7 @@ struct BubbleImagesView: View {
                     .accessibilityHint(Text("Opens the image full screen."))
                     .accessibilityIdentifier("conversation.image")
                 } else if index < hostPaths.count, let path = hostPaths[index] {
-                    HostSentImageView(path: path, index: index)
+                    HostSentImageView(path: path, index: index) { open(tapped: index) }
                 } else {
                     Label("Image", systemImage: "photo")
                         .font(.caption)
@@ -62,6 +57,28 @@ struct BubbleImagesView: View {
                 }
             }
         }
+    }
+
+    /// 點某一張:同一則訊息的圖片一起放進圖片檢視器,從點的那張開始(#426)。
+    private func open(tapped index: Int) {
+        let loads = agentImages.loads
+        let plan = ImageViewerPlan(images: images, hostPaths: hostPaths, tapped: index) { path in
+            switch loads?.states[path] {
+            case .missing, .denied, .unsupported, .tooLarge: false
+            default: true
+            }
+        }
+        guard let plan else { return }
+        let sources = plan.entries.enumerated().map { id, entry -> ImageViewerSource in
+            switch entry {
+            case .local(let url): ImageViewerSource(id: id, name: url.lastPathComponent, origin: .file(url))
+            case .host(let path):
+                ImageViewerSource(id: id, name: HostPathOpenStatus.name(of: path), origin: .deferred { [agentImages] in
+                    await agentImages.fullImageData(at: path)
+                })
+            }
+        }
+        context.show(ImageViewerItem(sources: sources, startIndex: plan.startIndex))
     }
 
     /// 長邊 220pt,依比例。
@@ -91,44 +108,6 @@ enum BubbleImageCache {
     static func size(of url: URL) -> CGSize? { nil }
     static func image(at url: URL) -> Image { Image(systemName: "photo") }
     #endif
-}
-
-/// 全螢幕檢視：點任一處關閉(F7)。VoiceOver 有「Close」動作，也可用兩指 Z 字手勢(escape)。
-struct ImageViewer: View {
-    let image: ViewerImage
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            BubbleImageCache.image(at: image.url)
-                .resizable()
-                .scaledToFit()
-                .accessibilityLabel(Text("Image"))
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { dismiss() }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isImage)
-        .accessibilityHint(Text("Tap to close."))
-        .accessibilityAction(named: Text("Close")) { dismiss() }
-        .accessibilityAction(.escape) { dismiss() }
-        .accessibilityIdentifier("image.viewer")
-        #if os(iOS)
-        .statusBarHidden()
-        #endif
-    }
-}
-
-extension View {
-    /// 全螢幕打開泡泡圖片(macOS 只為了 `swift test` 編譯，用 sheet)。
-    func imageViewer(item: Binding<ViewerImage?>) -> some View {
-        #if os(iOS)
-        fullScreenCover(item: item) { ImageViewer(image: $0) }
-        #else
-        sheet(item: item) { ImageViewer(image: $0) }
-        #endif
-    }
 }
 
 // MARK: - 輸入列的附件

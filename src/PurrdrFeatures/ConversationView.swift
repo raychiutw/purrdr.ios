@@ -27,7 +27,7 @@ public struct ConversationView: View {
     /// 上次看到的列 id(`model.entriesRevision` 改變時與新的比較，#130)。
     @State private var entryIDs: [String] = []
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
-    @State private var viewerImage: ViewerImage?
+    @State private var viewerItem: ImageViewerItem?
     /// 新訊息與狀態變化的 VoiceOver 公告(有節流，#35)。
     @State private var announcer = ConversationAnnouncer()
     /// 對話的可見高度(扣掉上下 inset;輸入列依它決定鍵盤出現時要不要讓位，#196)。
@@ -62,9 +62,9 @@ public struct ConversationView: View {
             .slashPanelSheet(model: model)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
-                show: { viewerImage = ViewerImage(url: $0) }
+                show: { viewerItem = $0 }
             ))
-            .imageViewer(item: $viewerImage)
+            .imageViewer(item: $viewerItem)
             .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
             .environment(\.delegationContext, DelegationContext(
                 workflowModel: { [model] in model.workflowModel(for: $0) },
@@ -582,7 +582,7 @@ struct AgentMessageView: View {
     /// 點了的主機路徑：開啟中或開不了時在訊息下方顯示狀態。
     @State private var openedPath: String?
     @State private var previewFile: URL?
-    @State private var viewer: AgentImageViewerItem?
+    @State private var viewer: ImageViewerItem?
 
     var body: some View {
         let markdown = MarkdownView(text.markdown)
@@ -610,7 +610,7 @@ struct AgentMessageView: View {
             return .handled
         })
         .quickLookPreview($previewFile)
-        .agentImageViewer(item: $viewer)
+        .imageViewer(item: $viewer)
     }
 
     private func open(_ path: String) {
@@ -621,7 +621,7 @@ struct AgentMessageView: View {
             if HostPathOpenStatus.isImage(path) {
                 await loads.load(path, scope: scope, userRequested: true)
                 guard case .loaded(let data, _) = loads.states[path] else { return }
-                viewer = AgentImageViewerItem(data: data, name: HostPathOpenStatus.name(of: path))
+                viewer = ImageViewerItem(data: data, name: HostPathOpenStatus.name(of: path))
             } else {
                 guard let file = await loads.open(path, scope: scope) else { return }
                 previewFile = file

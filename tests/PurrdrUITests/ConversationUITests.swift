@@ -87,7 +87,7 @@ final class ConversationUITests: XCTestCase {
 
     // MARK: - 已送出圖片情境(`-demoSentImages`,#428:手機沒有副本，經主機讀回縮圖)
 
-    /// 使用者送出的兩張圖：一張經主機取檔讀回縮圖、可點開全螢幕;一張已被主機清掉，顯示「主機上已找不到」。
+    /// 使用者送出的三張圖：兩張經主機取檔讀回縮圖、可點開圖片檢視器;一張已被主機清掉，顯示「主機上已找不到」。
     @MainActor
     func testSentImagesReadBackFromHost() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
@@ -97,7 +97,23 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(
             app.element("conversation.sentImage.note").waitUntilExists(timeout: 10), "被主機清掉的圖片沒有說明")
         thumbnail.tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 5), "點縮圖沒有開全螢幕檢視")
+        // 圖片檢視器(#426):同一則訊息還在主機的兩張圖(被清掉的那張不進清單);頁數、左右切換、分享、下滑關閉。
+        XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 5), "點縮圖沒有開圖片檢視器")
+        XCTAssertEqual(app.element("imageViewer.pageLabel").label, "Image 1 of 2")
+        XCTAssertTrue(app.element("imageViewer.share").waitUntilExists(timeout: 10), "讀到圖後沒有分享鈕")
+        let image = app.element("imageViewer.image")
+        XCTAssertTrue(image.waitUntilExists(timeout: 5))
+        image.swipeLeft()
+        let second = NSPredicate(format: "label == %@", "Image 2 of 2")
+        let moved = XCTNSPredicateExpectation(predicate: second, object: app.element("imageViewer.pageLabel"))
+        XCTAssertEqual(XCTWaiter().wait(for: [moved], timeout: 5), .completed, "左滑沒有切到第 2 張")
+        image.swipeRight()
+        let first = NSPredicate(format: "label == %@", "Image 1 of 2")
+        let back = XCTNSPredicateExpectation(predicate: first, object: app.element("imageViewer.pageLabel"))
+        XCTAssertEqual(XCTWaiter().wait(for: [back], timeout: 5), .completed, "右滑沒有回到第 1 張")
+        app.element("imageViewer.image").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            .press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
+        XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5), "下滑沒有關閉圖片檢視器")
     }
 
     /// 使用者送出的兩份檔案(#429):一份經主機讀回縮小檔案卡片(大小、點開以 QuickLook),一份已被主機清掉顯示說明。
@@ -186,11 +202,11 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.revealInConversation(thumbnail))
         XCTAssertFalse(app.staticTexts["docs/export-preview.png"].exists)
         thumbnail.tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 5), "沒有全螢幕檢視")
-        XCTAssertGreaterThanOrEqual(app.element("agentImage.viewer.done").frame.height, 44)
+        XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 5), "沒有全螢幕檢視")
+        XCTAssertGreaterThanOrEqual(app.element("imageViewer.done").frame.height, 44)
 
         // #330:雙點兩下放大、再雙點兩下縮回;1× 下滑關閉。
-        let image = app.element("agentImage.viewer.image")
+        let image = app.element("imageViewer.image")
         XCTAssertEqual(image.value as? String, "Not zoomed")
         image.doubleTap()
         let zoomed = waitForValue(of: image, beginning: "Zoomed in")
@@ -200,13 +216,13 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(image.value as? String, "Not zoomed", "再雙點兩下沒有縮回")
         image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5), "1× 下滑沒有關閉")
+        XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5), "1× 下滑沒有關閉")
 
         XCTAssertTrue(app.revealInConversation(thumbnail))
         thumbnail.tap()
-        XCTAssertTrue(app.element("agentImage.viewer.done").waitUntilExists(timeout: 5))
-        app.element("agentImage.viewer.done").tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5))
+        XCTAssertTrue(app.element("imageViewer.done").waitUntilExists(timeout: 5))
+        app.element("imageViewer.done").tap()
+        XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5))
 
         let imageDisclosure = app.element("conversation.agentImage.disclosure")
         XCTAssertTrue(app.revealInConversation(imageDisclosure))
@@ -255,9 +271,9 @@ final class ConversationUITests: XCTestCase {
         let pathImage = app.links["/Users/demo/ledger/docs/export-preview.png"].firstMatch
         XCTAssertTrue(app.revealInConversation(pathImage), "訊息中的圖片路徑不是連結")
         pathImage.tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
-        app.element("agentImage.viewer.done").tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5))
+        XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
+        app.element("imageViewer.done").tap()
+        XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5))
     }
 
     // MARK: - 輸入列與鍵盤(F6)

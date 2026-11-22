@@ -4,15 +4,16 @@ import SwiftUI
 
 /// 使用者送出、手機上沒有副本的圖片(#428):經主機取檔從上傳資料夾讀回縮圖。規則與快取同 Agent 圖片卡片
 /// (自動載入 8 MiB、版本沒變只查狀態);超過上限顯示大小等點擊,被主機清掉顯示「主機上已找不到」,
-/// 主機服務太舊(0.13.0 之前，`HostServiceFeature.userUploadFetch`)或讀不到時退回「Image」字樣、不顯示錯誤說明。縮圖點開用與 Agent 圖片相同的全螢幕檢視。
+/// 主機服務太舊(0.13.0 之前，`HostServiceFeature.userUploadFetch`)或讀不到時退回「Image」字樣、不顯示錯誤說明。縮圖點開是共用的圖片檢視器。
 struct HostSentImageView: View {
     let path: String
     /// 這是同一則訊息的第幾張(VoiceOver 念「Image N」)。
     let index: Int
+    /// 點縮圖:交給泡泡打開圖片檢視器(同一則訊息的圖片一起放進去,#426)。
+    let open: () -> Void
     @Environment(\.agentImages) private var context
     @State private var thumbnail: AgentImageDecoder.Decoded?
     @State private var thumbnailVersion: HostFileVersion?
-    @State private var viewer: AgentImageViewerItem?
 
     private var state: AgentFileLoads.State? { context.loads?.states[path] }
     private var display: AgentImageCardDisplay { AgentImageCardDisplay(state: state) }
@@ -28,18 +29,13 @@ struct HostSentImageView: View {
         content
             .task(id: path) { await load(userRequested: false) }
             .task(id: loadedVersion) { await decodeThumbnail() }
-            .agentImageViewer(item: $viewer)
     }
 
     @ViewBuilder
     private var content: some View {
         if let thumbnail {
             let size = BubbleImagesView.fitted(CGSize(width: thumbnail.image.width, height: thumbnail.image.height))
-            Button {
-                if case .loaded(let data, _) = state {
-                    viewer = AgentImageViewerItem(data: data, name: String(path.split(separator: "/").last ?? "Image"))
-                }
-            } label: {
+            Button(action: open) {
                 Image(decorative: thumbnail.image, scale: 1)
                     .resizable()
                     .scaledToFill()

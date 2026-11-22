@@ -220,13 +220,13 @@ enum DemoTranscripts {
         ]
     )
 
-    /// 已送出圖片情境(`DemoHost.Scenario.sentImages`,#428)的 ledger 對話:使用者送出兩張上傳圖(一張還在主機、一張已被清掉)。
+    /// 已送出圖片情境(`DemoHost.Scenario.sentImages`,#428)的 ledger 對話:使用者送出三張上傳圖(兩張還在主機、一張已被清掉)。
     static let sentImages = Session(
         sessionID: ledger.sessionID, cwd: ledger.cwd, paneID: ledger.paneID,
         lines: [
             userPrompt("d3m0-s-01", "2026-11-16T10:00:00.000Z", UploadedImages.prompt(
-                text: "Compare these two exports.",
-                paths: [DemoHostFileFetcher.sentImagePath, DemoHostFileFetcher.clearedImagePath])),
+                text: "Compare these exports.",
+                paths: [DemoHostFileFetcher.sentImagePath, DemoHostFileFetcher.clearedImagePath, DemoHostFileFetcher.secondSentImagePath])),
             assistantText("d3m0-s-02", "2026-11-16T10:00:06.000Z", "The first export has the date column first; the second image is no longer readable."),
             userPrompt("d3m0-s-03", "2026-11-16T10:01:00.000Z", UploadedImages.prompt(
                 text: "And these files.",
