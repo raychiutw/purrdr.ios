@@ -17,7 +17,9 @@ public struct ConversationView: View {
     /// Reduce Motion:自動捲到底不做動畫，直接跳過去(HIG:減少自動、重複的動畫)。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scroll = ConversationScroll()
-    @State private var position = ScrollPosition(edge: .bottom)
+    /// 初始位置不指定邊緣:`ScrollPosition(edge: .bottom)` 搭配 `scrollTargetLayout()` 與水平 padding 時，
+    /// SwiftUI 會把水平位移設成 padding 的寬度(16pt),訊息貼到左邊、頂端被裁掉(#418)。開啟時的底部定位交給 `defaultScrollAnchor(.bottom)`。
+    @State private var position = ScrollPosition()
     @State private var userIsScrolling = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
     @State private var userHasDragged = false
     /// 畫面上看得到的列(內容被重建時的錨點,#130)。
@@ -433,6 +435,13 @@ public struct ConversationView: View {
             } description: {
                 Text("This pane no longer has an agent running.")
             }
+        case .newConversation:
+            ContentUnavailableView {
+                Label("New Conversation", systemImage: "bubble.left.and.bubble.right")
+            } description: {
+                Text("Its messages appear here after you send the first message.")
+            }
+            .accessibilityIdentifier("conversation.new")
         case .ready:
             ContentUnavailableView {
                 Label("No Messages Yet", systemImage: "bubble.left.and.bubble.right")

@@ -174,9 +174,29 @@ struct ConversationModelTests {
 
         await setup.model.poll()
 
-        #expect(setup.model.phase == .ready)
+        // #418:電腦上的 Pane 可能還顯示舊 session 的內容(/clear、重開、resume 後要到第一則提示詞才建立新的對話紀錄),
+        // 所以不是「還沒有訊息」,而是說明新的對話要送出第一則訊息才會出現。
+        #expect(setup.model.phase == .newConversation)
         #expect(setup.model.items.isEmpty)
         #expect(setup.model.banner == nil)
+    }
+
+    /// #418 第 3 項的假設驗證:herdr 已回報 session、但對話紀錄檔(或所在資料夾)稍後才出現——
+    /// 下一次輪詢就要讀到訊息,不能停在「還沒有訊息」。
+    @Test("檔案稍後才出現:下一次輪詢讀到訊息")
+    func transcriptAppearingLaterIsReadOnTheNextPoll() async throws {
+        let setup = try Self.setup(transcript: nil)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
+        await setup.model.poll()
+        #expect(setup.model.items.isEmpty)
+        #expect(setup.model.phase == .newConversation)
+
+        try setup.shell.write(Self.fixture, to: Self.transcriptPath)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
+        await setup.model.poll()
+
+        #expect(setup.model.items.count == Self.fixtureItemCount, "phase=\(setup.model.phase) banner=\(String(describing: setup.model.banner)) offline=\(setup.model.isOffline)")
+        #expect(setup.model.phase == .ready)
     }
 
     /// R-I10:權限錯誤不是缺席，要說出來，否則對話永遠在等。

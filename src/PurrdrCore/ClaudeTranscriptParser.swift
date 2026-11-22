@@ -36,13 +36,13 @@ public enum ClaudeTranscriptParser {
     private static func assistantParts(_ object: [String: Any]) -> [TranscriptPart] {
         let message = object["message"] as? [String: Any]
         if let text = message?["content"] as? String {
-            return text.isBlank ? [] : [.text(text)]
+            return text.hasNoVisibleText ? [] : [.text(text)]
         }
         let blocks = message?["content"] as? [[String: Any]] ?? []
         return blocks.compactMap { block -> TranscriptPart? in
             switch block["type"] as? String {
             case "text":
-                guard let text = block["text"] as? String, !text.isBlank else { return nil }
+                guard let text = block["text"] as? String, !text.hasNoVisibleText else { return nil }
                 return .text(text)
             case "thinking":
                 // 新版 Claude Code 的 thinking 只留簽章、內容是空字串:隱藏。
@@ -393,6 +393,19 @@ extension TranscriptPart {
 
 extension String {
     var isBlank: Bool { allSatisfy(\.isWhitespace) }
+
+    /// 畫出來沒有任何可見文字:只有空白、零寬字元(格式字元,例如 U+200B)或只有空的 code fence。
+    /// 這種 assistant text 若成為訊息，會是每輪第一則(帶標頭)卻沒有內容的列(#418)。
+    var hasNoVisibleText: Bool {
+        func invisible(_ text: String) -> Bool {
+            text.unicodeScalars.allSatisfy { $0.properties.isWhitespace || $0.properties.generalCategory == .format }
+        }
+        if invisible(self) { return true }
+        return Markdown.parse(self).allSatisfy { block in
+            if case .code(_, let code) = block { return invisible(code) }
+            return false
+        }
+    }
 
     /// 超過 `limit` 個字元時截斷並加上「…」。
     func truncated(to limit: Int) -> String {

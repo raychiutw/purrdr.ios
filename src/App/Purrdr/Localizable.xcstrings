@@ -6353,6 +6353,17 @@
         }
       }
     },
+    "New Conversation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的對話"
+          }
+        }
+      }
+    },
     "New Window" : {
       "extractionState" : "manual",
       "localizations" : {

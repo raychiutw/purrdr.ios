@@ -33,6 +33,9 @@ public final class ConversationModel {
         /// 這個 pane 已經沒有 agent。
         case agentGone
         case ready
+        /// 已知 session,但它的對話紀錄檔還不存在(`/clear`、重開、resume 後，Claude Code 要到第一則提示詞才建立新檔)。
+        /// 電腦上的 Pane 此時可能還顯示舊 session 的畫面，所以不說「還沒有訊息」(#418)。送出後檔案出現，下一次讀取就接上。
+        case newConversation
     }
 
     /// 對話內的非干擾式標示(HIG 20.5:不在進入畫面時跳 alert)。
@@ -1000,7 +1003,7 @@ public final class ConversationModel {
             file = nil
             if isRefreshing { clearDisplay() }
             banner = nil
-            phase = .ready
+            phase = .newConversation
         case TranscriptReadError.unreadable:
             banner = .unreadable
             phase = .ready
@@ -1043,7 +1046,27 @@ public final class ConversationModel {
         progress = AgentProgress.latest(in: chunk.lines, format: format)
         older = chunk.start > 0 ? .available : .reachedStart
         rebuild()
+        try await readEarlierUntilMessages(path: path, generation: generation)
     }
+
+    /// 開啟視窗內沒有任何訊息(最後幾十行都是 system、api-request-blob、file-history-snapshot 這類不產生訊息的紀錄)
+    /// 但檔案前面有:往前一頁一頁讀到有訊息為止，不顯示「還沒有訊息」(#418)。有上限，避免超大檔案讀不完。
+    private func readEarlierUntilMessages(path: String, generation: Int) async throws {
+        var pages = 0
+        while items.isEmpty, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
+            pages += 1
+            let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
+            guard generation == self.generation else { return }
+            let known = Set((olderMessages + recent).map(\.id))
+            olderMessages = parse(page.lines).filter { !known.contains($0.id) } + olderMessages
+            file?.windowStart = page.start
+            older = page.start > 0 ? .available : .reachedStart
+            rebuild()
+        }
+    }
+
+    /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
+    static let maximumEmptyWindowPages = 25
 
     private func append(_ chunk: TranscriptChunk) {
         let known = Set(recent.map(\.id))
