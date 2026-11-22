@@ -12,6 +12,9 @@
 		4D4D00000000000000000054 /* PurrdrDemo in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000044 /* PurrdrDemo */; };
 		4D4D00000000000000000055 /* PurrdrSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000045 /* PurrdrSSH */; };
 		4D4D00000000000000000056 /* PurrdrAgentFeatures in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000046 /* PurrdrAgentFeatures */; };
+		4D4D00000000000000000081 /* PurrdrNotificationContent in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D0000000000000000008B /* PurrdrNotificationContent */; };
+		4D4D00000000000000000082 /* PurrdrNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4D4D00000000000000000084 /* PurrdrNotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4D4D00000000000000000091 /* PurrdrNotificationContent in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000090 /* PurrdrNotificationContent */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -22,11 +25,33 @@
 			remoteGlobalIDString = 4D4D00000000000000000010;
 			remoteInfo = Purrdr;
 		};
+		4D4D00000000000000000083 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4D4D00000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4D4D00000000000000000012;
+			remoteInfo = PurrdrNotificationService;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4D4D0000000000000000008A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4D4D00000000000000000082 /* PurrdrNotificationService.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		4D4D00000000000000000006 /* Purrdr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Purrdr.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4D4D00000000000000000007 /* PurrdrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PurrdrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4D4D00000000000000000084 /* PurrdrNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PurrdrNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -37,6 +62,13 @@
 			);
 			target = 4D4D00000000000000000010 /* Purrdr */;
 		};
+		4D4D00000000000000000085 /* Exceptions for "PurrdrNotificationService" folder in "PurrdrNotificationService" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4D4D00000000000000000012 /* PurrdrNotificationService */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -46,6 +78,14 @@
 				4D4D00000000000000000070 /* Exceptions for "Purrdr" folder in "Purrdr" target */,
 			);
 			path = Purrdr;
+			sourceTree = "<group>";
+		};
+		4D4D00000000000000000086 /* PurrdrNotificationService */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4D4D00000000000000000085 /* Exceptions for "PurrdrNotificationService" folder in "PurrdrNotificationService" target */,
+			);
+			path = PurrdrNotificationService;
 			sourceTree = "<group>";
 		};
 		4D4D00000000000000000005 /* PurrdrUITests */ = {
@@ -66,6 +106,7 @@
 				4D4D00000000000000000054 /* PurrdrDemo in Frameworks */,
 				4D4D00000000000000000055 /* PurrdrSSH in Frameworks */,
 				4D4D00000000000000000056 /* PurrdrAgentFeatures in Frameworks */,
+				4D4D00000000000000000091 /* PurrdrNotificationContent in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,6 +117,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4D4D00000000000000000087 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D4D00000000000000000081 /* PurrdrNotificationContent in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -83,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				4D4D00000000000000000004 /* Purrdr */,
+				4D4D00000000000000000086 /* PurrdrNotificationService */,
 				4D4D00000000000000000005 /* PurrdrUITests */,
 				4D4D00000000000000000003 /* Products */,
 			);
@@ -92,6 +142,7 @@
 			isa = PBXGroup;
 			children = (
 				4D4D00000000000000000006 /* Purrdr.app */,
+				4D4D00000000000000000084 /* PurrdrNotificationService.appex */,
 				4D4D00000000000000000007 /* PurrdrUITests.xctest */,
 			);
 			name = Products;
@@ -107,10 +158,12 @@
 				4D4D00000000000000000020 /* Sources */,
 				4D4D00000000000000000021 /* Frameworks */,
 				4D4D00000000000000000022 /* Resources */,
+				4D4D0000000000000000008A /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4D4D0000000000000000008C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				4D4D00000000000000000004 /* Purrdr */,
@@ -122,6 +175,7 @@
 				4D4D00000000000000000044 /* PurrdrDemo */,
 				4D4D00000000000000000045 /* PurrdrSSH */,
 				4D4D00000000000000000046 /* PurrdrAgentFeatures */,
+				4D4D00000000000000000090 /* PurrdrNotificationContent */,
 			);
 			productName = Purrdr;
 			productReference = 4D4D00000000000000000006 /* Purrdr.app */;
@@ -150,6 +204,29 @@
 			productReference = 4D4D00000000000000000007 /* PurrdrUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		4D4D00000000000000000012 /* PurrdrNotificationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4D4D0000000000000000008F /* Build configuration list for PBXNativeTarget "PurrdrNotificationService" */;
+			buildPhases = (
+				4D4D00000000000000000088 /* Sources */,
+				4D4D00000000000000000087 /* Frameworks */,
+				4D4D00000000000000000089 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4D4D00000000000000000086 /* PurrdrNotificationService */,
+			);
+			name = PurrdrNotificationService;
+			packageProductDependencies = (
+				4D4D0000000000000000008B /* PurrdrNotificationContent */,
+			);
+			productName = PurrdrNotificationService;
+			productReference = 4D4D00000000000000000084 /* PurrdrNotificationService.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -161,6 +238,9 @@
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					4D4D00000000000000000010 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					4D4D00000000000000000012 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 					4D4D00000000000000000011 = {
@@ -188,6 +268,7 @@
 			projectRoot = "";
 			targets = (
 				4D4D00000000000000000010 /* Purrdr */,
+				4D4D00000000000000000012 /* PurrdrNotificationService */,
 				4D4D00000000000000000011 /* PurrdrUITests */,
 			);
 		};
@@ -202,6 +283,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		4D4D00000000000000000025 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4D4D00000000000000000089 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -225,6 +313,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4D4D00000000000000000088 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -232,6 +327,11 @@
 			isa = PBXTargetDependency;
 			target = 4D4D00000000000000000010 /* Purrdr */;
 			targetProxy = 4D4D00000000000000000030 /* PBXContainerItemProxy */;
+		};
+		4D4D0000000000000000008C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4D4D00000000000000000012 /* PurrdrNotificationService */;
+			targetProxy = 4D4D00000000000000000083 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -409,6 +509,58 @@
 			};
 			name = Release;
 		};
+		4D4D0000000000000000008D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PurrdrNotificationService.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PurrdrNotificationService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Purrdr Notification Service";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.48.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.raychiu.purrdr.notification-service;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4D4D0000000000000000008E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = PurrdrNotificationService.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PurrdrNotificationService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Purrdr Notification Service";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.48.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.raychiu.purrdr.notification-service;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -435,6 +587,15 @@
 			buildConfigurations = (
 				4D4D00000000000000000067 /* Debug */,
 				4D4D00000000000000000068 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4D4D0000000000000000008F /* Build configuration list for PBXNativeTarget "PurrdrNotificationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4D4D0000000000000000008D /* Debug */,
+				4D4D0000000000000000008E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -473,6 +634,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4D4D00000000000000000040 /* XCLocalSwiftPackageReference "../.." */;
 			productName = PurrdrAgentFeatures;
+		};
+		4D4D0000000000000000008B /* PurrdrNotificationContent */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4D4D00000000000000000040 /* XCLocalSwiftPackageReference "../.." */;
+			productName = PurrdrNotificationContent;
+		};
+		4D4D00000000000000000090 /* PurrdrNotificationContent */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4D4D00000000000000000040 /* XCLocalSwiftPackageReference "../.." */;
+			productName = PurrdrNotificationContent;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

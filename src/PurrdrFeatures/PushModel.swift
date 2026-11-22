@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PurrdrCore
+import PurrdrNotificationContent
 
 /// 通知權限(只讀現況時不跳系統對話框)。「暫時授權」視為已授權(行為規格 F14)。
 public enum PushAuthorization: Sendable, Equatable {
@@ -41,6 +42,8 @@ public protocol PushPairingStore: AnyObject {
     func removePartition(of memberID: String)
     /// 清除所有會員的分區(登入已失效或冷啟動時沒有會員)。
     func removeAllPartitions()
+    /// 配對有增減或分區被清除後呼叫(主機名稱對應表跟著更新,#431);`PushService` 建立時接上。
+    var onPairingsChanged: (@MainActor () -> Void)? { get set }
 }
 
 extension PushPairingStore {
@@ -62,6 +65,7 @@ public final class InMemoryPushPairingStore: PushPairingStore {
 
     private let partition: MemberPartition
     private var partitions: [String: Records] = [:]
+    public var onPairingsChanged: (@MainActor () -> Void)?
 
     /// - Parameter partition: 目前的會員分區;預設固定一個會員(不必先登入)。
     public init(partition: MemberPartition = .fixed()) {
@@ -84,6 +88,7 @@ public final class InMemoryPushPairingStore: PushPairingStore {
             }
             records.pairings[host] = keyHash
         }
+        onPairingsChanged?()
     }
 
     public func setRegisteredToken(_ token: String?, forKeyHash keyHash: String) {
@@ -98,9 +103,15 @@ public final class InMemoryPushPairingStore: PushPairingStore {
         update { $0.kinds[keyHash] = kinds }
     }
 
-    public func removePartition(of memberID: String) { partitions[memberID] = nil }
+    public func removePartition(of memberID: String) {
+        partitions[memberID] = nil
+        onPairingsChanged?()
+    }
 
-    public func removeAllPartitions() { partitions = [:] }
+    public func removeAllPartitions() {
+        partitions = [:]
+        onPairingsChanged?()
+    }
 }
 
 /// 存在 `UserDefaults` 的紀錄(只在這支裝置，不同步;雜湊不是祕密)。依會員分區(#405):key 帶會員 ID,
@@ -109,6 +120,7 @@ public final class InMemoryPushPairingStore: PushPairingStore {
 public final class UserDefaultsPushPairingStore: PushPairingStore {
     private let defaults: UserDefaults
     private let partition: MemberPartition
+    public var onPairingsChanged: (@MainActor () -> Void)?
     /// 舊版(沒有分區)的 key:`MemberLocalState.removeLegacyGlobalState` 升級時清掉。
     static let pairingsKey = "push.pairings"
     static let registeredTokensKey = "push.registeredTokens"
@@ -141,6 +153,7 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
         }
         pairings[host] = keyHash
         write(pairings, Self.pairingsKey)
+        onPairingsChanged?()
     }
 
     public var registeredTokens: [String: String] {
@@ -169,6 +182,7 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
         for base in [Self.pairingsKey, Self.registeredTokensKey, Self.kindsKey] {
             defaults.removeObject(forKey: "\(base).\(memberID)")
         }
+        onPairingsChanged?()
     }
 
     public func removeAllPartitions() {
@@ -177,6 +191,7 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
                 defaults.removeObject(forKey: key)
             }
         }
+        onPairingsChanged?()
     }
 }
 
@@ -215,6 +230,9 @@ public final class PushService {
     private var models: [WeakPushModel] = []
     /// 傳送測試通知的管道;`nil` 時不提供這個功能。
     public var testNotifications: (any PushTestNotificationSending)?
+    /// 主機名稱對應表的共用儲存(App Group,#431);`nil` 時不寫。
+    private let hostNameSharing: (any PushHostNameSharing)?
+    private var latestHostNames: [String: String] = [:]
 
     /// - Parameters:
     ///   - loadDevice: 這支裝置(Keychain 的推播 id、預設名稱與型號);讀不到(還沒第一次解鎖)時丟錯，之後用到時再試。
@@ -222,24 +240,38 @@ public final class PushService {
     public init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore,
         loadDevice: @escaping @MainActor () throws -> PushDeviceIdentity,
-        configuration: PushConfiguration, isPlusActive: @escaping @MainActor () async -> Bool
+        configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
+        isPlusActive: @escaping @MainActor () async -> Bool
     ) {
         self.session = session
         self.platform = platform
         self.store = store
         self.loadDevice = loadDevice
         self.configuration = configuration
+        self.hostNameSharing = hostNameSharing
         self.isPlusActive = isPlusActive
+        store.onPairingsChanged = { [weak self] in self?.publishHostNames() }
+    }
+
+    /// 主機名稱(主機 id → 顯示名稱)有變時由 `HostsModel` 呼叫(#431);連同目前的配對寫成「配對雜湊 → 名稱」。
+    public func updateHostNames(_ names: [String: String]) {
+        latestHostNames = names
+        publishHostNames()
+    }
+
+    private func publishHostNames() {
+        hostNameSharing?.save(PushHostNameMap.make(pairings: store.pairings, hostNames: latestHostNames))
     }
 
     /// 這支裝置已知時(測試、UI 測試)。
     public convenience init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore, device: PushDeviceIdentity,
-        configuration: PushConfiguration, isPlusActive: @escaping @MainActor () async -> Bool
+        configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
+        isPlusActive: @escaping @MainActor () async -> Bool
     ) {
         self.init(
             session: session, platform: platform, store: store, loadDevice: { device }, configuration: configuration,
-            isPlusActive: isPlusActive)
+            hostNames: hostNameSharing, isPlusActive: isPlusActive)
     }
 
     /// 這支裝置;第一次成功讀到後記住。
@@ -312,6 +344,7 @@ public final class PushService {
 
     /// 會員分區換了(登入、登出、換會員)或被清除後:各主機的開關重讀本機紀錄。
     public func reloadModels() {
+        publishHostNames()
         models.removeAll { $0.model == nil }
         for entry in models {
             entry.model?.reloadFromStore()

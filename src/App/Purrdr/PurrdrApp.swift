@@ -3,6 +3,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrDemo
 import PurrdrFeatures
+import PurrdrNotificationContent
 import PurrdrSSH
 import StoreKit
 import SwiftUI
@@ -87,7 +88,9 @@ struct PurrdrApp: App {
             store: uiTesting ? InMemoryPushPairingStore(partition: partition) : UserDefaultsPushPairingStore(partition: partition),
             loadDevice: Self.pushDevice(uiTesting: uiTesting),
             configuration: PushConfiguration(
-                endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource)
+                endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource),
+            // 主機名稱對應表放 App Group,Notification Service Extension 用它補通知副標題(#431;UI 測試不寫)。
+            hostNames: uiTesting ? nil : UserDefaultsPushHostNames()
         ) {
             await plus.refresh()
             return plus.isPlusActive

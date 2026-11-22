@@ -1,6 +1,6 @@
 #!/bin/sh
 # 印出某個 commit 的 app 版本號(project.pbxproj 的 MARKETING_VERSION)。
-# 4 處(app、UI 測試 × Debug/Release)不一致就失敗，避免只改了其中幾處。
+# 6 處(app、Notification Service Extension、UI 測試 × Debug/Release)不一致就失敗，避免只改了其中幾處。
 # 用法:scripts/marketing-version.sh [commit](預設 HEAD)
 # TestFlight workflow 以它比對合併前後的版本號：有變才上傳。
 set -eu

@@ -24,6 +24,7 @@ let package = Package(
     // 加上 macOS 26,才能在 Mac 上直接跑 `swift test`(Observation 需要)。
     platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
+        .library(name: "PurrdrNotificationContent", targets: ["PurrdrNotificationContent"]),
         .library(name: "PurrdrCore", targets: ["PurrdrCore"]),
         .library(name: "PurrdrSSH", targets: ["PurrdrSSH"]),
         .library(name: "PurrdrHTTPS", targets: ["PurrdrHTTPS"]),
@@ -44,6 +45,13 @@ let package = Package(
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", exact: "1.19.0"),
     ],
     targets: [
+        // 推播通知補主機名稱的規則與 App Group 對應表(#431):不依賴任何東西。Notification Service Extension 只連結它
+        // (extension 記憶體上限約 24 MB,不能把整個 PurrdrCore 與 swift-nio 帶進去);Features、app 與測試明確 import 它(核心不轉出別的 module)。
+        .target(
+            name: "PurrdrNotificationContent",
+            path: "src/PurrdrNotificationContent",
+            swiftSettings: strictSettings
+        ),
         // 可攜核心：主機連線、herdr client、領域型別。只用 Foundation 與 swift-nio／swift-nio-ssh／swift-crypto。
         .target(
             name: "PurrdrCore",
@@ -94,7 +102,8 @@ let package = Package(
         .target(
             name: "PurrdrFeatures",
             dependencies: [
-                "PurrdrAgentFeatures", "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", .product(name: "SwiftTerm", package: "SwiftTerm"),
+                "PurrdrAgentFeatures", "PurrdrCore", "PurrdrNotificationContent", "PurrdrSSH", "PurrdrHTTPS",
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "src/PurrdrFeatures",
             swiftSettings: strictSettings
@@ -110,7 +119,7 @@ let package = Package(
         .testTarget(
             name: "PurrdrCoreTests",
             dependencies: [
-                "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrDemo", "PurrdrAgentFeatures", "PurrdrTestSupport",
+                "PurrdrCore", "PurrdrNotificationContent", "PurrdrSSH", "PurrdrHTTPS", "PurrdrDemo", "PurrdrAgentFeatures", "PurrdrTestSupport",
                 // 流量守門(#168)跑主題、用量的 model。
                 "PurrdrFeatures",
                 // 測試用 SSH 伺服器(swift-nio-ssh server 角色)與假的主機服務(WebSocket／HTTP)。
@@ -127,7 +136,7 @@ let package = Package(
         .testTarget(
             name: "PurrdrFeaturesTests",
             dependencies: [
-                "PurrdrFeatures", "PurrdrAgentFeatures", "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrTestSupport",
+                "PurrdrFeatures", "PurrdrAgentFeatures", "PurrdrCore", "PurrdrNotificationContent", "PurrdrSSH", "PurrdrHTTPS", "PurrdrTestSupport",
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "tests/PurrdrFeaturesTests",

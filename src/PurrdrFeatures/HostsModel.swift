@@ -79,7 +79,11 @@ public final class HostsModel {
     public private(set) var selection: HostSelection = .demo
     public private(set) var hosts: [HostConfiguration] = [] {
         // 主機清單變了就重讀圖示(新增、同步來的主機可能已有存過的圖示)。
-        didSet { icons = Dictionary(hosts.map { ($0.id, hostIcons.icon(for: $0.id) ?? .default) }, uniquingKeysWith: { first, _ in first }) }
+        didSet {
+            icons = Dictionary(hosts.map { ($0.id, hostIcons.icon(for: $0.id) ?? .default) }, uniquingKeysWith: { first, _ in first })
+            // 通知的副標題要顯示主機名稱(#431):名稱對應表由推播服務寫到 App Group。
+            pushService?.updateHostNames(Dictionary(hosts.map { ($0.id.uuidString, $0.name) }, uniquingKeysWith: { first, _ in first }))
+        }
     }
     /// 所有主機合併的 Agent 列表。
     public let agentList: MergedAgentListModel
