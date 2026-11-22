@@ -1,7 +1,7 @@
 import UIKit
 import XCTest
 
-/// 設定頁(#32、#246):外觀、Return 送出、觸覺回饋、評分、支援、診斷資訊、關於(版本、主機 herdr 版本、隱私權政策);
+/// 設定頁(#32、#246):外觀、Return 送出、觸覺回饋、評分、支援、診斷資訊、關於(版本、隱私權政策);
 /// 會員與 Purrdr Plus 不在設定頁(在帳號頁);繁體中文介面。
 final class SettingsUITests: XCTestCase {
     override func setUp() {
@@ -12,7 +12,7 @@ final class SettingsUITests: XCTestCase {
     /// 外觀下的「自動」與送出可撤回的秒數說明、支援段的隱私揭露是例外，數據用量列下沒有說明;主機設定與會員不在這裡。
     /// 一次啟動由上而下檢查(#372:原本四個測試各啟動一次)。
     @MainActor
-    func testSettingsShowsOnlyAppWideSectionsAndHostHerdrVersion() {
+    func testSettingsShowsOnlyAppWideSections() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
         XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
@@ -38,15 +38,13 @@ final class SettingsUITests: XCTestCase {
         }
         XCTAssertFalse(app.element("settings.dataUsage").exists, "數據用量已移到流量 tab")
         expectHeaders(["App Lock", "Support", "About"])
-        // 捲到最後一列(隱私權政策):herdr 版本列可能只露出一部分，露出部分就算 hittable,值卻還沒進 accessibility 樹。
         let privacy = app.element("settings.privacy")
         app.scrollIntoView(privacy, search: .down)
         let paragraph = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Diagnostics include")).firstMatch
         XCTAssertTrue(paragraph.exists, "支援段要保留診斷資訊的隱私揭露")
-        // Demo 主機回報 herdr 0.9.5。
-        let version = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "0.9.5", "0.9.5")).firstMatch
-        XCTAssertTrue(version.waitUntilExists(timeout: 10), "沒有顯示主機的 herdr 版本")
+        // herdr 版本只在主機 tab 逐台顯示(#419),設定頁不再有。
+        XCTAssertFalse(app.element("settings.herdrVersion").exists, "設定頁不該顯示 herdr 版本")
+        XCTAssertFalse(app.staticTexts["herdr on Host"].exists)
         XCTAssertTrue(app.element("settings.version").exists)
         XCTAssertTrue(privacy.exists)
         // 會員與 Purrdr Plus 移到帳號頁(#246)。

@@ -2573,17 +2573,6 @@
         }
       }
     },
-    "Checking…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢查中…"
-          }
-        }
-      }
-    },
     "Choose 1" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7108,17 +7097,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有變更"
-          }
-        }
-      }
-    },
-    "No Host" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有主機"
           }
         }
       }
@@ -15924,17 +15902,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機沒有在執行 herdr。請在那台主機開啟 herdr 後再測試一次。"
-          }
-        }
-      }
-    },
-    "herdr on Host" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機上的 herdr"
           }
         }
       }

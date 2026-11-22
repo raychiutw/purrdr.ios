@@ -52,21 +52,11 @@ public struct SettingsLinks: Sendable, Equatable {
     }
 }
 
-/// 設定頁的 model(行為規格 F15,範圍依 #32):版本、主機 herdr 版本、複製診斷資訊、評分、支援與隱私權連結、
+/// 設定頁的 model(行為規格 F15,範圍依 #32):版本、複製診斷資訊、評分、支援與隱私權連結、
 /// Return 送出偏好、外觀(#246)。
 @MainActor
 @Observable
 public final class SettingsModel {
-    public enum HerdrVersion: Equatable, Sendable {
-        /// 沒有可用的主機。
-        case noHost
-        case loading
-        case reported(String)
-        /// 問不到主機，或主機沒回報。
-        case unavailable
-    }
-
-    public private(set) var herdrVersion: HerdrVersion
     /// 剛複製過診斷資訊(畫面把按鈕改成「已拷貝」)。
     public private(set) var copiedDiagnostics = false
 
@@ -107,25 +97,21 @@ public final class SettingsModel {
     public let usageDisplay: UsageDisplaySetting
 
     private let app: AppInfo
-    /// 目前選取主機的 client(沒有主機時 `nil`)。每次讀版本都重新取，換主機後重開設定就是新主機。
-    private let client: @MainActor () -> HerdrClient?
     private let hostCount: @MainActor () -> Int
     private let defaults: UserDefaults
     private let platform: any PlatformServices
     private let links: SettingsLinks
 
     public init(
-        app: AppInfo, client: @escaping @MainActor () -> HerdrClient?, hostCount: @escaping @MainActor () -> Int, defaults: UserDefaults,
+        app: AppInfo, hostCount: @escaping @MainActor () -> Int, defaults: UserDefaults,
         platform: any PlatformServices, links: SettingsLinks, usageDisplay: UsageDisplaySetting = UsageDisplaySetting()
     ) {
         self.usageDisplay = usageDisplay
         self.app = app
-        self.client = client
         self.hostCount = hostCount
         self.defaults = defaults
         self.platform = platform
         self.links = links
-        herdrVersion = .loading
         returnSends = defaults.object(forKey: ComposerSettings.returnSendsKey) as? Bool ?? true
         hapticsEnabled = HapticSettings.isEnabled(defaults)
         appearance = AppearancePreference.stored(in: defaults)
@@ -134,19 +120,6 @@ public final class SettingsModel {
     }
 
     public var appVersionText: String { "\(app.version) (\(app.build))" }
-
-    /// 讀主機回報的 herdr 版本(snapshot 的 `version`,即執行中伺服器的版本)。
-    public func load() async {
-        guard let client = client() else {
-            herdrVersion = .noHost
-            return
-        }
-        do {
-            herdrVersion = .reported(try await client.snapshot().version)
-        } catch {
-            herdrVersion = .unavailable
-        }
-    }
 
     // MARK: - 診斷資訊
 
@@ -164,23 +137,7 @@ public final class SettingsModel {
             "System: \(app.system)",
             "Device: \(app.device)",
             "Hosts: \(hostCount())",
-            "herdr: \(diagnosticHerdrVersion)",
         ].joined(separator: "\n")
-    }
-
-    private var diagnosticHerdrVersion: String {
-        switch herdrVersion {
-        case .noHost: "none"
-        case .loading, .unavailable: "unknown"
-        case .reported(let version): Self.isPlainVersion(version) ? version : "unrecognized"
-        }
-    }
-
-    /// 主機回報的字串只在「看起來就是版本號」時才放進診斷資訊，避免夾帶路徑、主機名或使用者。
-    static func isPlainVersion(_ version: String) -> Bool {
-        !version.isEmpty && version.count <= 32
-            && version.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "+") }
-            && version.first!.isNumber
     }
 
     // MARK: - 連結

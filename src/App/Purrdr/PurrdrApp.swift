@@ -259,8 +259,8 @@ struct PurrdrApp: App {
             device: UIDevice.current.model
         )
         return SettingsModel(
-            // 選取中的主機(沒有已存主機時是 Demo 主機);主機數只算已存的主機，不含 Demo。
-            app: app, client: { hosts.herdrClient }, hostCount: { hosts.hosts.count }, defaults: .standard,
+            // 主機數只算已存的主機，不含 Demo。
+            app: app, hostCount: { hosts.hosts.count }, defaults: .standard,
             platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks, usageDisplay: hosts.usageDisplay
         )
     }

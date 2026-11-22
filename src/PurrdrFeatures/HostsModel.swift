@@ -231,8 +231,6 @@ public final class HostsModel {
     /// Demo 主機在同意紀錄裡的主機 id。
     static let demoID = "demo"
 
-    /// 選取中主機的 herdr client(設定頁讀 herdr 版本用)。
-    public var herdrClient: HerdrClient { member(for: selection).client }
     /// 選取中主機的推播開關(#29)。
     public var push: PushModel { member(for: selection).push }
     /// 列表上每台主機的推播開關(依列表順序;spec #261:通知按主機管理，不綁選取中主機)。

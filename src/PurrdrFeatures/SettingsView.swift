@@ -116,8 +116,6 @@ public struct SettingsView: View {
                 Section {
                     LabeledContent("Version", value: model.appVersionText)
                         .accessibilityIdentifier("settings.version")
-                    LabeledContent("herdr on Host") { herdrVersionText }
-                        .accessibilityIdentifier("settings.herdrVersion")
                     Button("Privacy Policy", systemImage: "hand.raised") { model.openPrivacyPolicy() }
                         .accessibilityIdentifier("settings.privacy")
                 } header: {
@@ -133,18 +131,8 @@ public struct SettingsView: View {
                     .sharedBackgroundVisibility(.hidden)
             }
         }
-        .task { await model.load() }
         // 使用者可能剛到系統設定加上或移除裝置密碼。
         .task { appLock?.refreshAvailability() }
-    }
-
-    private var herdrVersionText: Text {
-        switch model.herdrVersion {
-        case .noHost: Text("No Host")
-        case .loading: Text("Checking…")
-        case .reported(let version): Text(verbatim: version)
-        case .unavailable: Text("Not Available")
-        }
     }
 }
 

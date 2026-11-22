@@ -368,22 +368,7 @@ struct HostStatusRow: View {
         }
     }
 
-    /// 「Tailscale SSH · herdr 0.9.6」「HTTPS · buildbox.tail1234.ts.net」。
-    private var connectionText: String {
-        var parts: [String] = []
-        switch overview.connection {
-        case .tailscaleSSH: parts.append(String(localized: "Tailscale SSH"))
-        case .openSSH: parts.append(String(localized: "OpenSSH"))
-        case .https: parts.append(String(localized: "HTTPS"))
-        case nil: break
-        }
-        if let address = overview.address {
-            parts.append(address.replacingOccurrences(of: "https://", with: ""))
-        } else if let herdr = overview.herdrVersion {
-            parts.append("herdr \(herdr)")
-        }
-        return parts.joined(separator: " · ")
-    }
+    private var connectionText: String { overview.connectionSummary }
 
     // MARK: 動作
 
@@ -411,5 +396,26 @@ struct HostStatusRow: View {
         case .demo, .connecting, .online, .readOnly:
             EmptyView()
         }
+    }
+}
+
+extension HostOverview {
+    /// 「Tailscale SSH · herdr 0.9.6」「HTTPS · buildbox.tail1234.ts.net · herdr 0.9.6」。
+    /// herdr 版本逐台顯示在這裡(設定 tab 不再顯示,#419);HTTPS 主機也要顯示。
+    package var connectionSummary: String {
+        var parts: [String] = []
+        switch connection {
+        case .tailscaleSSH: parts.append(String(localized: "Tailscale SSH"))
+        case .openSSH: parts.append(String(localized: "OpenSSH"))
+        case .https: parts.append(String(localized: "HTTPS"))
+        case nil: break
+        }
+        if let address {
+            parts.append(address.replacingOccurrences(of: "https://", with: ""))
+        }
+        if let herdrVersion {
+            parts.append("herdr \(herdrVersion)")
+        }
+        return parts.joined(separator: " · ")
     }
 }

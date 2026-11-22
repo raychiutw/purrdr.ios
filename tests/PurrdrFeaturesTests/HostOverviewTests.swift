@@ -67,6 +67,7 @@ struct HostOverviewTests {
         #expect(overview?.status == .online)
         #expect(overview?.herdrVersion == "0.9.5")
         #expect(overview?.connection == .tailscaleSSH)
+        #expect(overview?.connectionSummary.hasSuffix("herdr 0.9.5") == true)
         #expect(overview?.showsUsage == true)
         #expect(overview?.showsLoginShell == true)
         #expect(overview?.showsHostService == false)
@@ -119,6 +120,9 @@ struct HostOverviewTests {
         #expect(overview?.showsHostService == true)
         #expect(overview?.showsLoginShell == false)
         #expect(overview?.showsUsage == true)
+        // herdr 版本只在主機 tab 逐台顯示(#419):HTTPS 主機也要有,不被位址取代。
+        #expect(overview?.connectionSummary.hasSuffix("herdr 0.9.5") == true)
+        #expect(overview?.connectionSummary.contains("buildbox.tail1234.ts.net") == true)
     }
 
     @Test("唯讀裝置配對的 HTTPS 主機:線上·唯讀")
