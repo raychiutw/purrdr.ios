@@ -216,12 +216,14 @@ public final class PlanUsageModel {
 
     /// - Parameters:
     ///   - currentHost: 目前主機(#334);有值就優先，在這裡改主機也回寫。
+    ///   - initialAgent: 從用量區的「啟用用量顯示」進來時,直接選那個 Agent。
     ///   - fallback: 沒有上次選擇(或那台主機已刪除)時選的主機。
     ///   - sleep: 定期重整的等待;測試注入假的。
     ///   - source: 某台主機某種 Agent 的來源;`nil` 表示這種連線方式不支援。
     public init(
         hosts: [HostOption], fallback: HostSelection, store: any PlanUsageSelectionStore,
         currentHost: HostSelection? = nil, currentHostChanged: @escaping (HostSelection) -> Void = { _ in },
+        initialAgent: PlanUsageAgent? = nil,
         now: @escaping () -> Date = Date.init,
         sleep: @escaping Sleep = Sleeping.task,
         defaults: UserDefaults = .standard,
@@ -239,7 +241,7 @@ public final class PlanUsageModel {
         let remembered = savedSelection.map(\.host).flatMap { savedHost in hosts.contains { $0.id == savedHost } ? savedHost : nil }
         // 目前主機有值就優先(#334);所有主機時用上次在這裡選的。
         host = currentHost.flatMap { current in hosts.contains { $0.id == current } ? current : nil } ?? remembered ?? fallback
-        agent = savedSelection?.agent ?? .claudeCode
+        agent = initialAgent ?? savedSelection?.agent ?? .claudeCode
     }
 
     /// 要顯示的用量週期(已過重置時間的不顯示)。
@@ -465,13 +467,16 @@ public struct PlanUsageRow: Equatable, Sendable, Identifiable {
     /// 圓環的比例，0～1。
     public var fraction: Double
     public var resetsAt: Date?
-    /// 圓環顏色的分級(依剩餘比例)。
+    /// 圓環與進度條顏色的分級(依已用比例,與顯示已用或剩餘無關)。
     public var level: PlanUsageLevel
+
+    /// 到門檻(已用 70% 起)就加警示三角,不只靠顏色(#389)。
+    public var showsWarning: Bool { level != .ample }
 
     public var id: PlanUsage.Period.Kind { period }
 }
 
-/// 依剩餘比例分的三級。
+/// 依已用比例分的三級:70% 起偏高、85% 起將用完(同 context 的級距,DESIGN.md「低飽和用量色」)。
 public enum PlanUsageLevel: Equatable, Sendable { case ample, low, depleted }
 
 /// 方案用量的顯示規則。
@@ -484,7 +489,7 @@ public enum PlanUsagePresentation {
             let shown = display == .remaining ? remaining : used
             return PlanUsageRow(
                 period: period.kind, percent: Int(shown.rounded()), fraction: shown / 100, resetsAt: period.resetsAt,
-                level: level(remaining: remaining))
+                level: level(used: used))
         }
     }
 
@@ -496,12 +501,18 @@ public enum PlanUsagePresentation {
         now.timeIntervalSince(usage.capturedAt) > staleAfter ? usage.capturedAt : nil
     }
 
-    /// 剩餘超過這個比例算充足。
-    static let ampleAbove: Double = 40
-    /// 剩餘超過這個比例(且不算充足)算偏低，其餘算將用完。
-    static let lowAbove: Double = 15
+    /// 已用達這個比例算偏高(加警示三角)。
+    static let warnFrom: Double = 70
+    /// 已用達這個比例算將用完。
+    static let criticalFrom: Double = 85
 
-    static func level(remaining: Double) -> PlanUsageLevel {
-        remaining > ampleAbove ? .ample : remaining > lowAbove ? .low : .depleted
+    static func level(used: Double) -> PlanUsageLevel {
+        used >= criticalFrom ? .depleted : used >= warnFrom ? .low : .ample
+    }
+
+    /// 擷取超過 10 分鐘時,距今幾分鐘(畫面標「N 分鐘前」)。
+    public static func staleMinutes(_ usage: PlanUsage, now: Date) -> Int? {
+        let age = now.timeIntervalSince(usage.capturedAt)
+        return age > staleAfter ? Int(age / 60) : nil
     }
 }

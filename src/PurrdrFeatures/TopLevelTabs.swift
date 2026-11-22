@@ -95,10 +95,17 @@ struct FilesTab: View {
 struct HostToolRows: View {
     let hosts: HostsModel
 
+    @Environment(\.usageSections) private var usage
+
     var body: some View {
+        // 選取中主機的用量區(#389):Claude 與 Codex 的 5 小時與 7 天;HTTPS 主機是「等主機服務支援」的說明。
+        if let usage, !hosts.hasNoHostToShow {
+            UsageSectionContainer(host: hosts.selection, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false)
+                .id(hosts.selection)
+        }
         Section {
             NavigationLink {
-                PlanUsageScreen(make: { hosts.planUsage() })
+                PlanUsageScreen(model: hosts.planUsage())
             } label: {
                 Label("Plan Usage", systemImage: "gauge.with.dots.needle.33percent")
             }
@@ -112,19 +119,6 @@ struct HostToolRows: View {
                 .accessibilityIdentifier("hosts.tool.loginShell")
             }
         }
-    }
-}
-
-/// 進畫面才建立方案用量 model(每次打開重新查一次)。
-private struct PlanUsageScreen: View {
-    @State private var model: PlanUsageModel
-
-    init(make: () -> PlanUsageModel) {
-        _model = State(wrappedValue: make())
-    }
-
-    var body: some View {
-        PlanUsageView(model: model)
     }
 }
 

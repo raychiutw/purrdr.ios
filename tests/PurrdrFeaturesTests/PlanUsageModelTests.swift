@@ -595,12 +595,12 @@ struct PlanUsagePresentationTests {
         #expect(PlanUsagePresentation.rows(for: usage, showing: .remaining, now: Self.now).map(\.percent) == [0, 100])
     }
 
-    @Test("圓環顏色依剩餘比例分三級：超過 40% 充足、超過 15% 偏低、其餘將用完;與顯示剩餘或已用無關")
-    func levelFollowsRemaining() {
-        let usage = Self.usage(fiveHourUsed: 60, weekUsed: 85)
+    @Test("圓環顏色依已用比例分三級：70% 起偏高、85% 起將用完;與顯示剩餘或已用無關")
+    func levelFollowsUsed() {
+        let usage = Self.usage(fiveHourUsed: 70, weekUsed: 85)
         #expect(PlanUsagePresentation.rows(for: usage, showing: .remaining, now: Self.now).map(\.level) == [.low, .depleted])
         #expect(PlanUsagePresentation.rows(for: usage, showing: .used, now: Self.now).map(\.level) == [.low, .depleted])
-        let ample = Self.usage(fiveHourUsed: 59, weekUsed: 84)
+        let ample = Self.usage(fiveHourUsed: 69, weekUsed: 84)
         #expect(PlanUsagePresentation.rows(for: ample, showing: .remaining, now: Self.now).map(\.level) == [.ample, .low])
     }
 }

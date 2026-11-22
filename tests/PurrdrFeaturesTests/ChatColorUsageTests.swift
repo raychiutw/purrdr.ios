@@ -67,10 +67,10 @@ struct ChatColorUsageTests {
         #expect(found.isEmpty, "指令名稱與輸入框元素改用主色 tint:\n\(found.joined(separator: "\n"))")
     }
 
-    /// 錯誤圖示只在 `ErrorLabel` 與 subagent 狀態圖示(只有圖示、念狀態名)。
+    /// 錯誤圖示只在 `ErrorLabel`、subagent 狀態圖示(只有圖示、念狀態名)與用量條的偏高警示三角(#389,不是錯誤,依級距上色)。
     @Test("錯誤訊息不自組 Label,一律用 ErrorLabel")
     func errorsUseErrorLabel() throws {
-        let allowed: Set<String> = ["ErrorLabel.swift", "DelegationViews.swift"]
+        let allowed: Set<String> = ["ErrorLabel.swift", "DelegationViews.swift", "UsageSectionView.swift"]
         let sources = try Self.featureSources().filter { !allowed.contains($0.name) }
         let found = Self.violations(of: "exclamationmark.triangle.fill", in: sources)
         #expect(found.isEmpty, "改用 ErrorLabel:\n\(found.joined(separator: "\n"))")

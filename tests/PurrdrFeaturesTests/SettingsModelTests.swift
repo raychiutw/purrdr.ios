@@ -24,7 +24,7 @@ struct SettingsModelTests {
     static func model(
         host: FakeHost? = FakeHost(), platform: RecordingPlatform = RecordingPlatform(), hostCount: Int = 1,
         defaults: UserDefaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!,
-        appStoreID: String = "6740000000"
+        appStoreID: String = "6740000000", usageDisplay: UsageDisplaySetting = UsageDisplaySetting()
     ) -> SettingsModel {
         SettingsModel(
             app: app, client: { host.map { HerdrClient(channel: $0) } }, hostCount: { hostCount }, defaults: defaults,
@@ -32,7 +32,8 @@ struct SettingsModelTests {
                 appStoreID: appStoreID,
                 support: URL(string: "https://example.com/support")!,
                 privacyPolicy: URL(string: "https://example.com/privacy")!
-            )
+            ),
+            usageDisplay: usageDisplay
         )
     }
 
@@ -264,6 +265,16 @@ struct SettingsModelTests {
 
         #expect(usage.display == .used)
         usage.disappeared()
+    }
+
+    @Test("設定 tab 改用量顯示,全 app 共用的用量顯示設定(用量區與 context)立即跟著變(#389)")
+    func planUsageDisplayUpdatesSharedSetting() {
+        let defaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!
+        let shared = UsageDisplaySetting(defaults: defaults)
+        let model = Self.model(defaults: defaults, usageDisplay: shared)
+        #expect(shared.display == .remaining)
+        model.planUsageDisplay = .used
+        #expect(shared.display == .used)
     }
 
     @Test("版本字顯示 app 版本與 build")

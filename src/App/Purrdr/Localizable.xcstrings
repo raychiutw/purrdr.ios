@@ -94,6 +94,17 @@
         }
       }
     },
+    "%@ hasn’t reported plan usage yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 尚未回報用量。"
+          }
+        }
+      }
+    },
     "%@ is still working" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -523,6 +534,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 行輸出"
+          }
+        }
+      }
+    },
+    "%lld min ago" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 分鐘前"
           }
         }
       }
@@ -2808,17 +2830,6 @@
         }
       }
     },
-    "Context" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Context"
-          }
-        }
-      }
-    },
     "Context %lld%%" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2826,6 +2837,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Context %lld%%"
+          }
+        }
+      }
+    },
+    "Context %lld%% left" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context %lld%% 剩餘"
+          }
+        }
+      }
+    },
+    "Context %lld%% used" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context %lld%% 已用"
           }
         }
       }
@@ -4157,6 +4190,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已修改 1 個檔案"
+          }
+        }
+      }
+    },
+    "Enable Usage Display" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用用量顯示"
           }
         }
       }
@@ -7844,7 +7888,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "方案用量"
+            "value" : "用量"
           }
         }
       }
@@ -7856,6 +7900,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "方案用量選項"
+          }
+        }
+      }
+    },
+    "Plan Usage · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量 · %@"
+          }
+        }
+      }
+    },
+    "Plan Usage · %@ · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量 · %@ · %@"
+          }
+        }
+      }
+    },
+    "Plan usage for this host will show once the host service supports it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機的用量要等主機服務支援後才會顯示。"
           }
         }
       }
@@ -8945,6 +9022,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "執行中"
+          }
+        }
+      }
+    },
+    "Running high" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量偏高"
           }
         }
       }
@@ -12329,6 +12417,17 @@
         }
       }
     },
+    "To see %@’s plan usage, turn on usage display for %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要看到 %@ 的用量,需要在 %@ 上啟用用量顯示。"
+          }
+        }
+      }
+    },
     "To show plan usage, Purrdr changes one Claude Code setting on this host (signed in as %@). Turning this off puts it back." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13402,7 +13501,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每週"
+            "value" : "7 天"
           }
         }
       }
@@ -14290,6 +14389,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "年"
+          }
+        }
+      }
+    },
+    "· %lld min ago" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %lld 分鐘前"
+          }
+        }
+      }
+    },
+    "· Resets %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %@ 重設"
           }
         }
       }

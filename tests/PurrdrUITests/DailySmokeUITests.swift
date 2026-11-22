@@ -98,6 +98,9 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
             header.tap()
             XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
+            // 面板上方是這個 Agent 的用量區(#389):範例主機還沒啟用用量顯示,有「啟用用量顯示」。
+            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "面板沒有用量區的「啟用用量顯示」")
+            XCTAssertTrue(app.element("progress.context").exists, "面板沒有 context 一列")
             let accept = app.buttons["Accept Edits"].firstMatch
             XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits")
             accept.tap()
@@ -150,6 +153,8 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "檔案 tab 不該有新增聊天")
             app.openHostsTab()
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "主機 tab 沒有帳號鈕")
+            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有「啟用用量顯示」(#389)")
+            XCTAssertTrue(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有 Codex 5 小時")
             app.openTab(.traffic)
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "流量 tab 沒有網路流量頁")
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
@@ -159,6 +164,7 @@ final class DailySmokeUITests: XCTestCase {
             app.openSettingsTab()
             XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
             XCTAssertFalse(app.buttons["sheet.done"].exists, "設定 tab 不是 sheet,不該有「完成」")
+            XCTAssertTrue(app.buttons["Used"].firstMatch.exists, "設定 tab 沒有用量顯示的「已用」(#389)")
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "設定 tab 沒有帳號鈕")
         }
         step("新增聊天") {

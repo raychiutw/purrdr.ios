@@ -222,6 +222,7 @@ struct WindowDetail: View {
                     case .chat(let paneID), .terminal(let paneID): navigation.selectedChat = ChatRoute(host: route.host, paneID: paneID)
                     }
                 })
+                .environment(\.usageHost, route.host)
         } else {
             ContentUnavailableView("Select a Chat", systemImage: "bubble.left.and.bubble.right")
                 .accessibilityIdentifier("detail.empty")
@@ -274,6 +275,7 @@ private struct PaneWindowContent: View {
             ConversationScreen(
                 model: hosts.conversation(route, sessionID: window.sessionID),
                 makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) })
+            .environment(\.usageHost, route.host)
             // 新視窗開著的聊天也記開啟時間、不算未讀(#41;每個視窗各算一次)。
             .onAppear { hosts.agentList.chatAppeared(route) }
             .onDisappear { hosts.agentList.chatDisappeared(route) }

@@ -88,7 +88,10 @@ public final class SettingsModel {
 
     /// 方案用量顯示已用或剩餘(#393;全域偏好,預設剩餘)。存在 `PlanUsageModel.Display.storageKey`,方案用量畫面出現時讀。
     public var planUsageDisplay: PlanUsageModel.Display {
-        didSet { planUsageDisplay.store(in: defaults) }
+        didSet {
+            planUsageDisplay.store(in: defaults)
+            usageDisplay.display = planUsageDisplay
+        }
     }
 
     /// 送出可撤回的秒數(#300;預設 3、0–10,0 為關閉)。存在 `UndoSendSettings.secondsKey`,下一則送出就生效。
@@ -100,6 +103,9 @@ public final class SettingsModel {
         }
     }
 
+    /// 用量區與 context 讀的全 app 共用設定(#389);設定 tab 改了(`planUsageDisplay`)同步過去。
+    public let usageDisplay: UsageDisplaySetting
+
     private let app: AppInfo
     /// 目前選取主機的 client(沒有主機時 `nil`)。每次讀版本都重新取，換主機後重開設定就是新主機。
     private let client: @MainActor () -> HerdrClient?
@@ -110,8 +116,9 @@ public final class SettingsModel {
 
     public init(
         app: AppInfo, client: @escaping @MainActor () -> HerdrClient?, hostCount: @escaping @MainActor () -> Int, defaults: UserDefaults,
-        platform: any PlatformServices, links: SettingsLinks
+        platform: any PlatformServices, links: SettingsLinks, usageDisplay: UsageDisplaySetting = UsageDisplaySetting()
     ) {
+        self.usageDisplay = usageDisplay
         self.app = app
         self.client = client
         self.hostCount = hostCount

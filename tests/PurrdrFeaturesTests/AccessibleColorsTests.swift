@@ -179,21 +179,27 @@ struct SpacesColorsTests {
     }
 }
 
-/// 方案用量圓環的三級顏色(#177)。
+/// 低飽和用量色三級(#177、#389)。
 @Suite("方案用量的配色")
 struct PlanUsageColorsTests {
     static let white = ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)
+    static let groupedTrack = ThemeColor(red: 0xDE, green: 0xDE, blue: 0xE4)   // rgba(120,120,128,.16) 疊在 #F2F2F7
+    static let whiteTrack = ThemeColor(red: 0xE9, green: 0xE9, blue: 0xEB)     // 疊在白色卡片
+    static let darkTracks = [ThemeColor(red: 0x36, green: 0x36, blue: 0x39), ThemeColor(red: 0x41, green: 0x41, blue: 0x45)] // .28 疊在 #1C1C1E、#2C2C2E
     static let darkCards = [ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E), ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E)]
 
-    /// 非文字圖形(WCAG 1.4.11):對圓環所在的列背景 ≥ 3:1,高對比 ≥ 4.5:1。淺色列 #FFFFFF;深色列 #1C1C1E、#2C2C2E。
-    @Test("圓環的充足、偏低、將用完三級：對列背景 ≥ 3:1,高對比 ≥ 4.5:1")
+    /// 非文字圖形(WCAG 1.4.11):對軌道與卡片底 ≥ 3:1,高對比 ≥ 4.5:1。
+    /// 偏高、將用完兩級在淺色 grouped 軌道上略低於 3:1(DESIGN.md 已註明,靠三角形符號與數字傳達),所以只要求對白卡片的軌道;
+    /// 「正常」級對 grouped 軌道也要 ≥ 3:1(#389)。
+    @Test("三級:對軌道與卡片 ≥ 3:1,高對比 ≥ 4.5:1;正常級對 grouped 軌道也 ≥ 3:1")
     func levelContrast() {
         for level in [PlanUsageLevel.ample, .low, .depleted] {
             let palette = AccessibleColors.planUsage(level)
+            let lightBackgrounds = [Self.white, Self.whiteTrack] + (level == .ample ? [Self.groupedTrack] : [])
             let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
-                ("淺色", palette.light, [Self.white], 3), ("深色", palette.dark, Self.darkCards, 3),
-                ("淺色高對比", palette.lightHighContrast, [Self.white], 4.5),
-                ("深色高對比", palette.darkHighContrast, Self.darkCards, 4.5),
+                ("淺色", palette.light, lightBackgrounds, 3), ("深色", palette.dark, Self.darkCards + Self.darkTracks, 3),
+                ("淺色高對比", palette.lightHighContrast, [Self.white, Self.whiteTrack, Self.groupedTrack], 4.5),
+                ("深色高對比", palette.darkHighContrast, Self.darkCards + Self.darkTracks, 4.5),
             ]
             for (name, color, backgrounds, minimum) in cases {
                 for background in backgrounds {
@@ -204,12 +210,13 @@ struct PlanUsageColorsTests {
         }
     }
 
-    @Test("三級的顏色彼此不同(綠、橘、紅)")
+    @Test("三級的顏色彼此不同(低飽和的綠、棕橘、紅)")
     func levelsAreDistinct() {
         let palettes = [PlanUsageLevel.ample, .low, .depleted].map { AccessibleColors.planUsage($0) }
-        #expect(palettes[0].light.green > palettes[0].light.red, "充足不是綠色")
-        #expect(palettes[1].light.red > palettes[1].light.green && palettes[1].light.green > palettes[1].light.blue, "偏低不是橘色")
-        #expect(Int(palettes[2].light.red) > Int(palettes[2].light.green) * 2, "將用完不是紅色")
+        #expect(palettes[0].light.green > palettes[0].light.red, "正常不是綠色")
+        #expect(palettes[1].light.red > palettes[1].light.green && palettes[1].light.green > palettes[1].light.blue, "偏高不是橘棕色")
+        #expect(Int(palettes[2].light.red) > Int(palettes[2].light.green), "將用完不是紅色")
+        #expect(palettes[1].light != palettes[2].light)
     }
 }
 

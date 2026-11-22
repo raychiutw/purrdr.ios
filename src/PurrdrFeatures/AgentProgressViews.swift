@@ -3,13 +3,13 @@ import PurrdrCore
 import SwiftUI
 
 extension AgentProgress.ContextLevel {
-    /// 圓環與進度條的顏色(唯一對應):70% 起橙、85% 起紅;其餘是次要文字色。
+    /// 圓環與進度條的顏色(唯一對應):與方案用量同一組低飽和級距(#389)——正常綠、70% 起棕橘、85% 起紅。
     /// 只用在圖形;百分比文字維持一般文字色(DESIGN.md「狀態色」:顏色只上符號與圓點)。
     var tint: AnyShapeStyle {
         switch self {
-        case .normal: AnyShapeStyle(.secondaryText)
-        case .warning: AnyShapeStyle(Color.orange)
-        case .critical: AnyShapeStyle(Color.red)
+        case .normal: AnyShapeStyle(AccessibleColors.planUsageAmple.color)
+        case .warning: AnyShapeStyle(AccessibleColors.planUsageLow.color)
+        case .critical: AnyShapeStyle(AccessibleColors.planUsageDepleted.color)
         }
     }
 }
@@ -63,12 +63,15 @@ struct ConversationStatusSheet: View {
     let title: String
     let model: ConversationModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.usageSections) private var usage
+    @Environment(\.usageHost) private var usageHost
     @State private var isChoosingModel = false
 
     var body: some View {
         let sheet = model.statusSummary.sheet
         NavigationStack {
             List {
+                usageSection
                 contextSection(sheet)
                 Section {
                     if model.supportsPermissionMode {
@@ -129,19 +132,20 @@ struct ConversationStatusSheet: View {
         .accessibilityIdentifier("status.sheet")
     }
 
+    /// 用量區(#389):這個 Agent 的 5 小時與 7 天,標題寫明範圍。沒有用量來源的 Agent 種類(Gemini 等)不顯示。
+    @ViewBuilder
+    private var usageSection: some View {
+        if let usage, let usageHost, let agent = PlanUsageAgent(agentKind: model.agentKind) {
+            UsageSectionContainer(host: usageHost, agents: [agent], context: usage, scopedTitle: true)
+        }
+    }
+
     @ViewBuilder
     private func contextSection(_ sheet: ConversationStatusSummary.Sheet) -> some View {
         if let percent = sheet.progress.contextPercent {
-            Section("Context") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(verbatim: "\(percent)%")
-                        .font(.largeTitle.weight(.semibold).monospacedDigit())
-                    ProgressView(value: Double(min(max(percent, 0), 100)), total: 100)
-                        .tint(sheet.progress.contextLevel.tint)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text("Context \(percent)%"))
-                .accessibilityIdentifier("progress.context")
+            Section {
+                ContextUsageRow(
+                    percent: percent, level: sheet.progress.contextLevel, display: usage?.display.display ?? .used)
             }
         }
     }

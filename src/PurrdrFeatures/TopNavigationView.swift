@@ -51,6 +51,7 @@ public struct TopNavigationView: View {
     public var body: some View {
         @Bindable var navigation = navigation
         tabs
+            .environment(\.usageSections, UsageSectionContext(hosts: hosts))
             .onChange(of: hosts.selection) { navigation.hostChanged() }
             .onChange(of: sizeClass, initial: true) { _, sizeClass in
                 if sizeClass == .compact { navigation.workspaceFilter = nil }

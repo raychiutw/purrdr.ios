@@ -140,6 +140,7 @@ public struct AgentListView: View {
                     case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: route.host, paneID: paneID)
                     }
                 })
+            .environment(\.usageHost, route.host)
             // 進入與離開對話各記一次開啟時間;開著時不算未讀(行為規格 F2.6)。
             .onAppear { model.chatAppeared(route) }
             .onDisappear { model.chatDisappeared(route) }

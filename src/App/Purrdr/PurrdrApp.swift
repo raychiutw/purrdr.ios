@@ -129,6 +129,7 @@ struct PurrdrApp: App {
                 store: KeychainHostStore(), demoChannel: demo, demoFiles: DemoHostFileFetcher(), demoCompanions: Self.demoCompanions(demo),
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), currentHost: UserDefaultsCurrentHostStore(), planUsageSelection: UserDefaultsPlanUsageSelectionStore(),
+                usageDisplay: UsageDisplaySetting(defaults: .standard),
                 hostPicker: UserDefaultsHostPickerStore(),
                 hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
                 // 裝置名稱只帶裝置種類(同公鑰註解),顯示在主機的裝置列表。
@@ -237,7 +238,7 @@ struct PurrdrApp: App {
         return SettingsModel(
             // 選取中的主機(沒有已存主機時是 Demo 主機);主機數只算已存的主機，不含 Demo。
             app: app, client: { hosts.herdrClient }, hostCount: { hosts.hosts.count }, defaults: .standard,
-            platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks
+            platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks, usageDisplay: hosts.usageDisplay
         )
     }
 

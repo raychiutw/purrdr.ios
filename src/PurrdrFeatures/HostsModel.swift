@@ -106,6 +106,8 @@ public final class HostsModel {
     private let currentHostStore: any CurrentHostStore
     /// 方案用量畫面上次選的主機與 Agent。
     private let planUsageSelection: any PlanUsageSelectionStore
+    /// 用量的「已用／剩餘」全域設定(#389):用量區、方案用量頁、context 與設定共用同一份。
+    public let usageDisplay: UsageDisplaySetting
     /// 登入 Shell、檔案上次選的電腦(#245)。
     private let hostPickerStore: any HostPickerStore
     private let demoChannel: any HostChannel
@@ -171,6 +173,7 @@ public final class HostsModel {
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
         currentHost currentHostStore: any CurrentHostStore = InMemoryCurrentHostStore(),
         planUsageSelection: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
+        usageDisplay: UsageDisplaySetting = UsageDisplaySetting(),
         hostPicker hostPickerStore: any HostPickerStore = InMemoryHostPickerStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
@@ -188,6 +191,7 @@ public final class HostsModel {
         self.selectionStore = selectionStore
         self.currentHostStore = currentHostStore
         self.planUsageSelection = planUsageSelection
+        self.usageDisplay = usageDisplay
         self.hostPickerStore = hostPickerStore
         self.demoChannel = demoChannel
         self.demoFiles = demoFiles
@@ -263,11 +267,19 @@ public final class HostsModel {
     }
 
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
-    public func planUsage() -> PlanUsageModel {
+    /// `host`、`agent` 有值時直接選那台與那個 Agent(用量區的「啟用用量顯示」導到這裡的同意流程)。
+    public func planUsage(host: HostSelection? = nil, agent: PlanUsageAgent? = nil) -> PlanUsageModel {
         PlanUsageModel(
-            hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection, currentHost: agentList.currentHost,
-            currentHostChanged: { [weak self] in self?.agentList.currentHost = $0 }
+            hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection, currentHost: host ?? agentList.currentHost,
+            currentHostChanged: { [weak self] in self?.agentList.currentHost = $0 }, initialAgent: agent
         ) { [weak self] host, agent in
+            self?.planUsageSource(host, agent)
+        }
+    }
+
+    /// 用量區(#389):面板(單一 Agent)與主機 tab(Claude 與 Codex)共用。HTTPS 主機沒有來源,整區是「等主機服務支援」。
+    public func usageSection(host: HostSelection, agents: [PlanUsageAgent]) -> UsageSectionModel {
+        UsageSectionModel(hostName: name(of: host), agents: agents, display: usageDisplay) { [weak self] agent in
             self?.planUsageSource(host, agent)
         }
     }
