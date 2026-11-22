@@ -9,8 +9,9 @@ import Foundation
 ///   `chunk <offset> <bytes> <base64 長度>` 接著一行 base64
 ///
 /// 每則回應最後一行 `end`。主機端的存取規則(與 app、主機服務共用案例 `vendor/purrdr-host/protocol/host-file-access.json`):
-/// 工作目錄不能是 `/`、`$HOME` 或它的上層;沒有工作目錄時只放行暫存目錄(含上傳資料夾 `purrdr-uploads-<uid>`)、舊版 `~/.purrdr/uploads` 與 Claude 的 `tool-results`
-/// (「是否出現在對話紀錄」由 app 判斷，見 ADR-0010);排除清單不分大小寫。先比對請求的路徑，再比對 `cd -P` 與 symlink 迴圈
+/// 工作目錄不能是 `/`、`$HOME` 或它的上層;沒有工作目錄時只放行暫存目錄、舊版 `~/.purrdr/uploads` 與 Claude 的 `tool-results`
+/// (「是否出現在對話紀錄」由 app 判斷，見 ADR-0010);請求的工作目錄是 `userUploadOnly`(只因使用者 prompt 提到)時只放行 Purrdr 上傳資料夾:
+/// 暫存位置(標準位置與 `$TMPDIR`)的**直接子資料夾** `purrdr-uploads[-<uid>]`,或舊版 `~/.purrdr/uploads`;排除清單不分大小寫。先比對請求的路徑，再比對 `cd -P` 與 symlink 迴圈
 /// 解析後的實際路徑;開檔後以開著的檔案(`/dev/fd/3`)的 inode 核對實際路徑。查狀態與從頭讀都把檔案複製成快照，
 /// 之後的分塊從快照讀，分塊之間檔案被覆寫也不會拼出兩個版本。
 /// Windows 主機(#226)由 `WindowsHostChannel` 換成同協定的 PowerShell 版本，以 `followInvocation` 認出。
@@ -20,6 +21,10 @@ package enum HostFileFetchScript {
 
     /// 請求裡「沒有工作目錄」(只因對話紀錄提到而放行)。
     package static let noWorkingDirectory = "-"
+
+    /// 請求裡「只因使用者 prompt 提到而放行」:主機端只放行 Purrdr 上傳資料夾(暫存位置的直接子資料夾 `purrdr-uploads[-<uid>]`、
+    /// 舊版 `~/.purrdr/uploads`)。不是 base64 字元，不會與編碼過的工作目錄混淆。
+    package static let userUploadOnly = "-uploads"
 
     package static func follow(
         maximumSize: Int = HostFileFetchLimits.maximumSize, idleSeconds: Int = HostScriptTimeLimit.followIdleSeconds,
@@ -50,11 +55,14 @@ package enum HostFileFetchScript {
         trap 'exit 124' HUP
         idle=$1
         maximum=$3
-        snapshot=$(mktemp "${TMPDIR:-/tmp}/purrdr-fetch.XXXXXX") || exit 70
+        snapshot=$(mktemp "${TMPDIR:-/tmp}/purrdr-fetch.XXXXXX" 2> /dev/null || mktemp /tmp/purrdr-fetch.XXXXXX) || exit 70
         trap 'rm -f "$snapshot"' EXIT
         snapshot_version=
         snapshot_path=
         no_root=\(noWorkingDirectory)
+        uploads_only=\(userUploadOnly)
+        tmp_resolved=
+        if [ -n "${TMPDIR:-}" ]; then tmp_resolved=$(cd -P -- "$TMPDIR" 2> /dev/null && pwd -P) || tmp_resolved=; fi
         home_resolved=$(cd -P -- "$HOME" 2> /dev/null && pwd -P) || home_resolved=$HOME
         decode() {
           decoded=$(printf '%s' "$1" | base64 --decode 2> /dev/null) || decoded=$(printf '%s' "$1" | base64 -d 2> /dev/null) || decoded=$(printf '%s' "$1" | base64 -D)
@@ -94,11 +102,35 @@ package enum HostFileFetchScript {
           done
           return 1
         }
+        upload_folder_name() {
+          case $1 in
+            \(HostServiceProtocol.uploadFolder)|\(HostServiceProtocol.uploadFolder)-unknown) return 0 ;;
+            \(HostServiceProtocol.uploadFolder)-*) case ${1#\(HostServiceProtocol.uploadFolder)-} in ''|*[!0-9]*) return 1 ;; esac; return 0 ;;
+          esac
+          return 1
+        }
+        direct_upload() {
+          [ -n "$2" ] || return 1
+          rest=${1#"${2%/}"/}
+          [ "$rest" != "$1" ] || return 1
+          case $rest in */*) ;; *) return 1 ;; esac
+          upload_folder_name "${rest%%/*}"
+        }
+        upload_location() {
+          for location in \(temporaryLocations) "${TMPDIR:-}" "$tmp_resolved"; do
+            direct_upload "$1" "$location" && return 0
+          done
+          for legacy in "$HOME/.purrdr/uploads" "$home_resolved/.purrdr/uploads"; do
+            under "$1" "$legacy" && return 0
+          done
+          return 1
+        }
         allowed() {
           case $1 in /*) ;; *) return 1 ;; esac
           case "$1/" in */./*|*/../*) return 1 ;; esac
           excluded "$1" && return 1
           if [ "$2" = "$no_root" ]; then mentionable "$1"; return; fi
+          if [ "$2" = "$uploads_only" ]; then upload_location "$1"; return; fi
           too_broad "$2" && return 1
           under "$1" "$2"
         }
@@ -115,7 +147,7 @@ package enum HostFileFetchScript {
           target=
           allowed "$1" "$2" || return
           verdict=missing
-          if [ "$2" = "$no_root" ]; then resolved_root=$no_root; else resolved_root=$(cd -P -- "$2" 2> /dev/null && pwd -P) || return; fi
+          if [ "$2" = "$no_root" ] || [ "$2" = "$uploads_only" ]; then resolved_root=$2; else resolved_root=$(cd -P -- "$2" 2> /dev/null && pwd -P) || return; fi
           target=$(resolved_path "$1") || return
           verdict=denied
           allowed "$target" "$resolved_root" || return
@@ -193,7 +225,7 @@ package enum HostFileFetchScript {
                 printf 'bad%s' "$nl"
               else
                 requested_path=$(decode "$2")
-                if [ "$3" = "$no_root" ]; then requested_root=$no_root; else requested_root=$(decode "$3"); fi
+                if [ "$3" = "$no_root" ] || [ "$3" = "$uploads_only" ]; then requested_root=$3; else requested_root=$(decode "$3"); fi
                 if [ "$operation" = stat ]; then stat_request "$requested_path" "$requested_root"; else read_request "$requested_path" "$requested_root" "$4" "$5" "$6"; fi
               fi ;;
             *) printf 'bad%s' "$nl" ;;
@@ -213,7 +245,8 @@ package enum HostFileFetchScript {
     }
 
     private static func encoded(_ target: HostFileTarget) -> [String] {
-        [Data(target.path.utf8).base64EncodedString(), target.root.map { Data($0.utf8).base64EncodedString() } ?? noWorkingDirectory]
+        let root = target.root.map { Data($0.utf8).base64EncodedString() } ?? (target.isUserUpload ? userUploadOnly : noWorkingDirectory)
+        return [Data(target.path.utf8).base64EncodedString(), root]
     }
 
     /// 一則回應(`end` 之前的行;`chunk` 的內容已解 base64)。

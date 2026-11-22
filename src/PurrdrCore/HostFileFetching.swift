@@ -17,10 +17,13 @@ public struct HostFileTarget: Sendable, Hashable {
     public var path: String
     /// 主機端以它解析 symlink 後比對「在工作目錄之下」;`nil` 表示只檢查排除清單。
     public var root: String?
+    /// 只因使用者 prompt 提到而放行(`root` 是 `nil`):主機端只放行 Purrdr 上傳資料夾(`HostFileFetchScript.userUploadOnly`)。
+    public var isUserUpload: Bool
 
-    public init(path: String, root: String?) {
+    public init(path: String, root: String?, isUserUpload: Bool = false) {
         self.path = path
         self.root = root
+        self.isUserUpload = isUserUpload
     }
 }
 
@@ -77,11 +80,20 @@ public struct HostFileAccessScope: Sendable, Equatable {
     public var mentionedPaths: Set<String>
     /// 目前的對話紀錄(它的附檔資料夾 `<資料夾>/<檔名去掉副檔名>/tool-results` 可放行提到的路徑)。
     public var transcriptPaths: [String]
+    /// 使用者 prompt 裡出現的路徑(含上傳的圖片與檔案);只有在 Purrdr 上傳資料夾才放行。
+    public var promptMentionedPaths: Set<String>
+    /// 已知的主機暫存目錄(`TMPDIR`);空的時候(app 通常不知道)上傳資料夾只看名稱，由主機端以真正的 `TMPDIR` 再判斷。
+    public var temporaryDirectories: [String]
 
-    public init(workingDirectories: [String], mentionedPaths: Set<String>, transcriptPaths: [String] = []) {
+    public init(
+        workingDirectories: [String], mentionedPaths: Set<String>, transcriptPaths: [String] = [],
+        promptMentionedPaths: Set<String> = [], temporaryDirectories: [String] = []
+    ) {
         self.workingDirectories = workingDirectories
         self.mentionedPaths = mentionedPaths
         self.transcriptPaths = transcriptPaths
+        self.promptMentionedPaths = promptMentionedPaths
+        self.temporaryDirectories = temporaryDirectories
     }
 }
 
@@ -104,6 +116,17 @@ extension HostFileAccessScope {
         }
         return mentioned
     }
+
+    /// 對話紀錄裡使用者 prompt 寫出的路徑(使用者訊息文字與送出的圖片路徑;Agent 訊息與工具結果不算)。
+    /// 只用來放行 Purrdr 上傳資料夾裡的檔案(使用者自己傳的)，其他位置照樣拒絕。
+    public static func promptMentionedPaths(in items: [ConversationItem]) -> Set<String> {
+        var mentioned: Set<String> = []
+        for case .user(let bubble) in items {
+            mentioned.formUnion(HostPathMention.paths(in: bubble.text))
+            mentioned.formUnion(bubble.imagePaths)
+        }
+        return mentioned
+    }
 }
 
 /// 主機取檔的存取規則(app 端提前擋;主機端再檢查，是權威)。與主機服務、SSH 取檔腳本共用案例 `vendor/purrdr-host/protocol/host-file-access.json`。
@@ -111,6 +134,8 @@ extension HostFileAccessScope {
 /// - Agent 工作目錄之下;工作目錄是根目錄、家目錄或它的上層時不算(等於放行整個家目錄)。
 /// - 或 Agent 在對話紀錄寫出的路徑，且在系統暫存目錄(含它底下的上傳資料夾 `purrdr-uploads[-<uid>]`)、舊版家目錄的 `.purrdr/uploads`(保留一個版本)、Windows 的 `AppData\Local\Temp`,
 ///   或目前對話紀錄的附檔資料夾(`<資料夾>/<檔名去掉副檔名>/tool-results`)。
+/// - 或使用者 prompt 裡的路徑(`promptMentionedPaths`),且在 Purrdr 上傳資料夾(暫存位置的**直接子資料夾**或舊版 `.purrdr/uploads`);請求帶 `isUserUpload`,
+///   主機端只放行上傳資料夾(使用者 prompt 不算 Agent 寫出的路徑，其他位置照樣拒絕)。
 /// - 排除清單一律拒絕。app 不知道主機的家目錄，依路徑樣式推測(`/Users/<名稱>`、`/home/<名稱>`、`C:\Users\<名稱>`…)。
 public enum HostFileAccessPolicy {
     public enum Decision: Sendable, Equatable {
@@ -128,21 +153,38 @@ public enum HostFileAccessPolicy {
             guard let rootKeys = HostPathKeys(directory), !rootKeys.isTooBroadForWorkingDirectory else { continue }
             if pathKeys.isUnder(rootKeys) { return .allowed(HostFileTarget(path: path, root: directory)) }
         }
-        guard scope.mentionedPaths.contains(path),
-              isInUploadFolder(pathKeys) || mentionableLocations(for: pathKeys, in: scope).contains(where: pathKeys.isUnder) else {
-            return .denied
+        if scope.mentionedPaths.contains(path),
+           isInUploadFolder(pathKeys, in: scope) || mentionableLocations(for: pathKeys, in: scope).contains(where: pathKeys.isUnder) {
+            return .allowed(HostFileTarget(path: path, root: nil))
         }
-        return .allowed(HostFileTarget(path: path, root: nil))
+        // 使用者 prompt 提到的路徑(使用者自己傳的檔案)：只有 Purrdr 上傳資料夾放行，其他位置照樣拒絕。
+        if scope.promptMentionedPaths.contains(path), isInUploadFolder(pathKeys, in: scope) {
+            return .allowed(HostFileTarget(path: path, root: nil, isUserUpload: true))
+        }
+        return .denied
     }
 
-    /// 上傳資料夾(暫存目錄底下的 `purrdr-uploads[-<uid>]`,schema 的 `x-upload-folder`):TMPDIR 不在標準位置時也放行。
-    private static func isInUploadFolder(_ path: HostPathKeys) -> Bool {
-        path.segments.dropLast().contains { UploadedImages.isUploadFolderName($0) }
+    /// 上傳資料夾裡(schema 的 `x-upload-folder`):**暫存位置的直接子資料夾** `purrdr-uploads[-<uid>]`(更深一層的同名資料夾不算,
+    /// Agent 可以在那裡放任意內容),或舊版家目錄的 `.purrdr/uploads`。暫存位置是 schema 的標準位置、已知的 `TMPDIR`
+    /// (`scope.temporaryDirectories`)與 Windows 家目錄的 `AppData\Local\Temp`。app 不知道 `TMPDIR` 時(空的)只看名稱，
+    /// 主機端以真正的 `TMPDIR` 再判斷一次(權威)。
+    private static func isInUploadFolder(_ path: HostPathKeys, in scope: HostFileAccessScope) -> Bool {
+        var temporaryRoots = HostServiceProtocol.temporaryFileLocations.compactMap(HostPathKeys.init)
+        temporaryRoots += scope.temporaryDirectories.compactMap(HostPathKeys.init)
+        if let home = path.inferredHome {
+            temporaryRoots.append(home.appending(path.isWindows ? ["appdata", "local", "temp"] : ["AppData", "Local", "Temp"]))
+            if path.isUnder(home.appending([".purrdr", "uploads"])) { return true }
+        }
+        if temporaryRoots.contains(where: { path.isInDirectChildUploadFolder(of: $0) }) { return true }
+        // TMPDIR 不明：名稱像上傳資料夾、且不是最後一段(裡面有檔案)。
+        return scope.temporaryDirectories.isEmpty && !path.isWindows
+            && path.segments.dropFirst().dropLast().contains { UploadedImages.isUploadFolderName($0) }
     }
 
     /// 工作目錄以外，Agent 提到時可放行的位置。
     private static func mentionableLocations(for path: HostPathKeys, in scope: HostFileAccessScope) -> [HostPathKeys] {
         var locations = HostServiceProtocol.temporaryFileLocations.compactMap(HostPathKeys.init)
+        locations += scope.temporaryDirectories.compactMap(HostPathKeys.init)
         if let home = path.inferredHome {
             locations.append(home.appending(path.isWindows ? ["appdata", "local", "temp"] : ["AppData", "Local", "Temp"]))
             locations.append(home.appending([".purrdr", "uploads"]))
@@ -198,6 +240,13 @@ private struct HostPathKeys: Equatable {
 
     func isUnder(_ root: HostPathKeys) -> Bool {
         isWindows == root.isWindows && segments.count > root.segments.count && Array(segments.prefix(root.segments.count)) == root.segments
+    }
+
+    /// `<root>/purrdr-uploads[-<uid>]/…` 的路徑(上傳資料夾是 `root` 的直接子資料夾，裡面至少一段)。
+    func isInDirectChildUploadFolder(of root: HostPathKeys) -> Bool {
+        isWindows == root.isWindows && segments.count > root.segments.count + 1
+            && Array(segments.prefix(root.segments.count)) == root.segments
+            && UploadedImages.isUploadFolderName(segments[root.segments.count])
     }
 
     func appending(_ more: [String]) -> HostPathKeys {

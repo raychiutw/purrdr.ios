@@ -1,4 +1,4 @@
-// 由 scripts/sync-purrdr-host.sh 產生，不要手動修改。來源 https://github.com/raychiutw/purrdr.host/tree/52fccae1a8e12524aeb2785cc5926dcec055637f/claude-usage
+// 由 scripts/sync-purrdr-host.sh 產生，不要手動修改。來源 https://github.com/raychiutw/purrdr.host/tree/cd1e5ae5f825a70cd3bce91d09188f6d8fcda6c1/claude-usage
 // 腳本單一來源在 purrdr.host(SSH 與 HTTPS 共用);app 安裝時原樣寫到主機，也以它判斷主機上的包裝是不是舊版。
 enum ClaudeUsageScripts {
     static let posix = #"""

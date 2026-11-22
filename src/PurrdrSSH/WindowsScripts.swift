@@ -561,7 +561,8 @@ enum WindowsScripts {
 
     /// 存取規則與 POSIX 版、主機服務相同(共用案例 `vendor/purrdr-host/protocol/host-file-access.json`):工作目錄不能是磁碟機根目錄、
     /// `%USERPROFILE%` 或它的上層;沒有工作目錄(`-`,`HostFileFetchScript.noWorkingDirectory`)時只放行 `%TEMP%`、
-    /// 家目錄的 `AppData\Local\Temp`、`.purrdr\uploads` 與 Claude 的 `tool-results`。先比對請求的路徑，再以
+    /// 家目錄的 `AppData\Local\Temp`、`.purrdr\uploads` 與 Claude 的 `tool-results`;`-uploads`(只因使用者 prompt 提到)只放行上傳資料夾
+    /// (`%TEMP%` 或家目錄 `AppData\Local\Temp` 的直接子資料夾 `purrdr-uploads`,或 `.purrdr\uploads`)。先比對請求的路徑，再以
     /// `GetFinalPathNameByHandle` 取得 junction／symlink／8.3 短檔名都解析後的實際路徑比對;讀取用的 handle 也再核對一次。
     /// 只收磁碟機路徑,ADS、UNC 拒絕。版本是「SHA-256:大小」;從頭讀時把內容留在記憶體當快照，之後的分塊都從快照切。
     static let hostFileFetchScript = #"""
@@ -603,6 +604,8 @@ enum WindowsScripts {
         $idleSeconds=[int]$a[0];$totalSeconds=[int]$a[1];$maximumSize=[long]$a[2];$requestReader=$s
         # 請求裡「沒有工作目錄」(只因對話紀錄提到而放行),同 HostFileFetchScript.noWorkingDirectory。
         $noRoot='-'
+        # 請求裡「只因使用者 prompt 提到而放行」:只放行 Purrdr 上傳資料夾,同 HostFileFetchScript.userUploadOnly。
+        $uploadsOnly='-uploads'
         $homeFinal=$null;if($env:USERPROFILE){$homeFinal=[PurrdrFinalPath]::Of($env:USERPROFILE)}
         $temporaryFinal=$null;if($env:TEMP){$temporaryFinal=[PurrdrFinalPath]::Of($env:TEMP)}
         function PDrivePath([string]$path){$path -match '^[A-Za-z]:[\\/]' -and $path.IndexOf(':',2) -lt 0}
@@ -624,18 +627,36 @@ enum WindowsScripts {
         foreach($homeFolder in PHomeForms){if((PComparable $path) -like ((PComparable $homeFolder)+'\.claude\projects\*\*\tool-results\*')){return $true}}
         $false
         }
+        function PUploadFolderName([string]$name){$name -match '^\#(HostServiceProtocol.uploadFolder)(-unknown|-\d+)?$'}
+        function PDirectUpload([string]$path,[string]$temporary){
+        if(-not $temporary){return $false}
+        $comparable=PComparable $path;$base=(PComparable $temporary)+'\'
+        if(-not $comparable.StartsWith($base)){return $false}
+        $rest=$comparable.Substring($base.Length);$slash=$rest.IndexOf('\')
+        if($slash -lt 1){return $false}
+        PUploadFolderName $rest.Substring(0,$slash)
+        }
+        function PUploadLocation([string]$path){
+        $locations=@($env:TEMP,$env:TMP,$temporaryFinal)
+        foreach($homeFolder in PHomeForms){$locations+=(Join-Path $homeFolder 'AppData\Local\Temp')}
+        foreach($location in $locations){if(PDirectUpload $path $location){return $true}}
+        foreach($homeFolder in PHomeForms){if(PUnder $path (Join-Path $homeFolder '.purrdr\uploads')){return $true}}
+        $false
+        }
         function PAllowed([string]$path,[string]$root){
         if(PExcluded $path){return $false}
         if($root -ceq $noRoot){return (PMentionable $path)}
+        if($root -ceq $uploadsOnly){return (PUploadLocation $path)}
         if(PTooBroad $root){return $false}
         PUnder $path $root
         }
         function PLocate([string]$path,[string]$root){
         $script:fetchHandle=$null
-        if(-not (PPlainPath $path) -or ($root -cne $noRoot -and -not (PPlainPath $root))){return 'denied'}
-        try{$path=[IO.Path]::GetFullPath($path);if($root -cne $noRoot){$root=[IO.Path]::GetFullPath($root)}}catch{return 'denied'}
+        $rootless=($root -ceq $noRoot -or $root -ceq $uploadsOnly)
+        if(-not (PPlainPath $path) -or (-not $rootless -and -not (PPlainPath $root))){return 'denied'}
+        try{$path=[IO.Path]::GetFullPath($path);if(-not $rootless){$root=[IO.Path]::GetFullPath($root)}}catch{return 'denied'}
         if(-not (PAllowed $path $root)){return 'denied'}
-        if($root -ceq $noRoot){$rootFinal=$noRoot}else{$rootFinal=[PurrdrFinalPath]::Of($root);if(-not $rootFinal){return 'missing'}}
+        if($rootless){$rootFinal=$root}else{$rootFinal=[PurrdrFinalPath]::Of($root);if(-not $rootFinal){return 'missing'}}
         $final=[PurrdrFinalPath]::Of($path)
         if(-not $final){if([PurrdrFinalPath]::LastError -eq [PurrdrFinalPath]::AccessDenied){return 'unreadable'};return 'missing'}
         if(-not (PAllowed $final $rootFinal)){return 'denied'}
@@ -647,7 +668,7 @@ enum WindowsScripts {
         'file'
         }
         function PDecode([string]$encoded){try{$u.GetString([Convert]::FromBase64String($encoded))}catch{''}}
-        function PRequestRoot([string]$encoded){if($encoded -ceq $noRoot){$noRoot}else{PDecode $encoded}}
+        function PRequestRoot([string]$encoded){if($encoded -ceq $noRoot -or $encoded -ceq $uploadsOnly){$encoded}else{PDecode $encoded}}
         function PStat([string]$path,[string]$root){
         $verdict=PLocate $path $root
         if($verdict -cne 'file'){PWrite "$verdict`n";return}

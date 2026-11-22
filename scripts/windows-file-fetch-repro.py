@@ -154,8 +154,8 @@ class Fetcher:
             self.buffer += chunk
         return reply
 
-    def stat(self, path, root=None):
-        fields, _ = self.request(f"stat {b64(path)} {b64(root) if root else '-'}")
+    def stat(self, path, root=None, uploads_only=False):
+        fields, _ = self.request(f"stat {b64(path)} {b64(root) if root else ('-uploads' if uploads_only else '-')}")
         return fields
 
     def read(self, path, root, version, offset, length=CHUNK):
@@ -317,12 +317,16 @@ def run_shared(source):
     # TEMP 不改：Add-Type 要在真的暫存目錄編譯;家目錄底下的 AppData\Local\Temp 由 USERPROFILE 推得。
     preamble = f"$env:USERPROFILE={repro.quote(home)}"
     cases = [case for case in vectors["accessCases"]
-             if case["platform"] == "windows" and "powershell" in case.get("only", ["powershell"])]
+             if case["platform"] == "windows" and "powershell" in case.get("only", ["powershell"])
+             # 沒有工作目錄、也沒被 Agent 或使用者 prompt 提到的案例由 app 判斷(腳本不知道路徑是否出現在對話紀錄)。
+             and not (case["root"] is None and not case["mentioned"] and not case.get("promptMentioned", False))]
     fetcher = Fetcher(source, preamble=preamble)
     trees, failures, green = [], [], True
     try:
         for case in cases:
-            verdict = fetcher.stat(case["path"], case["root"])[0]
+            # 只因使用者 prompt 提到而放行的案例，app 送 `-uploads` 標記(只放行上傳資料夾)。
+            user_upload_only = case.get("promptMentioned", False) and not case["mentioned"] and case["root"] is None
+            verdict = fetcher.stat(case["path"], case["root"], uploads_only=user_upload_only)[0]
             trees = trees or fetcher.tree()
             ok = (verdict == "denied") == (case["expected"] == "denied")
             green &= ok

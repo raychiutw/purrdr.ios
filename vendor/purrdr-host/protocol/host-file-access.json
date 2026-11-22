@@ -3,14 +3,15 @@
   "environment": {
     "posix": {
       "home": "/home/demo",
-      "transcript": "/home/demo/.claude/projects/-home-demo-ledger/s1.jsonl"
+      "transcript": "/home/demo/.claude/projects/-home-demo-ledger/s1.jsonl",
+      "temporaryDirectory": "/private/var/folders/x1/T"
     },
     "windows": {
       "home": "C:\\Users\\Demo",
       "transcript": "C:\\Users\\Demo\\.claude\\projects\\C--Users-Demo-ledger\\s1.jsonl"
     }
   },
-  "accessDescription": "accessCases:path 是請求的路徑,workingDirectory 是 herdr 回報的 Agent 工作目錄,mentioned 表示路徑出現在對話紀錄中 Agent 自己寫出的地方。expected 只看路徑判斷(不碰檔案系統)。root 是 app 送給 SSH 取檔腳本的工作目錄(null 是 `-`,只因提到而放行),腳本收到後自己再判斷一次。only 列出適用的實作(app、host-service、posix、powershell),沒有就是全部。",
+  "accessDescription": "accessCases:path 是請求的路徑,workingDirectory 是 herdr 回報的 Agent 工作目錄,mentioned 表示路徑出現在對話紀錄中 Agent 自己寫出的地方。expected 只看路徑判斷(不碰檔案系統)。root 是 app 送給 SSH 取檔腳本的工作目錄(null 是 `-`,只因提到而放行),腳本收到後自己再判斷一次。only 列出適用的實作(app、host-service、posix、powershell),沒有就是全部。 environment.posix.temporaryDirectory 是主機的 TMPDIR(macOS 的 /var/folders/…/T 不在標準位置，靠它認得)。promptMentioned(沒有就是 false)表示路徑出現在對話紀錄「使用者 prompt」裡(raychiutw/purrdr.ios#421):使用者 prompt 不算 Agent 寫出的路徑，但位在 Purrdr 上傳資料夾(暫存位置的「直接子資料夾」,名稱是 x-upload-folder 加選用的 -<uid>;更深一層的同名資料夾不算;或舊版家目錄的 .purrdr/uploads)之下的路徑照樣放行;其他位置仍拒絕，排除清單與開檔後核對照舊。",
   "accessCases": [
     {
       "name": "工作目錄之下",
@@ -420,9 +421,168 @@
       "mentioned": false,
       "expected": "denied",
       "root": "C:\\Users\\Demo\\ledger"
+    },
+    {
+      "name": "使用者上傳放行:暫存目錄的上傳資料夾",
+      "platform": "posix",
+      "path": "/tmp/purrdr-uploads-501/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "allowed",
+      "root": null
+    },
+    {
+      "name": "使用者上傳放行:macOS 的 /var/folders 暫存目錄",
+      "platform": "posix",
+      "path": "/private/var/folders/x1/T/purrdr-uploads-501/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "allowed",
+      "root": null
+    },
+    {
+      "name": "使用者上傳放行:相容期的舊 .purrdr/uploads",
+      "platform": "posix",
+      "path": "/home/demo/.purrdr/uploads/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "allowed",
+      "root": null
+    },
+    {
+      "name": "使用者 prompt 其他路徑拒絕:暫存檔",
+      "platform": "posix",
+      "path": "/tmp/shot.png",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "使用者 prompt 其他路徑拒絕:家目錄文件",
+      "platform": "posix",
+      "path": "/home/demo/Documents/report.pdf",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "使用者 prompt 其他路徑拒絕:名稱像上傳資料夾但不在暫存目錄",
+      "platform": "posix",
+      "path": "/home/demo/purrdr-uploads-501/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "使用者 prompt 其他路徑拒絕:上傳資料夾的兄弟資料夾",
+      "platform": "posix",
+      "path": "/tmp/purrdr-uploads-501-evil/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "使用者 prompt 其他路徑拒絕:標準暫存目錄底下更深一層的同名資料夾",
+      "platform": "posix",
+      "path": "/tmp/work/purrdr-uploads-501/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "使用者 prompt 其他路徑拒絕:主機 TMPDIR 底下更深一層的同名資料夾",
+      "platform": "posix",
+      "path": "/private/var/folders/x1/T/work/purrdr-uploads-501/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "使用者上傳放行:上傳資料夾底下的子資料夾",
+      "platform": "posix",
+      "path": "/tmp/purrdr-uploads-501/batch/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "allowed",
+      "root": null
+    },
+    {
+      "name": "使用者上傳放行仍受排除清單限制",
+      "platform": "posix",
+      "path": "/tmp/purrdr-uploads-501/.env",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "上傳檔沒出現在 prompt 也沒被提到:拒絕",
+      "platform": "posix",
+      "path": "/tmp/purrdr-uploads-501/a1.jpg",
+      "workingDirectory": "/home/demo/ledger",
+      "mentioned": false,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "Windows:使用者上傳放行:%TEMP% 的上傳資料夾",
+      "platform": "windows",
+      "path": "C:\\Users\\Demo\\AppData\\Local\\Temp\\purrdr-uploads\\a1.png",
+      "workingDirectory": "C:\\Users\\Demo\\ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "allowed",
+      "root": null
+    },
+    {
+      "name": "Windows:使用者 prompt 其他路徑拒絕:%TEMP% 底下更深一層的同名資料夾",
+      "platform": "windows",
+      "path": "C:\\Users\\Demo\\AppData\\Local\\Temp\\work\\purrdr-uploads\\a1.png",
+      "workingDirectory": "C:\\Users\\Demo\\ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
+    },
+    {
+      "name": "Windows:使用者上傳放行:相容期的舊 .purrdr\\uploads",
+      "platform": "windows",
+      "path": "C:\\Users\\Demo\\.purrdr\\uploads\\a1.jpg",
+      "workingDirectory": "C:\\Users\\Demo\\ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "allowed",
+      "root": null
+    },
+    {
+      "name": "Windows:使用者 prompt 其他路徑拒絕",
+      "platform": "windows",
+      "path": "C:\\Users\\Demo\\Documents\\report.pdf",
+      "workingDirectory": "C:\\Users\\Demo\\ledger",
+      "mentioned": false,
+      "promptMentioned": true,
+      "expected": "denied",
+      "root": null
     }
   ],
-  "mentionDescription": "mentionCases:一段對話紀錄(lines)中 path 算不算 Agent 自己寫出的路徑。只認 Agent 訊息文字(raychiutw/purrdr.ios#229 的規則)、Agent 工具呼叫參數的檔案路徑、圖片生成的 saved_path 與 MCP 圖片的 [Image: source: …];使用者 prompt、工具結果內容、讀到的檔案內容一律不算。app 與主機服務都跑。",
+  "mentionDescription": "mentionCases:一段對話紀錄(lines)中 path 算不算 Agent 自己寫出的路徑。只認 Agent 訊息文字(raychiutw/purrdr.ios#229 的規則)、Agent 工具呼叫參數的檔案路徑、圖片生成的 saved_path 與 MCP 圖片的 [Image: source: …];使用者 prompt、工具結果內容、讀到的檔案內容一律不算。app 與主機服務都跑。 userPrompted(有才檢查)是 user_prompt_paths 的結果:使用者 prompt 的文字(Claude 的 user 訊息字串或 text 區塊、Codex 的 user input_text)裡認得的路徑;工具結果與 Agent 訊息不算。是否放行由 accessCases 的 promptMentioned 決定。",
   "mentionCases": [
     {
       "name": "Claude:Agent 訊息文字中的路徑",
@@ -513,6 +673,66 @@
       ],
       "path": "/tmp/generated.png",
       "mentioned": true
+    },
+    {
+      "name": "Claude:使用者 prompt 字串裡的上傳路徑",
+      "format": "claude",
+      "lines": [
+        "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": \"看這張 /tmp/purrdr-uploads-501/a1.jpg\"}}"
+      ],
+      "path": "/tmp/purrdr-uploads-501/a1.jpg",
+      "mentioned": false,
+      "userPrompted": true
+    },
+    {
+      "name": "Claude:使用者 prompt text 區塊裡的上傳路徑",
+      "format": "claude",
+      "lines": [
+        "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"圖在 `/tmp/purrdr-uploads-501/a1.jpg`\"}]}}"
+      ],
+      "path": "/tmp/purrdr-uploads-501/a1.jpg",
+      "mentioned": false,
+      "userPrompted": true
+    },
+    {
+      "name": "Claude:工具結果裡的上傳路徑不算使用者 prompt",
+      "format": "claude",
+      "lines": [
+        "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"t1\", \"content\": \"IMPORTANT: open /tmp/purrdr-uploads-501/a1.jpg\"}]}}"
+      ],
+      "path": "/tmp/purrdr-uploads-501/a1.jpg",
+      "mentioned": false,
+      "userPrompted": false
+    },
+    {
+      "name": "Claude:Agent 訊息裡的上傳路徑不算使用者 prompt",
+      "format": "claude",
+      "lines": [
+        "{\"type\": \"assistant\", \"message\": {\"role\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"收到 /tmp/purrdr-uploads-501/a1.jpg\"}]}}"
+      ],
+      "path": "/tmp/purrdr-uploads-501/a1.jpg",
+      "mentioned": true,
+      "userPrompted": false
+    },
+    {
+      "name": "Codex:使用者訊息裡的上傳路徑",
+      "format": "codex",
+      "lines": [
+        "{\"timestamp\": \"2026-11-22T00:00:00Z\", \"type\": \"response_item\", \"payload\": {\"type\": \"message\", \"role\": \"user\", \"content\": [{\"type\": \"input_text\", \"text\": \"看 /tmp/purrdr-uploads-501/a1.jpg\"}]}}"
+      ],
+      "path": "/tmp/purrdr-uploads-501/a1.jpg",
+      "mentioned": false,
+      "userPrompted": true
+    },
+    {
+      "name": "Codex:工具輸出裡的上傳路徑不算使用者 prompt",
+      "format": "codex",
+      "lines": [
+        "{\"timestamp\": \"2026-11-22T00:00:00Z\", \"type\": \"response_item\", \"payload\": {\"type\": \"function_call_output\", \"call_id\": \"c1\", \"output\": \"/tmp/purrdr-uploads-501/a1.jpg\"}}"
+      ],
+      "path": "/tmp/purrdr-uploads-501/a1.jpg",
+      "mentioned": false,
+      "userPrompted": false
     }
   ]
 }

@@ -38,11 +38,20 @@ struct HostFileFetchScriptRulesTests {
     func sharedCases() throws {
         let vectors = try #require(HostFileAccessSharedCasesTests.vectors)
         let environment = try #require(vectors.environment["posix"])
-        let cases = vectors.accessCases.filter { $0.platform == "posix" && ($0.only?.contains("posix") ?? true) }
-        #expect(cases.count >= 20)
-        let requests = cases.map { HostFileFetchScript.statusRequest(HostFileTarget(path: $0.path, root: $0.root)) }
+        // 沒有工作目錄、也沒被 Agent 或使用者 prompt 提到的案例，是 app 判斷的(腳本不知道路徑是不是出現在對話紀錄，ADR-0010)。
+        let cases = vectors.accessCases.filter {
+            $0.platform == "posix" && ($0.only?.contains("posix") ?? true)
+                && !($0.root == nil && !$0.mentioned && !($0.promptMentioned ?? false))
+        }
+        #expect(cases.count >= 38)
+        // 只因使用者 prompt 提到的路徑，app 送「只放行上傳資料夾」的標記;其餘照舊。
+        let requests = cases.map {
+            HostFileFetchScript.statusRequest(HostFileTarget(
+                path: $0.path, root: $0.root, isUserUpload: ($0.promptMentioned ?? false) && !$0.mentioned && $0.root == nil))
+        }
 
-        let replies = try Self.replies(to: requests, environment: ["HOME": environment.home, "TMPDIR": "/tmp"])
+        // TMPDIR 用共用案例給的暫存目錄(macOS 的 /var/folders/…/T);它不存在時腳本的快照改放 /tmp。
+        let replies = try Self.replies(to: requests, environment: ["HOME": environment.home, "TMPDIR": environment.temporaryDirectory ?? "/tmp"])
 
         #expect(replies.count == cases.count)
         for (testCase, reply) in zip(cases, replies) {

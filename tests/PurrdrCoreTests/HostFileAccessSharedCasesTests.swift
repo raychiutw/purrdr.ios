@@ -11,6 +11,8 @@ struct HostFileAccessSharedCasesTests {
         var path: String
         var workingDirectory: String?
         var mentioned: Bool
+        /// 路徑出現在使用者 prompt 裡(沒有就是 false);只放行上傳資料夾。
+        var promptMentioned: Bool?
         var expected: String
         var root: String?
         var only: [String]?
@@ -22,11 +24,14 @@ struct HostFileAccessSharedCasesTests {
         var lines: [String]
         var path: String
         var mentioned: Bool
+        var userPrompted: Bool?
     }
 
     struct Environment: Decodable {
         var home: String
         var transcript: String
+        /// 主機的 TMPDIR(只有 posix;macOS 的 /var/folders/…/T 靠它認得)。
+        var temporaryDirectory: String?
     }
 
     struct Vectors: Decodable {
@@ -45,17 +50,22 @@ struct HostFileAccessSharedCasesTests {
     func accessCases() throws {
         let vectors = try #require(Self.vectors)
         let cases = vectors.accessCases.filter { $0.only?.contains("app") ?? true }
-        #expect(cases.count >= 20)
+        #expect(cases.count >= 60)
         for testCase in cases {
             let environment = try #require(vectors.environment[testCase.platform])
+            let isPrompted = testCase.promptMentioned ?? false
             let scope = HostFileAccessScope(
                 workingDirectories: testCase.workingDirectory.map { [$0] } ?? [],
-                mentionedPaths: testCase.mentioned ? [testCase.path] : [], transcriptPaths: [environment.transcript])
+                mentionedPaths: testCase.mentioned ? [testCase.path] : [], transcriptPaths: [environment.transcript],
+                promptMentionedPaths: isPrompted ? [testCase.path] : [],
+                temporaryDirectories: environment.temporaryDirectory.map { [$0] } ?? [])
 
             let decision = HostFileAccessPolicy.decision(for: testCase.path, in: scope)
 
+            // 只因使用者 prompt 提到而放行時，請求帶「只放行上傳資料夾」的標記(腳本照樣判斷)。
+            let isUserUploadOnly = isPrompted && !testCase.mentioned && testCase.root == nil
             let expected: HostFileAccessPolicy.Decision = testCase.expected == "allowed"
-                ? .allowed(HostFileTarget(path: testCase.path, root: testCase.root)) : .denied
+                ? .allowed(HostFileTarget(path: testCase.path, root: testCase.root, isUserUpload: isUserUploadOnly)) : .denied
             #expect(decision == expected, "\(testCase.name)")
         }
     }
@@ -72,6 +82,10 @@ struct HostFileAccessSharedCasesTests {
             let mentioned = HostFileAccessScope.mentionedPaths(in: Conversation.items(from: messages))
 
             #expect(mentioned.contains(testCase.path) == testCase.mentioned, "\(testCase.name):\(mentioned)")
+            if let userPrompted = testCase.userPrompted {
+                let prompted = HostFileAccessScope.promptMentionedPaths(in: Conversation.items(from: messages))
+                #expect(prompted.contains(testCase.path) == userPrompted, "\(testCase.name):\(prompted)")
+            }
         }
     }
 }
