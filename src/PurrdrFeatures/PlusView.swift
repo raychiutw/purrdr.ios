@@ -44,6 +44,16 @@ public struct PlusView: View {
         List {
             if let subscription = model.subscription, subscription.isActive {
                 subscribedSections(subscription)
+            } else if model.isPlusProvisional {
+                // 已向 Apple 付款、Purrdr 還沒確認:Plus 先生效,不再推銷購買。
+                Section {
+                    Label("Purrdr Plus is on", systemImage: "checkmark.circle.fill")
+                        .font(.headline)
+                } footer: {
+                    Text("Your purchase is confirmed with Apple. Purrdr will finish confirming it the next time it’s online.")
+                }
+                .accessibilityIdentifier("plus.provisional")
+                featuresSection(showsStatus: true)
             } else {
                 if model.needsRenewal {
                     Section { RenewalPrompt() }
@@ -512,6 +522,7 @@ extension SubscriptionNotice {
         case .signInRequired: "Sign In to Continue"
         case .transferred: "Subscription Moved"
         case .transferBlocked: "Can’t Move the Subscription"
+        case .alreadySubscribed: "Already Subscribed"
         case .failed: "Couldn’t Finish"
         }
     }
@@ -536,6 +547,8 @@ extension SubscriptionNotice {
             String(localized: "Purrdr Plus now belongs to this member account. The payment method and renewal date stay the same.")
         case .transferBlocked:
             String(localized: "This member already has a subscription, and a member can have only one. To move this one, cancel the other first and wait for its period to end.")
+        case .alreadySubscribed:
+            String(localized: "This member already has an active subscription, and a member can have only one. To switch plans or stores, cancel the current one and wait for its period to end.")
         case .failed:
             String(localized: "Something went wrong. Try again.")
         }

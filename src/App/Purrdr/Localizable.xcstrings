@@ -1447,6 +1447,17 @@
         }
       }
     },
+    "Already Subscribed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已經訂閱"
+          }
+        }
+      }
+    },
     "Already a member" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9048,6 +9059,17 @@
         }
       }
     },
+    "Purrdr Plus is on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr Plus 已開通"
+          }
+        }
+      }
+    },
     "Purrdr Plus is on." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13528,6 +13550,17 @@
         }
       }
     },
+    "This member already has an active subscription, and a member can have only one. To switch plans or stores, cancel the current one and wait for its period to end." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個會員已經有有效的訂閱，而且一個會員同時只能有一個。要換方案或商店，請先取消目前的訂閱並等這一期結束。"
+          }
+        }
+      }
+    },
     "This member already has that kind of sign-in method. Unlink it first." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15545,6 +15578,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的訊息。%@"
+          }
+        }
+      }
+    },
+    "Your purchase is confirmed with Apple. Purrdr will finish confirming it the next time it’s online." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 已確認你的購買。Purrdr 會在下次連上網路時完成確認。"
           }
         }
       }

@@ -97,7 +97,8 @@ struct SubscriptionModelTests {
         await model.purchase(planID: FakePlusStore.monthly.id, member: Self.member)
 
         #expect(store.finished.isEmpty)
-        #expect(!model.isPlusActive)
+        #expect(model.isPlusProvisional)  // 後台確認前依 StoreKit 先行生效(#413)
+        #expect(model.subscription == nil)
         #expect(model.notice == .purchaseNotDelivered)
     }
 
