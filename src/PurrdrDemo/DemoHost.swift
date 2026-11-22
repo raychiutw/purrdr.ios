@@ -40,6 +40,8 @@ public actor DemoHost: HostChannel {
         /// 聊天中斷網(#219):第一次定位對話紀錄(對話載入完成，#371)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
+        /// Antigravity 情境(#446):列表多一個 Antigravity Agent「garden」(w4:p1),畫面狀態列是 accept-edits · Gemini 4 Neon · medium。
+        case antigravity
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -92,6 +94,7 @@ public actor DemoHost: HostChannel {
         switch scenario {
         case .agentFiles: [DemoTranscripts.agentFiles, DemoTranscripts.weather]
         case .sentImages: [DemoTranscripts.sentImages, DemoTranscripts.weather]
+        case .antigravity: DemoTranscripts.sessions + [DemoAntigravity.session]
         default: DemoTranscripts.sessions
         }
     }
@@ -116,6 +119,7 @@ public actor DemoHost: HostChannel {
             isOffline = true
             offlineScheduled = true
         }
+        state.includesAntigravity = scenario == .antigravity
         if scenario == .largeOutputOnPrompt {
             appended[DemoTranscripts.ledger.sessionID] = DemoTranscripts.longChat(at: Date(timeIntervalSince1970: 1_794_819_660))
         }
@@ -362,6 +366,12 @@ public actor DemoHost: HostChannel {
                 }
             }
             return DemoSnapshot.prompted(id: id, paneID: target)
+        case DemoAntigravity.paneID where scenario == .antigravity:
+            prompts += 1
+            let sessionID = DemoAntigravity.conversationID
+            let existing = DemoAntigravity.session.lines.count + (appended[sessionID]?.count ?? 0)
+            appended[sessionID, default: []] += DemoAntigravity.reply(to: text, number: prompts, startingAt: existing, at: Date())
+            return DemoSnapshot.prompted(id: id, paneID: target)
         default:
             return DemoSnapshot.error(id: id, code: "agent_not_found", message: "agent not found: \(target)")
         }
@@ -444,6 +454,9 @@ public actor DemoHost: HostChannel {
             let ansi = params["format"] as? String == "ansi"
             if pendingReplies.contains(where: { $0.paneID == paneID }) {
                 return DemoSnapshot.paneRead(id: id, paneID: paneID, text: Self.workingScreen, ansi: ansi)
+            }
+            if paneID == DemoAntigravity.paneID, scenario == .antigravity {
+                return DemoSnapshot.paneRead(id: id, paneID: paneID, text: DemoAntigravity.screen, ansi: ansi)
             }
             return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID, ansi: ansi), ansi: ansi)
         case "pane.send_keys":
@@ -720,6 +733,8 @@ enum DemoSnapshot {
         var closed: Set<String> = []
         /// 依「需要你」情境改過的 Agent 狀態(pane id → 狀態)。
         var statuses: [String: String] = [:]
+        /// Antigravity 情境:快照多一個 w4(garden)。
+        var includesAntigravity = false
     }
 
     /// 依 socket API 的請求產生一行回應(`{id,result}` 或 `{id,error}`)。
@@ -790,11 +805,14 @@ enum DemoSnapshot {
         (line(#"{"id":\#(quoted(id)),"result":{"type":"ok"}}"#), false)
     }
 
-    private static let workspaceIDs: Set<String> = ["w1", "w2", "w3"]
+    private static let workspaceIDs: Set<String> = ["w1", "w2", "w3", "w4"]
 
     /// 範例 snapshot 套上這次啟動中的改動：關掉的 workspace 連同 tab、pane、版面、Agent 一起拿掉;改過的名稱換掉。
     private static func snapshot(applying state: State) -> [String: Any] {
         guard var snapshot = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] else { return [:] }
+        if state.includesAntigravity {
+            for (key, entries) in DemoAntigravity.snapshotEntries { snapshot[key] = (snapshot[key] as? [[String: Any]] ?? []) + entries }
+        }
         for key in ["workspaces", "tabs", "panes", "layouts", "agents"] {
             snapshot[key] = (snapshot[key] as? [[String: Any]])?.filter { !state.closed.contains($0["workspace_id"] as? String ?? "") }
         }

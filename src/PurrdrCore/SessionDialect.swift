@@ -26,11 +26,18 @@ public struct SessionDialect: Sendable, Equatable {
     /// 主機服務列出與恢復過去 session 的種類;`nil` 表示不能恢復。
     public let resumeKind: String?
     public let titleRule: TitleRule
+    /// 恢復指定對話的啟動旗標,後面接對話 id(Antigravity 的 `--conversation <id>`);`nil` 表示沒有。
+    public let resumeConversationFlag: String?
+    /// 接續最近一次對話的啟動旗標(Antigravity 的 `-c`);`nil` 表示沒有。
+    public let continueFlag: String?
 
     init(
         name: String, verification: Verification, startsNewChat: Bool = false, permissionModeFlag: String? = nil,
-        resumeKind: String? = nil, titleRule: TitleRule = .sessionTitleThenTerminal
+        resumeKind: String? = nil, titleRule: TitleRule = .sessionTitleThenTerminal,
+        resumeConversationFlag: String? = nil, continueFlag: String? = nil
     ) {
+        self.resumeConversationFlag = resumeConversationFlag
+        self.continueFlag = continueFlag
         self.name = name
         self.verification = verification
         self.startsNewChat = startsNewChat
@@ -86,9 +93,11 @@ extension SessionDialect {
     static let grok = SessionDialect(
         name: "grok", verification: .unverified(documentedFor: "Grok 1.0.52"), startsNewChat: true, titleRule: .grokTerminalTitle
     )
-    /// Antigravity:能開新聊天;恢復(`agy --conversation <id>`)之後再加。
+    /// Antigravity:能開新聊天(`--kind agy`);恢復用啟動旗標 `--conversation <id>`、接續最近一次用 `-c`(agy 1.5.14 `--help`)。
+    /// 主機服務還不能列出 agy 的過去 session(`resumeKind` 為 `nil`,要 purrdr.host 擴充 `sessions.list`),所以畫面還沒有「從清單選」的恢復。
     static let antigravity = SessionDialect(
-        name: "antigravity", verification: .verified(agentVersion: "Antigravity CLI 1.5.14"), startsNewChat: true
+        name: "antigravity", verification: .verified(agentVersion: "Antigravity CLI 1.5.14"), startsNewChat: true,
+        resumeConversationFlag: "--conversation", continueFlag: "-c"
     )
     static let piJournal = SessionDialect(
         name: "pi-journal", verification: .unverified(documentedFor: "Pi coding-agent"), startsNewChat: true

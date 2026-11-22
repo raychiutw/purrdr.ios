@@ -76,6 +76,10 @@ struct ConversationStatusSheet: View {
                 Section {
                     if model.supportsPermissionMode {
                         modelRow
+                    } else if model.readsStatusLine, let summary = model.modelSummary {
+                        // 只顯示(Antigravity 的模型要在電腦的終端機切換)。
+                        PanelValueRow(title: "Model", value: summary)
+                            .accessibilityIdentifier("status.model")
                     }
                     if !sheet.progress.todos.isEmpty {
                         NavigationLink {
@@ -107,8 +111,10 @@ struct ConversationStatusSheet: View {
                     PermissionModeSection(model: model)
                 } else if let policy = model.approvalPolicy {
                     ApprovalPolicySection(policy: policy)
+                } else if model.readsStatusLine, let mode = model.permissionMode {
+                    ReadOnlyPermissionModeSection(mode: mode)
                 }
-                if !model.supportsPermissionMode, model.approvalPolicy == nil, sheet.progress.isEmpty, sheet.backgroundAgents?.rows.isEmpty ?? true, !sheet.hasSendWhenDone {
+                if !model.supportsPermissionMode, model.approvalPolicy == nil, !(model.readsStatusLine && model.permissionMode != nil), sheet.progress.isEmpty, sheet.backgroundAgents?.rows.isEmpty ?? true, !sheet.hasSendWhenDone {
                     Text("Nothing to show yet.")
                         .foregroundStyle(.secondaryText)
                         .accessibilityIdentifier("status.empty")

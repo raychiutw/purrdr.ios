@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrTestSupport
 import Testing
 
 /// 各 agent 打 `/` 時的選單來源(行為規格 F9.1、#37 G17)。Grok、Antigravity 用固定清單(取自各自的官方文件,
@@ -23,8 +24,29 @@ struct SlashMenuSourceTests {
         #expect(grok.first { $0.name == "model" } == SlashCommand(name: "model", argumentHint: "<name>", summary: "Switch the active model"))
         #expect(grok.contains { $0.name == "compact" && $0.argumentHint == "[context]" })
         #expect(agy.contains { $0.name == "rewind" })
-        #expect(agy.contains { $0.name == "voice" && $0.argumentHint == "[live|dictate]" })
+        #expect(agy.contains { $0.name == "voice" })
         #expect(!agy.contains { $0.name == "compact-mode" })
+    }
+
+    /// #446:Antigravity 的清單就是真實 `/help` 錄製的 51 項(第 21 項被捲掉、依官方文件補 `mcp`),不多不少。
+    @Test("Antigravity 固定清單 = 真實 /help 三個畫面的指令(去重)加上被捲掉的 mcp")
+    func antigravityListMatchesRecordedHelp() {
+        guard case .fixed(let agy) = Self.menu("agy") else {
+            Issue.record("agy 沒有固定清單")
+            return
+        }
+        var recorded: [String] = []
+        for page in ["agy-help-commands-1", "agy-help-commands-2", "agy-help-commands-3"] {
+            for line in PaneScreens.text(page).split(separator: "\n") {
+                let trimmed = line.drop { $0 == ">" || $0 == " " }
+                guard trimmed.hasPrefix("/"), let match = trimmed.firstMatch(of: /^\/([\w-]+)/) else { continue }
+                if !recorded.contains(String(match.output.1)) { recorded.append(String(match.output.1)) }
+            }
+        }
+        #expect(recorded.count == 50)
+        #expect(Set(agy.map(\.name)) == Set(recorded).union(["mcp"]))
+        #expect(agy.count == 51)
+        #expect(agy.first?.name == "add-dir")
     }
 
     /// 選單只在草稿是 `/` 加 `[\w:-]*` 時出現(F9.3),名稱必須符合同樣的字元;同一份清單不可重複。

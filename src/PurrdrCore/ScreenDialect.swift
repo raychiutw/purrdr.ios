@@ -77,8 +77,16 @@ public struct ScreenDialect: Sendable, Equatable {
         case codex
     }
 
+    /// 畫面最底下一行的狀態列格式。
+    public enum StatusLineStyle: Sendable, Equatable {
+        /// Antigravity:右下角「模式 · 模型 · effort」(default 模式沒有模式那一段,#446)。
+        case antigravity
+    }
+
     public let name: String
     public let verification: Verification
+    /// 狀態列格式;`nil` 表示不讀。只讀取、不送按鍵,所以不受驗證開關管制。
+    public let statusLine: StatusLineStyle?
     /// slash 指令開出的面板格式;`nil` 表示不解析面板。
     public let panel: PanelStyle?
     /// 認得 `@` 檔案選擇器(Codex):只能關閉。
@@ -116,12 +124,13 @@ public struct ScreenDialect: Sendable, Equatable {
 
     /// 測試以 package 建出沒驗證過的方言,驗證開關才有守門的對象。
     package init(
-        name: String, verification: Verification, panel: PanelStyle? = nil, detectsFilePicker: Bool = false,
+        name: String, verification: Verification, statusLine: StatusLineStyle? = nil, panel: PanelStyle? = nil, detectsFilePicker: Bool = false,
         hasPermissionModes: Bool = false, choosesModel: Bool = false, showsModelName: Bool = false,
         showsApprovalPolicy: Bool = false, readsPromptSuggestions: Bool = false, transcriptStartsAfterFirstMessage: Bool = false
     ) {
         self.name = name
         self.verification = verification
+        self.statusLine = statusLine
         self.panel = panel
         self.detectsFilePicker = detectsFilePicker
         self.hasPermissionModes = hasPermissionModes
@@ -142,6 +151,63 @@ extension ScreenDialect {
         name: "codex", verification: .verified(agentVersion: "Codex 0.157–0.163"), panel: .codex, detectsFilePicker: true,
         showsModelName: true, showsApprovalPolicy: true, transcriptStartsAfterFirstMessage: true
     )
+    /// Antigravity 1.5.14(#446):只讀狀態列(模式、模型、effort)並顯示;面板、權限模式切換與選模型要送按鍵,
+    /// 之後的票才開放(`hasPermissionModes`／`panel`／`choosesModel` 都還沒開)。
+    static let antigravity = ScreenDialect(
+        name: "antigravity", verification: .verified(agentVersion: "Antigravity CLI 1.5.14"), statusLine: .antigravity, showsModelName: true
+    )
     /// 其他種類:不讀面板、不切換、不顯示額外資訊(提示解析仍用通用規則)。
     public static let generic = ScreenDialect(name: "generic", verification: .unverified(documentedFor: "none"))
+}
+
+/// 從畫面狀態列讀到的 session 設定(#446):權限模式、模型顯示名與 effort。
+public struct AgentStatusLine: Sendable, Equatable {
+    public let mode: AgentPermissionMode?
+    public let model: String?
+    public let effort: String?
+
+    public init(mode: AgentPermissionMode?, model: String?, effort: String?) {
+        self.mode = mode
+        self.model = model
+        self.effort = effort
+    }
+}
+
+extension ScreenDialect {
+    /// 讀 pane 畫面最底下一行的狀態列;這個方言沒有狀態列、或最後一行不是狀態列(認不出)回 `nil`,呼叫端沿用上次。
+    public func readStatusLine(in screen: String) -> AgentStatusLine? {
+        switch statusLine {
+        case .antigravity: AntigravityStatusLine.parse(screen)
+        case nil: nil
+        }
+    }
+}
+
+/// Antigravity 的狀態列(真實畫面 agy 1.5.14):畫面最後一個非空行的右半段是「模式 · 模型 · effort」;
+/// 權限模式 default 時沒有模式那一段(只有「模型 · effort」);面板、提示開著時它仍在最底下。
+enum AntigravityStatusLine {
+    private static let efforts: Set<String> = ["low", "medium", "high", "xhigh", "max"]
+
+    static func parse(_ screen: String) -> AgentStatusLine? {
+        guard let last = screen.split(separator: "\n", omittingEmptySubsequences: true)
+            .last(where: { !$0.allSatisfy(\.isWhitespace) }) else { return nil }
+        // 左邊可能有提示(`? for shortcuts`、`esc to cancel`),與右邊的狀態以兩個以上的空白隔開。
+        let text = String(last).trimmingCharacters(in: .whitespaces)
+        let chunk = text.range(of: #"\s{2,}"#, options: [.regularExpression, .backwards]).map { String(text[$0.upperBound...]) } ?? text
+        let segments = chunk.components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard segments.count == 2 || segments.count == 3, let effort = segments.last?.lowercased(), efforts.contains(effort),
+              !segments.contains(where: \.isEmpty) else { return nil }
+        let mode: AgentPermissionMode
+        if segments.count == 3 {
+            guard let known = modes[segments[0]] else { return nil }
+            mode = known
+        } else {
+            mode = .normal
+        }
+        return AgentStatusLine(mode: mode, model: segments[segments.count - 2], effort: effort)
+    }
+
+    private static let modes: [String: AgentPermissionMode] = [
+        "default": .normal, "auto": .auto, "accept-edits": .acceptEdits, "plan": .plan,
+    ]
 }

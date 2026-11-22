@@ -25,7 +25,7 @@ struct ScreenDialectTests {
     func catalogAssignment() {
         #expect(Self.dialect("claude").panel == .claude)
         #expect(Self.dialect("codex").panel == .codex)
-        for name in ["agy", "grok", "pi", "gemini", "unknown-agent"] {
+        for name in ["grok", "pi", "gemini", "unknown-agent"] {
             #expect(Self.dialect(name) == .generic, "\(name)")
         }
         #expect(ScreenDialect.generic.configurableCategories.isEmpty)
@@ -41,6 +41,15 @@ struct ScreenDialectTests {
         #expect(!claude.showsApprovalPolicy && !claude.detectsFilePicker && !claude.transcriptStartsAfterFirstMessage)
         #expect(claude.configurableCategories == [.mode, .model, .effort])
         #expect(codex.configurableCategories.isEmpty)
+    }
+
+    @Test("Antigravity:只讀狀態列並顯示模型;面板、權限模式切換、選模型要送按鍵,還沒開放(#446)")
+    func antigravityReadsOnly() {
+        let agy = Self.dialect("agy")
+        #expect(agy.statusLine == .antigravity && agy.showsModelName && agy.isVerified)
+        #expect(!agy.readsPanels && !agy.switchesPermissionMode && !agy.canChooseModel)
+        #expect(agy.configurableCategories.isEmpty)
+        #expect(Self.dialect("claude").statusLine == nil && Self.dialect("codex").statusLine == nil)
     }
 
     @Test("herdr 的別名(claude-code)也取到同一份畫面組")

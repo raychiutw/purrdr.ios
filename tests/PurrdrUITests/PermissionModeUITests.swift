@@ -56,4 +56,31 @@ final class PermissionModeUITests: XCTestCase {
         let gone = NSPredicate(format: "exists == false")
         XCTAssertTrue(picker.wait(for: gone, timeout: 10), "等待的條件沒有成立")
     }
+
+    /// Antigravity(#446):標題顯示畫面狀態列讀到的權限模式,模型膠囊顯示「模型 · effort」;狀態面板只顯示、不能切換。
+    /// 只讀狀態列,**不送任何按鍵**。
+    @MainActor
+    func testAntigravityShowsModeAndModelReadOnly() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoAntigravity"])
+        let row = app.element("agent.row.demo/w4:p1")
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 的 Antigravity Agent")
+        row.tap()
+        let header = app.element("conversation.header")
+        XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
+        XCTAssertTrue(
+            header.wait(for: NSPredicate(format: "label BEGINSWITH 'Accept Edits'"), timeout: 10), "標題沒有顯示畫面狀態列的 Accept Edits")
+
+        header.tap()
+        XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
+        XCTAssertTrue(app.element("permissionMode.readOnlyRow").waitUntilExists(timeout: 10), "面板沒有唯讀的權限模式")
+        XCTAssertFalse(app.element("permissionMode.picker").exists, "Antigravity 的權限模式不能在手機切換")
+        XCTAssertTrue(app.element("status.model").exists, "面板沒有顯示模型")
+        app.buttons["sheet.close"].tap()
+        XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5))
+
+        app.element("composer.text").tap()
+        let capsule = app.element("composer.model")
+        XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
+        XCTAssertTrue((capsule.value as? String ?? "").hasPrefix("Gemini 4 Neon"), "膠囊應顯示 Gemini 4 Neon · effort")
+    }
 }

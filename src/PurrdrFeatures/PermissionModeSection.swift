@@ -93,6 +93,24 @@ extension PermissionModeFailure {
     }
 }
 
+/// 只讀得到、不能在手機切換的權限模式(Antigravity,#446):顯示目前模式與說明。
+struct ReadOnlyPermissionModeSection: View {
+    let mode: AgentPermissionMode
+
+    var body: some View {
+        Section {
+            LabeledContent("Permission Mode") {
+                Text(verbatim: mode.displayName)
+                    .foregroundStyle(.secondaryText)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("permissionMode.readOnlyRow")
+        } footer: {
+            Text("This is set on the host and can’t be changed here.")
+        }
+    }
+}
+
 /// Codex 面板的核准政策(#383):只顯示、不能在手機切換。
 struct ApprovalPolicySection: View {
     let policy: String

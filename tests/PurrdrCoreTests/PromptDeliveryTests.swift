@@ -221,6 +221,24 @@ struct PromptDeliveryTests {
         #expect(AgentCatalog.profile(forHerdrName: "antigravity-cli").input.answers?.digitAnswer == .digitAlone)
     }
 
+    @Test("Antigravity 的 ! 指令是 shell 指令:不等待、不補 Enter(#446);一般文字與其他種類照舊")
+    func antigravityShellCommand() async throws {
+        #expect(PromptDelivery.isShellCommand("!git status", kind: "agy"))
+        #expect(PromptDelivery.isShellCommand("!ls", kind: "antigravity"))
+        #expect(!PromptDelivery.isShellCommand("run !ls", kind: "agy"))
+        #expect(!PromptDelivery.isShellCommand("!ls", kind: "grok"))
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.prompted(delivery: "written_to_pty"))
+        let agy = Agent(paneID: Self.paneID, workspaceID: "w1", kind: "agy", status: .idle)
+
+        let outcome = await Self.delivery(host).send("!git status", to: agy)
+
+        #expect(outcome == .submittedCommand)
+        #expect(await host.executions.map(\.stdinText) == [
+            #"{"id":"purrdr:agent.prompt","method":"agent.prompt","params":{"target":"w1:p6","text":"!git status"}}"# + "\n",
+        ])
+    }
+
     @Test("Slash 指令的判斷：斜線後是字母開頭的名稱，接空白或結尾;路徑與一般文字不算")
     func slashCommandDetection() {
         #expect(PromptDelivery.isSlashCommand("/model", kind: "claude"))

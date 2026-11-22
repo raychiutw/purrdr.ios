@@ -358,6 +358,7 @@ struct PurrdrApp: App {
         if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
         if arguments.contains("-demoSentImages") { return .sentImages }
+        if arguments.contains("-demoAntigravity") { return .antigravity }
         if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(1), hangs: false) }
         if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(1), hangs: true) }
         if arguments.contains("-demoNoNetwork") { return .goesOffline(after: .zero, hangs: true) }

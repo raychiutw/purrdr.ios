@@ -167,6 +167,7 @@ public enum AgentCatalog {
         switch id {
         case .claude: .claude
         case .codex: .codex
+        case .agy: .antigravity
         default: .generic
         }
     }

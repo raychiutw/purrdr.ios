@@ -64,9 +64,10 @@ extension InputDialect {
         name: "codex", acceptsSlashCommands: true, givesDeliveryReceipt: false,
         answers: AnswerDialect(verification: .verified(agentVersion: "Codex 0.157–0.163"), digitAnswer: .digitThenEnter)
     )
-    /// 回答按鍵以 #445 的真實錄製為準:權限提示與 `ask_question` 單按數字即生效。`!` 指令之後的票才開放。
+    /// 回答按鍵以 #445 的真實錄製為準:權限提示與 `ask_question` 單按數字即生效。`!` 開頭是 shell 模式(官方文件,
+    /// 只送文字、不送特殊按鍵;輸出在對話紀錄裡的呈現還沒錄過,所以不確認 shell 區塊)(#446)。
     static let antigravity = InputDialect(
-        name: "antigravity", acceptsSlashCommands: true,
+        name: "antigravity", acceptsSlashCommands: true, acceptsShellCommands: true,
         answers: AnswerDialect(verification: .verified(agentVersion: "Antigravity CLI 1.5.14"), digitAnswer: .digitAlone)
     )
     static let grok = InputDialect(

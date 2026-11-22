@@ -36,6 +36,18 @@ struct SessionDialectTests {
         #expect(AgentID.claude.supportsResume && AgentID.codex.supportsResume && !AgentID.agy.supportsResume)
     }
 
+    @Test("Antigravity 恢復:啟動旗標 --conversation <id> 與 -c;主機服務還不能列出 agy 的過去 session(resumeKind 為 nil)")
+    func antigravityResumeFlags() {
+        let agy = Self.session("agy")
+        #expect(agy.resumeConversationFlag == "--conversation")
+        #expect(agy.continueFlag == "-c")
+        #expect(agy.startsNewChat)
+        #expect(agy.resumeKind == nil)
+        for name in ["claude", "codex", "grok", "pi", "gemini", "unknown-agent"] {
+            #expect(Self.session(name).resumeConversationFlag == nil && Self.session(name).continueFlag == nil, Comment(rawValue: name))
+        }
+    }
+
     @Test("session 標題:Claude 與其他種類取 herdr 的 title,沒有才取終端機標題")
     func defaultTitle() {
         let claude = Self.session("claude")

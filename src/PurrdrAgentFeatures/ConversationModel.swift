@@ -760,6 +760,7 @@ public final class ConversationModel {
                 await poll()
                 await refreshSessionStatusIfDue()
                 await probePermissionModeIfNeeded()
+                await refreshStatusLineIfDue()
                 do {
                     // 輪詢期間被叫醒就不等。
                     try await pollDue.wait(atMost: pollInterval)
@@ -1956,17 +1957,20 @@ public final class ConversationModel {
     // MARK: - 模型膠囊(#350)
 
     /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
-    public var modelName: String? { metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+    public var modelName: String? { screenStatusLine?.model ?? metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+
+    /// 目前的 effort 原值:畫面狀態列優先(使用者在電腦上改了也跟著),沒有就取對話紀錄。
+    private var effortLevel: String? { screenStatusLine?.effort ?? metadata.effort }
 
     /// 面板「模型」列的值:「Opus 5.5 · 中」;沒有 effort 時只有模型名,還沒讀到是 `nil`。
     public var modelSummary: String? {
         guard let name = modelName else { return nil }
-        guard let effort = metadata.effort.flatMap(Self.effortName(of:)) else { return name }
+        guard let effort = effortLevel.flatMap(Self.effortName(of:)) else { return name }
         return "\(name) · \(effort)"
     }
 
     /// 目前的 effort 顯示名稱(「中」);還沒讀到是 `nil`。
-    public var effortDisplayName: String? { metadata.effort.flatMap(Self.effortName(of:)) }
+    public var effortDisplayName: String? { effortLevel.flatMap(Self.effortName(of:)) }
 
     public static func effortName(of level: String) -> String? {
         switch level.lowercased() {
@@ -2217,6 +2221,36 @@ public final class ConversationModel {
         await operatePanel(.action(esc))
     }
 
+    // MARK: - 畫面狀態列(#446)
+
+    /// 這個 Agent 的畫面有可讀的狀態列(Antigravity):模式、模型、effort 只顯示、不能在 app 切換。
+    public var readsStatusLine: Bool { screenDialect.statusLine != nil }
+
+    /// 畫面最底下狀態列讀到的模式、模型與 effort(Antigravity,#446);還沒讀到或這個 Agent 沒有狀態列是 `nil`。
+    public private(set) var screenStatusLine: AgentStatusLine?
+    @ObservationIgnored private var statusLineReadStatus: AgentStatus?
+    @ObservationIgnored private var pollsSinceStatusLine = 0
+
+    /// 這個 Agent 的狀態列每隔幾次輪詢重讀一次(輪詢 2～4 秒一次,約半分鐘),狀態變了(開始工作、做完)也重讀。
+    private static let statusLineRefreshPolls = 8
+
+    /// 讀一次畫面的狀態列;認不出(被蓋住、讀不到)沿用上次。只讀、不送按鍵。
+    public func refreshStatusLine() async {
+        guard screenDialect.statusLine != nil, !isOffline, let screen = await readScreen() else { return }
+        pollsSinceStatusLine = 0
+        statusLineReadStatus = agentStatus
+        if let line = screenDialect.readStatusLine(in: Self.plainText(ansi: screen)) { screenStatusLine = line }
+    }
+
+    /// 輪詢迴圈每輪呼叫:第一次、Agent 狀態變了或隔了一段時間才讀(指令預算:平常的輪詢不讀畫面)。
+    private func refreshStatusLineIfDue() async {
+        guard screenDialect.statusLine != nil, !isOffline else { return }
+        pollsSinceStatusLine += 1
+        guard screenStatusLine == nil && statusLineReadStatus == nil
+            || statusLineReadStatus != agentStatus || pollsSinceStatusLine >= Self.statusLineRefreshPolls else { return }
+        await refreshStatusLine()
+    }
+
     // MARK: - 權限模式(#306、#383)
 
     /// 畫面讀到的模式與當時對話紀錄的原文。紀錄沒變就用畫面補「剛切換、紀錄尚未寫入」的空檔;紀錄一更新就以紀錄為準。
@@ -2231,6 +2265,8 @@ public final class ConversationModel {
 
     /// Claude 目前的權限模式:對話紀錄尾端最後一筆為準(電腦端改了也會同步),畫面只補空檔;都沒有是 `nil`。
     public var permissionMode: AgentPermissionMode? {
+        // Antigravity 的對話紀錄沒有權限模式,以畫面狀態列為準(#446)。
+        if screenDialect.statusLine != nil, let mode = screenStatusLine?.mode { return mode }
         let fromTranscript = metadata.permissionMode.flatMap { AgentPermissionMode(transcriptValue: $0) }
         if let seen = screenObservation, seen.transcriptValue == metadata.permissionMode { return seen.mode }
         return fromTranscript ?? screenObservation?.mode
@@ -2450,7 +2486,7 @@ public final class ConversationModel {
     public var header: ConversationHeader {
         ConversationHeader(
             agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress,
-            permissionMode: supportsPermissionMode ? permissionMode : nil)
+            permissionMode: supportsPermissionMode || screenDialect.statusLine != nil ? permissionMode : nil)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
