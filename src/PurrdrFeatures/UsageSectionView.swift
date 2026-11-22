@@ -36,9 +36,9 @@ extension PlanUsageAgent {
 
     /// 聊天 Agent 種類(herdr 回報的 `kind`)對應的用量來源;沒有的種類不顯示用量區。
     init?(agentKind: String?) {
-        switch agentKind {
-        case "claude": self = .claudeCode
-        case "codex": self = .codex
+        switch agentKind.map(AgentID.init(herdrName:)) {
+        case .claude: self = .claudeCode
+        case .codex: self = .codex
         default: return nil
         }
     }

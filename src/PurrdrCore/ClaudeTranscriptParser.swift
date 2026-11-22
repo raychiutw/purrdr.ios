@@ -381,7 +381,7 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
         var id = unprefixed
         if let bracket = id.firstIndex(of: "[") { id = String(id[..<bracket]) }
         let tokens = id.split(separator: "-").map(String.init)
-        guard tokens.first == "claude", tokens.count >= 2 else { return unprefixed }
+        guard id.hasPrefix("claude-"), tokens.count >= 2 else { return unprefixed }
         let isVersion = { (token: String) in token.count <= 2 && token.allSatisfy(\.isNumber) }
         let family: String
         let version: [String]

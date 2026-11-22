@@ -41,7 +41,7 @@ extension Agent {
     /// Claude Code 的 session id:只有 `kind == "id"`、非空且是安全字元時才有(路徑參照對 Claude 一律不接受)。
     /// 沒有就表示還不知道是哪個 session——此時永不猜檔(R-I02)。
     public var claudeSessionID: String? {
-        guard kind == "claude", let session, session.kind == "id", ClaudeTranscript.isSafeSessionID(session.value) else { return nil }
+        guard AgentID(herdrName: kind) == .claude, let session, session.kind == "id", ClaudeTranscript.isSafeSessionID(session.value) else { return nil }
         return session.value
     }
 }
