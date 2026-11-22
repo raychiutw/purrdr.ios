@@ -12,7 +12,7 @@ import PurrdrCore
 /// (Claude Code 文件 statusline「Windows configuration」),所以包裝改成 PowerShell 腳本 `statusline.ps1`,指令寫成
 /// 兩種 shell 都能跑的 `powershell.exe … -File '<家目錄>/.purrdr/claude-usage/statusline.ps1'`(正斜線、單引號;
 /// `-ExecutionPolicy Bypass` 只對這個程序有效，不改主機設定)。原本的指令以 Git Bash 執行(找不到時用 PowerShell)。
-public struct ClaudePlanUsageHost: Sendable {
+public struct ClaudePlanUsageHost: Sendable, ClaudeSessionStatusReading {
     public static let settingsPath: HostPath = ".claude/settings.json"
     public static let feature = HostWriteFeature(id: "claude-usage", userFiles: [settingsPath])
     public static let usagePath = feature.ownFile("usage.json")
@@ -88,20 +88,75 @@ public struct ClaudePlanUsageHost: Sendable {
     }
 
     /// 讀包裝腳本最後存下的用量;還沒有(沒安裝、Claude Code 還沒回報)時是 `nil`。
-    /// 帶上次的版本條件式讀取，沒變時用上次的結果。
+    /// 帶上次的版本條件式讀取，沒變時用上次的結果。同一次讀取也看已裝的包裝腳本是不是舊版
+    /// (`lastReadFoundOutdatedWrapper()`,不多一次主機指令)。
     public func readPlanUsage() async throws -> ClaudeUsage? {
         let previous = await lastRead.value
-        let read = try await files.read([Self.usagePath], knownVersions: previous.map { [Self.usagePath: $0.version] } ?? [:])
-        if let previous, read.unchanged.contains(Self.usagePath) { return previous.usage }
+        var known: [HostPath: HostFileVersion] = previous.usage.map { [Self.usagePath: $0.version] } ?? [:]
+        for (path, entry) in previous.wrappers { known[path] = entry.version }
+        let read = try await files.read([Self.usagePath] + Self.wrapperPaths, knownVersions: known)
+        var wrappers: [HostPath: WrapperCheck] = [:]
+        for path in Self.wrapperPaths {
+            if read.unchanged.contains(path), let entry = previous.wrappers[path] {
+                wrappers[path] = entry
+            } else if case .file(let data, let version)? = read[path] {
+                wrappers[path] = WrapperCheck(version: version, isOutdated: data != Data(Self.script(forWrapper: path).utf8))
+            }
+        }
+        if let usage = previous.usage, read.unchanged.contains(Self.usagePath) {
+            await lastRead.update(usage: usage, wrappers: wrappers)
+            return usage.usage
+        }
         let state = read[Self.usagePath]
         let usage = state?.contents.flatMap(ClaudeUsage.init(usageFile:))
         if case .file(_, let version)? = state {
-            await lastRead.update(UsageRead(version: version, usage: usage))
+            await lastRead.update(usage: UsageRead(version: version, usage: usage), wrappers: wrappers)
         } else {
-            await lastRead.update(nil)
+            await lastRead.update(usage: nil, wrappers: wrappers)
         }
         return usage
     }
+
+    /// 上一次 `readPlanUsage()` 看到的包裝腳本是不是舊版(沒裝或已是最新是 `false`)。不碰主機。
+    public func lastReadFoundOutdatedWrapper() async -> Bool {
+        await lastRead.value.wrappers.values.contains { $0.isOutdated }
+    }
+
+    static var wrapperPaths: [HostPath] { [feature.ownFile("statusline.sh"), windowsWrapperPath] }
+
+    static func script(forWrapper path: HostPath) -> String { path == windowsWrapperPath ? windowsWrapperScript : wrapperScript }
+
+    /// 主機上已裝的包裝腳本是不是舊版(內容與目前 app 帶的不同,例如 Windows 版會在原 status line 的 stdin 前多一個 BOM):
+    /// 沒裝或已是最新是 `false`。只讀不寫;要換成新的由使用者經同意流程重新安裝(`install()` 可重複執行)。
+    public func isWrapperOutdated() async throws -> Bool {
+        let read = try await files.read(Self.wrapperPaths)
+        for path in Self.wrapperPaths {
+            if case .file(let data, _)? = read[path], data != Data(Self.script(forWrapper: path).utf8) { return true }
+        }
+        return false
+    }
+
+    /// 各 session 的 status line 狀態(`sessions/<session_id>.json`)。沒有檔案、讀不懂或過期的 session 不出現在結果;
+    /// session id 不合包裝腳本的規則就不讀。
+    public func sessionStatuses(sessionIDs: [String]) async throws -> [String: ClaudeSessionStatus] {
+        try await sessionStatuses(sessionIDs: sessionIDs, now: Date())
+    }
+
+    func sessionStatuses(sessionIDs: [String], now: Date) async throws -> [String: ClaudeSessionStatus] {
+        let ids = sessionIDs.filter(ClaudeSessionStatus.isValidSessionID)
+        guard !ids.isEmpty else { return [:] }
+        let paths = Dictionary(uniqueKeysWithValues: Set(ids).map { ($0, Self.sessionPath($0)) })
+        let read = try await files.read(Array(paths.values))
+        var result: [String: ClaudeSessionStatus] = [:]
+        for (id, path) in paths {
+            guard case .file(let data, _)? = read[path], let status = ClaudeSessionStatus(sessionFile: data),
+                  status.sessionID == id, status.isFresh(at: now) else { continue }
+            result[id] = status
+        }
+        return result
+    }
+
+    static func sessionPath(_ id: String) -> HostPath { feature.ownFile("sessions/\(id).json") }
 
     // MARK: - 設定檔
 
@@ -139,85 +194,14 @@ public struct ClaudePlanUsageHost: Sendable {
             + Data("\n".utf8)
     }
 
-    /// 包裝腳本。輸入有 `rate_limits` 才存(session 剛開始時沒有，不蓋掉上次的用量)。
-    static let wrapperScript = """
-        #!/bin/sh
-        # Purrdr 的 Claude 方案用量包裝：由 Purrdr app 安裝，在 app 關閉「Claude 方案用量」就會還原。
-        # 把 Claude Code 交給 status line 的輸入存成 usage.json,再原樣交給原本的 status line。
-        dir="$HOME/.purrdr/claude-usage"
-        input=$(cat)
-        case $input in
-          *'"rate_limits"'*)
-            if tmp=$(mktemp "$dir/.usage.XXXXXX"); then
-              if printf '{"captured_at":%s,"status_line_input":%s}\\n' "$(date +%s)" "$input" > "$tmp"; then
-                mv -f "$tmp" "$dir/usage.json" || rm -f "$tmp"
-              else
-                rm -f "$tmp"
-              fi
-            fi
-            ;;
-        esac
-        if [ -s "$dir/original-command" ]; then
-          printf '%s\\n' "$input" | sh -c "$(cat "$dir/original-command")"
-        fi
-
-        """
+    /// 包裝腳本(內容單一來源在 purrdr.host,由 `scripts/sync-purrdr-host.sh` 同步成 `ClaudeUsageScripts`,#388):
+    /// 每個 session 存一份 `sessions/<session_id>.json`,輸入有 `rate_limits` 才存 `usage.json`,再把輸入交給原本的 status line。
+    static let wrapperScript = ClaudeUsageScripts.posix
 }
 
 extension ClaudePlanUsageHost {
-    /// Windows 的包裝腳本(PowerShell 5.1)。與 `wrapperScript` 相同的行為：輸入有 `rate_limits` 才存 `usage.json`
-    /// (暫存檔再換上),再把同一份輸入交給原本的 status line,它的輸出直接接到 Claude Code(子程序繼承 stdout)。
-    ///
-    /// 全部 ASCII:PowerShell 5.1 把沒有 BOM 的 `.ps1` 當成系統碼頁(繁中是 Big5)讀。
-    /// 原本的指令經環境變數交給 Git Bash 的 `eval`(`CLAUDE_CODE_GIT_BASH_PATH` → `git.exe` 旁的 `bin\bash.exe` →
-    /// `%ProgramFiles%\Git\bin\bash.exe`),都沒有時以 PowerShell 的 `Invoke-Expression` 執行，與 Claude Code 的選擇一致。
-    static let windowsWrapperScript = #"""
-        # Purrdr Claude usage wrapper (Windows). Installed by the Purrdr app; turning off
-        # "Claude Usage" in Purrdr restores your original status line and removes this folder.
-        # Saves Claude Code's status line input as usage.json, then passes the same input
-        # to your original status line command.
-        $ErrorActionPreference = 'Stop'
-        $dir = $PSScriptRoot
-        $utf8 = New-Object Text.UTF8Encoding $false
-        $text = (New-Object IO.StreamReader([Console]::OpenStandardInput(), $utf8)).ReadToEnd().TrimEnd("`r", "`n")
-        if ($text.Contains('"rate_limits"')) {
-            $tmp = Join-Path $dir ('.usage.' + [Guid]::NewGuid().ToString('N'))
-            try {
-                [IO.File]::WriteAllText($tmp, '{"captured_at":' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + ',"status_line_input":' + $text + "}`n", $utf8)
-                $file = Join-Path $dir 'usage.json'
-                if ([IO.File]::Exists($file)) { [void][IO.File]::Replace($tmp, $file, [NullString]::Value) } else { [IO.File]::Move($tmp, $file) }
-            } catch {
-                if ([IO.File]::Exists($tmp)) { [IO.File]::Delete($tmp) }
-            }
-        }
-        $original = Join-Path $dir 'original-command'
-        if ([IO.File]::Exists($original) -and (New-Object IO.FileInfo $original).Length -gt 0) {
-            $start = New-Object Diagnostics.ProcessStartInfo
-            $start.UseShellExecute = $false
-            $start.RedirectStandardInput = $true
-            $start.EnvironmentVariables['PURRDR_ORIGINAL_COMMAND'] = [IO.File]::ReadAllText($original, $utf8)
-            $bash = $env:CLAUDE_CODE_GIT_BASH_PATH
-            if (-not $bash -or -not [IO.File]::Exists($bash)) {
-                $git = Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($git) { $bash = Join-Path (Split-Path (Split-Path $git.Source)) 'bin\bash.exe' }
-            }
-            if (-not $bash -or -not [IO.File]::Exists($bash)) { $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe' }
-            if ([IO.File]::Exists($bash)) {
-                $start.FileName = $bash
-                $start.Arguments = '-c "eval \"$PURRDR_ORIGINAL_COMMAND\""'
-            } else {
-                $start.FileName = 'powershell.exe'
-                $start.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-Expression $env:PURRDR_ORIGINAL_COMMAND"'
-            }
-            $process = [Diagnostics.Process]::Start($start)
-            $bytes = $utf8.GetBytes($text + "`n")
-            $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
-            $process.StandardInput.Close()
-            $process.WaitForExit()
-            exit $process.ExitCode
-        }
-
-        """#
+    /// Windows 的包裝腳本(PowerShell 5.1;同一個單一來源,行為與 `wrapperScript` 相同,送給原本 status line 的 stdin 不帶 BOM)。
+    static let windowsWrapperScript = ClaudeUsageScripts.windows
 }
 
 extension ClaudeUsage {
@@ -242,11 +226,22 @@ private struct UsageRead {
     let usage: ClaudeUsage?
 }
 
-/// `ClaudePlanUsageHost` 上次讀到的用量。
-private actor LastUsageRead {
-    private(set) var value: UsageRead?
+/// 包裝腳本的版本與「是不是舊版」的判斷(版本沒變就沿用)。
+private struct WrapperCheck {
+    let version: HostFileVersion
+    let isOutdated: Bool
+}
 
-    func update(_ value: UsageRead?) {
-        self.value = value
+/// `ClaudePlanUsageHost` 上次讀到的用量與包裝腳本狀態。
+private actor LastUsageRead {
+    struct Value {
+        var usage: UsageRead?
+        var wrappers: [HostPath: WrapperCheck] = [:]
+    }
+
+    private(set) var value = Value()
+
+    func update(usage: UsageRead?, wrappers: [HostPath: WrapperCheck]) {
+        value = Value(usage: usage, wrappers: wrappers)
     }
 }

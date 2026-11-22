@@ -74,6 +74,21 @@ public final class ConversationModel {
     public private(set) var metadata = TranscriptMetadata()
     /// context 百分比與待辦進度(#307),由讀到的對話紀錄推得;標題列與待辦 sheet 用。
     public private(set) var progress = AgentProgress()
+    /// Claude Code 的 status line 為這個 session 回報的狀態(#388);沒有(未安裝、API key、舊版主機服務、讀不到)時是 `nil`,
+    /// context 退回對話紀錄算法(`progress`)。
+    public private(set) var sessionStatus: ClaudeSessionStatus?
+    /// 讀 session 狀態的來源(SSH 主機上的 session 檔、HTTPS 的 `usage.session_context`);`nil` 時只用退回算法。
+    public var sessionStatusReader: (any ClaudeSessionStatusReading)?
+    @ObservationIgnored private var sessionStatusReadAt: Date?
+    /// 兩次讀 session 狀態的最短間隔(秒):輪詢每 2 秒一輪,不必每輪都問主機。
+    nonisolated public static let sessionStatusInterval: TimeInterval = 10
+
+    /// 標題列與面板用的進度:有 status line 的 context 就以它為準(與 Claude Code 實際顯示一致),否則是對話紀錄算出的。
+    public var displayProgress: AgentProgress {
+        var result = progress
+        if let percent = sessionStatus?.contextPercent { result.contextPercent = Int(percent.rounded()) }
+        return result
+    }
     /// Claude 的背景 agents 窗格(F10「背景 agents 列」),從 pane 畫面解析;沒有窗格是 `nil`。
     public private(set) var agentsPane: AgentsPane?
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
@@ -711,6 +726,7 @@ public final class ConversationModel {
             }
             while !Task.isCancelled {
                 await poll()
+                await refreshSessionStatusIfDue()
                 await probePermissionModeIfNeeded()
                 do {
                     // 輪詢期間被叫醒就不等。
@@ -732,6 +748,23 @@ public final class ConversationModel {
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
+    }
+
+    /// 讀這個 session 的 status line 狀態(#388):只有 Claude Code、知道 session id 時;至少隔 `sessionStatusInterval` 秒才再讀。
+    /// 讀不到(沒有檔案、未安裝、舊版主機服務、連線錯誤)一律清成 `nil`,畫面退回對話紀錄算法、不空白。
+    package func refreshSessionStatusIfDue() async {
+        guard let reader = sessionStatusReader, format == .claude, let session = boundSessionID ?? knownSessionID,
+              ClaudeSessionStatus.isValidSessionID(session) else {
+            sessionStatus = nil
+            return
+        }
+        let now = clock.now()
+        if let last = sessionStatusReadAt, now.timeIntervalSince(last) < Self.sessionStatusInterval { return }
+        sessionStatusReadAt = now
+        let statuses = try? await reader.sessionStatuses(sessionIDs: [session])
+        guard !Task.isCancelled else { return }
+        let status = statuses?[session].flatMap { $0.isFresh(at: now) ? $0 : nil }
+        if status != sessionStatus { sessionStatus = status }
     }
 
     /// 載入超過 `loadingIndicatorDelay` 還沒有內容才開啟進度指示。
@@ -2095,7 +2128,7 @@ public final class ConversationModel {
     /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
         ConversationHeader(
-            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: progress,
+            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress,
             permissionMode: supportsPermissionMode ? permissionMode : nil)
     }
 

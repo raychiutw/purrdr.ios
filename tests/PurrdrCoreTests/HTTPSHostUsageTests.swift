@@ -80,6 +80,21 @@ struct HTTPSHostUsageTests {
         #expect(sent["session_ids"] as? [String] == [id])
     }
 
+    @Test("session 狀態(#388):不合規則的 id 不送出,結果換成 ClaudeSessionStatus")
+    func sessionStatuses() async throws {
+        let service = try await Self.start()
+        defer { Task { await service.stop() } }
+        let id = "5d1c9f0e-3b7a-4c52-9a41-0e8f6d2b7c13"
+
+        let statuses = try await Self.connection(service).sessionStatuses(sessionIDs: [id, "../x", id])
+
+        #expect(statuses[id]?.contextPercent == 23.5)
+        #expect(statuses[id]?.contextWindowSize == 200000)
+        #expect(statuses[id]?.capturedAt == Date(timeIntervalSince1970: 1_795_316_400))
+        let sent = try #require(service.messages(ofType: "usage.session_context").first)
+        #expect(sent["session_ids"] as? [String] == [id])
+    }
+
     // MARK: - 用量擷取
 
     @Test("用量擷取的狀態、安裝、還原各送對應訊息,回安裝後狀態")

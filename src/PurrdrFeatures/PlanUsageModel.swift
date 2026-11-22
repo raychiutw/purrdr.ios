@@ -36,11 +36,15 @@ public struct PlanUsageHostWrite: Sendable {
     public var install: @Sendable () async throws -> Void
     /// 還原並撤銷同意。
     public var restore: @Sendable () async throws -> Void
+    /// 主機上已裝的包裝是不是舊版(最近一次讀取時看到的,不碰主機);`nil` 時不檢查(#388)。
+    public var isOutdated: (@Sendable () async -> Bool)?
 
     public init(
         isGranted: @escaping @Sendable () -> Bool, inspect: @escaping @Sendable () async throws -> String,
-        install: @escaping @Sendable () async throws -> Void, restore: @escaping @Sendable () async throws -> Void
+        install: @escaping @Sendable () async throws -> Void, restore: @escaping @Sendable () async throws -> Void,
+        isOutdated: (@Sendable () async -> Bool)? = nil
     ) {
+        self.isOutdated = isOutdated
         self.isGranted = isGranted
         self.inspect = inspect
         self.install = install
@@ -65,7 +69,8 @@ extension PlanUsageSource {
             restore: {
                 try await host.restore()
                 consent.revoke(feature, host: hostID)
-            })
+            },
+            isOutdated: { await host.lastReadFoundOutdatedWrapper() })
         return PlanUsageSource(cost: cost, hostWrite: hostWrite) { try await host.readPlanUsage()?.planUsage }
     }
 }
@@ -311,7 +316,34 @@ public final class PlanUsageModel {
     }
 
     public func cancelConsent() {
-        if case .confirming = state { state = .needsConsent }
+        guard case .confirming = state else { return }
+        // 已同意的主機(更新舊包裝時取消):回到用量畫面。
+        if source(host, agent)?.hostWrite?.isGranted() == true {
+            state = .loading
+            startQuery()
+        } else {
+            state = .needsConsent
+        }
+    }
+
+    /// 主機上已裝的 Claude 用量包裝是舊版(例如舊的 Windows 版會在原 status line 的輸入前多一個 BOM):提示重新安裝。
+    /// 不會靜默覆寫:要經 `requestWrapperUpdate()` → 使用者確認 → `confirm()`,與第一次安裝同一個同意流程(#388)。
+    public private(set) var wrapperUpdateAvailable = false
+
+    /// 使用者要更新舊的包裝:同意前的檢查,再請使用者確認(安裝可重複執行,只換掉腳本)。
+    public func requestWrapperUpdate() async {
+        guard wrapperUpdateAvailable, canTurnOff, let hostWrite = source(host, agent)?.hostWrite else { return }
+        message = nil
+        query?.cancel()
+        query = nil
+        let previous = state
+        state = .checking
+        await whileSelected(hostWrite.inspect) { user in
+            state = .confirming(user: user)
+        } failure: { error in
+            state = previous
+            message = Self.describe(error)
+        }
     }
 
     /// 使用者確認：安裝(重新讀取設定，以最新內容為準)並記住同意，再查一次。
@@ -337,6 +369,7 @@ public final class PlanUsageModel {
         state = .turningOff
         await whileSelected(hostWrite.restore) {
             message = nil
+            wrapperUpdateAvailable = false
             state = .needsConsent
         } failure: { error in
             state = previous
@@ -397,6 +430,7 @@ public final class PlanUsageModel {
     private func restart() {
         stop()
         message = nil
+        wrapperUpdateAvailable = false
         state = .loading
         startQuery()
         guard source(host, agent)?.cost.refreshesAutomatically == true else { return }
@@ -455,6 +489,7 @@ public final class PlanUsageModel {
             case .success(nil): state = .noData
             case .failure(let error): state = .failed(PlanUsageFailure(error, agent: agent))
             }
+            if case .success = outcome { wrapperUpdateAvailable = await source.hostWrite?.isOutdated?() ?? false }
         }
     }
 }

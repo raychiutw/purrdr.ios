@@ -8,6 +8,7 @@
 #   generated/swift/HostServiceProtocol.swift → src/PurrdrCore/HostServiceProtocol.swift(codegen 產生的協定型別)
 #   protocol/(schema 與 examples/)             → vendor/purrdr-host/protocol/(FakeHostService 與範例測試讀它)
 #   claude-usage/statusline.{sh,ps1}           → vendor/purrdr-host/claude-usage/(Claude 方案用量的 status line 包裝腳本,0.12.0 起)
+#                                              並產生 src/PurrdrSSH/ClaudeUsageScripts.swift(app 安裝時寫到主機的腳本內容,#388)
 #   host-service/service/Cargo.toml 的版本號    → vendor/purrdr-host/VERSION(連同 commit SHA,CI 的 --check 依它比對)
 #
 # 改協定的流程：在 purrdr.host 改 schema、跑 codegen 並合併 → 這裡跑本腳本 → 讓 app 的測試通過。
@@ -51,13 +52,28 @@ materialize() {
         exit 1
     fi
 
-    mkdir -p "$out/src/PurrdrCore" "$out/vendor/purrdr-host"
+    mkdir -p "$out/src/PurrdrCore" "$out/src/PurrdrSSH" "$out/vendor/purrdr-host"
     cp "$src/generated/swift/HostServiceProtocol.swift" "$out/src/PurrdrCore/HostServiceProtocol.swift"
     rm -rf "$out/vendor/purrdr-host/protocol"
     cp -R "$src/protocol" "$out/vendor/purrdr-host/protocol"
     rm -rf "$out/vendor/purrdr-host/claude-usage"
     mkdir -p "$out/vendor/purrdr-host/claude-usage"
     cp "$src/claude-usage/statusline.sh" "$src/claude-usage/statusline.ps1" "$out/vendor/purrdr-host/claude-usage/"
+    {
+        echo "// 由 scripts/sync-purrdr-host.sh 產生，不要手動修改。來源 https://github.com/$repo/tree/$sha/claude-usage"
+        echo "// 腳本單一來源在 purrdr.host(SSH 與 HTTPS 共用);app 安裝時原樣寫到主機，也以它判斷主機上的包裝是不是舊版。"
+        echo "enum ClaudeUsageScripts {"
+        echo '    static let posix = #"""'
+        cat "$src/claude-usage/statusline.sh"
+        echo
+        echo '"""#'
+        echo
+        echo '    static let windows = #"""'
+        cat "$src/claude-usage/statusline.ps1"
+        echo
+        echo '"""#'
+        echo "}"
+    } > "$out/src/PurrdrSSH/ClaudeUsageScripts.swift"
     {
         echo "# 由 scripts/sync-purrdr-host.sh 產生，不要手動修改。來源 https://github.com/$repo"
         echo "commit=$sha"
@@ -80,6 +96,7 @@ case "${1:-}" in
         materialize "$sha" "$expected"
         status=0
         diff -u "$expected/src/PurrdrCore/HostServiceProtocol.swift" "$root/src/PurrdrCore/HostServiceProtocol.swift" || status=1
+        diff -u "$expected/src/PurrdrSSH/ClaudeUsageScripts.swift" "$root/src/PurrdrSSH/ClaudeUsageScripts.swift" || status=1
         diff -ru "$expected/vendor/purrdr-host" "$root/vendor/purrdr-host" || status=1
         if [ "$status" -ne 0 ]; then
             echo "與 $repo@$sha 不同：協定檔案不要手改，在 purrdr.host 改好後執行 scripts/sync-purrdr-host.sh" >&2

@@ -126,3 +126,19 @@ public struct ClaudeUsageSetupStatus: Sendable, Equatable {
         self.claudeFound = claudeFound
     }
 }
+
+/// 各 session 的 status line 狀態(#388):`usage.session_context`(主機服務 0.12.0 起;更舊的丟 `hostServiceUpdateRequired`,
+/// 呼叫端退回對話紀錄算法)。協定只帶 context 用量,模型與 effort 沒有。
+extension HTTPSHostConnection: ClaudeSessionStatusReading {
+    public func sessionStatuses(sessionIDs: [String]) async throws -> [String: ClaudeSessionStatus] {
+        let ids = Array(Set(sessionIDs.filter(ClaudeSessionStatus.isValidSessionID)).prefix(50))
+        guard !ids.isEmpty else { return [:] }
+        var result: [String: ClaudeSessionStatus] = [:]
+        for context in try await sessionContexts(sessionIDs: ids) {
+            result[context.sessionId] = ClaudeSessionStatus(
+                sessionID: context.sessionId, capturedAt: ISO8601DateFormatter().date(from: context.capturedAt),
+                contextPercent: context.usedPercentage, contextWindowSize: context.contextWindowSize)
+        }
+        return result
+    }
+}

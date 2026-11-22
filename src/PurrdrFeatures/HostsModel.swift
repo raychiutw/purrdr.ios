@@ -394,6 +394,8 @@ public final class HostsModel {
         model.agentFiles = member.agentFiles
         // 變更頁讀聊天所在主機的 git(#310)。
         model.gitChanges = member.gitChanges
+        // context 取自聊天所在主機的 status line 檔(#388)。
+        model.sessionStatusReader = member.sessionStatus
         model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
         // 離開期間摘要(#308):上次離開這個聊天的時間。
         model.awayStart = { [weak self] in self?.agentList.awayStart(for: route) }
@@ -1124,6 +1126,8 @@ final class HostMember {
     let uploader: any HostUploading
     /// 變更頁的唯讀 git 讀取(#310)。
     let gitChanges: any GitChangesReading
+    /// 各 session 的 Claude status line 狀態(#388):SSH 讀主機上的 session 檔,HTTPS 走主機服務的 `usage.session_context`。
+    let sessionStatus: any ClaudeSessionStatusReading
     /// 主機上的 Send When Done 佇列(#305);只有 HTTPS 主機(主機服務)有，其他是 `nil`。
     let sendWhenDoneHost: (any SendWhenDoneHosting)?
 
@@ -1175,6 +1179,9 @@ final class HostMember {
         let hostID = configuration?.id.uuidString ?? HostsModel.demoID
         let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
         self.hostFiles = hostFiles
+        sessionStatus = configuration?.connectionMethod.usesHostService == true
+            ? (connection as? any ClaudeSessionStatusReading) ?? UnavailableSessionStatus()
+            : ClaudePlanUsageHost(channel: channel, files: hostFiles)
         // 點開的檔案依主機分資料夾，刪除主機時一起清(#228)。
         agentFiles = AgentFileLoads(
             fetcher: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")),
@@ -1182,6 +1189,11 @@ final class HostMember {
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
     }
+}
+
+/// 取不到主機服務連線(UI 測試的替身連線)時沒有 session 狀態,context 用對話紀錄算法(#388)。
+struct UnavailableSessionStatus: ClaudeSessionStatusReading {
+    func sessionStatuses(sessionIDs: [String]) async throws -> [String: ClaudeSessionStatus] { [:] }
 }
 
 /// 經 SSH 在主機上送測試通知(#328);每次才讀這支裝置的推播 id。

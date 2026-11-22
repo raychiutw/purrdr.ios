@@ -13011,6 +13011,17 @@
         }
       }
     },
+    "Update Claude Usage Script" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新 Claude 用量腳本"
+          }
+        }
+      }
+    },
     "Update Host Service" : {
       "extractionState" : "manual",
       "localizations" : {

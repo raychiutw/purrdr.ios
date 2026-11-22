@@ -175,6 +175,12 @@ public struct PlanUsageView: View {
         if model.canTurnOff {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
+                    if model.wrapperUpdateAvailable {
+                        Button("Update Claude Usage Script", systemImage: "arrow.triangle.2.circlepath") {
+                            Task { await model.requestWrapperUpdate() }
+                        }
+                        .accessibilityIdentifier("planUsage.updateWrapper")
+                    }
                     Button("Turn Off Claude Plan Usage", systemImage: "arrow.uturn.backward", role: .destructive) {
                         Task { await model.turnOff() }
                     }

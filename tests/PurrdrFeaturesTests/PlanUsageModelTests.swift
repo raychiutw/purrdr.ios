@@ -409,6 +409,37 @@ struct PlanUsageModelTests {
         #expect(try DirectorySnapshot(of: host.home) == before)
     }
 
+    @Test("已裝舊版包裝(#388):提示更新,不靜默覆寫;確認後換成新腳本,取消則維持原樣")
+    func oldWrapperPromptsUpdate() async throws {
+        let model = model()
+        model.appeared()
+        await model.requestConsent()
+        await model.confirm()
+        try claudeReportsUsage()
+        await model.refresh()
+        #expect(!model.wrapperUpdateAvailable)
+
+        // 模擬舊版 app 裝的腳本(內容不同)。
+        let wrapper = host.home.appending(path: ".purrdr/claude-usage/statusline.sh")
+        try Data("#!/bin/sh\n# old wrapper\n".utf8).write(to: wrapper)
+        await model.refresh()
+        #expect(model.wrapperUpdateAvailable)
+        #expect(try String(contentsOf: wrapper, encoding: .utf8) == "#!/bin/sh\n# old wrapper\n", "只提示,不能自己覆寫")
+
+        await model.requestWrapperUpdate()
+        guard case .confirming = model.state else { Issue.record("沒有請使用者確認:\(model.state)"); return }
+        model.cancelConsent()
+        await model.untilIdle()
+        #expect(model.state != .needsConsent)
+        #expect(try String(contentsOf: wrapper, encoding: .utf8) == "#!/bin/sh\n# old wrapper\n")
+
+        await model.requestWrapperUpdate()
+        await model.confirm()
+        await model.untilIdle()
+        #expect(!model.wrapperUpdateAvailable)
+        #expect(try String(contentsOf: wrapper, encoding: .utf8).contains("sessions"))
+    }
+
     @Test("settings.json 不是合法 JSON:說明原因，不詢問、不修改")
     func explainsInvalidSettings() async throws {
         try host.write(Data("{ \"model\": \"opus\", }".utf8), to: ".claude/settings.json")
