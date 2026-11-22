@@ -6,9 +6,9 @@ extension XCTestCase {
     @MainActor
     func auditBothSizes(_ app: XCUIApplication, _ screen: String, types: XCUIAccessibilityAuditType = .all) throws {
         try audit(app, screen, types: types)
-        app.setContentSize(Self.ax5)
+        app.setContentSize(AccessibilityAuditUITests.ax5)
         defer { app.setContentSize(nil) }
-        try audit(app, screen, contentSize: Self.ax5, types: types)
+        try audit(app, screen, contentSize: AccessibilityAuditUITests.ax5, types: types)
     }
 
     /// 對目前畫面跑 accessibility audit。排除清單以外的問題一律記成測試失敗(`performAccessibilityAudit` 自己記)。
