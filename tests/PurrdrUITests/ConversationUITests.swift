@@ -463,11 +463,15 @@ final class ConversationUITests: XCTestCase {
 
     /// 注音組字(#187):組字文字跟一般文字一樣換行，輸入框跟著長高;按鈕列留在下方。
     @MainActor
-    func testZhuyinCompositionWrapsAndGrowsComposer() {
+    func testZhuyinCompositionWrapsAndGrowsComposer() throws {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
+        // 以實體鍵盤的注音配置按鍵組字：模擬器沒有接實體鍵盤(畫面上有軟體鍵盤)時測不到，略過(#374)。
+        if app.keyboards.firstMatch.waitUntilExists(timeout: 2) {
+            throw XCTSkip("需要模擬器接著實體鍵盤(Simulator ▸ I/O ▸ Keyboard ▸ Connect Hardware Keyboard)")
+        }
         app.switchKeyboard(to: .zhuyin)
         let idleHeight = text.frame.height
 

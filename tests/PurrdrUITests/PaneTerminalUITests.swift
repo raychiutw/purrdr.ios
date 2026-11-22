@@ -92,13 +92,17 @@ final class PaneTerminalUITests: XCTestCase {
 
     /// 注音組字(#140):浮層出現在游標格子、念得出組字文字，確認前不送;放棄組字後浮層消失。
     @MainActor
-    func testZhuyinCompositionShowsOverlayAtCursor() {
+    func testZhuyinCompositionShowsOverlayAtCursor() throws {
         let app = XCUIApplication.launchUITesting(flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
         let screen = openTerminal(app)
         screen.expectValue(containing: "demo@purrdr ledger %")
         let input = app.descendants(matching: .any)["terminal.input"].firstMatch
         XCTAssertTrue(input.waitUntilExists(timeout: 5), "沒有終端機輸入元件")
         XCTAssertTrue(input.wait(timeout: 5) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }, "輸入元件沒有取得焦點")
+        // 以實體鍵盤的注音配置按鍵組字：模擬器沒有接實體鍵盤(畫面上有軟體鍵盤)時測不到，略過(#374)。
+        if app.keyboards.firstMatch.waitUntilExists(timeout: 2) {
+            throw XCTSkip("需要模擬器接著實體鍵盤(Simulator ▸ I/O ▸ Keyboard ▸ Connect Hardware Keyboard)")
+        }
         app.switchKeyboard(to: .zhuyin)
 
         // 模擬器接著實體鍵盤，軟體鍵盤在畫面外;以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
