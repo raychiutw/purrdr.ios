@@ -312,15 +312,13 @@ struct AccountView: View {
     @State private var showingDeletionSubscription = false
     /// 在訂閱說明頁選了「繼續刪除會員」:等頁面退回帳號頁後才跳確認(同時退頁與跳 alert 會被 SwiftUI 吞掉)。
     @State private var continuedDeletion = false
-    /// 從通知列開配對的主機(#295)。
-    @State private var pairingHost: UUID?
     @State private var showingPlus = false
+    /// 程式要開通知頁時用(「全部開啟」、Purrdr Plus 頁點通知);點列本身走 NavigationLink。
+    @State private var showingNotifications = false
     @State private var managingSubscription = false
     @State private var offeringFeatureSetup = false
     /// 點了鎖定的功能列:說明原因與下一步。
     @State private var lockedFeature: AccountFeature?
-    /// 每次加一：開通後「全部開啟」捲到「通知」區塊。
-    @State private var notificationsScrollRequest = 0
     /// Purrdr Plus 頁點功能列後捲到帳號頁對應的區塊(#323)。
     @State private var featureScrollRequest: PlusFeature?
 
@@ -355,11 +353,11 @@ struct AccountView: View {
                 .onChange(of: featureScrollRequest) { _, feature in
                     guard let feature else { return }
                     featureScrollRequest = nil
-                    withAnimation { proxy.scrollTo(feature, anchor: .top) }
-                }
-                .onChange(of: notificationsScrollRequest) {
-                    guard let first = pushes.first else { return }
-                    withAnimation { proxy.scrollTo(first.id, anchor: .top) }
+                    if feature == .notifications, account.hasPlus {
+                        showingNotifications = true
+                    } else {
+                        withAnimation { proxy.scrollTo(feature, anchor: .top) }
+                    }
                 }
         }
     }
@@ -369,7 +367,6 @@ struct AccountView: View {
             Section {
                 AccountHeader(member: signedInMember)
             }
-            .listRowBackground(Color.clear)
 
             if model.isConnectionLimited {
                 // 後台暫時連不上(#406):登入仍然有效,不是被登出。
@@ -405,6 +402,9 @@ struct AccountView: View {
                             }
                         }
                         .accessibilityIdentifier("member.pushDevices")
+                    } header: {
+                        Text("Notification Devices")
+                            .foregroundStyle(.secondaryText)
                     }
                     .id(PlusFeature.devices)
                 }
@@ -442,20 +442,10 @@ struct AccountView: View {
         .appGroupedList()
         .accessibilityIdentifier("sheet.account")
         .disabled(model.isWorking)
+        .navigationDestination(isPresented: $showingNotifications) { notificationsPage }
         .navigationDestination(isPresented: $showingPlus) {
             if let plus {
                 PlusView(model: plus, member: model, features: plusFeatures)
-            }
-        }
-        .navigationDestination(item: $pairingHost) { id in
-            if let hosts, let host = hosts.hosts.first(where: { $0.id == id }) {
-                // 與主機頁點「還沒配對」的主機開的是同一個引導(直接到配對那一步);存好回到帳號頁，那台主機的開關就能用。
-                AddHostGuideScreen(
-                    make: { (try? hosts.makePairingGuide(for: host)) ?? hosts.makeAddHostGuide() },
-                    onSaved: { _ in pairingHost = nil },
-                    onCancel: { pairingHost = nil },
-                    onAdded: { hosts.didSave($0) },
-                    hostPush: { id in hosts.hostPushes.first { $0.host == .host(id) } })
             }
         }
         .onChange(of: progress) { previous, current in
@@ -469,7 +459,6 @@ struct AccountView: View {
             await model.signInDevices.load()
         }
         .manageSubscriptions(isPresented: $managingSubscription)
-        .hostPushConfirmation(pushes)
         .pushDevicesLoading(signedInMember != nil ? pushDevices : nil, notifyingHostNames: notifyingHostNames)
         .alert(plus?.notice?.title ?? "", isPresented: subscriptionNoticePresented, presenting: plus?.notice) { _ in
             Button("OK", role: .cancel) {}
@@ -577,15 +566,37 @@ struct AccountView: View {
         }
     }
 
-    /// 有 Plus:通知與主機同步照常開關;沒有:鎖定列(文字對比 ≥ 4.5:1,列仍可點並說明原因)。
+    private var notificationsPage: some View {
+        AccountNotificationsView(pushes: pushes, openPlus: { showingPlus = true }, hosts: hosts)
+    }
+
+    /// 「Plus 功能」區(設計稿第 27 組):主機同步與通知併在同一區。
+    /// 有 Plus:主機同步是開關、通知推入逐台主機的開關頁;沒有:鎖定列(文字對比 ≥ 4.5:1,列仍可點並說明原因)。
     @ViewBuilder
     private func featureSections(plus: SubscriptionModel) -> some View {
         if account.hasPlus {
-            HostPushSection(pushes: pushes, openPlus: { showingPlus = true }, pair: { pairingHost = $0 })
+            Section {
+                if let hostSync {
+                    HostSyncRows(model: hostSync, plus: plus, member: model)
+                        .id(PlusFeature.hostSync)
+                }
+                NavigationLink {
+                    notificationsPage
+                } label: {
+                    LabeledContent("Notifications") {
+                        Text(verbatim: plusFeatures.status.value(for: .notifications) ?? "")
+                    }
+                }
+                .accessibilityIdentifier("account.notifications")
                 .id(PlusFeature.notifications)
-            if let hostSync {
-                HostSyncSection(model: hostSync, plus: plus, member: model)
-                    .id(PlusFeature.hostSync)
+            } header: {
+                Text("Plus Features")
+                    .foregroundStyle(.secondaryText)
+            } footer: {
+                if hostSync != nil {
+                    Text(HostSyncRows.footer)
+                        .foregroundStyle(.secondaryText)
+                }
             }
         } else if signedInMember != nil {
             Section {
@@ -620,9 +631,14 @@ struct AccountView: View {
         Task { await hostSync?.setEnabled(true) }
         let supported = pushes.filter { $0.support == .supported }
         if supported.count == 1, let only = supported.first {
-            Task { await only.model.requestOn() }
+            // 確認對話框在通知頁上:先推入頁面,等轉場結束再請求。
+            showingNotifications = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                await only.model.requestOn()
+            }
         } else {
-            notificationsScrollRequest += 1
+            showingNotifications = true
         }
     }
 }
@@ -740,35 +756,36 @@ extension SignInDevice {
     }
 }
 
-/// 帳號頁頂端的頭像與名稱;未加入會員顯示人頭圖。
+/// 帳號頁頂端一列(設計稿第 27 組):小頭像、email 與登入方式摘要;未加入會員顯示人頭圖。
 private struct AccountHeader: View {
     let member: Member?
 
     var body: some View {
-        VStack(spacing: 8) {
+        HStack(spacing: 12) {
             AccountAvatar(member: member)
-                .font(.largeTitle)
-                .frame(width: 72, height: 72)
-            Group {
-                if let member {
-                    if let name = member.accountName {
-                        Text(verbatim: name)
+                .font(.title3)
+                .frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Group {
+                    if let member {
+                        if let name = member.accountName {
+                            Text(verbatim: name)
+                        } else {
+                            Text("Purrdr Member")
+                        }
                     } else {
-                        Text("Purrdr Member")
+                        Text("Not a Member Yet")
                     }
-                } else {
-                    Text("Not a Member Yet")
+                }
+                .fontWeight(.semibold)
+                if let member, !member.identities.isEmpty {
+                    Text(verbatim: member.identities.map(\.method.shortName).formatted(.list(type: .and)))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondaryText)
                 }
             }
-            .font(.title3.bold())
-            .multilineTextAlignment(.center)
-            if let member, !member.identities.isEmpty {
-                Text(verbatim: member.identities.map(\.method.shortName).formatted(.list(type: .and)))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
 }

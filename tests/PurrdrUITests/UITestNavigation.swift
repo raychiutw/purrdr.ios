@@ -223,6 +223,15 @@ extension XCUIApplication {
         XCTAssertTrue(element("sheet.account").waitUntilExists(timeout: 10), "沒有開出帳號頁", file: file, line: line)
     }
 
+    /// 帳號頁捲到「Notifications」列並點開子頁(逐台主機的通知開關在那裡,#463)。
+    @MainActor
+    func openAccountNotifications(file: StaticString = #filePath, line: UInt = #line) {
+        let link = element("account.notifications")
+        XCTAssertTrue(scrollSheet("sheet.account", to: link, search: .down, timeout: 10), "帳號頁沒有通知入口", file: file, line: line)
+        link.tap()
+        XCTAssertTrue(element("account.notifications.page").waitUntilExists(timeout: 10), "沒有進到通知子頁", file: file, line: line)
+    }
+
     /// 收起軟體鍵盤：點對話的空白處(輸入列沒有收起鍵盤鈕,#382),等鍵盤消失。沒有鍵盤時立刻返回
     /// (送出後鍵盤本來就會收起,#329;不為了「也許還在」多等)。
     @MainActor

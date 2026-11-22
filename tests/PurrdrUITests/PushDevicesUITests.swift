@@ -83,13 +83,15 @@ final class PushDevicesUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
         app.openAccountSheet()
 
+        app.openAccountNotifications()
         let toggle = app.switches["account.push.\(Self.seededHost)"]
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: toggle, search: .down, timeout: 10), "沒有主機的通知開關")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
         toggle.tap()
         let install = app.alerts.buttons["settings.push.install"].firstMatch
         XCTAssertTrue(install.waitUntilExists(timeout: 10))
         install.tap()
         toggle.expectValue("Notifications On")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
 
         openPushDevices(app)
         let thisDevice = app.element("account.pushDevice.\(Self.thisDevice)")
@@ -103,6 +105,7 @@ final class PushDevicesUITests: XCTestCase {
 
         XCTAssertTrue(thisDevice.waitUntilGone(timeout: 10), "關閉後仍在清單")
         app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.openAccountNotifications()
         toggle.expectValue("Notifications Off")
     }
 

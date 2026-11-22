@@ -120,8 +120,12 @@ final class AccountUITests: XCTestCase {
         XCTAssertFalse(app.buttons["account.plusCard.primary"].exists, "已開通不該有開通按鈕")
         XCTAssertFalse(app.buttons["account.plusCard.secondary"].exists, "已開通不該有恢復購買")
 
+        // 主機同步與通知併在「Plus 功能」區:同步是開關,通知推入逐台主機的子頁(#463)。
+        let hostSync = app.switches["settings.hostSync"]
+        XCTAssertTrue(app.scrollIntoView(hostSync, search: .down), "沒有主機同步開關")
+        app.openAccountNotifications()
         let toggle = app.switches["account.push.5EED0000-0000-4000-8000-000000000001"]
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: toggle, search: .down, timeout: 10), "沒有主機的通知開關")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
         toggle.tap()
         let install = app.alerts.buttons["settings.push.install"].firstMatch
         XCTAssertTrue(install.waitUntilExists(timeout: 10), "開通知沒有先確認安裝外掛")
@@ -131,10 +135,6 @@ final class AccountUITests: XCTestCase {
         // 仍可關閉那台主機的通知。
         toggle.tap()
         XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == %@", "Notifications Off"), timeout: 10), "等待的條件沒有成立")
-
-        // 主機同步在「通知裝置」之後，要往下捲才進畫面。
-        let hostSync = app.switches["settings.hostSync"]
-        XCTAssertTrue(app.scrollIntoView(hostSync, search: .down), "沒有主機同步開關")
     }
 
     /// 已登入、未開通時通知與同步鎖定:列仍可點,說明原因與下一步,沒有開關(#409)。

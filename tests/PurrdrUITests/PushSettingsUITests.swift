@@ -17,8 +17,9 @@ final class PushSettingsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
         app.openAccountSheet()
 
+        app.openAccountNotifications()
         let toggle = app.switches["account.push.\(Self.seededHost)"]
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: toggle, search: .down, timeout: 10), "沒有主機的通知開關")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
         XCTAssertEqual(toggle.label, "Studio Mac")
         XCTAssertEqual(toggle.value as? String, "Notifications Off")
         toggle.tap()
@@ -37,8 +38,9 @@ final class PushSettingsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedUnpairedHTTPSHost", "-selectDemo"])
         app.openAccountSheet()
 
+        app.openAccountNotifications()
         let https = app.switches["account.push.\(Self.httpsHost)"]
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: https, search: .down, timeout: 10), "沒有 HTTPS 主機的通知列")
+        XCTAssertTrue(https.waitUntilExists(timeout: 10), "沒有 HTTPS 主機的通知列")
         XCTAssertFalse(https.isEnabled)
         app.element("account.push.\(Self.httpsHost).status").tap()
 
@@ -55,7 +57,7 @@ final class PushSettingsUITests: XCTestCase {
         XCTAssertTrue(done.waitUntilExists(timeout: 5))
         done.tap()
 
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: https, search: .down, timeout: 10), "沒有回到帳號頁的通知列")
+        XCTAssertTrue(https.waitUntilExists(timeout: 10), "沒有回到通知頁的通知列")
         XCTAssertTrue(https.wait(timeout: 10) { $0.isEnabled }, "配對後開關仍不能點")
     }
 
