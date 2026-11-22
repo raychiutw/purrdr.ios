@@ -6,10 +6,8 @@ public struct MemberSubscription: Equatable, Sendable {
         case active
         /// 扣款失敗、Apple 還在重試的帳單寬限期:仍有權限。
         case inGracePeriod = "in_grace_period"
-        /// 帳單重試期(寬限期後 Apple 仍在重試):後台判定沒有權限,但仍佔著一會員一訂閱的名額。
-        case billingRetry = "billing_retry"
         case expired
-        /// 退款或撤銷。
+        /// 退款或撤銷。後台對外把帳單重試期(`billing_retry`)也當作已到期,沒有權限(#455)。
         case revoked
     }
 

@@ -451,11 +451,12 @@ private enum Wire {
         var expiresAt: String
         var gracePeriodExpiresAt: String?
         var willAutoRenew: Bool?
-        /// 後台目前的 API 形狀沒有這個欄位(只在資料庫);之後加上時帳號頁就會提示。
+        /// 升級合併後沒保留的有效訂閱(後台 PR #34);帳號頁提示使用者到商店取消。
         var pendingReview: Bool?
 
         func domain() throws -> MemberSubscription {
-            guard let status = MemberSubscription.Status(rawValue: status),
+            // 後台對外把 billing_retry 當作 expired(沒有權限);萬一直接收到,同樣視為已到期。
+            guard let status = MemberSubscription.Status(rawValue: status == "billing_retry" ? "expired" : status),
                   let store = MemberSubscription.Store(rawValue: store),
                   let expiresAt = Wire.date(expiresAt)
             else { throw BackendError.invalidResponse }

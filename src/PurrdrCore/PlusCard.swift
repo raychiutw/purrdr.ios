@@ -64,7 +64,7 @@ public struct PlusCard: Equatable, Sendable {
             primary = canTransfer ? .transferSubscription : nil
             secondary = .restorePurchases
             manage = nil
-        case .billingGrace(let source), .billingRetry(let source):
+        case .billingGrace(let source):
             kind = .billingGrace(source: source, deadline: subscription?.gracePeriodExpiresAt ?? subscription?.expiresAt)
             primary = source == .appStore ? .updatePaymentMethod : nil
             secondary = nil

@@ -161,7 +161,7 @@ struct SubscriptionOwnershipTests {
         #expect(model.plusStatus == .active(source: .appStore))
     }
 
-    @Test("後台回帳單重試期(billing_retry)或待處理旗標也讀得懂,且重試期沒有 Plus")
+    @Test("後台對外沒有帳單重試期:billing_retry 當作已到期(沒有 Plus),待處理旗標讀得懂")
     func billingRetryAndPendingReview() async throws {
         try signIn()
         let body = #"{"subscription":{"status":"billing_retry","store":"google_play","productId":"p","expiresAt":"2026-12-04T00:00:00.000Z","pendingReview":true}}"#
@@ -170,7 +170,8 @@ struct SubscriptionOwnershipTests {
 
         await model.refresh()
 
-        #expect(model.subscription?.status == .billingRetry)
+        #expect(model.subscription?.status == .expired)
+        #expect(model.plusStatus == .expired(source: .googlePlay))
         #expect(model.subscription?.pendingReview == true)
         #expect(!model.isPlusActive)
         #expect(model.plusCard.needsPendingReviewNotice)

@@ -494,7 +494,6 @@ extension SubscriptionModel {
         case nil: "Not Subscribed"
         case .active: "Active"
         case .inGracePeriod: "Payment Issue"
-        case .billingRetry: "Payment Issue"
         case .expired: "Expired"
         case .revoked: "Ended"
         }

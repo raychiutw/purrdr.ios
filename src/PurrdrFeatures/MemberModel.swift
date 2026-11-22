@@ -41,6 +41,7 @@ public final class MemberModel {
     private var signInCount = 0
 
     /// 新增登入方式時發現它已屬於另一個會員(#410):等使用者看過兩邊摘要、確認後才合併。
+    /// 摘要只會在新增登入方式「已確認過裝置擁有者」之後出現,合併沿用那次確認、不再問第二次(#455)。
     public struct MergeProposal: Equatable, Sendable {
         public var summary: MemberMergeSummary
         /// 剛驗證的憑證;確認合併時重新帶給後台。
@@ -164,12 +165,11 @@ public final class MemberModel {
         }
     }
 
-    /// 確認合併(#410):兩邊都有有效訂閱時不能合併;要再確認一次裝置擁有者。
+    /// 確認合併(#410):兩邊都有有效訂閱時不能合併;沿用新增登入方式時的身分確認(#455)。
     /// 留下的可能是對方會員:本機的通知與同步紀錄搬到它的分區,通知與同步維持開啟。
     public func confirmMerge() async {
         guard let proposal = pendingMerge, proposal.summary.canMerge else { return }
         await run {
-            guard await ownerConfirmed() else { return }
             let result = try await session.merge(proposal.credential)
             pendingMerge = nil
             phase = .signedIn(result.member)

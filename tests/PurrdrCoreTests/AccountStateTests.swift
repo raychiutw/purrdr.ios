@@ -63,7 +63,7 @@ struct AccountStateTests {
 
     @Test("Google Play 訂閱：在 iPhone 照樣有 Plus，但沒有購買或管理動作")
     func plusFromGooglePlay() {
-        for plus in [PlusStatus.active(source: .googlePlay), .billingGrace(source: .googlePlay), .billingRetry(source: .googlePlay)] {
+        for plus in [PlusStatus.active(source: .googlePlay), .billingGrace(source: .googlePlay)] {
             let account = state(.signedIn, plus)
 
             #expect(account.hasPlus)
@@ -72,9 +72,9 @@ struct AccountStateTests {
         }
     }
 
-    @Test("帳單寬限與重試：仍有 Plus，並提示更新付款方式；生效中不提示")
-    func billingGraceAndRetry() {
-        for plus in [PlusStatus.billingGrace(source: .appStore), .billingRetry(source: .appStore)] {
+    @Test("帳單寬限：仍有 Plus，並提示更新付款方式；生效中不提示")
+    func billingGrace() {
+        for plus in [PlusStatus.billingGrace(source: .appStore)] {
             let account = state(.signedIn, plus)
 
             #expect(account.hasPlus)

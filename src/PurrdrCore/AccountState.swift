@@ -11,8 +11,6 @@ public enum PlusStatus: Equatable, Sendable {
     case active(source: MemberSubscription.Store)
     /// 帳單寬限期:扣款失敗、商店還在重試，仍有權限。
     case billingGrace(source: MemberSubscription.Store)
-    /// 帳單重試期:仍有權限。
-    case billingRetry(source: MemberSubscription.Store)
     /// 到期、退款或撤銷。
     case expired(source: MemberSubscription.Store)
     /// 這個 Apple ID 的訂閱綁在另一個會員(`maskedEmail` 是部分遮蔽的 email)。
@@ -28,15 +26,14 @@ public enum PlusStatus: Equatable, Sendable {
         switch subscription.status {
         case .active: self = .active(source: subscription.store)
         case .inGracePeriod: self = .billingGrace(source: subscription.store)
-        // 帳單重試期後台判定沒有權限(README「狀態轉換」):與到期同樣鎖住功能。
-        case .expired, .revoked, .billingRetry: self = .expired(source: subscription.store)
+        case .expired, .revoked: self = .expired(source: subscription.store)
         }
     }
 
     /// 這個狀態有 Plus 權限(不含「有沒有登入」)。
     public var entitlesPlus: Bool {
         switch self {
-        case .active, .billingGrace, .billingRetry: true
+        case .active, .billingGrace: true
         case .none, .expired, .ownedByAnotherMember, .unreachable: false
         }
     }
@@ -44,7 +41,7 @@ public enum PlusStatus: Equatable, Sendable {
     /// 訂閱的付款來源;沒有訂閱或不知道時是 `nil`。
     public var source: MemberSubscription.Store? {
         switch self {
-        case .active(let source), .billingGrace(let source), .billingRetry(let source), .expired(let source): source
+        case .active(let source), .billingGrace(let source), .expired(let source): source
         case .none, .ownedByAnotherMember, .unreachable: nil
         }
     }
@@ -115,11 +112,11 @@ public struct AccountState: Equatable, Sendable {
     /// 沒登入時先選「登入」或「加入會員」。
     public var needsEntryChoice: Bool { authentication == .signedOut }
 
-    /// 帳單寬限或重試期:仍有 Plus,但要提示更新付款方式。
+    /// 帳單寬限期:仍有 Plus,但要提示更新付款方式。
     public var needsPaymentMethodUpdate: Bool {
         guard isSignedIn else { return false }
         switch plus {
-        case .billingGrace, .billingRetry: return true
+        case .billingGrace: return true
         default: return false
         }
     }
@@ -137,7 +134,7 @@ public struct AccountState: Equatable, Sendable {
         case .signedIn: break
         }
         switch plus {
-        case .active, .billingGrace, .billingRetry: return .available
+        case .active, .billingGrace: return .available
         case .none: return .locked(.plusRequired)
         case .expired: return .locked(.subscriptionEnded)
         case .ownedByAnotherMember: return .locked(.subscriptionOwnedByAnotherMember)
@@ -159,8 +156,8 @@ public struct AccountState: Equatable, Sendable {
         }
         switch plus {
         case .none, .expired: return [.activatePlus, .restorePurchases]
-        case .active(source: .appStore), .billingGrace(source: .appStore), .billingRetry(source: .appStore): return [.manageSubscription]
-        case .active(source: .googlePlay), .billingGrace(source: .googlePlay), .billingRetry(source: .googlePlay): return []
+        case .active(source: .appStore), .billingGrace(source: .appStore): return [.manageSubscription]
+        case .active(source: .googlePlay), .billingGrace(source: .googlePlay): return []
         case .ownedByAnotherMember: return [.transferSubscription]
         case .unreachable: return [.retry]
         }

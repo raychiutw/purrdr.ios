@@ -109,7 +109,7 @@ struct MemberMergeTests {
         #expect(proposal.summary.other.hostCount == 1)
     }
 
-    @Test("確認合併:再確認一次身分,帶剛驗證的憑證呼叫合併,換上留下會員的新存取權杖")
+    @Test("確認合併:沿用新增時的身分確認(不再問第二次),帶剛驗證的憑證呼叫合併,換上留下會員的新存取權杖")
     func confirmMerge() async throws {
         let model = try await signedInModel()
         replyMergeRequired()
@@ -119,7 +119,7 @@ struct MemberMergeTests {
 
         await model.confirmMerge()
 
-        #expect(owner.count == 1)
+        #expect(owner.count == 0)
         let request = try #require(backend.requests(to: "/v1/members/me/identities/merge").first)
         #expect(request.json?["provider"] as? String == "google")
         #expect(request.json?["idToken"] as? String == "google-id-token")
@@ -133,17 +133,17 @@ struct MemberMergeTests {
         #expect(try tokens.refreshToken() == "refresh-1")
     }
 
-    @Test("合併時身分確認被取消:不呼叫合併,摘要保留可再試")
-    func mergeDeniedKeepsProposal() async throws {
-        let model = try await signedInModel()
+    @Test("新增時身分確認被取消:不會有合併摘要,所以沒有確認就不能合併")
+    func noMergeWithoutOwnerConfirmation() async throws {
+        let model = try await signedInModel(confirm: false)
         replyMergeRequired()
         await model.linkGoogle(browser: MemberModelTests.approvingBrowser)
-        owner.approves = false
 
+        #expect(model.pendingMerge == nil)
         await model.confirmMerge()
 
         #expect(backend.requests(to: "/v1/members/me/identities/merge").isEmpty)
-        #expect(model.pendingMerge != nil)
+        #expect(backend.requests(to: "/v1/members/me/identities").isEmpty)
     }
 
     @Test("兩邊都有有效訂閱(canMerge 為 false):不能確認合併,不送請求")
