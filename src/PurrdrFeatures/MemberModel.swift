@@ -115,10 +115,16 @@ public final class MemberModel {
         }
     }
 
-    /// 登出。先撤銷這支裝置的推播配對並停止同步、清除本機分區(#405);撤銷不了時不登出(配對仍有效,不能假裝登出了)。
-    public func signOut() async {
+    /// 登出。先撤銷這支裝置的推播配對並停止同步、清除本機分區(#405);
+    /// 連不上後台撤銷不了時先不登出,提示 `.signOutBackendUnreachable` 讓使用者選「仍要登出」(`force`,#420):
+    /// 此時照樣清本機分區與主機上的配對,後台配對留待之後撤銷。
+    public func signOut(force: Bool = false) async {
         await run {
-            guard await leaveLocalState() else { return }
+            if force {
+                _ = await localState?.leave(force: true)
+            } else {
+                guard await leaveLocalState(unreachable: .signOutBackendUnreachable) else { return }
+            }
             try await session.signOut()
             phase = .signedOut
             localState?.discardAll()
@@ -162,9 +168,10 @@ public final class MemberModel {
     }
 
     /// 撤銷並清除目前會員的本機狀態;撤銷不了時提示並回 `false`。
-    private func leaveLocalState() async -> Bool {
+    private func leaveLocalState(unreachable: MemberNotice? = nil) async -> Bool {
         guard let localState, !(await localState.leave()) else { return true }
-        notice = .failed(String(localized: "Couldn’t turn off notifications for this device. Check your connection and try again."))
+        notice = unreachable
+            ?? .failed(String(localized: "Couldn’t turn off notifications for this device. Check your connection and try again."))
         return false
     }
 
@@ -217,6 +224,8 @@ public enum MemberNotice: Equatable {
     case deleted
     /// 登入已失效，要重新登入。
     case signedOut
+    /// 登出時連不上後台、撤銷不了這支裝置的通知配對:提示並提供「仍要登出」(#420)。
+    case signOutBackendUnreachable
 
     init(code: String, message: String) {
         switch code {

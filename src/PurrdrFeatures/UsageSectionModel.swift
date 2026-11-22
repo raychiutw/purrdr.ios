@@ -3,7 +3,7 @@ import Observation
 import PurrdrAgentFeatures
 import PurrdrCore
 
-/// 「已用／剩餘」全域設定(#389、#393):同時套用到 5 小時、7 天與 context,跨重啟保存,預設剩餘。
+/// 「已用／剩餘」全域設定(#389、#393):同時套用到 5 小時、7 天與 context,跨重啟保存,預設已用(#420)。
 /// 存在 `PlanUsageModel.Display.storageKey`(設定 tab 與方案用量頁讀寫同一個 key);整個 app 共用一份(`HostsModel.usageDisplay`),
 /// 設定 tab 改了這份也跟著變,所以用量區與 context 立即更新。`defaults` 為 `nil` 時只在記憶體(測試)。
 @MainActor
@@ -20,7 +20,7 @@ public final class UsageDisplaySetting {
 
     public init(defaults: UserDefaults? = nil) {
         self.defaults = defaults
-        display = defaults.map(PlanUsageModel.Display.stored(in:)) ?? .remaining
+        display = defaults.map(PlanUsageModel.Display.stored(in:)) ?? .used
     }
 
     /// 依設定換算要顯示的整數百分比(`used` 是已用比例)。

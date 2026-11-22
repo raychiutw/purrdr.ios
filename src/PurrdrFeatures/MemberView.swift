@@ -78,7 +78,13 @@ public struct MemberContent: View {
             if notice == .deleted {
                 Link("Manage Subscriptions", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
             }
-            Button("OK", role: .cancel) {}
+            if notice == .signOutBackendUnreachable {
+                Button("Sign Out Anyway", role: .destructive) { Task { await model.signOut(force: true) } }
+                    .accessibilityIdentifier("member.signOutAnyway")
+                Button("Cancel", role: .cancel) {}
+            } else {
+                Button("OK", role: .cancel) {}
+            }
         } message: { notice in
             Text(notice.message)
         }
@@ -638,6 +644,7 @@ extension MemberNotice {
         case .merged: "Members Combined"
         case .deleted: "Member Deleted"
         case .signedOut: "Signed Out"
+        case .signOutBackendUnreachable: "Can’t Reach Purrdr"
         }
     }
 
@@ -655,6 +662,8 @@ extension MemberNotice {
             String(localized: "Your member account and its data were deleted. If you subscribed to Purrdr Plus, cancel it in Settings › Apple Account › Subscriptions so you aren’t charged again.")
         case .signedOut:
             String(localized: "Your sign-in expired. Sign in again to continue.")
+        case .signOutBackendUnreachable:
+            String(localized: "Couldn’t notify Purrdr, so this device’s notification pairing may still be active. You can sign out anyway.")
         }
     }
 }

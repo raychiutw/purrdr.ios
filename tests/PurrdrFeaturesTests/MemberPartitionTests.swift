@@ -215,6 +215,23 @@ struct MemberPartitionTests {
         #expect(syncStore.journal == HostSyncJournal())
     }
 
+    @Test("leave(force:):連不上後台時一般離開不清除、強制離開照樣清除本機配對與分區(#420)")
+    func leaveForceClearsEvenWhenBackendUnreachable() async {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .unreachable)
+        let member = makeMemberModel()
+        localState.attach(push: pushService(), hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+
+        #expect(await localState.leave() == false)
+        #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
+        #expect(partition.memberID != nil)
+
+        #expect(await localState.leave(force: true) == true)
+        #expect(pairings.pairings.isEmpty)
+        #expect(partition.memberID != nil, "分區的清除是移除該會員的儲存狀態,memberID 由 discardAll 之後才歸零")
+    }
+
     @Test("登出:主機上的配對檔也移除(PushModel 關閉),後台配對只撤銷一次")
     func signOutRemovesHostPairingToo() async throws {
         let host = try LocalShellHost.temporary()
@@ -258,9 +275,28 @@ struct MemberPartitionTests {
             Issue.record("連不上後台撤銷配對時不應登出,phase 是 \(member.phase)")
             return
         }
-        #expect(member.notice != nil)
+        #expect(member.notice == .signOutBackendUnreachable)
         #expect(backend.requests(to: "/v1/sessions/revoke").isEmpty)
         #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
+    }
+
+    @Test("連不上後台時選「仍要登出」:登出成功並清掉本機分區,後台配對留待之後處理(#420)")
+    func forceSignOutClearsLocalPartitionWhenBackendUnreachable() async {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .unreachable)
+        let member = makeMemberModel()
+        let push = pushService()
+        localState.attach(push: push, hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+
+        await member.signOut()
+        member.notice = nil
+        await member.signOut(force: true)
+
+        #expect(member.phase == .signedOut)
+        #expect(backend.requests(to: "/v1/sessions/revoke").count == 1)
+        #expect(pairings.keyHash(forHost: "studio") == nil)
+        #expect(partition.memberID == nil)
     }
 
     @Test("刪除會員:同樣先撤銷推播配對再清除分區")

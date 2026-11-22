@@ -28,8 +28,15 @@ struct UsageSectionModelTests {
         return PlanUsageSource(cost: .free, hostWrite: write) { usage }
     }
 
+    /// 這些測試的百分比以「剩餘」為準(預設已用,#420)。
+    static func remainingSetting() -> UsageDisplaySetting {
+        let setting = UsageDisplaySetting()
+        setting.display = .remaining
+        return setting
+    }
+
     func model(
-        display: UsageDisplaySetting = UsageDisplaySetting(), agents: [PlanUsageAgent] = [.claudeCode],
+        display: UsageDisplaySetting = Self.remainingSetting(), agents: [PlanUsageAgent] = [.claudeCode],
         sources: [PlanUsageAgent: PlanUsageSource]
     ) -> UsageSectionModel {
         UsageSectionModel(
@@ -37,10 +44,12 @@ struct UsageSectionModelTests {
         ) { sources[$0] }
     }
 
-    @Test("沒設定過時預設顯示剩餘(#393)")
-    func defaultsToRemaining() {
-        #expect(UsageDisplaySetting().display == .remaining)
+    @Test("沒設定過時預設顯示已用;已存的「剩餘」偏好保持(#420)")
+    func defaultsToUsedKeepingStoredRemaining() {
+        #expect(UsageDisplaySetting().display == .used)
         let defaults = UserDefaults(suiteName: "usage-default-\(UUID())")!
+        #expect(UsageDisplaySetting(defaults: defaults).display == .used)
+        PlanUsageModel.Display.remaining.store(in: defaults)
         #expect(UsageDisplaySetting(defaults: defaults).display == .remaining)
     }
 
@@ -49,10 +58,10 @@ struct UsageSectionModelTests {
         let suite = "usage-persist-\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
-        UsageDisplaySetting(defaults: defaults).display = .used
-        #expect(UsageDisplaySetting(defaults: UserDefaults(suiteName: suite)!).display == .used)
+        UsageDisplaySetting(defaults: defaults).display = .remaining
+        #expect(UsageDisplaySetting(defaults: UserDefaults(suiteName: suite)!).display == .remaining)
         // 與設定 tab、方案用量頁讀同一個 key。
-        #expect(PlanUsageModel.Display.stored(in: defaults) == .used)
+        #expect(PlanUsageModel.Display.stored(in: defaults) == .remaining)
     }
 
     @Test("切換已用／剩餘同時套用到 5 小時、7 天與 context")
@@ -61,11 +70,11 @@ struct UsageSectionModelTests {
         let model = model(display: setting, sources: [.claudeCode: Self.source(Self.usage())])
         model.appeared()
         await model.untilIdle()
-        #expect(model.entries[0].rows.map(\.percent) == [62, 26])
-        #expect(setting.shownPercent(forUsed: 18) == 82)
-        setting.display = .used
         #expect(model.entries[0].rows.map(\.percent) == [38, 74])
         #expect(setting.shownPercent(forUsed: 18) == 18)
+        setting.display = .remaining
+        #expect(model.entries[0].rows.map(\.percent) == [62, 26])
+        #expect(setting.shownPercent(forUsed: 18) == 82)
         model.disappeared()
     }
 

@@ -67,8 +67,10 @@ public final class MemberLocalState {
     }
 
     /// 登出、刪除會員或換會員之前呼叫:撤銷這支裝置的推播配對、停止同步並清除目前會員的分區。
-    /// 撤銷後台配對時連不上就不清除、回 `false`(呼叫端不要繼續登出,否則配對還有效、對方的通知照收)。
-    public func leave() async -> Bool {
+    /// 撤銷後台配對時連不上就不清除、回 `false`(呼叫端要先提示使用者,否則配對還有效、對方的通知照收)。
+    /// `force` 為 `true`(使用者選了「仍要登出」,#420)時連不上也照樣清除本機的配對紀錄、回 `true`;
+    /// 後台配對留待之後撤銷,或由「登入中的裝置」頁關閉。
+    public func leave(force: Bool = false) async -> Bool {
         guard let memberID = partition.memberID else { return true }
         hostSync?.stop()
         // 經推播外掛移除主機上的配對並撤銷後台配對;主機連不上的留給下面直接撤銷後台。
@@ -82,7 +84,7 @@ public final class MemberLocalState {
                 } catch BackendError.signedOut {
                     // 登入已失效:後台那邊的配對由會員的工作階段一起處理,這裡沒有權杖可撤銷。
                 } catch {
-                    return false
+                    if !force { return false }
                 }
                 push.store.setKeyHash(nil, forHost: host)
             }

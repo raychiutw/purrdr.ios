@@ -233,11 +233,14 @@ struct SettingsModelTests {
         #expect(model.herdrVersion == .reported("0.9.6"))
     }
 
-    @Test("用量顯示預設剩餘,改了存起來;方案用量畫面的 model 讀同一個 key")
-    func planUsageDisplayDefaultsRemainingAndPersists() {
+    @Test("用量顯示預設已用,改了存起來;既有偏好(剩餘)不受影響;方案用量畫面的 model 讀同一個 key(#420)")
+    func planUsageDisplayDefaultsUsedAndPersists() {
         let defaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!
         let model = Self.model(defaults: defaults)
-        #expect(model.planUsageDisplay == .remaining)
+        #expect(model.planUsageDisplay == .used)
+
+        model.planUsageDisplay = .remaining
+        #expect(Self.model(defaults: defaults).planUsageDisplay == .remaining)
 
         model.planUsageDisplay = .used
 
@@ -253,6 +256,7 @@ struct SettingsModelTests {
     @Test("方案用量畫面開著期間在設定改了用量顯示,下次出現就跟著變")
     func planUsageReadsDisplayAgainWhenAppearing() {
         let defaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!
+        PlanUsageModel.Display.remaining.store(in: defaults)
         let hostID = HostSelection.host(UUID())
         let usage = PlanUsageModel(
             hosts: [HostOption(id: hostID, name: "Mac")], fallback: hostID, store: InMemoryPlanUsageSelectionStore(),
@@ -272,9 +276,9 @@ struct SettingsModelTests {
         let defaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!
         let shared = UsageDisplaySetting(defaults: defaults)
         let model = Self.model(defaults: defaults, usageDisplay: shared)
-        #expect(shared.display == .remaining)
-        model.planUsageDisplay = .used
         #expect(shared.display == .used)
+        model.planUsageDisplay = .remaining
+        #expect(shared.display == .remaining)
     }
 
     @Test("版本字顯示 app 版本與 build")

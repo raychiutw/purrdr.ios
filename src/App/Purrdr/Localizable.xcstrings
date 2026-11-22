@@ -3281,6 +3281,17 @@
         }
       }
     },
+    "Couldn’t notify Purrdr, so this device’s notification pairing may still be active. You can sign out anyway." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法通知 Purrdr 後台,這支裝置的通知配對可能仍有效。你仍可以選擇登出。"
+          }
+        }
+      }
+    },
     "Couldn’t open the effort settings. Go back and try again, or check the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10067,6 +10078,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "登出"
+          }
+        }
+      }
+    },
+    "Sign Out Anyway" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍要登出"
           }
         }
       }

@@ -193,9 +193,9 @@ public final class PlanUsageModel {
         /// 設定 tab「用量顯示」存的 key(#393);設定與方案用量畫面讀同一個。
         public static let storageKey = "planUsage.display"
 
-        /// 存著的選擇;沒存過或讀不懂是「剩餘」。
+        /// 存著的選擇;沒存過或讀不懂是「已用」(#420)。
         public static func stored(in defaults: UserDefaults) -> Display {
-            defaults.string(forKey: storageKey).flatMap(Display.init(rawValue:)) ?? .remaining
+            defaults.string(forKey: storageKey).flatMap(Display.init(rawValue:)) ?? .used
         }
 
         public func store(in defaults: UserDefaults) {

@@ -36,6 +36,13 @@ struct PlanUsageModelTests {
 
     static let bothHosts = [HostOption(id: mac, name: "Mac"), HostOption(id: linux, name: "Linux")]
 
+    /// 這些測試的百分比以「剩餘」為準(預設已用,#420):每次一份獨立、已存「剩餘」的 defaults。
+    static func remainingDefaults() -> UserDefaults {
+        let defaults = UserDefaults(suiteName: "plan-usage-\(UUID().uuidString)")!
+        PlanUsageModel.Display.remaining.store(in: defaults)
+        return defaults
+    }
+
     func model(
         hosts: [HostOption] = Self.bothHosts, store: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
         channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer, sleep: @escaping Sleep = StepSleeper().sleep,
@@ -44,7 +51,7 @@ struct PlanUsageModelTests {
         let channel = channel ?? host
         let consent = consent
         return PlanUsageModel(
-            hosts: hosts, fallback: Self.mac, store: store, now: { Self.now }, sleep: sleep
+            hosts: hosts, fallback: Self.mac, store: store, now: { Self.now }, sleep: sleep, defaults: Self.remainingDefaults()
         ) { selection, _ in
             guard !unsupported.contains(selection) else { return nil }
             return .claude(channel: channel, cost: cost, hostID: selection.storedValue, consent: consent)
@@ -270,7 +277,7 @@ struct PlanUsageModelTests {
     func model(codex: any HostChannel, codexSleep: @escaping Sleep = Sleeping.task) -> PlanUsageModel {
         let claudeChannel = host
         let consent = consent
-        return PlanUsageModel(hosts: Self.bothHosts, fallback: Self.mac, store: InMemoryPlanUsageSelectionStore(), now: { Self.now }) { selection, agent in
+        return PlanUsageModel(hosts: Self.bothHosts, fallback: Self.mac, store: InMemoryPlanUsageSelectionStore(), now: { Self.now }, defaults: Self.remainingDefaults()) { selection, agent in
             switch agent {
             case .claudeCode: .claude(channel: claudeChannel, cost: .transfer, hostID: selection.storedValue, consent: consent)
             case .codex: .codex(channel: codex, cost: .transfer, sleep: codexSleep)
