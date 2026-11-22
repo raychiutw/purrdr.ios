@@ -16,11 +16,15 @@ struct NeedsYouCard: View {
     private let maximumHeight = 300.0
     @State private var contentHeight = 0.0
 
-    static let cornerRadius: CGFloat = 20
+    static let cornerRadius: CGFloat = 24
     /// 選項列右側附屬位置的邊長(轉圈、鍵盤圖示共用，列高不隨送出狀態改變)。
     static let accessorySize: CGFloat = 22
     /// 按下的選項的淡底不透明度(主色疊在卡片底上，主要色字對它 ≥ 4.5:1)。
-    static let pressedFillOpacity = 0.14
+    static let pressedFillOpacity = 0.22
+    /// 每個選項是獨立的圓角底(設計稿畫板 29:圓角 14、列高 48、列距 6)。
+    static let optionCornerRadius: CGFloat = 14
+    static let optionSpacing: CGFloat = 6
+    static let optionHeight: CGFloat = 48
 
     var body: some View {
         if let prompt = model.prompt {
@@ -37,10 +41,7 @@ struct NeedsYouCard: View {
     }
 
     private func content(_ prompt: BlockedPrompt) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let notice = model.answerNotice {
-                noticeBanner(notice)
-            }
+        VStack(alignment: .leading, spacing: 10) {
             Label {
                 Text(prompt.question ?? String(localized: "The agent is waiting for you."))
                     .font(.headline)
@@ -53,6 +54,10 @@ struct NeedsYouCard: View {
             .accessibilityLabel(Text("Needs You: \(prompt.question ?? String(localized: "The agent is waiting for you."))"))
             .accessibilityIdentifier("prompt.question")
 
+            // 送出失敗的錯誤接在題目下面、選項上面(設計稿畫板 29)。
+            if let notice = model.answerNotice {
+                noticeBanner(notice)
+            }
             if prompt.detailsOffscreen {
                 Label("The start of this prompt is off screen. Check the terminal for the details.", systemImage: "terminal")
                     .font(.footnote)
@@ -66,11 +71,11 @@ struct NeedsYouCard: View {
                 choices(prompt)
             }
         }
-        .padding(16)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 送出失敗的錯誤(alert 角色):在卡片頂端，出現時朗讀。
+    /// 送出失敗的錯誤(alert 角色):在題目下方，出現時朗讀。
     private func noticeBanner(_ notice: AnswerNotice) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Label {
@@ -153,7 +158,7 @@ struct NeedsYouCard: View {
                 }
             }
         }
-        .buttonStyle(.pressableRow(cornerRadius: 0))
+        .buttonStyle(.pressableRow(cornerRadius: NeedsYouCard.optionCornerRadius))
         .disabled(state == .disabled)
         .accessibilityLabel(optionAccessibilityLabel(option))
         .accessibilityValue(state == .sending ? Text("Sending") : Text(verbatim: ""))
@@ -168,7 +173,7 @@ struct NeedsYouCard: View {
         } label: {
             OptionRowLabel(title: title, checked: nil, state: state) {}
         }
-        .buttonStyle(.pressableRow(cornerRadius: 0))
+        .buttonStyle(.pressableRow(cornerRadius: NeedsYouCard.optionCornerRadius))
         .disabled(state == .disabled)
         .accessibilityValue(state == .sending ? Text("Sending") : Text(verbatim: ""))
         .accessibilityIdentifier(identifier)
@@ -186,21 +191,14 @@ struct NeedsYouCard: View {
     }
 }
 
-/// 一組選項：同一塊淡底、列之間以分隔線隔開(設計稿畫板 29)。
+/// 一組選項：每個選項是獨立的圓角底、列距 6pt(設計稿畫板 29)。
 private struct OptionGroup<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(spacing: 0) {
-            Group(subviews: content) { subviews in
-                ForEach(Array(subviews.enumerated()), id: \.offset) { index, subview in
-                    if index > 0 { Divider() }
-                    subview
-                }
-            }
+        VStack(spacing: NeedsYouCard.optionSpacing) {
+            content
         }
-        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: PromptOptionStyle.cornerRadius))
-        .clipShape(RoundedRectangle(cornerRadius: PromptOptionStyle.cornerRadius))
     }
 }
 
@@ -233,8 +231,10 @@ private struct OptionRowLabel<Accessory: View>: View {
         .foregroundStyle(Color.primary)
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-        .background(state == .sending ? AnyShapeStyle(.softAccentFill(opacity: NeedsYouCard.pressedFillOpacity)) : AnyShapeStyle(.clear))
+        .frame(maxWidth: .infinity, minHeight: NeedsYouCard.optionHeight, alignment: .leading)
+        .background(
+            state == .sending ? AnyShapeStyle(.softAccentFill(opacity: NeedsYouCard.pressedFillOpacity)) : AnyShapeStyle(.fill.tertiary),
+            in: RoundedRectangle(cornerRadius: NeedsYouCard.optionCornerRadius))
         .contentShape(.rect)
     }
 }

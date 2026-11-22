@@ -87,6 +87,8 @@ struct ImageViewer: View {
         .accessibilityAction(named: Text("Close")) { dismiss() }
         .accessibilityAction(.escape) { dismiss() }
         .accessibilityIdentifier("imageViewer")
+        // 底一律純黑:玻璃按鈕與頁數膠囊固定走深色,淺色模式才不會是黑字疊在灰玻璃上。
+        .preferredColorScheme(.dark)
         #if os(iOS)
         .statusBarHidden()
         #endif
