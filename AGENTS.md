@@ -24,7 +24,7 @@ xcodebuild test -project src/App/Purrdr.xcodeproj -scheme Purrdr \
   -derivedDataPath .derivedData -parallel-testing-enabled NO -disable-concurrent-destination-testing \
   -skipPackagePluginValidation -collect-test-diagnostics never \
   -clonedSourcePackagesDirPath ~/Library/Caches/purrdr-spm \
-  -only-testing:PurrdrUITests/AgentListUITests                  # UI 測試：本機跑，只跑有修改到的類別(CI 不做)。模擬器固定一台「iPhone 17」,不要另外建立或讓 Xcode clone
+  -testPlan Daily                                               # UI 測試日常組(#374):DailySmokeUITests 7 條連續操作，約 2 分鐘。換 `-testPlan Full` 是完整組(其餘全部);單一類別用 `-only-testing:PurrdrUITests/<類別>`。本機跑(CI 不做)。模擬器固定一台「iPhone 17」,不要另外建立、不要平行(實測 2 台在這台 Mac 上每個測試慢 2～3 倍、多吃約 10 GB 磁碟)
 (cd tests/PurrdrIOSTests && xcodebuild test -scheme PurrdrIOSTests-Package \
   -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../../.derivedData/ios \
   -skipPackagePluginValidation -collect-test-diagnostics never \
@@ -50,6 +50,7 @@ PURRDR_REPRO_HOST=user@host PURRDR_REPRO_KEY=<私鑰> PURRDR_REPRO_HOST_KEY=<主
 xcodebuild 的兩個加速參數(本機，CI 不需要):
 - `-collect-test-diagnostics never`:測試失敗或 runner 被終止時，xcodebuild 預設會跑 `simctl diagnose --timeout=600` 收集模擬器診斷，可能停住最多 10 分鐘(CPU 0%,看起來像卡住)。要診斷時另外手動收。
 - `-clonedSourcePackagesDirPath ~/Library/Caches/purrdr-spm`:各 worktree(子代理)共用同一份 SwiftPM 遠端套件(swift-nio、SwiftTerm…),不必每個 worktree 重新下載、各占一份磁碟。編譯產物(`-derivedDataPath`)仍各自一份，同時建置時共用會互相干擾。新 worktree 第一次建置仍要從頭編譯(約數分鐘),之後增量;用完的 worktree 記得移除，`.derivedData`／`.build` 一個約 1～3 GB。
+- **UI 測試分兩組**(#374、spec #367):**日常組**(`-testPlan Daily`,目標 5 分鐘)每張票回報前跑、合進整合分支前跑，有失敗就不能合併(偶發要修成確定性，或先移出日常組並開票);**完整組**(`-testPlan Full`,目標 30 分鐘)發版前(往 master 的 PR)一定跑且全綠，整合期間合了超過 5 張票也跑一次。新功能的主流程要加進 `DailySmokeUITests`(串進既有的連續操作，不另外啟動 app);分支與規則放 model 的單元測試或功能自己的 UI 類別(完整組)。`-uiTesting` 會關掉動畫，要驗動畫本身的測試帶 `-uiTestingAnimations`。模擬器資料會越積越大(曾到 14 GB),磁碟不夠時 `xcrun simctl erase "iPhone 17"`。
 - UI 測試多個 worktree 同時跑時以 `lockf /tmp/purrdr-uitest.lock xcodebuild test …` 排隊(只有一台模擬器)。修 UI 時先 `-only-testing:<類別>/<測試名>` 跑單一測試，最後再跑整個類別一次;runner 在連上前被 signal kill 是本機間歇的環境問題，重跑即可。
 
 warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,也就是 `swift test`)、app 專案的 `SWIFT_TREAT_WARNINGS_AS_ERRORS`,以及上面的 package iOS 編譯(Xcode 建置 app 時會把 package 的 warning 壓掉，所以不能省)。package iOS 編譯不能加 `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`:命令列的設定會套到 SwiftTerm、swift-nio 等遠端 package,跟 Xcode 給它們的 `-suppress-warnings` 衝突，所以改數 result bundle 的 warning。
@@ -191,7 +192,7 @@ App → Demo → SSH
 
 - 走 Matt Pocock skill 工作流:`/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`。
 - TDD:production code 變更先寫失敗測試，並真的跑出紅燈、留下輸出。
-- **完成定義**:`swift test` 與 `xcodebuild test` 全部通過、零 warning;UI 測試在本機只跑有修改到的類別;涉及畫面者逐項通過 `DESIGN.md` 與 `docs/research/apple-hig-drover-chat.md` 第 20 節的相關項目。
+- **完成定義**:`swift test` 與 `xcodebuild test` 全部通過、零 warning;UI 測試在本機跑日常組(發版前跑完整組);涉及畫面者逐項通過 `DESIGN.md` 與 `docs/research/apple-hig-drover-chat.md` 第 20 節的相關項目。
 - 不直接 commit 到 `master`:開 feature branch,push 後開 PR,合併用 **merge commit**,不用 squash。
 - 文件、註解、commit message 用繁體中文(台灣用語),技術名詞保留英文。
 
