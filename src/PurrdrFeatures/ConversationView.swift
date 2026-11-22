@@ -333,10 +333,13 @@ public struct ConversationView: View {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
                         .frame(width: 44, height: 44)
+                        .floatingGlass(in: Circle())
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.plain)
                 .padding()
-                .accessibilityIdentifier("conversation.jumpToLatest")            }
+                .accessibilityIdentifier("conversation.jumpToLatest")
+            }
         }
     }
 

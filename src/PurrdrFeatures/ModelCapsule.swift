@@ -138,7 +138,7 @@ private struct ModelListPage: View {
                 currentOnly
             }
         }
-        .appGroupedList()
+        .appSheetList()
     }
 
     /// 只顯示目前模型與原因(停用、Codex、面板讀不到)。
@@ -238,7 +238,7 @@ private struct EffortPage: View {
                 }
             }
         }
-        .appGroupedList()
+        .appSheetList()
         .navigationTitle("Effort")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

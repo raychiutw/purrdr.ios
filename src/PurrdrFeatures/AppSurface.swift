@@ -56,6 +56,13 @@ extension View {
 }
 
 extension View {
+    /// 部分高度 sheet 內的清單(#425):頁面底不鋪不透明色,讓系統 sheet 自己的玻璃透出(減少透明度時系統自動不透明,
+    /// 拉到 large 時系統也改成實底);列仍用 `AppSurface.groupedRow`。全頁的清單用 `appGroupedList()`。
+    func appSheetList() -> some View {
+        scrollContentBackground(.hidden)
+            .listRowBackground(AppSurface.groupedRow)
+    }
+
     /// NavigationStack 內容的底色用 `AppSurface.page`(沒有自己底色的空狀態、對話)。
     @ViewBuilder
     func appNavigationBackground() -> some View {

@@ -123,7 +123,7 @@ public struct NewChatView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            .appGroupedList()
+            .appSheetList()
             .accessibilityIdentifier("sheet.newChat")
             .navigationTitle("New Chat")
             #if os(iOS)
@@ -152,6 +152,9 @@ public struct NewChatView: View {
                 }
             }
         }
+        // 部分高度的系統 sheet,系統自動套玻璃(#425);鍵盤升起或內容多時系統自動拉到 large。
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     /// 一份清單(#309,選定版 C):第一列「新的聊天」,下面是這個資料夾過去的 session;勾號只有一個。
@@ -307,7 +310,7 @@ struct FolderPickerView: View {
                     }
                 }
             }
-            .appGroupedList()
+            .appSheetList()
             .accessibilityIdentifier("folderPicker.list")
         }
     }
