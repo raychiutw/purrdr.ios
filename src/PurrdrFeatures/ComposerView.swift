@@ -106,7 +106,8 @@ struct ComposerBar: View {
             }
             // 「You should know」:只顯示這個輸入框要送往的 session 的那則(#23)。
             // slash 選單開著時先收起：鍵盤、選單、註記同時在時，AX 字級下註記卡片被擠到截字(#35)。
-            if let note = model.note, let notes = model.youShouldKnow, !model.slash.isVisible {
+            // 面板卡片(`/model`、`/effort`)開著時也收起：浮在輸入框上的註記會蓋住卡片下半的按鈕(#366)。
+            if let note = model.note, let notes = model.youShouldKnow, showsNote {
                 switch arrangement.note {
                 case .full:
                     YouShouldKnowNoteView(note: note, model: notes, conversation: model)
@@ -212,7 +213,8 @@ struct ComposerBar: View {
         conversationHeight.arrangementChanged()
     }
 
-    private var showsNote: Bool { model.note != nil && model.youShouldKnow != nil && !model.slash.isVisible }
+    /// slash 選單或面板卡片(`/model`、`/effort`)開著時註記收起:浮在輸入框上的註記會蓋住卡片下半的按鈕(#366)。
+    private var showsNote: Bool { model.note != nil && model.youShouldKnow != nil && !model.slash.isVisible && model.panel == nil }
 
     /// 實際顯示的方式：完整的註記與建議卡不同時出現(註記優先)。
     private var shownArrangement: ComposerAccessoryArrangement { arrangement.sharingTopSlot(hasNote: showsNote) }

@@ -1849,6 +1849,12 @@ public final class ConversationModel {
         }
     }
 
+    /// 面板 sheet 被使用者關掉(下滑或「完成」)時：面板還開著就按 Esc 取消，不改設定(#366)。
+    public func dismissPanel() async {
+        guard !isChoosingModel, let esc = panel?.actions.first(where: { $0.key == "esc" }) else { return }
+        await operatePanel(.action(esc))
+    }
+
     // MARK: - 權限模式(#306)
 
     /// 從畫面讀到的 Claude 權限模式;還沒讀到或認不出是 `nil`。
