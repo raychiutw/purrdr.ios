@@ -34,6 +34,27 @@ struct DemoHostFilesTests {
         #expect(try await usage.readPlanUsage() == nil)
     }
 
+    @Test("Antigravity:安裝後讀到範例用量(兩個模型群組),還原後設定與安裝前完全相同(#448)")
+    func antigravityInstallShowsSampleUsageAndRestores() async throws {
+        let demo = DemoHost()
+        let usage = AntigravityPlanUsageHost(channel: demo)
+        let files = HostFiles(channel: demo)
+        let before = try await files.read([AntigravityPlanUsageHost.settingsPath])
+        #expect(try await usage.readPlanUsage() == nil)
+
+        try await usage.install()
+        let sample = try #require(try await usage.readPlanUsage())
+        #expect(Set(sample.periods.map(\.group)) == [.gemini, .thirdParty])
+        #expect(sample.periods.count == 4)
+        #expect(sample.periods.allSatisfy { ($0.resetsAt ?? .distantPast) > Date() })
+        #expect(sample.activeGroup == .gemini)
+
+        try await usage.restore()
+
+        #expect(try await files.read([AntigravityPlanUsageHost.settingsPath]) == before)
+        #expect(try await usage.readPlanUsage() == nil)
+    }
+
     @Test("讀取後被改過：Demo 也拒絕寫入")
     func demoRejectsStaleWrites() async throws {
         let files = HostFiles(channel: DemoHost())

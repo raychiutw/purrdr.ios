@@ -127,6 +127,24 @@ struct UsageSectionModelTests {
         model.disappeared()
     }
 
+    @Test("Antigravity 兩個模型群組:只列目前模型的群組,聊天的模型優先,切換後立即換(#448)")
+    func antigravityShowsCurrentModelGroupOnly() async {
+        func period(_ kind: PlanUsage.Period.Kind, _ group: PlanUsage.Group, used: Double) -> PlanUsage.Period {
+            .init(kind: kind, group: group, usedPercentage: used, resetsAt: Self.now.addingTimeInterval(3_600))
+        }
+        let usage = PlanUsage(
+            periods: [period(.fiveHour, .gemini, used: 10), period(.week, .gemini, used: 20), period(.fiveHour, .thirdParty, used: 30), period(.week, .thirdParty, used: 40)],
+            capturedAt: Self.now, activeGroup: .gemini)
+        let model = model(agents: [.antigravity], sources: [.antigravity: Self.source(usage)])
+        model.appeared()
+        await model.untilIdle()
+        #expect(model.entries[0].rows.map(\.group) == [.gemini, .gemini])
+
+        model.activeGroup = .thirdParty
+        #expect(model.entries[0].rows.map(\.percent) == [70, 60], "剩餘比例,第三方群組")
+        model.disappeared()
+    }
+
     @Test("HTTPS 主機沒有用量來源:整區是「等主機服務支援」,不是壞畫面")
     func httpsIsUnsupported() async {
         let model = model(agents: [.claudeCode, .codex], sources: [:])

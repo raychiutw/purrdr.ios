@@ -249,9 +249,28 @@ enum AntigravityStatusLine {
         return AgentStatusLine(mode: mode, model: segments[segments.count - 2], effort: effort)
     }
 
-    private static let modes: [String: AgentPermissionMode] = [
+    static let modes: [String: AgentPermissionMode] = [
         "default": .normal, "auto": .auto, "accept-edits": .acceptEdits, "plan": .plan,
     ]
+
+    /// statusline 的模型名稱(`Gemini 4 Neon (Medium)`)去掉後面標示 effort 的括號,與畫面狀態列、對話紀錄的名稱一致。
+    static func displayModel(_ name: String) -> String {
+        guard let open = name.range(of: " (", options: .backwards), name.hasSuffix(")") else { return name }
+        return String(name[..<open.lowerBound])
+    }
+}
+
+extension AgentPermissionMode {
+    /// Antigravity statusline 的 `cycle_mode`(`auto`、`plan`、`accept-edits`;default 模式沒有這個欄位);認不得是 `nil`。
+    public init?(antigravityCycleMode value: String) {
+        guard let mode = AntigravityStatusLine.modes[value] else { return nil }
+        self = mode
+    }
+}
+
+extension ClaudeSessionStatus {
+    /// 去掉括號的模型名稱(Antigravity 的 statusline 把 effort 寫在名稱後面)。
+    public var antigravityModelName: String? { model.map(AntigravityStatusLine.displayModel) }
 }
 
 extension ScreenDialect {

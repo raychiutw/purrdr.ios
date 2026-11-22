@@ -32,6 +32,8 @@ extension PlanUsageSource {
         consent: any HostWriteConsentStore, now: @escaping @Sendable () -> Date = Date.init
     ) -> PlanUsageSource {
         switch agent {
+        case .antigravity:
+            preconditionFailure("主機服務沒有 Antigravity 的方案用量(呼叫端先看 supportsHostService)")
         case .codex:
             return PlanUsageSource(cost: .transfer) {
                 let result = try await connection.codexUsage()

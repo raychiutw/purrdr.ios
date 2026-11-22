@@ -8,6 +8,10 @@ import PurrdrSSH
 public enum PlanUsageAgent: String, CaseIterable, Sendable {
     case claudeCode
     case codex
+    case antigravity
+
+    /// 主機服務(HTTPS 主機)有這個 Agent 的方案用量;Antigravity 的 statusline 包裝只有 SSH(#448)。
+    var supportsHostService: Bool { self != .antigravity }
 }
 
 /// 一台主機上一種 Agent 的方案用量來源。
@@ -76,6 +80,26 @@ extension PlanUsageSource {
 }
 
 extension PlanUsageSource {
+    /// Antigravity:讀包裝腳本存下的 `usage.json`(零 token;要經同意寫主機,ADR-0002)。
+    public static func antigravity(
+        channel: any HostChannel, files: HostFiles? = nil, cost: PlanUsageQueryCost, hostID: String, consent: any HostWriteConsentStore
+    ) -> PlanUsageSource {
+        let host = AntigravityPlanUsageHost(channel: channel, files: files)
+        let feature = AntigravityPlanUsageHost.feature.id
+        let hostWrite = PlanUsageHostWrite(
+            isGranted: { consent.isGranted(feature, host: hostID) },
+            inspect: { try await host.inspect().user },
+            install: {
+                try await host.install()
+                consent.grant(feature, host: hostID)
+            },
+            restore: {
+                try await host.restore()
+                consent.revoke(feature, host: hostID)
+            })
+        return PlanUsageSource(cost: cost, hostWrite: hostWrite) { try await host.readPlanUsage() }
+    }
+
     /// Codex:執行一次 `codex app-server` 查詢(不寫主機、不需同意)。
     public static func codex(channel: any HostChannel, cost: PlanUsageQueryCost, sleep: @escaping Sleep = Sleeping.task) -> PlanUsageSource {
         let host = CodexPlanUsageHost(channel: channel, sleep: sleep)
@@ -252,7 +276,20 @@ public final class PlanUsageModel {
     /// 要顯示的用量週期(已過重置時間的不顯示)。
     public var rows: [PlanUsageRow] {
         guard case .loaded(let usage) = state else { return [] }
-        return PlanUsagePresentation.rows(for: usage, showing: display, now: now())
+        return PlanUsagePresentation.rows(for: usage, showing: display, now: now(), allGroups: true)
+    }
+
+    /// 詳細面板依模型群組分列(Claude、Codex 只有一個 `.general`)。
+    public var rowGroups: [(group: PlanUsage.Group, rows: [PlanUsageRow])] {
+        var result: [(group: PlanUsage.Group, rows: [PlanUsageRow])] = []
+        for row in rows {
+            if let index = result.firstIndex(where: { $0.group == row.group }) {
+                result[index].rows.append(row)
+            } else {
+                result.append((row.group, [row]))
+            }
+        }
+        return result
     }
 
     /// 不耗 token 也不耗傳輸的來源，畫面開著時重整的間隔。
@@ -311,7 +348,7 @@ public final class PlanUsageModel {
             state = .confirming(user: user)
         } failure: { error in
             state = .needsConsent
-            message = Self.describe(error)
+            message = Self.describe(error, agent: agent)
         }
     }
 
@@ -342,7 +379,7 @@ public final class PlanUsageModel {
             state = .confirming(user: user)
         } failure: { error in
             state = previous
-            message = Self.describe(error)
+            message = Self.describe(error, agent: agent)
         }
     }
 
@@ -355,7 +392,7 @@ public final class PlanUsageModel {
             await refresh()
         } failure: { error in
             state = .needsConsent
-            message = Self.describe(error)
+            message = Self.describe(error, agent: agent)
         }
     }
 
@@ -373,7 +410,7 @@ public final class PlanUsageModel {
             state = .needsConsent
         } failure: { error in
             state = previous
-            message = Self.describe(error)
+            message = Self.describe(error, agent: agent)
         }
     }
 
@@ -395,16 +432,26 @@ public final class PlanUsageModel {
         }
     }
 
-    static func describe(_ error: any Error) -> String {
+    static func describe(_ error: any Error, agent: PlanUsageAgent) -> String {
         switch error {
         case ClaudeUsageError.settingsNotJSON:
             String(localized: "Claude Code’s settings on this host are damaged, so Purrdr left them unchanged. Fix them there and try again.")
         case ClaudeUsageError.claudeNotFound:
             String(localized: "Claude Code isn’t set up on this host. Set it up there first.")
+        case AntigravityUsageError.settingsNotJSON:
+            String(localized: "Antigravity’s settings on this host are damaged, so Purrdr left them unchanged. Fix them there and try again.")
+        case AntigravityUsageError.antigravityNotFound:
+            String(localized: "Antigravity isn’t set up on this host. Set it up there first.")
+        case AntigravityUsageError.windowsUnsupported:
+            String(localized: "Antigravity plan usage isn’t available on Windows hosts yet.")
         case HostFilesError.changedSinceRead:
-            String(localized: "Claude Code’s settings changed while Purrdr was updating them. Nothing was changed; try again.")
+            agent == .antigravity
+                ? String(localized: "Antigravity’s settings changed while Purrdr was updating them. Nothing was changed; try again.")
+                : String(localized: "Claude Code’s settings changed while Purrdr was updating them. Nothing was changed; try again.")
         case HostWriteError.unusableFile, HostFilesError.tooLarge:
-            String(localized: "Purrdr can’t safely change Claude Code’s settings on this host.")
+            agent == .antigravity
+                ? String(localized: "Purrdr can’t safely change Antigravity’s settings on this host.")
+                : String(localized: "Purrdr can’t safely change Claude Code’s settings on this host.")
         default:
             String(localized: "Couldn’t update the host: \(error.localizedDescription)")
         }
@@ -496,7 +543,14 @@ public final class PlanUsageModel {
 
 /// 一個用量週期的顯示內容。
 public struct PlanUsageRow: Equatable, Sendable, Identifiable {
+    public struct ID: Hashable, Sendable {
+        public var group: PlanUsage.Group
+        public var period: PlanUsage.Period.Kind
+    }
+
     public var period: PlanUsage.Period.Kind
+    /// 模型群組(Antigravity 同一個用量週期有 Gemini 與第三方兩份,#448);其他 Agent 是 `.general`。
+    public var group: PlanUsage.Group = .general
     /// 顯示的整數百分比(剩餘或已用)。
     public var percent: Int
     /// 圓環的比例，0～1。
@@ -508,7 +562,7 @@ public struct PlanUsageRow: Equatable, Sendable, Identifiable {
     /// 到門檻(已用 70% 起)就加警示三角,不只靠顏色(#389)。
     public var showsWarning: Bool { level != .ample }
 
-    public var id: PlanUsage.Period.Kind { period }
+    public var id: ID { ID(group: group, period: period) }
 }
 
 /// 依已用比例分的三級:70% 起偏高、85% 起將用完(同 context 的級距,DESIGN.md「低飽和用量色」)。
@@ -516,14 +570,26 @@ public enum PlanUsageLevel: Equatable, Sendable { case ample, low, depleted }
 
 /// 方案用量的顯示規則。
 public enum PlanUsagePresentation {
-    public static func rows(for usage: PlanUsage, showing display: PlanUsageModel.Display, now: Date) -> [PlanUsageRow] {
-        usage.periods.compactMap { period in
+    /// - Parameters:
+    ///   - allGroups: 詳細面板:所有模型群組都列;標題與主機 tab 只列目前模型的群組。
+    ///   - activeGroup: 目前模型所屬群組(聊天的模型),優先於來源回報的;都沒有時列第一個群組,兩組不混在一起。
+    public static func rows(
+        for usage: PlanUsage, showing display: PlanUsageModel.Display, now: Date, allGroups: Bool = false,
+        activeGroup: PlanUsage.Group? = nil
+    ) -> [PlanUsageRow] {
+        var periods = usage.periods
+        let groups = periods.reduce(into: [PlanUsage.Group]()) { if !$0.contains($1.group) { $0.append($1.group) } }
+        if !allGroups, groups.count > 1 {
+            let wanted = [activeGroup, usage.activeGroup].compactMap { $0 }.first(where: groups.contains) ?? groups[0]
+            periods = periods.filter { $0.group == wanted }
+        }
+        return periods.compactMap { period in
             guard period.resetsAt.map({ $0 > now }) ?? true else { return nil }
             let used = PlanUsage.Period.clamped(period.usedPercentage)
             let remaining = 100 - used
             let shown = display == .remaining ? remaining : used
             return PlanUsageRow(
-                period: period.kind, percent: Int(shown.rounded()), fraction: shown / 100, resetsAt: period.resetsAt,
+                period: period.kind, group: period.group, percent: Int(shown.rounded()), fraction: shown / 100, resetsAt: period.resetsAt,
                 level: level(used: used))
         }
     }

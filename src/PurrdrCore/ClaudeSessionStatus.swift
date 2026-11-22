@@ -14,10 +14,12 @@ public struct ClaudeSessionStatus: Sendable, Equatable {
     public var model: String?
     /// 思考強度(`effort`);Claude Code 沒回報時沒有。
     public var effort: String?
+    /// 權限模式(`cycle_mode`,Antigravity,#448);default 模式與 Claude Code 沒有這個欄位。
+    public var cycleMode: String?
 
     public init(
         sessionID: String, capturedAt: Date? = nil, contextPercent: Double? = nil, contextWindowSize: Int? = nil,
-        model: String? = nil, effort: String? = nil
+        model: String? = nil, effort: String? = nil, cycleMode: String? = nil
     ) {
         self.sessionID = sessionID
         self.capturedAt = capturedAt
@@ -25,6 +27,7 @@ public struct ClaudeSessionStatus: Sendable, Equatable {
         self.contextWindowSize = contextWindowSize
         self.model = model
         self.effort = effort
+        self.cycleMode = cycleMode
     }
 
     /// 與包裝腳本同一規則(purrdr.host#64):1–128 個英數與 `. _ -`,且不能是 `.` 或 `..`。不合格就不讀(退回對話紀錄算法)。
@@ -49,11 +52,14 @@ public struct ClaudeSessionStatus: Sendable, Equatable {
         let model = input["model"] as? [String: Any]
         // 沒有 `used_percentage`(null)時 context 不顯示(由退回算法補)。
         let percent = (window?["used_percentage"] as? NSNumber)?.doubleValue
+        // Claude Code 的 effort 在輸入根層(`effort.level`),Antigravity 在 `model.effort`。
         let effort = (input["effort"] as? [String: Any])?["level"] as? String ?? input["effort"] as? String
+            ?? model?["effort"] as? String
         self.init(
             sessionID: id, capturedAt: (object["captured_at"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) },
             contextPercent: percent.map { min(100, max(0, $0)) }, contextWindowSize: (window?["context_window_size"] as? NSNumber)?.intValue,
-            model: model?["id"] as? String ?? model?["display_name"] as? String, effort: effort)
+            model: model?["id"] as? String ?? model?["display_name"] as? String, effort: effort,
+            cycleMode: input["cycle_mode"] as? String)
     }
 
     /// 在 `date` 時是否還能用。

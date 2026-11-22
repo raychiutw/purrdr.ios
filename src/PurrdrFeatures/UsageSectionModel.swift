@@ -67,6 +67,8 @@ public final class UsageSectionModel {
     public let hostName: String
     public let displaySetting: UsageDisplaySetting
     public let agents: [PlanUsageAgent]
+    /// 目前模型所屬的群組(聊天面板傳入;Antigravity 同一用量週期依群組有多份,只列這個群組,#448)。`nil` 用來源回報的。
+    public var activeGroup: PlanUsage.Group?
 
     private let source: (PlanUsageAgent) -> PlanUsageSource?
     private let now: () -> Date
@@ -114,7 +116,7 @@ public final class UsageSectionModel {
             case .needsEnable: return Entry(agent: agent, state: .needsEnable, rows: [], staleMinutes: nil)
             case .failed(let failure): return Entry(agent: agent, state: .failed(failure), rows: [], staleMinutes: nil)
             case .loaded(let usage):
-                let rows = PlanUsagePresentation.rows(for: usage, showing: display, now: now())
+                let rows = PlanUsagePresentation.rows(for: usage, showing: display, now: now(), activeGroup: activeGroup)
                 guard !rows.isEmpty else { return Entry(agent: agent, state: .noData, rows: [], staleMinutes: nil) }
                 return Entry(agent: agent, state: .rows, rows: rows, staleMinutes: PlanUsagePresentation.staleMinutes(usage, now: now()))
             }

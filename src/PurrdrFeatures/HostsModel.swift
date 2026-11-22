@@ -309,7 +309,7 @@ public final class HostsModel {
             guard let configuration = hosts.first(where: { $0.id == id }) else { return nil }
             if case .https(let address) = configuration.connection {
                 // HTTPS 主機經主機服務讀(0.12.0 起,#392);還沒配對或不是真的主機服務連線(UI 測試)沒有來源。
-                guard !unpairedHostIDs.contains(id),
+                guard agent.supportsHostService, !unpairedHostIDs.contains(id),
                     let connection = hostServiceConnection(for: configuration, address: address) as? HTTPSHostConnection
                 else { return nil }
                 return .hostService(
@@ -474,6 +474,8 @@ public final class HostsModel {
         model.gitChanges = member.gitChanges
         // context 取自聊天所在主機的 status line 檔(#388)。
         model.sessionStatusReader = member.sessionStatus
+        // Antigravity 裝了 statusline 包裝時,context、模型、effort 與權限模式取自它(#448;只有 SSH 主機)。
+        if let antigravity = member.antigravityStatus { model.agentSessionStatusReaders = [.agy: antigravity] }
         // 對話紀錄認不得的行記到診斷紀錄(#449)。
         model.onTranscriptSkips = TranscriptSkipLog.shared.report
         model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
@@ -1209,6 +1211,8 @@ final class HostMember {
     let gitChanges: any GitChangesReading
     /// 各 session 的 Claude status line 狀態(#388):SSH 讀主機上的 session 檔,HTTPS 走主機服務的 `usage.session_context`。
     let sessionStatus: any ClaudeSessionStatusReading
+    /// 各 session 的 Antigravity statusline 狀態(#448):只有 SSH 主機(包裝經 SSH 寫入),HTTPS 主機是 `nil`。
+    let antigravityStatus: (any ClaudeSessionStatusReading)?
     /// 主機上的 Send When Done 佇列(#305);只有 HTTPS 主機(主機服務)有，其他是 `nil`。
     let sendWhenDoneHost: (any SendWhenDoneHosting)?
 
@@ -1265,6 +1269,7 @@ final class HostMember {
         sessionStatus = configuration?.connectionMethod.usesHostService == true
             ? (connection as? any ClaudeSessionStatusReading) ?? UnavailableSessionStatus()
             : ClaudePlanUsageHost(channel: channel, files: hostFiles)
+        antigravityStatus = configuration?.connectionMethod.usesHostService == true ? nil : AntigravityPlanUsageHost(channel: channel, files: hostFiles)
         // 點開的檔案依主機分資料夾，刪除主機時一起清(#228)。
         agentFiles = AgentFileLoads(
             fetcher: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")),

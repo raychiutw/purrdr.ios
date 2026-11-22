@@ -1638,6 +1638,72 @@
         }
       }
     },
+    "Antigravity hasn’t reported plan usage yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antigravity 還沒回報方案用量"
+          }
+        }
+      }
+    },
+    "Antigravity isn’t set up on this host. Set it up there first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機還沒設定 Antigravity。請先在那台主機設定。"
+          }
+        }
+      }
+    },
+    "Antigravity plan usage isn’t available on Windows hosts yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows 主機目前還不能顯示 Antigravity 的方案用量。"
+          }
+        }
+      }
+    },
+    "Antigravity reports these numbers while it runs on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些數字是 Antigravity 在這台主機執行時回報的。"
+          }
+        }
+      }
+    },
+    "Antigravity’s settings changed while Purrdr was updating them. Nothing was changed; try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 更新時 Antigravity 的設定被改動了。沒有做任何修改，請再試一次。"
+          }
+        }
+      }
+    },
+    "Antigravity’s settings on this host are damaged, so Purrdr left them unchanged. Fix them there and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機上 Antigravity 的設定損壞了，Purrdr 沒有更動。請在那台主機修正後再試一次。"
+          }
+        }
+      }
+    },
     "Anywhere, with Tailscale" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1755,6 +1821,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "參數:%@"
+          }
+        }
+      }
+    },
+    "As of %@, when Antigravity last reported on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截至 %@,Antigravity 在這台主機最後一次回報的數字。"
           }
         }
       }
@@ -2393,6 +2470,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修改超過 20,000 字，已截斷"
+          }
+        }
+      }
+    },
+    "Changing the host’s Antigravity settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在更改主機的 Antigravity 設定…"
           }
         }
       }
@@ -5103,6 +5191,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "遊戲機"
+          }
+        }
+      }
+    },
+    "Gemini Models" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemini 模型"
           }
         }
       }
@@ -9147,6 +9246,17 @@
         }
       }
     },
+    "Purrdr can’t safely change Antigravity’s settings on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 無法安全地更改這台主機上 Antigravity 的設定。"
+          }
+        }
+      }
+    },
     "Purrdr can’t safely change Claude Code’s settings on this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9165,6 +9275,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 無法安全地更新這台主機上的註記檔。"
+          }
+        }
+      }
+    },
+    "Purrdr changes the Antigravity status line on %@ so it saves plan usage. You can turn it off and restore the original anytime." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會修改 %@ 上 Antigravity 的 status line,讓它存下方案用量。隨時可以關閉並還原。"
           }
         }
       }
@@ -9950,6 +10071,17 @@
         }
       }
     },
+    "Restoring the host’s Antigravity settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在還原主機的 Antigravity 設定…"
+          }
+        }
+      }
+    },
     "Restoring the host’s Claude settings…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10628,6 +10760,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示全部 %lld 行"
+          }
+        }
+      }
+    },
+    "Show Antigravity Plan Usage?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要顯示 Antigravity 方案用量嗎？"
+          }
+        }
+      }
+    },
+    "Show Antigravity plan usage on this host?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要在這台主機顯示 Antigravity 的方案用量嗎？"
           }
         }
       }
@@ -12746,6 +12900,17 @@
         }
       }
     },
+    "Third-Party Models" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第三方模型"
+          }
+        }
+      }
+    },
     "This Apple Account has no active Purrdr Plus subscription." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13990,6 +14155,17 @@
         }
       }
     },
+    "To show plan usage, Purrdr changes one Antigravity setting on this host (signed in as %@). Turning this off puts it back." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為了顯示方案用量，Purrdr 會更改這台主機上的一項 Antigravity 設定(以帳號「%@」)。關閉後會還原。"
+          }
+        }
+      }
+    },
     "To show plan usage, Purrdr changes one Claude Code setting on this host (signed in as %@). Turning this off puts it back." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14173,6 +14349,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "體驗範例主機"
+          }
+        }
+      }
+    },
+    "Turn Off Antigravity Plan Usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Antigravity 方案用量"
           }
         }
       }
@@ -14800,6 +14987,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用量顯示"
+          }
+        }
+      }
+    },
+    "Use Antigravity once on %@, then pull down to refresh." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 用一次 Antigravity,再下拉重新整理。"
           }
         }
       }

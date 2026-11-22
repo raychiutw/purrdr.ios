@@ -134,7 +134,7 @@ extension TranscriptDialect {
     public static let antigravity = TranscriptDialect(
         name: "antigravity", verification: .verified(agentVersion: "Antigravity CLI 1.5.14"), locator: .antigravity,
         reportedPathLocator: .reportedPath(),
-        slashMenu: .fixed(SlashMenuSource.antigravityCommands),
+        slashMenu: .fixed(SlashMenuSource.antigravityCommands), readsSessionStatus: true,
         knownKinds: ["USER_INPUT", "PLANNER_RESPONSE", "GENERIC", "SYSTEM_MESSAGE", "EPHEMERAL_MESSAGE"],
         parseLine: { AntigravityTranscriptParser.messages(in: $0) },
         applyMetadata: { AntigravityTranscriptParser.updateMetadata(&$0, with: $1) }

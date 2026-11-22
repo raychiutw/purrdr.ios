@@ -133,10 +133,10 @@ struct TranscriptDialectContractTests {
         }
     }
 
-    @Test("只有 Claude Code 有 subagent 與 session 狀態;slash 選單來源依方言")
+    @Test("只有 Claude Code 有 subagent;Claude Code 與 Antigravity 有 session 狀態;slash 選單來源依方言")
     func capabilities() {
         #expect(TranscriptDialect.all.filter(\.supportsSubagents) == [.claude])
-        #expect(TranscriptDialect.all.filter(\.readsSessionStatus) == [.claude])
+        #expect(TranscriptDialect.all.filter(\.readsSessionStatus) == [.claude, .antigravity])
         #expect(TranscriptDialect.claude.slashMenu == .discovered)
         #expect(TranscriptDialect.piJournal.slashMenu == .none)
     }

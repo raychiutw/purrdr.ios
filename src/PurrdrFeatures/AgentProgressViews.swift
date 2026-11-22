@@ -140,7 +140,9 @@ struct ConversationStatusSheet: View {
     @ViewBuilder
     private var usageSection: some View {
         if let usage, let usageHost, let agent = PlanUsageAgent(agentKind: model.agentKind) {
-            UsageSectionContainer(host: usageHost, agents: [agent], context: usage, scopedTitle: true)
+            UsageSectionContainer(
+                host: usageHost, agents: [agent], context: usage, scopedTitle: true,
+                activeGroup: model.modelName.flatMap(PlanUsage.Group.init(modelName:)))
         }
     }
 

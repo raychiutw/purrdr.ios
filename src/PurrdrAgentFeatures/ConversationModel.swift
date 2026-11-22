@@ -82,6 +82,16 @@ public final class ConversationModel {
     public private(set) var sessionStatus: ClaudeSessionStatus?
     /// 讀 session 狀態的來源(SSH 主機上的 session 檔、HTTPS 的 `usage.session_context`);`nil` 時只用退回算法。
     public var sessionStatusReader: (any ClaudeSessionStatusReading)?
+    /// 各 Agent 種類自己的 session 狀態來源(Antigravity 的 statusline 包裝,#448);沒有的種類用 `sessionStatusReader`。
+    public var agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:]
+
+    /// 有狀態列的 Agent(Antigravity)裝了 statusline 包裝時,從 session 檔讀到的模式、模型與 effort(優先於畫面狀態列,#448);沒有是 `nil`。
+    private var statusFileLine: AgentStatusLine? {
+        guard screenDialect.statusLine != nil, let status = sessionStatus else { return nil }
+        return AgentStatusLine(
+            mode: status.cycleMode.flatMap { AgentPermissionMode(antigravityCycleMode: $0) }, model: status.antigravityModelName,
+            effort: status.effort)
+    }
     @ObservationIgnored private var sessionStatusReadAt: Date?
     /// 兩次讀 session 狀態的最短間隔(秒):輪詢每 2 秒一輪,不必每輪都問主機。
     nonisolated public static let sessionStatusInterval: TimeInterval = 10
@@ -786,7 +796,8 @@ public final class ConversationModel {
     /// 讀這個 session 的 status line 狀態(#388):只有 Claude Code、知道 session id 時;至少隔 `sessionStatusInterval` 秒才再讀。
     /// 讀不到(沒有檔案、未安裝、舊版主機服務、連線錯誤)一律清成 `nil`,畫面退回對話紀錄算法、不空白。
     package func refreshSessionStatusIfDue() async {
-        guard let reader = sessionStatusReader, dialect.readsSessionStatus, let session = boundSessionID ?? knownSessionID,
+        let reader = agentKind.flatMap { agentSessionStatusReaders[AgentID(herdrName: $0)] } ?? sessionStatusReader
+        guard let reader, dialect.readsSessionStatus, let session = boundSessionID ?? knownSessionID,
               ClaudeSessionStatus.isValidSessionID(session) else {
             sessionStatus = nil
             return
@@ -1957,10 +1968,10 @@ public final class ConversationModel {
     // MARK: - 模型膠囊(#350)
 
     /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
-    public var modelName: String? { screenStatusLine?.model ?? metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+    public var modelName: String? { statusFileLine?.model ?? screenStatusLine?.model ?? metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
 
     /// 目前的 effort 原值:畫面狀態列優先(使用者在電腦上改了也跟著),沒有就取對話紀錄。
-    private var effortLevel: String? { screenStatusLine?.effort ?? metadata.effort }
+    private var effortLevel: String? { statusFileLine?.effort ?? screenStatusLine?.effort ?? metadata.effort }
 
     /// 面板「模型」列的值:「Opus 5.5 · 中」;沒有 effort 時只有模型名,還沒讀到是 `nil`。
     public var modelSummary: String? {
@@ -2288,7 +2299,7 @@ public final class ConversationModel {
     /// Claude 目前的權限模式:對話紀錄尾端最後一筆為準(電腦端改了也會同步),畫面只補空檔;都沒有是 `nil`。
     public var permissionMode: AgentPermissionMode? {
         // Antigravity 的對話紀錄沒有權限模式,以畫面狀態列為準(#446)。
-        if screenDialect.statusLine != nil, let mode = screenStatusLine?.mode { return mode }
+        if screenDialect.statusLine != nil, let mode = statusFileLine?.mode ?? screenStatusLine?.mode { return mode }
         let fromTranscript = metadata.permissionMode.flatMap { AgentPermissionMode(transcriptValue: $0) }
         if let seen = screenObservation, seen.transcriptValue == metadata.permissionMode { return seen.mode }
         return fromTranscript ?? screenObservation?.mode

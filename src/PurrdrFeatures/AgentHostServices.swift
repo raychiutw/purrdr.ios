@@ -26,13 +26,15 @@ package struct AgentHostServices {
 
     package init() {}
 
-    /// 方案用量來源(經主機通道):Claude 讀包裝腳本存下的用量(要經同意寫主機),Codex 執行一次 `codex app-server`。
+    /// 方案用量來源(經主機通道):Claude 與 Antigravity 讀包裝腳本存下的用量(要經同意寫主機),Codex 執行一次 `codex app-server`。
     package func planUsage(for agent: AgentID, ssh context: SSHContext) -> PlanUsageSource? {
         switch agent {
         case .claude:
             .claude(channel: context.channel, files: context.files, cost: context.cost, hostID: context.hostID, consent: context.consent)
         case .codex:
             .codex(channel: context.channel, cost: context.cost)
+        case .agy:
+            .antigravity(channel: context.channel, files: context.files, cost: context.cost, hostID: context.hostID, consent: context.consent)
         default:
             nil
         }
@@ -56,6 +58,7 @@ extension PlanUsageAgent {
         switch self {
         case .claudeCode: .claude
         case .codex: .codex
+        case .antigravity: .agy
         }
     }
 }

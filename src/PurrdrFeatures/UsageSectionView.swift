@@ -31,6 +31,7 @@ extension PlanUsageAgent {
         switch self {
         case .claudeCode: "Claude"
         case .codex: "Codex"
+        case .antigravity: "Antigravity"
         }
     }
 
@@ -39,6 +40,7 @@ extension PlanUsageAgent {
         switch agentKind.map(AgentID.init(herdrName:)) {
         case .claude: self = .claudeCode
         case .codex: self = .codex
+        case .agy: self = .antigravity
         default: return nil
         }
     }
@@ -138,16 +140,22 @@ struct UsageSectionView: View {
 struct UsageSectionContainer: View {
     let host: HostSelection
     let scopedTitle: Bool
+    let activeGroup: PlanUsage.Group?
     @State private var model: UsageSectionModel
 
-    init(host: HostSelection, agents: [PlanUsageAgent], context: UsageSectionContext, scopedTitle: Bool) {
+    /// - Parameter activeGroup: 聊天目前模型所屬的用量群組(面板用;主機 tab 不傳,用來源回報的)。
+    init(host: HostSelection, agents: [PlanUsageAgent], context: UsageSectionContext, scopedTitle: Bool, activeGroup: PlanUsage.Group? = nil) {
         self.host = host
         self.scopedTitle = scopedTitle
-        _model = State(wrappedValue: context.section(host, agents))
+        self.activeGroup = activeGroup
+        let model = context.section(host, agents)
+        model.activeGroup = activeGroup
+        _model = State(wrappedValue: model)
     }
 
     var body: some View {
         UsageSectionView(model: model, host: host, scopedTitle: scopedTitle)
+            .onChange(of: activeGroup) { _, group in model.activeGroup = group }
     }
 }
 

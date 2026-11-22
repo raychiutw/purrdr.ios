@@ -18,12 +18,13 @@ struct AgentHostServicesTests {
         AgentHostServices.SSHContext(channel: FakeHost(), files: nil, cost: .transfer, hostID: "host-1", consent: consent)
     }
 
-    @Test("方案用量:Claude 要經同意寫主機,Codex 不寫主機,其他種類沒有來源")
+    @Test("方案用量:Claude 與 Antigravity 要經同意寫主機,Codex 不寫主機,其他種類沒有來源")
     func planUsageSources() {
         #expect(services.planUsage(for: .claude, ssh: context)?.hostWrite != nil)
         #expect(services.planUsage(for: .codex, ssh: context) != nil)
         #expect(services.planUsage(for: .codex, ssh: context)?.hostWrite == nil)
-        #expect(services.planUsage(for: .agy, ssh: context) == nil)
+        #expect(services.planUsage(for: .agy, ssh: context)?.hostWrite != nil)
+        #expect(services.planUsage(for: .grok, ssh: context) == nil)
         #expect(services.planUsage(for: .other("x"), ssh: context) == nil)
     }
 

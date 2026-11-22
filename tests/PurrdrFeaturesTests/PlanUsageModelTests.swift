@@ -281,6 +281,7 @@ struct PlanUsageModelTests {
             switch agent {
             case .claudeCode: .claude(channel: claudeChannel, cost: .transfer, hostID: selection.storedValue, consent: consent)
             case .codex: .codex(channel: codex, cost: .transfer, sleep: codexSleep)
+            case .antigravity: nil
             }
         }
     }
@@ -640,5 +641,68 @@ struct PlanUsagePresentationTests {
         #expect(PlanUsagePresentation.rows(for: usage, showing: .used, now: Self.now).map(\.level) == [.low, .depleted])
         let ample = Self.usage(fiveHourUsed: 69, weekUsed: 84)
         #expect(PlanUsagePresentation.rows(for: ample, showing: .remaining, now: Self.now).map(\.level) == [.ample, .low])
+    }
+}
+
+/// 同一用量週期依模型群組多份(Antigravity,#448):標題與主機 tab 只顯示目前模型的群組,詳細面板全列。
+@Suite("方案用量多群組")
+struct PlanUsageGroupsTests {
+    static let now = Date(timeIntervalSince1970: 1_738_400_000)
+    static func usage(activeGroup: PlanUsage.Group? = nil) -> PlanUsage {
+        func period(_ kind: PlanUsage.Period.Kind, _ group: PlanUsage.Group, used: Double) -> PlanUsage.Period {
+            .init(kind: kind, group: group, usedPercentage: used, resetsAt: now.addingTimeInterval(3_600))
+        }
+        return PlanUsage(
+            periods: [
+                period(.fiveHour, .gemini, used: 10), period(.week, .gemini, used: 20),
+                period(.fiveHour, .thirdParty, used: 30), period(.week, .thirdParty, used: 40),
+            ], capturedAt: now, activeGroup: activeGroup)
+    }
+
+    @Test("標題與主機 tab 只顯示目前模型的群組")
+    func compactShowsActiveGroupOnly() {
+        let gemini = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .gemini), showing: .used, now: Self.now)
+        #expect(gemini.map(\.percent) == [10, 20])
+        #expect(gemini.map(\.group) == [.gemini, .gemini])
+        let thirdParty = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .thirdParty), showing: .used, now: Self.now)
+        #expect(thirdParty.map(\.percent) == [30, 40])
+    }
+
+    @Test("聊天的目前模型優先於檔案裡最後一個 session 的模型")
+    func overrideBeatsStoredGroup() {
+        let rows = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .gemini), showing: .used, now: Self.now, activeGroup: .thirdParty)
+        #expect(rows.map(\.percent) == [30, 40])
+    }
+
+    @Test("不知道目前模型時顯示第一個群組(不會兩組混在一起)")
+    func unknownActiveGroupShowsFirstGroup() {
+        let rows = PlanUsagePresentation.rows(for: Self.usage(), showing: .used, now: Self.now)
+        #expect(rows.map(\.group) == [.gemini, .gemini])
+    }
+
+    @Test("詳細面板兩個群組都列,已用／剩餘照設定")
+    func detailListsEveryGroup() {
+        let used = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .gemini), showing: .used, now: Self.now, allGroups: true)
+        #expect(used.map(\.percent) == [10, 20, 30, 40])
+        let remaining = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .gemini), showing: .remaining, now: Self.now, allGroups: true)
+        #expect(remaining.map(\.percent) == [90, 80, 70, 60])
+        #expect(Set(used.map(\.id)).count == 4, "兩個群組的同一週期識別碼不能相同")
+    }
+
+    @Test("只有一個群組(Claude、Codex)時照舊,不受群組篩選影響")
+    func singleGroupUnchanged() {
+        let usage = PlanUsage(
+            periods: [.init(kind: .fiveHour, usedPercentage: 12, resetsAt: nil), .init(kind: .week, usedPercentage: 34, resetsAt: nil)],
+            capturedAt: Self.now)
+        #expect(PlanUsagePresentation.rows(for: usage, showing: .used, now: Self.now).map(\.percent) == [12, 34])
+    }
+
+    @Test("模型名稱換成群組:Gemini 開頭是 Gemini,其他是第三方,空的沒有")
+    func groupFromModelName() {
+        #expect(PlanUsage.Group(modelName: "Gemini 4 Neon (Medium)") == .gemini)
+        #expect(PlanUsage.Group(modelName: "gemini-4-argon") == .gemini)
+        #expect(PlanUsage.Group(modelName: "Claude Sonnet 5") == .thirdParty)
+        #expect(PlanUsage.Group(modelName: "GPT-OSS 120B") == .thirdParty)
+        #expect(PlanUsage.Group(modelName: "  ") == nil)
     }
 }

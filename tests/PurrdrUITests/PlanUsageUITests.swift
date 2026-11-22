@@ -101,4 +101,30 @@ final class PlanUsageUITests: XCTestCase {
         let note = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Codex reports")).firstMatch
         XCTAssertTrue(note.waitUntilExists(timeout: 5), "說明不是 Codex 的")
     }
+
+    /// Antigravity(#448):Demo 主機的範例有 Gemini 與第三方兩個模型群組;同意後詳細面板兩組都列。
+    @MainActor
+    func testAntigravityShowsBothModelGroups() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        openPlanUsage(app)
+        let antigravity = app.buttons["Antigravity"]
+        XCTAssertTrue(antigravity.waitUntilExists(timeout: 5), "Agent 選項沒有 Antigravity")
+        antigravity.tap()
+
+        let consent = app.buttons["planUsage.consent"]
+        XCTAssertTrue(consent.waitUntilExists(timeout: 10), "Antigravity 沒有請使用者同意")
+        consent.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitUntilExists(timeout: 5), "沒有詢問同意")
+        let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
+        XCTAssertTrue(message.contains("Antigravity setting"), "沒說明會改什麼:\(message)")
+        alert.buttons["Change Settings"].tap()
+
+        let geminiFiveHour = app.element("planUsage.period.gemini.fiveHour")
+        XCTAssertTrue(geminiFiveHour.waitUntilExists(timeout: 10), "沒有 Gemini 群組的 5 小時")
+        XCTAssertTrue(geminiFiveHour.label.contains("9% used"), "Gemini 5 小時不是範例:\(geminiFiveHour.label)")
+        XCTAssertTrue(app.element("planUsage.period.thirdParty.fiveHour").label.contains("40% used"), "第三方 5 小時不是範例")
+        XCTAssertTrue(app.element("planUsage.period.thirdParty.week").label.contains("62% used"), "第三方每週不是範例")
+        XCTAssertTrue(app.element("planUsage.group.gemini").exists && app.element("planUsage.group.thirdParty").exists, "沒有群組標題")
+    }
 }
