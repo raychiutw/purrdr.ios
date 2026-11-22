@@ -72,7 +72,9 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["How large should the chart be?"].waitUntilExists(timeout: 10), "沒有第二題")
         app.element("prompt.option.1").tap()
         XCTAssertTrue(app.staticTexts["Ready to submit your answers?"].waitUntilExists(timeout: 10), "沒有檢閱畫面")
-        app.element("prompt.option.1").tap()
+        let submit = app.element("prompt.option.1")
+        XCTAssertTrue(submit.waitUntilExistsAndSettled(timeout: 5))
+        submit.tap()
 
         let answered = app.element("prompt.answered")
         XCTAssertTrue(app.element("prompt.card").waitUntilGone(timeout: 10), "送出後提示卡應消失")

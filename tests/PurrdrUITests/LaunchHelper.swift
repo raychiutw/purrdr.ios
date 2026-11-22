@@ -203,6 +203,8 @@ extension XCUIElement {
     /// 以英文軟體鍵盤打字：注音等輸入法會把英文變成組字。
     @MainActor
     func typeEnglish(_ text: String) {
+        // 點下輸入框後焦點要一下子才到：沒有焦點就 typeText 會失敗。
+        _ = wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }
         XCUIApplication().switchKeyboard(to: .english)
         typeText(text)
     }
