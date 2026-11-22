@@ -128,6 +128,44 @@ struct UsageSectionModelTests {
         model.disappeared()
     }
 
+    @Test("先讀到、之後讀不到(主機離線):保留最後讀到的資料,並標示是最後的資料(#392)")
+    func keepsLastDataWhenHostGoesOffline() async {
+        struct Offline: Error {}
+        let calls = CallCounter()
+        let usage = Self.usage()
+        let flaky = PlanUsageSource(cost: .free) {
+            if calls.next() == 1 { return usage }
+            throw Offline()
+        }
+        let model = model(sources: [.claudeCode: flaky])
+        model.appeared()
+        await model.untilIdle()
+        #expect(model.entries[0].state == .rows)
+        #expect(!model.isShowingLastKnownData)
+
+        await model.refresh()
+
+        #expect(model.entries[0].state == .rows)
+        #expect(model.entries[0].rows.map(\.percent) == [62, 26])
+        #expect(model.isShowingLastKnownData)
+        #expect(model.lastCapturedAt == usage.capturedAt)
+        model.disappeared()
+    }
+
+    @Test("從來沒讀到過就讀不到:仍是失敗,不是最後的資料")
+    func failureWithoutEarlierDataIsAFailure() async {
+        struct Offline: Error {}
+        let model = model(sources: [.claudeCode: PlanUsageSource(cost: .free) { throw Offline() }])
+        model.appeared()
+        await model.untilIdle()
+        guard case .failed = model.entries[0].state else {
+            Issue.record("應該是失敗")
+            return
+        }
+        #expect(!model.isShowingLastKnownData)
+        model.disappeared()
+    }
+
     @Test("主機 tab 同時列 Claude 與 Codex,各自的狀態互不影響")
     func twoAgentsAreIndependent() async {
         let model = model(
@@ -181,5 +219,18 @@ struct UsageLevelTests {
         #expect(!row(used: 69).showsWarning)
         #expect(row(used: 70).showsWarning)
         #expect(row(used: 100).showsWarning)
+    }
+}
+
+/// 測試用的執行緒安全計數。
+final class CallCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    func next() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        value += 1
+        return value
     }
 }

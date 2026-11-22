@@ -16,22 +16,23 @@ final class HostToolsUITests: XCTestCase {
         default:
             // 登入 Shell 在主機 tab。
             app.openHostsTab()
-            let item = app.buttons["hosts.tool.loginShell"].firstMatch
-            XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機 tab 沒有登入 Shell")
+            let item = app.overviewRow("hosts.tool.loginShell")
+            XCTAssertTrue(item.exists, "主機 tab 沒有登入 Shell")
             item.tap()
         }
     }
 
     @MainActor
     func testLoginShellOpensOnSelectedHost() {
-        let app = XCUIApplication.launchUITesting()
+        // 範例主機沒有登入 Shell(#392);已存主機的通道是 Demo 主機,回顯 shell。
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openMenuItem("menu.loginShell", in: app)
 
         let screen = app.descendants(matching: .any)["terminal.screen"].firstMatch
         XCTAssertTrue(screen.waitUntilExists(timeout: 10), "沒有打開登入 Shell")
         screen.expectValue(containing: "demo@purrdr ~ %")
         let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.label.contains("Demo"), "標題不是主機名稱:\(status.label)")
+        XCTAssertTrue(status.label.contains("Studio Mac"), "標題不是主機名稱:\(status.label)")
         XCTAssertTrue(status.label.contains("Connected"), "狀態不對:\(status.label)")
 
         // 鍵盤輸入直接寫進 PTY(Demo 的 shell 會回顯);接上後終端機自動取得焦點。

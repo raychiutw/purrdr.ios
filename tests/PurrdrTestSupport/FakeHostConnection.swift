@@ -48,6 +48,15 @@ public actor FakeHostConnection: HostConnection {
         return reportedHostServiceVersion
     }
 
+    /// `isReadOnlyDevice()` 的回答(#392);`true` 像以唯讀權杖配對的 HTTPS 主機。
+    private var readOnlyDevice = false
+
+    public func setReadOnlyDevice(_ readOnly: Bool) {
+        readOnlyDevice = readOnly
+    }
+
+    public func isReadOnlyDevice() async throws -> Bool { readOnlyDevice }
+
     /// `checksSendExpectations()` 的回答(#304);`true` 像 0.7.0 起的主機服務，送出請求帶比對欄位。
     private var checksExpectations = false
 

@@ -21,11 +21,11 @@ final class TopNavigationUITests: XCTestCase {
     }
 
     @MainActor
-    func testHostsTabShowsHostList() {
+    func testHostsTabShowsHostOverview() {
         let app = XCUIApplication.launchUITesting()
 
         app.openHostsTab()
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.hosts"].firstMatch.exists, "沒有主機清單")
+        XCTAssertTrue(app.descendants(matching: .any)["sheet.hosts"].firstMatch.exists, "沒有主機總頁")
         XCTAssertFalse(app.buttons["sheet.done"].exists, "主機是 tab,不該有「完成」")
     }
 

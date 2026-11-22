@@ -156,13 +156,10 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "檔案 tab 不該有新增聊天")
             app.openHostsTab()
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "主機 tab 沒有帳號鈕")
-            // 沒登入就沒有 Plus(#405):通知鎖定並寫出原因,不是可開關的列。
-            let locked = app.buttons["hosts.tool.notifications.locked"].firstMatch
-            XCTAssertTrue(locked.waitUntilExists(timeout: 10), "沒有 Plus 時主機 tab 的通知沒有鎖定")
-            XCTAssertTrue((locked.value as? String)?.contains("Needs Purrdr Plus") == true, "鎖定的通知沒有說明需要 Purrdr Plus:\(String(describing: locked.value))")
-            XCTAssertFalse(app.buttons["hosts.tool.notifications"].exists, "沒有 Plus 不該能進通知開關")
-            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有「啟用用量顯示」(#389)")
-            XCTAssertTrue(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有 Codex 5 小時")
+            // 沒有已存主機時主機 tab 是範例主機:只有範例狀態與「移除範例主機」(#392)。
+            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "主機 tab 沒有連線狀態")
+            XCTAssertTrue(app.buttons["hosts.demo.remove"].exists, "範例主機沒有「移除範例主機」")
+            XCTAssertFalse(app.buttons["hosts.tool.loginShell"].exists, "範例主機不該有登入 Shell")
             app.openTab(.traffic)
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "流量 tab 沒有網路流量頁")
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
@@ -228,14 +225,14 @@ final class DailySmokeUITests: XCTestCase {
     /// Purrdr Plus 會員：帳號頁、通知、通知裝置。
     @MainActor
     func testPlusMemberAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
         step("主機 tab 的通知有 Plus 時不鎖定,可進入開關頁") {
             app.openHostsTab()
-            let row = app.buttons["hosts.tool.notifications"].firstMatch
-            XCTAssertTrue(row.waitUntilExists(timeout: 10), "有 Plus 時主機 tab 沒有可進入的通知")
+            let row = app.overviewRow("hosts.notifications")
+            XCTAssertTrue(row.exists, "有 Plus 時主機 tab 沒有可進入的通知")
             XCTAssertFalse(app.buttons["hosts.tool.notifications.locked"].exists, "有 Plus 不該鎖定通知")
             row.tap()
-            XCTAssertTrue(app.element("hosts.notifications").waitUntilExists(timeout: 10), "沒有進到通知開關頁")
+            XCTAssertTrue(app.element("hosts.notifications.page").waitUntilExists(timeout: 10), "沒有進到通知開關頁")
         }
         step("帳號頁與通知裝置") {
             back(app)
@@ -250,6 +247,18 @@ final class DailySmokeUITests: XCTestCase {
     @MainActor
     func testDataUsage() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedDataUsage"])
+        step("主機 tab 總頁:狀態、用量區、這台主機的入口(#392)") {
+            app.openHostsTab()
+            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
+            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有「啟用用量顯示」(#389)")
+            XCTAssertTrue(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有 Codex 5 小時")
+            // 沒登入就沒有 Plus(#405):通知鎖定並寫出原因,不是可開關的列。
+            let locked = app.overviewRow("hosts.tool.notifications.locked")
+            XCTAssertTrue(locked.exists, "沒有 Plus 時主機 tab 的通知沒有鎖定")
+            XCTAssertTrue((locked.value as? String)?.contains("Needs Purrdr Plus") == true, "鎖定的通知沒有說明需要 Purrdr Plus:\(String(describing: locked.value))")
+            XCTAssertFalse(app.buttons["hosts.notifications"].exists, "沒有 Plus 不該能進通知開關")
+            XCTAssertTrue(app.overviewRow("hosts.tool.loginShell").exists, "總頁沒有登入 Shell")
+        }
         step("數據用量摘要") {
             app.openTab(.traffic)
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "沒有數據用量頁")
@@ -279,7 +288,7 @@ final class DailySmokeUITests: XCTestCase {
             app.openTab(.hosts)
             app.buttons["hosts.demo.remove"].tapWhenReady()
             app.buttons["hosts.demo.remove.confirm"].firstMatch.tapWhenReady()
-            XCTAssertFalse(app.buttons["hosts.demo"].waitForExistence(timeout: 2), "移除後範例主機還在主機清單")
+            XCTAssertTrue(app.element("hosts.noHost").waitUntilExists(timeout: 5), "移除後主機 tab 沒有回到沒有主機的空狀態")
             app.openTab(.chats)
             XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 5), "移除後沒有回到空狀態")
         }

@@ -31,7 +31,7 @@ public final class UsageDisplaySetting {
 }
 
 /// 用量區的 model(#389):面板(單一 Agent)與主機 tab(Claude 與 Codex)共用。
-/// 每個 Agent 各自查詢、各自有狀態;沒有任何來源(HTTPS 主機)時整區是「等主機服務支援」。
+/// 每個 Agent 各自查詢、各自有狀態;沒有任何來源(HTTPS 主機的主機服務不支援)時整區是說明。
 @MainActor
 @Observable
 public final class UsageSectionModel {
@@ -72,6 +72,8 @@ public final class UsageSectionModel {
     private let now: () -> Date
     private let sleep: Sleep
     private var raw: [PlanUsageAgent: Raw] = [:]
+    /// 最後一次讀取失敗、仍顯示先前讀到的資料的 Agent(#392:主機離線時保留最後的資料)。
+    private var keptAfterFailure: Set<PlanUsageAgent> = []
     private var queries: [PlanUsageAgent: Task<Void, Never>] = [:]
     private var automaticRefresh: Task<Void, Never>?
 
@@ -87,7 +89,18 @@ public final class UsageSectionModel {
         self.source = source
     }
 
-    /// 這台主機沒有用量來源(HTTPS 主機,等 purrdr.host 支援):整區顯示說明。
+    /// 目前顯示的是主機離線前最後讀到的資料。
+    public var isShowingLastKnownData: Bool { !keptAfterFailure.isEmpty }
+
+    /// 顯示中的資料最後被擷取的時間(多個 Agent 取最新的)。
+    public var lastCapturedAt: Date? {
+        agents.compactMap { agent -> Date? in
+            if case .loaded(let usage)? = raw[agent] { return usage.capturedAt }
+            return nil
+        }.max()
+    }
+
+    /// 這台主機沒有用量來源(沒有任何來源:整區顯示說明)。
     public var isUnsupported: Bool { agents.allSatisfy { source($0) == nil } }
 
     /// 有來源的 Agent 與它們的狀態(依傳入順序)。
@@ -167,9 +180,20 @@ public final class UsageSectionModel {
             guard let self, !Task.isCancelled else { return }
             queries[agent] = nil
             switch outcome {
-            case .success(let usage?): raw[agent] = .loaded(usage)
-            case .success(nil): raw[agent] = .noData
-            case .failure(let error): raw[agent] = .failed(PlanUsageFailure(error, agent: agent))
+            case .success(let usage?):
+                raw[agent] = .loaded(usage)
+                keptAfterFailure.remove(agent)
+            case .success(nil):
+                raw[agent] = .noData
+                keptAfterFailure.remove(agent)
+            case .failure(let error):
+                // 先前讀到過的資料留著(主機離線時仍看得到最後的用量),標示是最後的資料。
+                if case .loaded? = raw[agent], !(error is CancellationError) {
+                    keptAfterFailure.insert(agent)
+                } else {
+                    raw[agent] = .failed(PlanUsageFailure(error, agent: agent))
+                    keptAfterFailure.remove(agent)
+                }
             }
         }
     }

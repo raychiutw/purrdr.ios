@@ -46,7 +46,7 @@ extension PlanUsageAgent {
 
 /// 用量區(#389,原型 Host／PanelStates):每個用量週期一條進度條——「Claude · 5 小時」「38% 已用 · 14:00 重設」。
 /// 面板放單一 Agent、標題寫明範圍(「用量 · Claude · 主機名」);主機 tab 放 Claude 與 Codex。
-/// 尚未啟用、等主機服務支援、沒有資料與失敗都是區塊內的說明,區塊不無聲消失。
+/// 尚未啟用、主機服務太舊、沒有資料與失敗都是區塊內的說明,區塊不無聲消失。
 struct UsageSectionView: View {
     let model: UsageSectionModel
     let host: HostSelection
@@ -58,7 +58,7 @@ struct UsageSectionView: View {
     var body: some View {
         Section {
             if model.isUnsupported {
-                Text("Plan usage for this host will show once the host service supports it.")
+                Text("Plan usage needs host service \(HostServiceFeature.planUsage.minimumVersion.description) or later. Update the host service on the host.")
                     .foregroundStyle(.secondaryText)
                     .frame(minHeight: 44, alignment: .leading)
                     .accessibilityIdentifier("usage.unsupported")
@@ -79,6 +79,10 @@ struct UsageSectionView: View {
     }
 
     private var header: Text {
+        // 主機離線:保留最後讀到的資料,標題寫明是最後的資料與時間(#392)。
+        if model.isShowingLastKnownData, let captured = model.lastCapturedAt {
+            return Text("Plan Usage (Last Data · \(captured, format: .dateTime.hour().minute()))")
+        }
         guard scopedTitle else { return Text("Plan Usage") }
         if !model.isUnsupported, let agent = model.entries.first?.agent, model.entries.count == 1 {
             return Text("Plan Usage · \(agent.shortName) · \(model.hostName)")

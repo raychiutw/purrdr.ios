@@ -6,17 +6,6 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
-    "%@ Details" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 詳細資訊"
-          }
-        }
-      }
-    },
     "%@ Pull down to try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -220,6 +209,17 @@
         }
       }
     },
+    "%@ · Last Connected %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · 最後連線 %2$@"
+          }
+        }
+      }
+    },
     "%@ · Not loaded automatically" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -249,6 +249,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@：%2$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
           }
         }
       }
@@ -984,17 +995,6 @@
         }
       }
     },
-    "A host needs a name." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機需要名稱。"
-          }
-        }
-      }
-    },
     "A host service update is available." : {
       "comment" : "主機服務推播內文：有新版(後台 APNs payload 的 loc-key)",
       "extractionState" : "manual",
@@ -1172,6 +1172,17 @@
         }
       }
     },
+    "Add Your Own Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增你自己的主機"
+          }
+        }
+      }
+    },
     "Add a host to browse its files." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1179,6 +1190,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增主機後才能瀏覽它的檔案。"
+          }
+        }
+      }
+    },
+    "Add a host to see its status, usage, and settings here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增主機後,就能在這裡看它的狀態、用量與設定。"
           }
         }
       }
@@ -1759,6 +1781,17 @@
         }
       }
     },
+    "Available once connected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連上後才能使用"
+          }
+        }
+      }
+    },
     "Back" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1997,6 +2030,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法連上 Purrdr"
+          }
+        }
+      }
+    },
+    "Can’t Reach This Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連不上這台主機"
           }
         }
       }
@@ -3468,17 +3512,6 @@
         }
       }
     },
-    "Couldn’t rename this host. %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法重新命名這台主機。%@"
-          }
-        }
-      }
-    },
     "Couldn’t save synced hosts on this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3930,18 +3963,18 @@
         }
       }
     },
-    "Delete…" : {
+    "Demo" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "刪除…"
+            "value" : "範例主機"
           }
         }
       }
     },
-    "Demo" : {
+    "Demo Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4278,6 +4311,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "改手動輸入"
+          }
+        }
+      }
+    },
+    "Enter Pairing Code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入配對碼"
           }
         }
       }
@@ -4777,6 +4821,17 @@
         }
       }
     },
+    "HTTPS" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTPS"
+          }
+        }
+      }
+    },
     "HTTPS (Host Service)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4905,28 +4960,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機服務"
-          }
-        }
-      }
-    },
-    "Host Service %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機服務 %@"
-          }
-        }
-      }
-    },
-    "Host Service %@ Available" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機服務 %@ 可更新"
           }
         }
       }
@@ -5601,6 +5634,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請至少保留一種登入方式。"
+          }
+        }
+      }
+    },
+    "Keep at least one. To get none, turn off notifications for this host. Devices that get notifications are managed in your account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至少要留一種。要完全不收通知,請關閉這台主機的通知。收通知的裝置在帳號頁管理。"
           }
         }
       }
@@ -6958,6 +7002,17 @@
         }
       }
     },
+    "Notifications for This Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機的通知"
+          }
+        }
+      }
+    },
     "Notifications need Purrdr Plus." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6965,6 +7020,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通知需要 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "Notifications show only the workspace name, never what the agent said. On Windows hosts, notifications may be delayed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知只會顯示 Workspace 名稱,不會顯示 Agent 說了什麼。Windows 主機的通知可能會延遲。"
           }
         }
       }
@@ -7244,6 +7310,17 @@
         }
       }
     },
+    "Online · View Only" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "線上 · 唯讀"
+          }
+        }
+      }
+    },
     "Only at home" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7376,6 +7453,17 @@
         }
       }
     },
+    "OpenSSH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原生 SSH"
+          }
+        }
+      }
+    },
     "Opening files isn’t available for this host yet." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7405,17 +7493,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟選項,可編輯、調整順序或刪除。"
-          }
-        }
-      }
-    },
-    "Opens pairing for this host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟這台主機的連線配對。"
           }
         }
       }
@@ -7541,6 +7618,17 @@
         }
       }
     },
+    "Other devices here: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機上其他裝置:%lld 支"
+          }
+        }
+      }
+    },
     "Output truncated at 20,000 characters" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7581,17 +7669,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PDF"
-          }
-        }
-      }
-    },
-    "Pair" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "配對"
           }
         }
       }
@@ -7680,17 +7757,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配對碼"
-          }
-        }
-      }
-    },
-    "Pair…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "配對…"
           }
         }
       }
@@ -7948,6 +8014,17 @@
         }
       }
     },
+    "Plan Usage (Last Data · %@)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量(最後讀到的資料 · %@)"
+          }
+        }
+      }
+    },
     "Plan Usage Options" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7981,17 +8058,6 @@
         }
       }
     },
-    "Plan usage for this host will show once the host service supports it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台主機的用量要等主機服務支援後才會顯示。"
-          }
-        }
-      }
-    },
     "Plan usage isn’t available for this connection method" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7999,6 +8065,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這種連線方式不支援方案用量"
+          }
+        }
+      }
+    },
+    "Plan usage needs host service %@ or later. Update the host service on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要看用量,請先把主機服務更新到 %@ 以上。更新方式在主機上操作。"
           }
         }
       }
@@ -8300,6 +8377,17 @@
         }
       }
     },
+    "Purrdr needs herdr 0.9.5 or later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 需要 herdr 0.9.5 以上。"
+          }
+        }
+      }
+    },
     "Purrdr reads this host’s colors and adds a small note file, signed in as %@. It never changes your settings. Turning this off removes the file." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8520,6 +8608,17 @@
         }
       }
     },
+    "Read-only devices can’t change this" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀裝置無法更改"
+          }
+        }
+      }
+    },
     "Reading the model list…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8729,17 +8828,6 @@
         }
       }
     },
-    "Rename" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新命名"
-          }
-        }
-      }
-    },
     "Rename Device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8747,17 +8835,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名裝置"
-          }
-        }
-      }
-    },
-    "Rename Host" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新命名主機"
           }
         }
       }
@@ -9125,17 +9202,6 @@
         }
       }
     },
-    "Sample conversations, no host connected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "範例對話，沒有連線到主機"
-          }
-        }
-      }
-    },
     "Save" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9422,17 +9488,6 @@
         }
       }
     },
-    "Session: %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Session:%@"
-          }
-        }
-      }
-    },
     "Set Up Purrdr Plus" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9466,6 +9521,17 @@
         }
       }
     },
+    "Setting Up…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定中…"
+          }
+        }
+      }
+    },
     "Setting up notifications…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9484,6 +9550,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "Settings for This Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機的設定"
           }
         }
       }
@@ -9902,6 +9979,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "登入以使用 Purrdr Plus"
+          }
+        }
+      }
+    },
+    "Sign in to use notifications." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入後才能使用通知。"
           }
         }
       }
@@ -10942,6 +11030,17 @@
         }
       }
     },
+    "The demo conversations disappear from the list. You can bring them back anytime from Add Host or Welcome in Settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範例對話會從列表消失。之後可以在「新增主機」或設定的歡迎頁再加回來。"
+          }
+        }
+      }
+    },
     "The demo host can’t send notifications." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11239,17 +11338,6 @@
         }
       }
     },
-    "The name is only used on this device." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名稱只用在這部裝置上。"
-          }
-        }
-      }
-    },
     "The password stays on this device." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11415,6 +11503,17 @@
         }
       }
     },
+    "These features write settings on the host. Each can be fully put back." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些功能會寫入主機上的設定,都可以完整還原。"
+          }
+        }
+      }
+    },
     "Thinking" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11466,6 +11565,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置的金鑰"
+          }
+        }
+      }
+    },
+    "This Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機"
           }
         }
       }
@@ -11576,6 +11686,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機還沒有 git。安裝後請點「再試一次」。"
+          }
+        }
+      }
+    },
+    "This device can only look. It can’t send or answer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置只能看,不能送出或回答。"
           }
         }
       }
@@ -11833,6 +11954,17 @@
         }
       }
     },
+    "This host came from another device. Enter its pairing code to use it here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機是從其他裝置同步來的。輸入配對碼,就能在這支裝置使用。"
+          }
+        }
+      }
+    },
     "This host can’t find Codex. Install Codex there first." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11928,17 +12060,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機以下面的代碼辨識。"
-          }
-        }
-      }
-    },
-    "This host is removed from this device, and this device is signed out of it. Nothing else on the host changes." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台主機會從這支裝置移除，這支裝置也會登出它。主機上其他內容不受影響。"
           }
         }
       }
@@ -12204,6 +12325,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上的這則註記已經變了，改為顯示最新的。"
+          }
+        }
+      }
+    },
+    "This only removes the host from Purrdr. The host itself and the agents on it aren’t affected. Anything Purrdr added for this device on the host is put back." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只會從 Purrdr 移除,主機本身與上面的 Agent 不受影響。這支裝置放進主機的設定會一併還原。"
           }
         }
       }
@@ -12633,6 +12765,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再試一次"
+          }
+        }
+      }
+    },
+    "Try Purrdr with sample conversations. Nothing connects to a computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用範例對話試用 Purrdr,不會連到任何主機。"
           }
         }
       }
@@ -13088,17 +13231,6 @@
         }
       }
     },
-    "Update Host Service…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更新主機服務…"
-          }
-        }
-      }
-    },
     "Update Notes on This Host?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13106,6 +13238,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要更新這台主機上的註記嗎？"
+          }
+        }
+      }
+    },
+    "Update herdr" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新 herdr"
+          }
+        }
+      }
+    },
+    "Update herdr on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在主機上更新 herdr。"
           }
         }
       }
@@ -13249,6 +13403,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在上傳「%@」"
+          }
+        }
+      }
+    },
+    "Usage Capture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量擷取"
           }
         }
       }
@@ -13884,17 +14049,6 @@
         }
       }
     },
-    "You can bring it back anytime from Try the Demo when adding a host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "之後想再用，可以在新增主機時選「體驗範例主機」。"
-          }
-        }
-      }
-    },
     "You can stop the agent after reconnecting." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14211,6 +14365,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false,
       "localizations" : {}
+    },
+    "herdr %@ Is Too Old" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herdr %@ 太舊"
+          }
+        }
+      }
     },
     "herdr %@ · %@" : {
       "extractionState" : "manual",

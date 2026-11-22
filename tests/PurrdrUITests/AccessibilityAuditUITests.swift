@@ -192,12 +192,11 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(flags: ["-seedHost"], contentSize: size)
             openMenu("menu.hosts", in: app)
-            let row = app.buttons["hosts.row.5EED0000-0000-4000-8000-000000000001"]
-            XCTAssertTrue(row.waitUntilExists(timeout: 5))
-            try audit(app, "主機清單", contentSize: size)
+            let share = app.overviewRow("hosts.share")
+            XCTAssertTrue(share.exists)
+            try audit(app, "主機總頁", contentSize: size)
 
-            row.press(forDuration: 1)
-            app.buttons["Share…"].firstMatch.tap()
+            share.tap()
             XCTAssertTrue(app.element("hostShare.qr").waitUntilExists(timeout: 5))
             try audit(app, "分享主機", contentSize: size)
             // 返回鈕:AX5 時系統只留箭頭，不以標題找。

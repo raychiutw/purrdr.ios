@@ -78,7 +78,7 @@ struct HostIconTests {
         #expect(store.hosts == [HostsModelTests.studio])
     }
 
-    @Test("同時改了圖示與其他欄位：要測試連線才能儲存")
+    @Test("同時改了圖示與連線欄位：要測試連線才能儲存")
     func iconWithOtherChangesStillNeedsTest() {
         let store = MemoryHostStore()
         store.hosts = [HostsModelTests.studio]
@@ -87,12 +87,48 @@ struct HostIconTests {
         let editor = model.makeEditor(editing: HostsModelTests.studio)
 
         editor.icon = .home
-        editor.name = "Office"
+        editor.address = "other-mac"
 
         #expect(!editor.changesOnlyIcon)
+        #expect(!editor.changesOnlyAppearance)
         #expect(!editor.canSave)
         #expect(editor.save() == nil)
         #expect(model.icon(for: HostsModelTests.studio.id) == .default)
+    }
+
+    @Test("只改名稱(與圖示)不必重新測試連線:儲存後主機改名、連線設定不變(#392)")
+    func renamingOnlyDoesNotNeedTest() {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        model.load()
+        let editor = model.makeEditor(editing: HostsModelTests.studio)
+
+        editor.name = "  Office Mac "
+        editor.icon = .home
+
+        #expect(editor.hasChanges)
+        #expect(editor.changesOnlyAppearance)
+        #expect(editor.canSave)
+        #expect(editor.save() != nil)
+        #expect(model.rows.first?.title == "Office Mac")
+        #expect(model.icon(for: HostsModelTests.studio.id) == .home)
+        #expect(store.hosts.first?.connection == HostsModelTests.studio.connection)
+        #expect(store.hosts.first?.name == "Office Mac")
+    }
+
+    @Test("名稱清成空白:不能儲存")
+    func emptyNameCannotSave() {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        model.load()
+        let editor = model.makeEditor(editing: HostsModelTests.studio)
+
+        editor.name = "   "
+
+        #expect(!editor.changesOnlyAppearance)
+        #expect(!editor.canSave)
     }
 
     @Test("新增主機：測試通過儲存後套用選的圖示")

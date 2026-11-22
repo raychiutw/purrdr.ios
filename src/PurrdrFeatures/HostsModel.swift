@@ -128,6 +128,8 @@ public final class HostsModel {
     private var channels: [UUID: any HostChannel] = [:]
     /// 這支裝置還沒有裝置權杖的 HTTPS 主機(主機清單標示要配對)。
     private var unpairedHostIDs: Set<UUID> = []
+    /// 以唯讀權杖配對的 HTTPS 主機(`refreshOverviewFacts` 讀到的,#392)。
+    private var readOnlyHostIDs: Set<UUID> = []
     /// 主機服務的更新提示(#198)。
     private let hostServiceUpdates: HostServiceUpdates
     /// HTTPS 主機回報的主機服務版本(`checkHostServiceVersions` 讀到的)。
@@ -284,7 +286,7 @@ public final class HostsModel {
         }
     }
 
-    /// 方案用量的來源：Demo 主機是本機假資料(不耗 token 與傳輸);SSH 主機經主機通道;HTTPS 主機不支援。
+    /// 方案用量的來源：Demo 主機是本機假資料(不耗 token 與傳輸);SSH 主機經主機通道;HTTPS 主機經主機服務(0.12.0 起)。
     private func planUsageSource(_ host: HostSelection, _ agent: PlanUsageAgent) -> PlanUsageSource? {
         let channel: any HostChannel
         let cost: PlanUsageQueryCost
@@ -294,8 +296,14 @@ public final class HostsModel {
         case .demo:
             (channel, cost, hostID) = (demoChannel, .free, Self.demoID)
         case .host(let id):
-            guard let configuration = hosts.first(where: { $0.id == id }), !configuration.connectionMethod.usesHostService else {
-                return nil
+            guard let configuration = hosts.first(where: { $0.id == id }) else { return nil }
+            if case .https(let address) = configuration.connection {
+                // HTTPS 主機經主機服務讀(0.12.0 起,#392);還沒配對或不是真的主機服務連線(UI 測試)沒有來源。
+                guard !unpairedHostIDs.contains(id),
+                    let connection = hostServiceConnection(for: configuration, address: address) as? HTTPSHostConnection
+                else { return nil }
+                return .hostService(
+                    connection, agent: agent, hostID: id.uuidString, hostName: configuration.name, consent: hostConsent)
             }
             let member = member(for: host)
             (channel, cost, hostID, files) = (member.channel, .transfer, id.uuidString, member.hostFiles)
@@ -340,6 +348,66 @@ public final class HostsModel {
     public var selectedHostSupportsFiles: Bool {
         guard case .host(let id) = selection, let host = hosts.first(where: { $0.id == id }) else { return true }
         return host.supportsLoginShell
+    }
+
+    /// 主機 tab 的單台主機總頁(#392):選取中主機的狀態與各區塊要不要出現;沒有主機可看時是 `nil`。
+    public var overview: HostOverview? {
+        if hasNoHostToShow { return nil }
+        let selected = selection
+        let configuration = selectedHost
+        let list = agentList.list(for: selected)
+        let herdrVersion = list?.snapshot?.version
+        let id = configuration?.id
+        let method = configuration?.connectionMethod
+        let usesHostService = method?.usesHostService == true
+        let status: HostOverview.Status
+        if configuration == nil {
+            status = .demo
+        } else if let id, unpairedHostIDs.contains(id) {
+            status = .needsPairing
+        } else {
+            switch list?.phase ?? .loading {
+            case .loading: status = .connecting
+            case .failed(let message): status = .offline(message: message, lastConnected: list?.updates.lastLoadedAt)
+            case .loaded:
+                if let herdrVersion, Self.isTooOld(herdr: herdrVersion) {
+                    status = .herdrTooOld(version: herdrVersion)
+                } else if let id, readOnlyHostIDs.contains(id) {
+                    status = .readOnly
+                } else {
+                    status = .online
+                }
+            }
+        }
+        let pairedHostService = usesHostService && status != .needsPairing
+        let hasUsageSource: Bool = switch status {
+        case .demo, .needsPairing, .herdrTooOld: false
+        case .connecting, .online, .readOnly, .offline: true
+        }
+        return HostOverview(
+            host: selected, name: name(of: selected), icon: icon(of: selected), status: status, connection: method,
+            herdrVersion: herdrVersion, address: configuration?.hostService?.description,
+            showsUsage: hasUsageSource, showsHostService: pairedHostService,
+            showsLoginShell: configuration?.supportsLoginShell == true && status != .needsPairing,
+            canShare: configuration != nil, hasHostSettings: configuration != nil && status != .needsPairing,
+            isSaved: configuration != nil)
+    }
+
+    /// herdr 低於 0.9.5(ADR-0002 的最低支援版本);看不懂的版本字串不算太舊。
+    static func isTooOld(herdr version: String) -> Bool {
+        guard let parsed = HostServiceVersion(version) else { return false }
+        return parsed < HostServiceVersion(0, 9, 5)
+    }
+
+    /// 讀選取中 HTTPS 主機的唯讀狀態與主機服務版本(主機 tab 出現時);連不上的略過。
+    public func refreshOverviewFacts() async {
+        guard let host = selectedHost, case .https = host.connection, !unpairedHostIDs.contains(host.id),
+            let connection = hostStatusConnection(for: host.id)
+        else { return }
+        if let readOnly = try? await connection.isReadOnlyDevice() {
+            if readOnly { readOnlyHostIDs.insert(host.id) } else { readOnlyHostIDs.remove(host.id) }
+        }
+        if let version = try? await connection.hostServiceVersion() { hostServiceVersions[host.id] = version }
     }
 
     /// 沒有任何主機可看(沒有已存主機、也還沒進入範例主機):檔案與主機 tab 顯示空狀態。
@@ -671,7 +739,8 @@ public final class HostsModel {
     public func makeEditor(editing: HostConfiguration? = nil, method: HostConfiguration.ConnectionMethod? = nil) -> HostEditorModel {
         let editor = HostEditorModel(
             store: store, editing: editing, credentials: credentials, hostService: hostService,
-            icon: editing.map { icon(for: $0.id) } ?? .default, saveIcon: setIcon(_:for:), makeChannel: makeChannel)
+            icon: editing.map { icon(for: $0.id) } ?? .default, saveIcon: setIcon(_:for:),
+            renameHost: { [weak self] id, name in try self?.rename(id, to: name) }, makeChannel: makeChannel)
         if editing == nil, let method { editor.connectionMethod = method }
         editor.attachTraffic(trafficProvider)
         return editor
@@ -1243,4 +1312,43 @@ public struct HostSettings: Equatable {
     public nonisolated static func == (lhs: HostSettings, rhs: HostSettings) -> Bool {
         lhs.hostTheme === rhs.hostTheme && lhs.youShouldKnow === rhs.youShouldKnow && lhs.codexLauncher === rhs.codexLauncher
     }
+}
+
+
+/// 主機 tab 的單台主機總頁(#392):目前選取主機的狀態與各區塊要不要出現。
+public struct HostOverview: Equatable, Sendable {
+    public enum Status: Equatable, Sendable {
+        /// 範例主機:不連任何電腦。
+        case demo
+        case connecting
+        case online
+        /// 線上,但這支裝置以唯讀權杖配對:不能送出或回答。
+        case readOnly
+        /// 讀不到(主機離線或不在 Tailscale 上);`lastConnected` 是最後一次讀到的時間。
+        case offline(message: String, lastConnected: Date?)
+        /// HTTPS 主機在這支裝置還沒有裝置權杖。
+        case needsPairing
+        /// herdr 低於 0.9.5。
+        case herdrTooOld(version: String)
+    }
+
+    public var host: HostSelection
+    public var name: String
+    public var icon: HostIcon
+    public var status: Status
+    /// 連線方式;範例主機是 `nil`。
+    public var connection: HostConfiguration.ConnectionMethod?
+    /// 主機上 herdr 回報的版本(讀到快照之後)。
+    public var herdrVersion: String?
+    /// HTTPS 主機的主機服務位址。
+    public var address: String?
+    public var showsUsage: Bool
+    /// 已配對 HTTPS 主機:主機服務版本、更新與已配對裝置。
+    public var showsHostService: Bool
+    public var showsLoginShell: Bool
+    public var canShare: Bool
+    /// 主機主題、You should know、Codex 啟動器與用量擷取。
+    public var hasHostSettings: Bool
+    /// 已存的主機(可編輯、移除);範例主機不是。
+    public var isSaved: Bool
 }

@@ -139,11 +139,11 @@ final class SettingsUITests: XCTestCase {
     @MainActor
     func testCodexLauncherAsksConsentThenInstallsAndRemoves() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
-        app.openSeededHostPage()
+        app.openSeededHostSettings()
 
         let toggle = app.switches["settings.codexLauncher"]
         app.scrollIntoView(toggle, search: .down)
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "主機頁沒有 Codex 啟動器")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "這台主機的設定沒有 Codex 啟動器")
         XCTAssertEqual(toggle.value as? String, "0")
         toggle.switches.firstMatch.tap()
 

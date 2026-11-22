@@ -17,24 +17,23 @@ final class PlanUsageUITests: XCTestCase {
 
     @MainActor
     private func openPlanUsage(_ app: XCUIApplication) {
-        XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 10))
-        app.openHostsTab()
-        let item = app.buttons["hosts.tool.planUsage"]
-        XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機 tab 沒有「方案用量」")
+        // 用量擷取的啟用與還原在「這台主機的設定」(#392);已存主機的通道是 Demo 主機,用範例資料。
+        app.openSeededHostSettings()
+        let item = app.buttons["hosts.settings.usageCapture"]
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "這台主機的設定沒有「用量擷取」")
         item.tap()
     }
 
     @MainActor
     func testConsentShowsPeriodsAndTurnOffRestores() {
-        let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 10))
-        for _ in 0..<3 { app.swipeUp() }
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 10))
         XCTAssertFalse(app.buttons["claudeUsage.show"].exists, "Agent 列表還有方案用量")
         openPlanUsage(app)
 
         let host = app.element("planUsage.host")
         XCTAssertTrue(host.waitUntilExists(timeout: 5), "沒有主機選單")
-        XCTAssertTrue(texts(of: host).contains("Demo"), "主機選單不是 Demo:\(texts(of: host))")
+        XCTAssertTrue(texts(of: host).contains("Studio Mac"), "主機選單不是 Studio Mac:\(texts(of: host))")
         // Agent 攤開成勾選列(#313);已用／剩餘在設定 tab(#393),這裡沒有。
         XCTAssertTrue(app.buttons["Claude Code"].isSelected, "Agent 不是 Claude Code")
         XCTAssertFalse(app.element("planUsage.display").exists, "方案用量畫面還有顯示方式選項")
@@ -71,7 +70,7 @@ final class PlanUsageUITests: XCTestCase {
 
     @MainActor
     func testCancelConsentChangesNothing() {
-        let app = XCUIApplication.launchUITesting()
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openPlanUsage(app)
         let consent = app.buttons["planUsage.consent"]
         XCTAssertTrue(consent.waitUntilExists(timeout: 10))
@@ -88,7 +87,7 @@ final class PlanUsageUITests: XCTestCase {
     /// Demo 主機的 Codex 範例：5 小時已用 24%、每週已用 47%。不需要同意。
     @MainActor
     func testCodexShowsPeriodsWithoutConsent() {
-        let app = XCUIApplication.launchUITesting()
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openPlanUsage(app)
         let codex = app.buttons["Codex"]
         XCTAssertTrue(codex.waitUntilExists(timeout: 5), "Agent 選項沒有攤開出 Codex")

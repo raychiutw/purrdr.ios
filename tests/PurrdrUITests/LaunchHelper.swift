@@ -130,11 +130,11 @@ extension XCUIApplication {
         XCTAssertTrue(element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定", file: file, line: line)
     }
 
-    /// 主機 tab 的清單。
+    /// 主機 tab(單台主機總頁;右上的新增主機鈕一直都在)。
     @MainActor
     func openHostsTab(file: StaticString = #filePath, line: UInt = #line) {
         openTab(.hosts, file: file, line: line)
-        XCTAssertTrue(buttons["hosts.add"].waitUntilExists(timeout: 10), "沒有開出主機清單", file: file, line: line)
+        XCTAssertTrue(buttons["hosts.add"].waitUntilExists(timeout: 10), "沒有開出主機 tab", file: file, line: line)
     }
 
     /// 聊天 tab 右上的新增聊天(`square.and.pencil`)。
@@ -154,14 +154,45 @@ extension XCUIApplication {
         XCTAssertTrue(buttons["member.signIn.apple"].firstMatch.waitUntilExists(timeout: 10), "帳號頁沒有登入頁", file: file, line: line)
     }
 
-    /// 開已存主機(`-seedHost` 的 Studio Mac)的主機頁(#274:主機主題、You should know、Codex 啟動器在這裡)。
+    /// 主機 tab 總頁的一列(`hosts.edit`、`hosts.share`…):清單是 lazy 的,先捲到看得到再回傳。
     @MainActor
-    func openSeededHostPage(file: StaticString = #filePath, line: UInt = #line) {
+    func overviewRow(_ identifier: String) -> XCUIElement {
+        let row = buttons[identifier].firstMatch
+        _ = row.waitUntilExists(timeout: 10)
+        scrollIntoView(row, timeout: 5)
+        return row
+    }
+
+    /// 主機 tab 頂列的主機選單選了某一台(#392;名稱是選單項目的標籤)。
+    @MainActor
+    func selectHostOnHostsTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let picker = buttons["hosts.host"].firstMatch
+        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "主機 tab 沒有主機選單", file: file, line: line)
+        picker.tap()
+        let item = buttons[name].firstMatch
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機選單沒有 \(name)", file: file, line: line)
+        item.tap()
+    }
+
+    /// 開已存主機(`-seedHost` 的 Studio Mac,啟動時就是選取中主機)的「這台主機的設定」頁(#392):
+    /// 主機主題、You should know、Codex 啟動器在這裡。
+    @MainActor
+    func openSeededHostSettings(file: StaticString = #filePath, line: UInt = #line) {
         openHostsTab(file: file, line: line)
-        let info = buttons["hosts.info.5EED0000-0000-4000-8000-000000000001"].firstMatch
-        XCTAssertTrue(info.waitUntilExists(timeout: 10), "主機清單沒有 Studio Mac 的 ⓘ", file: file, line: line)
-        info.tap()
-        XCTAssertTrue(textFields["hostEditor.name"].firstMatch.waitUntilExists(timeout: 10), "沒有開出主機頁", file: file, line: line)
+        let settings = overviewRow("hosts.settings")
+        XCTAssertTrue(settings.waitUntilExists(timeout: 10), "主機 tab 沒有「這台主機的設定」", file: file, line: line)
+        settings.tap()
+        XCTAssertTrue(element("hosts.settings.page").waitUntilExists(timeout: 10), "沒有開出這台主機的設定", file: file, line: line)
+    }
+
+    /// 開已存主機(`-seedHost` 的 Studio Mac)的「編輯主機」頁(#392:名稱、圖示、連線方式)。
+    @MainActor
+    func openSeededHostEditor(file: StaticString = #filePath, line: UInt = #line) {
+        openHostsTab(file: file, line: line)
+        let edit = overviewRow("hosts.edit")
+        XCTAssertTrue(edit.waitUntilExists(timeout: 10), "主機 tab 沒有「編輯主機」", file: file, line: line)
+        edit.tap()
+        XCTAssertTrue(textFields["hostEditor.name"].firstMatch.waitUntilExists(timeout: 10), "沒有開出編輯主機", file: file, line: line)
     }
 
     /// 開帳號頁:點右上角的帳號鈕(每個 tab 都有;AX 字級時系統把它收進工具列的溢出選單,#268)。
