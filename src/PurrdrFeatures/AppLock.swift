@@ -89,6 +89,17 @@ public final class AppLock {
     }
 }
 
+extension DeviceOwnerAuthenticating {
+    /// 會改動帳號的操作前確認是本人:驗證成功,或這支裝置沒有密碼、系統無法驗證時放行(由呼叫端的二次確認對話框把關,
+    /// 否則沒設密碼的人永遠登不出、刪不了會員);取消與失敗擋下。
+    public func confirmsAccountChange() async -> Bool {
+        switch await authenticate(.confirmAccountChange) {
+        case .success, .unavailable: true
+        case .cancelled, .failed: false
+        }
+    }
+}
+
 /// 系統的裝置擁有者驗證：Face ID／Touch ID／Optic ID,失敗可改用裝置密碼。
 public struct SystemDeviceOwnerAuthenticator: DeviceOwnerAuthenticating {
     /// 允許改用裝置密碼的 policy(只有生物辨識的 policy 不會提供密碼)。
@@ -122,6 +133,7 @@ public struct SystemDeviceOwnerAuthenticator: DeviceOwnerAuthenticating {
         } catch let error as LAError {
             switch error.code {
             case .userCancel, .appCancel, .systemCancel: return .cancelled
+            case .passcodeNotSet: return .unavailable
             default: return .failed
             }
         } catch {

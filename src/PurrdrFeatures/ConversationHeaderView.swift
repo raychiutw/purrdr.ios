@@ -55,7 +55,7 @@ struct ConversationHeaderLine: View {
         .foregroundStyle(.secondaryText)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(header.lineAccessibilityText))
-        .accessibilityHint(Text("Shows context and permission mode."))
+        .accessibilityHint(Text("Shows usage and permission mode."))
         // 只是文字、不能點(#35:沒有這個 trait 時 audit 把它當成觸控目標，報 hit region 太小)。
         .accessibilityAddTraits(.isStaticText)
         .accessibilityIdentifier("conversation.header")

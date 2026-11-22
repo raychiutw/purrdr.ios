@@ -40,7 +40,10 @@ public final class SignInDevicesModel {
     /// 撤銷另一支裝置。目前這支不能撤銷;沒通過本人確認就什麼都不做。
     public func revoke(_ device: SignInDevice) async {
         guard !device.isCurrent, !busyDeviceIDs.contains(device.id) else { return }
-        if let confirmOwner, !(await confirmOwner()) { return }
+        if let confirmOwner, !(await confirmOwner()) {
+            problem = String(localized: "Couldn’t confirm it’s you. Nothing was changed.")
+            return
+        }
         busyDeviceIDs.insert(device.id)
         defer { busyDeviceIDs.remove(device.id) }
         do {

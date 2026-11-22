@@ -310,19 +310,17 @@ private struct CatalogBadgeView: View {
     }
 }
 
-/// 目錄文字的在地化(#385):描述依模型 id 對照內建表(只在目錄的英文原文與表內相同時才套用,目錄改寫了就顯示目錄的英文);
-/// 徽章文字只翻已知的兩句,其他原文顯示。
+/// 目錄文字的在地化(#385):已知模型的描述依**模型 id** 取 String Catalog 的字串(英文與繁中都在 Features,不比對目錄文字);
+/// 不認得的模型顯示目錄附的英文描述。徽章文字只翻已知的兩句,其他原文顯示。
 enum ModelCatalogText {
     static func description(for entry: ModelCatalogEntry) -> String? {
-        let known: (english: String, localized: String)? = switch entry.id {
-        case "claude-opus-5-5": ("For complex work and everyday tasks", String(localized: "For complex work and everyday tasks"))
-        case "claude-sonnet-5-5": ("Most efficient for simpler tasks", String(localized: "Most efficient for simpler tasks"))
-        case "claude-fable-5-2": ("For your toughest challenges", String(localized: "For your toughest challenges"))
-        case "claude-haiku-5-5": ("Fastest for quick answers", String(localized: "Fastest for quick answers"))
-        default: nil
+        switch entry.id {
+        case "claude-opus-5-5": String(localized: "For complex work and everyday tasks")
+        case "claude-sonnet-5-5": String(localized: "Most efficient for simpler tasks")
+        case "claude-fable-5-2": String(localized: "For your toughest challenges")
+        case "claude-haiku-5-5": String(localized: "Fastest for quick answers")
+        default: entry.description
         }
-        if let known, known.english == entry.description { return known.localized }
-        return entry.description
     }
 
     static func badge(_ message: String) -> String {

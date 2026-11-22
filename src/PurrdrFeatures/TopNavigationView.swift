@@ -250,7 +250,7 @@ public struct TopNavigationView: View {
                 FilesTab(hosts: hosts, member: member, openAccount: { navigation.sheet = .member }, addHost: { navigation.openAddHost() })
                     .tint(ProminentFillStyle())
             }
-            Tab("Hosts", systemImage: "desktopcomputer", value: TopLevelTab.hosts) {
+            Tab("Hosts", systemImage: "macmini.fill", value: TopLevelTab.hosts) {
                 HostsTab(
                     hosts: hosts, member: member, plus: plus, importURL: $navigation.pendingHostImport,
                     editHostID: $navigation.pendingHostEditor, addHost: $navigation.pendingAddHost,
@@ -258,7 +258,7 @@ public struct TopNavigationView: View {
                     openPlus: { navigation.sheet = .plus }, didEnterDemo: { navigation.tab = .chats })
                     .tint(ProminentFillStyle())
             }
-            Tab("Traffic", systemImage: "arrow.up.arrow.down", value: TopLevelTab.traffic) {
+            Tab("Traffic", systemImage: "arrow.up.arrow.down.circle.fill", value: TopLevelTab.traffic) {
                 TrafficTab(hosts: hosts, member: member, openAccount: { navigation.sheet = .member })
                     .tint(ProminentFillStyle())
             }

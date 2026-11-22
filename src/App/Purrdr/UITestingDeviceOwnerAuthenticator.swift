@@ -18,6 +18,8 @@ final class UITestingDeviceOwnerAuthenticator: DeviceOwnerAuthenticating {
     }
 
     func authenticate(_ purpose: AppLockAuthenticationPurpose) async -> AppLockAuthenticationResult {
+        // 沒有裝置密碼時帳號操作無法驗證(與真機一致)。
+        if purpose == .confirmAccountChange, !hasPasscode { return .unavailable }
         guard purpose == .unlock else { return .success }
         let attempt = unlockAttempts.withLock { count in
             count += 1

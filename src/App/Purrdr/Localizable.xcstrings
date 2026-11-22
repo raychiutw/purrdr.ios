@@ -3424,6 +3424,17 @@
         }
       }
     },
+    "Couldn’t Confirm It’s You" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法確認是你本人"
+          }
+        }
+      }
+    },
     "Couldn’t Finish" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3508,6 +3519,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法確認是否已停止"
+          }
+        }
+      }
+    },
+    "Couldn’t confirm it’s you. Nothing was changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法確認是你本人，沒有做任何更動。"
           }
         }
       }
@@ -9312,6 +9334,17 @@
         }
       }
     },
+    "Purrdr couldn’t confirm it’s you, so the subscription wasn’t moved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 無法確認是你本人，所以沒有轉移訂閱。"
+          }
+        }
+      }
+    },
     "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10907,17 +10940,6 @@
         }
       }
     },
-    "Shows context and permission mode." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示 context 與權限模式。"
-          }
-        }
-      }
-    },
     "Shows options for this device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10980,6 +11002,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示這個 Tab 的版面。"
+          }
+        }
+      }
+    },
+    "Shows usage and permission mode." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示用量與權限模式。"
           }
         }
       }
@@ -15831,6 +15864,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "會員資料、主機同步與所有裝置的通知會從 Purrdr 後台刪除,無法復原。"
+          }
+        }
+      }
+    },
+    "Your member account, synced hosts, and notifications on all your devices will be deleted from the server. This can’t be undone. This device has no passcode, so Purrdr can’t verify it’s you; confirming here is enough." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的會員帳號、已同步的主機，以及所有裝置上的通知，都會從 Purrdr 後台刪除，且無法復原。這支裝置沒有設定密碼，Purrdr 無法驗證是你本人；在這裡確認即可。"
           }
         }
       }

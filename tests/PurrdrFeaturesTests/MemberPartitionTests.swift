@@ -335,6 +335,25 @@ struct MemberPartitionTests {
         #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
     }
 
+    @Test("登出(非 force)連不上後台:不改任何本機狀態——主機同步仍開、配對仍在，選取消後維持原狀")
+    func signOutUnreachableLeavesLocalStateUntouched() async {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .unreachable)
+        backend.on("GET", "/v1/members/me", .unreachable)
+        let member = makeMemberModel()
+        await member.restore()
+        seedNotificationsAndSync()
+        let sync = makeSync()
+        sync.reload()
+        localState.attach(push: pushService(), hostSync: sync, pushModels: { [] })
+
+        await member.signOut()
+
+        #expect(member.notice == .signOutBackendUnreachable)
+        #expect(syncStore.isEnabled == true, "連不上後台就不該先停掉主機同步")
+        #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
+        #expect(sync.isEnabled, "主機同步的開關也不能被先關掉")
+    }
+
     @Test("連不上後台時選「仍要登出」:登出成功並清掉本機分區,後台配對留待之後處理(#420)")
     func forceSignOutClearsLocalPartitionWhenBackendUnreachable() async {
         backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .unreachable)
@@ -354,8 +373,8 @@ struct MemberPartitionTests {
         #expect(partition.memberID == nil)
     }
 
-    @Test("刪除會員:同樣先撤銷推播配對再清除分區")
-    func deleteMemberRevokesPairingsFirst() async throws {
+    @Test("刪除會員:刪除請求成功後才清除本機分區與配對,主機同步一併關閉")
+    func deleteMemberClearsLocalStateAfterRequestSucceeds() async throws {
         backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
         let member = makeMemberModel()
         let push = pushService()
@@ -365,12 +384,29 @@ struct MemberPartitionTests {
 
         await member.deleteMember()
 
-        let order = backend.requests.map { "\($0.method) \($0.path)" }
-        let revoke = try #require(order.firstIndex(of: "DELETE /v1/members/me/push-pairings/\(Self.keyHashA)"))
-        let delete = try #require(order.firstIndex(of: "DELETE /v1/members/me"))
-        #expect(revoke < delete)
+        #expect(backend.requests(to: "/v1/members/me").count >= 1)
+        #expect(member.phase == .signedOut)
         #expect(pairings.pairings.isEmpty)
         #expect(syncStore.isEnabled == false)
+    }
+
+    @Test("刪除會員:刪除請求失敗(連不上)時仍是登入,通知配對與主機同步都沒被清掉")
+    func deleteMemberFailureKeepsLocalState() async {
+        backend.on("DELETE", "/v1/members/me", .unreachable)
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
+        let member = makeMemberModel()
+        let sync = makeSync()
+        localState.attach(push: pushService(), hostSync: sync, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+        sync.reload()
+
+        await member.deleteMember()
+
+        guard case .signedIn = member.phase else { Issue.record("刪除失敗不應登出,phase 是 \(member.phase)"); return }
+        #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
+        #expect(syncStore.isEnabled == true)
+        #expect(partition.memberID != nil)
     }
 
     // MARK: - 登出與刪除要先確認身分(#412)
@@ -390,6 +426,30 @@ struct MemberPartitionTests {
         #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
     }
 
+    @Test("身分確認沒過(取消或失敗):登出與刪除都要提示，不能無聲失效")
+    func ownerNotConfirmedShowsNotice() async {
+        let member = makeMemberModel(confirmOwner: { false })
+        localState.attach(push: pushService(), hostSync: nil, pushModels: { [] })
+        await member.restore()
+
+        await member.signOut()
+        guard case .failed = member.notice else { Issue.record("登出被擋應有提示:\(String(describing: member.notice))"); return }
+        member.notice = nil
+
+        await member.deleteMember()
+        guard case .failed = member.notice else { Issue.record("刪除被擋應有提示:\(String(describing: member.notice))"); return }
+    }
+
+    @Test("沒有裝置密碼(無法驗證):刪除說明要提到無法確認身分")
+    func deleteExplainsWhenOwnerCannotBeVerified() {
+        let unverifiable = MemberModel(
+            session: session,
+            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: "123-abc.apps.googleusercontent.com")),
+            localState: localState, ownerVerificationAvailable: { false })
+        #expect(unverifiable.canVerifyOwner == false)
+        #expect(makeMemberModel().canVerifyOwner == true)
+    }
+
     @Test("登出:身分確認先於撤銷配對與登出")
     func signOutConfirmsOwnerBeforeRevoking() async throws {
         backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
@@ -407,7 +467,7 @@ struct MemberPartitionTests {
         #expect(backend.requests(to: "/v1/sessions/revoke").count == 1)
     }
 
-    @Test("刪除會員:身分確認沒過什麼都不送;通過後先撤銷配對再刪除")
+    @Test("刪除會員:身分確認沒過什麼都不送;通過後才刪除並清掉本機配對")
     func deleteMemberConfirmsOwnerFirst() async throws {
         backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
         let allowed = RequestCountBox()
@@ -424,10 +484,9 @@ struct MemberPartitionTests {
         allowed.value = 1
         await member.deleteMember()
         let order = backend.requests.map { "\($0.method) \($0.path)" }
-        let revoke = try #require(order.firstIndex(of: "DELETE /v1/members/me/push-pairings/\(Self.keyHashA)"))
-        let delete = try #require(order.firstIndex(of: "DELETE /v1/members/me"))
-        #expect(revoke < delete)
+        #expect(order.contains("DELETE /v1/members/me"))
         #expect(member.phase == .signedOut)
+        #expect(pairings.pairings.isEmpty)
     }
 
     @Test("連不上後台時「仍要登出」不再要求第二次身分確認(第一次已確認過)")

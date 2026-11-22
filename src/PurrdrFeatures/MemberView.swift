@@ -529,7 +529,11 @@ struct AccountView: View {
                 .accessibilityIdentifier("member.delete.confirm")
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Your member account, synced hosts, and notifications on all your devices will be deleted from the server. This can’t be undone.")
+            if model.canVerifyOwner {
+                Text("Your member account, synced hosts, and notifications on all your devices will be deleted from the server. This can’t be undone.")
+            } else {
+                Text("Your member account, synced hosts, and notifications on all your devices will be deleted from the server. This can’t be undone. This device has no passcode, so Purrdr can’t verify it’s you; confirming here is enough.")
+            }
         }
     }
 

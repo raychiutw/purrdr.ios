@@ -188,6 +188,20 @@ struct MemberSessionKeepSignedInTests {
         #expect(cached?.identities.first?.email == "a@example.com")
     }
 
+    @Test("登入成功就留下會員快照:剛登入後冷啟動又離線,仍由快照知道是誰(#406)")
+    func signInRemembersMemberSnapshot() async throws {
+        let backend = ScriptedBackend()
+        backend.on("POST", "/v1/sessions", .reply(200, Self.session()))
+        let tokens = InMemoryTokenStore()
+        _ = try await MemberSession(transport: backend, tokenStore: tokens)
+            .signIn(SignInCredential(method: .apple, idToken: "t", nonce: "n", authorizationCode: "c"))
+
+        let offline = MemberSession(transport: ScriptedBackend(), tokenStore: tokens)
+        let cached = try await offline.cachedMember()
+
+        #expect(cached?.id == "member-1")
+    }
+
     // MARK: - 寫入順序
 
     @Test("換權杖時寫入新權杖失敗:舊的更新權杖與存取權杖都不會被刪掉")

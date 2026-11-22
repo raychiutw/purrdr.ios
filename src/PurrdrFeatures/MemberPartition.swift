@@ -82,6 +82,17 @@ public final class MemberLocalState {
     /// 後台配對留待之後撤銷,或由「登入中的裝置」頁關閉。
     public func leave(force: Bool = false) async -> Bool {
         guard let memberID = partition.memberID else { return true }
+        // 先確認後台連得上,再動任何本機狀態:連不上就什麼都沒改(使用者選取消時仍是完整登入、同步與通知照舊)。
+        // `force` 與登入已失效時不用等後台。
+        if !force, needsBackendRevocation() {
+            do {
+                _ = try await session.currentMember()
+            } catch BackendError.signedOut {
+                // 登入已失效:沒有權杖可撤銷,照下面的流程清除。
+            } catch {
+                return false
+            }
+        }
         hostSync?.stop()
         // 經推播外掛移除主機上的配對並撤銷後台配對;主機連不上的留給下面直接撤銷後台。
         for model in pushModels() where model.state == .on {
@@ -102,6 +113,12 @@ public final class MemberLocalState {
         removeStoredState(of: memberID)
         reload()
         return true
+    }
+
+    /// 有後台配對要撤銷(紀錄裡有,或主機的通知開著)。
+    private func needsBackendRevocation() -> Bool {
+        if let push, !push.store.pairings.isEmpty { return true }
+        return pushModels().contains { $0.state == .on }
     }
 
     /// 登入已失效或冷啟動時沒有會員:清掉所有會員的本機分區。

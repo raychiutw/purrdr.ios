@@ -176,9 +176,11 @@ public enum HostFileAccessPolicy {
             if path.isUnder(home.appending([".purrdr", "uploads"])) { return true }
         }
         if temporaryRoots.contains(where: { path.isInDirectChildUploadFolder(of: $0) }) { return true }
-        // TMPDIR 不明：名稱像上傳資料夾、且不是最後一段(裡面有檔案)。
-        return scope.temporaryDirectories.isEmpty && !path.isWindows
-            && path.segments.dropFirst().dropLast().contains { UploadedImages.isUploadFolderName($0) }
+        // TMPDIR 不明：名稱像上傳資料夾的段落只能有一個、且是檔案的直接上層(更深一層或巢狀的同名資料夾不放行)。
+        guard scope.temporaryDirectories.isEmpty, !path.isWindows, path.segments.count >= 3 else { return false }
+        let folderNames = path.segments.dropFirst().dropLast().filter { UploadedImages.isUploadFolderName($0) }
+        guard folderNames.count == 1, !UploadedImages.isUploadFolderName(path.segments[0]) else { return false }
+        return UploadedImages.isUploadFolderName(path.segments[path.segments.count - 2])
     }
 
     /// 工作目錄以外，Agent 提到時可放行的位置。

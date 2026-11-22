@@ -21,11 +21,17 @@ struct SSHPushPluginUpdateTests {
             pluginSource: "raychiutw/purrdr.host/host-plugin")
     }
 
+    /// 經 Purrdr 安裝(留下 `~/.purrdr/push-plugin/` 的安裝紀錄),外掛版本回報 0.1.0。
+    func installByPurrdr() async throws {
+        try await installer().install(PushPairingFile(
+            endpoint: URL(string: "https://backend.test/v1/push")!, key: .generate(), muted: []))
+    }
+
     func calls() throws -> [String] { try FakeHerdrPluginCLI.calls(on: host) }
 
     @Test("外掛版本落後：更新到最新版")
     func updatesOutdatedPlugin() async throws {
-        try host.write(Data(), to: "fake/installed")  // 假 herdr 預設回報 0.1.0
+        try await installByPurrdr()  // 假 herdr 預設回報 0.1.0
 
         let updated = try await installer().updatePluginIfNeeded()
 
@@ -36,7 +42,7 @@ struct SSHPushPluginUpdateTests {
 
     @Test("已是最新版：不執行 plugin update")
     func skipsCurrentPlugin() async throws {
-        try host.write(Data(), to: "fake/installed")
+        try await installByPurrdr()
         try host.write(Data("0.2.1\n".utf8), to: "fake/version")
 
         let updated = try await installer().updatePluginIfNeeded()
@@ -47,11 +53,22 @@ struct SSHPushPluginUpdateTests {
 
     @Test("比 app 認得的版本更新：不更新")
     func skipsNewerPlugin() async throws {
-        try host.write(Data(), to: "fake/installed")
+        try await installByPurrdr()
         try host.write(Data("0.3.0\n".utf8), to: "fake/version")
 
         #expect(try await installer().updatePluginIfNeeded() == false)
         #expect(try !calls().contains { $0.hasPrefix("plugin update") })
+    }
+
+    @Test("使用者自己裝的外掛(沒有 Purrdr 的安裝紀錄):不更新,不動不是 Purrdr 裝的東西(ADR-0002)")
+    func doesNotUpdateUserInstalledPlugin() async throws {
+        try host.write(Data(), to: "fake/installed")  // herdr 上已有 purrdr.push,但不是 Purrdr 裝的
+
+        let updated = try await installer().updatePluginIfNeeded()
+
+        #expect(!updated)
+        #expect(try !calls().contains { $0.hasPrefix("plugin update") })
+        #expect(FakeHerdrPluginCLI.pluginVersion(on: host) == "0.1.0")
     }
 
     @Test("沒裝外掛：不代裝也不更新")
@@ -64,7 +81,7 @@ struct SSHPushPluginUpdateTests {
 
     @Test("更新失敗：丟出說明，外掛維持原樣")
     func reportsUpdateFailure() async throws {
-        try host.write(Data(), to: "fake/installed")
+        try await installByPurrdr()
         try host.write(Data(), to: "fake/update-fails")
 
         await #expect(throws: PushPluginError.pluginUpdateFailed("git fetch failed")) {
@@ -75,7 +92,7 @@ struct SSHPushPluginUpdateTests {
 
     @Test("看不懂版本(例如 Demo 主機)：不更新")
     func skipsUnparsableVersion() async throws {
-        try host.write(Data(), to: "fake/installed")
+        try await installByPurrdr()
         try host.write(Data("dev\n".utf8), to: "fake/version")
 
         #expect(try await installer().updatePluginIfNeeded() == false)

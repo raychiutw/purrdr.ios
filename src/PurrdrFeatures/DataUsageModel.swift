@@ -109,19 +109,16 @@ public final class DataUsageModel {
     public private(set) var refreshCount = 0
 
     private let meter: TrafficMeter
-    private let currentHostChanged: (HostSelection?) -> Void
     private let now: () -> Date
     private let calendar: Calendar
     private let sleep: Sleep
 
     public init(
         meter: TrafficMeter, hosts: [HostOption], currentHost: HostSelection?,
-        currentHostChanged: @escaping (HostSelection?) -> Void = { _ in },
         now: @escaping () -> Date = Date.init, calendar: Calendar = .current, sleep: @escaping Sleep = Sleeping.task
     ) {
         self.meter = meter
         self.hosts = hosts
-        self.currentHostChanged = currentHostChanged
         self.now = now
         self.calendar = calendar
         self.sleep = sleep
@@ -143,13 +140,12 @@ public final class DataUsageModel {
         }
     }
 
-    /// 改看某台主機(`nil` 是所有主機);同時改全 app 的目前主機。
+    /// 改看某台主機(`nil` 是所有主機);只改這個畫面的選取,不回寫聊天列表的目前主機。
     public func selectHost(_ selection: HostSelection?) {
         if let selection, !hosts.contains(where: { $0.id == selection }) { return }
         guard selection != host else { return }
         host = selection
         selectedDay = nil
-        currentHostChanged(selection)
     }
 
     // MARK: - 摘要

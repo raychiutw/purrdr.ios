@@ -102,16 +102,23 @@ struct CurrentHostTests {
         #expect(model.planUsage().host == .host(Self.ssh.id))
     }
 
-    @Test("方案用量改主機就是改目前主機，列表跟著")
-    func planUsageHostWritesBackToCurrentHost() {
+    @Test("方案用量與網路流量改主機只改自己的選取,不動聊天列表的目前主機與選取中主機(切換規則)")
+    func usageHostChangesDoNotTouchCurrentHost() {
         let model = Self.model()
         model.select(.host(Self.https.id))
-        let usage = model.planUsage()
+        model.agentList.currentHost = .host(Self.https.id)
 
-        usage.select(host: .host(Self.ssh.id))
+        let plan = model.planUsage()
+        plan.select(host: .host(Self.ssh.id))
+        #expect(plan.host == .host(Self.ssh.id))
+        #expect(model.agentList.currentHost == .host(Self.https.id))
+        #expect(model.selection == .host(Self.https.id))
 
-        #expect(model.agentList.currentHost == .host(Self.ssh.id))
-        #expect(model.selection == .host(Self.ssh.id))
+        let traffic = model.dataUsage()
+        traffic.selectHost(.host(Self.ssh.id))
+        #expect(traffic.host == .host(Self.ssh.id))
+        #expect(model.agentList.currentHost == .host(Self.https.id))
+        #expect(model.selection == .host(Self.https.id))
     }
 
     @Test("新增聊天預設目前主機，所有主機時用選取中主機")

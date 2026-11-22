@@ -59,6 +59,8 @@ public enum BackendErrorCode {
     public static let invalidRefreshToken = "invalid_refresh_token"
     /// 401:存取權杖無效、過期,或會員已刪除(先換權杖重送一次)。
     public static let invalidAccessToken = "invalid_access_token"
+    /// 404:登入頁(`createMember: false`)查無這個帳號的會員(#434)。
+    public static let memberNotFound = "member_not_found"
     /// 409:連結時身分屬於另一個會員(`error.details` 是合併摘要)。
     public static let mergeRequired = "merge_required"
     /// 409:確認合併時兩邊都有有效訂閱。

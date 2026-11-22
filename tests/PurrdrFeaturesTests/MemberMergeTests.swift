@@ -85,7 +85,7 @@ struct MemberMergeTests {
 
         #expect(backend.requests(to: "/v1/members/me/identities").isEmpty)
         #expect(model.phase == .signedIn(Replies.expectedAppleMember))
-        #expect(model.notice == nil)
+        guard case .failed = model.notice else { Issue.record("被擋要有提示"); return }
     }
 
     // MARK: - 發現已屬另一個會員

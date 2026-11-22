@@ -68,10 +68,11 @@ struct ModelCatalogTests {
         #expect(ModelCatalogParser.parse(partial)?.models.map(\.id) == ["claude-a-1"])
     }
 
-    @Test("內建對照表有名稱、描述與層級,沒有任何徽章")
+    @Test("內建對照表有名稱與層級,沒有任何徽章;核心不放顯示字串——沒有描述,層級名稱只是識別(英文與繁中在 Features)")
     func builtInHasNoBadges() throws {
         let opus = try #require(ModelCatalog.builtIn.entry(id: "claude-opus-5-5"))
-        #expect(opus.description != nil)
+        #expect(opus.description == nil)
+        #expect(ModelCatalog.builtIn.models.allSatisfy { $0.effortOptions.allSatisfy { $0.name == $0.id } })
         #expect(opus.supportsXHigh)
         #expect(ModelCatalog.builtIn.models.allSatisfy { $0.badge == nil && $0.effortOptions.allSatisfy { $0.badge == nil } })
     }

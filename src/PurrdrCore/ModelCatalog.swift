@@ -40,7 +40,7 @@ public struct ModelCatalogEntry: Sendable, Equatable, Identifiable {
     public var id: String
     public var name: String
     public var shortName: String?
-    /// 目錄的英文描述(繁中由畫面端以模型 id 對照的內建表提供)。
+    /// 目錄的英文描述(內建對照表沒有;繁中由畫面端以模型 id 提供)。
     public var description: String?
     /// `main` 或 `overflow`(「更多模型」)。
     public var section: String?
@@ -148,19 +148,19 @@ public enum ModelCatalogParser {
 }
 
 extension ModelCatalog {
-    /// 內建對照表(第三層):只有名稱、英文描述與層級,不含徽章。
+    /// 內建對照表(第三層):只有名稱與層級識別,不含徽章與描述——核心不放顯示字串,描述由畫面端依模型 id 提供(英文與繁中)。
     public static let builtIn = ModelCatalog(models: [
-        builtInEntry("claude-opus-5-5", "Opus 5.5", "Opus", "For complex work and everyday tasks"),
-        builtInEntry("claude-sonnet-5-5", "Sonnet 5.5", "Sonnet", "Most efficient for simpler tasks"),
-        builtInEntry("claude-fable-5-2", "Fable 5.2", "Fable", "For your toughest challenges"),
-        builtInEntry("claude-haiku-5-5", "Haiku 5.5", "Haiku", "Fastest for quick answers"),
+        builtInEntry("claude-opus-5-5", "Opus 5.5", "Opus"),
+        builtInEntry("claude-sonnet-5-5", "Sonnet 5.5", "Sonnet"),
+        builtInEntry("claude-fable-5-2", "Fable 5.2", "Fable"),
+        builtInEntry("claude-haiku-5-5", "Haiku 5.5", "Haiku"),
     ])
 
-    private static func builtInEntry(_ id: String, _ name: String, _ shortName: String, _ description: String) -> ModelCatalogEntry {
-        let levels = [("low", "Low"), ("medium", "Medium"), ("high", "High"), ("xhigh", "Extra"), ("max", "Max")]
-        return ModelCatalogEntry(
-            id: id, name: name, shortName: shortName, description: description, section: "main",
-            effortOptions: levels.map { EffortOption(id: $0.0, name: $0.1) })
+    private static func builtInEntry(_ id: String, _ name: String, _ shortName: String) -> ModelCatalogEntry {
+        // 層級只回識別(名稱 = id);畫面上的層級文字在 Features。
+        ModelCatalogEntry(
+            id: id, name: name, shortName: shortName, section: "main",
+            effortOptions: ["low", "medium", "high", "xhigh", "max"].map { EffortOption(id: $0, name: $0) })
     }
 }
 

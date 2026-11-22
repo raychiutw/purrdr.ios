@@ -121,7 +121,10 @@ public final class SubscriptionModel {
     /// 目前會員已有有效訂閱時後台會擋下(`.transferBlocked`);成功後 Plus 立即生效,原會員的通知與同步由後台停止。
     public func transferSubscription() async {
         guard transferOffer != nil, !isWorking else { return }
-        if let confirmOwner, !(await confirmOwner()) { return }
+        if let confirmOwner, !(await confirmOwner()) {
+            notice = .ownerNotConfirmed
+            return
+        }
         isWorking = true
         defer { isWorking = false }
         guard let transaction = await store.currentTransactions().first else {
@@ -295,5 +298,7 @@ public enum SubscriptionNotice: Equatable, Sendable {
     case transferBlocked
     /// 這個會員已有有效訂閱,不能再購買(一個會員同時只能有一個)。
     case alreadySubscribed
+    /// 沒通過本人確認(取消或失敗):什麼都沒轉。
+    case ownerNotConfirmed
     case failed
 }

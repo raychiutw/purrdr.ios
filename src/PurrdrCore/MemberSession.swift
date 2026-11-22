@@ -74,6 +74,7 @@ public actor MemberSession {
             body: try Wire.encode(credential, deviceID: deviceID()?.lowercased(), isSignIn: true, createMember: createMember)))
         let session = try Wire.decode(Wire.Session.self, from: response)
         try adopt(session)
+        remember(session.member)
         diagnostics(.signedIn)
         return SignInResult(member: try session.member.domain(), memberCreated: session.memberCreated ?? false, autoLinked: session.autoLinked ?? false)
     }

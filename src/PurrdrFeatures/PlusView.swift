@@ -518,6 +518,7 @@ extension SubscriptionNotice {
         case .transferred: "Subscription Moved"
         case .transferBlocked: "Can’t Move the Subscription"
         case .alreadySubscribed: "Already Subscribed"
+        case .ownerNotConfirmed: "Couldn’t Confirm It’s You"
         case .failed: "Couldn’t Finish"
         }
     }
@@ -544,6 +545,8 @@ extension SubscriptionNotice {
             String(localized: "This member already has a subscription, and a member can have only one. To move this one, cancel the other first and wait for its period to end.")
         case .alreadySubscribed:
             String(localized: "This member already has an active subscription, and a member can have only one. To switch plans or stores, cancel the current one and wait for its period to end.")
+        case .ownerNotConfirmed:
+            String(localized: "Purrdr couldn’t confirm it’s you, so the subscription wasn’t moved.")
         case .failed:
             String(localized: "Something went wrong. Try again.")
         }

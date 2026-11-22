@@ -73,13 +73,14 @@ struct PurrdrApp: App {
         let localState = MemberLocalState(partition: partition, session: session)
         // 轉移訂閱、撤銷其他裝置前確認是本人(#409);UI 測試的替身一律通過。
         let owner: any DeviceOwnerAuthenticating = uiTesting
-            ? UITestingDeviceOwnerAuthenticator(hasPasscode: true) : SystemDeviceOwnerAuthenticator()
-        let confirmOwner: @MainActor @Sendable () async -> Bool = { await owner.authenticate(.confirmAccountChange) == .success }
+            ? UITestingDeviceOwnerAuthenticator(hasPasscode: !arguments.contains("-uiTestingNoPasscode")) : SystemDeviceOwnerAuthenticator()
+        let confirmOwner: @MainActor @Sendable () async -> Bool = { await owner.confirmsAccountChange() }
         member = MemberModel(
             session: session,
             google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID)),
             localState: localState,
-            confirmOwner: confirmOwner
+            confirmOwner: confirmOwner,
+            ownerVerificationAvailable: { owner.availability().canAuthenticate }
         )
         // StoreKit:在 Xcode 執行時，scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品，不連 App Store。
         // UI 測試用內容相同的替身(不連網路;命令列 xcodebuild test 不套用 StoreKit 設定檔)。

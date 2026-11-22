@@ -19,6 +19,8 @@ public enum AppLockAvailability: Sendable, Equatable {
 /// 驗證裝置擁有者的結果。生物辨識失敗後在系統畫面改用裝置密碼通過，也是 `success`。
 public enum AppLockAuthenticationResult: Sendable, Equatable {
     case success, cancelled, failed
+    /// 無法驗證(這支裝置沒有設定密碼,系統不提供驗證)。和「取消」「失敗」不同:不是使用者拒絕,所以帳號操作不能因此被擋死。
+    case unavailable
 }
 
 /// 為什麼要驗證(系統畫面的說明文字由平台實作決定)。

@@ -271,11 +271,10 @@ public final class HostsModel {
         return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
     }
 
-    /// 數據用量頁的 model(#354):主機選單是 Demo 主機加上所有已存主機,標題的主機就是目前主機(#334),改它就是改目前主機。
+    /// 數據用量頁的 model(#354):主機選單是 Demo 主機加上所有已存主機,預設看目前主機(#334);在這裡改主機只改這個畫面的選取,不動聊天列表的目前主機(切換規則,#390)。
     public func dataUsage() -> DataUsageModel {
         DataUsageModel(
-            meter: trafficMeter ?? TrafficMeter(store: InMemoryTrafficStore()), hosts: hostOptions { _ in true }, currentHost: agentList.currentHost,
-            currentHostChanged: { [weak self] in self?.agentList.currentHost = $0 })
+            meter: trafficMeter ?? TrafficMeter(store: InMemoryTrafficStore()), hosts: hostOptions { _ in true }, currentHost: agentList.currentHost)
     }
 
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
@@ -283,7 +282,7 @@ public final class HostsModel {
     public func planUsage(host: HostSelection? = nil, agent: PlanUsageAgent? = nil) -> PlanUsageModel {
         PlanUsageModel(
             hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection, currentHost: host ?? agentList.currentHost,
-            currentHostChanged: { [weak self] in self?.agentList.currentHost = $0 }, initialAgent: agent
+            initialAgent: agent
         ) { [weak self] host, agent in
             self?.planUsageSource(host, agent)
         }
@@ -401,10 +400,10 @@ public final class HostsModel {
             isSaved: configuration != nil)
     }
 
-    /// herdr 低於 0.9.5(ADR-0002 的最低支援版本);看不懂的版本字串不算太舊。
+    /// herdr 低於最低支援版本(`HerdrVersion.minimumSupported`);看不懂的版本字串不算太舊。
     static func isTooOld(herdr version: String) -> Bool {
-        guard let parsed = HostServiceVersion(version) else { return false }
-        return parsed < HostServiceVersion(0, 9, 5)
+        guard let parsed = HerdrVersion(version) else { return false }
+        return parsed < .minimumSupported
     }
 
     /// 讀選取中 HTTPS 主機的唯讀狀態與主機服務版本(主機 tab 出現時);連不上的略過。

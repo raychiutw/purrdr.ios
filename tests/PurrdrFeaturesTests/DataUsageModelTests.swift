@@ -31,10 +31,10 @@ struct DataUsageModelTests {
     }
 
     func model(
-        _ meter: TrafficMeter, currentHost: HostSelection? = nil, changed: @escaping (HostSelection?) -> Void = { _ in }
+        _ meter: TrafficMeter, currentHost: HostSelection? = nil
     ) -> DataUsageModel {
         DataUsageModel(
-            meter: meter, hosts: Self.options, currentHost: currentHost, currentHostChanged: changed,
+            meter: meter, hosts: Self.options, currentHost: currentHost,
             now: { [clock] in clock.now }, calendar: calendar)
     }
 
@@ -76,15 +76,14 @@ struct DataUsageModelTests {
         #expect(model.sinceLaunch.total == 70)
     }
 
-    @Test("有目前主機就顯示那台;改主機等於改目前主機，改回所有主機也回寫")
-    func currentHostRoundTrip() {
-        var reported: [HostSelection?] = []
-        let model = model(meter(), currentHost: Self.mac) { reported.append($0) }
+    @Test("有目前主機就顯示那台;在這裡改主機與改回所有主機只改自己的選取")
+    func currentHostIsOnlyTheInitialSelection() {
+        let model = model(meter(), currentHost: Self.mac)
         #expect(model.host == Self.mac)
         model.selectHost(Self.linux)
+        #expect(model.host == Self.linux)
         model.selectHost(nil)
         #expect(model.host == nil)
-        #expect(reported == [Self.linux, nil])
     }
 
     @Test("目前主機已不在主機清單時當作所有主機")

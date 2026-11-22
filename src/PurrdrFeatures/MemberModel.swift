@@ -60,14 +60,23 @@ public final class MemberModel {
     /// 新增、移除登入方式與合併前,要求裝置擁有者驗證(Face ID／Touch ID／密碼);`nil` 時不驗證(只有測試)。
     private let confirmOwner: (@MainActor @Sendable () async -> Bool)?
 
+    private let ownerVerificationAvailable: (@MainActor @Sendable () -> Bool)?
+
+    /// 這支裝置能驗證本人(Face ID／Touch ID／密碼);沒設密碼時是 `false`,帳號操作只靠二次確認對話框把關。
+    public var canVerifyOwner: Bool { ownerVerificationAvailable?() ?? true }
+
     /// 登入中的裝置(#409):帳號頁列出並撤銷其他裝置。
     public let signInDevices: SignInDevicesModel
 
     /// - Parameter confirmOwner: 撤銷其他裝置、新增與移除登入方式、合併等會改動帳號的操作前,要求裝置擁有者驗證;`nil` 時不驗證(只有測試)。
+    /// - Parameter ownerVerificationAvailable: 這支裝置能不能驗證本人(有沒有設定密碼);`nil` 視為可以。
+    ///   不能驗證時 `confirmOwner` 會放行,刪除會員的確認說明據此提醒使用者。
     public init(
         session: MemberSession, google: GoogleSignIn, localState: MemberLocalState? = nil,
-        confirmOwner: (@MainActor @Sendable () async -> Bool)? = nil
+        confirmOwner: (@MainActor @Sendable () async -> Bool)? = nil,
+        ownerVerificationAvailable: (@MainActor @Sendable () -> Bool)? = nil
     ) {
+        self.ownerVerificationAvailable = ownerVerificationAvailable
         self.session = session
         self.google = google
         self.localState = localState
@@ -185,14 +194,15 @@ public final class MemberModel {
     }
 
     /// 刪除會員。完成後回到未登入，並提醒 Apple 訂閱要自行取消。
-    /// 先撤銷這支裝置的推播配對並清除本機分區(#405);撤銷不了(連不上後台)時照樣刪除:後台刪除會員會一併刪掉它的配對。
+    /// 後台刪除成功後才清除本機分區、主機上的推播配對與同步(#405):刪除請求失敗時仍是登入,通知與同步照舊。
+    /// 後台刪除會員會一併刪掉它的配對,所以不另外撤銷後台配對(此時也已沒有權杖)。
     /// 刪除前要先確認裝置擁有者(#412);確認沒過什麼都不做。
     public func deleteMember() async {
         await run {
             guard await ownerConfirmed() else { return }
-            _ = await localState?.leave()
             try await session.deleteMember()
             phase = .signedOut
+            _ = await localState?.leave(force: true)
             localState?.discardAll()
             notice = .deleted
         }
@@ -263,7 +273,9 @@ public final class MemberModel {
     /// 會改動帳號的操作先確認是裝置擁有者本人(`confirmOwner` 為 `nil` 時視為通過,只有測試)。
     private func ownerConfirmed() async -> Bool {
         guard let confirmOwner else { return true }
-        return await confirmOwner()
+        if await confirmOwner() { return true }
+        notice = .failed(String(localized: "Couldn’t confirm it’s you. Nothing was changed."))
+        return false
     }
 
     /// 撤銷並清除目前會員的本機狀態;撤銷不了時提示並回 `false`。
@@ -302,7 +314,7 @@ public final class MemberModel {
         } catch BackendError.mergeRequired {
             // 只有連結會處理;其他操作不會收到,收到就當一般錯誤。
             notice = .failed(String(localized: "Something went wrong. Try again."))
-        } catch let BackendError.backend(status, code, _) where status == 404 && code == "member_not_found" {
+        } catch let BackendError.backend(status, code, _) where status == 404 && code == BackendErrorCode.memberNotFound {
             // 登入頁查無會員(後台不新建):不是錯誤,問使用者要不要加入(#434)。
             memberNotFound = true
         } catch let BackendError.backend(status, code, message) {

@@ -239,19 +239,18 @@ public final class PlanUsageModel {
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     private let store: any PlanUsageSelectionStore
     private let defaults: UserDefaults
-    private let currentHostChanged: (HostSelection) -> Void
     private let now: () -> Date
     private let sleep: Sleep
 
     /// - Parameters:
-    ///   - currentHost: 目前主機(#334);有值就優先，在這裡改主機也回寫。
+    ///   - currentHost: 目前主機(#334);有值就優先;在這裡改主機不回寫。
     ///   - initialAgent: 從用量區的「啟用用量顯示」進來時,直接選那個 Agent。
     ///   - fallback: 沒有上次選擇(或那台主機已刪除)時選的主機。
     ///   - sleep: 定期重整的等待;測試注入假的。
     ///   - source: 某台主機某種 Agent 的來源;`nil` 表示這種連線方式不支援。
     public init(
         hosts: [HostOption], fallback: HostSelection, store: any PlanUsageSelectionStore,
-        currentHost: HostSelection? = nil, currentHostChanged: @escaping (HostSelection) -> Void = { _ in },
+        currentHost: HostSelection? = nil, 
         initialAgent: PlanUsageAgent? = nil,
         now: @escaping () -> Date = Date.init,
         sleep: @escaping Sleep = Sleeping.task,
@@ -263,7 +262,6 @@ public final class PlanUsageModel {
         self.store = store
         self.defaults = defaults
         display = Display.stored(in: defaults)
-        self.currentHostChanged = currentHostChanged
         self.now = now
         self.sleep = sleep
         let savedSelection = store.load()
@@ -462,7 +460,6 @@ public final class PlanUsageModel {
         guard host != self.host else { return }
         self.host = host
         store.save(PlanUsageSelection(host: host, agent: agent))
-        currentHostChanged(host)
         restart()
     }
 
