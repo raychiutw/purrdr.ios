@@ -71,15 +71,20 @@ def fetch_settings():
     return "$purrdrExcluded=@(" + ",".join(repro.quote(p) for p in patterns) + f");$purrdrChunk={schema()['x-maximum-file-chunk']}"
 
 
+def fetch_literal(source, name):
+    """腳本字面值,並展開 `\\#(HostServiceProtocol.uploadFolder)` 之類的字串插值(常數在核心的協定檔,#452)。"""
+    return repro.resolve(repro.swift_literal(source, name), source + core_source("HostServiceProtocol.swift"))
+
+
 def fetch_stdin(source, idle=60, total=600, maximum=MAXIMUM, preamble=""):
     script = "\n".join([
         preamble,
         repro.swift_literal(source, "prelude"),
         "$a=@(" + ",".join(repro.quote(str(v)) for v in (idle, total, maximum)) + ")",
         fetch_settings(),
-        repro.swift_literal(source, "transcriptFunctions"),
-        repro.swift_literal(source, "hostFileFunctions"),
-        repro.swift_literal(source, "hostFileFetchScript"),
+        fetch_literal(source, "transcriptFunctions"),
+        fetch_literal(source, "hostFileFunctions"),
+        fetch_literal(source, "hostFileFetchScript"),
     ])
     return (script + "\n" + repro.swift_string(source, "endOfScript") + "\n").encode()
 

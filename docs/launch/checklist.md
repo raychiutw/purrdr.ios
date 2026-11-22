@@ -25,9 +25,9 @@
 | 1.15 | 供應地區：排除歐盟 27 國(DSA 貿易商狀態)與中國大陸(ICP 備案),共 147 個地區(`app-store-metadata.md`) | 主 session | ✅ |
 | 1.13 | 審查資訊：備註貼 `review-notes.md` 的英文段落、勾「不需要登入」、聯絡資訊 | 主 session | ⬜ |
 | 1.14 | 出口合規(2026-11-16 決定 A 案):`ITSAppUsesNonExemptEncryption = NO` 維持。理由：app **只用作業系統提供的加密**——CryptoKit(swift-crypto 在 Apple 平台轉呼叫 CryptoKit;swift-nio-ssh 的金鑰交換、AES-GCM、簽章都走它)、CommonCrypto、系統 TLS(URLSession)。已移除自寫的 bcrypt／Blowfish 與 `_CryptoExtras`(AES-CTR);有 passphrase 的 OpenSSH 私鑰改成明確錯誤，請使用者先 `ssh-keygen -p -N "" -f <私鑰>` 移除 passphrase。**日後不可再引入非系統加密**(自寫演算法、`_CryptoExtras`、OpenSSL／libsodium 等),否則要重新評估出口合規 | 本 repo | ✅ |
-| 1.16 | App Group `group.com.raychiu.purrdr`(Certificates, Identifiers & Profiles → Identifiers → App Groups → 新增;主機名稱對應表給 Notification Service Extension 讀,#431) | 使用者(Apple Developer 網站) | ⬜ |
-| 1.17 | App ID `com.raychiu.purrdr` 的 App Groups capability 勾選並設定 `group.com.raychiu.purrdr`(App ID 一旦改了 capability,要讓雲端管理簽章重新產生描述檔) | 使用者 | ⬜ |
-| 1.18 | Notification Service Extension 的 App ID `com.raychiu.purrdr.notification-service`:匯出時雲端管理簽章用 API key 會自動註冊;若沒自動建立,手動新增並勾 App Groups = `group.com.raychiu.purrdr`(不需要 Push Notifications capability) | 使用者 | ⬜ |
+| 1.16 | App Group `group.com.raychiu.purrdr`(Certificates, Identifiers & Profiles → Identifiers → App Groups → 新增;主機名稱對應表給 Notification Service Extension 讀,#431) | 使用者(Apple Developer 網站) | ✅ 2026-11-22(由 Claude 在使用者的瀏覽器登入狀態下操作) |
+| 1.17 | App ID `com.raychiu.purrdr` 的 App Groups capability 勾選並設定 `group.com.raychiu.purrdr`(App ID 一旦改了 capability,要讓雲端管理簽章重新產生描述檔) | 使用者 | ✅ 2026-11-22(由 Claude 在使用者的瀏覽器登入狀態下操作) |
+| 1.18 | Notification Service Extension 的 App ID `com.raychiu.purrdr.notification-service`:匯出時雲端管理簽章用 API key 會自動註冊;若沒自動建立,手動新增並勾 App Groups = `group.com.raychiu.purrdr`(不需要 Push Notifications capability) | 使用者 | ✅ 2026-11-22(由 Claude 在使用者的瀏覽器登入狀態下操作) |
 | 1.19 | 第一次含 extension 的 build 上傳前,看 testflight.yml 的「匯出的 entitlements」檢查是否通過(App 與 extension 都要有 App Group);失敗訊息會指出缺哪一個 | 使用者 | ⬜ |
 | 1.20 | 真機驗證一次:鎖定畫面與通知中心分組(同主機同 workspace 疊成一組、副標題是主機名稱、改主機名稱後新通知跟著變) | 使用者 | ⬜ |
 
