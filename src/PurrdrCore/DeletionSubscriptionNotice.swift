@@ -11,10 +11,8 @@ public enum DeletionSubscriptionNotice: Equatable, Sendable {
     /// 沒有訂閱,或訂閱已到期、退款(不會再扣款)時是 `nil`:直接進刪除確認。
     public init?(subscription: MemberSubscription?) {
         guard let subscription else { return nil }
-        switch subscription.status {
-        case .active, .inGracePeriod: break
-        case .expired, .revoked: return nil
-        }
+        // 生效中、寬限期與帳單重試期(`billingRetry`,#462)Apple 都還在扣款。
+        guard subscription.isStillBilling else { return nil }
         switch subscription.store {
         case .appStore: self = .appStore
         case .googlePlay: self = .googlePlay

@@ -453,6 +453,8 @@ private enum Wire {
         var willAutoRenew: Bool?
         /// 升級合併後沒保留的有效訂閱(後台 PR #34);帳號頁提示使用者到商店取消。
         var pendingReview: Bool?
+        /// 帳單重試期(後台 PR #35);沒帶視為 false。
+        var billingRetry: Bool?
 
         func domain() throws -> MemberSubscription {
             // 後台對外把 billing_retry 當作 expired(沒有權限);萬一直接收到,同樣視為已到期。
@@ -463,7 +465,7 @@ private enum Wire {
             return MemberSubscription(
                 status: status, store: store, productID: productId, expiresAt: expiresAt,
                 gracePeriodExpiresAt: gracePeriodExpiresAt.flatMap(Wire.date), willAutoRenew: willAutoRenew,
-                pendingReview: pendingReview ?? false
+                pendingReview: pendingReview ?? false, billingRetry: billingRetry ?? (self.status == "billing_retry")
             )
         }
     }

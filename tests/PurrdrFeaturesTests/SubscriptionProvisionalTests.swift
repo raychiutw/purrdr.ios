@@ -155,6 +155,49 @@ struct SubscriptionProvisionalTests {
         #expect(model.notice == .alreadySubscribed)
     }
 
+    @Test("帳單重試期仍佔一會員一訂閱的名額:不開 StoreKit 購買畫面,但仍沒有 Plus 權限(#462)")
+    func noPurchaseWhileBillingRetry() async throws {
+        try signIn()
+        backend.on("GET", "/v1/members/me/subscription", .json(200, #"{"subscription":{"status":"expired","store":"app_store","productId":"p","expiresAt":"2026-11-01T00:00:00.000Z","billingRetry":true}}"#))
+        let model = makeModel()
+        await model.refresh()
+
+        await model.purchase(planID: FakePlusStore.yearly.id, member: Self.member)
+
+        #expect(model.subscription?.billingRetry == true)
+        #expect(!model.isPlusActive)
+        #expect(store.purchases.isEmpty)
+        #expect(model.notice == .alreadySubscribed)
+    }
+
+    @Test("已到期且沒有 billingRetry(缺欄位):可以再購買")
+    func purchaseAllowedWhenExpiredWithoutBillingRetry() async throws {
+        try signIn()
+        backend.on("GET", "/v1/members/me/subscription", .json(200, #"{"subscription":{"status":"expired","store":"app_store","productId":"p","expiresAt":"2026-11-01T00:00:00.000Z"}}"#))
+        store.purchaseOutcome = .canceled
+        let model = makeModel()
+        await model.refresh()
+
+        await model.purchase(planID: FakePlusStore.yearly.id, member: Self.member)
+
+        #expect(model.subscription?.billingRetry == false)
+        #expect(store.purchases.count == 1)
+    }
+
+    @Test("帳單重試期恢復購買:不送交易,提示已有訂閱")
+    func restoreWhileBillingRetry() async throws {
+        try signIn()
+        backend.on("GET", "/v1/members/me/subscription", .json(200, #"{"subscription":{"status":"expired","store":"app_store","productId":"p","expiresAt":"2026-11-01T00:00:00.000Z","billingRetry":true}}"#))
+        store.current = [Self.transaction]
+        let model = makeModel()
+        await model.refresh()
+
+        await model.restore()
+
+        #expect(model.notice == .alreadySubscribed)
+        #expect(store.finished.isEmpty)
+    }
+
     @Test("轉移時後台說這個訂閱沒登記在任何會員:改走一般綁定")
     func transferFallsBackToBindingWhenNotRegistered() async throws {
         try signIn()

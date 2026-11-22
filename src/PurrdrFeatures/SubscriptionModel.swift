@@ -155,7 +155,8 @@ public final class SubscriptionModel {
     /// 用系統的購買確認畫面購買;`member` 的 ID 當成 appAccountToken。
     public func purchase(planID: String, member: Member) async {
         // 一個會員同時只有一個有效訂閱:已經有就不再開購買畫面(避免付了款卻被後台擋下)。
-        if subscription?.isActive == true {
+        // 帳單重試期(#462)Apple 仍在扣款、後台仍佔名額:同樣不開購買畫面。
+        if subscription?.occupiesSubscriptionSlot == true {
             notice = .alreadySubscribed
             return
         }
@@ -186,6 +187,10 @@ public final class SubscriptionModel {
 
     /// 恢復購買：跟 App Store 同步，把目前有效的交易送到後台;沒有就看後台是否已有訂閱(例如別的商店)。
     public func restore() async {
+        if subscription?.billingRetry == true {
+            notice = .alreadySubscribed
+            return
+        }
         isWorking = true
         defer { isWorking = false }
         do {

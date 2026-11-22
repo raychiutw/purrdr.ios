@@ -39,4 +39,26 @@ struct DeletionSubscriptionNoticeTests {
         sub.willAutoRenew = false
         #expect(DeletionSubscriptionNotice(subscription: sub) == .appStore)
     }
+
+    @Test("帳單重試期(後台 billingRetry):status 仍是 expired 但 Apple 還在扣款,先處理 App Store")
+    func billingRetryStillBilling() {
+        var sub = subscription(.expired, store: .appStore)
+        sub.billingRetry = true
+        #expect(DeletionSubscriptionNotice(subscription: sub) == .appStore)
+        #expect(!sub.isActive, "Plus 權限判定不變:帳單重試期沒有權限")
+    }
+
+    @Test("billingRetry 為 false 的已到期訂閱:不需要先處理")
+    func expiredWithoutBillingRetry() {
+        var sub = subscription(.expired, store: .appStore)
+        sub.billingRetry = false
+        #expect(DeletionSubscriptionNotice(subscription: sub) == nil)
+    }
+
+    @Test("已撤銷(退款)就算帶 billingRetry 也不再扣款")
+    func revokedNeverBilling() {
+        var sub = subscription(.revoked, store: .appStore)
+        sub.billingRetry = true
+        #expect(DeletionSubscriptionNotice(subscription: sub) == nil)
+    }
 }
