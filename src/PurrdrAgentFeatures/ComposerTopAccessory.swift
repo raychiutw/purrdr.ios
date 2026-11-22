@@ -14,3 +14,13 @@ public enum ComposerTopAccessory: Sendable, Equatable {
         return suggestion.map(ComposerTopAccessory.suggestion)
     }
 }
+
+/// 「需要你」卡片上一個選項的狀態(#424)。
+public enum PromptOptionState: Sendable, Equatable {
+    /// 可以點。
+    case available
+    /// 這個選項的回答正在送出:附屬位置放轉圈。
+    case sending
+    /// 不能點:別的選項在送出中、唯讀裝置，或編號 10 以上要到終端機回答。
+    case disabled
+}

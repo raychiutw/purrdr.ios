@@ -1523,6 +1523,15 @@ public final class ConversationModel {
         }
     }
 
+    /// 「需要你」卡片上一個選項現在的狀態(#424):畫面據此決定附屬位置放什麼、能不能點、VoiceOver 念什麼。
+    public func optionState(for option: PromptOption) -> PromptOptionState {
+        if isAnswering(option) { return .sending }
+        if answerInFlight != nil || isReadOnly { return .disabled }
+        let answer = PromptAnswer.option(option)
+        return isTypedAnswerOption(option) ? (canBeginTypedAnswer(option) ? .available : .disabled)
+            : (canAnswer(answer) ? .available : .disabled)
+    }
+
     /// 點「Type something.」:不送任何按鍵(Claude 收到數字只會把那一列變成文字輸入),改由輸入框打字;
     /// 原本的草稿先收起來，結束時放回。
     public func beginTypedAnswer(_ option: PromptOption) {

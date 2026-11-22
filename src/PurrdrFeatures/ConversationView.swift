@@ -348,7 +348,7 @@ public struct ConversationView: View {
         if isNewContent { scroll.followedNewContent() }
         let target = ConversationFollowTarget.target(
             showsWorkingRow: model.showsWorkingIndicator && model.workingSince != nil,
-            showsPromptCard: model.prompt != nil || model.lastAnswer != nil, lastEntryID: model.entries.last?.id)
+            showsPromptCard: model.lastAnswer != nil, lastEntryID: model.entries.last?.id)
         switch target {
         case .row(let id): proxy.scrollTo(id, anchor: .bottom)
         case .bottomEdge: position.scrollTo(edge: .bottom)

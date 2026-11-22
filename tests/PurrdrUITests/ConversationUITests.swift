@@ -524,8 +524,9 @@ final class ConversationUITests: XCTestCase {
     /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
     @MainActor
     func testJumpToLatestOnlyWhenAwayFromBottom() {
-        let app = openSharedConversation(paneID: "w2:p1")
-        XCTAssertTrue(app.element("prompt.card").waitUntilExists(timeout: 10), "沒有提示卡")
+        // 「需要你」改成浮動卡(#424)後對話列表本身不夠長，改用長對話。
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
+        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
         let jump = app.element("conversation.jumpToLatest")
         let list = app.scrollViews.firstMatch
         XCTAssertFalse(jump.waitUntilExists(timeout: 2), "在底部時不該顯示")
@@ -542,7 +543,6 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(jump.waitUntilExists(timeout: 5), "再往上捲應顯示")
         jump.tap()
         XCTAssertTrue(jump.waitUntilGone(timeout: 5), "點了回到最新後應隱藏")
-        XCTAssertTrue(app.element("prompt.option.3").isHittable, "回到底部後最後一個選項應可點")
     }
 
     /// 對話載入中(#114):輸入列與載入完成後在同一個位置(畫面底部),轉圈仍在輸入列上方的中段。

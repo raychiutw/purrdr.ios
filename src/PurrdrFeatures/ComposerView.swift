@@ -142,6 +142,10 @@ struct ComposerBar: View {
                                 if isCompact { suggestionHeights.compact = height } else { suggestionHeights.full = height }
                             }
                     }
+                    // 「需要你」浮動卡(#424):取代建議卡與工作中膠囊，與輸入卡片同一個玻璃容器。
+                    if case .needsYou = model.topAccessory {
+                        NeedsYouCard(model: model)
+                    }
                     card
                 }
             }
