@@ -1073,6 +1073,17 @@
         }
       }
     },
+    "Add" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入"
+          }
+        }
+      }
+    },
     "Add %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8934,6 +8945,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已選取"
+          }
+        }
+      }
+    },
+    "Selected %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已選 %lld"
           }
         }
       }

@@ -143,6 +143,17 @@ final class ImageAttachmentUITests: XCTestCase {
         for id in ["attach.photos", "attach.files", "attach.paste"] {
             XCTAssertTrue(app.element(id).exists, "面板沒有 \(id)")
         }
+        // 直幅(1)、橫幅(2)的替身照片也要是方格,不溢出(#386)。
+        for index in [1, 2] {
+            let frame = app.element("attach.recent.\(index)").frame
+            XCTAssertEqual(frame.width, frame.height, accuracy: 1, "第 \(index) 張照片格子不是正方形")
+            XCTAssertLessThanOrEqual(frame.maxX, app.element("attach.panel").frame.maxX, "第 \(index) 張溢出面板")
+        }
+        XCTAssertTrue(app.element("attach.close").exists, "左上沒有關閉(xmark)")
+        XCTAssertTrue(app.element("attach.selectedCount").label.contains("0"), "一打開就要看到已選數量")
+        // 關閉在左上 xmark:關掉後輸入列的「＋」回來可點(#386)。
+        app.element("attach.close").tap()
+        XCTAssertTrue(app.element("attach.panel").waitUntilGone(timeout: 5), "xmark 沒有關閉加入 sheet")
     }
 
     /// 最近的照片可多選，「加入 N」把它們放進輸入框成小卡，可個別移除。
@@ -155,6 +166,8 @@ final class ImageAttachmentUITests: XCTestCase {
 
         app.element("attach.recent.0").tap()
         app.element("attach.recent.1").tap()
+        XCTAssertTrue(app.element("attach.selectedCount").waitUntilExists(timeout: 5), "沒顯示已選數量")
+        XCTAssertTrue(app.element("attach.selectedCount").label.contains("2"), "沒顯示已選 2 張")
         XCTAssertTrue(app.element("attach.add").label.contains("2"), "按鈕沒顯示選了 2 張")
         app.element("attach.add").tap()
 

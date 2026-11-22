@@ -324,82 +324,112 @@ struct AttachPanel: View {
     let choose: (Choice) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var photos: [RecentPhoto] = []
-    @State private var selected: [String] = []
+    @State private var selection = AttachSelection()
 
     var body: some View {
-        VStack(spacing: 16) {
-            if !photos.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Recent Photos")
-                        .font(.footnote)
-                        .foregroundStyle(.secondaryText)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
-                        ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                            tile(photo, index: index)
+        // 一次只開一個 sheet(#386):關閉在左上 xmark，選檔案或拍照由呼叫端先關掉這張再開系統畫面。
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    HStack(alignment: .top) {
+                        if ImageSources.cameraAvailable { action("Take Photo", symbol: "camera", id: "camera", .camera) }
+                        action("All Photos", symbol: "photo.on.rectangle", id: "photos", .library)
+                        if model.canAttachFiles { action("Files", symbol: "doc", id: "files", .files) }
+                        pasteTile
+                    }
+                    if !photos.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Recent Photos")
+                                Spacer()
+                                Text("Selected \(selection.count)")
+                                    .monospacedDigit()
+                                    .accessibilityIdentifier("attach.selectedCount")
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
+                                ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                                    tile(photo, index: index)
+                                }
+                            }
                         }
                     }
                 }
+                .padding(.horizontal)
+                .padding(.bottom)
             }
-            HStack(alignment: .top) {
-                if ImageSources.cameraAvailable { action("Take Photo", symbol: "camera", id: "camera", .camera) }
-                action("All Photos", symbol: "photo.on.rectangle", id: "photos", .library)
-                if model.canAttachFiles { action("Files", symbol: "doc", id: "files", .files) }
-                pasteTile
-            }
-            if !selected.isEmpty {
-                Button {
-                    addSelected()
-                } label: {
-                    Text("Add \(selected.count)")
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 44)
+            .safeAreaInset(edge: .bottom) {
+                if selection.count > 0 {
+                    Button {
+                        addSelected()
+                    } label: {
+                        Text("Add \(selection.count)")
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .filledProminentButtonStyle()
+                    .padding([.horizontal, .bottom])
+                    .accessibilityIdentifier("attach.add")
                 }
-                .filledProminentButtonStyle()
-                .accessibilityIdentifier("attach.add")
             }
-            Spacer(minLength: 0)
+            .navigationTitle("Add")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", systemImage: "xmark") { dismiss() }
+                        .accessibilityIdentifier("attach.close")
+                }
+            }
         }
-        .padding()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("attach.panel")
         .task { photos = await source.recent(limit: 12) }
     }
 
+    /// 固定的正方形格子:照片填滿並裁掉多的部分，直幅、橫幅都不會依原始比例溢出而蓋住按鈕(#386)。
     private func tile(_ photo: RecentPhoto, index: Int) -> some View {
-        let isSelected = selected.contains(photo.id)
+        let number = selection.number(of: photo.id)
         return Button {
-            if isSelected {
-                selected.removeAll { $0 == photo.id }
-            } else if selected.count < model.remainingImageSlots {
-                selected.append(photo.id)
-            } else {
+            if selection.toggle(photo.id, limit: model.remainingImageSlots) == .overLimit {
                 model.noteImageLimit()
             }
         } label: {
-            ThumbnailImage(data: photo.thumbnail)
-                .aspectRatio(1, contentMode: .fill)
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay { ThumbnailImage(data: photo.thumbnail) }
+                .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(alignment: .topTrailing) {
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, .tint)
-                            .padding(4)
-                    } else {
-                        // 未選的圈:白色圈框加半透明黑底,在淺色與深色的照片上都 ≥ 3:1(非文字,#379)。
-                        Circle()
-                            .fill(.black.opacity(0.35))
-                            .overlay { Circle().strokeBorder(.white, lineWidth: 2) }
-                            .frame(width: 22, height: 22)
-                            .padding(4)
-                            .accessibilityHidden(true)
-                    }
-                }
+                .overlay(alignment: .topTrailing) { selectionMark(number: number).padding(4) }
+                .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.pressableThumbnail(cornerRadius: 8))
         .accessibilityLabel(Text("Photo \(index + 1)"))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAddTraits(number != nil ? .isSelected : [])
         .accessibilityIdentifier("attach.recent.\(index)")
+    }
+
+    /// 選取圈:未選是半透明深底加白邊與陰影(對任何照片 ≥ 3:1),已選是主色圓加編號。
+    @ViewBuilder
+    private func selectionMark(number: Int?) -> some View {
+        if let number {
+            Text(verbatim: "\(number)")
+                .font(.caption.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(.onProminentFill)
+                .frame(width: 24, height: 24)
+                .background(.prominentFill, in: .circle)
+                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                .shadow(color: .black.opacity(0.5), radius: 2)
+        } else {
+            Circle()
+                .fill(.black.opacity(0.35))
+                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                .frame(width: 24, height: 24)
+                .shadow(color: .black.opacity(0.5), radius: 2)
+        }
     }
 
     /// 貼上用系統的 `PasteButton`(HIG):使用者按的就是系統按鈕，不會跳「允許貼上」的詢問;剪貼簿沒有圖片時系統自己停用。
@@ -447,7 +477,7 @@ struct AttachPanel: View {
     }
 
     private func addSelected() {
-        let ids = selected
+        let ids = selection.ids
         dismiss()
         Task { await model.addImages(await source.imageData(for: ids)) }
     }
