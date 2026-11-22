@@ -64,6 +64,23 @@ public struct ThemeColor: Hashable, Sendable, CustomStringConvertible {
     }
 
     static let white = ThemeColor(red: 255, green: 255, blue: 255)
+
+    /// 讓白字放在這個顏色上有足夠對比(預設 4.5:1):往黑色混合到剛好夠，保持色相;原本就夠就原樣回傳(#396)。
+    public func darkenedForWhiteText(minimumContrast: Double = 4.5) -> ThemeColor {
+        guard contrastRatio(with: .white) < minimumContrast else { return self }
+        func mixed(_ factor: Double) -> ThemeColor {
+            ThemeColor(red: UInt8((Double(red) * factor).rounded()),
+                       green: UInt8((Double(green) * factor).rounded()),
+                       blue: UInt8((Double(blue) * factor).rounded()))
+        }
+        var result = self
+        var factor = 1.0
+        while result.contrastRatio(with: .white) < minimumContrast, factor > 0 {
+            factor -= 0.01
+            result = mixed(max(factor, 0))
+        }
+        return result
+    }
 }
 
 public enum ThemeAppearance: Sendable, CaseIterable { case light, dark }
