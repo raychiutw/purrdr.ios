@@ -50,6 +50,29 @@ struct ConversationScrollTests {
         #expect(scroll.autoScrollsOnNewContent)
     }
 
+    @Test("點跳到最新時畫面還在減速(#401):減速中量到的位移不把模式改回閱讀中，按鈕不再冒出來")
+    func jumpWhileDeceleratingIsNotOverriddenByInertia() {
+        var scroll = ConversationScroll()
+        scroll.userScrolled(distanceFromBottom: 900)
+        scroll.jumpToLatestByTap()
+        // 慣性還在捲、按鈕剛點下:捲動途中的量測仍算「使用者捲動」,不能把跟隨改回去。
+        scroll.userScrolled(distanceFromBottom: 700)
+        #expect(scroll.autoScrollsOnNewContent)
+        #expect(scroll.showsJumpToLatest == false)
+    }
+
+    @Test("點跳到最新之後使用者再次按下拖動才算新的閱讀(#401)")
+    func newDragAfterJumpReturnsToReading() {
+        var scroll = ConversationScroll()
+        scroll.userScrolled(distanceFromBottom: 900)
+        scroll.jumpToLatestByTap()
+        scroll.userScrolled(distanceFromBottom: 700)
+        scroll.userBeganDragging()
+        scroll.userScrolled(distanceFromBottom: 500)
+        #expect(scroll.autoScrollsOnNewContent == false)
+        #expect(scroll.showsJumpToLatest)
+    }
+
     // iPhone 17 模擬器實測的 ScrollGeometry(Demo「需要你」對話，#93):
     // 內容高 844、containerSize 高 672(已扣掉導覽列 116 與輸入列 86 的 inset)、捲動視圖整體 874。
     // 捲到底時 contentOffset.y = 56,在頂端時 = −116。

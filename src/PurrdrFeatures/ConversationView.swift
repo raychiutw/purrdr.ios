@@ -229,7 +229,10 @@ public struct ConversationView: View {
         }
         .onScrollPhaseChange { _, phase in
             userIsScrolling = phase == .interacting || phase == .tracking || phase == .decelerating
-            if phase == .interacting { userHasDragged = true }
+            if phase == .interacting {
+                userHasDragged = true
+                scroll.userBeganDragging()
+            }
         }
         .onScrollGeometryChange(for: ConversationScrollMetrics.self) { geometry in
             ConversationScrollMetrics(
@@ -327,7 +330,7 @@ public struct ConversationView: View {
         .overlay(alignment: .bottomTrailing) {
             if scroll.showsJumpToLatest {
                 Button {
-                    scroll.jumpToLatest()
+                    scroll.jumpToLatestByTap()
                     withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")

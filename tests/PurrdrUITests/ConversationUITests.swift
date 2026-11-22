@@ -545,6 +545,30 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(jump.waitUntilGone(timeout: 5), "點了回到最新後應隱藏")
     }
 
+    /// #401:往上滑後(含手指剛放開、畫面還在減速時)點「Jump to Latest」,真的回到最底(最後一則在輸入框之上)、按鈕不再冒出來。
+    @MainActor
+    func testJumpToLatestReturnsToBottomEvenWhileDecelerating() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
+        let list = app.scrollViews.firstMatch
+        XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
+        let jump = app.element("conversation.jumpToLatest")
+        let composer = app.element("composer.text")
+        XCTAssertTrue(composer.waitUntilExists(timeout: 5))
+
+        for attempt in 1...3 {
+            // 用力快滑幾次:放開後仍在減速時立刻點。
+            for _ in 0..<3 { list.swipeDown(velocity: .fast) }
+            XCTAssertTrue(jump.waitUntilExists(timeout: 5), "第 \(attempt) 次往上捲後應顯示")
+            jump.tap()
+            let lastUser = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Question 150:'")).firstMatch
+            XCTAssertTrue(lastUser.waitUntilExists(timeout: 5), "第 \(attempt) 次點了之後最後一則沒有出現在畫面上")
+            XCTAssertTrue(jump.waitUntilGone(timeout: 5), "第 \(attempt) 次點了之後按鈕沒有消失")
+            // 之後也不能又冒出來(被拉回閱讀中)。
+            XCTAssertFalse(jump.waitUntilExists(timeout: 2), "第 \(attempt) 次點了之後按鈕又出現(沒有真的到底)")
+            XCTAssertLessThanOrEqual(lastUser.frame.maxY, composer.frame.minY + 1, "第 \(attempt) 次最後一則被輸入框蓋住")
+        }
+    }
+
     /// 對話載入中(#114):輸入列與載入完成後在同一個位置(畫面底部),轉圈仍在輸入列上方的中段。
     @MainActor
     func testComposerStaysAtBottomWhileConversationLoads() {
