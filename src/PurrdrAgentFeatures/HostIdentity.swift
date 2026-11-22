@@ -246,20 +246,6 @@ private final class ScopedChatPreferencesStore: ChatPreferencesStore {
 /// 種類名稱本身在副標裡，圖示對 VoiceOver 隱藏。
 public enum AgentKindSymbol {
     public static func name(for kind: String) -> String {
-        switch AgentKindName.canonical(kind) {
-        case "claude": "sparkle"
-        case "codex": "chevron.left.forwardslash.chevron.right"
-        case "grok": "bolt"
-        case "agy": "arrow.up.forward.circle"
-        case "gemini": "star"
-        case "pi": "function"
-        case "omp": "hexagon"
-        case "opencode": "curlybraces"
-        case "copilot": "airplane"
-        case "cline": "line.diagonal"
-        case "amp": "waveform"
-        case "droid": "cpu"
-        default: "terminal"
-        }
+        AgentCatalog.profile(forHerdrName: kind).presentation.symbolName
     }
 }

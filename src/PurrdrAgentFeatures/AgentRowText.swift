@@ -98,45 +98,35 @@ package enum AgentKind: Equatable {
     case unknown(String)
 
     package init(rawKind: String) {
-        self = switch AgentKindName.canonical(rawKind) {
-        case "claude": .claudeCode
-        case "codex": .codex
-        case "gemini": .gemini
-        case "opencode": .openCode
-        case "copilot": .copilot
+        self = switch AgentID(herdrName: rawKind) {
+        case .claude: .claudeCode
+        case .codex: .codex
+        case .gemini: .gemini
+        case .opencode: .openCode
+        case .copilot: .copilot
         default: .unknown(rawKind)
         }
     }
 
-    /// 顯示名稱。不認得的種類照 herdr 原文;沒有種類時 `nil`。
-    package var displayName: String? {
+    /// 設定檔的 Agent 種類。
+    package var agentID: AgentID {
         switch self {
-        case .claudeCode: "Claude Code"
-        case .codex: "Codex"
-        case .gemini: "Gemini"
-        case .openCode: "opencode"
-        case .copilot: "GitHub Copilot"
-        case .unknown(let rawKind): Self.otherDisplayName(rawKind)
+        case .claudeCode: .claude
+        case .codex: .codex
+        case .gemini: .gemini
+        case .openCode: .opencode
+        case .copilot: .copilot
+        case .unknown(let rawKind): AgentID(herdrName: rawKind)
         }
+    }
+
+    /// 顯示名稱(取自 Agent 設定檔)。不認得的種類照 herdr 原文;沒有種類時 `nil`。
+    package var displayName: String? {
+        AgentCatalog.profile(for: agentID).presentation.displayName
     }
 
     /// herdr 種類字串的顯示名稱。
     package static func displayName(_ kind: String) -> String? {
         AgentKind(rawKind: kind).displayName
-    }
-
-    /// 沒有專屬樣式的種類。
-    private static func otherDisplayName(_ kind: String) -> String? {
-        switch AgentKindName.canonical(kind) {
-        case "": nil
-        case "grok": "Grok"
-        case "agy": "Antigravity"
-        case "pi": "Pi"
-        case "omp": "OMP"
-        case "cline": "Cline"
-        case "amp": "Amp"
-        case "droid": "Droid"
-        default: kind
-        }
     }
 }

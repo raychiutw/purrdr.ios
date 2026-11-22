@@ -115,17 +115,11 @@ struct AgentKindAvatarStyle {
     var palette: ContrastPalette
 
     init(kind: AgentKind) {
-        let (letter, normal, highContrast): (String?, ThemeColor, ThemeColor) = switch kind {
-        case .claudeCode: ("C", ThemeColor(red: 0x8A, green: 0x5A, blue: 0x48), ThemeColor(red: 0x6D, green: 0x47, blue: 0x39)) // 5.8／8.0:1
-        case .codex: ("X", ThemeColor(red: 0x55, green: 0x56, blue: 0x5C), ThemeColor(red: 0x4F, green: 0x50, blue: 0x56)) // 7.3／8.0:1
-        case .gemini: ("G", ThemeColor(red: 0x4A, green: 0x5F, blue: 0x86), ThemeColor(red: 0x3E, green: 0x50, blue: 0x71)) // 6.4／8.1:1
-        case .openCode: ("O", ThemeColor(red: 0x5C, green: 0x6B, blue: 0x4A), ThemeColor(red: 0x48, green: 0x53, blue: 0x3A)) // 5.7／8.2:1
-        case .copilot: ("P", ThemeColor(red: 0x6A, green: 0x58, blue: 0x84), ThemeColor(red: 0x58, green: 0x49, blue: 0x6E)) // 6.3／8.1:1
-        // 其他種類：中性色 + 顯示名首字母。
-        case .unknown: (nil, ThemeColor(red: 0x5A, green: 0x5A, blue: 0x5F), ThemeColor(red: 0x50, green: 0x50, blue: 0x55)) // 6.9／8.0:1
-        }
-        self.letter = letter ?? (kind.displayName?.first.map { String($0).uppercased() } ?? "?")
-        palette = ContrastPalette(light: normal, dark: normal, lightHighContrast: highContrast, darkHighContrast: highContrast)
+        let presentation = AgentCatalog.profile(for: kind.agentID).presentation
+        let avatar = presentation.avatar
+        // 沒有專屬字母的種類：顯示名首字母。
+        letter = avatar.letter ?? (presentation.displayName?.first.map { String($0).uppercased() } ?? "?")
+        palette = ContrastPalette(light: avatar.normal, dark: avatar.normal, lightHighContrast: avatar.highContrast, darkHighContrast: avatar.highContrast)
     }
 }
 
