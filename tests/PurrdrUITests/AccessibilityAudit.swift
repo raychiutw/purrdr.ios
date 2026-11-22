@@ -12,11 +12,6 @@ extension XCTestCase {
         let context = AccessibilityAuditContext(app: app, screen: screen, isAccessibilitySize: contentSize != nil)
         // 轉場、捲動、玻璃面板淡入還在動時量對比會量到中間態：畫面停下來再稽核。
         app.waitForVisualSettle()
-        // 稽核當下的畫面(測試失敗時留在 result bundle,對照 log 的 frame 找元素)。
-        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        shot.name = "a11y-audit \(screen) \(size)"
-        shot.lifetime = .deleteOnSuccess
-        add(shot)
         try app.performAccessibilityAudit(for: types) { issue in
             let summary = AccessibilityAuditExclusions.describe(issue)
             if let reason = AccessibilityAuditExclusions.reason(for: issue, in: context) {

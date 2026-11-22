@@ -21,8 +21,7 @@
       },
       "skippedTests": [
         "DailySmokeUITests",
-        "AccessibilityAuditUITests",
-        "ScreenshotTourUITests"
+        "AccessibilityAuditUITests"
       ]
     }
   ],

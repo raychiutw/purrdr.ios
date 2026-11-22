@@ -60,10 +60,6 @@ final class MultiHostUITests: XCTestCase {
 
         XCTAssertTrue(demoHeader.waitUntilGone(timeout: 5), "篩選 Studio Mac 時不該有 Demo 的段落")
         XCTAssertTrue(app.reveal(studioHeader, timeout: 10), "篩選後沒有 Studio Mac 的段落")
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "host-filter-spaces"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
     }
 
     /// 正式 Demo 也演出多主機(#34):沒有已存主機時，Demo 主機的列之外還有示範主機「Studio Mac」的列,

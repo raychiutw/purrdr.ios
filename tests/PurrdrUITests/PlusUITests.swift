@@ -124,26 +124,6 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["sheet.account"].firstMatch.waitUntilExists(timeout: 10), "點功能列沒有到帳號頁")
     }
 
-    /// 截圖(淺色、深色 × 已訂閱、付費牆),附件給人工確認。
-    @MainActor
-    func testPlusPageScreenshots() {
-        for (appearance, member) in [("light", "-uiTestingPlusMember"), ("dark", "-uiTestingPlusMember"), ("light", "-uiTestingMember"), ("dark", "-uiTestingMember")] {
-            let app = XCUIApplication.launchUITesting(flags: [member, "-seedHost", "-appearance", appearance])
-            openPlus(in: app)
-            _ = app.descendants(matching: .any)[member == "-uiTestingPlusMember" ? "plus.manage" : Self.monthly].firstMatch.waitUntilExists(timeout: 15)
-            let name = "plus-\(member == "-uiTestingPlusMember" ? "subscribed" : "paywall")-\(appearance)"
-            let attachment = XCTAttachment(screenshot: app.screenshot())
-            attachment.name = name
-            attachment.lifetime = .keepAlways
-            add(attachment)
-            app.swipeUp()
-            let second = XCTAttachment(screenshot: app.screenshot())
-            second.name = name + "-2"
-            second.lifetime = .keepAlways
-            add(second)
-            app.terminate()
-        }
-    }
 
     @MainActor
     private func openPlus(in app: XCUIApplication) {

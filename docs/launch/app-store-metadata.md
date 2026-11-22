@@ -149,7 +149,7 @@ Purrdr 是獨立開發的 App,與 herdr、Anthropic、OpenAI、Tailscale 沒有�
 
 ## 截圖
 
-`scripts/screenshots.sh [輸出資料夾] [模擬器]` 以 Demo 主機跑 `ScreenshotTourUITests`,匯出 11 張(檔名數字是建議順序):
+截圖在模擬器以 Demo 主機手動拍(#374 起 UI 測試不再拍截圖),建議 11 張(檔名數字是建議順序):
 列表與 workspace 卡片、需要你、subagent、slash 選單、`/model`、`/effort`、`!` 指令、終端機、多主機(一台連不上)、推播設定、歡迎頁。
 App Store 需要 6.9 吋 iPhone 與 13 吋 iPad 各一組(其他尺寸可由這兩組縮放),要以對應的模擬器各跑一次。
 

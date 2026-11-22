@@ -3,7 +3,7 @@
 App Store Connect → 版本 → App 審查資訊 →「備註」(上限 4,000 字元)。下方英文段落直接貼上;中文是對照與依據。
 
 **每次送審前核對**:內容必須和送審 build 的 Demo 一致(#36 驗收條件)。Demo 改了(`src/PurrdrDemo/`、`AGENTS.md`「Demo 主機」一節),這份要一起改;
-最快的核對方式是跑 `scripts/screenshots.sh`,看 11 張截圖是否仍對得上下面每一項(截圖 09 是正式 Demo 的示範主機，旗標 `-demoCompanions`)。
+核對方式是在模擬器以 Demo 主機手動走一遍，看畫面是否仍對得上下面每一項(截圖 09 是正式 Demo 的示範主機，旗標 `-demoCompanions`)。
 
 「登入資訊」:**不需要示範帳號**(勾「不需要登入」)。聊天與終端機不需要帳號;Purrdr Plus 的會員用 Sign in with Apple 自行建立。
 
