@@ -2,7 +2,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 模型膠囊(#350):輸入列工具列、附加鈕右邊(權限模式膠囊左邊)。顯示目前的模型加 `▾`,
+/// 模型膠囊(#350、#382):輸入列展開時下方一列、附加鈕右邊。顯示目前的模型與 effort 加 `▾`(不被截斷，版面給理想寬度),
 /// 高度與底色同附加鈕(DESIGN.md「選單膠囊」);點一下送 `/model`,sheet 裡用勾選列選(同「選擇控制」)。
 struct ModelCapsule: View {
     let model: ConversationModel
@@ -11,7 +11,8 @@ struct ModelCapsule: View {
 
     @State private var isPresented = false
 
-    private var title: String { model.modelName ?? String(localized: "Model") }
+    /// 模型名稱加 effort(「Opus 5.5 · 中」);還沒讀到時是「Model」。
+    private var title: String { model.modelSummary ?? String(localized: "Model") }
 
     var body: some View {
         Button {
@@ -23,6 +24,7 @@ struct ModelCapsule: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondaryText)
@@ -36,7 +38,7 @@ struct ModelCapsule: View {
         .frame(minHeight: 44)
         .disabled(!model.canChooseModel)
         .accessibilityLabel(Text("Model"))
-        .accessibilityValue(Text(verbatim: model.modelName ?? ""))
+        .accessibilityValue(Text(verbatim: model.modelSummary ?? ""))
         .accessibilityHint(Text("Opens the list of models."))
         .accessibilityIdentifier("composer.model")
         .sheet(isPresented: $isPresented, onDismiss: { Task { await model.finishChoosingModel() } }) {

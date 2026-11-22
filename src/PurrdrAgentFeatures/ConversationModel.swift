@@ -319,6 +319,26 @@ public final class ConversationModel {
     /// 已滿時點「附加」:提示上限(F7)。
     public func noteImageLimit() { notice = .attachmentLimit }
 
+    /// 「+」現在能不能用(#382):離線停用、滿了提示上限。
+    public var attachAvailability: ComposerAttachAvailability {
+        ComposerAttachAvailability.resolve(isOffline: isOffline, remainingSlots: remainingImageSlots)
+    }
+
+    /// 點「+」:可以就回傳 `true`(畫面升起面板);否則放說明提示、回傳 `false`。
+    public func requestAttach() -> Bool {
+        switch attachAvailability {
+        case .available: return true
+        case .offline: notice = .attachOffline
+        case .limitReached: notice = .attachmentLimit
+        }
+        return false
+    }
+
+    /// 輸入框提示文字的種類(#382)。
+    public var placeholderKind: ComposerPlaceholderKind {
+        ComposerPlaceholderKind.choose(hasTypedAnswer: typedAnswer != nil, hasPendingPrompt: prompt != nil)
+    }
+
     /// 移除附件。送出(上傳)中不能移除。
     public func removeAttachment(_ id: String) {
         guard !isSending else { return }
@@ -2282,6 +2302,8 @@ public enum SendNotice: Sendable, Equatable {
     case unconfirmed(UnconfirmedReason)
     /// 一則最多 10 個附件(F7、#352)。
     case attachmentLimit
+    /// 離線時附件不能排隊(#382):連上後才能加入。
+    case attachOffline
     /// 讀不出圖片。
     case imageUnreadable
     /// 原始圖片超過單張上限(`ImageUploadLimit.maximumSize`)。

@@ -30,6 +30,9 @@ enum UITestWait {
 }
 
 extension XCUIElement {
+    /// 輸入框是不是鍵盤焦點(輸入列沒有收起鍵盤鈕可以當聚焦的訊號,#382)。
+    var hasKeyboardFocus: Bool { value(forKey: "hasKeyboardFocus") as? Bool == true }
+
     /// 等元素出現(取代 `waitForExistence`:不固定多等 1 秒)。
     @MainActor
     @discardableResult
@@ -220,17 +223,16 @@ extension XCUIApplication {
         XCTAssertTrue(element("sheet.account").waitUntilExists(timeout: 10), "沒有開出帳號頁", file: file, line: line)
     }
 
-    /// 收起軟體鍵盤：還聚焦就點輸入列的「收起鍵盤」鈕，等鍵盤消失。沒有鍵盤時立刻返回
+    /// 收起軟體鍵盤：點對話的空白處(輸入列沒有收起鍵盤鈕,#382),等鍵盤消失。沒有鍵盤時立刻返回
     /// (送出後鍵盤本來就會收起,#329;不為了「也許還在」多等)。
     @MainActor
     func dismissKeyboard(file: StaticString = #filePath, line: UInt = #line) {
         let keyboard = keyboards.firstMatch
         guard keyboard.exists else { return }
-        let hide = element("composer.hideKeyboard")
         var tapped = false
         let gone = UITestWait.until(timeout: 5) {
-            if !tapped, hide.exists {
-                hide.tap()
+            if !tapped {
+                windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)).tap()
                 tapped = true
             }
             return !keyboard.exists

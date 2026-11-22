@@ -34,7 +34,7 @@ final class SlashMenuUITests: XCTestCase {
         app.element("slash.row.demo-kit:check-diff").tap()
         XCTAssertEqual(text.value as? String, "/demo-kit:check-diff ")
         XCTAssertFalse(app.element("slash.menu").exists, "選取後選單應收起")
-        XCTAssertTrue(app.element("composer.hideKeyboard").exists, "點選不該收起鍵盤")
+        XCTAssertTrue(text.hasKeyboardFocus, "點選不該收起鍵盤")
     }
 
     /// 文字中間打「空格＋/」:出現只有 skill／自訂指令的選單，點選只換掉 `/字詞`,游標停在插入文字之後可接著打(#230)。
@@ -108,7 +108,7 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertTrue(row.waitUntilExists(timeout: 10))
         row.tap()
         XCTAssertEqual(text.value as? String, "/model ")
-        XCTAssertTrue(app.element("composer.hideKeyboard").exists, "選定不該收起鍵盤")
+        XCTAssertTrue(text.hasKeyboardFocus, "選定不該收起鍵盤")
         XCTAssertFalse(app.element("panel.card").exists, "選定不該送出")
         app.element("composer.send").tap()
 

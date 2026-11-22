@@ -1715,6 +1715,17 @@
         }
       }
     },
+    "Attachments can be added once you’re connected." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連上後才能加入附件。"
+          }
+        }
+      }
+    },
     "Automatic" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4300,17 +4311,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 Workspace 裡執行中的一切都會停止，包含 Agent。聊天紀錄仍留在主機上。"
-          }
-        }
-      }
-    },
-    "Expand" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展開"
           }
         }
       }
@@ -7493,6 +7493,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "9 以後的選項無法從這裡輸入，請在終端機回答。"
+          }
+        }
+      }
+    },
+    "Or tell the agent what to do" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "或告訴 Agent 怎麼做"
           }
         }
       }

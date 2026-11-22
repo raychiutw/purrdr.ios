@@ -236,8 +236,8 @@ final class ConversationUITests: XCTestCase {
     }
 
     /// 輸入列與鍵盤(單一啟動,原本 9 個測試合併,#374;不送出):建議提示詞只填入不送出(#123、#240)、
-    /// 上下版面與按鈕尺寸(#187)、收起鍵盤保留草稿(#37)、點訊息區與捲動收起鍵盤(#329)、
-    /// 長高超過 4 行(#137)、展開編輯保留草稿(#142)。
+    /// 兩態(收合一列、展開兩列與模型膠囊,#382)、沒有收起鍵盤鈕與展開鈕、收起鍵盤保留草稿(#37)、
+    /// 點訊息區與往下拖曳收起鍵盤(#329)、長高到 5 行後框內捲動(#382)。
     @MainActor
     func testComposerAndKeyboard() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
@@ -260,35 +260,38 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(suggestion.waitUntilExists(timeout: 5), "輸入框刪光後建議沒有再出現")
         app.dismissKeyboard()
 
-        // 上下版面:整寬輸入框在上、按鈕列在下。
+        // 收合(#382):一列 +、輸入、送出;沒有模型膠囊、收鍵盤鈕、展開鈕。
         let addImage = app.element("composer.attach")
         XCTAssertTrue(addImage.exists, "沒有加入圖片鈕")
         XCTAssertFalse(send.isEnabled, "空白時送出鈕應停用")
-        let window = app.windows.firstMatch.frame
-        XCTAssertGreaterThanOrEqual(text.frame.width, window.width - 64, "輸入框沒有整寬(\(text.frame.width) / \(window.width))")
-        let emptyHeight = text.frame.height
-        XCTAssertGreaterThanOrEqual(emptyHeight, 44, "空白時低於 44pt(\(emptyHeight)pt)")
-        XCTAssertLessThan(emptyHeight, 60, "空白時應是一行高(\(emptyHeight)pt)")
-        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
-        XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "加入圖片鈕要在輸入框下方")
-        XCTAssertLessThan(addImage.frame.maxX, send.frame.minX, "加入圖片在左、送出在右")
         XCTAssertGreaterThanOrEqual(send.frame.height, 44)
         XCTAssertGreaterThanOrEqual(addImage.frame.height, 44)
-        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "沒聚焦時不該有收起鍵盤鈕")
-        XCTAssertFalse(app.element("composer.expand").exists, "沒聚焦、空白時不該有展開鈕")
+        XCTAssertLessThan(addImage.frame.maxX, text.frame.minX + 1, "收合時加入圖片在輸入框左邊")
+        XCTAssertLessThan(text.frame.maxX, send.frame.minX + 1, "收合時送出在輸入框右邊")
+        XCTAssertEqual(text.frame.midY, send.frame.midY, accuracy: 4, "收合時輸入與送出同一列")
+        XCTAssertGreaterThanOrEqual(text.frame.height, 44, "空白時低於 44pt(\(text.frame.height)pt)")
+        XCTAssertFalse(app.element("composer.model").exists, "收合時不該有模型膠囊")
+        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "輸入列不該有收起鍵盤鈕")
+        XCTAssertFalse(app.element("composer.expand").exists, "輸入列不該有展開鈕")
+        XCTAssertFalse(app.element("composer.permissionMode").exists, "輸入列不該有權限模式鈕")
 
-        // 聚焦:收起鍵盤鈕在按鈕列;打字後至少兩行高;收起後草稿還在、沒有送出。
+        // 聚焦展開:上方輸入、下方 +、模型膠囊、送出;打字後至少兩行高;收起後草稿還在、沒有送出。
         text.tap()
-        let hide = app.element("composer.hideKeyboard")
-        XCTAssertTrue(hide.waitUntilExists(timeout: 5), "聚焦時沒有收起鍵盤鈕")
-        XCTAssertEqual(hide.label, "Hide Keyboard")
-        XCTAssertGreaterThanOrEqual(hide.frame.minY, text.frame.maxY - 1, "收起鍵盤鈕要在按鈕列")
-        XCTAssertLessThan(hide.frame.maxX, send.frame.minX + 1, "收起鍵盤鈕在送出鈕左邊")
+        let capsule = app.element("composer.model")
+        XCTAssertTrue(capsule.waitUntilExists(timeout: 5), "聚焦展開後沒有模型膠囊")
+        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "展開時送出鈕要在輸入框下方")
+        XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "展開時加入圖片鈕要在輸入框下方")
+        XCTAssertGreaterThan(capsule.frame.minX, addImage.frame.maxX - 1, "模型膠囊在加入圖片右邊")
+        XCTAssertLessThan(capsule.frame.maxX, send.frame.minX, "模型膠囊不壓到送出")
+        XCTAssertEqual(capsule.frame.midY, addImage.frame.midY, accuracy: 2, "模型膠囊與加入圖片同一列")
+        let capsuleText = capsule.value as? String ?? ""
+        XCTAssertFalse(capsuleText.isEmpty || capsuleText.hasSuffix("…"), "模型膠囊被截斷:\(capsuleText)")
+        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "聚焦時也沒有收起鍵盤鈕")
         text.typeEnglish("Line one")
         XCTAssertGreaterThanOrEqual(text.frame.height, 60, "有內容時不到兩行高(\(text.frame.height)pt)")
-        hide.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "鍵盤沒有收起")
+        app.dismissKeyboard()
         XCTAssertEqual(text.value as? String, "Line one", "草稿不見了")
+        XCTAssertTrue(app.element("composer.model").exists, "有草稿時收起鍵盤仍是展開")
         XCTAssertFalse(app.element("conversation.echo").exists, "收起鍵盤不該送出")
 
         // 點訊息區收起鍵盤。
@@ -297,52 +300,32 @@ final class ConversationUITests: XCTestCase {
         app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "點訊息區後鍵盤沒有收起")
 
-        // 上下滑動聊天收起鍵盤。
+        // 往下拖曳聊天收起鍵盤。
         text.tap()
         XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
         let screen = app.windows.firstMatch
         screen.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).press(
             forDuration: 0.05, thenDragTo: screen.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "滑動後鍵盤沒有收起")
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "拖曳後鍵盤沒有收起")
         clearDraft(text)
 
-        // 長高超過舊的 4 行上限:7 行全部攤開。
+        // 長高到 5 行為止,超過在框內捲動(#382)。
         text.typeEnglish("1\n2")
         let twoLines = text.frame.height
         text.typeEnglish("\n3")
         let lineHeight = text.frame.height - twoLines
         XCTAssertGreaterThan(lineHeight, 10, "第 3 行沒有長高")
-        text.typeEnglish("\n4\n5\n6\n7")
-        // 上限是鍵盤上方可用高度的 40%(#137):收起鍵盤再量，不依賴模擬器接的是軟體還是實體鍵盤(#190)。
+        text.typeEnglish("\n4\n5\n6\n7\n8")
+        // 上限同時受鍵盤上方可用高度的 40% 限制(#137):收起鍵盤再量，不依賴模擬器接的是軟體還是實體鍵盤(#190)。
         app.dismissKeyboard()
-        let sevenLines = text.frame.height
-        XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
-        XCTAssertTrue(app.element("composer.expand").exists, "沒聚焦、7 行時應有展開鈕")
-        clearDraft(text)
-
-        // 展開編輯:同一份草稿，收回保留在展開畫面打的字。
-        let expand = app.element("composer.expand")
-        XCTAssertTrue(expand.waitUntilExists(timeout: 5), "聚焦時沒有展開鈕")
-        XCTAssertEqual(expand.label, "Expand")
-        XCTAssertHitTarget(expand)
-        text.typeEnglish("1\n2\n3")
-        expand.tap()
-        let expanded = app.element("composer.expanded.text")
-        XCTAssertTrue(expanded.waitUntilExists(timeout: 5), "沒有開出展開畫面")
-        XCTAssertEqual(expanded.value as? String, "1\n2\n3", "展開畫面不是同一份草稿")
-        XCTAssertGreaterThan(expanded.frame.height, text.frame.height, "展開畫面的輸入框沒有比輸入列大")
-        expanded.tap()
-        expanded.typeEnglish("\n4")
-        app.element("composer.expanded.done").tap()
-        XCTAssertTrue(expanded.waitUntilGone(timeout: 5), "「完成」沒有收回")
-        XCTAssertEqual(text.value as? String, "1\n2\n3\n4", "收回後草稿不見了")
-        XCTAssertFalse(app.element("conversation.echo").exists, "收回不該送出")
-        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "收回後輸入列不該聚焦")
-        XCTAssertTrue(expand.exists, "沒聚焦、4 行時應有展開鈕")
+        let capped = text.frame.height
+        XCTAssertGreaterThan(capped, twoLines + lineHeight * 2.5, "5 行沒有攤開(\(capped)pt,2 行 \(twoLines)、行高 \(lineHeight))")
+        XCTAssertLessThan(capped, twoLines + lineHeight * 3.5, "超過 5 行應在框內捲動而不是繼續長高(\(capped)pt)")
+        XCTAssertEqual(text.value as? String, "1\n2\n3\n4\n5\n6\n7\n8", "草稿不完整")
     }
 
     /// 送出(單一啟動,原本 3 個測試合併,#374):輸入框清空、回音出現，agent 收下後對話紀錄接上回覆、回音消失;
-    /// 送出後立刻收起鍵盤(#329);在展開畫面送出回到對話(#142)。
+    /// 送出後立刻收起鍵盤(#329)。
     @MainActor
     func testSending() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
@@ -370,28 +353,6 @@ final class ConversationUITests: XCTestCase {
             .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
         XCTAssertTrue(reply.waitUntilExists(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
         XCTAssertFalse(app.element("conversation.echo").exists, "對話紀錄確認後回音應消失")
-
-        // 在展開畫面送出:回到對話、輸入列清空、有回音;送出與完成鈕在鍵盤上方。
-        text.tap()
-        app.element("composer.expand").tap()
-        let expanded = app.element("composer.expanded.text")
-        XCTAssertTrue(expanded.waitUntilExists(timeout: 5), "沒有開出展開畫面")
-        expanded.tap()
-        expanded.typeEnglish("Sent from the big editor")
-        let expandedSend = app.element("composer.expanded.send")
-        let done = app.element("composer.expanded.done")
-        let keyboard = app.keyboards.firstMatch
-        if keyboard.exists {
-            XCTAssertLessThanOrEqual(expandedSend.frame.maxY, keyboard.frame.minY + 1, "送出鈕被鍵盤擋住")
-            XCTAssertLessThanOrEqual(done.frame.maxY, keyboard.frame.minY + 1, "完成鈕被鍵盤擋住")
-        }
-        XCTAssertTrue(expandedSend.isHittable)
-        XCTAssertTrue(done.isHittable)
-        XCTAssertGreaterThanOrEqual(expandedSend.frame.height, 44)
-        expandedSend.tap()
-        XCTAssertTrue(expanded.waitUntilGone(timeout: 5), "送出後沒有回到對話")
-        XCTAssertTrue(sentMessage("Sent from the big editor", in: app).waitUntilExists(timeout: 5), "沒有回音")
-        XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
     }
 
     /// 送出可撤回(#300):送出後訊息先以倒數泡泡出現，撤回把文字放回輸入框;再送一次按「立即送出」就變成回音。

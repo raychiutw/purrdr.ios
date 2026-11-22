@@ -45,7 +45,7 @@ final class ImageAttachmentUITests: XCTestCase {
 
         let text = app.element("composer.text")
         text.tap()
-        XCTAssertTrue(app.element("composer.hideKeyboard").waitUntilExists(timeout: 5), "輸入框沒有聚焦")
+        XCTAssertTrue(UITestWait.until(timeout: 5) { text.hasKeyboardFocus }, "輸入框沒有聚焦")
         text.typeKey("v", modifierFlags: .command)
 
         if !app.element("composer.attachment.0").waitUntilExists(timeout: 5) {
@@ -90,39 +90,6 @@ final class ImageAttachmentUITests: XCTestCase {
         XCTAssertTrue(viewer.waitUntilExists(timeout: 5), "點泡泡圖片沒有全螢幕檢視")
         viewer.tap()
         XCTAssertTrue(viewer.waitUntilGone(timeout: 5), "點一下沒有關閉全螢幕檢視")
-    }
-
-    /// 展開畫面裡管理附件(#142):在裡面加入的附件收回後還在輸入列，輸入列加入的在展開畫面看得到、可移除。
-    @MainActor
-    func testExpandedEditorManagesAttachments() {
-        Self.putImageOnPasteboard()
-        let app = openLedger()
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-
-        app.element("composer.text").tap()
-        app.element("composer.expand").tap()
-        let add = app.element("composer.expanded.attach")
-        XCTAssertTrue(add.waitUntilExists(timeout: 5), "展開畫面沒有「＋附加」")
-        add.tap()
-        XCTAssertTrue(app.element("attach.paste").waitUntilExists(timeout: 5))
-        app.element("attach.paste").tap()
-        for label in ["Allow Paste", "允許貼上"] where springboard.buttons[label].waitUntilExists(timeout: 2) {
-            springboard.buttons[label].tap()
-        }
-        XCTAssertTrue(app.element("composer.expanded.attachment.0").waitUntilExists(timeout: 5), "展開畫面沒有顯示加入的附件")
-
-        app.element("composer.expanded.done").tap()
-        XCTAssertTrue(app.element("composer.attachment.0").waitUntilExists(timeout: 5), "收回後附件不見了")
-
-        app.element("composer.text").tap()
-        app.element("composer.expand").tap()
-        let remove = app.element("composer.expanded.attachment.remove.0")
-        XCTAssertTrue(remove.waitUntilExists(timeout: 5), "展開畫面沒有移除鈕")
-        remove.tap()
-        XCTAssertTrue(app.element("composer.expanded.attachment.0").waitUntilGone(timeout: 5), "移除後附件還在")
-        app.element("composer.expanded.done").tap()
-        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5))
-        XCTAssertFalse(app.element("composer.attachment.0").exists, "展開畫面移除的附件回到輸入列還在")
     }
 
     /// 「＋」念「附加」、至少 44pt;點了升起面板:最近的照片(替身)、所有照片、檔案、貼上(#352)。

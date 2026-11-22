@@ -255,15 +255,18 @@ struct AttachButton: View {
 
     var body: some View {
         Button {
-            if model.remainingImageSlots > 0 { showsPanel = true } else { model.noteImageLimit() }
+            // 離線時停用外觀但仍可點:點了說明「連上後才能加入附件」(#382)。
+            if model.requestAttach() { showsPanel = true }
         } label: {
             Image(systemName: "plus")
                 .frame(width: 30, height: 30)
         }
         .composerCircleButtonStyle()
         .frame(minWidth: 44, minHeight: 44)
+        .opacity(model.attachAvailability.isDimmed ? 0.4 : 1)
         .disabled(model.isSending || model.loadingFileName != nil)
         .accessibilityLabel(Text("Attach"))
+        .accessibilityHint(model.attachAvailability == .offline ? Text("Attachments can be added once you’re connected.") : Text(verbatim: ""))
         .accessibilityIdentifier(identifier)
         .sheet(isPresented: $showsPanel, onDismiss: presentNext) {
             AttachPanel(model: model, source: recentPhotos) { choice in

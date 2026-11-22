@@ -38,6 +38,8 @@ final class PermissionModeUITests: XCTestCase {
         let row = app.element("agent.row.demo/w1:p1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
+        // 模型膠囊只在輸入列展開(聚焦或有文字)時顯示(#382)。
+        app.element("composer.text").tap()
         let capsule = app.element("composer.model")
         let attach = app.element("composer.attach")
         XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")

@@ -66,7 +66,10 @@ final class DailySmokeUITests: XCTestCase {
             ledger.tap()
             let text = app.element("composer.text")
             XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
+            // 輸入列兩態(#382):收合一列沒有模型膠囊,聚焦展開後有。
+            XCTAssertFalse(app.element("composer.model").exists, "收合時不該有模型膠囊")
             text.tap()
+            XCTAssertTrue(app.element("composer.model").waitUntilExists(timeout: 5), "聚焦後輸入列沒有展開")
             text.typeEnglish("Add a header row too?")
             app.element("composer.send").tap()
             app.dismissKeyboard()
