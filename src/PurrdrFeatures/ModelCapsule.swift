@@ -69,16 +69,7 @@ struct ModelSheet: View {
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Label("Close", systemImage: "xmark")
-                        }
-                        .accessibilityIdentifier("model.close")
-                    }
-                }
+                .toolbar { SheetCloseToolbar(identifier: "model.close") }
                 .navigationDestination(isPresented: Binding(
                     get: { model.modelSheetPage == .effort },
                     set: { shown in if !shown { Task { await model.closeEffortPage() } } }

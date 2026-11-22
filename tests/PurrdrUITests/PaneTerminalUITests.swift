@@ -123,7 +123,7 @@ final class PaneTerminalUITests: XCTestCase {
             XCTAssertTrue(note.waitUntilExists(timeout: 5))
             XCTAssertTrue(note.label.contains("layout on your computer changes"), "沒有說明會影響電腦版面:\(note.label)")
             app.buttons["Keep Host Layout"].firstMatch.tap()
-            app.buttons["Done"].firstMatch.tap()
+            app.buttons["sheet.close"].firstMatch.tap()
         }
     }
 

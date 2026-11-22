@@ -60,12 +60,7 @@ public struct WelcomeView: View {
             .appGroupedList()
             .accessibilityIdentifier("sheet.welcome")
             .navigationTitle("Welcome")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: done)
-                        .accessibilityIdentifier("sheet.done")
-                }
-            }
+            .toolbar { SheetCloseToolbar(action: done) }
         }
     }
 

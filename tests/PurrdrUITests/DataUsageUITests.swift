@@ -40,7 +40,7 @@ final class DataUsageUITests: XCTestCase {
         XCTAssertTrue(thirty.waitUntilExists(timeout: 5))
         XCTAssertTrue(thirty.isSelected, "預設不是 30 天")
         optionRow("7 Days", in: app).tap()
-        app.buttons["sheet.done"].tap()
+        app.buttons["sheet.close"].tap()
         XCTAssertTrue(app.buttons["dataUsage.period"].label.contains("7 Days"))
 
         app.buttons["dataUsage.category"].tap()
@@ -48,7 +48,7 @@ final class DataUsageUITests: XCTestCase {
         XCTAssertTrue(total.waitUntilExists(timeout: 5))
         XCTAssertTrue(total.isSelected, "預設不是加總")
         optionRow("Sent & Received", in: app).tap()
-        app.buttons["sheet.done"].tap()
+        app.buttons["sheet.close"].tap()
         let legend = app.element("dataUsage.legend")
         XCTAssertTrue(legend.waitUntilExists(timeout: 5))
         XCTAssertTrue(legend.label.contains("Sent") || app.staticTexts["Sent"].exists, "圖例沒有送出")

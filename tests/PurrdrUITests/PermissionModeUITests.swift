@@ -25,7 +25,7 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits 勾選列")
         accept.tap()
         XCTAssertTrue(accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Accept Edits")
-        app.buttons["Done"].tap()
+        app.buttons["sheet.close"].tap()
         XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5))
         XCTAssertTrue(
             header.wait(for: NSPredicate(format: "label BEGINSWITH 'Accept Edits'"), timeout: 10), "膠囊第二行沒有顯示 Accept Edits")

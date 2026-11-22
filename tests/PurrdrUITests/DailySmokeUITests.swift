@@ -108,7 +108,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits")
             accept.tap()
             XCTAssertTrue(accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Accept Edits")
-            app.buttons["Done"].tap()
+            app.buttons["sheet.close"].tap()
             XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "面板沒有關閉")
         }
         step("模型選擇 sheet 與投入程度子頁(#384)") {
@@ -190,10 +190,10 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
             XCTAssertFalse(app.buttons["hosts.add"].exists, "流量 tab 右上不放動作")
         }
-        step("設定 tab 沒有「完成」,只有帳號鈕") {
+        step("設定 tab 沒有關閉鈕,只有帳號鈕") {
             app.openSettingsTab()
             XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
-            XCTAssertFalse(app.buttons["sheet.done"].exists, "設定 tab 不是 sheet,不該有「完成」")
+            XCTAssertFalse(app.buttons["sheet.close"].exists, "設定 tab 不是 sheet,不該有關閉鈕")
             XCTAssertTrue(app.buttons["Used"].firstMatch.exists, "設定 tab 沒有用量顯示的「已用」(#389)")
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "設定 tab 沒有帳號鈕")
         }

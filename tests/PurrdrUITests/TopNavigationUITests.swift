@@ -14,7 +14,7 @@ final class TopNavigationUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
 
         app.openSettingsTab()
-        XCTAssertFalse(app.buttons["sheet.done"].exists, "設定是 tab,不該有「完成」")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "設定是 tab,不該有關閉鈕")
 
         app.openTab(.chats)
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch), "沒有回到 Agent 列表")
@@ -26,7 +26,7 @@ final class TopNavigationUITests: XCTestCase {
 
         app.openHostsTab()
         XCTAssertTrue(app.descendants(matching: .any)["sheet.hosts"].firstMatch.exists, "沒有主機總頁")
-        XCTAssertFalse(app.buttons["sheet.done"].exists, "主機是 tab,不該有「完成」")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "主機是 tab,不該有關閉鈕")
     }
 
     @MainActor
@@ -38,7 +38,7 @@ final class TopNavigationUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["sheet.newChat"].firstMatch.waitUntilExists(timeout: 10), "沒有開出新增對話")
         let cancel = app.buttons["newChat.cancel"]
         XCTAssertTrue(cancel.exists, "新增對話沒有「Cancel」")
-        XCTAssertFalse(app.buttons["sheet.done"].exists, "新增對話不該同時有「完成」")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "新增對話不該同時有關閉鈕")
 
         cancel.tap()
         XCTAssertTrue(cancel.waitUntilGone(timeout: 5), "sheet 沒有關閉")

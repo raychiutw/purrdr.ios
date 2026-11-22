@@ -158,7 +158,7 @@ final class SettingsUITests: XCTestCase {
         let rate = app.buttons["為 Purrdr 評分"]
         app.scrollIntoView(rate, search: .down)
         XCTAssertTrue(rate.waitUntilExists(timeout: 5), "沒有「為 Purrdr 評分」")
-        XCTAssertFalse(app.buttons["sheet.done"].exists, "設定是 tab,沒有「完成」")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "設定是 tab,沒有關閉鈕")
     }
 
     /// Codex 啟動器(#24,ADR-0002)在主機頁(#274):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。

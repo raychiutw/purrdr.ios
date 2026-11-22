@@ -52,12 +52,7 @@ struct PairingCodeScannerView: View {
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
-                            .accessibilityIdentifier("scanner.cancel")
-                    }
-                }
+                .toolbar { SheetCloseToolbar(identifier: "scanner.close") }
         }
         .task { permission = await CameraPermission.current(for: source) }
     }

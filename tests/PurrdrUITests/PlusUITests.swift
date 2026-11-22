@@ -67,8 +67,8 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.buttons["account.entry.join"].exists)
         app.buttons["member.signIn.cancel"].tap()
 
-        // 深層連結開的是付費牆 sheet(#246),「完成」關掉就回到列表。
-        let done = app.buttons["plus.done"]
+        // 深層連結開的是付費牆 sheet(#246),xmark 關掉就回到列表。
+        let done = app.buttons["plus.close"]
         XCTAssertTrue(done.waitUntilExists(timeout: 5))
         done.tap()
         XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitUntilExists(timeout: 5))

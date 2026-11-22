@@ -42,10 +42,7 @@ public struct MemberView: View {
                 if entry.shownScreen(phase: model.phase, hasPlus: plus != nil) != nil {
                     AccountEntryToolbar(entry: $entry, onClose: { dismiss() })
                 } else {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                            .accessibilityIdentifier("member.done")
-                    }
+                    SheetCloseToolbar(identifier: "member.close")
                 }
             }
         }

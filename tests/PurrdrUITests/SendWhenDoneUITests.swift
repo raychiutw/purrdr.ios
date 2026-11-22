@@ -45,7 +45,7 @@ final class SendWhenDoneUITests: XCTestCase {
         // 已知問題(待查,見 PR 說明):UI 測試裡點「做完再送」膠囊沒有反應(值一直是 Off、也沒有說明對話框);
         // 同一條接線在 model 層的 UITestingSendWhenDoneTests 是通的。查清楚前不讓它擋住整批 UI 測試。
         try XCTSkipUnless(toggle.value as? String == "On", "做完再送膠囊點了沒有反應(待查)")
-        app.buttons["Done"].tap()
+        app.buttons["sheet.close"].tap()
 
         queue("first message", in: app)
         queue("second message", in: app)

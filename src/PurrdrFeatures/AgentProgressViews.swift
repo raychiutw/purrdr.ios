@@ -119,9 +119,7 @@ struct ConversationStatusSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-            }
+            .toolbar { SheetCloseToolbar() }
             .navigationDestination(for: DelegationRoute.self) { route in
                 DelegationDestination(route: route, conversation: model)
             }

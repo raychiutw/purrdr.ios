@@ -372,9 +372,7 @@ private struct DataUsageOptionsSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("sheet.done") }
-            }
+            .toolbar { SheetCloseToolbar() }
         }
         .presentationDetents([.medium])
     }
@@ -411,9 +409,7 @@ private struct DataUsageHostSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("sheet.done") }
-            }
+            .toolbar { SheetCloseToolbar() }
         }
         .presentationDetents([.medium])
     }

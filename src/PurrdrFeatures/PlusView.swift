@@ -307,12 +307,7 @@ public struct PlusSheet: View {
     public var body: some View {
         NavigationStack {
             PlusView(model: model, member: member, features: features)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                            .accessibilityIdentifier("plus.done")
-                    }
-                }
+                .toolbar { SheetCloseToolbar(identifier: "plus.close") }
         }
     }
 }

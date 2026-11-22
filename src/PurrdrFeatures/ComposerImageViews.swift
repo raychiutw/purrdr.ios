@@ -363,12 +363,7 @@ struct AttachPanel: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { dismiss() }
-                        .accessibilityIdentifier("attach.close")
-                }
-            }
+            .toolbar { SheetCloseToolbar(identifier: "attach.close") }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("attach.panel")
