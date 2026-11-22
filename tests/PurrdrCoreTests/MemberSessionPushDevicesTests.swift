@@ -180,4 +180,24 @@ struct MemberSessionPushDevicesTests {
         #expect(backend.requests.map(\.method) == ["DELETE", "DELETE"])
         #expect(backend.requests.first?.path == "/v1/members/me/push-devices/\(Self.otherDevice)")
     }
+
+    @Test("舊版 app 的 legacy- 裝置：改名與關閉都用清單回的 id 當路徑(契約:可用這個 id 撤銷或改名)")
+    func legacyDeviceCanBeRenamedAndRevoked() async throws {
+        let legacy = "legacy-0123456789abcdef0123456789abcdef"
+        let backend = FakeBackend([
+            "PATCH /v1/members/me/push-devices/\(legacy)": Self.json(200, #"""
+                {"device": {"deviceId": "\#(legacy)", "name": "Old iPhone", "model": null, "hostCount": 1,
+                 "lastRegisteredAt": 1794729600000, "current": false}}
+                """#),
+            "DELETE /v1/members/me/push-devices/\(legacy)": Self.json(204, ""),
+        ])
+        let session = try makeSession(backend)
+
+        let renamed = try await session.renamePushDevice(legacy, to: "Old iPhone", currentDeviceID: Self.thisDevice)
+        try await session.revokePushDevice(legacy)
+
+        #expect(renamed.id == legacy)
+        #expect(renamed.name == "Old iPhone")
+        #expect(backend.requests.map(\.path) == ["/v1/members/me/push-devices/\(legacy)", "/v1/members/me/push-devices/\(legacy)"])
+    }
 }

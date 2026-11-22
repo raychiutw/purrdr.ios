@@ -242,6 +242,17 @@
         }
       }
     },
+    "%@, %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@,%2$@"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1080,17 +1091,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "帳號名稱"
-          }
-        }
-      }
-    },
-    "Actions for %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「%@」的動作"
           }
         }
       }
@@ -5594,6 +5594,17 @@
         }
       }
     },
+    "Hosts: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機:%lld"
+          }
+        }
+      }
+    },
     "Hosts: %lld · Last used %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6228,6 +6239,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最後上線 %@"
+          }
+        }
+      }
+    },
+    "Last active %@ · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次使用 %1$@ · %2$@"
           }
         }
       }
@@ -10687,6 +10709,17 @@
         }
       }
     },
+    "Shows options for this device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示這支裝置的選項"
+          }
+        }
+      }
+    },
     "Shows the background agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11629,6 +11662,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點一根長條查看那天的用量。"
+          }
+        }
+      }
+    },
+    "Tap a device to rename it or turn off its notifications without signing it out. Turning off a device stops its notifications from every host, even if it’s lost." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下裝置可以重新命名,或只關閉它的通知(不會登出)。關閉後,那支裝置不再收到任何主機的通知,遺失的裝置也一樣。"
           }
         }
       }
@@ -13021,6 +13065,17 @@
         }
       }
     },
+    "This device · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置 · %@"
+          }
+        }
+      }
+    },
     "This diff is too large to show on this device." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14107,17 +14162,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要現在開啟通知和主機同步嗎？之後也可以在這裡開關。"
-          }
-        }
-      }
-    },
-    "Turning off a device stops its notifications from every host, even if it’s lost. Each host’s leftover pairing is removed the next time it tries to notify." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "關閉裝置後，所有主機都不再通知它，遺失的裝置也適用。主機上殘留的配對會在下次嘗試通知時移除。"
           }
         }
       }

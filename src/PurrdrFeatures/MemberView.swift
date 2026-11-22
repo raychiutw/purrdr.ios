@@ -393,8 +393,17 @@ struct AccountView: View {
                 featureSections(plus: plus)
                 if signedInMember != nil, let pushDevices {
                     // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
-                    PushDevicesSection(model: pushDevices, canRename: account.hasPlus)
-                        .id(PlusFeature.devices)
+                    Section {
+                        NavigationLink {
+                            PushDevicesView(model: pushDevices, canRename: account.hasPlus)
+                        } label: {
+                            LabeledContent("Notification Devices") {
+                                if pushDevices.hasLoaded { Text("\(pushDevices.devices.count) devices") }
+                            }
+                        }
+                        .accessibilityIdentifier("member.pushDevices")
+                    }
+                    .id(PlusFeature.devices)
                 }
             }
 
@@ -457,7 +466,7 @@ struct AccountView: View {
         }
         .manageSubscriptions(isPresented: $managingSubscription)
         .hostPushConfirmation(pushes)
-        .pushDevicesDialogs(signedInMember != nil ? pushDevices : nil, notifyingHostNames: notifyingHostNames)
+        .pushDevicesLoading(signedInMember != nil ? pushDevices : nil, notifyingHostNames: notifyingHostNames)
         .alert(plus?.notice?.title ?? "", isPresented: subscriptionNoticePresented, presenting: plus?.notice) { _ in
             Button("OK", role: .cancel) {}
         } message: { notice in
@@ -652,15 +661,18 @@ private struct SignInDeviceRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: device.displayName)
-                if device.isCurrent {
-                    Text("This device")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondaryText)
-                } else {
-                    Text("Last active \(device.lastActiveAt.formatted(.relative(presentation: .named)))")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondaryText)
+                let model = device.name == nil ? nil : device.model
+                Group {
+                    if device.isCurrent {
+                        if let model { Text("This device · \(model)") } else { Text("This device") }
+                    } else if let model {
+                        Text("Last active \(device.lastActiveAt.formatted(.relative(presentation: .named))) · \(model)")
+                    } else {
+                        Text("Last active \(device.lastActiveAt.formatted(.relative(presentation: .named)))")
+                    }
                 }
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
