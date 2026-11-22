@@ -24,12 +24,12 @@
 <sc-if value="{{s.stAction}}" hint-placeholder-val="{{false}}"><button class="{{s.stBtn}}" style="align-self:flex-start">{{s.stAction}}</button></sc-if>
 </div>
 <sc-if value="{{s.useBars}}" hint-placeholder-val="{{false}}">
-<div class="sh">額度(最後讀到的資料 · 08:12)</div>
+<div class="sh">用量(最後讀到的資料 · 08:12)</div>
 <div class="card" style="padding:12px 16px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:space-between;font-size:15px"><span>Claude · 5 小時</span><span><b style="font-weight:600">38%</b> <span style="color:var(--sec)">已用</span></span></div><div class="bar"><div style="width:38%;background:var(--u-ok)"></div></div></div>
 </sc-if>
 <sc-if value="{{s.useEnable}}" hint-placeholder-val="{{false}}">
-<div class="sh">額度</div>
-<div class="card" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px"><span style="font-size:15px;line-height:1.4">要在這裡看到 Claude 的 5 小時與 7 天額度,需要在這台主機上啟用額度擷取(會修改 Claude Code 的 status line 設定,可完整還原)。</span><button class="btn-tint" style="align-self:flex-start">啟用額度顯示</button></div>
+<div class="sh">用量</div>
+<div class="card" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px"><span style="font-size:15px;line-height:1.4">要在這裡看到 Claude 的 5 小時與 7 天用量,需要在這台主機上啟用用量擷取(會修改 Claude Code 的 status line 設定,可完整還原)。</span><button class="btn-tint" style="align-self:flex-start">啟用用量顯示</button></div>
 </sc-if>
 <div class="sh">這台主機</div>
 <div class="card">
@@ -48,7 +48,7 @@
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2620,"height":1880}}'>
 class Component extends DCLogic {
   renderVals() {
-    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
+    const TABS = [['聊天', 'M3 4h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8l-4 3v-3H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M19 8h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v3l-4-3h-4a2 2 0 0 1-1.7-1H15a4 4 0 0 0 4-4z'], ['檔案', 'M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z'], ['主機', 'M2 4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6v3h3v2H7v-2h3v-3H4a2 2 0 0 1-2-2z'], ['流量', 'M8 2.5l5 5H9.6V15H6.4V7.5H3z M16 21.5l-5-5h3.4V9h3.2v7.5H21z'], ['設定', 'M12 2l2 2.5 3-.8.8 3 2.7 1.3-1 2.9 1 2.9-2.7 1.3-.8 3-3-.8L12 22l-2-2.5-3 .8-.8-3-2.7-1.3 1-2.9-1-2.9L6.2 7.7l.8-3 3 .8z M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z']];
     const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 2 ? 'on' : '', cur: i === 2 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
     const it = (name, sub, off) => ({ name, sub: sub || '', off: !!off, cls: off ? 'dis' : '' });
     const base = { err: false, okdot: true, dot: 'var(--accent)', stAction: '', stBtn: 'btn-tint', useBars: false, useEnable: false, remove: '移除主機' };
@@ -63,7 +63,7 @@ class Component extends DCLogic {
         items: [it('通知', '需要你'), it('這台主機的設定', '唯讀裝置無法更改', true), it('編輯主機')] },
       { name: 'herdr 需要更新', host: 'Ray PC', err: true, okdot: false, stTitle: 'herdr 0.9.3 太舊', stSub: 'Purrdr 需要 herdr 0.9.5 以上', stAction: '更新 herdr', stBtn: 'btn-prom',
         items: [it('登入 Shell'), it('編輯主機')] },
-      { name: '額度尚未啟用', host: 'Ray PC', stTitle: '線上', stSub: 'OpenSSH · herdr 0.9.6', useEnable: true,
+      { name: '用量尚未啟用', host: 'Ray PC', stTitle: '線上', stSub: 'OpenSSH · herdr 0.9.6', useEnable: true,
         items: [it('通知', '需要你、完成'), it('登入 Shell'), it('這台主機的設定')] }
     ];
     const screens = [];
