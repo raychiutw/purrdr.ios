@@ -3,10 +3,10 @@ import Testing
 
 /// 會員頁的「設定 Purrdr Plus」步驟卡(#246):加入會員 → 開通 Purrdr Plus → 開啟通知 → 同步主機名單。
 @Suite("Purrdr Plus 開通步驟")
-struct PlusSetupProgressTests {
+struct AccountSetupProgressTests {
     @Test("未加入會員：目前是加入會員，其餘步驟還沒到")
     func notMemberStartsAtJoin() {
-        let progress = PlusSetupProgress(isMember: false, isPlusActive: false, isNotificationsOn: false, isHostSyncOn: false)
+        let progress = AccountSetupProgress(account: AccountState(authentication: .signedOut, plus: .none), isNotificationsOn: false, isHostSyncOn: false)
 
         #expect(progress.currentStep == .joinMember)
         #expect(progress.state(of: .joinMember) == .current)
@@ -19,7 +19,7 @@ struct PlusSetupProgressTests {
 
     @Test("已加入會員、未開通：目前是開通 Purrdr Plus")
     func memberWithoutPlusIsAtActivate() {
-        let progress = PlusSetupProgress(isMember: true, isPlusActive: false, isNotificationsOn: false, isHostSyncOn: false)
+        let progress = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .none), isNotificationsOn: false, isHostSyncOn: false)
 
         #expect(progress.currentStep == .activatePlus)
         #expect(progress.state(of: .joinMember) == .done)
@@ -29,7 +29,7 @@ struct PlusSetupProgressTests {
 
     @Test("開通後：目前是開啟通知，同步主機名單還沒到")
     func plusActiveIsAtNotifications() {
-        let progress = PlusSetupProgress(isMember: true, isPlusActive: true, isNotificationsOn: false, isHostSyncOn: false)
+        let progress = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .active(source: .appStore)), isNotificationsOn: false, isHostSyncOn: false)
 
         #expect(progress.currentStep == .turnOnNotifications)
         #expect(progress.state(of: .syncHosts) == .upcoming)
@@ -38,7 +38,7 @@ struct PlusSetupProgressTests {
 
     @Test("通知已開：目前是同步主機名單")
     func notificationsOnIsAtSync() {
-        let progress = PlusSetupProgress(isMember: true, isPlusActive: true, isNotificationsOn: true, isHostSyncOn: false)
+        let progress = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .active(source: .appStore)), isNotificationsOn: true, isHostSyncOn: false)
 
         #expect(progress.currentStep == .syncHosts)
         #expect(progress.completedCount == 3)
@@ -46,7 +46,7 @@ struct PlusSetupProgressTests {
 
     @Test("同步先開了、通知還沒：同步算完成，目前仍是開啟通知")
     func syncOnBeforeNotifications() {
-        let progress = PlusSetupProgress(isMember: true, isPlusActive: true, isNotificationsOn: false, isHostSyncOn: true)
+        let progress = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .active(source: .appStore)), isNotificationsOn: false, isHostSyncOn: true)
 
         #expect(progress.currentStep == .turnOnNotifications)
         #expect(progress.state(of: .syncHosts) == .done)
@@ -55,19 +55,19 @@ struct PlusSetupProgressTests {
 
     @Test("四步都完成：沒有目前步驟，收成一列")
     func allDone() {
-        let progress = PlusSetupProgress(isMember: true, isPlusActive: true, isNotificationsOn: true, isHostSyncOn: true)
+        let progress = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .active(source: .appStore)), isNotificationsOn: true, isHostSyncOn: true)
 
         #expect(progress.currentStep == nil)
         #expect(progress.isComplete)
         #expect(progress.completedCount == 4)
-        #expect(PlusSetupProgress.Step.allCases.allSatisfy { progress.state(of: $0) == .done })
+        #expect(AccountSetupProgress.Step.allCases.allSatisfy { progress.state(of: $0) == .done })
     }
 
     @Test("未開通時通知與同步鎖住，並說明下一步")
     func lockedFeaturesExplainNextStep() {
-        let notMember = PlusSetupProgress(isMember: false, isPlusActive: false, isNotificationsOn: false, isHostSyncOn: false)
-        let member = PlusSetupProgress(isMember: true, isPlusActive: false, isNotificationsOn: false, isHostSyncOn: false)
-        let plus = PlusSetupProgress(isMember: true, isPlusActive: true, isNotificationsOn: false, isHostSyncOn: false)
+        let notMember = AccountSetupProgress(account: AccountState(authentication: .signedOut, plus: .none), isNotificationsOn: false, isHostSyncOn: false)
+        let member = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .none), isNotificationsOn: false, isHostSyncOn: false)
+        let plus = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .active(source: .appStore)), isNotificationsOn: false, isHostSyncOn: false)
 
         #expect(notMember.lockedFeatureHint == .joinMemberFirst)
         #expect(member.lockedFeatureHint == .activatePlusFirst)
@@ -76,9 +76,9 @@ struct PlusSetupProgressTests {
 
     @Test("剛開通 Purrdr Plus 且通知或同步還沒開：詢問是否立即開啟")
     func offersFeatureSetupRightAfterActivation() {
-        let before = PlusSetupProgress(isMember: true, isPlusActive: false, isNotificationsOn: false, isHostSyncOn: false)
-        let after = PlusSetupProgress(isMember: true, isPlusActive: true, isNotificationsOn: false, isHostSyncOn: false)
-        let alreadyOn = PlusSetupProgress(isMember: true, isPlusActive: true, isNotificationsOn: true, isHostSyncOn: true)
+        let before = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .none), isNotificationsOn: false, isHostSyncOn: false)
+        let after = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .active(source: .appStore)), isNotificationsOn: false, isHostSyncOn: false)
+        let alreadyOn = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .active(source: .appStore)), isNotificationsOn: true, isHostSyncOn: true)
 
         #expect(after.offersFeatureSetup(after: before))
         #expect(!after.offersFeatureSetup(after: after), "原本就開通了不再問")
@@ -87,7 +87,7 @@ struct PlusSetupProgressTests {
 
     @Test("未登入：通知與同步即使開著也不打勾(#328)")
     func signedOutDoesNotCountNotificationsOrSync() {
-        let progress = PlusSetupProgress(isMember: false, isPlusActive: false, isNotificationsOn: true, isHostSyncOn: true)
+        let progress = AccountSetupProgress(account: AccountState(authentication: .signedOut, plus: .none), isNotificationsOn: true, isHostSyncOn: true)
 
         #expect(progress.state(of: .turnOnNotifications) == .upcoming)
         #expect(progress.state(of: .syncHosts) == .upcoming)
@@ -97,7 +97,7 @@ struct PlusSetupProgressTests {
 
     @Test("已登入、沒有 Plus：本機有通知與同步也不打勾，只顯示 1/4(#404)")
     func memberWithoutPlusDoesNotCountNotificationsOrSync() {
-        let progress = PlusSetupProgress(isMember: true, isPlusActive: false, isNotificationsOn: true, isHostSyncOn: true)
+        let progress = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .none), isNotificationsOn: true, isHostSyncOn: true)
 
         #expect(progress.state(of: .joinMember) == .done)
         #expect(progress.state(of: .activatePlus) == .current)

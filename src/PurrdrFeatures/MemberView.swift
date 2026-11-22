@@ -322,8 +322,8 @@ struct AccountView: View {
             open: { featureScrollRequest = $0 })
     }
 
-    private var progress: PlusSetupProgress? {
-        plus.map { PlusSetupProgress(member: model, plus: $0, isNotificationsOn: !notifyingHostNames.isEmpty, hostSync: hostSync) }
+    private var progress: AccountSetupProgress? {
+        plus.map { AccountSetupProgress(member: model, plus: $0, isNotificationsOn: !notifyingHostNames.isEmpty, hostSync: hostSync) }
     }
 
     var body: some View {
@@ -432,7 +432,7 @@ struct AccountView: View {
     }
 
     @ViewBuilder
-    private func plusSection(plus: SubscriptionModel, progress: PlusSetupProgress) -> some View {
+    private func plusSection(plus: SubscriptionModel, progress: AccountSetupProgress) -> some View {
         Section {
             if progress.isComplete {
                 NavigationLink {
@@ -481,7 +481,7 @@ struct AccountView: View {
         }
     }
 
-    private func perform(_ step: PlusSetupProgress.Step) {
+    private func perform(_ step: AccountSetupProgress.Step) {
         switch step {
         case .joinMember: signingIn = true
         case .activatePlus: showingPlus = true
