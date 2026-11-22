@@ -7,6 +7,7 @@
 # 同步的內容：
 #   generated/swift/HostServiceProtocol.swift → src/PurrdrCore/HostServiceProtocol.swift(codegen 產生的協定型別)
 #   protocol/(schema 與 examples/)             → vendor/purrdr-host/protocol/(FakeHostService 與範例測試讀它)
+#   claude-usage/statusline.{sh,ps1}           → vendor/purrdr-host/claude-usage/(Claude 方案用量的 status line 包裝腳本,0.12.0 起)
 #   host-service/service/Cargo.toml 的版本號    → vendor/purrdr-host/VERSION(連同 commit SHA,CI 的 --check 依它比對)
 #
 # 改協定的流程：在 purrdr.host 改 schema、跑 codegen 並合併 → 這裡跑本腳本 → 讓 app 的測試通過。
@@ -54,6 +55,9 @@ materialize() {
     cp "$src/generated/swift/HostServiceProtocol.swift" "$out/src/PurrdrCore/HostServiceProtocol.swift"
     rm -rf "$out/vendor/purrdr-host/protocol"
     cp -R "$src/protocol" "$out/vendor/purrdr-host/protocol"
+    rm -rf "$out/vendor/purrdr-host/claude-usage"
+    mkdir -p "$out/vendor/purrdr-host/claude-usage"
+    cp "$src/claude-usage/statusline.sh" "$src/claude-usage/statusline.ps1" "$out/vendor/purrdr-host/claude-usage/"
     {
         echo "# 由 scripts/sync-purrdr-host.sh 產生，不要手動修改。來源 https://github.com/$repo"
         echo "commit=$sha"

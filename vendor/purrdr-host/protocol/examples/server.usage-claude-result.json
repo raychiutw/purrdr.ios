@@ -1,0 +1,1 @@
+{"type":"usage.claude.result","request_id":"r36","installed":true,"captured_at":"2026-11-22T03:00:00Z","periods":[{"kind":"five_hour","used_percentage":42.5,"resets_at":"2026-11-22T05:30:00Z"},{"kind":"week","used_percentage":12.0,"resets_at":"2026-11-27T00:00:00Z"}]}

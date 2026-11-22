@@ -43,11 +43,18 @@ extension HostServiceProtocol {
         case paneTerminalClose(PaneTerminalClose)
         case fileStat(FileStat)
         case fileRead(FileRead)
+        case directoryList(DirectoryList)
         case pushStatus(PushStatus)
         case pushInstall(PushInstall)
         case pushRemove(PushRemove)
         case pushUpdateMuted(PushUpdateMuted)
         case pushTest(PushTest)
+        case usageCodex(UsageCodex)
+        case usageClaude(UsageClaude)
+        case usageSessionContext(UsageSessionContext)
+        case claudeUsageStatus(ClaudeUsageStatus)
+        case claudeUsageInstall(ClaudeUsageInstall)
+        case claudeUsageRemove(ClaudeUsageRemove)
         case workspaceCreate(WorkspaceCreate)
         case workspaceRename(WorkspaceRename)
         case workspaceClose(WorkspaceClose)
@@ -99,11 +106,18 @@ extension HostServiceProtocol {
             case "pane.terminal.close": self = .paneTerminalClose(try PaneTerminalClose(from: decoder))
             case "file.stat": self = .fileStat(try FileStat(from: decoder))
             case "file.read": self = .fileRead(try FileRead(from: decoder))
+            case "directory.list": self = .directoryList(try DirectoryList(from: decoder))
             case "push.status": self = .pushStatus(try PushStatus(from: decoder))
             case "push.install": self = .pushInstall(try PushInstall(from: decoder))
             case "push.remove": self = .pushRemove(try PushRemove(from: decoder))
             case "push.update_muted": self = .pushUpdateMuted(try PushUpdateMuted(from: decoder))
             case "push.test": self = .pushTest(try PushTest(from: decoder))
+            case "usage.codex": self = .usageCodex(try UsageCodex(from: decoder))
+            case "usage.claude": self = .usageClaude(try UsageClaude(from: decoder))
+            case "usage.session_context": self = .usageSessionContext(try UsageSessionContext(from: decoder))
+            case "claude_usage.status": self = .claudeUsageStatus(try ClaudeUsageStatus(from: decoder))
+            case "claude_usage.install": self = .claudeUsageInstall(try ClaudeUsageInstall(from: decoder))
+            case "claude_usage.remove": self = .claudeUsageRemove(try ClaudeUsageRemove(from: decoder))
             case "workspace.create": self = .workspaceCreate(try WorkspaceCreate(from: decoder))
             case "workspace.rename": self = .workspaceRename(try WorkspaceRename(from: decoder))
             case "workspace.close": self = .workspaceClose(try WorkspaceClose(from: decoder))
@@ -198,6 +212,9 @@ extension HostServiceProtocol {
             case .fileRead(let message):
                 try container.encode("file.read", forKey: .type)
                 try message.encode(to: encoder)
+            case .directoryList(let message):
+                try container.encode("directory.list", forKey: .type)
+                try message.encode(to: encoder)
             case .pushStatus(let message):
                 try container.encode("push.status", forKey: .type)
                 try message.encode(to: encoder)
@@ -212,6 +229,24 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .pushTest(let message):
                 try container.encode("push.test", forKey: .type)
+                try message.encode(to: encoder)
+            case .usageCodex(let message):
+                try container.encode("usage.codex", forKey: .type)
+                try message.encode(to: encoder)
+            case .usageClaude(let message):
+                try container.encode("usage.claude", forKey: .type)
+                try message.encode(to: encoder)
+            case .usageSessionContext(let message):
+                try container.encode("usage.session_context", forKey: .type)
+                try message.encode(to: encoder)
+            case .claudeUsageStatus(let message):
+                try container.encode("claude_usage.status", forKey: .type)
+                try message.encode(to: encoder)
+            case .claudeUsageInstall(let message):
+                try container.encode("claude_usage.install", forKey: .type)
+                try message.encode(to: encoder)
+            case .claudeUsageRemove(let message):
+                try container.encode("claude_usage.remove", forKey: .type)
                 try message.encode(to: encoder)
             case .workspaceCreate(let message):
                 try container.encode("workspace.create", forKey: .type)
@@ -279,7 +314,7 @@ extension HostServiceProtocol {
         /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
         public var isWrite: Bool {
             switch self {
-            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove, .pushUpdateMuted, .pushTest, .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart, .fileUploadStart, .fileUploadChunk, .devicesRevoke, .hostServiceUpdate, .hostServiceSetAutoUpdate, .queueAdd, .queueRemove, .queueReorder: return true
+            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove, .pushUpdateMuted, .pushTest, .claudeUsageInstall, .claudeUsageRemove, .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart, .fileUploadStart, .fileUploadChunk, .devicesRevoke, .hostServiceUpdate, .hostServiceSetAutoUpdate, .queueAdd, .queueRemove, .queueReorder: return true
             default: return false
             }
         }
@@ -311,12 +346,19 @@ extension HostServiceProtocol {
         case paneTerminalFrame(PaneTerminalFrame)
         case paneTerminalClosed(PaneTerminalClosed)
         case fileStatResult(FileStatResult)
+        case directoryListResult(DirectoryListResult)
         case fileReadResult(FileReadResult)
         case pushStatusResult(PushStatusResult)
         case pushInstallResult(PushInstallResult)
         case pushRemoveResult(PushRemoveResult)
         case pushUpdateMutedResult(PushUpdateMutedResult)
         case pushTestResult(PushTestResult)
+        case usageCodexResult(UsageCodexResult)
+        case usageClaudeResult(UsageClaudeResult)
+        case usageSessionContextResult(UsageSessionContextResult)
+        case claudeUsageStatusResult(ClaudeUsageStatusResult)
+        case claudeUsageInstallResult(ClaudeUsageInstallResult)
+        case claudeUsageRemoveResult(ClaudeUsageRemoveResult)
         case workspaceCreateResult(WorkspaceCreateResult)
         case workspaceRenameResult(WorkspaceRenameResult)
         case workspaceCloseResult(WorkspaceCloseResult)
@@ -370,12 +412,19 @@ extension HostServiceProtocol {
             case "pane.terminal.frame": self = .paneTerminalFrame(try PaneTerminalFrame(from: decoder))
             case "pane.terminal.closed": self = .paneTerminalClosed(try PaneTerminalClosed(from: decoder))
             case "file.stat.result": self = .fileStatResult(try FileStatResult(from: decoder))
+            case "directory.list.result": self = .directoryListResult(try DirectoryListResult(from: decoder))
             case "file.read.result": self = .fileReadResult(try FileReadResult(from: decoder))
             case "push.status.result": self = .pushStatusResult(try PushStatusResult(from: decoder))
             case "push.install.result": self = .pushInstallResult(try PushInstallResult(from: decoder))
             case "push.remove.result": self = .pushRemoveResult(try PushRemoveResult(from: decoder))
             case "push.update_muted.result": self = .pushUpdateMutedResult(try PushUpdateMutedResult(from: decoder))
             case "push.test.result": self = .pushTestResult(try PushTestResult(from: decoder))
+            case "usage.codex.result": self = .usageCodexResult(try UsageCodexResult(from: decoder))
+            case "usage.claude.result": self = .usageClaudeResult(try UsageClaudeResult(from: decoder))
+            case "usage.session_context.result": self = .usageSessionContextResult(try UsageSessionContextResult(from: decoder))
+            case "claude_usage.status.result": self = .claudeUsageStatusResult(try ClaudeUsageStatusResult(from: decoder))
+            case "claude_usage.install.result": self = .claudeUsageInstallResult(try ClaudeUsageInstallResult(from: decoder))
+            case "claude_usage.remove.result": self = .claudeUsageRemoveResult(try ClaudeUsageRemoveResult(from: decoder))
             case "workspace.create.result": self = .workspaceCreateResult(try WorkspaceCreateResult(from: decoder))
             case "workspace.rename.result": self = .workspaceRenameResult(try WorkspaceRenameResult(from: decoder))
             case "workspace.close.result": self = .workspaceCloseResult(try WorkspaceCloseResult(from: decoder))
@@ -472,6 +521,9 @@ extension HostServiceProtocol {
             case .fileStatResult(let message):
                 try container.encode("file.stat.result", forKey: .type)
                 try message.encode(to: encoder)
+            case .directoryListResult(let message):
+                try container.encode("directory.list.result", forKey: .type)
+                try message.encode(to: encoder)
             case .fileReadResult(let message):
                 try container.encode("file.read.result", forKey: .type)
                 try message.encode(to: encoder)
@@ -489,6 +541,24 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .pushTestResult(let message):
                 try container.encode("push.test.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .usageCodexResult(let message):
+                try container.encode("usage.codex.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .usageClaudeResult(let message):
+                try container.encode("usage.claude.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .usageSessionContextResult(let message):
+                try container.encode("usage.session_context.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .claudeUsageStatusResult(let message):
+                try container.encode("claude_usage.status.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .claudeUsageInstallResult(let message):
+                try container.encode("claude_usage.install.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .claudeUsageRemoveResult(let message):
+                try container.encode("claude_usage.remove.result", forKey: .type)
                 try message.encode(to: encoder)
             case .workspaceCreateResult(let message):
                 try container.encode("workspace.create.result", forKey: .type)
@@ -593,13 +663,16 @@ extension HostServiceProtocol {
         public var herdr: HerdrServer
         /// 這支裝置配對成唯讀：寫入類操作會被拒絕(read_only_device),app 停用輸入。
         public var readOnly: Bool
+        /// 這台主機使用者家目錄的絕對路徑(0.12.0 起);主機找不到家目錄時省略。app 用它把 ~ 換成路徑、當作 directory.list 的起點;舊版主機沒有這個欄位。
+        public var homeDirectory: String?
 
-        public init(requestId: String, protocolVersion: Int, hostServiceVersion: String, herdr: HerdrServer, readOnly: Bool) {
+        public init(requestId: String, protocolVersion: Int, hostServiceVersion: String, herdr: HerdrServer, readOnly: Bool, homeDirectory: String? = nil) {
             self.requestId = requestId
             self.protocolVersion = protocolVersion
             self.hostServiceVersion = hostServiceVersion
             self.herdr = herdr
             self.readOnly = readOnly
+            self.homeDirectory = homeDirectory
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -608,6 +681,7 @@ extension HostServiceProtocol {
             case hostServiceVersion = "host_service_version"
             case herdr
             case readOnly = "read_only"
+            case homeDirectory = "home_directory"
         }
     }
 }
@@ -2518,6 +2592,52 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
+    /// 列出主機上一個資料夾裡的子資料夾名稱(0.12.0 起,raychiutw/purrdr.host#26):給 HTTPS 主機的新增聊天瀏覽資料夾。只回資料夾名稱，絕不回檔案或檔案內容。唯讀，唯讀裝置也可用。主機服務解析 symlink 後再比對排除清單(x-excluded-file-locations)與主機服務資料夾:資料夾本身在排除清單就拒絕(directory_not_allowed),排除的子項目不列出。資料夾不存在或不是資料夾回 directory_not_found,讀不了回 directory_unreadable,path 不是絕對路徑或含 . 或 .. 段落回 invalid_message。~ 由 app 以 welcome 的 home_directory 換成路徑，主機服務不展開。
+    public struct DirectoryList: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 主機上的絕對路徑(不可含 . 或 .. 段落)。
+        public var path: String
+
+        public init(requestId: String, path: String) {
+            self.requestId = requestId
+            self.path = path
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 子資料夾名稱(0.12.0 起):含隱藏(點開頭)資料夾，不分大小寫排序;指向資料夾的 symlink 以解析後的目標判斷,目標在排除清單就不列。超過 1000 筆時只回前面的，truncated 為 true。
+    public struct DirectoryListResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 原樣回傳要求的 path(不解析 symlink)。
+        public var path: String
+        /// 子資料夾的名稱(不含路徑)。
+        public var directories: [String]
+        /// 子資料夾多於上限，directories 只含排序後的前面一段。
+        public var truncated: Bool
+
+        public init(requestId: String, path: String, directories: [String], truncated: Bool) {
+            self.requestId = requestId
+            self.path = path
+            self.directories = directories
+            self.truncated = truncated
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+            case directories
+            case truncated
+        }
+    }
+}
+
+extension HostServiceProtocol {
     /// 主機取檔(raychiutw/purrdr.ios#227):查檔案狀態。只允許 herdr snapshot 目前回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑;主機服務解析 symlink 後再比對工作目錄與排除清單(x-excluded-file-locations)。唯讀，唯讀裝置也可用。
     public struct FileStat: Codable, Sendable, Equatable {
         public var requestId: String
@@ -2648,7 +2768,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 開啟這支裝置在這台主機的通知：寫入推播配對(與 SSH 路徑相同的 ~/.purrdr/push-<device_id>/pairing,已有就覆寫),外掛還沒安裝就以本機使用者身分執行 herdr plugin install raychiutw/purrdr.host/host-plugin --yes(來源固定，app 不能指定)。安裝失敗時還原成寫入前的樣子(原有的配對保留)並回 push_plugin_failed。重送一律代表「以這把 key 重新配對」(覆寫配對檔;外掛已裝就不重裝)。只改靜音請用 push.update_muted。
+    /// 開啟這支裝置在這台主機的通知：寫入推播配對(與 SSH 路徑相同的 ~/.purrdr/push-<device_id>/pairing,已有就覆寫),外掛還沒安裝就以本機使用者身分執行 herdr plugin install raychiutw/purrdr.host/host-plugin --yes(來源固定，app 不能指定)。0.12.0 起主機服務能直接送推播(回覆的 direct_push 為 true)時只寫配對、不安裝外掛;主機服務不能接手(例如已裝舊版外掛 0.1.0)時行為不變。安裝失敗時還原成寫入前的樣子(原有的配對保留)並回 push_plugin_failed。重送一律代表「以這把 key 重新配對」(覆寫配對檔;外掛已裝就不重裝)。只改靜音請用 push.update_muted。
     public struct PushInstall: Codable, Sendable, Equatable {
         public var requestId: String
         /// app 的推播裝置 id(與 SSH 路徑相同):1–64 個小寫英數與 -,不能是 plugin。不合格回 invalid_message。
@@ -2670,7 +2790,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 關閉這支裝置在這台主機的通知：只移除這支裝置的配對資料夾;沒有其他裝置的配對、且外掛是 Purrdr 裝的(~/.purrdr/push-plugin/ 的紀錄)才執行 herdr plugin uninstall purrdr.push。使用者自己裝的外掛不動。外掛移除失敗回 push_plugin_failed(配對已移除)。
+    /// 關閉這支裝置在這台主機的通知：只移除這支裝置的配對資料夾;沒有其他裝置的配對、且外掛是 Purrdr 裝的(~/.purrdr/push-plugin/ 的紀錄)才執行 herdr plugin uninstall purrdr.push。主機服務直接送時沒有安裝紀錄，也就不會執行 uninstall。使用者自己裝的外掛不動。外掛移除失敗回 push_plugin_failed(配對已移除)。
     public struct PushRemove: Codable, Sendable, Equatable {
         public var requestId: String
         /// app 的推播裝置 id(與 SSH 路徑相同):1–64 個小寫英數與 -,不能是 plugin。不合格回 invalid_message。
@@ -2722,12 +2842,15 @@ extension HostServiceProtocol {
         public var paired: Bool
         /// 其他已配對裝置數(不含這支;不提供其他裝置的識別資訊)。
         public var otherDevices: Int
+        /// 0.12.0 起(選用;舊版主機服務沒有):主機服務會直接送 blocked／done 推播(Agent 觀察者執行中，且沒有裝會重複送的舊版外掛 purrdr.push 0.1.0)。true 時 push.install 不安裝外掛。沒有這個欄位等同 false。
+        public var directPush: Bool?
 
-        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int, directPush: Bool? = nil) {
             self.requestId = requestId
             self.pluginInstalled = pluginInstalled
             self.paired = paired
             self.otherDevices = otherDevices
+            self.directPush = directPush
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -2735,6 +2858,7 @@ extension HostServiceProtocol {
             case pluginInstalled = "plugin_installed"
             case paired
             case otherDevices = "other_devices"
+            case directPush = "direct_push"
         }
     }
 }
@@ -2746,12 +2870,15 @@ extension HostServiceProtocol {
         public var pluginInstalled: Bool
         public var paired: Bool
         public var otherDevices: Int
+        /// 0.12.0 起(選用):同 push.status.result。
+        public var directPush: Bool?
 
-        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int, directPush: Bool? = nil) {
             self.requestId = requestId
             self.pluginInstalled = pluginInstalled
             self.paired = paired
             self.otherDevices = otherDevices
+            self.directPush = directPush
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -2759,6 +2886,7 @@ extension HostServiceProtocol {
             case pluginInstalled = "plugin_installed"
             case paired
             case otherDevices = "other_devices"
+            case directPush = "direct_push"
         }
     }
 }
@@ -2770,12 +2898,15 @@ extension HostServiceProtocol {
         public var pluginInstalled: Bool
         public var paired: Bool
         public var otherDevices: Int
+        /// 0.12.0 起(選用):同 push.status.result。
+        public var directPush: Bool?
 
-        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int, directPush: Bool? = nil) {
             self.requestId = requestId
             self.pluginInstalled = pluginInstalled
             self.paired = paired
             self.otherDevices = otherDevices
+            self.directPush = directPush
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -2783,6 +2914,7 @@ extension HostServiceProtocol {
             case pluginInstalled = "plugin_installed"
             case paired
             case otherDevices = "other_devices"
+            case directPush = "direct_push"
         }
     }
 }
@@ -2817,12 +2949,15 @@ extension HostServiceProtocol {
         public var pluginInstalled: Bool
         public var paired: Bool
         public var otherDevices: Int
+        /// 0.12.0 起(選用):不問 herdr,所以這個回覆不帶這個欄位(要確認請用 push.status)。
+        public var directPush: Bool?
 
-        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int, directPush: Bool? = nil) {
             self.requestId = requestId
             self.pluginInstalled = pluginInstalled
             self.paired = paired
             self.otherDevices = otherDevices
+            self.directPush = directPush
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -2830,6 +2965,7 @@ extension HostServiceProtocol {
             case pluginInstalled = "plugin_installed"
             case paired
             case otherDevices = "other_devices"
+            case directPush = "direct_push"
         }
     }
 }
@@ -2869,6 +3005,302 @@ extension HostServiceProtocol {
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
         }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Codex 的方案用量(raychiutw/purrdr.host#62,0.12.0 起):主機服務以本機使用者身分執行一次 codex app-server,讀 account/rateLimits/read(同 app 經 SSH 的 CodexPlanUsageHost),讀到就結束子程序。唯讀，唯讀裝置也可用。找不到 codex 回 codex_not_found;沒以 ChatGPT 登入回 codex_not_signed_in;其他失敗回 codex_failed。
+    public struct UsageCodex: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Codex 的方案用量。有多個 bucket 時用 Codex 本身的(codex)。
+    public struct UsageCodexResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// RFC 3339(UTC,到秒):主機服務讀取的時間。
+        public var capturedAt: String
+        /// 依 five_hour、week 排序;Codex 沒回的週期不出現(可能是空陣列)。
+        public var periods: [PlanUsagePeriod]
+
+        public init(requestId: String, capturedAt: String, periods: [PlanUsagePeriod]) {
+            self.requestId = requestId
+            self.capturedAt = capturedAt
+            self.periods = periods
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case capturedAt = "captured_at"
+            case periods
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Claude Code 的方案用量(raychiutw/purrdr.host#62,0.12.0 起):讀 Claude status line 包裝腳本存的 ~/.purrdr/claude-usage/usage.json(整台主機一份,輸入含 rate_limits 時才寫;安裝見 claude_usage.install)的 status_line_input.rate_limits.five_hour／seven_day。唯讀，唯讀裝置也可用。沒有檔案不是錯誤:回空的 periods;installed 告訴 app 是「還沒安裝」(false)還是「已安裝、Claude Code 還沒回報」(true 且沒有 captured_at)。
+    public struct UsageClaude: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Claude Code 的方案用量。已過 resets_at 的視窗不回(那個視窗已重置，檔案裡的比例過時了);缺少 used_percentage 或它為 null／不是數字的視窗略過;沒有 resets_at 的視窗照回(無法判斷是否過期，resets_at 欄位省略)。
+    public struct UsageClaudeResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 主機上有 Claude 方案用量的安裝紀錄(~/.purrdr/claude-usage/journal.json;不論是 app 經 SSH 或主機服務裝的)。false 代表 app 該顯示「未安裝」。
+        public var installed: Bool
+        /// RFC 3339(UTC,到秒):包裝腳本存下這份用量的時間(usage.json 的 captured_at);還沒有 usage.json 時沒有這欄。
+        public var capturedAt: String?
+        /// 依 five_hour、week 排序(five_hour 對應 rate_limits.five_hour,week 對應 seven_day);可能是空陣列。
+        public var periods: [PlanUsagePeriod]
+
+        public init(requestId: String, installed: Bool, capturedAt: String? = nil, periods: [PlanUsagePeriod]) {
+            self.requestId = requestId
+            self.installed = installed
+            self.capturedAt = capturedAt
+            self.periods = periods
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case installed
+            case capturedAt = "captured_at"
+            case periods
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 每個 Claude session 的 context 用量(raychiutw/purrdr.host#62、#64,0.12.0 起):讀包裝腳本每個 session 存的 ~/.purrdr/claude-usage/sessions/<session_id>.json 的 status_line_input.context_window。唯讀，唯讀裝置也可用。只讀這個資料夾裡的檔案;沒有檔案的 session 不出現在結果。session_id 與腳本同一規則(1–128 個 A-Za-z0-9._- 字元,不是 . 或 ..),不合格回 invalid_message。
+    public struct UsageSessionContext: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 要讀的 session(herdr 回報的 agent session);必填,1–50 個,超過或空陣列回 invalid_message。
+        public var sessionIds: [String]
+
+        public init(requestId: String, sessionIds: [String]) {
+            self.requestId = requestId
+            self.sessionIds = sessionIds
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case sessionIds = "session_ids"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 各 session 的 context 用量。
+    public struct UsageSessionContextResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 有 session 檔且讀得懂的 session;依 session_ids 的請求順序。
+        public var sessions: [SessionContext]
+
+        public init(requestId: String, sessions: [SessionContext]) {
+            self.requestId = requestId
+            self.sessions = sessions
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case sessions
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 一個 Claude session 最近一次 status line 回報的 context 用量。
+    public struct SessionContext: Codable, Sendable, Equatable {
+        public var sessionId: String
+        /// RFC 3339(UTC,到秒):包裝腳本存下這份回報的時間。
+        public var capturedAt: String
+        /// context_window.used_percentage(夾在 0～100);Claude Code 沒回或為 null(第一次呼叫 API 前)時沒有這欄。
+        public var usedPercentage: Double?
+        /// context_window.context_window_size(token 數);沒有時沒有這欄。
+        public var contextWindowSize: Int?
+
+        public init(sessionId: String, capturedAt: String, usedPercentage: Double? = nil, contextWindowSize: Int? = nil) {
+            self.sessionId = sessionId
+            self.capturedAt = capturedAt
+            self.usedPercentage = usedPercentage
+            self.contextWindowSize = contextWindowSize
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case sessionId = "session_id"
+            case capturedAt = "captured_at"
+            case usedPercentage = "used_percentage"
+            case contextWindowSize = "context_window_size"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Claude 方案用量包裝的安裝狀態(raychiutw/purrdr.host#62,0.12.0 起)。唯讀，唯讀裝置也可用。安裝紀錄壞了回 host_write_failed。
+    public struct ClaudeUsageStatus: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Claude 方案用量包裝的狀態(claude_usage.install／remove 的結果欄位相同)。
+    public struct ClaudeUsageStatusResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 有安裝紀錄(~/.purrdr/claude-usage/journal.json)。
+        public var installed: Bool
+        /// settings.json(固定 ~/.claude,不看 CLAUDE_CONFIG_DIR,同 app)的 statusLine.command 現在是 Purrdr 的包裝。使用者安裝後自己換掉 status line 時是 false。
+        public var wrapperActive: Bool
+        /// Claude Code 的設定資料夾存在(不存在時 claude_usage.install 回 claude_not_found)。
+        public var claudeFound: Bool
+
+        public init(requestId: String, installed: Bool, wrapperActive: Bool, claudeFound: Bool) {
+            self.requestId = requestId
+            self.installed = installed
+            self.wrapperActive = wrapperActive
+            self.claudeFound = claudeFound
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case installed
+            case wrapperActive = "wrapper_active"
+            case claudeFound = "claude_found"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 安裝 Claude status line 包裝(raychiutw/purrdr.host#62,0.12.0 起;需要使用者同意,app 先取得同意再送)。與 app 經 SSH 的 ClaudePlanUsageHost／ReversibleHostWrite 相同:把 claude-usage/statusline.sh(Windows 主機是 statusline.ps1,指令為 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '<家目錄>/.purrdr/claude-usage/statusline.ps1')寫到 ~/.purrdr/claude-usage/,使用者原本的 statusLine.command 存進 original-command(包裝本身永遠不會被存成原本的),把 settings.json(固定 ~/.claude,不看 CLAUDE_CONFIG_DIR,同 app)的 statusLine 換成包裝,其餘設定保留。安裝前的內容記在 journal.json(格式同 app 的 HostWriteJournal),重複安裝在包裝仍生效時沿用第一次的紀錄(使用者安裝後自己換掉 status line 則以目前的設定為原本的);只在讀取之後設定檔沒被改過才寫入(否則回 host_write_failed)。設定檔不是合法 JSON 物件回 claude_settings_not_json、不動檔案;Claude Code 的設定資料夾不存在回 claude_not_found。
+    public struct ClaudeUsageInstall: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 安裝完成,帶安裝後的狀態(欄位同 claude_usage.status.result)。
+    public struct ClaudeUsageInstallResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var installed: Bool
+        public var wrapperActive: Bool
+        public var claudeFound: Bool
+
+        public init(requestId: String, installed: Bool, wrapperActive: Bool, claudeFound: Bool) {
+            self.requestId = requestId
+            self.installed = installed
+            self.wrapperActive = wrapperActive
+            self.claudeFound = claudeFound
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case installed
+            case wrapperActive = "wrapper_active"
+            case claudeFound = "claude_found"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 還原 Claude status line 包裝(raychiutw/purrdr.host#62,0.12.0 起;app 以 SSH 或主機服務裝的都能還原)。設定檔仍是安裝寫入的內容 → 換回安裝前的 bytes(原本不存在就刪除);安裝後使用者又改過 → 只撤掉 statusLine 的修改(statusLine 已被使用者換掉就不動),其餘保留;最後移除 ~/.purrdr/claude-usage/。沒有安裝紀錄時什麼都不做。目前的設定檔不是合法 JSON 物件且需要合併時回 claude_settings_not_json、不動檔案。
+    public struct ClaudeUsageRemove: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 還原完成,帶還原後的狀態(欄位同 claude_usage.status.result)。
+    public struct ClaudeUsageRemoveResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var installed: Bool
+        public var wrapperActive: Bool
+        public var claudeFound: Bool
+
+        public init(requestId: String, installed: Bool, wrapperActive: Bool, claudeFound: Bool) {
+            self.requestId = requestId
+            self.installed = installed
+            self.wrapperActive = wrapperActive
+            self.claudeFound = claudeFound
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case installed
+            case wrapperActive = "wrapper_active"
+            case claudeFound = "claude_found"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 方案用量的一個週期。
+    public struct PlanUsagePeriod: Codable, Sendable, Equatable {
+        public var kind: PlanUsagePeriodKind
+        /// 已用比例(夾在 0～100,不四捨五入：app 依它算剩餘比例與進度條)。
+        public var usedPercentage: Double
+        /// RFC 3339(UTC,到秒):這個週期重置的時間;Codex 沒回、或 Claude 的 status line 輸入沒帶 resets_at(缺少或為 null)時沒有這欄。
+        public var resetsAt: String?
+
+        public init(kind: PlanUsagePeriodKind, usedPercentage: Double, resetsAt: String? = nil) {
+            self.kind = kind
+            self.usedPercentage = usedPercentage
+            self.resetsAt = resetsAt
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case kind
+            case usedPercentage = "used_percentage"
+            case resetsAt = "resets_at"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 週期種類：週期長度不到一天是 five_hour,否則是 week(Codex 沒回長度時，primary 是 five_hour、secondary 是 week)。
+    public enum PlanUsagePeriodKind: String, Codable, Sendable, CaseIterable {
+        case fiveHour = "five_hour"
+        case week
     }
 }
 
@@ -3298,7 +3730,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的(或其 session 資料夾 subagents/ 底下的 .jsonl);transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted／push.test 時這支裝置在這台主機沒有推播配對(push.test 另含後台回 404／410);push_send_failed:push.test 連不上後台或後台回其他狀態碼(message 是後台的錯誤碼，例如 subscription_required、rate_limited、apns_failed;沒有錯誤碼時是 http <狀態碼> 或連線錯誤);device_unknown:devices.revoke 的 device_id 不是這台主機配對過的裝置;upload_too_large:上傳的總大小或分塊超過 x-maximum-file-size／x-maximum-file-chunk;host_service_not_installed:主機服務不是安裝好的那份，不能從 app 管理;update_in_progress:已有另一個更新在進行;update_failed:取不到最新版本、改不了設定或啟動不了更新程序(message 是原因);pane_changed:送出前比對 expected_session／expected_screen 不符，沒有送出;cwd_not_allowed:git.status／git.diff 的 cwd 不是 herdr 目前回報的 Agent 工作目錄;not_git_repository:cwd 不在 git repo 的工作目錄裡;queue_full:這個 pane 的 Send When Done 佇列已有 20 則;queue_item_unknown:queue.remove／queue.reorder 的 item_id 不在佇列裡;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
+    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的(或其 session 資料夾 subagents/ 底下的 .jsonl);transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted／push.test 時這支裝置在這台主機沒有推播配對(push.test 另含後台回 404／410);codex_not_found:usage.codex 找不到 codex 執行檔;codex_not_signed_in:Codex 沒以 ChatGPT 登入(或用 API key);codex_failed:codex app-server 回報失敗、沒有回應或回應看不懂(message 是原因);claude_not_found:claude_usage.install 時 Claude Code 的設定資料夾(~/.claude)不存在;claude_settings_not_json:Claude 的 settings.json 不是合法的 JSON 物件，沒有改動檔案(0.12.0 起);host_write_failed:claude_usage.* 的檔案無法安全修改(安裝紀錄壞了、設定檔不是一般檔案或讀不到、讀取之後被改過;message 是原因);push_send_failed:push.test 連不上後台或後台回其他狀態碼(message 是後台的錯誤碼，例如 subscription_required、rate_limited、apns_failed;沒有錯誤碼時是 http <狀態碼> 或連線錯誤);device_unknown:devices.revoke 的 device_id 不是這台主機配對過的裝置;upload_too_large:上傳的總大小或分塊超過 x-maximum-file-size／x-maximum-file-chunk;host_service_not_installed:主機服務不是安裝好的那份，不能從 app 管理;update_in_progress:已有另一個更新在進行;update_failed:取不到最新版本、改不了設定或啟動不了更新程序(message 是原因);pane_changed:送出前比對 expected_session／expected_screen 不符，沒有送出;cwd_not_allowed:git.status／git.diff 的 cwd 不是 herdr 目前回報的 Agent 工作目錄;not_git_repository:cwd 不在 git repo 的工作目錄裡;queue_full:這個 pane 的 Send When Done 佇列已有 20 則;queue_item_unknown:queue.remove／queue.reorder 的 item_id 不在佇列裡;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
     public enum ErrorCode: String, Codable, Sendable, CaseIterable {
         case invalidMessage = "invalid_message"
         case handshakeRequired = "handshake_required"
@@ -3321,6 +3753,12 @@ extension HostServiceProtocol {
         case pushPluginFailed = "push_plugin_failed"
         case pushNotPaired = "push_not_paired"
         case pushSendFailed = "push_send_failed"
+        case codexNotFound = "codex_not_found"
+        case codexNotSignedIn = "codex_not_signed_in"
+        case codexFailed = "codex_failed"
+        case claudeNotFound = "claude_not_found"
+        case claudeSettingsNotJson = "claude_settings_not_json"
+        case hostWriteFailed = "host_write_failed"
         case uploadTooLarge = "upload_too_large"
         case deviceUnknown = "device_unknown"
         case hostServiceNotInstalled = "host_service_not_installed"
@@ -3329,6 +3767,9 @@ extension HostServiceProtocol {
         case paneChanged = "pane_changed"
         case cwdNotAllowed = "cwd_not_allowed"
         case notGitRepository = "not_git_repository"
+        case directoryNotFound = "directory_not_found"
+        case directoryNotAllowed = "directory_not_allowed"
+        case directoryUnreadable = "directory_unreadable"
         case queueFull = "queue_full"
         case queueItemUnknown = "queue_item_unknown"
         case internalError = "internal_error"
