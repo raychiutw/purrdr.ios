@@ -6,9 +6,38 @@ final class ConversationUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// 唯讀測試共用的一次啟動(#373):不送出、不改 Demo 主機狀態的測試共用同一個 app,測試之間回到列表再開聊天。
+    /// 會送出訊息、帶情境旗標或改字級的測試照舊各自啟動。
+    nonisolated(unsafe) private static var sharedApp: XCUIApplication?
+
+    override class func tearDown() {
+        MainActor.assumeIsolated {
+            sharedApp?.terminate()
+            sharedApp = nil
+        }
+    }
+
+    /// 回到列表後開 `paneID` 的聊天。第一次或 app 已不在前景時才啟動。
+    @MainActor
+    private func openSharedConversation(paneID: String) -> XCUIApplication {
+        if let app = Self.sharedApp, app.state == .runningForeground {
+            if app.element("conversation.header").exists {
+                app.navigationBars.buttons.element(boundBy: 0).tap()
+            }
+            if app.reveal(app.element("agent.row.demo/\(paneID)")) {
+                app.openConversation(paneID: paneID)
+                return app
+            }
+            app.terminate()
+        }
+        let app = XCUIApplication.launchUITestingConversation(paneID: paneID)
+        Self.sharedApp = app
+        return app
+    }
+
     @MainActor
     private func openLedger() -> XCUIApplication {
-        XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
+        openSharedConversation(paneID: "w1:p1")
     }
 
     /// 送出的訊息：還沒確認的回音，或對話紀錄已確認的使用者泡泡(追蹤可能立刻讀到，#165)。
@@ -319,7 +348,7 @@ final class ConversationUITests: XCTestCase {
     /// 送出：輸入框清空、回音出現;Demo 的 agent 收下後，對話紀錄接上這則訊息與回覆，回音換成對話紀錄的那則。
     @MainActor
     func testSendingEchoesAndAgentReplies() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         let send = app.element("composer.send")
         XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
@@ -384,7 +413,7 @@ final class ConversationUITests: XCTestCase {
     /// 對話紀錄沒有新增。輸入框有字時建議不顯示。註記的完整卡片在時建議卡不同時出現，先略過註記。
     @MainActor
     func testSuggestionFillsComposerWithoutSending() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         dismissNote(in: app)
         let suggestion = app.element("conversation.suggestion")
         let text = app.element("composer.text")
@@ -449,7 +478,7 @@ final class ConversationUITests: XCTestCase {
     /// 聚焦時有「收起鍵盤」:收起後草稿還在、沒有送出(#37 故事 36)。
     @MainActor
     func testHideKeyboardKeepsDraft() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         XCTAssertFalse(app.element("composer.hideKeyboard").exists, "沒聚焦時不該有收起鍵盤鈕")
@@ -469,7 +498,7 @@ final class ConversationUITests: XCTestCase {
     /// 送出後立刻收起鍵盤(#329)。
     @MainActor
     func testSendingDismissesKeyboard() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
@@ -484,7 +513,7 @@ final class ConversationUITests: XCTestCase {
     /// 點聊天的訊息區收起鍵盤(#329)。
     @MainActor
     func testTappingConversationDismissesKeyboard() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
@@ -498,7 +527,7 @@ final class ConversationUITests: XCTestCase {
     /// 上下滑動聊天收起鍵盤(#329)。
     @MainActor
     func testScrollingConversationDismissesKeyboard() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
@@ -514,7 +543,7 @@ final class ConversationUITests: XCTestCase {
     /// 多行草稿時輸入框長高超過舊的 4 行上限(#137):7 行全部攤開、不內捲。
     @MainActor
     func testComposerGrowsBeyondFourLines() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
@@ -538,7 +567,7 @@ final class ConversationUITests: XCTestCase {
     /// 上下版面(#187):整寬輸入框在上、按鈕列在下;空白時一行高(#196 留言)、打字後至少兩行高，按鈕 ≥ 44pt。
     @MainActor
     func testComposerStacksFullWidthEditorAboveButtons() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         let send = app.element("composer.send")
         let addImage = app.element("composer.attach")
@@ -603,7 +632,7 @@ final class ConversationUITests: XCTestCase {
     /// 沒聚焦、超過 2 行時仍有展開鈕。
     @MainActor
     func testExpandedEditorKeepsDraftWhenCollapsed() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         let expand = app.element("composer.expand")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
@@ -634,7 +663,7 @@ final class ConversationUITests: XCTestCase {
     /// 在展開畫面送出(#142):回到對話、輸入列清空、有回音;鍵盤出現時送出與完成鈕在鍵盤上方。
     @MainActor
     func testSendingFromExpandedEditorReturnsToConversation() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
@@ -690,7 +719,7 @@ final class ConversationUITests: XCTestCase {
     /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
     @MainActor
     func testJumpToLatestOnlyWhenAwayFromBottom() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
+        let app = openSharedConversation(paneID: "w2:p1")
         XCTAssertTrue(app.element("prompt.card").waitUntilExists(timeout: 10), "沒有提示卡")
         let jump = app.element("conversation.jumpToLatest")
         let list = app.scrollViews.firstMatch

@@ -185,16 +185,15 @@ final class ScreenshotTourUITests: XCTestCase {
 
     // MARK: - 設計稿比對(#267、#276):重做的頁面各存淺色與深色，與原型並排確認
 
-    /// 以淺色、深色各啟動一次，打開同一頁後存成「design-<名稱>-light／dark」。
-    /// 外觀經啟動參數覆寫 `appearance`(只在這次啟動有效，不寫進 UserDefaults)。
+    /// 啟動一次(淺色)，打開同一頁存成「design-<名稱>-light」，再以測試連結換成深色存「-dark」(#373:不重啟)。
+    /// 外觀經測試連結 `purrdr://testing-appearance` 套到視窗(只在 `-uiTesting` 生效)。
     @MainActor
     private func captureDesign(_ name: String, open: @MainActor (XCUIApplication) -> Void) {
-        for appearance in ["light", "dark"] {
-            let app = XCUIApplication.launchUITesting(flags: ["-appearance", appearance])
-            open(app)
-            capture("design-\(name)-\(appearance)", app)
-            app.terminate()
-        }
+        let app = XCUIApplication.launchUITesting(flags: ["-appearance", "light"])
+        open(app)
+        capture("design-\(name)-light", app)
+        app.setAppearance("dark")
+        capture("design-\(name)-dark", app)
     }
 
     @MainActor
