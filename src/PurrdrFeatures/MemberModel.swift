@@ -186,8 +186,10 @@ public final class MemberModel {
 
     /// 刪除會員。完成後回到未登入，並提醒 Apple 訂閱要自行取消。
     /// 先撤銷這支裝置的推播配對並清除本機分區(#405);撤銷不了(連不上後台)時照樣刪除:後台刪除會員會一併刪掉它的配對。
+    /// 刪除前要先確認裝置擁有者(#412);確認沒過什麼都不做。
     public func deleteMember() async {
         await run {
+            guard await ownerConfirmed() else { return }
             _ = await localState?.leave()
             try await session.deleteMember()
             phase = .signedOut
@@ -199,8 +201,10 @@ public final class MemberModel {
     /// 登出。先撤銷這支裝置的推播配對並停止同步、清除本機分區(#405);
     /// 連不上後台撤銷不了時先不登出,提示 `.signOutBackendUnreachable` 讓使用者選「仍要登出」(`force`,#420):
     /// 此時照樣清本機分區與主機上的配對,後台配對留待之後撤銷。
+    /// 先確認裝置擁有者(#412);`force` 是同一次登出流程的第二步(已確認過),不再問。
     public func signOut(force: Bool = false) async {
         await run {
+            if !force, !(await ownerConfirmed()) { return }
             if force {
                 _ = await localState?.leave(force: true)
             } else {

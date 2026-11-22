@@ -11,6 +11,9 @@ import Testing
 ///
 /// Seam:後台是 `HTTPStub`;主機是 `LocalShellHost`(暫存家目錄,herdr 換成 `FakeHerdrPluginCLI`);通知權限是 `FakePushPlatform`。
 @MainActor
+final class RequestCountBox: @unchecked Sendable { var value = 0 }
+
+@MainActor
 @Suite("本機狀態依會員分區")
 struct MemberPartitionTests {
     static let deviceID = PushDeviceID(rawValue: "0123456789abcdef")!
@@ -58,11 +61,11 @@ struct MemberPartitionTests {
         return HostSyncModel(session: session, plus: SubscriptionModel(session: session, store: FakePlusStore()), hosts: hosts, store: syncStore)
     }
 
-    func makeMemberModel() -> MemberModel {
+    func makeMemberModel(confirmOwner: (@MainActor @Sendable () async -> Bool)? = nil) -> MemberModel {
         MemberModel(
             session: session,
             google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: "123-abc.apps.googleusercontent.com")),
-            localState: localState)
+            localState: localState, confirmOwner: confirmOwner)
     }
 
     /// 這個會員在 studio 開了通知、也開了主機同步(只動本機紀錄)。
@@ -368,6 +371,80 @@ struct MemberPartitionTests {
         #expect(revoke < delete)
         #expect(pairings.pairings.isEmpty)
         #expect(syncStore.isEnabled == false)
+    }
+
+    // MARK: - 登出與刪除要先確認身分(#412)
+
+    @Test("登出:身分確認沒過(取消或失敗)什麼都不送、不清除,仍是登入")
+    func signOutDoesNothingWhenOwnerNotConfirmed() async {
+        let member = makeMemberModel(confirmOwner: { false })
+        localState.attach(push: pushService(), hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+        let before = backend.requests.count
+
+        await member.signOut()
+
+        guard case .signedIn = member.phase else { Issue.record("身分沒確認不應登出"); return }
+        #expect(backend.requests.count == before, "沒確認身分不能送任何請求(含撤銷配對)")
+        #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
+    }
+
+    @Test("登出:身分確認先於撤銷配對與登出")
+    func signOutConfirmsOwnerBeforeRevoking() async throws {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
+        let seen = RequestCountBox()
+        let member = makeMemberModel(confirmOwner: { [backend] in seen.value = backend.requests.count; return true })
+        localState.attach(push: pushService(), hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+        let before = backend.requests.count
+
+        await member.signOut()
+
+        #expect(member.phase == .signedOut)
+        #expect(seen.value == before, "確認身分時還沒有任何撤銷請求")
+        #expect(backend.requests(to: "/v1/sessions/revoke").count == 1)
+    }
+
+    @Test("刪除會員:身分確認沒過什麼都不送;通過後先撤銷配對再刪除")
+    func deleteMemberConfirmsOwnerFirst() async throws {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
+        let allowed = RequestCountBox()
+        let member = makeMemberModel(confirmOwner: { allowed.value == 1 })
+        localState.attach(push: pushService(), hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+        let before = backend.requests.count
+
+        await member.deleteMember()
+        #expect(backend.requests.count == before)
+        guard case .signedIn = member.phase else { Issue.record("身分沒確認不應刪除"); return }
+
+        allowed.value = 1
+        await member.deleteMember()
+        let order = backend.requests.map { "\($0.method) \($0.path)" }
+        let revoke = try #require(order.firstIndex(of: "DELETE /v1/members/me/push-pairings/\(Self.keyHashA)"))
+        let delete = try #require(order.firstIndex(of: "DELETE /v1/members/me"))
+        #expect(revoke < delete)
+        #expect(member.phase == .signedOut)
+    }
+
+    @Test("連不上後台時「仍要登出」不再要求第二次身分確認(第一次已確認過)")
+    func forceSignOutDoesNotAskAgain() async {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .unreachable)
+        let asked = RequestCountBox()
+        let member = makeMemberModel(confirmOwner: { asked.value += 1; return true })
+        localState.attach(push: pushService(), hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+
+        await member.signOut()
+        member.notice = nil
+        await member.signOut(force: true)
+
+        #expect(asked.value == 1)
+        #expect(member.phase == .signedOut)
     }
 
     @Test("換會員登入:新會員從未開啟開始,上一位的推播配對已撤銷")

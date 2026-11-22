@@ -309,6 +309,12 @@ struct AccountView: View {
     let hostSync: HostSyncModel?
     let hosts: HostsModel?
     @State private var confirmingDeletion = false
+    @State private var confirmingSignOut = false
+    /// 刪除會員前先處理訂閱的頁面(#412):有仍會扣款的訂閱才出現。
+    @State private var deletionSubscription: DeletionSubscriptionNotice?
+    @State private var showingDeletionSubscription = false
+    /// 在訂閱說明頁選了「繼續刪除會員」:等頁面退回帳號頁後才跳確認(同時退頁與跳 alert 會被 SwiftUI 吞掉)。
+    @State private var continuedDeletion = false
     /// 從通知列開配對的主機(#295)。
     @State private var pairingHost: UUID?
     @State private var showingPlus = false
@@ -429,8 +435,9 @@ struct AccountView: View {
                     .accessibilityIdentifier("member.signInDevices")
                 }
                 Section {
-                    Button("Sign Out") { Task { await model.signOut() } }
-                    Button("Delete Member", role: .destructive) { confirmingDeletion = true }
+                    Button("Sign Out") { confirmingSignOut = true }
+                        .accessibilityIdentifier("member.signOut")
+                    Button("Delete Member", role: .destructive) { startDeletion() }
                         .accessibilityIdentifier("member.delete")
                 }
             }
@@ -494,10 +501,48 @@ struct AccountView: View {
         } message: {
             Text("Turn on notifications and host sync now? You can change them later.")
         }
-        .confirmationDialog("Delete your member account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
-            Button("Delete Member", role: .destructive) { Task { await model.deleteMember() } }
+        .alert("Sign Out?", isPresented: $confirmingSignOut) {
+            Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
+                .accessibilityIdentifier("member.signOut.confirm")
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Your member account, push pairings, and synced hosts will be deleted. This can’t be undone. A Purrdr Plus subscription isn’t canceled automatically — cancel it in Settings › Apple Account › Subscriptions.")
+            Text("Signing out turns off notifications for this device and pauses host sync. Hosts and chats keep working — they don’t need a member account.")
+        }
+        .navigationDestination(isPresented: $showingDeletionSubscription) {
+            if let deletionSubscription {
+                DeletionSubscriptionView(
+                    notice: deletionSubscription,
+                    manage: { managingSubscription = true },
+                    proceed: {
+                        continuedDeletion = true
+                        showingDeletionSubscription = false
+                    })
+            }
+        }
+        .onChange(of: showingDeletionSubscription) { _, showing in
+            guard !showing, continuedDeletion else { return }
+            continuedDeletion = false
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                confirmingDeletion = true
+            }
+        }
+        .alert("Delete Member?", isPresented: $confirmingDeletion) {
+            Button("Delete Member", role: .destructive) { Task { await model.deleteMember() } }
+                .accessibilityIdentifier("member.delete.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your member account, synced hosts, and notifications on all your devices will be deleted from the server. This can’t be undone.")
+        }
+    }
+
+    /// 刪除會員:有仍會扣款的訂閱先處理訂閱(Apple／Google 會繼續收費),沒有才直接問刪除確認(#412)。
+    private func startDeletion() {
+        if let notice = DeletionSubscriptionNotice(subscription: plus?.subscription) {
+            deletionSubscription = notice
+            showingDeletionSubscription = true
+        } else {
+            confirmingDeletion = true
         }
     }
 
@@ -1003,6 +1048,48 @@ struct AccountEntryToolbar: ToolbarContent {
                     .accessibilityLabel(Text("Step \(indicator.current) of \(indicator.total)"))
                     .accessibilityIdentifier("member.entry.step")
             }
+        }
+    }
+}
+
+/// 刪除會員前先處理訂閱(#412、設計稿第 28 組、App Store 審查準則 5.1.1(v)):
+/// 說明刪除不會取消訂閱、商店會繼續收費。App Store 訂閱提供系統的「管理訂閱」;Google Play 只給文字指引、不放連結。
+struct DeletionSubscriptionView: View {
+    let notice: DeletionSubscriptionNotice
+    let manage: () -> Void
+    let proceed: () -> Void
+
+    var body: some View {
+        List {
+            Section {
+                Text(message)
+                    .accessibilityIdentifier("member.deleteSubscription.message")
+            }
+            if notice == .appStore {
+                Section {
+                    Button("Manage Subscription", action: manage)
+                        .accessibilityIdentifier("member.deleteSubscription.manage")
+                }
+            }
+            Section {
+                Button("Continue Deleting Member", role: .destructive, action: proceed)
+                    .accessibilityIdentifier("member.deleteSubscription.continue")
+            }
+        }
+        .appGroupedList()
+        .navigationTitle("Delete Member")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .accessibilityIdentifier("member.deleteSubscription")
+    }
+
+    private var message: String {
+        switch notice {
+        case .appStore:
+            String(localized: "You have Purrdr Plus through the App Store. Deleting your member account doesn’t cancel it, and Apple will keep charging you. Cancel the subscription first, then continue.")
+        case .googlePlay:
+            String(localized: "You have Purrdr Plus through Google Play. Deleting your member account doesn’t cancel it, and Google will keep charging you. Go to Google Play to cancel it first, then continue.")
         }
     }
 }

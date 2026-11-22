@@ -115,7 +115,7 @@ public struct SystemDeviceOwnerAuthenticator: DeviceOwnerAuthenticating {
         let reason = switch purpose {
         case .unlock: String(localized: "Unlock Purrdr to see your chats.")
         case .turnOn: String(localized: "Confirm it’s you to turn on App Lock.")
-        case .confirmAccountChange: String(localized: "Confirm it’s you to move your subscription to this member account.")
+        case .confirmAccountChange: String(localized: "Confirm it’s you to change your member account.")
         }
         do {
             return try await LAContext().evaluatePolicy(Self.policy, localizedReason: reason) ? .success : .failed

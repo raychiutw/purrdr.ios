@@ -3006,13 +3006,13 @@
         }
       }
     },
-    "Confirm it’s you to move your subscription to this member account." : {
+    "Confirm it’s you to change your member account." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "確認是你本人,才能把訂閱轉移到這個會員。"
+            "value" : "確認是你本人,才能變更會員帳號。"
           }
         }
       }
@@ -3178,6 +3178,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "繼續"
+          }
+        }
+      }
+    },
+    "Continue Deleting Member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續刪除會員"
           }
         }
       }
@@ -4249,13 +4260,13 @@
         }
       }
     },
-    "Delete your member account?" : {
+    "Delete Member?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要刪除你的會員嗎?"
+            "value" : "刪除會員?"
           }
         }
       }
@@ -10885,6 +10896,17 @@
         }
       }
     },
+    "Sign Out?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要登出嗎?"
+          }
+        }
+      }
+    },
     "Sign Up with Google" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11057,6 +11079,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "登出其他裝置後,它需要重新登入。要登出這支裝置,請用帳號頁的「登出」。"
+          }
+        }
+      }
+    },
+    "Signing out turns off notifications for this device and pauses host sync. Hosts and chats keep working — they don’t need a member account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登出會停止這支裝置的通知並暫停主機同步。主機與聊天仍可使用,不需要會員。"
           }
         }
       }
@@ -15391,6 +15424,28 @@
         }
       }
     },
+    "You have Purrdr Plus through Google Play. Deleting your member account doesn’t cancel it, and Google will keep charging you. Go to Google Play to cancel it first, then continue." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你有透過 Google Play 的 Purrdr Plus。刪除會員不會取消訂閱,Google 會繼續收費。請先到 Google Play 取消,再繼續刪除。"
+          }
+        }
+      }
+    },
+    "You have Purrdr Plus through the App Store. Deleting your member account doesn’t cancel it, and Apple will keep charging you. Cancel the subscription first, then continue." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你有透過 App Store 的 Purrdr Plus。刪除會員不會取消訂閱,Apple 會繼續收費。請先取消訂閱,再繼續刪除。"
+          }
+        }
+      }
+    },
     "You should know" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
@@ -15527,13 +15582,13 @@
         }
       }
     },
-    "Your member account, push pairings, and synced hosts will be deleted. This can’t be undone. A Purrdr Plus subscription isn’t canceled automatically — cancel it in Settings › Apple Account › Subscriptions." : {
+    "Your member account, synced hosts, and notifications on all your devices will be deleted from the server. This can’t be undone." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你的會員、推播配對與同步的主機都會被刪除，且無法復原。Purrdr Plus 訂閱不會自動取消，請到「設定」›「Apple 帳號」›「訂閱項目」取消。"
+            "value" : "會員資料、主機同步與所有裝置的通知會從 Purrdr 後台刪除,無法復原。"
           }
         }
       }

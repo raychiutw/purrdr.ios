@@ -94,12 +94,41 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(delete.waitUntilExists(timeout: 10), "帳號頁沒有刪除會員")
         XCTAssertEqual(delete.label, "Delete Member")
         delete.tap()
-        let confirm = app.sheets.buttons["Delete Member"].firstMatch
-        let confirmInPlace = app.buttons["Delete Member"].firstMatch
-        XCTAssertTrue(
-            UITestWait.until(timeout: 5) { confirm.exists || confirmInPlace.exists },
-            "按下刪除會員沒有先跳確認")
-        XCTAssertTrue(app.staticTexts["Delete your member account?"].exists, "沒有確認的標題")
+        XCTAssertTrue(app.alerts["Delete Member?"].waitForExistence(timeout: 5), "沒有訂閱的會員按刪除要直接跳確認")
+        XCTAssertFalse(app.otherElements["member.deleteSubscription"].exists, "沒有訂閱不該先出現訂閱說明頁")
+    }
+
+    /// 有 App Store 訂閱的會員刪除前先處理訂閱(#412):說明頁有「管理訂閱」,繼續後才是刪除確認。
+    @MainActor
+    func testDeleteMemberWithSubscriptionShowsSubscriptionStepFirst() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+        let account = app.buttons["toolbar.account"]
+        XCTAssertTrue(account.waitUntilExists(timeout: 10))
+        account.tap()
+        let delete = app.buttons["member.delete"]
+        app.scrollIntoView(delete, search: .down)
+        XCTAssertTrue(delete.waitUntilExists(timeout: 10))
+        delete.tap()
+        XCTAssertTrue(app.buttons["member.deleteSubscription.manage"].waitForExistence(timeout: 5), "沒有先處理訂閱")
+        XCTAssertFalse(app.alerts["Delete Member?"].exists, "訂閱說明之前不該有刪除確認")
+        app.buttons["member.deleteSubscription.continue"].tap()
+        XCTAssertTrue(app.alerts["Delete Member?"].waitForExistence(timeout: 5))
+    }
+
+    /// 登出(#412):先說明會停止這支裝置的通知,確認後才登出。
+    @MainActor
+    func testSignOutExplainsBeforeSigningOut() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
+        let account = app.buttons["toolbar.account"]
+        XCTAssertTrue(account.waitUntilExists(timeout: 10))
+        account.tap()
+        let signOut = app.buttons["member.signOut"]
+        app.scrollIntoView(signOut, search: .down)
+        XCTAssertTrue(signOut.waitUntilExists(timeout: 10))
+        signOut.tap()
+        XCTAssertTrue(app.alerts["Sign Out?"].waitForExistence(timeout: 5), "登出前沒有說明")
+        app.alerts["Sign Out?"].buttons["Cancel"].tap()
+        XCTAssertTrue(signOut.exists, "取消後仍在帳號頁")
     }
 
     @MainActor
