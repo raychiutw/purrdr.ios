@@ -571,6 +571,8 @@ public final class ConversationModel {
     private var boundSessionID: String?
     /// 對話紀錄的方言，依 Agent 設定檔(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
     private var dialect: TranscriptDialect = .claude
+    /// 解析時略過認不得的行(#449):交給診斷紀錄(只含種類名稱與數量);`nil` 不回報。
+    public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
     /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
     /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
@@ -2562,7 +2564,9 @@ public final class ConversationModel {
 
     private func parse(_ lines: [String]) -> [TranscriptMessage] {
         var seen = Set<String>()
-        return lines.flatMap(dialect.messages(in:)).filter { seen.insert($0.id).inserted }
+        let parsed = dialect.parse(lines)
+        if !parsed.skips.isEmpty { onTranscriptSkips?(dialect, parsed.skips) }
+        return parsed.messages.filter { seen.insert($0.id).inserted }
     }
 }
 

@@ -68,6 +68,41 @@ struct TranscriptDialectContractTests {
         #expect(metadata.model == nil && metadata.contextTokens == nil)
     }
 
+    /// 該方言「認不得」的一行(種類是未來才會出現的新種類),內含不該進紀錄的原文。
+    static func unknownLine(for dialect: TranscriptDialect) -> String {
+        if dialect == .grok {
+            return #"{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"future_update_9","text":"私密原文"}}}"#
+        }
+        return #"{"type":"FUTURE_KIND_9","step_index":99,"source":"MODEL","content":"私密原文"}"#
+    }
+
+    @Test("混入認不得的行：其他行照常解析、略過的行只記種類與數量(部分失敗,#449)", arguments: fixtures)
+    func unknownLinesAreSkippedWithoutFailingTheRest(_ fixture: FixtureCase) {
+        let baseline = fixture.dialect.parse(fixture.lines)
+        let mixed = [Self.unknownLine(for: fixture.dialect), "{broken json"] + fixture.lines + [Self.unknownLine(for: fixture.dialect), "", "not json at all"]
+        let result = fixture.dialect.parse(mixed)
+
+        #expect(result.messages.map(\.id) == baseline.messages.map(\.id))
+        #expect(!result.messages.isEmpty)
+        let expectedKind = fixture.dialect == .grok ? "future_update_9" : "FUTURE_KIND_9"
+        #expect(result.skips.unknownKinds[expectedKind] == 2)
+        #expect(result.skips.unparsableLines == baseline.skips.unparsableLines + 2)
+        #expect(!"\(result.skips)".contains("私密原文"))
+    }
+
+    @Test("真實與撰寫的 fixture 沒有認不得的種類(方言的已知種類清單與資料一致)", arguments: fixtures)
+    func fixturesHaveNoUnknownKinds(_ fixture: FixtureCase) {
+        #expect(fixture.dialect.parse(fixture.lines).skips.unknownKinds.isEmpty)
+    }
+
+    @Test("種類名稱含非 ASCII 或過長時不原樣寫進紀錄")
+    func skippedKindNamesAreSanitized() {
+        let result = TranscriptDialect.codex.parse([#"{"type":"私密原文"}"#, #"{"type":"\#(String(repeating: "a", count: 90))"}"#])
+
+        #expect(result.skips.unknownKinds["(other)"] == 1)
+        #expect(result.skips.unknownKinds[String(repeating: "a", count: 40)] == 1)
+    }
+
     @Test("每份方言的位置規則都登記在全部位置規則裡,且 Windows 與 POSIX 的定位腳本都有對應")
     func locatorsAreRegisteredForEveryHostDialect() {
         let known = TranscriptLocator.all

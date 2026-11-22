@@ -24,6 +24,10 @@ public struct TranscriptDialect: Sendable, Equatable, Hashable {
     public let supportsSubagents: Bool
     /// 有 status line 的 session 狀態檔可讀(Claude Code,#388)。
     public let readsSessionStatus: Bool
+    /// 一行 JSON 物件的種類(`type` 之類的判別欄位);只用來診斷「認不得的行」。
+    private let lineKind: @Sendable ([String: Any]) -> String?
+    /// 這份方言認得的行種類(含刻意不顯示的);其他種類在 `parse(_:)` 記為略過。
+    private let knownKinds: Set<String>
     private let parseLine: @Sendable (String) -> [TranscriptMessage]
     private let applyMetadata: @Sendable (inout TranscriptMetadata, String) -> Void
     /// 以一行更新進度(context 與待辦);`nil` 表示這種方言沒有進度資料。第二個參數是已解析的 JSON 物件。
@@ -36,6 +40,7 @@ public struct TranscriptDialect: Sendable, Equatable, Hashable {
     init(
         name: String, verification: Verification, locator: TranscriptLocator, reportedPathLocator: TranscriptLocator? = nil,
         slashMenu: SlashMenuSource = .none, supportsSubagents: Bool = false, readsSessionStatus: Bool = false,
+        lineKind: @escaping @Sendable ([String: Any]) -> String? = { $0["type"] as? String }, knownKinds: Set<String>,
         parseLine: @escaping @Sendable (String) -> [TranscriptMessage],
         applyMetadata: @escaping @Sendable (inout TranscriptMetadata, String) -> Void,
         applyProgress: (@Sendable (inout AgentProgress, [String: Any], String) -> Void)? = nil
@@ -47,6 +52,8 @@ public struct TranscriptDialect: Sendable, Equatable, Hashable {
         self.slashMenu = slashMenu
         self.supportsSubagents = supportsSubagents
         self.readsSessionStatus = readsSessionStatus
+        self.lineKind = lineKind
+        self.knownKinds = knownKinds
         self.parseLine = parseLine
         self.applyMetadata = applyMetadata
         self.applyProgress = applyProgress
@@ -57,6 +64,27 @@ public struct TranscriptDialect: Sendable, Equatable, Hashable {
 
     /// 解析一行。看不懂的行(通常是被截斷的尾行)回傳空陣列。
     public func messages(in line: String) -> [TranscriptMessage] { parseLine(line) }
+
+    /// 解析多行,並統計略過的行(部分失敗:認不得的行不讓整份失敗,只記下數量供診斷)。
+    /// 空行不算;`skips` 只含種類名稱與行數,不含對話原文。
+    public func parse(_ lines: [String]) -> TranscriptParse {
+        var skips = TranscriptSkips()
+        var messages: [TranscriptMessage] = []
+        for line in lines where !line.isEmpty {
+            let parsed = parseLine(line)
+            messages += parsed
+            guard parsed.isEmpty else { continue }
+            guard let object = ClaudeTranscriptParser.jsonObject(line) else {
+                skips.unparsableLines += 1
+                continue
+            }
+            let kind = lineKind(object)
+            if kind == nil || !knownKinds.contains(kind!) {
+                skips.unknownKinds[TranscriptSkips.safeName(kind), default: 0] += 1
+            }
+        }
+        return TranscriptParse(messages: messages, skips: skips)
+    }
 
     /// 以一行更新 header 中繼資料(較晚的值覆蓋較早的)。
     public func updateMetadata(_ metadata: inout TranscriptMetadata, with line: String) { applyMetadata(&metadata, line) }
@@ -86,6 +114,7 @@ extension TranscriptDialect {
     public static let claude = TranscriptDialect(
         name: "claude", verification: .verified(agentVersion: "Claude Code 2.1.300–2.1.323"), locator: .claude,
         slashMenu: .discovered, supportsSubagents: true, readsSessionStatus: true,
+        knownKinds: ["assistant", "user", "attachment", "system", "last-prompt", "file-history-snapshot", "api-request-blob", "summary", "progress", "queue-operation", "custom-title", "agent-name", "ai-title", "permission-mode", "pr-link"],
         parseLine: { ClaudeTranscriptParser.messages(in: $0) },
         applyMetadata: { $0.update(with: $1) },
         applyProgress: { progress, object, line in progress.updateClaude(object, line: line) }
@@ -95,6 +124,8 @@ extension TranscriptDialect {
     public static let grok = TranscriptDialect(
         name: "grok", verification: .unverified(documentedFor: "Grok 1.0.52"), locator: .grok,
         slashMenu: .fixed(SlashMenuSource.grokCommands),
+        lineKind: { (($0["params"] as? [String: Any])?["update"] as? [String: Any])?["sessionUpdate"] as? String },
+        knownKinds: ["user_message_chunk", "agent_message_chunk", "agent_thought_chunk", "tool_call", "tool_call_update", "plan", "available_commands_update", "current_mode_update"],
         parseLine: { GrokTranscriptParser.messages(in: $0) },
         applyMetadata: { GrokTranscriptParser.updateMetadata(&$0, with: $1) }
     )
@@ -104,6 +135,7 @@ extension TranscriptDialect {
         name: "antigravity", verification: .verified(agentVersion: "Antigravity CLI 1.5.14"), locator: .antigravity,
         reportedPathLocator: .reportedPath(),
         slashMenu: .fixed(SlashMenuSource.antigravityCommands),
+        knownKinds: ["USER_INPUT", "PLANNER_RESPONSE", "GENERIC", "SYSTEM_MESSAGE", "EPHEMERAL_MESSAGE"],
         parseLine: { AntigravityTranscriptParser.messages(in: $0) },
         applyMetadata: { AntigravityTranscriptParser.updateMetadata(&$0, with: $1) }
     )
@@ -112,6 +144,7 @@ extension TranscriptDialect {
     public static let piJournal = TranscriptDialect(
         name: "pi-journal", verification: .unverified(documentedFor: "Pi coding-agent session format"), locator: .piJournal,
         reportedPathLocator: .reportedPath(headerCheck: TranscriptLocator.piJournal.headerCheck),
+        knownKinds: ["session", "model_change", "thinking_level_change", "message", "compaction", "branch_summary", "reset_boundary"],
         parseLine: { PiJournalParser.messages(in: $0) },
         applyMetadata: { PiJournalParser.updateMetadata(&$0, with: $1) }
     )
@@ -120,6 +153,7 @@ extension TranscriptDialect {
     public static let codex = TranscriptDialect(
         name: "codex", verification: .unverified(documentedFor: "Codex 0.157–0.163"), locator: .codex,
         slashMenu: .fixed(SlashMenuSource.codexCommands),
+        knownKinds: ["session_meta", "turn_context", "response_item", "event_msg", "compacted"],
         parseLine: { CodexTranscriptParser.messages(in: $0) },
         applyMetadata: { CodexTranscriptParser.updateMetadata(&$0, with: $1) },
         applyProgress: { progress, object, _ in progress.updateCodex(object) }
@@ -127,4 +161,28 @@ extension TranscriptDialect {
 
     /// 全部的方言(契約測試逐一檢查)。
     public static let all: [TranscriptDialect] = [.claude, .grok, .antigravity, .piJournal, .codex]
+}
+
+/// `TranscriptDialect.parse(_:)` 的結果。
+public struct TranscriptParse: Sendable {
+    public let messages: [TranscriptMessage]
+    public let skips: TranscriptSkips
+}
+
+/// 解析時略過的行(診斷用,不含對話原文)。
+public struct TranscriptSkips: Sendable, Equatable {
+    /// 不是 JSON 物件的行(多半是視窗邊界被切斷的第一行)。
+    public var unparsableLines = 0
+    /// 是 JSON 物件、但種類方言不認得的行(種類名稱 → 行數)。
+    public var unknownKinds: [String: Int] = [:]
+
+    public init() {}
+    public var isEmpty: Bool { unparsableLines == 0 && unknownKinds.isEmpty }
+
+    /// 種類名稱只留英數與 `_-.`、最長 40 字,避免把原文寫進紀錄。
+    static func safeName(_ kind: String?) -> String {
+        guard let kind, !kind.isEmpty else { return "(none)" }
+        let allowed = kind.unicodeScalars.allSatisfy { $0.isASCII && ($0.properties.isAlphabetic || ("0"..."9").contains(Character($0)) || "_-.".unicodeScalars.contains($0)) }
+        return allowed ? String(kind.prefix(40)) : "(other)"
+    }
 }

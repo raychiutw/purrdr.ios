@@ -474,6 +474,8 @@ public final class HostsModel {
         model.gitChanges = member.gitChanges
         // context 取自聊天所在主機的 status line 檔(#388)。
         model.sessionStatusReader = member.sessionStatus
+        // 對話紀錄認不得的行記到診斷紀錄(#449)。
+        model.onTranscriptSkips = TranscriptSkipLog.shared.report
         model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
         // 離開期間摘要(#308):上次離開這個聊天的時間。
         model.awayStart = { [weak self] in self?.agentList.awayStart(for: route) }
