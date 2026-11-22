@@ -29,6 +29,8 @@ public enum PushPluginError: Error, Equatable {
     case pluginListFailed(String)
     /// 主機上找不到這支裝置的配對檔。
     case notPaired
+    /// 更新外掛失敗(#432;主機沒有 git、連不上 GitHub…);附 herdr 的訊息。外掛維持原版本。
+    case pluginUpdateFailed(String)
     /// 主機服務比 0.6.0 舊，還不能代裝外掛;附主機回報的版本。
     case hostServiceOutdated(installed: String)
 }
@@ -47,6 +49,18 @@ public protocol PushPluginInstalling: Sendable {
     func remove() async throws
     /// 改寫這支裝置配對的靜音清單，其餘內容不變;沒有配對丟 `PushPluginError.notPaired`。
     func updateMuted(_ muted: Set<String>) async throws
+    /// 外掛已安裝、版本落後 `PushPluginRelease.latestKnownVersion` 時更新(#432);回傳是否執行了更新。
+    /// 沒裝外掛不代裝;預設不做事(主機服務自己每輪更新，HTTPS 不需要)。失敗丟 `PushPluginError.pluginUpdateFailed`。
+    func updatePluginIfNeeded() async throws -> Bool
+}
+
+extension PushPluginInstalling {
+    public func updatePluginIfNeeded() async throws -> Bool { false }
+}
+
+/// app 認得的推播外掛版本(purrdr.host 0.13.0 發行的 0.2.1);外掛有新版時隨 app 遞增。
+public enum PushPluginRelease {
+    public static let latestKnownVersion = HostServiceVersion(0, 2, 1)
 }
 
 /// 「傳送測試通知」(#328)送出失敗的原因。SSH(app 經主機送)與 HTTPS(主機服務的 `push.test`)共用，畫面說明只對這個型別。

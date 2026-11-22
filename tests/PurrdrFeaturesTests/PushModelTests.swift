@@ -300,6 +300,25 @@ struct PushModelTests {
         #expect(!pluginHost.pluginInstalled)
     }
 
+    // MARK: - 外掛自動更新(#432)
+
+    @Test("推播開著才更新外掛，且每 24 小時最多嘗試一次;關閉時不更新")
+    func pluginUpdateIsThrottledAndOnlyWhenOn() async throws {
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let pluginHost = FakePushPluginHost()
+        let model = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
+        let start = ContinuousClock.now
+
+        #expect(await model.updatePluginIfNeeded(now: start) == false)
+        #expect(pluginHost.calls.isEmpty)
+
+        await turnOn(model)
+        #expect(await model.updatePluginIfNeeded(now: start) == true)
+        #expect(await model.updatePluginIfNeeded(now: start + .seconds(3600)) == false)
+        #expect(await model.updatePluginIfNeeded(now: start + PushModel.pluginUpdateInterval) == true)
+        #expect(pluginHost.calls.filter { $0.hasPrefix("updatePlugin") }.count == 2)
+    }
+
     // MARK: - 多支裝置共用一台主機(#264)
 
     /// 另一支裝置(自己的裝置 id 與配對紀錄)在同一台假主機上的開關。

@@ -416,6 +416,7 @@ private struct DeviceBoundPushPluginInstaller: PushPluginInstalling {
     func install(_ pairing: PushPairingFile) async throws { try await resolved().install(pairing) }
     func remove() async throws { try await resolved().remove() }
     func updateMuted(_ muted: Set<String>) async throws { try await resolved().updateMuted(muted) }
+    func updatePluginIfNeeded() async throws -> Bool { try await resolved().updatePluginIfNeeded() }
 }
 
 @MainActor
@@ -710,6 +711,20 @@ public final class PushModel {
     public func refreshStatus() async {
         guard let installer, hostID != nil, let status = try? await installer.status() else { return }
         record(status)
+    }
+
+    /// 距離上次嘗試更新外掛至少這麼久才再試(#432;成功與失敗都算)。
+    public static let pluginUpdateInterval: Duration = .seconds(24 * 60 * 60)
+    private var lastPluginUpdateAttempt: ContinuousClock.Instant?
+
+    /// 推播開著時，外掛版本落後就更新(#432,SSH 主機;主機服務自己更新，其安裝介面什麼都不做)。
+    /// 頻率上限 `pluginUpdateInterval`;失敗不打擾使用者，下個間隔再試。
+    @discardableResult
+    public func updatePluginIfNeeded(now: ContinuousClock.Instant = .now) async -> Bool {
+        guard state == .on, let installer else { return false }
+        if let last = lastPluginUpdateAttempt, now - last < Self.pluginUpdateInterval { return false }
+        lastPluginUpdateAttempt = now
+        return (try? await installer.updatePluginIfNeeded()) ?? false
     }
 
     private func record(_ status: PushPluginStatus) {

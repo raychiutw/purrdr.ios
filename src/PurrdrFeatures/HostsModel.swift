@@ -1245,6 +1245,8 @@ final class HostMember {
             preferences.load().muted
         }
         self.push = push
+        // 連上這台主機(建立成員)時,推播開著就檢查外掛版本(#432;有頻率上限，失敗不打擾)。
+        if push.state == .on { Task { await push.updatePluginIfNeeded() } }
         // 測試通知(#328):SSH 主機由主機上的腳本送(與外掛同一條路:主機 → 後台 → APNs);HTTPS 主機還沒有，Demo 主機沒有真的外掛。
         // Windows 也有 PowerShell 版,所以不分作業系統。
         if let configuration, let pushService, !configuration.connectionMethod.usesHostService {

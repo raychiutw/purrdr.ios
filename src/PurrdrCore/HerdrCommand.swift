@@ -36,6 +36,11 @@ public enum HerdrCommand {
         "\(pathPrefix) \(quotedPath(herdr.path)) plugin install \(PosixShell.quote(source)) --yes"
     }
 
+    /// 更新已安裝的 herdr plugin 到來源的最新版,不互動確認(#432)。與安裝一樣要下載，不帶 `--session`。
+    public static func pluginUpdate(id: String, herdr: HerdrInstallation) -> String {
+        "\(pathPrefix) \(quotedPath(herdr.path)) plugin update \(PosixShell.quote(id)) --yes"
+    }
+
     /// 移除 herdr plugin(以 plugin id)。
     public static func pluginUninstall(id: String, herdr: HerdrInstallation) -> String {
         "\(pathPrefix) \(quotedPath(herdr.path)) plugin uninstall \(PosixShell.quote(id))"
