@@ -25,7 +25,7 @@ struct PlusCardView: View {
                     if case .active = card.kind {
                         // 設計稿第 27 組:已開通的標題前有綠色打勾圖示。
                         Image(systemName: "checkmark.circle")
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(.tint)
                             .accessibilityHidden(true)
                     }
                     Text(title)
