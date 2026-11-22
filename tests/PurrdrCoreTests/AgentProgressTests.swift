@@ -28,12 +28,72 @@ struct AgentProgressTests {
         #expect(progress.contextLevel == .normal)
     }
 
+    static func sidechain(_ line: String) -> String {
+        line.replacingOccurrences(of: #""type":"assistant""#, with: #""isSidechain":true,"type":"assistant""#)
+    }
+
+    @Test("Claude:超過 200k 判定是 1M 視窗(不會顯示 100%)")
+    func claudeOverTwoHundredKIsOneMillion() {
+        let progress = AgentProgress.latest(in: [Self.claudeAssistant(input: 10, cacheRead: 300_000, cacheCreation: 0)], format: .claude)
+        #expect(progress.contextPercent == 30)
+    }
+
+    @Test("Claude:剛好 200k 仍是 200k 視窗")
+    func claudeExactlyTwoHundredK() {
+        let progress = AgentProgress.latest(in: [Self.claudeAssistant(input: 0, cacheRead: 200_000)], format: .claude)
+        #expect(progress.contextPercent == 100)
+    }
+
+    @Test("Claude:判定為 1M 後，之後降到 200k 以下(壓縮)仍以 1M 計")
+    func claudeOneMillionIsSticky() {
+        let progress = AgentProgress.latest(in: [
+            Self.claudeAssistant(input: 0, cacheRead: 250_000),
+            Self.claudeAssistant(input: 0, cacheRead: 100_000),
+        ], format: .claude)
+        #expect(progress.contextPercent == 10)
+    }
+
+    @Test("Claude:/model 註記帶 [1m] 時上限是 1M")
+    func claudeModelCommandOneMillion() {
+        let note = #"{"type":"user","message":{"role":"user","content":"<local-command-stdout>Set model to Opus 4.7 (claude-opus-4-7[1m]) for this session only</local-command-stdout>"},"uuid":"u1"}"#
+        let progress = AgentProgress.latest(in: [Self.claudeAssistant(input: 0, cacheRead: 100_000), note], format: .claude)
+        #expect(progress.contextPercent == 10)
+    }
+
+    @Test("Claude:sidechain(子 Agent)的用量不蓋掉主對話")
+    func claudeIgnoresSidechain() {
+        let progress = AgentProgress.latest(in: [
+            Self.claudeAssistant(input: 0, cacheRead: 100_000),
+            Self.sidechain(Self.claudeAssistant(model: "claude-haiku-4-5", input: 0, cacheRead: 20_000)),
+        ], format: .claude)
+        #expect(progress.contextPercent == 50)
+    }
+
+    @Test("Claude:sidechain 的 TodoWrite 不蓋掉主對話的待辦")
+    func claudeIgnoresSidechainTodos() {
+        let progress = AgentProgress.latest(in: [
+            Self.todoWrite([("主", "pending")]),
+            Self.sidechain(Self.todoWrite([("子", "completed")])),
+        ], format: .claude)
+        #expect(progress.todos.map(\.text) == ["主"])
+    }
+
+    @Test("Header 中繼資料也排除 sidechain")
+    func metadataIgnoresSidechain() {
+        let metadata = TranscriptMetadata.latest(in: [
+            Self.claudeAssistant(input: 0, cacheRead: 100_000),
+            Self.sidechain(Self.claudeAssistant(model: "claude-haiku-4-5", input: 0, cacheRead: 20_000)),
+        ])
+        #expect(metadata.contextTokens == 100_000)
+        #expect(metadata.model == "claude-opus-4-7")
+    }
+
     @Test("context 的警示門檻：70% 起橙、85% 起紅、最多 100")
     func contextLevels() {
         #expect(AgentProgress(contextPercent: 69).contextLevel == .normal)
         #expect(AgentProgress(contextPercent: 70).contextLevel == .warning)
         #expect(AgentProgress(contextPercent: 85).contextLevel == .critical)
-        let over = AgentProgress.latest(in: [Self.claudeAssistant(input: 300_000)], format: .claude)
+        let over = AgentProgress.latest(in: [Self.claudeAssistant(input: 1_200_000)], format: .claude)
         #expect(over.contextPercent == 100)
     }
 
