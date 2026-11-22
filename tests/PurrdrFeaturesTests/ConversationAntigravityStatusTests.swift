@@ -47,7 +47,7 @@ struct ConversationAntigravityStatusTests {
         #expect(!setup.model.supportsPermissionMode)
         #expect(!setup.model.canSwitchPermissionMode)
         #expect(!setup.model.canChooseModel)
-        #expect(setup.model.modelChoiceLock == .unsupportedAgent)
+        #expect(setup.model.modelChoiceLock == .agentLacksFeature)
     }
 
     @Test("default 模式(狀態列沒有模式那一段)是一般模式,標題沒有徽章")

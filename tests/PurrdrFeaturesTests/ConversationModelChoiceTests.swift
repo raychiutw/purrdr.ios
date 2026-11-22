@@ -217,7 +217,20 @@ struct ConversationEffortSheetTests {
         let setup = try await ConversationModelChoiceTests.opened(kind: "codex")
         #expect(setup.model.showsModelCapsule == (setup.model.modelName != nil))
         #expect(!setup.model.canChooseModel)
-        #expect(setup.model.modelChoiceLock == .unsupportedAgent)
+        #expect(setup.model.modelChoiceLock == .agentLacksFeature)
+        #expect(setup.model.modelChoiceLock?.unavailability == .agentLacksFeature)
+    }
+
+    @Test("停用原因對應三種「不能用」:這個 Agent 沒有、還沒驗證、這台主機做不到(只有前兩種是 Agent 造成的)")
+    func lockMapsToUnavailability() {
+        typealias Lock = ConversationModel.ModelChoiceLock
+        #expect(Lock(.agentLacksFeature) == .agentLacksFeature)
+        #expect(Lock(.notVerified(documentedFor: "X 1.0")) == .notVerified(documentedFor: "X 1.0"))
+        #expect(Lock(.hostCannot) == .hostCannot)
+        #expect(Lock.notVerified(documentedFor: "X 1.0").unavailability == .notVerified(documentedFor: "X 1.0"))
+        #expect(Lock.hostCannot.unavailability == .hostCannot)
+        #expect(Lock.working.unavailability == nil)
+        #expect(Lock.offline.unavailability == nil)
     }
 
     @Test("切換失敗(按鍵送不出去):不改模型、結束切換中,輸入列上方說明")

@@ -343,7 +343,9 @@ extension ConversationModel.ModelChoiceLock {
         case .offline: "Can’t reach the host, so the model can’t be changed."
         case .waitingForYou: "The agent is waiting for your reply. Answer first, then change the model."
         case .working: "The agent is working. Change the model once it’s done."
-        case .unsupportedAgent: "This agent’s model can only be changed in its terminal."
+        case .agentLacksFeature: "This agent doesn’t support changing the model from Purrdr. Change it in its terminal."
+        case .notVerified: "Changing this agent’s model from Purrdr isn’t verified yet. Change it in its terminal."
+        case .hostCannot: "This host can’t change the model."
         }
     }
 }

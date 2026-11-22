@@ -2006,12 +2006,34 @@ public final class ConversationModel {
         case waitingForYou
         /// Agent 在工作:`/model` 會排進佇列。
         case working
-        /// 這個 Agent 不能在 app 內切換模型(Codex 等)。
-        case unsupportedAgent
+        /// 這個 Agent 沒有在 app 內切換模型的功能(Codex 等)。
+        case agentLacksFeature
+        /// 這個 Agent 的切換方式還沒驗證過,所以不開放。
+        case notVerified(documentedFor: String)
+        /// 這台主機做不到。
+        case hostCannot
+
+        public init(_ unavailability: FeatureUnavailability) {
+            switch unavailability {
+            case .agentLacksFeature: self = .agentLacksFeature
+            case .notVerified(let version): self = .notVerified(documentedFor: version)
+            case .hostCannot: self = .hostCannot
+            }
+        }
+
+        /// 對應三種「不能用」的原因;因為唯讀、離線、等你回覆、工作中而停用的不算。
+        public var unavailability: FeatureUnavailability? {
+            switch self {
+            case .agentLacksFeature: .agentLacksFeature
+            case .notVerified(let version): .notVerified(documentedFor: version)
+            case .hostCannot: .hostCannot
+            case .readOnlyDevice, .offline, .waitingForYou, .working: nil
+            }
+        }
     }
 
     public var modelChoiceLock: ModelChoiceLock? {
-        if currentAgent != nil, !screenDialect.canChooseModel { return .unsupportedAgent }
+        if currentAgent != nil, let reason = screenDialect.modelChoiceUnavailability { return ModelChoiceLock(reason) }
         if isReadOnly { return .readOnlyDevice }
         if isOffline { return .offline }
         if agentStatus == .blocked || prompt != nil { return .waitingForYou }

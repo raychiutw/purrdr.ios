@@ -69,6 +69,19 @@ struct ScreenDialectTests {
         #expect(dialect.configurableCategories.isEmpty)
     }
 
+    @Test("不能用的三種原因(#451):沒有這項功能、還沒驗證;能用時沒有原因")
+    func unavailabilityReasons() {
+        let claude = Self.dialect("claude"), codex = Self.dialect("codex")
+        #expect(claude.modelChoiceUnavailability == nil)
+        #expect(claude.permissionModeUnavailability == nil)
+        #expect(codex.modelChoiceUnavailability == .agentLacksFeature)
+        #expect(codex.permissionModeUnavailability == .agentLacksFeature)
+        #expect(ScreenDialect.generic.modelChoiceUnavailability == .agentLacksFeature)
+        let unverified = Self.unverified(panel: .claude, hasPermissionModes: true, choosesModel: true)
+        #expect(unverified.modelChoiceUnavailability == .notVerified(documentedFor: "test"))
+        #expect(unverified.permissionModeUnavailability == .notVerified(documentedFor: "test"))
+    }
+
     @Test("驗證過但沒有那項能力也不開放")
     func verifiedWithoutCapability() {
         let dialect = ScreenDialect(name: "test", verification: .verified(agentVersion: "1"))

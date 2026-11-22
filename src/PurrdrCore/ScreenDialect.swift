@@ -62,6 +62,16 @@ extension BlockedPrompt {
     }
 }
 
+/// 功能不能用的三種原因(ADR-0013、#451):畫面依原因說不同的話,使用者才知道要不要等更新。
+public enum FeatureUnavailability: Equatable, Sendable {
+    /// 這個 Agent 沒有這項功能(設定檔沒有那組方言)。
+    case agentLacksFeature
+    /// 方言有,但還沒用真實 Agent 驗證過(會送按鍵的操作不開放);帶文件依據的 Agent 版本。
+    case notVerified(documentedFor: String)
+    /// 這台主機做不到(主機服務太舊、Windows 不支援等)。
+    case hostCannot
+}
+
 /// Agent 設定檔的畫面組(ADR-0013、#441):從 pane 畫面讀到什麼、能操作什麼。
 ///
 /// 方言是常數表,以 `name` 為身分。**會送按鍵的操作**(面板、權限模式切換、`/model`)沒驗證過就不開放(`isVerified`):
@@ -114,6 +124,17 @@ public struct ScreenDialect: Sendable, Equatable {
     public var switchesPermissionMode: Bool { hasPermissionModes && isVerified }
     /// 在 app 內選模型(送 `/model` 與面板按鍵):驗證過才開放。
     public var canChooseModel: Bool { choosesModel && isVerified }
+    /// 選模型不能用的原因;能用時 `nil`。
+    public var modelChoiceUnavailability: FeatureUnavailability? { unavailability(hasCapability: choosesModel) }
+    /// 切換權限模式不能用的原因;能用時 `nil`。
+    public var permissionModeUnavailability: FeatureUnavailability? { unavailability(hasCapability: hasPermissionModes) }
+
+    private func unavailability(hasCapability: Bool) -> FeatureUnavailability? {
+        guard hasCapability else { return .agentLacksFeature }
+        guard case .unverified(let documentedFor) = verification else { return nil }
+        return .notVerified(documentedFor: documentedFor)
+    }
+
     /// app 能操作的 session 設定類別(ACP):模式、模型、effort(effort 與模型共用同一組面板)。
     public var configurableCategories: Set<SessionConfigCategory> {
         var result: Set<SessionConfigCategory> = []

@@ -2408,6 +2408,17 @@
         }
       }
     },
+    "Changing this agent’s model from Purrdr isn’t verified yet. Change it in its terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Agent 的模型還沒驗證過能從 Purrdr 更換,請到它的終端機更換。"
+          }
+        }
+      }
+    },
     "Chat" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12834,6 +12845,17 @@
         }
       }
     },
+    "This agent doesn’t support changing the model from Purrdr. Change it in its terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Agent 沒有從 Purrdr 更換模型的功能,請到它的終端機更換。"
+          }
+        }
+      }
+    },
     "This agent’s chat can’t be shown yet. Use the terminal to see it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12841,17 +12863,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前還無法顯示這個 Agent 的對話，請用終端機查看。"
-          }
-        }
-      }
-    },
-    "This agent’s model can only be changed in its terminal." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這個 Agent 的模型只能在它的終端機更換。"
           }
         }
       }
@@ -13248,6 +13259,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機是從其他裝置同步來的。輸入配對碼,就能在這支裝置使用。"
+          }
+        }
+      }
+    },
+    "This host can’t change the model." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機無法更換模型。"
           }
         }
       }
