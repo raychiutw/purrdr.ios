@@ -132,6 +132,27 @@ struct TrafficMeterTests {
         #expect(store.saveCount == 3)
     }
 
+    @Test("進背景存檔丟給背景佇列:呼叫端不同步寫檔，完成後才寫、之後 flush 沒有新內容不重寫(#498)")
+    func flushInBackgroundDoesNotWriteOnCaller() {
+        let clock = Clock("2026-11-21T10:00:00+08:00")
+        let store = InMemoryTrafficStore()
+        let jobs = Mutex<[(delay: TimeInterval, work: @Sendable () -> Void)]>([])
+        let meter = TrafficMeter(
+            store: store, now: { clock.now }, calendar: clock.calendar, network: .wifi,
+            scheduler: { delay, work in jobs.withLock { $0.append((delay, work)) } })
+        meter.record(hostID: "a", direction: .sent, bytes: 7)
+        _ = meter.sinceLaunch()  // 彙總在背景;讀取會先同步彙總
+
+        meter.flushInBackground()
+        #expect(store.saveCount == 0)
+        let flushJobs = jobs.withLock { $0.filter { $0.delay == 0 } }
+        flushJobs.forEach { $0.work() }
+        #expect(store.load().first?.hosts["a"]?[.wifi]?.sent == 7)
+        let written = store.saveCount
+        meter.flush()
+        #expect(store.saveCount == written)
+    }
+
     @Test("重設清掉所有歷史與這次開啟，之後重新累計")
     func resetClearsEverything() {
         let clock = Clock("2026-11-21T10:00:00+08:00")

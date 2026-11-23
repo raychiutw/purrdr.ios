@@ -218,19 +218,15 @@ private struct BackgroundAgentsPage: View {
     let pane: AgentsPane
 
     var body: some View {
+        // 每秒只重畫經過時間那一行(`AgentsBarRow` 自己的 TimelineView),不再整頁重建(#498)。
         List {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                let since = model.agentsPaneReadAt.map { max(0, context.date.timeIntervalSince($0)) } ?? 0
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(pane.rows) { row in
-                        if let card = model.subagentCard(forTask: row.task), model.canOpen(card) {
-                            NavigationLink(value: DelegationRoute.subagent(card)) {
-                                AgentsBarRow(row: row, since: since)
-                            }
-                        } else {
-                            AgentsBarRow(row: row, since: since)
-                        }
+            ForEach(pane.rows) { row in
+                if let card = model.subagentCard(forTask: row.task), model.canOpen(card) {
+                    NavigationLink(value: DelegationRoute.subagent(card)) {
+                        AgentsBarRow(row: row, readAt: model.agentsPaneReadAt)
                     }
+                } else {
+                    AgentsBarRow(row: row, readAt: model.agentsPaneReadAt)
                 }
             }
         }

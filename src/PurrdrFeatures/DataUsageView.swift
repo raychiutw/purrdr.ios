@@ -25,6 +25,7 @@ struct DataUsageScreen: View {
 /// 30 天長條圖、各主機的用量、重設統計與說明。
 public struct DataUsageView: View {
     @Bindable var model: DataUsageModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var optionsSheet: OptionsSheet?
     @State private var detailHostID: String?
     @State private var confirmsReset = false
@@ -92,7 +93,12 @@ public struct DataUsageView: View {
         } message: {
             Text("This clears all data usage recorded on this device.")
         }
-        .task { await model.run() }
+        // 只在前景每 2 秒重讀(#498):進背景不再讓整頁失效;回前景先重讀一次再繼續。
+        .task(id: scenePhase == .active) {
+            guard scenePhase == .active else { return }
+            model.refresh()
+            await model.run()
+        }
         .accessibilityIdentifier("dataUsage.page")
     }
 

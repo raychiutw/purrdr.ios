@@ -446,6 +446,14 @@ struct PurrdrApp: App {
         return nil
     }
 
+    /// 進背景時把流量用量寫檔:以 background task 撐到背景佇列寫完,主執行緒不等。
+    private func flushTrafficInBackground() {
+        let task = UIApplication.shared.beginBackgroundTask(withName: "traffic.flush")
+        trafficMeter.flushInBackground {
+            Task { @MainActor in UIApplication.shared.endBackgroundTask(task) }
+        }
+    }
+
     var body: some Scene {
         // 主視窗(三欄)。iPad 可以開好幾個，每個視窗有自己的導覽狀態;主機與 Agent 列表共用。
         WindowGroup(id: PurrdrCommands.mainWindowID) {
@@ -465,7 +473,8 @@ struct PurrdrApp: App {
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in
             appLock.scenePhaseChanged(to: AppLockPhase(phase), at: .now)
-            if phase != .active { trafficMeter.flush() }
+            // 只在真的進背景時存(inactive 只是拉下通知中心等短暫狀態),且在背景佇列寫、不在主執行緒同步寫檔(#498)。
+            if phase == .background { flushTrafficInBackground() }
         }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in

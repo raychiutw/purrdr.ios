@@ -475,8 +475,18 @@ struct WorkflowAgentRow: View {
 
 /// 背景 agents 的一列(狀態、種類、任務、經過時間 · tokens)。清單在狀態 sheet(#349),工作中膠囊只帶數量。
 struct AgentsBarRow: View {
+    private func detail(at date: Date) -> some View {
+        let since = readAt.map { max(0, date.timeIntervalSince($0)) } ?? 0
+        return Text([DelegationText.elapsed(of: row, secondsSinceRead: since), row.tokens.map(DelegationText.tokens)].compactMap { $0 }.joined(separator: " · "))
+            .font(.caption)
+            .foregroundStyle(.secondaryText)
+            .monospacedDigit()
+    }
+
     let row: AgentsPane.Row
-    let since: TimeInterval
+    /// 讀到這一列的時間;經過時間從它起算，每秒更新(只在前景，只重畫這一行,#498)。
+    let readAt: Date?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -485,10 +495,11 @@ struct AgentsBarRow: View {
                 Text("\(DelegationText.kind(row.kind)) · \(row.task)")
                     .font(.footnote)
                     .multilineTextAlignment(.leading)
-                Text([DelegationText.elapsed(of: row, secondsSinceRead: since), row.tokens.map(DelegationText.tokens)].compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(.secondaryText)
-                    .monospacedDigit()
+                if scenePhase == .active {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in detail(at: context.date) }
+                } else {
+                    detail(at: .now)
+                }
             }
             Spacer(minLength: 0)
         }

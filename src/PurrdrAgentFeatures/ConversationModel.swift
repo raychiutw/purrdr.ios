@@ -768,6 +768,11 @@ public final class ConversationModel {
     private var dialect: TranscriptDialect = .claude
     /// 解析時略過認不得的行(#449):交給診斷紀錄(只含種類名稱與數量);`nil` 不回報。
     public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
+    /// 對話紀錄的解析與重建在背景做(#498);測試用:每次背景計算開頭呼叫(在背景執行緒上)。
+    package var onTranscriptWork: (@Sendable () -> Void)?
+    /// 對話紀錄各段依到達順序套用的鎖,與訊息集合的版本(同步 `rebuild()` 會遞增，背景算完的結果若落後就丟掉)。
+    private let applyGate = TranscriptApplyGate()
+    private var messagesVersion = 0
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
     /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
     /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
@@ -1167,7 +1172,7 @@ public final class ConversationModel {
                     self.file?.follow = read.next
                 case .appended(let chunk):
                     self.file?.follow = read.next
-                    append(chunk)
+                    await append(chunk)
                 case .tooFarBehind(let size), .shrank(let size):
                     // 還沒追上時落後太多，或檔案被換掉(變小,真正的斷層):重讀視窗並重建列表。
                     try await openWindow(path: file.path, size: size, generation: generation)
@@ -1213,7 +1218,7 @@ public final class ConversationModel {
                 isCurrent: { generation == self.generation && file?.path == path },
                 appended: { chunk in
                     file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
-                    append(chunk)
+                    await append(chunk)
                 },
                 replaced: { size in try await openWindow(path: path, size: size, generation: generation) },
                 afterEach: {
@@ -1273,15 +1278,24 @@ public final class ConversationModel {
             chunk = try await transcripts.window(path: path, endingAt: size, lines: 1)
             guard generation == self.generation else { return }
         }
-        file = (path, TranscriptFollow(cursor: chunk.end, isLive: true), chunk.start)
-        recent = parse(chunk.lines)
-        segments = [(chunk.start, recent.count)]
-        olderMessages = []
-        metadata = dialect.latestMetadata(in: chunk.lines)
-        notePermissionModes(in: chunk.lines)
-        progress = AgentProgress.latest(in: chunk.lines, dialect: dialect)
-        older = chunk.start > 0 ? .available : .reachedStart
-        rebuild()
+        let opened = chunk
+        await applyGate.run {
+            guard generation == self.generation else { return }
+            let dialect = self.dialect
+            let prepared = await TranscriptProcessing.prepareWindow(lines: opened.lines, dialect: dialect, probe: onTranscriptWork)
+            guard generation == self.generation else { return }
+            if !prepared.skips.isEmpty { onTranscriptSkips?(dialect, prepared.skips) }
+            file = (path, TranscriptFollow(cursor: opened.end, isLive: true), opened.start)
+            recent = prepared.messages
+            segments = [(opened.start, recent.count)]
+            olderMessages = []
+            metadata = prepared.metadata
+            notePermissionModes(in: opened.lines)
+            progress = prepared.progress
+            older = opened.start > 0 ? .available : .reachedStart
+            await rebuildOffMain(generation: generation)
+        }
+        guard generation == self.generation else { return }
         try await readEarlierUntilMessages(path: path, generation: generation)
     }
 
@@ -1293,11 +1307,8 @@ public final class ConversationModel {
             pages += 1
             let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
             guard generation == self.generation else { return }
-            let known = Set((olderMessages + recent).map(\.id))
-            olderMessages = parse(page.lines).filter { !known.contains($0.id) } + olderMessages
-            file?.windowStart = page.start
-            older = page.start > 0 ? .available : .reachedStart
-            rebuild()
+            await prepend(page, generation: generation)
+            guard generation == self.generation else { return }
         }
     }
 
@@ -1317,18 +1328,25 @@ public final class ConversationModel {
     /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
     package static let maximumEmptyWindowPages = 25
 
-    private func append(_ chunk: TranscriptChunk) {
-        let known = Set(recent.map(\.id))
-        let added = parse(chunk.lines).filter { !known.contains($0.id) }
-        recent += added
-        if !added.isEmpty { segments.append((chunk.start, added.count)) }
-        for line in chunk.lines {
-            dialect.updateMetadata(&metadata, with: line)
-            progress.update(with: line, dialect: dialect)
+    private func append(_ chunk: TranscriptChunk) async {
+        let generation = generation
+        await applyGate.run {
+            guard generation == self.generation else { return }
+            let dialect = self.dialect
+            let prepared = await TranscriptProcessing.prepareAppended(
+                lines: chunk.lines, dialect: dialect, metadata: metadata, progress: progress, probe: onTranscriptWork)
+            guard generation == self.generation else { return }
+            if !prepared.skips.isEmpty { onTranscriptSkips?(dialect, prepared.skips) }
+            let known = Set(recent.map(\.id))
+            let added = prepared.messages.filter { !known.contains($0.id) }
+            recent += added
+            if !added.isEmpty { segments.append((chunk.start, added.count)) }
+            metadata = prepared.metadata
+            progress = prepared.progress
+            notePermissionModes(in: chunk.lines)
+            trimIfFollowing()
+            await rebuildOffMain(generation: generation)
         }
-        notePermissionModes(in: chunk.lines)
-        trimIfFollowing()
-        rebuild()
     }
 
     /// 跟隨尾端時訊息超過上限：丟掉往上翻的舊頁，再整段丟掉最舊的(至少留最後一段),視窗起點移到留下的第一段開頭，
@@ -1347,6 +1365,22 @@ public final class ConversationModel {
 
     // MARK: - 往上翻
 
+    /// 把往上翻讀到的一頁接在最前面(解析在背景做，依到達順序套用)。
+    private func prepend(_ page: TranscriptChunk, generation: Int) async {
+        await applyGate.run {
+            guard generation == self.generation else { return }
+            let dialect = self.dialect
+            let prepared = await TranscriptProcessing.prepareOlder(lines: page.lines, dialect: dialect, probe: onTranscriptWork)
+            guard generation == self.generation else { return }
+            if !prepared.skips.isEmpty { onTranscriptSkips?(dialect, prepared.skips) }
+            let known = Set((olderMessages + recent).map(\.id))
+            olderMessages = prepared.messages.filter { !known.contains($0.id) } + olderMessages
+            file?.windowStart = page.start
+            older = page.start > 0 ? .available : .reachedStart
+            await rebuildOffMain(generation: generation)
+        }
+    }
+
     /// 讀上一頁(F5.4)。失敗靜默;session 改變後才到的頁丟棄(R-B05)。
     public func loadOlder() async {
         guard older == .available, let file, file.windowStart > 0 else { return }
@@ -1355,11 +1389,8 @@ public final class ConversationModel {
         do {
             let chunk = try await transcripts.window(path: file.path, endingAt: file.windowStart, lines: pageLines)
             guard generation == self.generation else { return }
-            let known = Set((olderMessages + recent).map(\.id))
-            olderMessages = parse(chunk.lines).filter { !known.contains($0.id) } + olderMessages
-            self.file?.windowStart = chunk.start
-            older = chunk.start > 0 ? .available : .reachedStart
-            rebuild()
+            await prepend(chunk, generation: generation)
+            guard generation == self.generation else { return }
         } catch {
             guard generation == self.generation else { return }
             older = .available
@@ -2884,7 +2915,21 @@ public final class ConversationModel {
     }
 
     private func rebuild() {
-        items = Conversation.items(from: olderMessages + recent)
+        messagesVersion &+= 1
+        applyItems(Conversation.items(from: olderMessages + recent))
+    }
+
+    /// 背景重建:訊息集合在等待期間被同步的 `rebuild()` 重算過就不用再套(它已經包含這次的變更)。
+    private func rebuildOffMain(generation: Int) async {
+        messagesVersion &+= 1
+        let version = messagesVersion
+        let built = await TranscriptProcessing.items(from: olderMessages + recent, probe: onTranscriptWork)
+        guard generation == self.generation, version == messagesVersion else { return }
+        applyItems(built)
+    }
+
+    private func applyItems(_ built: [ConversationItem]) {
+        items = built
         rebuildEntries()
         for case .workflow(let card) in items { workflowModels[card.id]?.update(card: card) }
     }
@@ -2911,13 +2956,6 @@ public final class ConversationModel {
             ),
             chatKey: chatKey
         )
-    }
-
-    private func parse(_ lines: [String]) -> [TranscriptMessage] {
-        var seen = Set<String>()
-        let parsed = dialect.parse(lines)
-        if !parsed.skips.isEmpty { onTranscriptSkips?(dialect, parsed.skips) }
-        return parsed.messages.filter { seen.insert($0.id).inserted }
     }
 }
 

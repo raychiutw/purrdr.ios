@@ -21,6 +21,14 @@ struct ConversationAnnouncerTests {
         ConversationAnnouncer.Input(items: items, status: status, title: title)
     }
 
+    @Test("畫面比較用的輸入只看最後一則 agent 訊息：較早的項目不同不算變了(不做整份對話的深比較,#498)")
+    func inputComparesOnlyTheLastAgentMessage() {
+        let latest = Self.agent("a1", "Done.")
+        #expect(Self.input([Self.user("u1"), Self.user("u2"), latest]) == Self.input([Self.user("u9"), latest]))
+        #expect(Self.input([latest]) != Self.input([Self.agent("a1", "Done!")]))
+        #expect(Self.input([latest]) != Self.input([]))
+    }
+
     @Test("第一次載入對話不公告(只是打開畫面)")
     func initialLoadIsSilent() {
         var announcer = ConversationAnnouncer()

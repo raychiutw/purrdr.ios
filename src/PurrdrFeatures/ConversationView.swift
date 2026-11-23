@@ -640,7 +640,7 @@ struct AgentMessageView: View {
     @State private var viewer: ImageViewerItem?
 
     var body: some View {
-        let markdown = MarkdownView(text.markdown)
+        let markdown = MarkdownView(text.markdown, cachedAs: text.id)
         VStack(alignment: .leading, spacing: 6) {
             if let turnHeader {
                 AgentTurnHeaderView(header: turnHeader, date: text.date)

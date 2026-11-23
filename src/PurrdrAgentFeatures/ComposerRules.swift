@@ -485,16 +485,43 @@ public enum ComposerKeyboardLayout {
             ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden),
             ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden, stopBar: .compact),
         ]
-        let chosen = candidates.first { candidate in
-            budget - cost(note, candidate.note) - cost(suggestion, candidate.suggestion) - cost(stopBar, candidate.stopBar)
-                >= minimumConversationHeight
-        } ?? candidates[candidates.count - 1]
+        func fitting(_ minimum: Double) -> ComposerAccessoryArrangement {
+            candidates.first { candidate in
+                budget - cost(note, candidate.note) - cost(suggestion, candidate.suggestion) - cost(stopBar, candidate.stopBar)
+                    >= minimum
+            } ?? candidates[candidates.count - 1]
+        }
+        // 遲滯(#498):往讓位方向照最小高度立刻讓;往回恢復要多出 `hysteresis` 才換，
+        // 否則可見高度與量到的卡片高度在邊界附近抖動時，兩種排法會來回切換(每次換都觸發捲到底與重排)。
+        let strict = fitting(minimumConversationHeight)
+        let chosen: ComposerAccessoryArrangement
+        if yieldScore(strict) > yieldScore(current) {
+            chosen = strict
+        } else {
+            let relaxed = fitting(minimumConversationHeight + hysteresis)
+            chosen = yieldScore(relaxed) < yieldScore(current) ? relaxed : current
+        }
         // 暫時不在的元素(送出後重讀註記、換建議)維持目前的顯示方式：回來時不先以完整卡片出現再收起，
         // 輸入列高度一下子跳很多會讓對話列表停在內容之外。
         return ComposerAccessoryArrangement(
             note: note == nil ? current.note : chosen.note,
             suggestion: suggestion == nil ? current.suggestion : chosen.suggestion,
             stopBar: stopBar == nil ? current.stopBar : chosen.stopBar)
+    }
+
+    /// 往回恢復(讓出的空間收回)時要多出來的對話高度:一列觸控目標。
+    static let hysteresis = compactHeight
+
+    /// 讓位程度:完整 0、一行 1、拿掉 2,三個元素加總。
+    private static func yieldScore(_ arrangement: ComposerAccessoryArrangement) -> Int {
+        func rank(_ form: ComposerAccessoryForm) -> Int {
+            switch form {
+            case .full: 0
+            case .compact: 1
+            case .hidden: 2
+            }
+        }
+        return rank(arrangement.note) + rank(arrangement.suggestion) + rank(arrangement.stopBar)
     }
 
     /// 目前顯示中的元素佔的高度(含間距)。完整卡片剛出現、還沒量到時先以一行估。

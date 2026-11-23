@@ -110,7 +110,8 @@ enum BackgroundRelease {
         }
         model.hangUp()
         Task { @MainActor in
-            await model.released()
+            // 只留必要的收尾時間(#498):送不出去不撐到 background task 到期。
+            await BackgroundReleaseWait.wait(for: { await model.released() })
             end(token)
         }
     }
