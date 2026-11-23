@@ -35,7 +35,7 @@
 </div>
 </div>
 <div class="col">
-<div class="cap">{{t.name}} · 工作中(可停止;往上捲時顯示跳到最新)</div>
+<div class="cap">{{t.name}} · 工作中(可停止;不在最底部時，輸入列上方置中顯示跳到最新)</div>
 <div class="phone {{t.cls}}">
 <div class="top">
 <button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
@@ -47,7 +47,7 @@
 <div>好,我先建置再跑日常組。</div>
 <div class="meta" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg>3 個步驟 · Bash xcodebuild test</div>
 </div>
-<button class="ib glass" aria-label="跳到最新" style="position:absolute;right:16px;bottom:160px;z-index:4"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"></path></svg></button>
+<button class="ib glass" aria-label="跳到最新" style="position:absolute;left:50%;transform:translateX(-50%);bottom:160px;z-index:4"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"></path></svg></button>
 <div style="position:absolute;left:16px;right:16px;bottom:104px;display:flex;justify-content:center;align-items:center;gap:8px;z-index:3">
 <div class="glass" role="status" style="height:44px;border-radius:22px;padding:0 16px;display:flex;align-items:center;gap:8px;font-size:15px"><span class="sb work sm" aria-hidden="true">•••</span>工作中 · 2 分 10 秒</div>
 <button class="glass" style="height:44px;border-radius:22px;padding:0 16px;display:flex;align-items:center;gap:6px;color:var(--text);font-size:15px;font-weight:600" aria-label="停止 Agent"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>停止</button>
