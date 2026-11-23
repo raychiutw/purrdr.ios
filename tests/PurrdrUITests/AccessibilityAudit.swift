@@ -1,5 +1,13 @@
 import XCTest
 
+extension XCUIApplication {
+    /// 稽核用的啟動:關掉 Debug 建置才有的除錯層(順暢度量測文字),稽核只看使用者會看到的畫面(Release 沒有那一層)。
+    @MainActor
+    static func launchAuditing(flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
+        launchUITesting(flags: flags + ["-uiTestingHidesDebugOverlay"], contentSize: contentSize)
+    }
+}
+
 /// 無障礙稽核的共用部分(#35):跑 `performAccessibilityAudit`,把每一筆問題印出來，套用排除清單。
 extension XCTestCase {
     /// 對目前畫面跑 accessibility audit。排除清單以外的問題一律記成測試失敗(`performAccessibilityAudit` 自己記)。

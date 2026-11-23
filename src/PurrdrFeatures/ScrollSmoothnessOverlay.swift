@@ -18,8 +18,15 @@ final class ScrollSmoothnessProbe: ScrollSmoothnessReporting {
 /// 疊在聊天畫面上的順暢度顯示:離底距離、可見列數與疑似黑框次數，供截圖留證(#484)。
 struct ScrollSmoothnessOverlay: View {
     let probe: ScrollSmoothnessProbe
+    /// 無障礙稽核(UI 測試旗標 `-uiTestingHidesDebugOverlay`)不該把除錯層自己的文字當成畫面內容稽核;Release 本來就沒有這一層。
+    private static let isHiddenForAudit = ProcessInfo.processInfo.arguments.contains("-uiTestingHidesDebugOverlay")
 
+    @ViewBuilder
     var body: some View {
+        if !Self.isHiddenForAudit { content }
+    }
+
+    private var content: some View {
         let log = probe.log
         VStack(alignment: .leading, spacing: 2) {
             Text(verbatim: log.latest?.overlayText ?? "尚無量測")
