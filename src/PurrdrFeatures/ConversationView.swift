@@ -352,6 +352,7 @@ public struct ConversationView: View {
                 content: listContent,
                 rowEnvironment: ChatListRowEnvironment(
                     hostTheme: hostTheme, forcesOpaqueGlass: forcesOpaqueGlass, inlineSlashNames: model.inlineSlashNames),
+                isSceneActive: scenePhase == .active,
                 model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
                 smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
                 onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },

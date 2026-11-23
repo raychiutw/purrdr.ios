@@ -46,6 +46,8 @@ struct ChatListRowEnvironment: Equatable {
 struct ChatListView: UIViewControllerRepresentable {
     let content: ChatListContent
     let rowEnvironment: ChatListRowEnvironment
+    /// app 在前景(scenePhase);不在前景時列表不排程捲動。
+    let isSceneActive: Bool
     let model: ConversationModel
     let handle: ChatListHandle
     let rowView: (ChatListRowContent) -> AnyView
@@ -69,6 +71,7 @@ struct ChatListView: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: ChatListViewController, context: Context) {
         controller.rowView = rowView
         controller.rowEnvironment = rowEnvironment
+        controller.setSceneActive(isSceneActive)
         controller.menuEntries = menuEntries
         controller.smoothness = smoothness
         controller.safeAreaFrame = safeAreaFrame
@@ -115,7 +118,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     private var decider = ConversationScrollDecider()
     private var flushTask: Task<Void, Never>?
-    private var flushRetriesLeft = 0
+    private var flushPolicy = ChatListFlushPolicy()
     private var keyboardSettleTask: Task<Void, Never>?
     private var lastReportedFollowing = true
     private var lastReportedShowsJump = false
@@ -202,7 +205,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
             lastBoundsHeight = bounds.height
             if !isFirstLayout {
                 decider.receive(.inputBarHeightChanged)
-                scheduleFlush(after: 0.05)
+                // 版面事件:只排一次處理,不補重試額度(高度反覆變動不會無限重試)。
+                scheduleFlush(after: 0.05, reason: .layout)
             }
         }
         updateInsets()
@@ -387,8 +391,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     // MARK: - 排定與執行指令
 
     /// 排定一次處理(合併多次要求,取最早的時間);沒指令且還有待辦時再試幾次。
-    private func scheduleFlush(after delay: TimeInterval) {
-        flushRetriesLeft = 3
+    private func scheduleFlush(after delay: TimeInterval, reason: ChatListFlushPolicy.Reason = .event) {
+        guard flushPolicy.schedule(reason) else { return }
         flushTask?.cancel()
         flushTask = Task { [weak self] in
             if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
@@ -399,18 +403,25 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     /// 同一次更新內立刻處理(內容套用、開啟定位、inset 改變時,不能多等一個畫面):決策仍是捲動決策者的。
     private func flushNow() {
+        guard flushPolicy.schedule(.event) else { return }
         flushTask?.cancel()
-        flushRetriesLeft = 3
         runFlush()
     }
 
+    /// app 前景狀態改變(由 SwiftUI 的 scenePhase 傳來):進背景停止排程,回前景補一次處理。
+    func setSceneActive(_ isActive: Bool) {
+        guard flushPolicy.isSceneActive != isActive else { return }
+        flushPolicy.isSceneActive = isActive
+        if isActive { scheduleFlush(after: 0.05) } else { flushTask?.cancel() }
+    }
+
     private func runFlush() {
+        guard flushPolicy.mayRunFlush else { return }
         let command = decider.flush(at: ProcessInfo.processInfo.systemUptime)
         reportFollowing()
         if let command {
             perform(command)
-        } else if flushRetriesLeft > 0 {
-            flushRetriesLeft -= 1
+        } else if flushPolicy.consumeRetry() {
             flushTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(ConversationScrollDecider.batchInterval))
                 guard !Task.isCancelled else { return }
