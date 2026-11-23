@@ -194,7 +194,10 @@ public struct TopNavigationView: View {
         if supportsMultipleWindows {
             open = { kind, row in openInNewWindow(kind, row) }
         }
-        return AgentListView(model: hosts.agentList, window: navigation, openInNewWindow: open) { route, sessionID in
+        return AgentListView(
+            model: hosts.agentList, window: navigation, openInNewWindow: open,
+            prefetchConversations: { await hosts.prefetchConversations($0) }
+        ) { route, sessionID in
             hosts.conversation(route, sessionID: sessionID)
         } terminal: { route, title in
             hosts.terminal(route, title: title)

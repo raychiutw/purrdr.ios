@@ -142,6 +142,76 @@ struct ConversationFastLoadTests {
         #expect(open.model.phase == .ready)
     }
 
+    // MARK: - 打開時同步還原(記憶體層)
+
+    @Test("記憶體層命中:model 建立完就有內容,不必 run、不必 await")
+    func memoryHitRestoresSynchronouslyOnInit() async {
+        let cache = MemoryFrontedConversationCache(base: InMemoryConversationCache())
+        await Self.fillCache(cache)
+
+        let model = Self.model(await Self.connection(), cache: cache)
+
+        #expect(model.items.isEmpty == false)
+        #expect(model.rows.isEmpty == false)
+        #expect(model.phase == .ready)
+    }
+
+    @Test("記憶體層命中但 session 不符:不採用,還在載入")
+    func memoryHitOfAnotherSessionIsIgnored() async {
+        let cache = MemoryFrontedConversationCache(base: InMemoryConversationCache())
+        await Self.fillCache(cache)
+
+        let model = Self.model(await Self.connection(), cache: cache, knownSessionID: "another-session")
+
+        #expect(model.items.isEmpty)
+        #expect(model.phase == .loading)
+    }
+
+    @Test("寫入快取後記憶體層同步更新:同一個聊天再開一次直接有內容")
+    func savingUpdatesMemoryLayer() async {
+        let cache = MemoryFrontedConversationCache(base: InMemoryConversationCache())
+        #expect(cache.cachedConversation(chatKey: Source.paneID) == nil)
+
+        await Self.fillCache(cache)
+
+        #expect(cache.cachedConversation(chatKey: Source.paneID) != nil)
+    }
+
+    // MARK: - 骨架延遲
+
+    /// 開聊天、快照卡住,睡眠只讓 `loadingSkeletonDelay` 到期。
+    static func openSlowSkeleton(delayElapses: Bool) async throws -> (model: ConversationModel, run: Task<Void, Never>, connection: FakeHostConnection) {
+        let connection = await Self.connection()
+        await connection.hold("session.snapshot")
+        let model = Self.model(connection, cache: InMemoryConversationCache())
+        let sleeper = RecordingSleeper { $0 == ConversationModel.loadingSkeletonDelay && delayElapses }
+        let run = Task { await model.run(sleep: sleeper.sleep) }
+        try await waitUntil { await connection.heldCount == 1 }
+        if delayElapses { try await waitUntil { await MainActor.run { model.showsLoadingSkeleton } } }
+        return (model, run, connection)
+    }
+
+    @Test("沒命中快取、還沒到 300 毫秒:不畫骨架")
+    func noSkeletonBeforeDelay() async throws {
+        let open = try await Self.openSlowSkeleton(delayElapses: false)
+        defer { open.run.cancel() }
+
+        #expect(open.model.phase == .loading)
+        #expect(open.model.showsLoadingSkeleton == false)
+    }
+
+    @Test("沒命中快取、超過 300 毫秒仍沒有內容:畫骨架;內容一到就消失")
+    func skeletonAppearsAfterDelayThenGoes() async throws {
+        let open = try await Self.openSlowSkeleton(delayElapses: true)
+        defer { open.run.cancel() }
+        #expect(open.model.showsLoadingSkeleton)
+
+        await open.connection.releaseHeld()
+        try await waitUntil { await MainActor.run { open.model.items.isEmpty == false } }
+
+        #expect(open.model.showsLoadingSkeleton == false)
+    }
+
     // MARK: - 進度指示(HIG〈Loading〉:超過一兩秒才出現)
 
     /// 開聊天、快照卡住，睡眠只讓 `loadingIndicatorDelay` 到期(其他等待不到期)。

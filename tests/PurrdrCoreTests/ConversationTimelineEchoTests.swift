@@ -128,6 +128,38 @@ struct ConversationTimelineEchoTests {
         #expect(!timeline.isExpanded(rowID: toolRunRowID))
     }
 
+    @Test("子項展開:Agent 新增步驟、往上補、併列後仍展開,不同列同名子項互不影響")
+    func partExpansionSurvivesIncrementsAndIsPerRow() {
+        var timeline = ConversationTimeline()
+        _ = timeline.append([ConversationTimelineTests.userMessage("u1", "go"), ConversationTimelineTests.toolStep("t1")])
+        let toolRunRowID = timeline.rows.last?.id ?? "missing"
+        timeline.setExpanded(true, rowID: toolRunRowID, partID: "t1")
+
+        #expect(timeline.isExpanded(rowID: toolRunRowID, partID: "t1"))
+        #expect(!timeline.isExpanded(rowID: toolRunRowID))
+        #expect(!timeline.isExpanded(rowID: toolRunRowID, partID: "t2"))
+        #expect(!timeline.isExpanded(rowID: "other", partID: "t1"))
+
+        _ = timeline.append([ConversationTimelineTests.toolStep("t2")])
+        _ = timeline.prependOlder([ConversationTimelineTests.userMessage("u0", "before")])
+
+        #expect(timeline.isExpanded(rowID: toolRunRowID, partID: "t1"))
+    }
+
+    @Test("子項收起後清掉;列被移除時連子項一起清掉")
+    func partExpansionCollapsesAndIsPrunedWithRow() {
+        var timeline = ConversationTimeline()
+        _ = timeline.append([ConversationTimelineTests.userMessage("u1", "go"), ConversationTimelineTests.toolStep("t1")])
+        let toolRunRowID = timeline.rows.last?.id ?? "missing"
+        timeline.setExpanded(true, rowID: toolRunRowID, partID: "t1")
+        timeline.setExpanded(false, rowID: toolRunRowID, partID: "t1")
+        #expect(!timeline.isExpanded(rowID: toolRunRowID, partID: "t1"))
+
+        timeline.setExpanded(true, rowID: toolRunRowID, partID: "t1")
+        _ = timeline.reset([ConversationTimelineTests.userMessage("u9", "new")])
+        #expect(!timeline.isExpanded(rowID: toolRunRowID, partID: "t1"))
+    }
+
     @Test("同一則訊息的 Markdown 只解析一次;文字變了才重解析")
     func markdownIsParsedOncePerText() {
         var timeline = ConversationTimeline()

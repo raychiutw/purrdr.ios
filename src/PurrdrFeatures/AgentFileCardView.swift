@@ -461,15 +461,22 @@ struct AgentFileCardHeader: View {
 }
 
 /// 卡片的進階資訊(#330,HIG Disclosure controls):預設收起，點「Details」才顯示完整路徑與「動作 · 類型 · 大小」。
-/// 展開狀態是每張卡片自己的 `@State`;列表是 lazy 的，捲出畫面再回來會回到收起(預設)。
+/// 展開狀態存對話時間軸(列 id 加檔案路徑);沒有注入時(其他畫面)用本地狀態。
 struct AgentFileCardDetails: View {
     let card: AgentFileCard
     let display: AgentFileCardDisplay
     let identifier: String
-    @State private var isExpanded = false
+    private let expansion: ExpansionState
+
+    init(card: AgentFileCard, display: AgentFileCardDisplay, identifier: String) {
+        self.card = card
+        self.display = display
+        self.identifier = identifier
+        expansion = ExpansionState(partID: "details:\(card.file.path)")
+    }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
+        DisclosureGroup(isExpanded: expansion.binding) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: card.file.path)
                     .font(.caption.monospaced())

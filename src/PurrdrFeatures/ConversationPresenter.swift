@@ -10,15 +10,41 @@ struct ConversationPresenter {
     var open: @MainActor (DelegationRoute) -> Void
 }
 
-/// 列的展開狀態(工具串):存在對話時間軸，列被重用或捲出畫面再回來也維持。
+/// 列的展開狀態(工具串、思考、呼叫結果、折疊區塊):存在對話時間軸，列被重用或捲出畫面再回來也維持。
+/// 參數是列 id 與列內子項 id(整列為 `nil`)。
 struct RowExpansion {
-    var isExpanded: @MainActor (String) -> Bool
-    var setExpanded: @MainActor (Bool, String) -> Void
+    var isExpanded: @MainActor (String, String?) -> Bool
+    var setExpanded: @MainActor (Bool, String, String?) -> Void
+}
+
+/// 列內某個可展開區塊的狀態來源:有注入列展開狀態與列 id 時存時間軸，否則(其他畫面)用本地 `@State`。
+struct ExpansionState: DynamicProperty {
+    let partID: String?
+    var rowIDOverride: String?
+    @State private var localExpanded = false
+    @Environment(\.rowExpansion) private var expansion
+    @Environment(\.expansionRowID) private var environmentRowID
+
+    init(partID: String?, rowID: String? = nil) {
+        self.partID = partID
+        self.rowIDOverride = rowID
+    }
+
+    var binding: Binding<Bool> {
+        guard let expansion, let rowID = rowIDOverride ?? environmentRowID else { return $localExpanded }
+        let partID = partID
+        return Binding(
+            get: { expansion.isExpanded(rowID, partID) },
+            set: { expansion.setExpanded($0, rowID, partID) })
+    }
+
 }
 
 extension EnvironmentValues {
     @Entry var conversationPresenter: ConversationPresenter?
     @Entry var rowExpansion: RowExpansion?
+    /// 目前這一列的時間軸列 id(列內的可展開區塊以它加子項 id 找狀態)。
+    @Entry var expansionRowID: String?
 }
 
 /// 對話畫面用的 sheet 內容(`sheet(item:)` 需要 Identifiable)。
