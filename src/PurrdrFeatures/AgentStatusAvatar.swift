@@ -20,10 +20,13 @@ struct AgentStatusAvatar: View {
     /// 只夾方塊與狀態圓點的大小;方塊裡的字母與符號仍用實際字級,才不會被稽核判為 Dynamic Type 不支援。
     static let largestTypeSize = DynamicTypeSize.accessibility1
 
+    /// 載入骨架(`redacted(.placeholder)`)時頭像畫成灰塊、不畫狀態(#496)。
+    @Environment(\.redactionReasons) private var redactionReasons
+
     var body: some View {
         avatar
             .overlay(alignment: .bottomTrailing) {
-                if let status {
+                if let status, !redactionReasons.contains(.placeholder) {
                     StatusBadge(status: status)
                         .dynamicTypeSize(...Self.largestTypeSize)
                         .offset(x: 4, y: 4)
@@ -37,6 +40,15 @@ struct AgentStatusAvatar: View {
 
     @ViewBuilder
     private var avatar: some View {
+        if redactionReasons.contains(.placeholder) {
+            SkeletonBlock(width: AgentKindAvatar.baseSide, height: AgentKindAvatar.baseSide, cornerRadius: 10)
+        } else {
+            realAvatar
+        }
+    }
+
+    @ViewBuilder
+    private var realAvatar: some View {
         switch content {
         case .agent(let kind):
             AgentKindAvatar(kind: kind)

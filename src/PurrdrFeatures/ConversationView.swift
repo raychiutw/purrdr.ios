@@ -422,25 +422,29 @@ public struct ConversationView: View {
 
     // MARK: - 佔位與標示
 
-    /// 沒有快取、也還沒讀到任何訊息時的骨架(#356):三個灰色泡泡，不是整區轉圈(與 Agent 列表的載入骨架同一種 `redacted`)。
-    /// 對 VoiceOver 是一個「載入中」的元素。
+    /// 沒有快取、也還沒讀到任何訊息時的骨架(#356、#496):使用者泡泡、Agent 文字段、步驟列的佔位(設計稿 `Skeleton`),不是整區轉圈。
+    /// 對 VoiceOver 是一個「載入中」的元素;輸入列不受影響,可先打字。
     private var loadingSkeleton: some View {
-        VStack(spacing: 12) {
-            ForEach(0..<3, id: \.self) { index in
-                Text(verbatim: "The latest message from this agent, shown while the conversation loads")
-                    .lineLimit(index == 1 ? 1 : 2)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .frame(maxWidth: 280, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: index == 1 ? .trailing : .leading)
+        VStack(alignment: .leading, spacing: 18) {
+            SkeletonBlock(height: 44, cornerRadius: 20)
+                .containerRelativeFrame(.horizontal) { width, _ in width * 0.62 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 9) {
+                SkeletonBlock().containerRelativeFrame(.horizontal) { width, _ in width * 0.88 }
+                SkeletonBlock().containerRelativeFrame(.horizontal) { width, _ in width * 0.82 }
+                SkeletonBlock().containerRelativeFrame(.horizontal) { width, _ in width * 0.55 }
             }
+            SkeletonBlock(height: 20).containerRelativeFrame(.horizontal) { width, _ in width * 0.34 }
+            VStack(alignment: .leading, spacing: 9) {
+                SkeletonBlock().containerRelativeFrame(.horizontal) { width, _ in width * 0.84 }
+                SkeletonBlock().containerRelativeFrame(.horizontal) { width, _ in width * 0.68 }
+            }
+            SkeletonBlock(height: 44, cornerRadius: 20)
+                .containerRelativeFrame(.horizontal) { width, _ in width * 0.44 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 16)
-        .redacted(reason: .placeholder)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Loading conversation…")
-        .accessibilityIdentifier("conversation.loading")
+        .skeleton(identifier: "conversation.loading", label: "Loading conversation…")
     }
 
     @ViewBuilder

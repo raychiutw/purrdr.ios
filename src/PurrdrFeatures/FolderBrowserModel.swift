@@ -32,10 +32,18 @@ public final class FolderBrowserModel {
     /// 每次載入加一;晚到的舊結果丟棄。
     private var generation = 0
 
-    public init(folders: HostFolders, hostName: String) {
+    private let skeletonRowCounts: any SkeletonRowCountStore
+
+    public init(
+        folders: HostFolders, hostName: String, skeletonRowCounts: any SkeletonRowCountStore = InMemorySkeletonRowCountStore()
+    ) {
         self.folders = folders
         self.hostName = hostName
+        self.skeletonRowCounts = skeletonRowCounts
     }
+
+    /// 載入骨架的列數:取上次列出的項目數(#496)。
+    public var loadingRowCount: Int { SkeletonLoading.rowCount(lastCount: skeletonRowCounts.load(.files)) }
 
     /// 資料夾最後一段;根目錄是「/」(Windows 是「C:\」)。路徑依主機的語法切段(#26)。
     public var title: String {
@@ -76,10 +84,14 @@ public final class FolderBrowserModel {
     private func list(_ target: String?) async {
         generation += 1
         let generation = generation
-        phase = .loading
+        // 重新整理已經列出的同一個資料夾:留著原本的列,不退回骨架(#496)。
+        let isRefresh: Bool
+        if case .loaded = phase, target == path { isRefresh = true } else { isRefresh = false }
+        if !isRefresh { phase = .loading }
         do {
             let listing = try await folders.list(target)
             guard self.generation == generation else { return }
+            if !listing.entries.isEmpty { skeletonRowCounts.save(listing.entries.count, for: .files) }
             if target == nil, home == nil { home = listing.path }
             path = listing.path
             phase = .loaded(listing)

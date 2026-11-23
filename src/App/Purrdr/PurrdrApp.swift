@@ -156,7 +156,7 @@ struct PurrdrApp: App {
                 // 最新的主機服務版本從 purrdr.host 的 GitHub Release 取得，主機服務發版時 app 不用改版號(#362)。
                 hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
-                listMode: UserDefaultsAgentListModeStore(),
+                listMode: UserDefaultsAgentListModeStore(), skeletonRowCounts: UserDefaultsSkeletonRowCountStore(),
                 // 離線佇列存在本機，App 重開仍在(#301)。
                 offlineQueues: UserDefaultsOfflineQueueStore(),
                 // 模型目錄的公開來源(#385);UI 測試不給,不連網路。
@@ -384,6 +384,12 @@ struct PurrdrApp: App {
     private static func makeMemberSession(uiTesting: Bool, arguments: [String]) -> MemberSession {
         // 登入時帶這支裝置的 id(與推播共用,Keychain);讀不到時不帶,照常登入。UI 測試用固定 id。
         let deviceID = memberDeviceID(uiTesting: uiTesting)
+        if uiTesting, arguments.contains("-uiTestingMemberLoading") {
+            // 後台一直沒回應、本機沒有上次的會員資料:帳號頁停在第一次載入的骨架(#496)。
+            return MemberSession(
+                transport: UITestingHangingBackend(), tokenStore: InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken),
+                deviceID: deviceID)
+        }
         if uiTesting, arguments.contains("-uiTestingMemberOffline") {
             // 已登入過(有更新權杖與會員快照),但後台一律連不上:帳號頁「暫時連不上,你仍是登入狀態」。
             let tokens = InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken)

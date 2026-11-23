@@ -165,6 +165,8 @@ public final class HostsModel {
     private let diagnostics: DiagnosticLog
     /// 等待(HTTPS 偵測 Agent 的重試間隔);測試注入。
     private let sleep: Sleep
+    /// 各清單骨架的列數(上次的數量,#496)。
+    private let skeletonRowCounts: any SkeletonRowCountStore
 
     /// - Parameters:
     ///   - conversationCache: 對話快取(所有主機共用一個存放處，key 依主機分開)。
@@ -194,6 +196,7 @@ public final class HostsModel {
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
+        skeletonRowCounts: any SkeletonRowCountStore = InMemorySkeletonRowCountStore(),
         offlineQueues: any OfflineQueueStore = InMemoryOfflineQueueStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
         publicModelCatalog: (any PublicModelCatalogFetching)? = nil, sleep: @escaping Sleep = Sleeping.task,
@@ -201,7 +204,8 @@ public final class HostsModel {
     ) {
         self.store = store
         self.sleep = sleep
-        agentList = MergedAgentListModel(modeStore: listMode)
+        self.skeletonRowCounts = skeletonRowCounts
+        agentList = MergedAgentListModel(modeStore: listMode, skeletonRowCounts: skeletonRowCounts)
         self.selectionStore = selectionStore
         self.currentHostStore = currentHostStore
         self.planUsageSelection = planUsageSelection
@@ -443,7 +447,7 @@ public final class HostsModel {
     public func folderBrowser(on host: HostSelection) -> FolderBrowserModel {
         let member = member(for: host)
         let folders = HostFolders(channel: member.channel, deflate: SystemDeflate(), gzipAvailability: member.gzipAvailability)
-        return FolderBrowserModel(folders: folders, hostName: name(of: host))
+        return FolderBrowserModel(folders: folders, hostName: name(of: host), skeletonRowCounts: skeletonRowCounts)
     }
 
     /// 某台主機上某個 Agent 的對話 model(列表看到的 session)。非選取中主機的聊天在標題列帶主機名(#44)。

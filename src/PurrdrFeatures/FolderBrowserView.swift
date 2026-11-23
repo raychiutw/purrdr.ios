@@ -81,9 +81,19 @@ public struct FolderBrowserView: View {
     private var content: some View {
         switch model.phase {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityIdentifier("files.loading")
+            // 第一次列這個資料夾:同形狀的列骨架,列數取上次的數量(#496)。
+            List {
+                Section {
+                    VStack(spacing: 0) {
+                        ForEach(0..<model.loadingRowCount, id: \.self) { index in
+                            FolderEntryRow(entry: .skeletonPlaceholder(index), open: {})
+                                .padding(.vertical, 10)
+                        }
+                    }
+                    .skeleton(identifier: "files.loading")
+                }
+            }
+            .appGroupedList()
         case .failed(let message):
             ContentUnavailableView {
                 Label("Can’t Show This Folder", systemImage: "exclamationmark.triangle")
@@ -241,5 +251,12 @@ struct FolderBreadcrumbBar: View {
         .background(.bar)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("files.breadcrumbs")
+    }
+}
+
+extension FolderEntry {
+    /// 列表骨架的佔位項目(`redacted` 畫成灰條)。
+    static func skeletonPlaceholder(_ index: Int) -> FolderEntry {
+        FolderEntry(name: "Folder name placeholder", kind: .folder, size: 1024, modified: nil)
     }
 }

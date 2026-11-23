@@ -198,7 +198,7 @@ struct JoinFlowPages: View {
             }
             switch plus.storefront {
             case .loading:
-                Section { ProgressView().frame(maxWidth: .infinity) }
+                Section { PlanOptionsSkeleton(identifier: "account.join.storefront.loading") }
             case .paymentsDisabled:
                 Section {
                     Label("Purchases aren’t allowed on this device, for example because of Screen Time. You can still restore a subscription you already have.", systemImage: "lock")

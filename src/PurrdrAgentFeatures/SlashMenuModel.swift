@@ -88,6 +88,9 @@ public final class SlashMenuModel {
         if case .loading = state { true } else { false }
     }
 
+    /// 第一次讀指令清單、畫面上還沒有任何指令時顯示骨架(#496);已有指令(背景重讀)不顯示。
+    public var showsSkeleton: Bool { SkeletonLoading.isShown(isLoading: isLoading, hasContent: !commands.isEmpty) }
+
     /// 發現沒有在時間上限內做完：清單不完整。
     public var isIncomplete: Bool {
         if case .loaded(let catalog?) = state { !catalog.isComplete } else { false }

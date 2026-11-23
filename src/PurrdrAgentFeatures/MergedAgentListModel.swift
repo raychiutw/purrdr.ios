@@ -173,8 +173,23 @@ public final class MergedAgentListModel {
         }
     }
 
-    public init(modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
+    private let skeletonRowCounts: any SkeletonRowCountStore
+
+    /// 第一次載入時骨架的列數:取上次列表的列數(#496)。
+    public var loadingRowCount: Int { SkeletonLoading.rowCount(lastCount: skeletonRowCounts.load(.agentList)) }
+
+    /// 列表有列時記住列數,下次冷啟動的骨架照這個數量。
+    public func rememberRowCount() {
+        let count = agentRows.count
+        if count > 0, skeletonRowCounts.load(.agentList) != count { skeletonRowCounts.save(count, for: .agentList) }
+    }
+
+    public init(
+        modeStore: any AgentListModeStore = InMemoryAgentListModeStore(),
+        skeletonRowCounts: any SkeletonRowCountStore = InMemorySkeletonRowCountStore()
+    ) {
         self.modeStore = modeStore
+        self.skeletonRowCounts = skeletonRowCounts
         // 未知或缺值(新安裝)一律是 Agents。
         mode = modeStore.load() ?? .agents
     }

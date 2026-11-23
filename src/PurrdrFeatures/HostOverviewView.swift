@@ -323,18 +323,27 @@ struct HostStatusRow: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 10) {
-                    indicator
-                        .padding(.top, 5)
-                    VStack(alignment: .leading, spacing: 2) {
-                        title
-                            .font(.headline)
-                        subtitle
-                            .font(.footnote)
-                            .foregroundStyle(.secondaryText)
+                if case .connecting = overview.status {
+                    // 第一次連線、還沒有狀態:同形狀的狀態卡骨架(#496)。
+                    VStack(alignment: .leading, spacing: 10) {
+                        SkeletonBlock(height: 18).containerRelativeFrame(.horizontal) { width, _ in width * 0.3 }
+                        SkeletonBlock(height: 13).containerRelativeFrame(.horizontal) { width, _ in width * 0.62 }
                     }
+                    .skeleton(identifier: "hosts.status.skeleton")
+                } else {
+                    HStack(alignment: .top, spacing: 10) {
+                        indicator
+                            .padding(.top, 5)
+                        VStack(alignment: .leading, spacing: 2) {
+                            title
+                                .font(.headline)
+                            subtitle
+                                .font(.footnote)
+                                .foregroundStyle(.secondaryText)
+                        }
+                    }
+                    action
                 }
-                action
             }
             .padding(.vertical, 4)
             .accessibilityElement(children: .contain)

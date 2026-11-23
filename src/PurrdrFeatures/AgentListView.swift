@@ -222,13 +222,15 @@ public struct AgentListView: View {
     private var loadingList: some View {
         List {
             hostStatusRows
+            // 列數取上次列表的列數(#496);整區是一個「載入中」元素,VoiceOver 不逐列念。
             Section {
-                ForEach(0..<3, id: \.self) { index in
-                    AgentRowView(row: .placeholder(index), host: nil)
+                VStack(spacing: 20) {
+                    ForEach(0..<model.loadingRowCount, id: \.self) { index in
+                        AgentRowView(row: .placeholder(index), host: nil)
+                    }
                 }
+                .skeleton(identifier: "agentList.loading.skeleton")
             }
-            .redacted(reason: .placeholder)
-            .accessibilityHidden(true)
         }
         #if os(iOS)
         .listStyle(.insetGrouped)
@@ -283,6 +285,9 @@ public struct AgentListView: View {
         .contentMargins(.top, 0, for: .scrollContent)
         // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
         .id(model.mode)
+        // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。
+        .onAppear { model.rememberRowCount() }
+        .onChange(of: model.agentRows.count) { model.rememberRowCount() }
         .overlay {
             if searchHasNoMatch {
                 ContentUnavailableView.search(text: model.query)

@@ -126,7 +126,8 @@ public struct MemberContent: View {
             }
         } else if model.phase == .unknown {
             if model.isWorking {
-                ProgressView()
+                // 後台還沒回應、沒有上次的會員資料:帳號頁骨架(#496)。
+                AccountSkeletonView()
             } else {
                 ContentUnavailableView {
                     Label("Can’t Reach Purrdr", systemImage: "wifi.exclamationmark")

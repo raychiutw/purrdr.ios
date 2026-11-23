@@ -16,12 +16,14 @@ struct SlashMenuView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if menu.isLoading {
-                        Label("Loading Commands…", systemImage: "ellipsis")
-                            .font(.footnote)
-                            .foregroundStyle(.secondaryText)
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .padding(.horizontal, 12)
+                    if menu.showsSkeleton {
+                        // 第一次讀指令清單:同形狀的指令列骨架(#496)。
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                skeletonRow
+                            }
+                        }
+                        .skeleton(identifier: "slash.loading", label: "Loading Commands…")
                     } else if menu.commands.isEmpty {
                         Text("No Matching Commands")
                             .font(.footnote)
@@ -78,6 +80,17 @@ struct SlashMenuView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Commands"))
         .accessibilityIdentifier("slash.menu")
+    }
+
+    /// 指令列的佔位(與 `row` 同版型:指令名與一行說明)。
+    private var skeletonRow: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(verbatim: "/command-name").font(.body.monospaced())
+            Text(verbatim: "What this command does").font(.footnote)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 
     private func row(_ command: SlashCommand) -> some View {

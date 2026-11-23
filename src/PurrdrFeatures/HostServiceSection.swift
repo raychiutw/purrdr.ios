@@ -10,9 +10,12 @@ struct HostServiceSection: View {
         Section {
             switch model.content {
             case .loading:
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .accessibilityIdentifier("hostStatus.hostService.loading")
+                // 主機服務版本還在讀:版本列的骨架(#496)。
+                VStack(alignment: .leading, spacing: 10) {
+                    SkeletonBlock(height: 17).containerRelativeFrame(.horizontal) { width, _ in width * 0.4 }
+                    SkeletonBlock(height: 13).containerRelativeFrame(.horizontal) { width, _ in width * 0.62 }
+                }
+                .skeleton(identifier: "hostStatus.hostService.loading")
             case .loaded(let status):
                 loaded(status)
             case .needsNewerHostService(let installedVersion):
