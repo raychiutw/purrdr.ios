@@ -234,5 +234,33 @@ struct ClaudePlanUsageHostTests {
 
         #expect((try settings()["statusLine"] as? [String: Any])?["command"] as? String == "my-new-line")
     }
+
+    @Test("主機服務(0.12.0)裝的用量擷取:app 以同一份安裝紀錄還原,家目錄與安裝前完全相同(#416)")
+    func restoresInstallationMadeByHostService() async throws {
+        try setUpClaudeHome()
+        let before = try DirectorySnapshot(of: host.home)
+
+        // 主機服務寫的狀態:紀錄格式同 app(Codable、鍵依字母排序、內容 base64)。
+        let installedSettings = """
+            {
+              "model" : "opus",
+              "permissions" : { "allow" : ["Bash(git status)"] },
+              "statusLine" : { "command" : "\(ClaudePlanUsageHost.wrapperCommand)", "padding" : 1, "type" : "command" }
+            }
+
+            """
+        let journal = #"""
+            {"createdDirectories":[".purrdr",".purrdr/claude-usage"],"entries":[{"installed":"\#(Data(installedSettings.utf8).base64EncodedString())","original":"\#(Data(Self.originalSettings.utf8).base64EncodedString())","path":".claude/settings.json"}],"version":1}
+            """#
+        try write(installedSettings, to: ".claude/settings.json", mode: 0o640)
+        try write(journal, to: ".purrdr/claude-usage/journal.json")
+        try write("#!/bin/sh\n", to: ".purrdr/claude-usage/statusline.sh", mode: 0o755)
+        try write("~/.claude/statusline.sh", to: ".purrdr/claude-usage/original-command")
+        #expect(try await usage.inspect().isInstalled)
+
+        try await usage.restore()
+
+        #expect(try DirectorySnapshot(of: host.home) == before)
+    }
 }
 #endif

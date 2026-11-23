@@ -70,13 +70,7 @@ final class AppLockUITests: XCTestCase {
 
     @MainActor
     private func openSettings(in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」")
-        more.tap()
-        let item = app.buttons["menu.settings"]
-        XCTAssertTrue(item.waitUntilExists(timeout: 5))
-        item.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.settings"].firstMatch.waitUntilExists(timeout: 10), "沒有開出設定")
+        app.openSettingsTab()
     }
 
 }

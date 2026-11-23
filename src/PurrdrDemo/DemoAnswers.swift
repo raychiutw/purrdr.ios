@@ -31,6 +31,8 @@ struct DemoAnswers {
     private var models: [String: Int] = [:]
     /// 每個 pane 目前的 effort 層級(`/effort` 面板確認後保留)。
     private var efforts: [String: Int] = [:]
+    /// 每個 pane 的 Ultracode 開關(`/effort` 面板確認後保留,#384)。
+    private var ultracodes: [String: Bool] = [:]
     /// 在「Type something.」那一列打字中的 pane → 已打的文字。
     private(set) var typing: [String: String] = [:]
     /// AskUserQuestion 每題的選項數(「Type something.」排在它們後面)。
@@ -89,7 +91,7 @@ struct DemoAnswers {
             panels[paneID] = .model(DemoModelPanel(current: current, cursor: current))
             return true
         case "/effort":
-            panels[paneID] = .effort(DemoEffortPanel(level: efforts[paneID] ?? DemoEffortPanel.defaultLevel))
+            panels[paneID] = .effort(DemoEffortPanel(level: efforts[paneID] ?? DemoEffortPanel.defaultLevel, ultracode: ultracodes[paneID] ?? false))
             return true
         default: break
         }
@@ -107,7 +109,12 @@ struct DemoAnswers {
     mutating func receivedKeys(_ keys: [String], paneID: String) {
         // Shift+Tab 輪替權限模式(#306):一般 → 接受編輯 → Plan → 一般。
         if keys == ["shift+tab"] {
-            permissionModes[paneID] = (permissionModes[paneID] ?? .normal).next()
+            if paneID == DemoAntigravity.paneID {
+                // Antigravity 的輪替順序是真實錄製的 auto → plan → default → accept-edits(#447)。
+                permissionModes[paneID] = DemoAntigravity.nextMode(after: permissionModes[paneID] ?? DemoAntigravity.initialMode)
+            } else {
+                permissionModes[paneID] = (permissionModes[paneID] ?? .normal).next()
+            }
             return
         }
         if Self.workingPanes.contains(paneID), keys == ["esc"] || keys == ["ctrl+c"] {
@@ -140,8 +147,10 @@ struct DemoAnswers {
                 switch key {
                 case "left": panel.level = max(0, panel.level - 1)
                 case "right": panel.level = min(DemoEffortPanel.levels.count - 1, panel.level + 1)
+                case "tab": panel.ultracode.toggle()
                 case "enter":
                     efforts[paneID] = panel.level
+                    ultracodes[paneID] = panel.ultracode
                     panels[paneID] = nil
                     return
                 case "esc":
@@ -322,6 +331,8 @@ struct DemoAnswers {
         case .normal, .bypassPermissions: "? for shortcuts"
         case .acceptEdits: "⏵⏵ accept edits on (shift+tab to cycle)"
         case .plan: "⏸ plan mode on (shift+tab to cycle)"
+        case .auto: "⏵⏵ auto mode on (shift+tab to cycle)"
+        case .dontAsk: "⏵⏵ don't ask on (shift+tab to cycle)"
         }
         let input = suggestion.map { ansi ? "\u{1B}[0m\u{1B}[2m\($0)\u{1B}[0m" : $0 } ?? ""
         return """
@@ -356,6 +367,7 @@ struct DemoEffortPanel: Equatable {
     static let defaultLevel = 1
 
     var level: Int
+    var ultracode = false
 
     var screen: String {
         let indent = "   "
@@ -371,8 +383,8 @@ struct DemoEffortPanel: Equatable {
              Effort
              Higher effort spends more time thinking before answering.
 
-            \(indent)\(rule)
-            \(indent)\(names)
+            \(indent)\(rule)      Ultracode  \(ultracode ? "on " : "off")
+            \(indent)\(names)      Tab to toggle
 
              ←/→ to adjust · Enter to confirm · Esc to cancel
 

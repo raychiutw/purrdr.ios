@@ -1,1 +1,1 @@
-{"type":"push.install.result","request_id":"r31","plugin_installed":true,"paired":true,"other_devices":1}
+{"type":"push.install.result","request_id":"r31","plugin_installed":false,"paired":true,"other_devices":1,"direct_push":true}

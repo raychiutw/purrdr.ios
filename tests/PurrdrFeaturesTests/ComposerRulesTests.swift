@@ -10,11 +10,16 @@ import Testing
 struct ComposerRulesTests {
     // MARK: - 送出鈕外觀
 
-    @Test("送出鈕：可送或送出中是主色填色;不能送(輸入框空白)是中性停用樣式，深色模式不會變成黑色實心圓")
+    @Test("送出鈕：可送是主色填色、送出中是不可點的主色填色(不套系統停用外觀，深色不變黑色圓);不能送(輸入框空白)是中性停用樣式")
     func sendButtonAppearance() {
         #expect(ComposerSendAppearance(canSend: true, isSending: false) == .prominent)
-        #expect(ComposerSendAppearance(canSend: false, isSending: true) == .prominent)
+        #expect(ComposerSendAppearance(canSend: false, isSending: true) == .sending)
+        #expect(ComposerSendAppearance(canSend: true, isSending: true) == .sending)
         #expect(ComposerSendAppearance(canSend: false, isSending: false) == .neutralDisabled)
+        // 只有 .prominent 可點;送出中與停用都不可點,送出中另以 allowsHitTesting 擋掉,不套系統 disabled
+        #expect(ComposerSendAppearance.prominent.isTappable)
+        #expect(!ComposerSendAppearance.sending.isTappable)
+        #expect(!ComposerSendAppearance.neutralDisabled.isTappable)
     }
 
     // MARK: - 硬體鍵盤(F6.3)
@@ -55,25 +60,27 @@ struct ComposerRulesTests {
             isEmpty: isEmpty, availableHeight: available)
     }
 
-    @Test("長高到 8 行為止，第 9 行才內捲")
-    func growsUpToEightLines() {
+    @Test("長高到 5 行為止(#382),第 6 行才在框內捲動")
+    func growsUpToFiveLines() {
+        #expect(ComposerSizing.maxLines == 5)
+        #expect(Self.layout(lines: 3) == ComposerHeight(height: 82, scrolls: false))
         #expect(Self.layout(lines: 5) == ComposerHeight(height: 122, scrolls: false))
-        #expect(Self.layout(lines: 8) == ComposerHeight(height: 182, scrolls: false))
-        #expect(Self.layout(lines: 9) == ComposerHeight(height: 182, scrolls: true))
+        #expect(Self.layout(lines: 6) == ComposerHeight(height: 122, scrolls: true))
+        #expect(Self.layout(lines: 12) == ComposerHeight(height: 122, scrolls: true))
     }
 
-    @Test("可用高度的 40% 比 8 行矮時，以 40% 為上限")
+    @Test("可用高度的 40% 比 5 行矮時，以 40% 為上限")
     func availableHeightFractionWins() {
         #expect(Self.layout(lines: 5, available: 300) == ComposerHeight(height: 120, scrolls: true))
         #expect(Self.layout(lines: 4, available: 300) == ComposerHeight(height: 102, scrolls: false))
     }
 
-    @Test("iPhone SE 尺寸加 AX 字級：上限是可用高度的 40%,不是 8 行")
+    @Test("iPhone SE 尺寸加 AX 字級：上限是可用高度的 40%,不是 5 行")
     func smallScreenWithLargeText() {
         // iPhone SE 鍵盤上方約 380pt;AX5 的 body 行高約 64pt。
         #expect(Self.layout(lines: 3, lineHeight: 64, available: 380) == ComposerHeight(height: 152, scrolls: true))
-        // 預設字級(行高 22):8 行 198pt 超過 152pt。
-        #expect(Self.layout(lines: 8, lineHeight: 22, available: 380) == ComposerHeight(height: 152, scrolls: true))
+        // 預設字級(行高 22):5 行 132pt 比 152pt 矮，以 5 行為上限;第 6 行起內捲。
+        #expect(Self.layout(lines: 8, lineHeight: 22, available: 380) == ComposerHeight(height: 132, scrolls: true))
         #expect(Self.layout(lines: 5, lineHeight: 22, available: 380) == ComposerHeight(height: 132, scrolls: false))
     }
 
@@ -106,40 +113,52 @@ struct ComposerRulesTests {
         #expect(Self.layout(lines: 1, lineHeight: 8) == ComposerHeight(height: 44, scrolls: false))
     }
 
-    @Test("內容剛好等於上限時不內捲;不知道可用高度時只看 8 行")
+    @Test("內容剛好等於上限時不內捲;不知道可用高度時只看 5 行")
     func scrollsOnlyWhenExceeding() {
         let atLimit = ComposerSizing.height(
             ComposerTextMetrics(contentHeight: 120, lineHeight: 20, verticalInsets: 22), isEmpty: false, availableHeight: 300)
         #expect(atLimit == ComposerHeight(height: 120, scrolls: false))
-        #expect(Self.layout(lines: 20, available: nil) == ComposerHeight(height: 182, scrolls: true))
+        #expect(Self.layout(lines: 20, available: nil) == ComposerHeight(height: 122, scrolls: true))
     }
 
-    // MARK: - 展開鈕(#142)
+    // MARK: - 兩態(#382)
 
-    /// 行高 20、上下內距 22 時 `lines` 行內容是否顯示展開鈕。
-    private static func showsExpand(lines: Double, isFocused: Bool) -> Bool {
-        ComposerExpansion.showsExpandButton(ComposerTextMetrics(contentHeight: lines * 20 + 22, lineHeight: 20, verticalInsets: 22), isFocused: isFocused)
+    @Test("收合只有「未聚焦且空白(沒有文字也沒有附件)」;聚焦、有文字或有附件就展開")
+    func formCollapsedOnlyWhenIdleAndEmpty() {
+        #expect(ComposerForm.resolve(isFocused: false, draft: "", hasAttachments: false) == .collapsed)
+        #expect(ComposerForm.resolve(isFocused: true, draft: "", hasAttachments: false) == .expanded)
+        #expect(ComposerForm.resolve(isFocused: false, draft: "hi", hasAttachments: false) == .expanded)
+        #expect(ComposerForm.resolve(isFocused: false, draft: "", hasAttachments: true) == .expanded)
+        // 只有換行也算有內容：使用者打過字，收起鍵盤後草稿還在。
+        #expect(ComposerForm.resolve(isFocused: false, draft: "\n", hasAttachments: false) == .expanded)
     }
 
-    @Test("沒聚焦時超過 2 行才顯示展開鈕")
-    func expandButtonAfterTwoLines() {
-        #expect(!Self.showsExpand(lines: 1, isFocused: false))
-        #expect(!Self.showsExpand(lines: 2, isFocused: false))
-        #expect(Self.showsExpand(lines: 3, isFocused: false))
-        #expect(Self.showsExpand(lines: 12, isFocused: false))
+    @Test("收合是一列:+、輸入、送出;展開才有模型膠囊")
+    func formControls() {
+        #expect(!ComposerForm.collapsed.showsModelCapsule)
+        #expect(ComposerForm.expanded.showsModelCapsule)
     }
 
-    @Test("聚焦時一律顯示展開鈕(包含空白輸入框)")
-    func expandButtonWhenFocused() {
-        #expect(Self.showsExpand(lines: 1, isFocused: true))
-        #expect(Self.showsExpand(lines: 2, isFocused: true))
+    // MARK: - 提示文字(#382)
+
+    @Test("有待回答的「需要你」卡片時，提示改成「或告訴 Agent 怎麼做」;自訂回答優先")
+    func placeholderKinds() {
+        #expect(ComposerPlaceholderKind.choose(hasTypedAnswer: false, hasPendingPrompt: false) == .message)
+        #expect(ComposerPlaceholderKind.choose(hasTypedAnswer: false, hasPendingPrompt: true) == .tellAgent)
+        #expect(ComposerPlaceholderKind.choose(hasTypedAnswer: true, hasPendingPrompt: true) == .typedAnswer)
+        #expect(ComposerPlaceholderKind.choose(hasTypedAnswer: true, hasPendingPrompt: false) == .typedAnswer)
     }
 
-    @Test("行高量測的小誤差不讓 2 行被算成 3 行")
-    func expandButtonToleratesRounding() {
-        let almostTwoLines = ComposerExpansion.showsExpandButton(
-            ComposerTextMetrics(contentHeight: 2 * 20.4 + 22, lineHeight: 20, verticalInsets: 22), isFocused: false)
-        #expect(!almostTwoLines)
+    // MARK: - 附件可用性(#382)
+
+    @Test("離線時「+」停用(附件不能排隊);滿 10 個點了提示上限;其餘可用")
+    func attachAvailability() {
+        #expect(ComposerAttachAvailability.resolve(isOffline: true, remainingSlots: 10) == .offline)
+        #expect(ComposerAttachAvailability.resolve(isOffline: true, remainingSlots: 0) == .offline)
+        #expect(ComposerAttachAvailability.resolve(isOffline: false, remainingSlots: 0) == .limitReached)
+        #expect(ComposerAttachAvailability.resolve(isOffline: false, remainingSlots: 3) == .available)
+        #expect(ComposerAttachAvailability.offline.isDimmed)
+        #expect(!ComposerAttachAvailability.available.isDimmed)
     }
 
     // MARK: - 組字中的程式覆寫(#138)

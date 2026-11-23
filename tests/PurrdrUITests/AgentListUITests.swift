@@ -65,7 +65,7 @@ final class AgentListUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
 
-        let search = app.textFields["agentList.search"].firstMatch
+        let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
         search.tap()
         search.typeEnglish("weather")
@@ -75,50 +75,48 @@ final class AgentListUITests: XCTestCase {
         XCTAssertFalse(row("w3:p1", in: app).exists, "不符合的列仍在")
 
         search.typeEnglish("zzz")
-        XCTAssertTrue(app.staticTexts["No Matching Agents"].waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
+        XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
     }
 
-    /// 聊天列表頂部(#268,原型 purrdr-screens 定案版):沒有大標題、沒有標題選單;導覽列下方直接是 Agents／Spaces 切換(#313 攤開成兩列勾選)，
-    /// Agents 檢視的搜尋在它下方(Spaces 沒有搜尋);列表上沒有滑動提示與註記卡。
+    /// 聊天列表頂部(#391):沒有大標題;導覽列左上是 Agents／Spaces 一鍵切換符號,中間是主機選單,系統搜尋欄在導覽列下方、列表在頂端時預設顯示;
+    /// 列表上沒有滑動提示與註記卡。
     @MainActor
-    func testChatListTopHasNoLargeTitleAndSearchUnderModeControl() {
+    func testChatListTopHasModeButtonAndSystemSearch() {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
         XCTAssertFalse(app.staticTexts["agentList.title"].exists, "不該有大標題")
-        XCTAssertFalse(app.navigationBars.buttons["Agents"].exists, "導覽列不該有標題(含標題選單)")
         let control = app.listModeControl
         XCTAssertTrue(control.exists)
         let bar = app.navigationBars.firstMatch.frame
-        XCTAssertLessThan(control.frame.minY - bar.maxY, 30, "Agents／Spaces 切換不在導覽列正下方:\(control.frame) 導覽列 \(bar)")
-        let search = app.textFields["agentList.search"].firstMatch
-        XCTAssertTrue(search.exists, "Agents 檢視沒有搜尋欄")
-        XCTAssertGreaterThan(search.frame.minY, control.frame.maxY, "搜尋欄不在 Agents／Spaces 切換下方")
-        XCTAssertFalse(app.searchFields.firstMatch.exists, "不該有系統搜尋欄(底部工具列)")
+        XCTAssertTrue(bar.insetBy(dx: -1, dy: -1).contains(control.frame), "切換鈕不在導覽列內:\(control.frame) 導覽列 \(bar)")
+        let host = app.buttons["toolbar.currentHost"].firstMatch
+        XCTAssertLessThan(control.frame.minX, host.frame.minX, "切換鈕不在主機選單左邊")
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.exists, "列表在頂端時沒有顯示系統搜尋欄")
+        XCTAssertGreaterThan(search.frame.minY, bar.minY, "搜尋欄不在導覽列下方")
         XCTAssertFalse(app.descendants(matching: .any)["agentList.swipeHint"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["youShouldKnow.listRow"].exists)
-
-        app.switchListMode(to: "Spaces")
-        XCTAssertTrue(search.waitUntilGone(timeout: 5), "Spaces 檢視不該有搜尋欄")
     }
 
-    /// AX 字級的選單只有一層(#268,使用者實機截圖):帳號併進「⋯」,選單直接列出所有項目，沒有「更多」第二層，
-    /// 也沒有 Agents／Spaces 切換。
+    /// AX 字級下 5 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。
     @MainActor
-    func testMoreMenuIsOneLevelAtAccessibilitySize() {
+    func testTabBarAndAccountReachableAtAccessibilitySize() {
         let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
         XCTAssertTrue(app.listModeControl.waitUntilExists(timeout: 15))
-        XCTAssertFalse(app.buttons["toolbar.account"].exists, "AX 字級時帳號應併進「⋯」")
-        // 工具列只剩主機篩選與「⋯」:系統不會把它們收進溢出選單(溢出選單裡「⋯」會變成「更多 ›」第二層)。
-        XCTAssertFalse(app.buttons["OverflowBarButtonItem"].exists, "工具列被收進溢出選單，選單會變成兩層")
-        let more = app.buttons["toolbar.more"].firstMatch
-        XCTAssertTrue(more.exists, "工具列沒有「⋯」")
-        more.tap()
-        for item in ["menu.account", "menu.newChat", "menu.hosts", "menu.settings"] {
-            XCTAssertTrue(app.buttons[item].firstMatch.waitUntilExists(timeout: 5), "選單沒有直接列出 \(item)")
+        for tab in [AppTab.chats, .files, .hosts, .traffic, .settings] {
+            XCTAssertTrue(
+                app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 5),
+                "tab bar 沒有 \(tab.rawValue)")
         }
+        // 未登入時帳號鈕開的是「登入或加入」選擇頁(#408),不是帳號頁。
+        app.openAccount()
+        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "大字級下沒有開出登入或加入選擇頁")
+        let signIn = app.buttons["account.entry.signIn"]
+        app.scrollIntoView(signIn, search: .down)
+        XCTAssertTrue(signIn.waitUntilExists(timeout: 5), "大字級下找不到「登入」")
     }
 
-    /// 右上角的帳號圓圈跟「⋯」看起來一樣大(實機回報 2026-11-20):工具列玻璃鈕畫出來 44pt(XCUI 的 frame 只報內容 36pt)。
+    /// 右上角的帳號圓圈跟新增聊天的玻璃鈕看起來一樣大(實機回報 2026-11-20):工具列玻璃鈕畫出來 44pt(XCUI 的 frame 只報內容 36pt)。
     @MainActor
     func testAccountButtonMatchesMoreButton() {
         let app = XCUIApplication.launchUITesting()

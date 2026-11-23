@@ -73,10 +73,12 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 沒有大標題、也沒有標題選單(#268):導覽列只有主機篩選、「⋯」與帳號，檢視切換只用列表第一列的分段控制。
-        // 標題仍設定，給返回鈕與 VoiceOver 用，只是不畫在導覽列上。
+        // 沒有大標題(#268):導覽列左上是 Agents／Spaces 一鍵切換、中間主機選單、右上新增聊天與帳號(#391)。
+        // 標題仍設定，給返回鈕與 VoiceOver 用(導覽列中間由主機選單佔用)。
+        // 系統搜尋欄(#391):列表在頂端時預設顯示、往上捲才收起;範圍是目前主機(所有主機就搜全部)。
+        // Agents 檢視比對 Agent、資料夾與主機,Spaces 檢視比對 workspace 與 Tab 名稱。
+        .agentListSearch(text: $model.query, focused: $searchFocused)
         .navigationTitle(model.mode.title)
-        .toolbar(removing: .title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -103,6 +105,12 @@ public struct AgentListView: View {
         }
     }
 
+    /// 搜尋了但沒有任何符合(顯示「找不到」,連線錯誤區塊先收起,免得疊在說明上)。
+    private var searchHasNoMatch: Bool {
+        guard !model.query.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        return model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty
+    }
+
     private var hasConnectingHosts: Bool { !model.hostStatuses(at: now).isEmpty }
 
     /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
@@ -120,9 +128,19 @@ public struct AgentListView: View {
         if let title = model.terminalTitle(of: route), let makeTerminal {
             PaneTerminalScreen(model: makeTerminal(route, title))
         } else {
-            ConversationScreen(model: makeConversation(route, model.sessionID(of: route)), makeTerminal: makeTerminal.map { make in
-                { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
-            })
+            ConversationScreen(
+                model: makeConversation(route, model.sessionID(of: route)),
+                makeTerminal: makeTerminal.map { make in
+                    { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
+                },
+                otherNeedsYou: model.needsYouCount(excluding: route),
+                layoutSnapshot: { [model] in model.snapshot(for: route.host) },
+                openLayoutTarget: { [model] target in
+                    switch target {
+                    case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: route.host, paneID: paneID)
+                    }
+                })
+            .environment(\.usageHost, route.host)
             // 進入與離開對話各記一次開啟時間;開著時不算未讀(行為規格 F2.6)。
             .onAppear { model.chatAppeared(route) }
             .onDisappear { model.chatDisappeared(route) }
@@ -149,10 +167,7 @@ public struct AgentListView: View {
                         .accessibilityIdentifier("agentList.addHost")
                 }
                 Button("Try the Demo") { model.enterDemo?() }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.large)
-                    .foregroundStyle(Color.primary)
+                    .buttonStyle(.borderless)
                     .accessibilityIdentifier("agentList.tryDemo")
             }
             .accessibilityElement(children: .contain)
@@ -201,7 +216,6 @@ public struct AgentListView: View {
     /// 第一次載入、還沒有任何列：大標題、各主機的連線狀態與列表骨架(不整頁轉圈,#221)。
     private var loadingList: some View {
         List {
-            modeRow
             hostStatusRows
             Section {
                 ForEach(0..<3, id: \.self) { index in
@@ -213,6 +227,7 @@ public struct AgentListView: View {
         }
         #if os(iOS)
         .listStyle(.insetGrouped)
+        .appGroupedList()
         #endif
         .contentMargins(.top, 0, for: .scrollContent)
         .accessibilityIdentifier("agentList.loading")
@@ -245,14 +260,12 @@ public struct AgentListView: View {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             if window != nil {
                 List(selection: selection) {
-                    modeRow
                     hostStatusRows
                     listRows(sections)
                 }
                 .environment(\.selectedChatRoute, window?.selectedChat)
             } else {
                 List {
-                    modeRow
                     hostStatusRows
                     listRows(sections)
                 }
@@ -260,17 +273,15 @@ public struct AgentListView: View {
         }
         #if os(iOS)
         .listStyle(.insetGrouped)
+        .appGroupedList()
         #endif
         .contentMargins(.top, 0, for: .scrollContent)
         // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
         .id(model.mode)
         .overlay {
-            if (model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty), !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
-                ContentUnavailableView(
-                    "No Matching Agents",
-                    systemImage: "magnifyingglass",
-                    description: Text("Try a different name, agent, folder, or host.")
-                )
+            if searchHasNoMatch {
+                ContentUnavailableView.search(text: model.query)
+                    .accessibilityIdentifier("agentList.noMatches")
             }
         }
         // 版面圖選的 Pane:聊天推入對話(或在對話欄打開);Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
@@ -280,40 +291,13 @@ public struct AgentListView: View {
             case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
             }
         }
-        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(搜尋欄只在 Agents 檢視，要求時先換過去)。
+        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(兩種檢視都有搜尋,#391)。
         .onChange(of: window?.isSearchFocused ?? false) { _, focused in
             guard focused else { return }
-            model.mode = .agents
             searchFocused = true
         }
         .onChange(of: searchFocused) { _, focused in
             if !focused { window?.isSearchFocused = false }
-        }
-    }
-
-    /// 列表最上面(#268;#313 改成攤開):Agents／Spaces 兩列勾選;Agents 檢視下方接著搜尋欄。
-    /// 沒有大標題。Spaces 檢視沒有搜尋(切過去時清掉搜尋字，不留看不見的篩選)。
-    @ViewBuilder
-    private var modeRow: some View {
-        Section {
-            AgentListModeControl(mode: $model.mode)
-        }
-        #if os(iOS)
-        // 貼著導覽列、跟下面的內容只隔一般間距(inset grouped 第一個 section 上方預設有一大段空白)。
-        .listSectionSpacing(.compact)
-        #endif
-        .onChange(of: model.mode) { _, mode in
-            if mode == .spaces { model.query = "" }
-        }
-        if model.mode == .agents {
-            Section {
-                AgentListSearchField(query: $model.query, focused: $searchFocused)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-            }
-            #if os(iOS)
-            .listSectionSpacing(.compact)
-            #endif
         }
     }
 
@@ -339,7 +323,7 @@ public struct AgentListView: View {
                     .accessibilityIdentifier("agentList.filterEmpty")
             }
         }
-        if !failures.isEmpty {
+        if !failures.isEmpty, !searchHasNoMatch {
             // 讀不到的主機：列已經在畫面上時，錯誤放在列下方，不把列推走(行為規格 F2.9)。不用 alert,也不自動消失:
             // 重新連上才會消失;列保持最後一次讀到的樣子(HIG 20.5)。每台主機一行「主機名：原因」(#37 故事 3)。
             Section {
@@ -387,6 +371,23 @@ public struct AgentListView: View {
     }
 }
 
+/// 對話返回鈕旁的小數字:其他「需要你」的 Agent 數。
+struct OtherNeedsYouCount: View {
+    let count: Int
+
+    var body: some View {
+        Text(count, format: .number)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 7)
+            .frame(minWidth: 22, minHeight: 22)
+            .background(.red, in: Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("\(count) other Agents need you"))
+            .accessibilityIdentifier("conversation.otherNeedsYou")
+    }
+}
+
 /// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
 ///
 /// `window` 有值時(split view 的對話欄)，終端機推入與否也記在視窗的導覽狀態(Command-Shift-T 也能打開);
@@ -400,11 +401,23 @@ struct ConversationScreen: View {
     @State private var terminal: PaneTerminalModel?
     /// 推入中的變更頁(#310)。
     @State private var changes: ChangesModel?
+    /// 其他「需要你」的 Agent 數(返回鈕旁的數字,#390);0 不顯示。
+    let otherNeedsYou: Int
+    /// 更多選單的「顯示版面」(#381):讀聊天所在主機的 snapshot(開啟當下，不即時更新);沒有時不顯示這一項。
+    let layoutSnapshot: (@MainActor () -> HostSnapshot?)?
+    /// 版面圖選了 Pane 之後的動作(開那個 Pane)。
+    let openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)?
+    @State private var showsLayout = false
+    @State private var pendingLayoutTarget: PaneOpenTarget?
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
-        window: TopNavigationModel? = nil, route: ChatRoute? = nil
+        window: TopNavigationModel? = nil, route: ChatRoute? = nil, otherNeedsYou: Int = 0,
+        layoutSnapshot: (@MainActor () -> HostSnapshot?)? = nil, openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)? = nil
     ) {
+        self.otherNeedsYou = otherNeedsYou
+        self.layoutSnapshot = layoutSnapshot
+        self.openLayoutTarget = openLayoutTarget
         _model = State(wrappedValue: model())
         self.makeTerminal = makeTerminal
         self.window = window
@@ -413,19 +426,38 @@ struct ConversationScreen: View {
 
     var body: some View {
         ConversationView(model: model)
+            .hidesTabBarWhenCompact()
             .toolbar {
-                if makeTerminal != nil {
-                    // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
-                    ToolbarItem(placement: .primaryAction) {
-                        PaneTerminalButton { openTerminal() }
+                #if os(iOS)
+                if otherNeedsYou > 0 {
+                    // 返回鈕旁:其他需要你的 Agent 數(HIG:重要資訊的 badge);VoiceOver 念「另外 N 個 Agent 需要你」。
+                    ToolbarItem(placement: .topBarLeading) {
+                        OtherNeedsYouCount(count: otherNeedsYou)
                     }
                 }
-                // 變更鈕(#310):知道 Agent 的工作目錄、連線方式讀得了 git 才顯示。
-                if model.canOpenChanges {
-                    ToolbarItem(placement: .primaryAction) {
-                        ChangesButton { changes = model.makeChanges() }
-                    }
+                #endif
+                // 右上角只有一顆「更多」(#381):Pane 終端機、Git 變更、顯示版面。
+                ToolbarItem(placement: .primaryAction) {
+                    ConversationMoreMenu(
+                        model: model, canOpenTerminal: makeTerminal != nil, canShowLayout: layoutSnapshot != nil,
+                        openTerminal: openTerminal, openChanges: { changes = model.makeChanges() },
+                        showLayout: { showsLayout = true })
                 }
+            }
+            .task(id: model.canOpenChanges) { await model.refreshGitMenu() }
+            .sheet(isPresented: $showsLayout) {
+                if let workspaceID = model.workspaceID, let snapshot = layoutSnapshot?() {
+                    let label = snapshot.workspaces.first { $0.id == workspaceID }?.label ?? workspaceID
+                    SpacesLayoutSheet(
+                        workspaceLabel: label, layout: SpacesLayout(snapshot: snapshot, workspaceID: workspaceID),
+                        onChoose: { pendingLayoutTarget = $0 })
+                }
+            }
+            .onChange(of: showsLayout) { _, shown in
+                // sheet 關閉後才開選到的 Pane(不能在關 sheet 的同一刻 push)。
+                guard !shown, let target = pendingLayoutTarget else { return }
+                pendingLayoutTarget = nil
+                openLayoutTarget?(target)
             }
             .navigationDestination(isPresented: Binding(get: { changes != nil }, set: { if !$0 { changes = nil } })) {
                 if let changes {
@@ -448,7 +480,7 @@ struct ConversationScreen: View {
                     if let route, window?.openedTerminal == route { window?.openedTerminal = nil }
                 }
             )) {
-                if let terminal { PaneTerminalView(model: terminal) }
+                if let terminal { PaneTerminalView(model: terminal).hidesTabBarWhenCompact() }
             }
             #endif
     }
@@ -703,7 +735,7 @@ extension AgentStatus {
     var symbol: String {
         switch self {
         case .blocked: "exclamationmark.circle.fill"
-        case .working: "ellipsis.circle"
+        case .working: "ellipsis.circle.fill"
         // 實心圓 = 有未讀的回覆、空心圓 = 已讀(行為規格 F2.5;列表會把未讀折算成 done、已讀折算成 idle)。
         case .done: "circle.fill"
         case .idle: "circle"

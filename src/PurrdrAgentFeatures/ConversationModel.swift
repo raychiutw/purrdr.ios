@@ -33,6 +33,9 @@ public final class ConversationModel {
         /// 這個 pane 已經沒有 agent。
         case agentGone
         case ready
+        /// 已知 session,但它的對話紀錄檔還不存在(`/clear`、重開、resume 後，Claude Code 要到第一則提示詞才建立新檔)。
+        /// 電腦上的 Pane 此時可能還顯示舊 session 的畫面，所以不說「還沒有訊息」(#418)。送出後檔案出現，下一次讀取就接上。
+        case newConversation
     }
 
     /// 對話內的非干擾式標示(HIG 20.5:不在進入畫面時跳 alert)。
@@ -74,6 +77,31 @@ public final class ConversationModel {
     public private(set) var metadata = TranscriptMetadata()
     /// context 百分比與待辦進度(#307),由讀到的對話紀錄推得;標題列與待辦 sheet 用。
     public private(set) var progress = AgentProgress()
+    /// Claude Code 的 status line 為這個 session 回報的狀態(#388);沒有(未安裝、API key、舊版主機服務、讀不到)時是 `nil`,
+    /// context 退回對話紀錄算法(`progress`)。
+    public private(set) var sessionStatus: ClaudeSessionStatus?
+    /// 讀 session 狀態的來源(SSH 主機上的 session 檔、HTTPS 的 `usage.session_context`);`nil` 時只用退回算法。
+    public var sessionStatusReader: (any ClaudeSessionStatusReading)?
+    /// 各 Agent 種類自己的 session 狀態來源(Antigravity 的 statusline 包裝,#448);沒有的種類用 `sessionStatusReader`。
+    public var agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:]
+
+    /// 有狀態列的 Agent(Antigravity)裝了 statusline 包裝時,從 session 檔讀到的模式、模型與 effort(優先於畫面狀態列,#448);沒有是 `nil`。
+    private var statusFileLine: AgentStatusLine? {
+        guard screenDialect.statusLine != nil, let status = sessionStatus else { return nil }
+        return AgentStatusLine(
+            mode: status.cycleMode.flatMap { AgentPermissionMode(antigravityCycleMode: $0) }, model: status.antigravityModelName,
+            effort: status.effort)
+    }
+    @ObservationIgnored private var sessionStatusReadAt: Date?
+    /// 兩次讀 session 狀態的最短間隔(秒):輪詢每 2 秒一輪,不必每輪都問主機。
+    nonisolated public static let sessionStatusInterval: TimeInterval = 10
+
+    /// 標題列與面板用的進度:有 status line 的 context 就以它為準(與 Claude Code 實際顯示一致),否則是對話紀錄算出的。
+    public var displayProgress: AgentProgress {
+        var result = progress
+        if let percent = sessionStatus?.contextPercent { result.contextPercent = Int(percent.rounded()) }
+        return result
+    }
     /// Claude 的背景 agents 窗格(F10「背景 agents 列」),從 pane 畫面解析;沒有窗格是 `nil`。
     public private(set) var agentsPane: AgentsPane?
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
@@ -186,14 +214,63 @@ public final class ConversationModel {
     /// 能不能開變更頁(有 git 讀取、知道 Agent 的工作目錄)。
     public var canOpenChanges: Bool { gitChanges != nil && currentAgent?.cwd != nil }
 
+    /// 更多選單裡「Git 變更」項目的狀態(#381):可用時帶分支與檔案數，不可用時停用並寫原因。
+    public enum GitMenuState: Sendable, Equatable {
+        /// 還沒讀過(或暫時讀不到):項目可點，進變更頁自己再讀。
+        case checking
+        case available(branch: String?, fileCount: Int)
+        case unavailable(GitUnavailableReason)
+
+        public var isEnabled: Bool {
+            if case .unavailable = self { false } else { true }
+        }
+    }
+
+    public enum GitUnavailableReason: Sendable, Equatable {
+        /// 這種連線方式或主機讀不了 git(含還不知道 Agent 的工作目錄)。
+        case unsupported
+        case notGitRepository
+        case gitNotInstalled
+        case agentMoved
+        case hostServiceUpdateRequired
+    }
+
+    public private(set) var gitMenu: GitMenuState = .checking
+
+    /// 讀一次 git 狀態，更新更多選單的「Git 變更」項目。只有明確的原因才停用;暫時讀不到維持可點。
+    public func refreshGitMenu() async {
+        guard let gitChanges else {
+            gitMenu = .unavailable(.unsupported)
+            return
+        }
+        guard let cwd = currentAgent?.cwd else {
+            gitMenu = .checking
+            return
+        }
+        do {
+            let status = try await gitChanges.gitStatus(cwd: cwd)
+            gitMenu = .available(branch: status.branch, fileCount: status.files.count)
+        } catch {
+            switch ChangesProblem(error) {
+            case .unsupported: gitMenu = .unavailable(.unsupported)
+            case .notGitRepository: gitMenu = .unavailable(.notGitRepository)
+            case .gitNotInstalled: gitMenu = .unavailable(.gitNotInstalled)
+            case .agentMoved: gitMenu = .unavailable(.agentMoved)
+            case .hostServiceUpdateRequired: gitMenu = .unavailable(.hostServiceUpdateRequired)
+            case .failed: gitMenu = .checking
+            }
+        }
+    }
+
     /// 能不能送出變更頁的評論：與輸入列相同的目標條件(唯讀、離線、送出中都不行)。
     public var canSendReview: Bool { hasTarget && !isReadOnly && !isSending && typedAnswer == nil }
 
-    /// 主機取檔的存取範圍(#225):Agent 的工作目錄、目前對話紀錄裡 Agent 寫出的路徑(#229),與對話紀錄本身(附檔資料夾)。
+    /// 主機取檔的存取範圍(#225):Agent 的工作目錄、目前對話紀錄裡 Agent 寫出的路徑(#229)、對話紀錄本身(附檔資料夾),
+    /// 與使用者 prompt 裡的路徑(只放行 Purrdr 上傳資料夾，#428)。
     public var fileAccessScope: HostFileAccessScope {
         HostFileAccessScope(
             workingDirectories: currentAgent?.cwd.map { [$0] } ?? [], mentionedPaths: HostFileAccessScope.mentionedPaths(in: items),
-            transcriptPaths: file.map { [$0.path] } ?? [])
+            transcriptPaths: file.map { [$0.path] } ?? [], promptMentionedPaths: HostFileAccessScope.promptMentionedPaths(in: items))
     }
 
     /// 輸入列上方的註記：只顯示這個輸入框要送往的 session 的那則(行為規格 F17)。
@@ -255,6 +332,26 @@ public final class ConversationModel {
 
     /// 已滿時點「附加」:提示上限(F7)。
     public func noteImageLimit() { notice = .attachmentLimit }
+
+    /// 「+」現在能不能用(#382):離線停用、滿了提示上限。
+    public var attachAvailability: ComposerAttachAvailability {
+        ComposerAttachAvailability.resolve(isOffline: isOffline, remainingSlots: remainingImageSlots)
+    }
+
+    /// 點「+」:可以就回傳 `true`(畫面升起面板);否則放說明提示、回傳 `false`。
+    public func requestAttach() -> Bool {
+        switch attachAvailability {
+        case .available: return true
+        case .offline: notice = .attachOffline
+        case .limitReached: notice = .attachmentLimit
+        }
+        return false
+    }
+
+    /// 輸入框提示文字的種類(#382)。
+    public var placeholderKind: ComposerPlaceholderKind {
+        ComposerPlaceholderKind.choose(hasTypedAnswer: typedAnswer != nil, hasPendingPrompt: prompt != nil)
+    }
 
     /// 移除附件。送出(上傳)中不能移除。
     public func removeAttachment(_ id: String) {
@@ -438,6 +535,7 @@ public final class ConversationModel {
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
     public var secretCheck: SecretCheck? { sendPipeline.step(SecretCheck.self) }
     private let slashDiscovery: (any SlashDiscovering)?
+    private let modelCatalogProvider: (any ModelCatalogProviding)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
     @ObservationIgnored public var onPromptDelivered: (@MainActor () -> Void)?
@@ -481,8 +579,10 @@ public final class ConversationModel {
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
-    /// 對話紀錄的格式，依 Agent 種類(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
-    private var format: TranscriptFormat = .claude
+    /// 對話紀錄的方言，依 Agent 設定檔(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
+    private var dialect: TranscriptDialect = .claude
+    /// 解析時略過認不得的行(#449):交給診斷紀錄(只含種類名稱與數量);`nil` 不回報。
+    public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
     /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
     /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
@@ -503,6 +603,10 @@ public final class ConversationModel {
     private var currentAgent: Agent?
     /// 最近一次輪詢看到的 Agent 種類(畫面依種類調整說明，例如 Codex 等 session 的提示)。
     public var agentKind: String? { currentAgent?.kind }
+    /// 第一則訊息送出後才有對話紀錄的 Agent(Codex):等待畫面換成對應說明。
+    public var transcriptStartsAfterFirstMessage: Bool { screenDialect.transcriptStartsAfterFirstMessage }
+    /// Agent 所在的 workspace(更多選單的「顯示版面」用,#381)。
+    public var workspaceID: String? { currentAgent?.workspaceID }
     /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
     private var consumedUserIDs = Set<String>()
     private var lastPolledStatus: AgentStatus?
@@ -560,8 +664,10 @@ public final class ConversationModel {
         images: ComposerImages? = nil,
         updates: HostUpdates? = nil,
         sendSteps: [any SendStep] = [],
+        modelCatalog: (any ModelCatalogProviding)? = nil,
         sleep: @escaping Sleep = Sleeping.task
     ) {
+        self.modelCatalogProvider = modelCatalog
         self.updates = updates
         self.images = images
         self.client = client
@@ -598,7 +704,7 @@ public final class ConversationModel {
             agent = snapshot?.agents.first { $0.paneID == paneID }
         }
         guard let agent else { return nil }
-        switch AgentSlashMenu(agentKind: agent.kind) {
+        switch AgentCatalog.profile(forHerdrName: agent.kind).transcript?.slashMenu ?? .none {
         case .none:
             return nil
         case .fixed(let commands):
@@ -632,6 +738,7 @@ public final class ConversationModel {
         recent = cached.messages
         segments = [(cached.windowStart, cached.messages.count)]
         metadata = cached.metadata
+        noteTranscriptPermissionMode()
         older = cached.windowStart > 0 ? .available : .reachedStart
         phase = .ready
         rebuild()
@@ -661,7 +768,9 @@ public final class ConversationModel {
             }
             while !Task.isCancelled {
                 await poll()
+                await refreshSessionStatusIfDue()
                 await probePermissionModeIfNeeded()
+                await refreshStatusLineIfDue()
                 do {
                     // 輪詢期間被叫醒就不等。
                     try await pollDue.wait(atMost: pollInterval)
@@ -682,6 +791,24 @@ public final class ConversationModel {
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
+    }
+
+    /// 讀這個 session 的 status line 狀態(#388):只有 Claude Code、知道 session id 時;至少隔 `sessionStatusInterval` 秒才再讀。
+    /// 讀不到(沒有檔案、未安裝、舊版主機服務、連線錯誤)一律清成 `nil`,畫面退回對話紀錄算法、不空白。
+    package func refreshSessionStatusIfDue() async {
+        let reader = agentKind.flatMap { agentSessionStatusReaders[AgentID(herdrName: $0)] } ?? sessionStatusReader
+        guard let reader, dialect.readsSessionStatus, let session = boundSessionID ?? knownSessionID,
+              ClaudeSessionStatus.isValidSessionID(session) else {
+            sessionStatus = nil
+            return
+        }
+        let now = clock.now()
+        if let last = sessionStatusReadAt, now.timeIntervalSince(last) < Self.sessionStatusInterval { return }
+        sessionStatusReadAt = now
+        let statuses = try? await reader.sessionStatuses(sessionIDs: [session])
+        guard !Task.isCancelled else { return }
+        let status = statuses?[session].flatMap { $0.isFresh(at: now) ? $0 : nil }
+        if status != sessionStatus { sessionStatus = status }
     }
 
     /// 載入超過 `loadingIndicatorDelay` 還沒有內容才開啟進度指示。
@@ -747,16 +874,17 @@ public final class ConversationModel {
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         // 讀 Pane 畫面(提問卡、建議提示詞、面板、即時預覽、背景 agents 窗格)排在讀對話紀錄之後(#356):
         // 慢網路下對話內容先出來，不等這幾個依序的請求。沒有對話紀錄可讀的情況(不支援、還沒有 session)照舊先讀畫面。
+        let agentDialect = AgentCatalog.profile(forHerdrName: agent.kind).transcript
         let readScreens = { [self] in
             await refreshPrompt(agent)
             let suggestionRead = await readSuggestion(agent)
             await refreshPanel(agent)
             applySuggestion(suggestionRead, agent: agent)
             await refreshLivePreview()
-            // 背景 agents 窗格只有 Claude 有。
-            if agent.kind == "claude", TranscriptFormat(agentKind: agent.kind) != nil { await readAgentsPaneIfNeeded() }
+            // 背景 agents 窗格只有支援 subagent 的方言(Claude)有。
+            if agentDialect?.supportsSubagents == true { await readAgentsPaneIfNeeded() }
         }
-        guard TranscriptFormat(agentKind: agent.kind) != nil else {
+        guard agentDialect != nil else {
             await readScreens()
             unbind()
             phase = .unsupported
@@ -775,7 +903,7 @@ public final class ConversationModel {
             unbind(keepingDisplay: true)
             boundSessionID = target.sessionKey
         }
-        format = target.format
+        dialect = target.dialect
         followPace?.interval = pollInterval
         await read(target)
         await readScreens()
@@ -897,7 +1025,7 @@ public final class ConversationModel {
             file = nil
             if isRefreshing { clearDisplay() }
             banner = nil
-            phase = .ready
+            phase = .newConversation
         case TranscriptReadError.unreadable:
             banner = .unreadable
             phase = .ready
@@ -936,11 +1064,32 @@ public final class ConversationModel {
         recent = parse(chunk.lines)
         segments = [(chunk.start, recent.count)]
         olderMessages = []
-        metadata = format.latestMetadata(in: chunk.lines)
-        progress = AgentProgress.latest(in: chunk.lines, format: format)
+        metadata = dialect.latestMetadata(in: chunk.lines)
+        notePermissionModes(in: chunk.lines)
+        progress = AgentProgress.latest(in: chunk.lines, dialect: dialect)
         older = chunk.start > 0 ? .available : .reachedStart
         rebuild()
+        try await readEarlierUntilMessages(path: path, generation: generation)
     }
+
+    /// 開啟視窗內沒有任何訊息(最後幾十行都是 system、api-request-blob、file-history-snapshot 這類不產生訊息的紀錄)
+    /// 但檔案前面有:往前一頁一頁讀到有訊息為止，不顯示「還沒有訊息」(#418)。有上限，避免超大檔案讀不完。
+    private func readEarlierUntilMessages(path: String, generation: Int) async throws {
+        var pages = 0
+        while items.isEmpty, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
+            pages += 1
+            let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
+            guard generation == self.generation else { return }
+            let known = Set((olderMessages + recent).map(\.id))
+            olderMessages = parse(page.lines).filter { !known.contains($0.id) } + olderMessages
+            file?.windowStart = page.start
+            older = page.start > 0 ? .available : .reachedStart
+            rebuild()
+        }
+    }
+
+    /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
+    static let maximumEmptyWindowPages = 25
 
     private func append(_ chunk: TranscriptChunk) {
         let known = Set(recent.map(\.id))
@@ -948,9 +1097,10 @@ public final class ConversationModel {
         recent += added
         if !added.isEmpty { segments.append((chunk.start, added.count)) }
         for line in chunk.lines {
-            format.updateMetadata(&metadata, with: line)
-            progress.update(with: line, format: format)
+            dialect.updateMetadata(&metadata, with: line)
+            progress.update(with: line, dialect: dialect)
         }
+        notePermissionModes(in: chunk.lines)
         trimIfFollowing()
         rebuild()
     }
@@ -1022,6 +1172,7 @@ public final class ConversationModel {
             recent = cached.messages
             segments = [(cached.windowStart, cached.messages.count)]
             metadata = cached.metadata
+            noteTranscriptPermissionMode()
             rebuild()
         }
         if phase == .loading { phase = .ready }
@@ -1388,6 +1539,15 @@ public final class ConversationModel {
         }
     }
 
+    /// 「需要你」卡片上一個選項現在的狀態(#424):畫面據此決定附屬位置放什麼、能不能點、VoiceOver 念什麼。
+    public func optionState(for option: PromptOption) -> PromptOptionState {
+        if isAnswering(option) { return .sending }
+        if answerInFlight != nil || isReadOnly { return .disabled }
+        let answer = PromptAnswer.option(option)
+        return isTypedAnswerOption(option) ? (canBeginTypedAnswer(option) ? .available : .disabled)
+            : (canAnswer(answer) ? .available : .disabled)
+    }
+
     /// 點「Type something.」:不送任何按鍵(Claude 收到數字只會把那一列變成文字輸入),改由輸入框打字;
     /// 原本的草稿先收起來，結束時放回。
     public func beginTypedAnswer(_ option: PromptOption) {
@@ -1466,7 +1626,7 @@ public final class ConversationModel {
             checkAnswerDeadline()
             return
         }
-        let parsed = BlockedPromptParser.parse(screen: screen, agentKind: agent.kind)
+        let parsed = BlockedPromptParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
         let next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
         if next != nil { agentStatus = .blocked }
         update(prompt: next)
@@ -1697,8 +1857,10 @@ public final class ConversationModel {
 
     /// 面板卡片的操作：送方向鍵或面板自己的動作鍵，**永不送數字**(R-C04)。送完 0.3 秒後重讀，並把監看延長 8 秒
     /// (面板可能接著出確認畫面)。
-    public func operatePanel(_ input: SlashPanel.Input) async {
-        guard !isOperatingPanel, let panel, let keys = panel.keys(for: input), !keys.isEmpty else { return }
+    /// 回傳按鍵是否送出(沒有可送的按鍵或送失敗為 `false`)。
+    @discardableResult
+    public func operatePanel(_ input: SlashPanel.Input) async -> Bool {
+        guard !isOperatingPanel, let panel, let keys = panel.keys(for: input), !keys.isEmpty else { return false }
         isOperatingPanel = true
         defer { isOperatingPanel = false }
         haptics.play(.selection)
@@ -1707,22 +1869,24 @@ public final class ConversationModel {
         } catch {
             notice = .panelKeysFailed
             haptics.play(.error)
-            return
+            return false
         }
         panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
         kickPolls(after: [.milliseconds(300)])
+        return true
     }
 
     private static let panelWatch: TimeInterval = 8
 
     /// 面板對 herdr 不可見(狀態仍是 idle):送出 slash 指令後監看 8 秒，0.4 秒與 1.2 秒各多讀一次。
     private func watchForPanel() {
-        guard let kind = currentAgent?.kind, Self.panelAgents.contains(kind) else { return }
+        guard screenDialect.readsPanels else { return }
         panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
         kickPolls(after: [.milliseconds(400), .milliseconds(800)])
     }
 
-    private static let panelAgents: Set<String> = ["claude", "codex"]
+    /// 目前 Agent 的畫面方言(ADR-0013);還沒讀到 Agent 時是通用方言(什麼都不讀、不操作)。
+    private var screenDialect: ScreenDialect { AgentCatalog.profile(forHerdrName: currentAgent?.kind ?? "").screen }
 
     private func kickPolls(after delays: [Duration]) {
         panelKickTask?.cancel()
@@ -1738,17 +1902,28 @@ public final class ConversationModel {
     /// 監看中或面板開著時讀畫面(只限 Claude／Codex、沒有問題在等、agent 不在工作);這次輪詢已讀過畫面就順便看。
     /// 讀不到畫面沿用上次;畫面上沒有面板、或 agent 開始工作／需要你時關掉。
     private func refreshPanel(_ agent: Agent) async {
+        defer { updatePanelReadability() }
         let watching = panelWatchUntil.map { clock.now() < $0 } ?? false
         if !watching { panelWatchUntil = nil }
-        guard Self.panelAgents.contains(agent.kind), prompt == nil, agentStatus != .working, agentStatus != .blocked else {
+        guard AgentCatalog.profile(forHerdrName: agent.kind).screen.readsPanels, prompt == nil, agentStatus != .working, agentStatus != .blocked else {
             panel = nil
             return
         }
         guard watching || panel != nil || screenThisPoll != nil else { return }
         if screenThisPoll == nil { screenThisPoll = await readScreen() }
         guard let screen = screenThisPoll else { return }
-        let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
+        let next = SlashPanelParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
         if next != panel { panel = next }
+        if modelSheetPage == .effort, effortBaseline == nil, let next, let slider = next.slider {
+            effortBaseline = EffortBaseline(level: slider.current, ultracode: next.ultracode)
+        }
+    }
+
+    /// 模型選擇 sheet 在等面板、監看期已滿還是沒讀到面板:sheet 改成只顯示目前模型(#384)。
+    private func updatePanelReadability() {
+        let watching = panelWatchUntil.map { clock.now() < $0 } ?? false
+        let unreadable = isChoosingModel && panel == nil && !watching
+        if unreadable != modelPanelUnreadable { modelPanelUnreadable = unreadable }
     }
 
     // MARK: - 建議提示詞(#121、#123)
@@ -1793,24 +1968,157 @@ public final class ConversationModel {
     // MARK: - 模型膠囊(#350)
 
     /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
-    public var modelName: String? { metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+    public var modelName: String? { statusFileLine?.model ?? screenStatusLine?.model ?? metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+
+    /// 目前的 effort 原值:畫面狀態列優先(使用者在電腦上改了也跟著),沒有就取對話紀錄。
+    private var effortLevel: String? { statusFileLine?.effort ?? screenStatusLine?.effort ?? metadata.effort }
+
+    /// 面板「模型」列的值:「Opus 5.5 · 中」;沒有 effort 時只有模型名,還沒讀到是 `nil`。
+    public var modelSummary: String? {
+        guard let name = modelName else { return nil }
+        guard let effort = effortLevel.flatMap(Self.effortName(of:)) else { return name }
+        return "\(name) · \(effort)"
+    }
+
+    /// 目前的 effort 顯示名稱(「中」);還沒讀到是 `nil`。
+    public var effortDisplayName: String? { effortLevel.flatMap(Self.effortName(of:)) }
+
+    public static func effortName(of level: String) -> String? {
+        switch level.lowercased() {
+        case "low": String(localized: "Low")
+        case "medium": String(localized: "Medium")
+        case "high": String(localized: "High")
+        case "xhigh": String(localized: "Extra High")
+        case "max": String(localized: "Max")
+        default: level.isEmpty ? nil : level
+        }
+    }
 
     /// 模型選擇 sheet 開著(從送出 `/model` 到選定或取消)。畫面據此不在對話裡重複畫同一張面板卡片。
     public private(set) var isChoosingModel = false
 
+    /// 模型膠囊要顯示:Claude(可切換),或 Codex 有讀到目前模型(只顯示、說明不能在 app 內切換,#384)。
+    public var showsModelCapsule: Bool {
+        supportsPermissionMode || (screenDialect.showsModelName && modelName != nil)
+    }
+
     /// 能開模型選擇:只有 Claude(`/model` 面板一步選定)、閒置、沒有問題在等、沒有別的面板、
     /// 非唯讀與離線。工作中時 `/model` 會排進佇列,所以不開放。
     public var canChooseModel: Bool {
-        currentAgent?.kind == "claude" && hasTarget && !isReadOnly && !isOffline && !isSending && typedAnswer == nil
+        screenDialect.canChooseModel && hasTarget && !isReadOnly && !isOffline && !isSending && typedAnswer == nil
             && prompt == nil && panel == nil && agentStatus != .working && agentStatus != .blocked && !isChoosingModel
     }
 
+    /// 模型選擇為什麼停用(#384);可選時是 `nil`。停用時膠囊仍可點開 sheet,sheet 只顯示目前模型與這個原因(說明同權限模式)。
+    public enum ModelChoiceLock: Equatable, Sendable {
+        case readOnlyDevice
+        case offline
+        /// Agent 在等使用者回覆:這時 `/model` 面板不會出現。
+        case waitingForYou
+        /// Agent 在工作:`/model` 會排進佇列。
+        case working
+        /// 這個 Agent 沒有在 app 內切換模型的功能(Codex 等)。
+        case agentLacksFeature
+        /// 這個 Agent 的切換方式還沒驗證過,所以不開放。
+        case notVerified(documentedFor: String)
+        /// 這台主機做不到。
+        case hostCannot
+
+        public init(_ unavailability: FeatureUnavailability) {
+            switch unavailability {
+            case .agentLacksFeature: self = .agentLacksFeature
+            case .notVerified(let version): self = .notVerified(documentedFor: version)
+            case .hostCannot: self = .hostCannot
+            }
+        }
+
+        /// 對應三種「不能用」的原因;因為唯讀、離線、等你回覆、工作中而停用的不算。
+        public var unavailability: FeatureUnavailability? {
+            switch self {
+            case .agentLacksFeature: .agentLacksFeature
+            case .notVerified(let version): .notVerified(documentedFor: version)
+            case .hostCannot: .hostCannot
+            case .readOnlyDevice, .offline, .waitingForYou, .working: nil
+            }
+        }
+    }
+
+    public var modelChoiceLock: ModelChoiceLock? {
+        if currentAgent != nil, let reason = screenDialect.modelChoiceUnavailability { return ModelChoiceLock(reason) }
+        if isReadOnly { return .readOnlyDevice }
+        if isOffline { return .offline }
+        if agentStatus == .blocked || prompt != nil { return .waitingForYou }
+        if agentStatus == .working { return .working }
+        return nil
+    }
+
+    /// 模型選擇 sheet 的頁面:模型列,或投入程度子頁(#384)。
+    public enum ModelSheetPage: Equatable, Sendable {
+        case models
+        case effort
+    }
+
+    public private(set) var modelSheetPage: ModelSheetPage = .models
+    /// 模型切換的按鍵送出中(膠囊顯示「切換中」)。
+    public private(set) var isSwitchingModel = false
+    /// 面板監看期滿還是讀不到(解析失敗或畫面不是預期的面板):sheet 只顯示目前模型,不開自己的選單。
+    public private(set) var modelPanelUnreadable = false
+
+    private struct EffortBaseline {
+        var level: Int?
+        var ultracode: Bool?
+    }
+
+    @ObservationIgnored private var effortBaseline: EffortBaseline?
+
+    // MARK: - 模型目錄(#385)
+
+    /// 模型清單的描述、effort 與徽章來源:一開始是內建對照表(沒有目錄時 sheet 仍可用),開 sheet 時依序問主機快取、公開目錄,
+    /// 讀到就換上(讀不到維持內建,不報錯)。
+    public private(set) var modelCatalog = ResolvedModelCatalog(catalog: .builtIn, source: .builtIn)
+
+    @ObservationIgnored private var catalogTask: Task<Void, Never>?
+
+    private func refreshModelCatalog() {
+        guard let provider = modelCatalogProvider else { return }
+        catalogTask?.cancel()
+        catalogTask = Task { [weak self] in
+            let resolved = await provider.catalog()
+            guard !Task.isCancelled, let self else { return }
+            if resolved != modelCatalog { modelCatalog = resolved }
+        }
+    }
+
+    /// 面板上的一列對到目錄的哪個模型(名稱、簡稱或 id 相符);對不到是 `nil`,畫面維持面板自己的描述、不顯示徽章。
+    public func catalogEntry(for option: SlashPanelOption) -> ModelCatalogEntry? {
+        modelCatalog.catalog.entry(named: option.label)
+    }
+
+    /// 目前模型在目錄裡的項目(依對話紀錄的模型 id);投入程度子頁的徽章取自它。
+    public var currentModelEntry: ModelCatalogEntry? {
+        metadata.model.flatMap { modelCatalog.catalog.entry(id: $0) }
+    }
+
+    /// 目前模型的某個 effort 層級在目錄裡的選項(名稱與徽章);目錄沒有就是 `nil`。
+    public func effortOption(_ level: String) -> EffortOption? {
+        currentModelEntry?.effort(level)
+    }
+
     /// 點模型膠囊:送 `/model`(不產生回音泡泡),之後由既有的面板監看讀到畫面上的面板。
-    /// 什麼都沒送出(Agent 不在、對話已變更、唯讀…)時 sheet 不開,原因放在 `notice`。
+    /// 什麼都沒送出(Agent 不在、對話已變更、唯讀…)時 sheet 只顯示目前模型與原因,原因放在 `notice`。
     public func beginChoosingModel() async {
         guard canChooseModel else { return }
         isChoosingModel = true
+        modelSheetPage = .models
+        modelPanelUnreadable = false
+        effortBaseline = nil
         notice = nil
+        refreshModelCatalog()
+        await sendModelCommand()
+    }
+
+    private func sendModelCommand() async {
+        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
         switch await freshTarget() {
         case .success(let agent):
             let outcome = await delivery.send("/model", to: agent, expectedSession: boundSessionID ?? knownSessionID)
@@ -1829,24 +2137,115 @@ public final class ConversationModel {
         }
     }
 
-    /// 在 sheet 點選一個模型:移動面板游標到那一列,再按面板自己的 Enter 確認(永不送數字)。
+    /// 在 sheet 點選一個模型:移動面板游標到那一列,再按面板自己的 `s`(只用在這個 session;永不送數字)。
+    /// 按鍵送不出去就維持原模型,`notice` 說明。
     public func chooseModel(_ option: SlashPanelOption) async {
-        guard let panel, isChoosingModel else { return }
-        await operatePanel(.select(option))
+        guard let panel, isChoosingModel, modelSheetPage == .models else { return }
+        isSwitchingModel = true
+        defer { isSwitchingModel = false }
+        guard await operatePanel(.select(option)) else {
+            notice = .modelSwitchFailed
+            isChoosingModel = false
+            return
+        }
         // 面板的 Enter 是「設為預設」(寫進使用者設定);膠囊只改這個 session,所以有 `s`(只用在這個 session)就按它。
         if let confirm = panel.actions.first(where: { $0.key == "s" }) ?? panel.actions.first(where: { $0.key == "enter" }) {
-            await operatePanel(.action(confirm))
+            guard await operatePanel(.action(confirm)) else {
+                notice = .modelSwitchFailed
+                isChoosingModel = false
+                return
+            }
         }
         isChoosingModel = false
     }
 
-    /// sheet 關閉(選定後或使用者下滑／按完成):面板還開著就按 Esc 取消,不改模型。
+    /// sheet 關閉(選定後或使用者下滑／按完成):面板還開著就取消(在投入程度子頁且有改動則確認),不改模型。
     public func finishChoosingModel() async {
         guard isChoosingModel else { return }
         isChoosingModel = false
+        let key = modelSheetPage == .effort && effortChanged ? "enter" : "esc"
+        modelSheetPage = .models
+        effortBaseline = nil
+        if let action = panel?.actions.first(where: { $0.key == key }) {
+            await operatePanel(.action(action))
+        }
+    }
+
+    // MARK: - 投入程度子頁(#384)
+
+    /// 子頁上的層級滑桿(讀到 `/effort` 面板後才有)。
+    public var effortSlider: SlashPanelSlider? { modelSheetPage == .effort ? panel?.slider : nil }
+
+    /// Ultracode 開關只在目前模型支援 xhigh 時出現:面板有開關,且層級含 xhigh。
+    public var showsUltracode: Bool {
+        guard modelSheetPage == .effort, let panel, panel.ultracode != nil, let slider = panel.slider else { return false }
+        return slider.levels.contains { $0.lowercased() == "xhigh" }
+    }
+
+    public var ultracodeIsOn: Bool { panel?.ultracode == true }
+
+    /// 子頁開著後層級或 Ultracode 與剛進來時不同。
+    public var effortChanged: Bool {
+        guard modelSheetPage == .effort, let baseline = effortBaseline, let panel, let slider = panel.slider else { return false }
+        return slider.current != baseline.level || panel.ultracode != baseline.ultracode
+    }
+
+    /// 點「投入程度」列:先 Esc 收掉 `/model` 面板(不改模型),再送 `/effort` 讀滑桿面板。
+    public func openEffortPage() async {
+        guard isChoosingModel, modelSheetPage == .models, !isOperatingPanel else { return }
         if let esc = panel?.actions.first(where: { $0.key == "esc" }) {
             await operatePanel(.action(esc))
         }
+        panel = nil
+        modelSheetPage = .effort
+        effortBaseline = nil
+        modelPanelUnreadable = false
+        notice = nil
+        await sendEffortCommand()
+    }
+
+    private func sendEffortCommand() async {
+        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
+        switch await freshTarget() {
+        case .success(let agent):
+            let outcome = await delivery.send("/effort", to: agent, expectedSession: boundSessionID ?? knownSessionID)
+            if outcome == .submittedCommand {
+                watchForPanel()
+            } else {
+                if outcome == .noResponse { notice = .noResponse }
+                panelWatchUntil = nil
+                updatePanelReadability()
+            }
+        case .failure(let failure):
+            notice = failure.notice
+            panelWatchUntil = nil
+            updatePanelReadability()
+        }
+    }
+
+    /// 點一個層級:只移動滑桿(送方向鍵),離開子頁時才確認。
+    public func chooseEffortLevel(_ level: Int) async {
+        guard modelSheetPage == .effort else { return }
+        await operatePanel(.level(level))
+    }
+
+    /// 切換 Ultracode(Tab)。
+    public func toggleUltracode() async {
+        guard showsUltracode else { return }
+        await operatePanel(.toggleUltracode)
+    }
+
+    /// 離開子頁:有改動就按 Enter 確認(成為新 session 的預設),沒有就 Esc;接著重開 `/model` 回到模型列。
+    public func closeEffortPage() async {
+        guard modelSheetPage == .effort else { return }
+        let key = effortChanged ? "enter" : "esc"
+        let action = panel?.slider != nil ? panel?.actions.first(where: { $0.key == key }) : nil
+        modelSheetPage = .models
+        effortBaseline = nil
+        if let action { await operatePanel(.action(action)) }
+        panel = nil
+        modelPanelUnreadable = false
+        await sendModelCommand()
     }
 
     /// 面板 sheet 被使用者關掉(下滑或「完成」)時：面板還開著就按 Esc 取消，不改設定(#366)。
@@ -1855,27 +2254,136 @@ public final class ConversationModel {
         await operatePanel(.action(esc))
     }
 
-    // MARK: - 權限模式(#306)
+    // MARK: - 畫面狀態列(#446)
 
-    /// 從畫面讀到的 Claude 權限模式;還沒讀到或認不出是 `nil`。
-    public private(set) var permissionMode: AgentPermissionMode?
+    /// 這個 Agent 的畫面有可讀的狀態列(Antigravity):模式、模型、effort 只顯示、不能在 app 切換。
+    public var readsStatusLine: Bool { screenDialect.statusLine != nil }
+
+    /// 畫面最底下狀態列讀到的模式、模型與 effort(Antigravity,#446);還沒讀到或這個 Agent 沒有狀態列是 `nil`。
+    public private(set) var screenStatusLine: AgentStatusLine?
+    @ObservationIgnored private var statusLineReadStatus: AgentStatus?
+    @ObservationIgnored private var pollsSinceStatusLine = 0
+
+    /// 這個 Agent 的狀態列每隔幾次輪詢重讀一次(輪詢 2～4 秒一次,約半分鐘),狀態變了(開始工作、做完)也重讀。
+    private static let statusLineRefreshPolls = 8
+
+    /// 讀一次畫面的狀態列;認不出(被蓋住、讀不到)沿用上次。只讀、不送按鍵。
+    public func refreshStatusLine() async {
+        guard screenDialect.statusLine != nil, !isOffline, let screen = await readScreen() else { return }
+        pollsSinceStatusLine = 0
+        statusLineReadStatus = agentStatus
+        if let line = screenDialect.readStatusLine(in: Self.plainText(ansi: screen)) { screenStatusLine = line }
+    }
+
+    /// 輪詢迴圈每輪呼叫:第一次、Agent 狀態變了或隔了一段時間才讀(指令預算:平常的輪詢不讀畫面)。
+    private func refreshStatusLineIfDue() async {
+        guard screenDialect.statusLine != nil, !isOffline else { return }
+        pollsSinceStatusLine += 1
+        guard screenStatusLine == nil && statusLineReadStatus == nil
+            || statusLineReadStatus != agentStatus || pollsSinceStatusLine >= Self.statusLineRefreshPolls else { return }
+        await refreshStatusLine()
+    }
+
+    // MARK: - 權限模式(#306、#383)
+
+    /// 畫面讀到的模式與當時對話紀錄的原文。紀錄沒變就用畫面補「剛切換、紀錄尚未寫入」的空檔;紀錄一更新就以紀錄為準。
+    private struct ScreenObservation {
+        var mode: AgentPermissionMode
+        var transcriptValue: String?
+    }
+
+    private var screenObservation: ScreenObservation?
+    /// 這個聊天看過的模式(畫面標示、對話紀錄),用來決定輪替裡有沒有略過權限與自動。
+    private var observedPermissionModes: Set<AgentPermissionMode> = []
+
+    /// Claude 目前的權限模式:對話紀錄尾端最後一筆為準(電腦端改了也會同步),畫面只補空檔;都沒有是 `nil`。
+    public var permissionMode: AgentPermissionMode? {
+        // Antigravity 的對話紀錄沒有權限模式,以畫面狀態列為準(#446)。
+        if screenDialect.statusLine != nil, let mode = statusFileLine?.mode ?? screenStatusLine?.mode { return mode }
+        let fromTranscript = metadata.permissionMode.flatMap { AgentPermissionMode(transcriptValue: $0) }
+        if let seen = screenObservation, seen.transcriptValue == metadata.permissionMode { return seen.mode }
+        return fromTranscript ?? screenObservation?.mode
+    }
+
+    /// Shift+Tab 輪替裡有哪些模式:預設一般、接受編輯、Plan;看過略過權限或自動才加入。
+    public var permissionModeAvailability: PermissionModeAvailability {
+        var availability = PermissionModeAvailability()
+        for mode in observedPermissionModes { availability.observe(mode) }
+        if let permissionMode { availability.observe(permissionMode) }
+        return availability
+    }
+
+    /// 面板上的模式選項(依輪替順序);目前是 `dontAsk` 時多一列只顯示的它。
+    /// 有自己輪替的 Agent(Antigravity)固定是它輪替裡的幾種。
+    public var permissionModeOptions: [AgentPermissionMode] {
+        screenDialect.switchablePermissionModes ?? permissionModeAvailability.options(current: permissionMode)
+    }
+
+    /// Codex 的核准政策原文(例:`on-request`);只顯示,不能在手機切換。其他 Agent 是 `nil`。
+    public var approvalPolicy: String? {
+        screenDialect.showsApprovalPolicy ? metadata.approvalPolicy : nil
+    }
+
+    private func noteTranscriptPermissionMode() {
+        if let mode = metadata.permissionMode.flatMap({ AgentPermissionMode(transcriptValue: $0) }) {
+            observedPermissionModes.insert(mode)
+        }
+    }
+
+    /// 一批對話紀錄行裡出現過的權限模式都記下(同一批有多次切換時,中間的模式也算看過)。
+    private func notePermissionModes(in lines: [String]) {
+        for line in lines where line.contains("\"permissionMode\"") {
+            var scratch = TranscriptMetadata()
+            scratch.update(with: line)
+            if let mode = scratch.permissionMode.flatMap({ AgentPermissionMode(transcriptValue: $0) }) {
+                observedPermissionModes.insert(mode)
+            }
+        }
+    }
+
+    private func observeScreen(_ mode: AgentPermissionMode) {
+        observedPermissionModes.insert(mode)
+        screenObservation = ScreenObservation(mode: mode, transcriptValue: metadata.permissionMode)
+    }
     /// 正在切到這個模式(膠囊顯示進行中)。
     public private(set) var switchingPermissionMode: AgentPermissionMode?
     public var isSwitchingPermissionMode: Bool { switchingPermissionMode != nil }
     @ObservationIgnored private var permissionModeProbed = false
 
-    /// 只有 Claude Code 有權限模式。
-    public var supportsPermissionMode: Bool { currentAgent?.kind == "claude" }
+    /// 只有畫面方言有權限模式(Claude Code)且驗證過才開放切換。
+    public var supportsPermissionMode: Bool { screenDialect.switchesPermissionMode }
 
     /// 膠囊可以操作:讀到目前模式、沒在切換、沒離線;唯讀裝置不行(畫面說明)。
     public var canSwitchPermissionMode: Bool {
-        supportsPermissionMode && permissionMode != nil && !isSwitchingPermissionMode && !isReadOnly && !isOffline
+        supportsPermissionMode && permissionMode != nil && !isSwitchingPermissionMode && permissionModeLock == nil
     }
 
-    /// 讀一次畫面更新目前模式;認不出沿用上次。
+    /// 面板的權限選項為什麼停用(#380);可切換時是 `nil`。
+    public enum PermissionModeLock: Equatable, Sendable {
+        case readOnlyDevice
+        case offline
+        /// Agent 在工作:這個 Agent 的切換只驗證過閒置時(Antigravity)。
+        case working
+        /// Agent 在等使用者回覆:這時 Shift+Tab 會變成「核准」。
+        case waitingForYou
+    }
+
+    public var permissionModeLock: PermissionModeLock? {
+        if isReadOnly { return .readOnlyDevice }
+        if isOffline { return .offline }
+        if agentStatus == .blocked { return .waitingForYou }
+        if agentStatus == .working, screenDialect.switchesPermissionModeOnlyWhenIdle { return .working }
+        return nil
+    }
+
+    /// 讀一次畫面:對話紀錄還沒有模式時用它當目前模式,紀錄有值就以紀錄為準(畫面只用來記錄看過哪些模式);認不出沿用上次。
     public func refreshPermissionMode() async {
-        guard supportsPermissionMode, let screen = await readScreen() else { return }
-        if let mode = PermissionModeScreen.parse(screen) { permissionMode = mode }
+        guard supportsPermissionMode, let mode = await readPermissionMode() else { return }
+        if metadata.permissionMode == nil {
+            observeScreen(mode)
+        } else {
+            observedPermissionModes.insert(mode)
+        }
     }
 
     /// 每次 `run` 第一輪輪詢後讀一次(平常的輪詢不讀畫面,指令預算)。
@@ -1896,14 +2404,18 @@ public final class ConversationModel {
 
     /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式,最多 `maximumSwitchAttempts` 次。
     /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面;按鍵帶 `expected_session`,對話已換掉就不按。
-    /// 目標是略過權限時,輪替一圈回到看過的模式就停(這個 session 啟動時沒開,再按也不會出現)。
+    /// 目標是略過權限或自動時,輪替一圈回到看過的模式就停(這個 session 沒開,再按也不會出現)。
     /// 失敗記在 `permissionModeFailure`,可再試;離開聊天(取消)時直接結束、不算失敗。
     public func setPermissionMode(_ target: AgentPermissionMode) async {
-        guard supportsPermissionMode, !isSwitchingPermissionMode else { return }
+        guard supportsPermissionMode, !isSwitchingPermissionMode, target.isSwitchable else { return }
+        // 有自己輪替的 Agent:目標不在輪替裡(例如略過權限)按不出來,一個鍵都不送。
+        if let cycle = screenDialect.permissionModeCycle, !cycle.contains(target) { return }
         guard !isReadOnly else {
             notice = .readOnlyDevice
             return
         }
+        // 離線,或 Agent 在等你回覆(這時 Shift+Tab 會變成「核准」):一個鍵都不送。
+        guard permissionModeLock == nil else { return }
         permissionModeFailure = nil
         switchingPermissionMode = target
         defer { switchingPermissionMode = nil }
@@ -1911,7 +2423,7 @@ public final class ConversationModel {
             permissionModeFailure = .unreadable(target: target)
             return
         }
-        permissionMode = current
+        observeScreen(current)
         let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
         var visited: Set<AgentPermissionMode> = [current]
         var attempts = 0
@@ -1928,12 +2440,20 @@ public final class ConversationModel {
             }
             attempts += 1
             do { try await sleep(.milliseconds(300)) } catch { return }
-            guard let read = await readPermissionMode() else { break }
+            guard var read = await readPermissionMode() else { break }
+            // 有自己輪替的 Agent:畫面可能還沒重畫(讀到的模式沒變),先再讀幾次,不要重複按而跳過目標。
+            var rereads = 0
+            while screenDialect.permissionModeCycle != nil, read == current, rereads < Self.staleModeRereads {
+                rereads += 1
+                do { try await sleep(.milliseconds(300)) } catch { return }
+                guard let again = await readPermissionMode() else { break }
+                read = again
+            }
             let wrapped = read != current && !visited.insert(read).inserted
             current = read
-            permissionMode = read
-            if wrapped, target == .bypassPermissions, current != target {
-                permissionModeFailure = .bypassUnavailable
+            observeScreen(read)
+            if wrapped, current != target {
+                permissionModeFailure = .modeUnavailable(target)
                 haptics.play(.error)
                 return
             }
@@ -1946,9 +2466,17 @@ public final class ConversationModel {
         }
     }
 
+    /// 按了 Shift+Tab 後畫面沒變時最多再讀幾次(每次隔 0.3 秒)才再按。
+    private static let staleModeRereads = 2
+
+    /// 讀畫面認出目前的權限模式(依畫面方言);狀態列方言順便更新狀態列,讓膠囊與標題跟著變。
     private func readPermissionMode() async -> AgentPermissionMode? {
         guard let screen = await readScreen() else { return nil }
-        return PermissionModeScreen.parse(screen)
+        if screenDialect.statusLine != nil, let line = screenDialect.readStatusLine(in: Self.plainText(ansi: screen)) {
+            screenStatusLine = line
+            return line.mode
+        }
+        return screenDialect.readPermissionMode(in: screen)
     }
 
     /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。
@@ -1970,7 +2498,7 @@ public final class ConversationModel {
 
     /// Claude Code 在等下一步(完成或閒置——閒置是 herdr 把完成標成看過，#121 故事 5;沒有提示)。
     private func awaitsNextPrompt(_ agent: Agent) -> Bool {
-        agent.kind == "claude" && (agentStatus == .done || agentStatus == .idle) && prompt == nil
+        AgentCatalog.profile(forHerdrName: agent.kind).screen.readsPromptSuggestions && (agentStatus == .done || agentStatus == .idle) && prompt == nil
     }
 
     /// 在等下一步、這段期間還能讀時，讀含 ANSI 的畫面找建議(#121)。在面板判定之前讀，讀到的畫面去掉 ANSI 後
@@ -2012,7 +2540,8 @@ public final class ConversationModel {
     /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
         ConversationHeader(
-            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: progress)
+            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress,
+            permissionMode: supportsPermissionMode || screenDialect.statusLine != nil ? permissionMode : nil)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
@@ -2126,7 +2655,9 @@ public final class ConversationModel {
 
     private func parse(_ lines: [String]) -> [TranscriptMessage] {
         var seen = Set<String>()
-        return lines.flatMap(format.messages(in:)).filter { seen.insert($0.id).inserted }
+        let parsed = dialect.parse(lines)
+        if !parsed.skips.isEmpty { onTranscriptSkips?(dialect, parsed.skips) }
+        return parsed.messages.filter { seen.insert($0.id).inserted }
     }
 }
 
@@ -2165,6 +2696,8 @@ public enum SendNotice: Sendable, Equatable {
     case unconfirmed(UnconfirmedReason)
     /// 一則最多 10 個附件(F7、#352)。
     case attachmentLimit
+    /// 離線時附件不能排隊(#382):連上後才能加入。
+    case attachOffline
     /// 讀不出圖片。
     case imageUnreadable
     /// 原始圖片超過單張上限(`ImageUploadLimit.maximumSize`)。
@@ -2181,6 +2714,8 @@ public enum SendNotice: Sendable, Equatable {
     case hostServiceUpdateRequired(installedVersion: String?)
     /// 送不出 slash 面板的按鍵(#45)。
     case panelKeysFailed
+    /// 切換模型沒有完成(#384):按鍵沒送到主機,對話維持原本的模型。
+    case modelSwitchFailed
     /// 這支裝置配對成唯讀，什麼都沒送出。
     case readOnlyDevice
 }
@@ -2189,8 +2724,8 @@ public enum SendNotice: Sendable, Equatable {
 public enum PermissionModeFailure: Equatable, Sendable {
     /// 試了 `attempts` 次，畫面上沒有看到 `target`。
     case notReached(attempts: Int, target: AgentPermissionMode)
-    /// 輪替一圈沒有出現略過權限:這個 session 啟動時沒有開。
-    case bypassUnavailable
+    /// 輪替一圈沒有出現目標模式(略過權限、自動):這個 session 沒有開。
+    case modeUnavailable(AgentPermissionMode)
     /// 讀不到畫面，不知道目前是哪個模式。
     case unreadable(target: AgentPermissionMode)
     /// 按鍵沒送到主機。
@@ -2202,7 +2737,7 @@ public enum PermissionModeFailure: Equatable, Sendable {
     public var target: AgentPermissionMode? {
         switch self {
         case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
-        case .bypassUnavailable: nil
+        case .modeUnavailable: nil
         }
     }
 }

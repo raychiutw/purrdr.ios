@@ -85,6 +85,32 @@ public struct SSHPushPluginInstaller: PushPluginInstalling {
         try await files.apply([.write(pairingPath, file.contents, expecting: .version(version))])
     }
 
+    /// Purrdr 裝的外掛已裝且版本落後 `PushPluginRelease.latestKnownVersion` 才 `herdr plugin update`(#432);沒裝不代裝，
+    /// 讀不懂版本(Demo 主機)不動。呼叫端負責頻率上限。
+    public func updatePluginIfNeeded() async throws -> Bool {
+        // 只更新 Purrdr 裝的外掛(有 `~/.purrdr/push-plugin/` 的安裝紀錄,同 `remove()` 的判斷);使用者自己裝的不動(ADR-0002)。
+        guard try await ReversibleHostWrite(channel: channel, feature: Self.pluginFeature).inspect().isInstalled else { return false }
+        let list = try await run(HerdrCommand.pluginList(id: Self.pluginID, herdr: herdr))
+        guard list.exitCode == 0 else { throw PushPluginError.pluginListFailed(list.message) }
+        guard let installed = Self.installedVersion(in: list.stdout), installed < PushPluginRelease.latestKnownVersion else { return false }
+        let result = try await run(HerdrCommand.pluginUpdate(id: Self.pluginID, herdr: herdr), deadline: HostCommandDeadline.download)
+        guard result.exitCode == 0 else { throw PushPluginError.pluginUpdateFailed(result.message) }
+        return true
+    }
+
+    /// `herdr plugin list --json` 裡這個外掛的版本;沒裝或版本看不懂是 `nil`。
+    static func installedVersion(in output: String) -> HostServiceVersion? {
+        for line in output.split(separator: "\n") {
+            guard let data = line.data(using: .utf8),
+                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            let plugins = ((root["result"] as? [String: Any])?["plugins"] ?? root["plugins"]) as? [[String: Any]] ?? []
+            if let plugin = plugins.first(where: { $0["plugin_id"] as? String == pluginID }), let text = plugin["version"] as? String {
+                return HostServiceVersion(text)
+            }
+        }
+        return nil
+    }
+
     // MARK: - 主機指令
 
     func pluginInstalled() async throws -> Bool {

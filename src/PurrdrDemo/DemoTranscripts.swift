@@ -12,13 +12,33 @@ enum DemoTranscripts {
         let cwd: String
         let paneID: String
         let lines: [String]
+        /// Antigravity 的對話紀錄(位置規則與 Claude Code 不同,#446)。
+        var isAntigravity = false
 
-        var path: String { "/Users/demo/.claude/projects/\(ClaudeTranscript.projectFolder(forCWD: cwd))/\(sessionID).jsonl" }
+        var path: String {
+            isAntigravity
+                ? "/Users/demo/.gemini/antigravity-cli/brain/\(sessionID)/.system_generated/logs/transcript.jsonl"
+                : "/Users/demo/.claude/projects/\(ClaudeTranscript.projectFolder(forCWD: cwd))/\(sessionID).jsonl"
+        }
         var data: Data { Data(lines.map { $0 + "\n" }.joined().utf8) }
+
+        /// 定位這份對話紀錄的指令。
+        var locateCommand: String {
+            isAntigravity
+                ? TranscriptCommand.locate(TranscriptLocation(locator: .antigravity, reference: .id(sessionID)))
+                : TranscriptCommand.locate(sessionID: sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: cwd))
+        }
+
+        /// 列表預覽請求的一項(與 app 送出的相同)。
+        var previewEntry: TranscriptCommand.PreviewEntry {
+            isAntigravity
+                ? TranscriptCommand.PreviewEntry(key: paneID, type: TranscriptLocator.antigravity.name, value: sessionID)
+                : TranscriptCommand.PreviewEntry(key: paneID, type: "claude", value: sessionID, extra: ClaudeTranscript.projectFolder(forCWD: cwd))
+        }
 
         /// 加上送出 prompt 後接在後面的行。
         func appending(_ extra: [String]) -> Session {
-            Session(sessionID: sessionID, cwd: cwd, paneID: paneID, lines: lines + extra)
+            Session(sessionID: sessionID, cwd: cwd, paneID: paneID, lines: lines + extra, isAntigravity: isAntigravity)
         }
     }
 
@@ -31,7 +51,7 @@ enum DemoTranscripts {
         let sessions = base.map { $0.appending(appended[$0.sessionID] ?? []) }
         for session in sessions {
             let size = session.data.count
-            if command == TranscriptCommand.locate(sessionID: session.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: session.cwd)) {
+            if command == session.locateCommand {
                 return Data("\(session.path)\n\(size)\n".utf8)
             }
             if let lineLimit = windowLineLimit(command, path: session.path, end: size) {
@@ -58,12 +78,11 @@ enum DemoTranscripts {
         }
         // 預覽的分隔標記每次隨機：取出標記後，以同一個標記重建指令比對。
         if let marker = previewMarker(in: command) {
-            let requests = sessions.map { ($0.paneID, $0.sessionID, ClaudeTranscript.projectFolder(forCWD: $0.cwd)) }
+            let requests = sessions.map { ($0.previewEntry, $0) }
             for count in 1...requests.count {
-                for subset in combinations(requests, count) where command == TranscriptCommand.previews(marker: marker, requests: subset) {
+                for subset in combinations(requests, count) where command == TranscriptCommand.previews(marker: marker, entries: subset.map(\.0)) {
                     return subset.reduce(into: Data()) { output, request in
-                        guard let session = sessions.first(where: { $0.sessionID == request.1 }) else { return }
-                        output += Data("\(marker) \(request.0)\n".utf8) + session.data + Data("\n".utf8)
+                        output += Data("\(marker) \(request.0.key)\n".utf8) + request.1.data + Data("\n".utf8)
                     }
                 }
             }
@@ -73,9 +92,7 @@ enum DemoTranscripts {
 
     /// 是否為對話畫面定位某個 Demo session 對話紀錄的指令(對話畫面讀對話紀錄的第一步)。
     static func isLocate(_ command: String) -> Bool {
-        sessions.contains {
-            command == TranscriptCommand.locate(sessionID: $0.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: $0.cwd))
-        }
+        (sessions + [DemoAntigravity.session]).contains { command == $0.locateCommand }
     }
 
     /// 分段追趕：累計不超過 `limit` 的完整行;第一行就超過時只有那一行(與主機腳本相同;Demo 的行都比上限小，不必截短)。
@@ -194,6 +211,15 @@ enum DemoTranscripts {
                 "type": "create", "filePath": DemoHostFileFetcher.draftPath, "content": historyHeader,
                 "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
             ]),
+            // 檔案縮圖(#427):PDF 報告的卡片自動顯示第一頁縮圖(內容由 `DemoHostFileFetcher` 提供)。
+            assistantTool("d3m0-f-09a", "2026-11-16T10:00:04.500Z", id: "toolu_files_04a", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.reportPath, "content": "%PDF-1.4",
+            ]),
+            toolResult("d3m0-f-09b", "2026-11-16T10:00:04.600Z", id: "toolu_files_04a",
+                       text: "File created successfully at: \(DemoHostFileFetcher.reportPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.reportPath, "content": "%PDF-1.4",
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
             assistantTool("d3m0-f-10", "2026-11-16T10:00:05.000Z", id: "toolu_files_05", name: "Bash", input: [
                 "command": "swift run ledger export --all --skip-header >> exports/history.csv && rm exports/draft.csv",
             ]),
@@ -208,6 +234,21 @@ enum DemoTranscripts {
             assistantText("d3m0-f-16", "2026-11-16T10:00:10.000Z", """
             The report is at `\(DemoHostFileFetcher.reportPath)` and the preview at \(DemoHostFileFetcher.previewPath).
             """),
+        ]
+    )
+
+    /// 已送出圖片情境(`DemoHost.Scenario.sentImages`,#428)的 ledger 對話:使用者送出三張上傳圖(兩張還在主機、一張已被清掉)。
+    static let sentImages = Session(
+        sessionID: ledger.sessionID, cwd: ledger.cwd, paneID: ledger.paneID,
+        lines: [
+            userPrompt("d3m0-s-01", "2026-11-16T10:00:00.000Z", UploadedImages.prompt(
+                text: "Compare these exports.",
+                paths: [DemoHostFileFetcher.sentImagePath, DemoHostFileFetcher.clearedImagePath, DemoHostFileFetcher.secondSentImagePath])),
+            assistantText("d3m0-s-02", "2026-11-16T10:00:06.000Z", "The first export has the date column first; the second image is no longer readable."),
+            userPrompt("d3m0-s-03", "2026-11-16T10:01:00.000Z", UploadedImages.prompt(
+                text: "And these files.",
+                paths: [DemoHostFileFetcher.sentFilePath, DemoHostFileFetcher.clearedFilePath])),
+            assistantText("d3m0-s-04", "2026-11-16T10:01:05.000Z", "Got the budget; the archive is gone from the host."),
         ]
     )
 

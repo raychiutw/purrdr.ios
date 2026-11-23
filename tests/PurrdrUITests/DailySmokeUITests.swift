@@ -29,7 +29,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(ledger.label.contains("ledger"), "列沒有 workspace 名稱:\(ledger.label)")
         }
         step("搜尋篩選列表") {
-            let search = app.textFields["agentList.search"].firstMatch
+            let search = app.searchFields.firstMatch
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
@@ -37,18 +37,39 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "不符合的列仍在")
             search.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 7) + "\n")
             XCTAssertTrue(ledger.waitUntilExists(timeout: 5), "清掉搜尋後列表沒有回來")
+            // 搜尋啟用時導覽列換成搜尋欄:取消後才看得到左上角的切換鈕。
+            app.cancelSearchIfActive()
         }
-        step("Spaces 檢視") {
+        step("Spaces 檢視:一鍵切換、搜尋 workspace 與長按選單") {
             app.switchListMode(to: "Spaces")
             XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")), "Spaces 沒有 workspace 段落")
-            app.switchListMode(to: "Agents")
+            let search = app.searchFields.firstMatch
+            XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
+            search.tap()
+            search.typeEnglish("weather")
+            XCTAssertTrue(app.element("spaces.section.demo/w2").waitUntilExists(timeout: 5), "搜尋 workspace 名稱找不到 weather-app")
+            XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilGone(timeout: 5), "不符合的 workspace 仍在")
+            search.typeEnglish("zzz")
+            XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "Spaces 搜尋不到時沒有說明")
+            let clear = app.buttons["Clear text"].firstMatch
+            XCTAssertTrue(clear.waitUntilExists(timeout: 5), "搜尋欄沒有清除鈕")
+            clear.tap()
+            XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 5), "清掉搜尋後 Spaces 沒有回來")
+            app.cancelSearchIfActive()
+            app.listModeControl.press(forDuration: 1.0)
+            XCTAssertTrue(app.buttons["Agents"].firstMatch.waitUntilExists(timeout: 5), "長按切換鈕沒有出現選單")
+            app.buttons["Agents"].firstMatch.tap()
+            XCTAssertTrue(app.listModeControl.waitForLabel("View: Agents", timeout: 5), "從選單選 Agents 沒有切換")
         }
         step("打開聊天並送出") {
             XCTAssertTrue(app.reveal(ledger))
             ledger.tap()
             let text = app.element("composer.text")
             XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
+            // 輸入列兩態(#382):收合一列沒有模型膠囊,聚焦展開後有。
+            XCTAssertFalse(app.element("composer.model").exists, "收合時不該有模型膠囊")
             text.tap()
+            XCTAssertTrue(app.element("composer.model").waitUntilExists(timeout: 5), "聚焦後輸入列沒有展開")
             text.typeEnglish("Add a header row too?")
             app.element("composer.send").tap()
             app.dismissKeyboard()
@@ -75,27 +96,52 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("conversation.shell").waitUntilExists(timeout: 15), "對話紀錄沒有接上 shell 區塊")
             app.dismissKeyboard()
         }
-        step("權限膠囊") {
-            let capsule = app.element("composer.permissionMode")
-            XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有權限模式膠囊")
-            capsule.tap()
+        step("標題面板與權限模式") {
+            let header = app.element("conversation.header")
+            XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
+            header.tap()
+            XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
+            // 面板上方是這個 Agent 的用量區(#389):範例主機還沒啟用用量顯示,有「啟用用量顯示」。
+            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "面板沒有用量區的「啟用用量顯示」")
+            XCTAssertTrue(app.element("progress.context").exists, "面板沒有 context 一列")
             let accept = app.buttons["Accept Edits"].firstMatch
-            XCTAssertTrue(accept.waitUntilExists(timeout: 10), "sheet 裡沒有 Accept Edits")
+            XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits")
             accept.tap()
-            XCTAssertTrue(capsule.wait(for: NSPredicate(format: "value == 'Accept Edits'"), timeout: 10), "沒有切換成 Accept Edits")
+            XCTAssertTrue(accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Accept Edits")
+            app.buttons["sheet.close"].tap()
+            XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "面板沒有關閉")
+        }
+        step("模型選擇 sheet 與投入程度子頁(#384)") {
+            let text = app.element("composer.text")
+            text.tap()
+            let capsule = app.element("composer.model")
+            XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
+            capsule.tap()
+            XCTAssertTrue(app.element("model.picker").waitUntilExists(timeout: 15), "sheet 裡沒有模型勾選列")
+            let effortRow = app.element("model.effort")
+            XCTAssertTrue(effortRow.waitUntilExists(timeout: 10), "sheet 裡沒有投入程度列")
+            effortRow.tap()
+            XCTAssertTrue(app.element("effort.picker").waitUntilExists(timeout: 15), "子頁沒有層級勾選列")
+            XCTAssertTrue(app.element("effort.ultracode").waitUntilExists(timeout: 5), "子頁沒有 Ultracode 開關")
+            let high = app.buttons.matching(NSPredicate(format: "label CONTAINS 'High' AND NOT label CONTAINS 'Extra'")).firstMatch
+            XCTAssertTrue(high.waitUntilExists(timeout: 5), "子頁沒有 High 層級")
+            high.tap()
+            XCTAssertTrue(high.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "點層級沒有打勾")
+            // 返回確認投入程度並回到模型列。
+            app.navigationBars.buttons.firstMatch.tap()
+            XCTAssertTrue(app.element("model.picker").waitUntilExists(timeout: 15), "返回後沒有回到模型列")
+            app.element("model.close").tap()
+            XCTAssertTrue(app.element("model.picker").waitUntilGone(timeout: 5), "xmark 沒有關閉 sheet")
+            app.dismissKeyboard()
         }
         step("變更頁") {
-            let open = app.buttons["changes.open"].firstMatch
-            XCTAssertTrue(open.waitUntilExists(timeout: 10), "對話標題列沒有變更鈕")
-            open.tap()
+            app.conversationMoreItem("changes.open").tap()
             let summary = app.descendants(matching: .any)["changes.summary"].firstMatch
             XCTAssertTrue(summary.waitUntilExists(timeout: 10), "沒有變更清單")
             back(app)
         }
         step("終端機") {
-            let open = app.buttons["terminal.open"].firstMatch
-            XCTAssertTrue(open.waitUntilExists(timeout: 10), "對話標題列沒有終端機鈕")
-            open.tap()
+            app.conversationMoreItem("terminal.open").tap()
             XCTAssertTrue(app.descendants(matching: .any)["terminal.screen"].firstMatch.waitUntilExists(timeout: 10), "沒有打開終端機")
         }
     }
@@ -118,40 +164,146 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
-    /// 「⋯」選單:設定、新增聊天;帳號(未登入是登入頁)。
+    /// 5 個 tab(#390):設定、主機、檔案、流量各自是 tab;新增聊天在聊天 tab 右上;帳號(未登入是登入頁)四個以上的 tab 都有;
+    /// 沒有「⋯」選單;對話隱藏 tab bar、返回後回來。
     @MainActor
-    func testMenusAndSignedOutAccount() {
-        let app = XCUIApplication.launchUITesting()
+    func testTabsAndSignedOutAccount() {
+        // `-uiTestingNoMember`:沒登入,Apple／Google 按鈕直接登入假後台;登入頁查無會員(404 member_not_found),加入頁照舊新建(#453)。
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoMember"])
 
-        step("設定") {
-            app.openMoreMenuItem("menu.settings")
-            XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
+        step("沒有「⋯」選單,右上依 tab 不同") {
+            XCTAssertTrue(app.buttons["toolbar.newChat"].firstMatch.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天")
+            XCTAssertFalse(app.buttons["toolbar.more"].exists, "不該再有「⋯」選單")
+            app.openTab(.files)
+            XCTAssertTrue(app.buttons["files.upload"].firstMatch.waitUntilExists(timeout: 10), "檔案 tab 沒有上傳")
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "檔案 tab 沒有帳號鈕")
+            XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "檔案 tab 不該有新增聊天")
+            app.openHostsTab()
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "主機 tab 沒有帳號鈕")
+            // 沒有已存主機時主機 tab 是範例主機:只有範例狀態、登入 Shell 與「移除範例主機」(#392、#434)。
+            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "主機 tab 沒有連線狀態")
+            XCTAssertTrue(app.buttons["hosts.demo.remove"].exists, "範例主機沒有「移除範例主機」")
+            // 刻意偏離設計稿(#434):範例主機保留「登入 Shell」,App Review 用它開 Demo 的模擬終端機。
+            XCTAssertTrue(app.overviewRow("hosts.tool.loginShell").exists, "範例主機沒有保留登入 Shell")
+            app.openTab(.traffic)
+            XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "流量 tab 沒有網路流量頁")
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
+            XCTAssertFalse(app.buttons["hosts.add"].exists, "流量 tab 右上不放動作")
+        }
+        step("設定 tab 沒有關閉鈕,只有帳號鈕") {
+            app.openSettingsTab()
             XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
-            app.buttons["sheet.done"].firstMatch.tapWhenReady()
-            XCTAssertTrue(app.element("sheet.settings").waitUntilGone(timeout: 5), "設定沒有關閉")
+            XCTAssertFalse(app.buttons["sheet.close"].exists, "設定 tab 不是 sheet,不該有關閉鈕")
+            XCTAssertTrue(app.buttons["Used"].firstMatch.exists, "設定 tab 沒有用量顯示的「已用」(#389)")
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "設定 tab 沒有帳號鈕")
         }
         step("新增聊天") {
-            app.openMoreMenuItem("menu.newChat")
+            app.openNewChatSheet()
             XCTAssertTrue(app.element("sheet.newChat").waitUntilExists(timeout: 10), "沒有開出新增聊天")
             app.swipeDown(velocity: .fast)
             XCTAssertTrue(app.element("sheet.newChat").waitUntilGone(timeout: 5), "新增聊天沒有關閉")
         }
-        step("未登入的帳號頁是登入頁") {
-            app.openAccount()
-            XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "沒登入沒有直接顯示登入頁")
-            XCTAssertTrue(app.buttons["member.signIn.apple"].exists, "沒有 Apple 登入鈕")
+        step("對話隱藏 tab bar,返回後回來") {
+            app.openConversation(paneID: "w1:p1")
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilGone(timeout: 5), "對話裡不該有 tab bar")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "返回後 tab bar 沒有回來")
         }
+        step("未登入的帳號頁先選登入或加入會員") {
+            app.openAccount()
+            XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "沒登入沒有顯示選擇頁")
+            XCTAssertTrue(app.buttons["account.entry.signIn"].exists, "沒有「登入」")
+            XCTAssertTrue(app.buttons["account.entry.join"].exists, "沒有「加入會員」")
+            XCTAssertFalse(app.buttons["member.signIn.apple"].exists, "選擇前不該先看到 Apple 登入鈕")
+        }
+        step("登入頁查無會員:擋下並問要不要加入,確認才進加入流程") {
+            app.buttons["account.entry.signIn"].tap()
+            XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "沒有登入頁")
+            app.buttons["member.signIn.apple"].tap()
+
+            XCTAssertTrue(app.alerts["No Member Found"].waitUntilExists(timeout: 10), "查無會員沒有擋下並詢問")
+            XCTAssertFalse(app.element("account.join.paywall").exists, "查無會員不該直接進加入流程")
+            app.alerts["No Member Found"].buttons["member.notFound.join"].firstMatch.tap()
+        }
+        step("加入會員:略過 Plus,通知鎖定,完成頁是會員已建立") {
+            // 上一步按了「加入」已在加入第 1 步(不再回選擇頁)。
+            XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "加入第 1 步沒有 Apple 註冊鈕")
+            XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
+            XCTAssertTrue(app.buttons["member.entry.back"].exists, "第 1 步左上應是返回")
+            app.buttons["member.signIn.apple"].tap()
+
+            XCTAssertTrue(app.element("account.join.paywall").waitUntilExists(timeout: 10), "建立會員後沒有進開通 Plus")
+            XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 2 of 4")
+            XCTAssertFalse(app.buttons["member.entry.back"].exists, "第 2 步起左上不是返回")
+            XCTAssertTrue(app.buttons["member.signIn.cancel"].exists, "第 2 步起左上應是關閉")
+            app.buttons["account.join.secondary"].tap()
+
+            XCTAssertTrue(app.element("account.join.notificationsLocked").waitUntilExists(timeout: 5), "略過 Plus 後通知沒有鎖定")
+            XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 3 of 4")
+            XCTAssertTrue(app.buttons["account.join.primary"].label.contains("Activate Purrdr Plus"))
+            app.buttons["account.join.secondary"].tap()
+
+            XCTAssertTrue(app.element("account.join.doneCreated").waitUntilExists(timeout: 5), "略過 Plus 的完成頁不是「會員已建立」")
+            app.buttons["account.join.primary"].tap()
+            XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 10), "開始使用後沒有回到帳號頁")
+        }
+    }
+
+    /// 兩個主機值(#390):在檔案 tab 換「選取中主機」不改聊天 tab 的「目前主機」篩選。
+    @MainActor
+    func testFilesHostMenuDoesNotChangeChatFilter() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost"])
+        app.filterHosts("Studio Mac")
+        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac")
+
+        app.openTab(.files)
+        let picker = app.buttons["files.host"].firstMatch
+        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "檔案 tab 沒有主機選單")
+        picker.tap()
+        XCTAssertFalse(app.buttons["All Hosts"].exists, "檔案 tab 的主機選單不該列所有主機")
+        XCTAssertTrue(app.buttons["hostMenu.addHost"].firstMatch.exists, "主機選單沒有新增主機…")
+        app.buttons["Build Box"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForLabel(containing: "Build Box", timeout: 5))
+
+        app.openTab(.chats)
+        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac", "換選取中主機不該改聊天的目前主機")
+    }
+
+    /// 聊天 tab 的 badge 是「需要你」的 Agent 數。
+    @MainActor
+    func testChatsTabBadgeCountsNeedsYou() {
+        let app = XCUIApplication.launchUITesting()
+        let tab = app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chats")).firstMatch
+        XCTAssertTrue(tab.waitUntilExists(timeout: 10))
+        // badge 可能念在標籤尾端,也可能是元素的 value。
+        let shows = UITestWait.until(timeout: 15) { tab.exists && (tab.label.contains("1") || (tab.value as? String)?.contains("1") == true) }
+        XCTAssertTrue(shows, "聊天 tab 沒有標示 1 個需要你:\(tab.label) / \(String(describing: tab.value))")
     }
 
     /// Purrdr Plus 會員：帳號頁、通知、通知裝置。
     @MainActor
     func testPlusMemberAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
+        step("主機 tab 的通知有 Plus 時不鎖定,可進入開關頁") {
+            app.openHostsTab()
+            let row = app.overviewRow("hosts.notifications")
+            XCTAssertTrue(row.exists, "有 Plus 時主機 tab 沒有可進入的通知")
+            XCTAssertFalse(app.buttons["hosts.tool.notifications.locked"].exists, "有 Plus 不該鎖定通知")
+            row.tap()
+            XCTAssertTrue(app.element("hosts.notifications.page").waitUntilExists(timeout: 10), "沒有進到通知開關頁")
+        }
         step("帳號頁與通知裝置") {
+            back(app)
             app.openAccountSheet()
+            let card = app.element("account.plusCard.status")
+            XCTAssertTrue(card.waitUntilExists(timeout: 10), "帳號頁沒有 Plus 卡")
+            XCTAssertTrue(card.label.contains("Active"), "有 Plus 的卡不是已開通:\(card.label)")
+            let link = app.element("member.pushDevices")
+            XCTAssertTrue(app.scrollSheet("sheet.account", to: link, search: .down, timeout: 10), "帳號頁沒有通知裝置入口")
+            link.tap()
             let device = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'account.pushDevice.' AND label CONTAINS 'Studio iPad'")).firstMatch
-            XCTAssertTrue(app.scrollSheet("sheet.account", to: device, search: .down, timeout: 10), "帳號頁沒有通知裝置")
+            XCTAssertTrue(device.waitUntilExists(timeout: 10), "通知裝置子頁沒有 Studio iPad")
         }
     }
 
@@ -159,17 +311,26 @@ final class DailySmokeUITests: XCTestCase {
     @MainActor
     func testDataUsage() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedDataUsage"])
+        step("主機 tab 總頁:狀態、用量區、這台主機的入口(#392)") {
+            app.openHostsTab()
+            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
+            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有「啟用用量顯示」(#389)")
+            XCTAssertTrue(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有 Codex 5 小時")
+            // 沒登入就沒有 Plus(#405):通知鎖定並寫出原因,不是可開關的列。
+            let locked = app.overviewRow("hosts.tool.notifications.locked")
+            XCTAssertTrue(locked.exists, "沒有 Plus 時主機 tab 的通知沒有鎖定")
+            XCTAssertTrue((locked.value as? String)?.contains("Needs Purrdr Plus") == true, "鎖定的通知沒有說明需要 Purrdr Plus:\(String(describing: locked.value))")
+            XCTAssertFalse(app.buttons["hosts.notifications"].exists, "沒有 Plus 不該能進通知開關")
+            XCTAssertTrue(app.overviewRow("hosts.tool.loginShell").exists, "總頁沒有登入 Shell")
+        }
         step("數據用量摘要") {
-            app.openMoreMenuItem("menu.settings")
-            let entry = app.buttons["settings.dataUsage"]
-            app.scrollIntoView(entry, search: .down)
-            entry.tapWhenReady()
+            app.openTab(.traffic)
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "沒有數據用量頁")
             XCTAssertTrue(app.element("dataUsage.today").waitUntilExists(timeout: 5), "沒有今天的用量")
         }
     }
 
-    /// 沒有電腦：空狀態的「新增主機」開引導，取消後試用 Demo。
+    /// 沒有主機：空狀態的「新增主機」開引導，取消後體驗範例主機;可從主機 tab 移除,也可從新增主機引導再啟用(#394)。
     @MainActor
     func testNoHostsGuideAndDemo() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"])
@@ -178,14 +339,28 @@ final class DailySmokeUITests: XCTestCase {
             app.buttons["agentList.addHost"].tap()
             XCTAssertTrue(app.buttons["guide.option.ssh"].waitUntilExists(timeout: 5), "沒有開出新增主機引導")
             app.buttons["guide.cancel"].tapWhenReady()
-            // 引導開在主機 sheet 裡：取消後若 sheet 還在就關掉，回到空狀態。
-            let done = app.buttons["sheet.done"].firstMatch
-            if done.waitUntilExists(timeout: 2) { done.tap() }
+            // 引導開在主機 tab 裡：取消後回到主機清單，再回聊天 tab 看到空狀態。
+            XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機清單")
+            app.openTab(.chats)
             XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 5), "沒有回到空狀態")
         }
         step("試用 Demo") {
             app.buttons["agentList.tryDemo"].tapWhenReady()
             XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有列出 Demo 的 Agent")
+        }
+        step("移除範例主機回到空狀態") {
+            app.openTab(.hosts)
+            app.buttons["hosts.demo.remove"].tapWhenReady()
+            app.buttons["hosts.demo.remove.confirm"].firstMatch.tapWhenReady()
+            XCTAssertTrue(app.element("hosts.noHost").waitUntilExists(timeout: 5), "移除後主機 tab 沒有回到沒有主機的空狀態")
+            app.openTab(.chats)
+            XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 5), "移除後沒有回到空狀態")
+        }
+        step("新增主機引導第一頁可以體驗範例主機") {
+            app.openTab(.hosts)
+            app.buttons["hosts.add"].tapWhenReady()
+            app.buttons["guide.tryDemo"].tapWhenReady()
+            XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有列出範例主機的 Agent")
         }
     }
 
@@ -198,5 +373,21 @@ final class DailySmokeUITests: XCTestCase {
             app.buttons["welcome.demo"].tap()
             XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有回到列表")
         }
+    }
+}
+
+
+extension XCUIApplication {
+    /// 搜尋啟用時導覽列換成搜尋欄與取消:取消後才看得到左上角的切換鈕(已經收起就不動)。
+    @MainActor
+    func cancelSearchIfActive() {
+        guard !listModeControl.isHittable else { return }
+        let cancel = navigationBars.buttons.matching(NSPredicate(format: "label IN {'Cancel', 'Close', 'Dismiss'}")).firstMatch
+        if cancel.waitUntilExists(timeout: 5) {
+            cancel.tap()
+        } else {
+            print("SEARCH-CANCEL-MISSING", navigationBars.firstMatch.debugDescription)
+        }
+        _ = listModeControl.waitUntilExists(timeout: 5)
     }
 }

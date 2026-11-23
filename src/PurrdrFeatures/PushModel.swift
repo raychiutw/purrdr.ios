@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PurrdrCore
+import PurrdrNotificationContent
 
 /// 通知權限(只讀現況時不跳系統對話框)。「暫時授權」視為已授權(行為規格 F14)。
 public enum PushAuthorization: Sendable, Equatable {
@@ -37,6 +38,14 @@ public protocol PushPairingStore: AnyObject {
     /// 這組配對要收的推播種類;沒記過(舊版 app 開的)是 `nil`。
     func kinds(forKeyHash keyHash: String) -> Set<PushKind>?
     func setKinds(_ kinds: Set<PushKind>?, forKeyHash keyHash: String)
+    /// 清除某個會員的分區(登出、刪除會員或換會員時,#405)。
+    func removePartition(of memberID: String)
+    /// 清除所有會員的分區(登入已失效或冷啟動時沒有會員)。
+    func removeAllPartitions()
+    /// 合併後留下的是另一個會員(#410):把舊會員分區的紀錄搬到新會員,舊的不留(後台的配對已跟著歸新會員)。
+    func movePartition(from oldID: String, to newID: String)
+    /// 配對有增減或分區被清除後呼叫(主機名稱對應表跟著更新,#431);`PushService` 建立時接上。
+    var onPairingsChanged: (@MainActor () -> Void)? { get set }
 }
 
 extension PushPairingStore {
@@ -47,76 +56,159 @@ extension PushPairingStore {
     public func keyHash(forHost host: String) -> String? { pairings[host] }
 }
 
-/// 只在記憶體的紀錄(測試、UI 測試)。
+/// 只在記憶體的紀錄(測試、UI 測試)。依會員分區(#405):沒有會員時讀到空的、寫入不留下。
 @MainActor
 public final class InMemoryPushPairingStore: PushPairingStore {
-    public private(set) var pairings: [String: String] = [:]
-    public private(set) var registeredTokens: [String: String] = [:]
-    private var kindsByKeyHash: [String: Set<PushKind>] = [:]
-
-    public init() {}
-
-    public func setKeyHash(_ keyHash: String?, forHost host: String) {
-        if keyHash == nil, let old = pairings[host] {
-            registeredTokens[old] = nil
-            kindsByKeyHash[old] = nil
-        }
-        pairings[host] = keyHash
+    private struct Records {
+        var pairings: [String: String] = [:]
+        var registeredTokens: [String: String] = [:]
+        var kinds: [String: Set<PushKind>] = [:]
     }
 
-    public func setRegisteredToken(_ token: String?, forKeyHash keyHash: String) { registeredTokens[keyHash] = token }
+    private let partition: MemberPartition
+    private var partitions: [String: Records] = [:]
+    public var onPairingsChanged: (@MainActor () -> Void)?
 
-    public func kinds(forKeyHash keyHash: String) -> Set<PushKind>? { kindsByKeyHash[keyHash] }
+    /// - Parameter partition: 目前的會員分區;預設固定一個會員(不必先登入)。
+    public init(partition: MemberPartition = .fixed()) {
+        self.partition = partition
+    }
 
-    public func setKinds(_ kinds: Set<PushKind>?, forKeyHash keyHash: String) { kindsByKeyHash[keyHash] = kinds }
+    private func update(_ change: (inout Records) -> Void) {
+        guard let id = partition.memberID else { return }
+        change(&partitions[id, default: Records()])
+    }
+
+    public var pairings: [String: String] { partition.memberID.flatMap { partitions[$0] }?.pairings ?? [:] }
+    public var registeredTokens: [String: String] { partition.memberID.flatMap { partitions[$0] }?.registeredTokens ?? [:] }
+
+    public func setKeyHash(_ keyHash: String?, forHost host: String) {
+        update { records in
+            if keyHash == nil, let old = records.pairings[host] {
+                records.registeredTokens[old] = nil
+                records.kinds[old] = nil
+            }
+            records.pairings[host] = keyHash
+        }
+        onPairingsChanged?()
+    }
+
+    public func setRegisteredToken(_ token: String?, forKeyHash keyHash: String) {
+        update { $0.registeredTokens[keyHash] = token }
+    }
+
+    public func kinds(forKeyHash keyHash: String) -> Set<PushKind>? {
+        partition.memberID.flatMap { partitions[$0] }?.kinds[keyHash]
+    }
+
+    public func setKinds(_ kinds: Set<PushKind>?, forKeyHash keyHash: String) {
+        update { $0.kinds[keyHash] = kinds }
+    }
+
+    public func removePartition(of memberID: String) {
+        partitions[memberID] = nil
+        onPairingsChanged?()
+    }
+
+    public func removeAllPartitions() {
+        partitions = [:]
+        onPairingsChanged?()
+    }
+
+    public func movePartition(from oldID: String, to newID: String) {
+        guard oldID != newID else { return }
+        partitions[newID] = partitions.removeValue(forKey: oldID)
+        onPairingsChanged?()
+    }
 }
 
-/// 存在 `UserDefaults` 的紀錄(只在這支裝置，不同步;雜湊不是祕密)。
+/// 存在 `UserDefaults` 的紀錄(只在這支裝置，不同步;雜湊不是祕密)。依會員分區(#405):key 帶會員 ID,
+/// 沒有會員時讀到空的、寫入不留下。
 @MainActor
 public final class UserDefaultsPushPairingStore: PushPairingStore {
     private let defaults: UserDefaults
+    private let partition: MemberPartition
+    public var onPairingsChanged: (@MainActor () -> Void)?
+    /// 舊版(沒有分區)的 key:`MemberLocalState.removeLegacyGlobalState` 升級時清掉。
     static let pairingsKey = "push.pairings"
     static let registeredTokensKey = "push.registeredTokens"
     static let kindsKey = "push.kinds"
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(defaults: UserDefaults = .standard, partition: MemberPartition) {
         self.defaults = defaults
+        self.partition = partition
+    }
+
+    private func read<Value>(_ base: String, as type: Value.Type = Value.self) -> Value? {
+        partition.key(base).flatMap { defaults.object(forKey: $0) as? Value }
+    }
+
+    private func write(_ value: Any, _ base: String) {
+        guard let key = partition.key(base) else { return }
+        defaults.set(value, forKey: key)
     }
 
     public var pairings: [String: String] {
-        defaults.dictionary(forKey: Self.pairingsKey) as? [String: String] ?? [:]
+        read(Self.pairingsKey) ?? [:]
     }
 
     public func setKeyHash(_ keyHash: String?, forHost host: String) {
+        guard partition.memberID != nil else { return }
         var pairings = pairings
         if keyHash == nil, let old = pairings[host] {
             setRegisteredToken(nil, forKeyHash: old)
             setKinds(nil, forKeyHash: old)
         }
         pairings[host] = keyHash
-        defaults.set(pairings, forKey: Self.pairingsKey)
+        write(pairings, Self.pairingsKey)
+        onPairingsChanged?()
     }
 
     public var registeredTokens: [String: String] {
-        defaults.dictionary(forKey: Self.registeredTokensKey) as? [String: String] ?? [:]
+        read(Self.registeredTokensKey) ?? [:]
     }
 
     public func setRegisteredToken(_ token: String?, forKeyHash keyHash: String) {
         var tokens = registeredTokens
         tokens[keyHash] = token
-        defaults.set(tokens, forKey: Self.registeredTokensKey)
+        write(tokens, Self.registeredTokensKey)
     }
 
     /// 存成「雜湊 → 種類原始值陣列」;不認得的值略過。
     public func kinds(forKeyHash keyHash: String) -> Set<PushKind>? {
-        guard let stored = (defaults.dictionary(forKey: Self.kindsKey) as? [String: [String]])?[keyHash] else { return nil }
+        guard let stored = read(Self.kindsKey, as: [String: [String]].self)?[keyHash] else { return nil }
         return Set(stored.compactMap(PushKind.init(rawValue:)))
     }
 
     public func setKinds(_ kinds: Set<PushKind>?, forKeyHash keyHash: String) {
-        var stored = defaults.dictionary(forKey: Self.kindsKey) as? [String: [String]] ?? [:]
+        var stored = read(Self.kindsKey, as: [String: [String]].self) ?? [:]
         stored[keyHash] = kinds.map(PushKind.wireValues)
-        defaults.set(stored, forKey: Self.kindsKey)
+        write(stored, Self.kindsKey)
+    }
+
+    public func removePartition(of memberID: String) {
+        for base in [Self.pairingsKey, Self.registeredTokensKey, Self.kindsKey] {
+            defaults.removeObject(forKey: "\(base).\(memberID)")
+        }
+        onPairingsChanged?()
+    }
+
+    public func removeAllPartitions() {
+        for key in defaults.dictionaryRepresentation().keys {
+            for base in [Self.pairingsKey, Self.registeredTokensKey, Self.kindsKey] where key.hasPrefix("\(base).") {
+                defaults.removeObject(forKey: key)
+            }
+        }
+        onPairingsChanged?()
+    }
+
+    public func movePartition(from oldID: String, to newID: String) {
+        guard oldID != newID else { return }
+        for base in [Self.pairingsKey, Self.registeredTokensKey, Self.kindsKey] {
+            defaults.set(defaults.object(forKey: "\(base).\(oldID)"), forKey: "\(base).\(newID)")
+            defaults.removeObject(forKey: "\(base).\(oldID)")
+        }
+        onPairingsChanged?()
     }
 }
 
@@ -155,6 +247,9 @@ public final class PushService {
     private var models: [WeakPushModel] = []
     /// 傳送測試通知的管道;`nil` 時不提供這個功能。
     public var testNotifications: (any PushTestNotificationSending)?
+    /// 主機名稱對應表的共用儲存(App Group,#431);`nil` 時不寫。
+    private let hostNameSharing: (any PushHostNameSharing)?
+    private var latestHostNames: [String: String] = [:]
 
     /// - Parameters:
     ///   - loadDevice: 這支裝置(Keychain 的推播 id、預設名稱與型號);讀不到(還沒第一次解鎖)時丟錯，之後用到時再試。
@@ -162,24 +257,38 @@ public final class PushService {
     public init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore,
         loadDevice: @escaping @MainActor () throws -> PushDeviceIdentity,
-        configuration: PushConfiguration, isPlusActive: @escaping @MainActor () async -> Bool
+        configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
+        isPlusActive: @escaping @MainActor () async -> Bool
     ) {
         self.session = session
         self.platform = platform
         self.store = store
         self.loadDevice = loadDevice
         self.configuration = configuration
+        self.hostNameSharing = hostNameSharing
         self.isPlusActive = isPlusActive
+        store.onPairingsChanged = { [weak self] in self?.publishHostNames() }
+    }
+
+    /// 主機名稱(主機 id → 顯示名稱)有變時由 `HostsModel` 呼叫(#431);連同目前的配對寫成「配對雜湊 → 名稱」。
+    public func updateHostNames(_ names: [String: String]) {
+        latestHostNames = names
+        publishHostNames()
+    }
+
+    private func publishHostNames() {
+        hostNameSharing?.save(PushHostNameMap.make(pairings: store.pairings, hostNames: latestHostNames))
     }
 
     /// 這支裝置已知時(測試、UI 測試)。
     public convenience init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore, device: PushDeviceIdentity,
-        configuration: PushConfiguration, isPlusActive: @escaping @MainActor () async -> Bool
+        configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
+        isPlusActive: @escaping @MainActor () async -> Bool
     ) {
         self.init(
             session: session, platform: platform, store: store, loadDevice: { device }, configuration: configuration,
-            isPlusActive: isPlusActive)
+            hostNames: hostNameSharing, isPlusActive: isPlusActive)
     }
 
     /// 這支裝置;第一次成功讀到後記住。
@@ -250,6 +359,15 @@ public final class PushService {
         }
     }
 
+    /// 會員分區換了(登入、登出、換會員)或被清除後:各主機的開關重讀本機紀錄。
+    public func reloadModels() {
+        publishHostNames()
+        models.removeAll { $0.model == nil }
+        for entry in models {
+            entry.model?.reloadFromStore()
+        }
+    }
+
     func track(_ model: PushModel) {
         models.removeAll { $0.model == nil }
         models.append(WeakPushModel(model: model))
@@ -298,6 +416,7 @@ private struct DeviceBoundPushPluginInstaller: PushPluginInstalling {
     func install(_ pairing: PushPairingFile) async throws { try await resolved().install(pairing) }
     func remove() async throws { try await resolved().remove() }
     func updateMuted(_ muted: Set<String>) async throws { try await resolved().updateMuted(muted) }
+    func updatePluginIfNeeded() async throws -> Bool { try await resolved().updatePluginIfNeeded() }
 }
 
 @MainActor
@@ -385,6 +504,25 @@ public final class PushModel {
             kinds = store.kinds(forKeyHash: keyHash) ?? Self.legacyKinds
         }
         service?.track(self)
+    }
+
+    /// 會員分區換了:依目前會員的本機紀錄回到開著或關閉(進行中的開關動作不打斷)。
+    func reloadFromStore() {
+        guard let hostID, let store = service?.store else { return }
+        switch state {
+        case .off, .on:
+            break
+        default:
+            return
+        }
+        problem = nil
+        if let keyHash = store.keyHash(forHost: hostID) {
+            state = .on
+            kinds = store.kinds(forKeyHash: keyHash) ?? Self.legacyKinds
+        } else {
+            state = .off
+            kinds = Self.defaultKinds
+        }
     }
 
     /// 這支裝置被遠端關閉(配對已撤銷):回到關閉。
@@ -573,6 +711,20 @@ public final class PushModel {
     public func refreshStatus() async {
         guard let installer, hostID != nil, let status = try? await installer.status() else { return }
         record(status)
+    }
+
+    /// 距離上次嘗試更新外掛至少這麼久才再試(#432;成功與失敗都算)。
+    public static let pluginUpdateInterval: Duration = .seconds(24 * 60 * 60)
+    private var lastPluginUpdateAttempt: ContinuousClock.Instant?
+
+    /// 推播開著時，外掛版本落後就更新(#432,SSH 主機;主機服務自己更新，其安裝介面什麼都不做)。
+    /// 頻率上限 `pluginUpdateInterval`;失敗不打擾使用者，下個間隔再試。
+    @discardableResult
+    public func updatePluginIfNeeded(now: ContinuousClock.Instant = .now) async -> Bool {
+        guard state == .on, let installer else { return false }
+        if let last = lastPluginUpdateAttempt, now - last < Self.pluginUpdateInterval { return false }
+        lastPluginUpdateAttempt = now
+        return (try? await installer.updatePluginIfNeeded()) ?? false
     }
 
     private func record(_ status: PushPluginStatus) {

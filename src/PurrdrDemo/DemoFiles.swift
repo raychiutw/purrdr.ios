@@ -34,13 +34,22 @@ struct DemoFiles {
         "shownAt":1763280000000}}],"known":[],"typedPastInARow":0,"looksToSkip":0}
         """
 
+    /// Antigravity 的設定(#448):沒有自己的 statusline,方案用量的包裝裝上去後讀到範例用量。
+    static let sampleAntigravitySettings = """
+        {
+          "model": "gemini-4-neon"
+        }
+
+        """
+
     private var files: [String: Data] = [
         ".claude/settings.json": Data(sampleSettings.utf8),
+        AntigravityPlanUsageHost.settingsPath.relative: Data(sampleAntigravitySettings.utf8),
         ".config/herdr/config.toml": Data(sampleHerdrConfig.utf8),
         youShouldKnowStore: Data(sampleYouShouldKnow.utf8),
     ]
     /// 一定存在的資料夾(家目錄與 `~/.claude`)。
-    private let baseDirectories: Set<String> = ["", ".claude"]
+    private let baseDirectories: Set<String> = ["", ".claude", ".gemini", ".gemini/antigravity-cli"]
     /// 主機寫入建立的資料夾(例如 Codex 啟動器的 `~/.local/bin`)。
     private var madeDirectories: Set<String> = []
 
@@ -71,6 +80,10 @@ struct DemoFiles {
     private func state(of path: HostPath, now: Date) -> HostFileState {
         if path == ClaudePlanUsageHost.usagePath, files[ClaudePlanUsageHost.feature.ownFile("statusline.sh").relative] != nil {
             let data = Self.sampleUsage(now: now)
+            return .file(data, version: Self.version(of: data))
+        }
+        if path == AntigravityPlanUsageHost.usagePath, files[AntigravityPlanUsageHost.feature.ownFile("statusline.sh").relative] != nil {
+            let data = Self.sampleAntigravityUsage(now: now)
             return .file(data, version: Self.version(of: data))
         }
         if let data = files[path.relative] { return .file(data, version: Self.version(of: data)) }
@@ -142,6 +155,20 @@ struct DemoFiles {
             {"captured_at":\#(now - 60),"status_line_input":{"model":{"display_name":"Opus"},"rate_limits":{\#
             "five_hour":{"used_percentage":38,"resets_at":\#(now + 2 * 3600 + 13 * 60)},\#
             "seven_day":{"used_percentage":61,"resets_at":\#(now + 3 * 86400)}}}}
+            """#.utf8)
+    }
+
+    /// 一分鐘前擷取的 Antigravity 範例用量(#448):目前模型 Gemini 4 Neon;Gemini 群組 5 小時用了 9%、每週用了 3%,
+    /// 第三方群組 5 小時用了 40%、每週用了 62%。
+    static func sampleAntigravityUsage(now: Date) -> Data {
+        let now = Int(now.timeIntervalSince1970)
+        func time(_ offset: Int) -> String { Date(timeIntervalSince1970: TimeInterval(now + offset)).formatted(.iso8601) }
+        return Data(#"""
+            {"captured_at":\#(now - 60),"status_line_input":{"model":{"id":"Gemini 4 Neon (Medium)"},"quota":{\#
+            "gemini-5h":{"remaining_fraction":0.91,"reset_time":"\#(time(2 * 3600 + 13 * 60))"},\#
+            "gemini-weekly":{"remaining_fraction":0.97,"reset_time":"\#(time(4 * 86400))"},\#
+            "3p-5h":{"remaining_fraction":0.6,"reset_time":"\#(time(3 * 3600))"},\#
+            "3p-weekly":{"remaining_fraction":0.38,"reset_time":"\#(time(2 * 86400))"}}}}
             """#.utf8)
     }
 }

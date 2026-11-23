@@ -51,6 +51,36 @@ enum AgentImageDecoder {
         let image: CGImage
     }
 
+    /// 檔案卡片的縮圖(#427):圖片同 `decode`,PDF 畫第一頁(白底);其他種類沒有縮圖。
+    static func decodeThumbnail(_ data: Data, kind: AgentFileKind, maxPixels: Int) async -> Decoded? {
+        switch kind {
+        case .pdf: await Task.detached(priority: .userInitiated) { renderFirstPage(of: data, maxPixels: maxPixels) }.value
+        case .image: await decode(data, maxPixels: maxPixels)
+        default: nil
+        }
+    }
+
+    /// 以 CoreGraphics 畫 PDF 第一頁，長邊 `maxPixels`;加密、空白文件或不是 PDF 回 `nil`。
+    private static func renderFirstPage(of data: Data, maxPixels: Int) -> Decoded? {
+        guard let provider = CGDataProvider(data: data as CFData), let document = CGPDFDocument(provider),
+              !document.isEncrypted || document.isUnlocked, let page = document.page(at: 1) else { return nil }
+        var box = page.getBoxRect(.cropBox)
+        if page.rotationAngle % 180 != 0 { box = CGRect(x: 0, y: 0, width: box.height, height: box.width) }
+        guard box.width > 0, box.height > 0 else { return nil }
+        let scale = CGFloat(maxPixels) / max(box.width, box.height)
+        let width = max(1, Int((box.width * scale).rounded())), height = max(1, Int((box.height * scale).rounded()))
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        let target = CGRect(x: 0, y: 0, width: width, height: height)
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(target)
+        context.concatenate(page.getDrawingTransform(.cropBox, rect: target, rotate: 0, preserveAspectRatio: true))
+        context.drawPDFPage(page)
+        return context.makeImage().map(Decoded.init)
+    }
+
     static func decode(_ data: Data, maxPixels: Int) async -> Decoded? {
         await Task.detached(priority: .userInitiated) {
             guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
@@ -72,7 +102,7 @@ struct AgentImageCardView: View {
     @State private var thumbnailVersion: HostFileVersion?
     /// 載入的檔案解不出圖片。
     @State private var decodeFailed = false
-    @State private var viewer: AgentImageViewerItem?
+    @State private var viewer: ImageViewerItem?
 
     /// 縮圖區的高度(固定，避免圖到了改列高)。
     static let thumbnailHeight: CGFloat = 180
@@ -99,7 +129,7 @@ struct AgentImageCardView: View {
         .accessibilityIdentifier("conversation.agentImage")
         .task(id: card.file.path) { await load(userRequested: false) }
         .task(id: loadedVersion) { await decodeThumbnail() }
-        .agentImageViewer(item: $viewer)
+        .imageViewer(item: $viewer)
     }
 
     @ViewBuilder
@@ -107,7 +137,7 @@ struct AgentImageCardView: View {
         let imageDisplay = AgentImageCardDisplay(state: state)
         if let thumbnail {
             Button {
-                if case .loaded(let data, _) = state { viewer = AgentImageViewerItem(data: data, name: card.file.name) }
+                if case .loaded(let data, _) = state { viewer = ImageViewerItem(data: data, name: card.file.name) }
             } label: {
                 Image(decorative: thumbnail.image, scale: 1)
                     .resizable()
@@ -166,162 +196,5 @@ struct AgentImageCardView: View {
         thumbnail = decoded
         thumbnailVersion = decoded == nil ? nil : version
         decodeFailed = decoded == nil
-    }
-}
-
-/// 全螢幕檢視的圖片。
-struct AgentImageViewerItem: Identifiable {
-    let id = UUID()
-    let data: Data
-    let name: String
-}
-
-/// 全螢幕檢視(#330,照 HIG 手勢表與「照片」app):兩指縮放(1× 到 8×,放開夾回範圍)、
-/// 雙點兩下以點的位置放大或縮回、放大後單指平移(夾在圖邊界內)、1× 時向下滑關閉;
-/// 規則在 `ImageViewerZoom`。右上角「Done」與 Esc 關閉;VoiceOver 有放大／縮小與「Close」動作，並念出目前倍率。
-struct AgentImageViewer: View {
-    let item: AgentImageViewerItem
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var image: AgentImageDecoder.Decoded?
-    @State private var zoom: CGFloat = 1
-    @State private var offset: CGSize = .zero
-    /// 手勢開始時的值(手勢進行中 `zoom`／`offset` 會跟著變)。
-    @State private var pinchStart: (zoom: CGFloat, offset: CGSize)?
-    @State private var panStart: CGSize?
-    /// 1× 時下滑關閉的拖動量(只影響畫面，放開才判斷)。
-    @State private var dismissDrag: CGFloat = 0
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Color.black.opacity(1 - min(0.5, dismissDrag / 600)).ignoresSafeArea()
-            if let image {
-                GeometryReader { proxy in
-                    let rules = rules(for: image, in: proxy.size)
-                    Image(decorative: image.image, scale: 1)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: proxy.size.width, height: proxy.size.height)
-                        .scaleEffect(zoom)
-                        .offset(x: offset.width, y: offset.height + dismissDrag)
-                        .contentShape(Rectangle())
-                        .gesture(pinch(rules))
-                        .simultaneousGesture(drag(rules))
-                        .gesture(SpatialTapGesture(count: 2).onEnded { event in
-                            let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                            let tap = CGPoint(x: event.location.x - center.x, y: event.location.y - center.y)
-                            apply(rules.doubleTap(at: tap, zoom: zoom))
-                        })
-                        .onChange(of: proxy.size) {
-                            // 旋轉或改視窗大小:倍率夾回範圍、平移夾進新邊界。
-                            let next = self.rules(for: image, in: proxy.size)
-                            offset = next.clampedOffset(offset, zoom: zoom)
-                        }
-                        .accessibilityLabel(Text("Image \(item.name)"))
-                        .accessibilityValue(Text(zoom > 1 ? "Zoomed in \(Self.zoomText(zoom))" : "Not zoomed"))
-                        .accessibilityAddTraits(.isImage)
-                        .accessibilityAction(named: Text("Zoom In")) { zoomTo(max(zoom * 2, ImageViewerZoom.doubleTapZoom), rules) }
-                        .accessibilityAction(named: Text("Zoom Out")) { zoomTo(zoom / 2, rules) }
-                        .accessibilityIdentifier("agentImage.viewer.image")
-                }
-            } else {
-                ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            // 觸控目標 44pt:frame 放在 label 裡才撐得大玻璃按鈕(放在外面只撐大外框，按鈕仍是 34pt,#251)。
-            Button { dismiss() } label: {
-                Text("Done").frame(minWidth: 44, minHeight: 44)
-            }
-                .buttonStyle(.glass)
-                .keyboardShortcut(.cancelAction)
-                .padding()
-                .accessibilityIdentifier("agentImage.viewer.done")
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityAction(named: Text("Close")) { dismiss() }
-        .accessibilityAction(.escape) { dismiss() }
-        .accessibilityIdentifier("agentImage.viewer")
-        .task { image = await AgentImageDecoder.decode(item.data, maxPixels: AgentImageDecoder.fullScreenPixels) }
-        #if os(iOS)
-        .statusBarHidden()
-        #endif
-    }
-
-    /// 圖在 1× 時等比縮進容器的尺寸。
-    private func rules(for image: AgentImageDecoder.Decoded, in container: CGSize) -> ImageViewerZoom {
-        let size = CGSize(width: image.image.width, height: image.image.height)
-        guard size.width > 0, size.height > 0, container.width > 0, container.height > 0 else {
-            return ImageViewerZoom(container: container, fitted: container)
-        }
-        let scale = min(container.width / size.width, container.height / size.height)
-        return ImageViewerZoom(container: container, fitted: CGSize(width: size.width * scale, height: size.height * scale))
-    }
-
-    private func pinch(_ rules: ImageViewerZoom) -> some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                let start = pinchStart ?? (zoom, offset)
-                pinchStart = start
-                // 以手指中心為不動點縮放(規則在 ImageViewerZoom.pinched);進行中可略超出範圍,放開時夾回。
-                let anchor = CGPoint(
-                    x: (value.startAnchor.x - 0.5) * rules.container.width, y: (value.startAnchor.y - 0.5) * rules.container.height)
-                let result = rules.pinched(zoom: start.zoom, offset: start.offset, magnification: value.magnification, at: anchor)
-                zoom = result.zoom
-                offset = result.offset
-            }
-            .onEnded { _ in
-                pinchStart = nil
-                settle { zoom = rules.clampedZoom(zoom); offset = rules.clampedOffset(offset, zoom: zoom) }
-            }
-    }
-
-    private func drag(_ rules: ImageViewerZoom) -> some Gesture {
-        DragGesture()
-            .onChanged { value in
-                if rules.allowsPan(zoom: zoom) {
-                    let start = panStart ?? offset
-                    panStart = start
-                    offset = rules.clampedOffset(
-                        CGSize(width: start.width + value.translation.width, height: start.height + value.translation.height), zoom: zoom)
-                } else if value.translation.height > 0 {
-                    dismissDrag = value.translation.height
-                }
-            }
-            .onEnded { value in
-                panStart = nil
-                if rules.shouldDismiss(translation: value.translation, zoom: zoom) {
-                    dismiss()
-                } else {
-                    settle { dismissDrag = 0 }
-                }
-            }
-    }
-
-    private func apply(_ result: (zoom: CGFloat, offset: CGSize)) {
-        settle { zoom = result.zoom; offset = result.offset }
-    }
-
-    /// VoiceOver 的放大／縮小動作:以中心縮放。
-    private func zoomTo(_ target: CGFloat, _ rules: ImageViewerZoom) {
-        settle { zoom = rules.clampedZoom(target); offset = rules.clampedOffset(offset, zoom: zoom) }
-    }
-
-    /// 「減少動態效果」時不做彈簧動畫。
-    private func settle(_ changes: () -> Void) {
-        if reduceMotion { changes() } else { withAnimation(.smooth(duration: 0.25), changes) }
-    }
-
-    private static func zoomText(_ zoom: CGFloat) -> String {
-        Double(zoom).formatted(.number.precision(.fractionLength(0...1))) + "×"
-    }
-}
-
-extension View {
-    /// 全螢幕打開圖片卡片的圖(macOS 只為了 `swift test` 編譯，用 sheet)。
-    func agentImageViewer(item: Binding<AgentImageViewerItem?>) -> some View {
-        #if os(iOS)
-        fullScreenCover(item: item) { AgentImageViewer(item: $0) }
-        #else
-        sheet(item: item) { AgentImageViewer(item: $0) }
-        #endif
     }
 }

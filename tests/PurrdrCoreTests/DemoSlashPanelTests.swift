@@ -73,4 +73,25 @@ struct DemoSlashPanelTests {
         _ = try await client.prompt(target: "w1:p1", text: "/effort", wait: nil)
         #expect(try await Self.panel(on: host)?.slider?.current == 2)
     }
+
+    @Test("/effort 面板有 Ultracode 開關(#384):Tab 切換、Enter 確認後保留,Esc 不保留")
+    func effortPanelUltracode() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+
+        _ = try await client.prompt(target: "w1:p1", text: "/effort", wait: nil)
+        #expect(try await Self.panel(on: host)?.ultracode == false)
+        try await client.sendKeys(paneID: "w1:p1", keys: ["tab"])
+        let toggled = try #require(try await Self.panel(on: host))
+        #expect(toggled.ultracode == true)
+        #expect(toggled.slider?.levels == ["low", "medium", "high", "xhigh", "max"])
+        try await client.sendKeys(paneID: "w1:p1", keys: ["enter"])
+
+        _ = try await client.prompt(target: "w1:p1", text: "/effort", wait: nil)
+        #expect(try await Self.panel(on: host)?.ultracode == true)
+        try await client.sendKeys(paneID: "w1:p1", keys: ["tab"])
+        try await client.sendKeys(paneID: "w1:p1", keys: ["esc"])
+        _ = try await client.prompt(target: "w1:p1", text: "/effort", wait: nil)
+        #expect(try await Self.panel(on: host)?.ultracode == true, "Esc 取消不改變已確認的開關")
+    }
 }

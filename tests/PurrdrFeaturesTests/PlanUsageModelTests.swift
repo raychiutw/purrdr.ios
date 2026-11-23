@@ -36,6 +36,13 @@ struct PlanUsageModelTests {
 
     static let bothHosts = [HostOption(id: mac, name: "Mac"), HostOption(id: linux, name: "Linux")]
 
+    /// 這些測試的百分比以「剩餘」為準(預設已用,#420):每次一份獨立、已存「剩餘」的 defaults。
+    static func remainingDefaults() -> UserDefaults {
+        let defaults = UserDefaults(suiteName: "plan-usage-\(UUID().uuidString)")!
+        PlanUsageModel.Display.remaining.store(in: defaults)
+        return defaults
+    }
+
     func model(
         hosts: [HostOption] = Self.bothHosts, store: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
         channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer, sleep: @escaping Sleep = StepSleeper().sleep,
@@ -44,7 +51,7 @@ struct PlanUsageModelTests {
         let channel = channel ?? host
         let consent = consent
         return PlanUsageModel(
-            hosts: hosts, fallback: Self.mac, store: store, now: { Self.now }, sleep: sleep
+            hosts: hosts, fallback: Self.mac, store: store, now: { Self.now }, sleep: sleep, defaults: Self.remainingDefaults()
         ) { selection, _ in
             guard !unsupported.contains(selection) else { return nil }
             return .claude(channel: channel, cost: cost, hostID: selection.storedValue, consent: consent)
@@ -270,10 +277,11 @@ struct PlanUsageModelTests {
     func model(codex: any HostChannel, codexSleep: @escaping Sleep = Sleeping.task) -> PlanUsageModel {
         let claudeChannel = host
         let consent = consent
-        return PlanUsageModel(hosts: Self.bothHosts, fallback: Self.mac, store: InMemoryPlanUsageSelectionStore(), now: { Self.now }) { selection, agent in
+        return PlanUsageModel(hosts: Self.bothHosts, fallback: Self.mac, store: InMemoryPlanUsageSelectionStore(), now: { Self.now }, defaults: Self.remainingDefaults()) { selection, agent in
             switch agent {
             case .claudeCode: .claude(channel: claudeChannel, cost: .transfer, hostID: selection.storedValue, consent: consent)
             case .codex: .codex(channel: codex, cost: .transfer, sleep: codexSleep)
+            case .antigravity: nil
             }
         }
     }
@@ -407,6 +415,37 @@ struct PlanUsageModelTests {
         #expect(model.state == .needsConsent)
         #expect(!consent.isGranted(ClaudePlanUsageHost.feature.id, host: Self.mac.storedValue))
         #expect(try DirectorySnapshot(of: host.home) == before)
+    }
+
+    @Test("已裝舊版包裝(#388):提示更新,不靜默覆寫;確認後換成新腳本,取消則維持原樣")
+    func oldWrapperPromptsUpdate() async throws {
+        let model = model()
+        model.appeared()
+        await model.requestConsent()
+        await model.confirm()
+        try claudeReportsUsage()
+        await model.refresh()
+        #expect(!model.wrapperUpdateAvailable)
+
+        // 模擬舊版 app 裝的腳本(內容不同)。
+        let wrapper = host.home.appending(path: ".purrdr/claude-usage/statusline.sh")
+        try Data("#!/bin/sh\n# old wrapper\n".utf8).write(to: wrapper)
+        await model.refresh()
+        #expect(model.wrapperUpdateAvailable)
+        #expect(try String(contentsOf: wrapper, encoding: .utf8) == "#!/bin/sh\n# old wrapper\n", "只提示,不能自己覆寫")
+
+        await model.requestWrapperUpdate()
+        guard case .confirming = model.state else { Issue.record("沒有請使用者確認:\(model.state)"); return }
+        model.cancelConsent()
+        await model.untilIdle()
+        #expect(model.state != .needsConsent)
+        #expect(try String(contentsOf: wrapper, encoding: .utf8) == "#!/bin/sh\n# old wrapper\n")
+
+        await model.requestWrapperUpdate()
+        await model.confirm()
+        await model.untilIdle()
+        #expect(!model.wrapperUpdateAvailable)
+        #expect(try String(contentsOf: wrapper, encoding: .utf8).contains("sessions"))
     }
 
     @Test("settings.json 不是合法 JSON:說明原因，不詢問、不修改")
@@ -595,12 +634,75 @@ struct PlanUsagePresentationTests {
         #expect(PlanUsagePresentation.rows(for: usage, showing: .remaining, now: Self.now).map(\.percent) == [0, 100])
     }
 
-    @Test("圓環顏色依剩餘比例分三級：超過 40% 充足、超過 15% 偏低、其餘將用完;與顯示剩餘或已用無關")
-    func levelFollowsRemaining() {
-        let usage = Self.usage(fiveHourUsed: 60, weekUsed: 85)
+    @Test("圓環顏色依已用比例分三級：70% 起偏高、85% 起將用完;與顯示剩餘或已用無關")
+    func levelFollowsUsed() {
+        let usage = Self.usage(fiveHourUsed: 70, weekUsed: 85)
         #expect(PlanUsagePresentation.rows(for: usage, showing: .remaining, now: Self.now).map(\.level) == [.low, .depleted])
         #expect(PlanUsagePresentation.rows(for: usage, showing: .used, now: Self.now).map(\.level) == [.low, .depleted])
-        let ample = Self.usage(fiveHourUsed: 59, weekUsed: 84)
+        let ample = Self.usage(fiveHourUsed: 69, weekUsed: 84)
         #expect(PlanUsagePresentation.rows(for: ample, showing: .remaining, now: Self.now).map(\.level) == [.ample, .low])
+    }
+}
+
+/// 同一用量週期依模型群組多份(Antigravity,#448):標題與主機 tab 只顯示目前模型的群組,詳細面板全列。
+@Suite("方案用量多群組")
+struct PlanUsageGroupsTests {
+    static let now = Date(timeIntervalSince1970: 1_738_400_000)
+    static func usage(activeGroup: PlanUsage.Group? = nil) -> PlanUsage {
+        func period(_ kind: PlanUsage.Period.Kind, _ group: PlanUsage.Group, used: Double) -> PlanUsage.Period {
+            .init(kind: kind, group: group, usedPercentage: used, resetsAt: now.addingTimeInterval(3_600))
+        }
+        return PlanUsage(
+            periods: [
+                period(.fiveHour, .gemini, used: 10), period(.week, .gemini, used: 20),
+                period(.fiveHour, .thirdParty, used: 30), period(.week, .thirdParty, used: 40),
+            ], capturedAt: now, activeGroup: activeGroup)
+    }
+
+    @Test("標題與主機 tab 只顯示目前模型的群組")
+    func compactShowsActiveGroupOnly() {
+        let gemini = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .gemini), showing: .used, now: Self.now)
+        #expect(gemini.map(\.percent) == [10, 20])
+        #expect(gemini.map(\.group) == [.gemini, .gemini])
+        let thirdParty = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .thirdParty), showing: .used, now: Self.now)
+        #expect(thirdParty.map(\.percent) == [30, 40])
+    }
+
+    @Test("聊天的目前模型優先於檔案裡最後一個 session 的模型")
+    func overrideBeatsStoredGroup() {
+        let rows = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .gemini), showing: .used, now: Self.now, activeGroup: .thirdParty)
+        #expect(rows.map(\.percent) == [30, 40])
+    }
+
+    @Test("不知道目前模型時顯示第一個群組(不會兩組混在一起)")
+    func unknownActiveGroupShowsFirstGroup() {
+        let rows = PlanUsagePresentation.rows(for: Self.usage(), showing: .used, now: Self.now)
+        #expect(rows.map(\.group) == [.gemini, .gemini])
+    }
+
+    @Test("詳細面板兩個群組都列,已用／剩餘照設定")
+    func detailListsEveryGroup() {
+        let used = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .gemini), showing: .used, now: Self.now, allGroups: true)
+        #expect(used.map(\.percent) == [10, 20, 30, 40])
+        let remaining = PlanUsagePresentation.rows(for: Self.usage(activeGroup: .gemini), showing: .remaining, now: Self.now, allGroups: true)
+        #expect(remaining.map(\.percent) == [90, 80, 70, 60])
+        #expect(Set(used.map(\.id)).count == 4, "兩個群組的同一週期識別碼不能相同")
+    }
+
+    @Test("只有一個群組(Claude、Codex)時照舊,不受群組篩選影響")
+    func singleGroupUnchanged() {
+        let usage = PlanUsage(
+            periods: [.init(kind: .fiveHour, usedPercentage: 12, resetsAt: nil), .init(kind: .week, usedPercentage: 34, resetsAt: nil)],
+            capturedAt: Self.now)
+        #expect(PlanUsagePresentation.rows(for: usage, showing: .used, now: Self.now).map(\.percent) == [12, 34])
+    }
+
+    @Test("模型名稱換成群組:Gemini 開頭是 Gemini,其他是第三方,空的沒有")
+    func groupFromModelName() {
+        #expect(PlanUsage.Group(modelName: "Gemini 4 Neon (Medium)") == .gemini)
+        #expect(PlanUsage.Group(modelName: "gemini-4-argon") == .gemini)
+        #expect(PlanUsage.Group(modelName: "Claude Sonnet 5") == .thirdParty)
+        #expect(PlanUsage.Group(modelName: "GPT-OSS 120B") == .thirdParty)
+        #expect(PlanUsage.Group(modelName: "  ") == nil)
     }
 }

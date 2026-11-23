@@ -89,10 +89,10 @@ public struct PromptDelivery: Sendable {
         } catch let error as HerdrError {
             return outcome(of: error, agent: agent)
         } catch {
-            return agent.kind == "codex" ? .unconfirmed(.codexNoReceipt) : .unconfirmed(.connectionLost)
+            return Self.unconfirmedOutcome(for: agent)
         }
         guard reply.writtenOnly else { return .delivered }
-        if agent.kind == "codex" { return .unconfirmed(.codexNoReceipt) }
+        if !AgentCatalog.profile(forHerdrName: agent.kind).input.givesDeliveryReceipt { return .unconfirmed(.codexNoReceipt) }
         // agent 原本就在工作:prompt 只會排隊，不等(F6.5)。
         if agent.status == .working { return .delivered }
         return await confirmWrittenPrompt(paneID: agent.paneID, expecting: expectation)
@@ -122,13 +122,18 @@ public struct PromptDelivery: Sendable {
             return .needsAnswer
         case .herdr(code: "timeout", _), .herdr(code: "agent_prompt_stalled", _):
             // Codex 在共用 app server 下可能沒有輸入框狀態可看：只靠對話紀錄確認(R-P09)。
-            return agent.kind == "codex" ? .unconfirmed(.codexNoReceipt) : .noResponse
+            return AgentCatalog.profile(forHerdrName: agent.kind).input.givesDeliveryReceipt ? .noResponse : .unconfirmed(.codexNoReceipt)
         case .herdr(_, let message):
             return .rejected(message: message)
         case .noResponse, .malformedResponse, .deadlineExceeded:
             // 傳輸層失敗 ≠ 停滯：不知道有沒有送到(§3.6、R-P05)。
-            return agent.kind == "codex" ? .unconfirmed(.codexNoReceipt) : .unconfirmed(.connectionLost)
+            return Self.unconfirmedOutcome(for: agent)
         }
+    }
+
+    /// 不知道有沒有送到:沒有回條的 agent 只能靠對話紀錄確認,其他是連線中斷。
+    private static func unconfirmedOutcome(for agent: Agent) -> PromptOutcome {
+        AgentCatalog.profile(forHerdrName: agent.kind).input.givesDeliveryReceipt ? .unconfirmed(.connectionLost) : .unconfirmed(.codexNoReceipt)
     }
 
     /// 主機只知道文字寫進了終端機：等 3.5 秒看 agent 有沒有開始工作;沒有，就新鮮地讀一次狀態，
@@ -155,17 +160,17 @@ public struct PromptDelivery: Sendable {
     }
 
     /// 會讓 agent 打開面板或執行本地指令的 slash 指令:`/` 接字母開頭的名稱，之後是空白或結尾(F6.5)。
-    /// 只有認得 slash 指令的 agent(Claude Code、Codex、Grok、Antigravity)才算。
-    /// Claude 的 shell 模式：草稿以 `!` 開頭(F6.4)。
-    public static func isShellCommand(_ text: String, kind: String) -> Bool {
-        kind == "claude" && text.hasPrefix("!")
-    }
-
+    /// 只有設定檔的輸入組認得 slash 指令的 agent 才算。
     public static func isSlashCommand(_ text: String, kind: String) -> Bool {
-        guard ["claude", "codex", "grok", "antigravity"].contains(kind), text.hasPrefix("/") else { return false }
+        guard AgentCatalog.profile(forHerdrName: kind).input.acceptsSlashCommands, text.hasPrefix("/") else { return false }
         let name = text.dropFirst().prefix { !$0.isWhitespace }
         guard let first = name.first, first.isASCII, first.isLetter else { return false }
         return !name.contains("/")
+    }
+
+    /// shell 模式(F6.4):草稿以 `!` 開頭,且 agent 的輸入組開放(目前只有 Claude Code)。
+    public static func isShellCommand(_ text: String, kind: String) -> Bool {
+        AgentCatalog.profile(forHerdrName: kind).input.acceptsShellCommands && text.hasPrefix("!")
     }
 
     // MARK: - 中斷

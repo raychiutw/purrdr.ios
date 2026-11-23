@@ -19,11 +19,7 @@ struct SpacesLayoutSheet: View {
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                    }
-                }
+                .toolbar { SheetCloseToolbar() }
         }
         .presentationDetents([.medium, .large])
     }

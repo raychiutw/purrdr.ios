@@ -7,11 +7,11 @@ import Testing
 /// 擋得到核心 import 了 SwiftUI、Security 或 os,擋不到「Apple 平台有、Android 的 Foundation 沒有」的 API。
 @Suite("可攜核心")
 struct PortableCoreImportTests {
-    static let portableTargets = ["src/PurrdrCore", "src/PurrdrSSH", "src/PurrdrHTTPS", "src/PurrdrDemo"]
+    static let portableTargets = ["src/PurrdrNotificationContent", "src/PurrdrCore", "src/PurrdrSSH", "src/PurrdrHTTPS", "src/PurrdrDemo"]
     static let allowedModules: Set<String> = [
         "Foundation", "FoundationEssentials", "FoundationNetworking", "Dispatch", "Synchronization",
         "NIO", "NIOCore", "NIOPosix", "NIOSSH", "NIOConcurrencyHelpers", "NIOFoundationCompat", "Crypto",
-        "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrDemo",
+        "PurrdrNotificationContent", "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrDemo",
     ]
 
     @Test("可攜核心不 import 任何 Apple 專屬 framework")

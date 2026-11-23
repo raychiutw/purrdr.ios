@@ -10,6 +10,7 @@ enum HerdrMethod: String {
     case agentPrompt = "agent.prompt"
     case workspaceCreate = "workspace.create"
     case workspaceRename = "workspace.rename"
+    case tabRename = "tab.rename"
     case workspaceClose = "workspace.close"
     case worktreeCreate = "worktree.create"
     case agentStart = "agent.start"
@@ -22,6 +23,7 @@ enum HerdrMethod: String {
     var requiredFeature: HostServiceFeature? {
         switch self {
         case .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart: .workspaceOperations
+        case .tabRename: .tabRename
         case .paneRead: .paneRead
         case .sessionsList: .sessionResume
         default: nil
@@ -85,6 +87,12 @@ enum HerdrOperation {
             let params = try JSONDecoder().decode(WorkspaceRenameParams.self, from: line.params)
             self = .request(make: { .workspaceRename(.init(requestId: $0, workspaceId: params.workspaceID, label: params.label)) }) { id, reply, _ in
                 guard case .workspaceRenameResult = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.ok(id: id)
+            }
+        case .tabRename:
+            let params = try JSONDecoder().decode(TabRenameParams.self, from: line.params)
+            self = .request(make: { .tabRename(.init(requestId: $0, tabId: params.tabID, label: params.label)) }) { id, reply, _ in
+                guard case .tabRenameResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
         case .workspaceClose:
@@ -202,6 +210,16 @@ enum HerdrOperation {
     private struct WorkspaceCreateParams: Decodable {
         var cwd: String
         var label: String?
+    }
+
+    private struct TabRenameParams: Decodable {
+        var tabID: String
+        var label: String
+
+        enum CodingKeys: String, CodingKey {
+            case tabID = "tab_id"
+            case label
+        }
     }
 
     private struct WorkspaceRenameParams: Decodable {

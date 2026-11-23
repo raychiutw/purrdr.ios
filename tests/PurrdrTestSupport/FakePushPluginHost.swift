@@ -108,6 +108,11 @@ public final class FakePushPluginHost: Sendable {
             }
         }
 
+        func updatePluginIfNeeded() async throws -> Bool {
+            host.state.withLock { $0.calls.append("updatePlugin \(deviceID)") }
+            return true
+        }
+
         func updateMuted(_ muted: Set<String>) async throws {
             try host.state.withLock { state in
                 state.calls.append("updateMuted \(deviceID)")

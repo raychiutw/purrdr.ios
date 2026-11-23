@@ -41,6 +41,16 @@ struct HostServiceFeatureTests {
         }
     }
 
+    @Test("方案用量、session context、用量擷取、資料夾瀏覽與直接推播從主機服務 0.12.0 起可用(#416)")
+    func zeroTwelveFeatures() {
+        for feature in [HostServiceFeature.planUsage, .sessionContext, .claudeUsageSetup, .directoryBrowsing, .directPush] {
+            #expect(feature.minimumVersion == HostServiceVersion("0.12.0"), "\(feature)")
+            #expect(feature.isAvailable(onHostServiceVersion: "0.12.0"), "\(feature)")
+            #expect(!feature.isAvailable(onHostServiceVersion: "0.11.9"), "\(feature)")
+            #expect(!feature.isAvailable(onHostServiceVersion: nil), "\(feature)")
+        }
+    }
+
     @Test("上傳圖片與檔案從主機服務 0.7.0 起可用(#288)")
     func fileUploadStartsAtZeroSevenZero() {
         #expect(HostServiceFeature.fileUpload.isAvailable(onHostServiceVersion: "0.7.0"))

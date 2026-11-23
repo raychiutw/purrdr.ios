@@ -86,12 +86,9 @@ private struct TerminalSizeSheet: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle("Size")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+            .toolbar { SheetCloseToolbar() }
         }
         .presentationDetents([.medium])
     }

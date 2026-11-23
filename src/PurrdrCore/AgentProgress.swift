@@ -27,6 +27,8 @@ public struct AgentProgress: Sendable, Equatable {
     private var tokens: Int?
     private var model: String?
     private var window: Int?
+    /// 讀到超過 200k 的 token 數就確定是 1M 視窗；之後壓縮降回 200k 以下也維持。
+    private var sawOneMillionWindow = false
 
     public var todoDone: Int { todos.filter { $0.status == .completed }.count }
     public var todoTotal: Int { todos.count }
@@ -40,9 +42,9 @@ public struct AgentProgress: Sendable, Equatable {
     public var isEmpty: Bool { contextPercent == nil && todos.isEmpty }
 
     /// 依序看過 `lines`，較晚的值覆蓋較早的。
-    public static func latest(in lines: [String], format: TranscriptFormat) -> AgentProgress {
+    public static func latest(in lines: [String], dialect: TranscriptDialect) -> AgentProgress {
         var progress = AgentProgress()
-        for line in lines { progress.update(with: line, format: format) }
+        for line in lines { progress.update(with: line, dialect: dialect) }
         return progress
     }
 
@@ -54,24 +56,34 @@ public struct AgentProgress: Sendable, Equatable {
         return merged
     }
 
-    public mutating func update(with line: String, format: TranscriptFormat) {
+    public mutating func update(with line: String, dialect: TranscriptDialect) {
         guard let object = ClaudeTranscriptParser.jsonObject(line) else { return }
-        switch format {
-        case .claude: updateClaude(object, line: line)
-        case .codex: updateCodex(object)
-        default: break
-        }
+        dialect.updateProgress(&self, object: object, line: line)
         if let tokens {
-            let limit = window ?? Self.contextWindow(forModel: model)
+            if tokens > Self.standardWindow { sawOneMillionWindow = true }
+            let limit = window ?? (sawOneMillionWindow ? Self.oneMillionWindow : Self.contextWindow(forModel: model))
             contextPercent = min(100, max(0, Int((Double(tokens) * 100 / Double(limit)).rounded())))
         }
     }
 
+    private static let standardWindow = 200_000
+    private static let oneMillionWindow = 1_000_000
+
+    /// 沒有 status line 資料時的退回算法(#387):模型帶 `[1m]` 用 1M，否則 200k(超過 200k 由呼叫端改判 1M)。
     private static func contextWindow(forModel model: String?) -> Int {
-        (model?.lowercased().contains("[1m]") ?? false) ? 1_000_000 : 200_000
+        (model?.lowercased().contains("[1m]") ?? false) ? oneMillionWindow : standardWindow
     }
 
-    private mutating func updateClaude(_ object: [String: Any], line: String) {
+    mutating func updateClaude(_ object: [String: Any], line: String) {
+        // 子 Agent(sidechain)的用量、模型與待辦不屬於這個對話。
+        guard object["isSidechain"] as? Bool != true else { return }
+        if object["type"] as? String == "user" {
+            // `/model` 註記可能把模型換成帶 `[1m]` 的 id。
+            var metadata = TranscriptMetadata(model: model, contextTokens: tokens)
+            metadata.update(with: line)
+            model = metadata.model
+            return
+        }
         guard object["type"] as? String == "assistant" else { return }
         var metadata = TranscriptMetadata(model: model, contextTokens: tokens)
         metadata.update(with: line)
@@ -84,7 +96,7 @@ public struct AgentProgress: Sendable, Equatable {
         }
     }
 
-    private mutating func updateCodex(_ object: [String: Any]) {
+    mutating func updateCodex(_ object: [String: Any]) {
         guard let payload = object["payload"] as? [String: Any] else { return }
         switch (object["type"] as? String, payload["type"] as? String) {
         case ("event_msg", "token_count"):

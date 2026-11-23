@@ -42,100 +42,20 @@ public enum TranscriptCommand {
         printf '%s\n' "$f"
         """# + "\n" + probe + "\n" + #"printf '%s\n' "$z""#
 
-    // MARK: - 其他 agent 的定位(行為規格 §4.3–4.5)【未實測】
+    // MARK: - 通用的定位(行為規格 §4.1–4.5)
 
-    /// 由 `$i`(session id 或回報的路徑)決定 `$f`。找不到是 exit 3(缺席)、資料夾不可搜尋 4、不只一個候選 6(有歧義)。
-    /// 在列表預覽中於 subshell 執行，一個請求失敗不影響其他請求。
-    static func resolver(for location: TranscriptTarget.Location) -> String {
-        switch location {
-        case .claude:
-            // Claude 的定位腳本另有 worktree 後備(`locate(sessionID:projectFolder:)`);預覽只看預期路徑。
-            #"f="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$p/$i.jsonl""#
-        case .grok:
-            // cwd 的編碼由 Grok 決定、可能改變，所以找「深度剛好 2、名稱等於 id 的資料夾」。
-            #"""
-            h=${GROK_HOME:-$HOME/.grok}/sessions
-            if [ ! -d "$h" ]; then exit 3; fi
-            if [ ! -x "$h" ]; then exit 4; fi
-            g=$(find "$h" -mindepth 2 -maxdepth 2 -type d -name "$i" -print 2>/dev/null)
-            if [ -z "$g" ]; then exit 3; fi
-            k=$(printf '%s\n' "$g" | wc -l)
-            if [ $((k + 0)) -gt 1 ]; then exit 6; fi
-            f="$g/updates.jsonl"
-            """#
-        case .antigravity:
-            #"f="$HOME/.gemini/antigravity-cli/brain/$i/.system_generated/logs/transcript.jsonl""#
-        case .piJournal:
-            // Pi 預設 `~/.pi/agent`(`PI_CODING_AGENT_DIR`、`PI_CODING_AGENT_SESSION_DIR` 可改);OMP 是
-            // `~/${PI_CONFIG_DIR:-.omp}/agent` 的 sessions 與 profiles,以及 `$XDG_DATA_HOME/omp`。精確檔名搜尋，不猜。
-            #"""
-            g=
-            for d in "${PI_CODING_AGENT_SESSION_DIR:-}" "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sessions" "$HOME/${PI_CONFIG_DIR:-.omp}/agent/sessions" "$HOME/${PI_CONFIG_DIR:-.omp}/agent/profiles" "${XDG_DATA_HOME:+$XDG_DATA_HOME/omp}"; do
-            if [ -n "$d" ] && [ -d "$d" ]; then
-            r=$(find "$d" -maxdepth 4 -type f \( -name "*_$i.jsonl" -o -name "$i.jsonl" \) -print 2>/dev/null)
-            if [ -n "$r" ]; then g="$g$r
-            "; fi
-            fi
-            done
-            g=$(printf '%s' "$g" | sort -u)
-            if [ -z "$g" ]; then exit 3; fi
-            k=$(printf '%s\n' "$g" | wc -l)
-            if [ $((k + 0)) -gt 1 ]; then exit 6; fi
-            f=$g
-            """#
-        case .codex:
-            // `${CODEX_HOME:-$HOME/.codex}` 的 sessions 與 archived_sessions 下，依日期分層。倒帶會留下
-            // `rollout-<ts>-<id>_<rolloutId>.jsonl`:不只一個時問 Codex 自己的狀態資料庫(唯讀),等於候選之一的勝出;
-            // 問不到 → 有歧義(6),不依新舊猜。只有 `.zst` → 已壓縮(7)。`$i` 已驗證只有安全字元，可放進 SQL。
-            #"""
-            h=${CODEX_HOME:-$HOME/.codex}
-            g=
-            z=
-            for d in "$h/sessions" "$h/archived_sessions"; do
-            if [ -d "$d" ]; then
-            if [ ! -x "$d" ]; then exit 4; fi
-            r=$(find "$d" -type f \( -name "rollout-*-$i.jsonl" -o -name "rollout-*-${i}_*.jsonl" \) -print 2>/dev/null)
-            if [ -n "$r" ]; then g="$g$r
-            "; fi
-            r=$(find "$d" -type f \( -name "rollout-*-$i.jsonl.zst" -o -name "rollout-*-${i}_*.jsonl.zst" \) -print 2>/dev/null)
-            if [ -n "$r" ]; then z=1; fi
-            fi
-            done
-            g=$(printf '%s' "$g" | sort -u)
-            if [ -z "$g" ]; then
-            if [ -n "$z" ]; then exit 7; fi
-            exit 3
-            fi
-            k=$(printf '%s\n' "$g" | wc -l)
-            if [ $((k + 0)) -gt 1 ]; then
-            w=$(find "$h" -maxdepth 1 -type f -name 'state_*.sqlite' -print 2>/dev/null | sort | while IFS= read -r s; do
-            q=$(sqlite3 -readonly "$s" "select rollout_path from threads where id = '$i';" 2>/dev/null | head -n 1)
-            if [ -n "$q" ] && printf '%s\n' "$g" | grep -F -x -q -e "$q"; then printf '%s\n' "$q"; break; fi
-            done)
-            if [ -z "$w" ]; then exit 6; fi
-            g=$w
-            fi
-            f=$g
-            """#
-        case .reportedPath:
-            "f=$i"
-        }
+    /// 定位對話紀錄(任一種位置規則):印出路徑與大小兩行;位置規則要檢查 header 時再印檔案前兩行(Pi／OMP、Codex)。
+    /// 參數:session id 或回報的路徑(Claude 另帶 cwd 轉成的資料夾名)。
+    public static func locate(_ location: TranscriptLocation) -> String {
+        var arguments = [location.reference.value]
+        if location.locator.usesProjectFolder { arguments.append(ClaudeTranscript.projectFolder(forCWD: location.cwd)) }
+        return command(locateScript(location.locator), arguments: arguments)
     }
 
-    /// 定位 Claude 以外的對話紀錄：印出路徑與大小兩行;`readsHeader` 時再印檔案前兩行(Pi／OMP、Codex 的 header 檢查)。
-    /// 參數:session id 或回報的路徑。
-    public static func locate(_ location: TranscriptTarget.Location, readsHeader: Bool) -> String {
-        let value: String
-        switch location {
-        case .claude(let id, _), .grok(let id), .antigravity(let id), .piJournal(let id), .codex(let id): value = id
-        case .reportedPath(let path): value = path
-        }
-        return command(locateScript(location, readsHeader: readsHeader), arguments: [value])
-    }
-
-    package static func locateScript(_ location: TranscriptTarget.Location, readsHeader: Bool) -> String {
-        var script = "i=$1\n" + resolver(for: location) + "\n" + probe + "\n" + #"printf '%s\n%s\n' "$f" "$z""#
-        if readsHeader { script += "\n" + #"head -n 2 "$f""# }
+    package static func locateScript(_ locator: TranscriptLocator) -> String {
+        if let custom = locator.customLocateScript { return custom }
+        var script = "i=$1\n" + locator.resolver + "\n" + probe + "\n" + #"printf '%s\n%s\n' "$f" "$z""#
+        if locator.readsHeader { script += "\n" + #"head -n 2 "$f""# }
         return script
     }
 
@@ -291,24 +211,12 @@ public enum TranscriptCommand {
 
         /// id 或路徑不安全時為 `nil`(不進 shell,R-I12)。
         package init?(_ request: PreviewRequest) {
-            let header = request.target.format == .piJournal
-            switch request.target.location {
-            case .claude(let id, let cwd):
-                guard ClaudeTranscript.isSafeSessionID(id) else { return nil }
-                self.init(key: request.key, type: "claude", value: id, extra: ClaudeTranscript.projectFolder(forCWD: cwd))
-            case .grok(let id), .antigravity(let id), .piJournal(let id), .codex(let id):
-                guard ClaudeTranscript.isSafeSessionID(id) else { return nil }
-                let type = switch request.target.location {
-                case .grok: "grok"
-                case .antigravity: "agy"
-                case .codex: "codex"
-                default: "pi"
-                }
-                self.init(key: request.key, type: type, value: id)
-            case .reportedPath(let path):
-                guard TranscriptReader.isValidPath(path) else { return nil }
-                self.init(key: request.key, type: header ? "pipath" : "path", value: path)
-            }
+            let location = request.target.location
+            guard location.isSafe else { return nil }
+            self.init(
+                key: request.key, type: location.locator.name, value: location.reference.value,
+                extra: location.locator.usesProjectFolder ? ClaudeTranscript.projectFolder(forCWD: location.cwd) : ""
+            )
             knownVersion = request.knownVersion
         }
     }
@@ -403,11 +311,11 @@ public enum TranscriptCommand {
         shift 5
         done
         """#
-            .replacingOccurrences(of: "@CLAUDE@", with: resolver(for: .claude(sessionID: "", cwd: "")))
-            .replacingOccurrences(of: "@GROK@", with: resolver(for: .grok(sessionID: "")))
-            .replacingOccurrences(of: "@AGY@", with: resolver(for: .antigravity(sessionID: "")))
-            .replacingOccurrences(of: "@PI@", with: resolver(for: .piJournal(sessionID: "")))
-            .replacingOccurrences(of: "@CODEX@", with: resolver(for: .codex(sessionID: "")))
+            .replacingOccurrences(of: "@CLAUDE@", with: TranscriptLocator.claude.resolver)
+            .replacingOccurrences(of: "@GROK@", with: TranscriptLocator.grok.resolver)
+            .replacingOccurrences(of: "@AGY@", with: TranscriptLocator.antigravity.resolver)
+            .replacingOccurrences(of: "@PI@", with: TranscriptLocator.piJournal.resolver)
+            .replacingOccurrences(of: "@CODEX@", with: TranscriptLocator.codex.resolver)
             .replacingOccurrences(of: "@STRIP@", with: stripImages)
 
     /// 找 subagent:在 `<session>/subagents/` 用 `find`(不用 glob,R-S11)列出 `agent-*.meta.json`,

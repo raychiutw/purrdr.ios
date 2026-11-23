@@ -8,13 +8,11 @@ import SwiftUI
 @Observable
 final class WorkspacePresentation {
     enum Sheet: Identifiable {
-        case rename(workspaceID: String, label: String)
         case worktree(workspaceID: String, label: String)
         case layout(workspaceLabel: String, layout: SpacesLayout?)
 
         var id: String {
             switch self {
-            case .rename(let id, _): "rename.\(id)"
             case .worktree(let id, _): "worktree.\(id)"
             case .layout(let label, _): "layout.\(label)"
             }
@@ -28,11 +26,43 @@ final class WorkspacePresentation {
     }
 
     var sheet: Sheet?
+    /// 重新命名提示框(#456):Workspace 與 Tab 共用,系統帶輸入框的 alert。
+    var renameRequest: RenameRequest?
+    /// 提示框裡的輸入;失敗後重新呈現時保留。
+    var renameText = ""
+    /// 上一次送出失敗的原因(重新呈現的提示框顯示)。
+    var renameFailure: String?
     var closeRequest: CloseRequest?
     /// 操作的是哪台主機(多主機合併列表，#39)。列設定 sheet 或確認時一併設定。
     var host: HostSelection = .demo
     /// 版面圖裡點選的 Pane:先記下、關 sheet 之後才開(不能在關 sheet 的同一刻 push,行為規格 F4)。
     var chosenTarget: PaneOpenTarget?
+}
+
+/// 重新命名的對象:Workspace 或 Tab,與目前名稱。
+struct RenameRequest: Equatable {
+    enum Kind: Equatable {
+        case workspace(id: String)
+        /// Tab 所在的 Workspace 名稱用在說明文字。
+        case tab(id: String, workspaceLabel: String)
+    }
+
+    var kind: Kind
+    var original: String
+}
+
+/// 一個 Tab 的操作對象:id 與目前名稱(herdr 沒有名稱時是順序號)。
+struct TabTarget {
+    var tabID: String
+    var label: String
+    var workspaceLabel: String
+
+    init?(tabID: String?, snapshot: HostSnapshot?, workspaceLabel: String) {
+        guard let tabID, let tab = snapshot?.tabs.first(where: { $0.id == tabID }) else { return nil }
+        self.tabID = tabID
+        label = tab.label ?? String(tab.number)
+        self.workspaceLabel = workspaceLabel
+    }
 }
 
 /// 一個 workspace 的操作對象：id、名稱與它所有 Agent 的 session(關閉時一併清掉本機偏好)。
@@ -52,12 +82,15 @@ struct WorkspaceTarget {
 struct WorkspaceRowContext {
     var agent: Agent
     var workspace: WorkspaceTarget
+    /// Agent 所在的 Tab(snapshot 沒有它時為 nil)。
+    var tab: TabTarget?
 
     init?(paneID: String, snapshot: HostSnapshot?) {
         guard let snapshot, let agent = snapshot.agents.first(where: { $0.paneID == paneID }) else { return nil }
         self.agent = agent
         let label = snapshot.workspaces.first { $0.id == agent.workspaceID }?.label ?? agent.workspaceID
         workspace = WorkspaceTarget(workspaceID: agent.workspaceID, label: label, snapshot: snapshot)
+        tab = TabTarget(tabID: agent.tabID, snapshot: snapshot, workspaceLabel: label)
     }
 }
 
@@ -75,17 +108,40 @@ extension View {
     }
 
     /// Spaces 檢視 Tab 列的 context menu(#275):第一項是版面圖，其餘同列的 workspace 動作。
+    ///
+    /// 改名改的是這個 Tab;Workspace 名稱在段落標題的長按選單(`workspaceHeaderMenu`,#456)。`tab` 為 nil(沒有 Tab 的 pane)時沒有改名項目。
     func workspaceActionsMenu(
-        _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation
+        _ target: WorkspaceTarget, tab: TabTarget?, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation
     ) -> some View {
         contextMenu {
             let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
             buttons.showLayout()
-            buttons.rename(title: "Rename Workspace…")
+            if let tab { buttons.renameTab(tab, showsCurrent: false) }
             buttons.newWorktree()
             Divider()
             buttons.close(title: "Close Workspace…", role: .destructive)
         }
+    }
+
+    /// Spaces 檢視段落標題的長按選單(#456):List 的段落標題掛不上 `contextMenu`，
+    /// 所以標題本身是 `Menu`(輕點不做事、長按出選單):重新命名 Workspace…、版面圖、新 worktree、關閉。
+    /// VoiceOver 另有「重新命名 Workspace…」自訂動作。唯讀裝置的改動項目停用。
+    func workspaceHeaderMenu(
+        _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, isReadOnly: Bool, presentation: WorkspacePresentation
+    ) -> some View {
+        let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: isReadOnly)
+        return Menu {
+            buttons.renameWorkspace(showsCurrent: true)
+            buttons.showLayout()
+            buttons.newWorktree()
+            Divider()
+            buttons.close(title: "Close Workspace…", role: .destructive)
+            if isReadOnly { Text(WorkspaceActionsModel.readOnlyMessage) }
+        } label: {
+            self
+        } primaryAction: {}
+        .buttonStyle(.plain)
+        .accessibilityAction(named: Text("Rename Workspace…")) { if !isReadOnly { buttons.askWorkspaceName() } }
     }
 
     /// 呈現 workspace 操作的 sheet、確認與錯誤。`actions` 依主機取得該主機的操作;
@@ -110,12 +166,44 @@ private struct WorkspaceButtons {
 
     /// 改的是 workspace 名稱，不一定是列標題，所以滑動上叫「Workspace」而不叫「重新命名」(行為規格 F2.7)。
     func rename(title: LocalizedStringKey) -> some View {
-        Button(title, systemImage: "pencil") {
-            presentation.host = host
-            presentation.sheet = .rename(workspaceID: target.workspaceID, label: target.label)
+        Button(title, systemImage: "pencil") { askWorkspaceName() }
+            .tint(.gray)
+            .disabled(isReadOnly)
+    }
+
+    /// context menu 的「重新命名 Workspace…」;`showsCurrent` 時副標顯示目前名稱(#456)。
+    func renameWorkspace(showsCurrent: Bool) -> some View {
+        Button { askWorkspaceName() } label: {
+            Text("Rename Workspace…")
+            if showsCurrent { Text("Current: \(target.label)") }
+            Image(systemName: "pencil")
         }
-        .tint(.gray)
+        .accessibilityIdentifier("menu.renameWorkspace")
         .disabled(isReadOnly)
+    }
+
+    /// 「重新命名 Tab…」(#456)。
+    func renameTab(_ tab: TabTarget, showsCurrent: Bool) -> some View {
+        Button {
+            presentation.host = host
+            presentation.renameFailure = nil
+            presentation.renameText = tab.label
+            presentation.renameRequest = RenameRequest(
+                kind: .tab(id: tab.tabID, workspaceLabel: tab.workspaceLabel), original: tab.label)
+        } label: {
+            Text("Rename Tab…")
+            if showsCurrent { Text("Current: \(tab.label)") }
+            Image(systemName: "pencil")
+        }
+        .accessibilityIdentifier("menu.renameTab")
+        .disabled(isReadOnly)
+    }
+
+    func askWorkspaceName() {
+        presentation.host = host
+        presentation.renameFailure = nil
+        presentation.renameText = target.label
+        presentation.renameRequest = RenameRequest(kind: .workspace(id: target.workspaceID), original: target.label)
     }
 
     func close(title: LocalizedStringKey, role: ButtonRole?) -> some View {
@@ -177,7 +265,8 @@ private struct WorkspaceRowActions: ViewModifier {
                         Divider()
                     }
                     chatButtons(context, actions: actions)
-                    buttons.rename(title: "Rename Workspace…")
+                    if let tab = context.tab { buttons.renameTab(tab, showsCurrent: true) }
+                    buttons.renameWorkspace(showsCurrent: true)
                     buttons.showLayout()
                     buttons.newWorktree()
                     Divider()
@@ -224,6 +313,15 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
                 if let actions { sheetContent(sheet, actions: actions) }
             }
+            .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
+                TextField(renamePlaceholder(request), text: $presentation.renameText)
+                    .autocorrectionDisabled()
+                Button("Cancel", role: .cancel) {}
+                Button("Rename") { submitRename(request) }
+                    .disabled(!WorkspaceActionsModel.canRename(from: request.original, to: presentation.renameText))
+            } message: { request in
+                Text(renameMessage(request))
+            }
             .confirmationDialog(
                 closeTitle, isPresented: closeDialogShown, titleVisibility: .visible, presenting: presentation.closeRequest
             ) { request in
@@ -244,8 +342,6 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     @ViewBuilder
     private func sheetContent(_ sheet: WorkspacePresentation.Sheet, actions: WorkspaceActionsModel) -> some View {
                 switch sheet {
-                case .rename(let workspaceID, let label):
-                    RenameWorkspaceSheet(actions: actions, workspaceID: workspaceID, original: label)
                 case .worktree(let workspaceID, let label):
                     NewWorktreeSheet(actions: actions, workspaceID: workspaceID, workspaceLabel: label) { created in
                         presentation.chosenTarget = .terminal(paneID: created.rootPaneID)
@@ -255,6 +351,55 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                         presentation.chosenTarget = target
                     }
                 }
+    }
+
+    private var renameTitle: Text {
+        switch presentation.renameRequest?.kind {
+        case .tab?: Text("Rename Tab")
+        default: Text("Rename Workspace")
+        }
+    }
+
+    private func renamePlaceholder(_ request: RenameRequest) -> LocalizedStringKey {
+        switch request.kind {
+        case .tab: "Tab name"
+        case .workspace: "Workspace name"
+        }
+    }
+
+    /// 說明電腦上的 herdr 也會改;上一次失敗時前面加原因。
+    private func renameMessage(_ request: RenameRequest) -> String {
+        let note: String = switch request.kind {
+        case .tab(_, let workspaceLabel):
+            String(localized: "The tab in “\(workspaceLabel)”. herdr on the host will be renamed too.")
+        case .workspace:
+            String(localized: "herdr on the host will be renamed too.")
+        }
+        return [presentation.renameFailure, note].compactMap { $0 }.joined(separator: "\n")
+    }
+
+    /// 送出;失敗時以同樣的輸入重新呈現提示框並說明原因(系統 alert 按鈕一定會關閉,所以重新呈現)。
+    private func submitRename(_ request: RenameRequest) {
+        guard let actions else { return }
+        let text = presentation.renameText
+        Task {
+            let renamed: Bool
+            switch request.kind {
+            case .workspace(let id): renamed = await actions.rename(workspaceID: id, to: text)
+            case .tab(let id, _): renamed = await actions.renameTab(tabID: id, to: text)
+            }
+            if renamed {
+                presentation.renameFailure = nil
+            } else {
+                presentation.renameFailure = actions.renameError
+                presentation.renameText = text
+                presentation.renameRequest = request
+            }
+        }
+    }
+
+    private var renameShown: Binding<Bool> {
+        Binding { presentation.renameRequest != nil } set: { if !$0 { presentation.renameRequest = nil } }
     }
 
     private var closeTitle: Text {
@@ -273,86 +418,6 @@ private struct WorkspaceActionsPresenter: ViewModifier {
         guard let target = presentation.chosenTarget else { return }
         presentation.chosenTarget = nil
         onOpen(presentation.host, target)
-    }
-}
-
-// MARK: - 重新命名
-
-/// 依內容高度的表單(固定高度會被鍵盤蓋住,行為規格 F3.4)。預填 workspace 名稱(不是列標題)並全選。
-struct RenameWorkspaceSheet: View {
-    let actions: WorkspaceActionsModel
-    let workspaceID: String
-    let original: String
-    @State private var label: String
-    @State private var selection: TextSelection?
-    /// 每次儲存的結果：成功與失敗各有觸覺回饋(行為規格 F3.4)。
-    @State private var attempts: [Bool] = []
-    @FocusState private var focused: Bool
-    @Environment(\.dismiss) private var dismiss
-
-    init(actions: WorkspaceActionsModel, workspaceID: String, original: String) {
-        self.actions = actions
-        self.workspaceID = workspaceID
-        self.original = original
-        _label = State(initialValue: original)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Workspace name", text: $label, selection: $selection)
-                        .focused($focused)
-                        .autocorrectionDisabled()
-                        #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        #endif
-                        .submitLabel(.done)
-                        .onSubmit(save)
-                        .accessibilityIdentifier("workspace.rename.field")
-                } footer: {
-                    Text("This renames the workspace on the host too.")
-                        .foregroundStyle(.secondaryText)
-                }
-                if let error = actions.renameError {
-                    Section {
-                        ErrorLabel(error)
-                            .accessibilityIdentifier("workspace.rename.error")
-                    }
-                }
-            }
-            .navigationTitle("Rename Workspace")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save)
-                        .disabled(!WorkspaceActionsModel.canRename(from: original, to: label) || actions.isWorking)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .sensoryFeedback(trigger: attempts) { _, attempts in
-            attempts.last.map { $0 ? .success : .error }
-        }
-        .onAppear {
-            actions.clearRenameError()
-            focused = true
-            selection = TextSelection(range: label.startIndex..<label.endIndex)
-        }
-    }
-
-    private func save() {
-        guard WorkspaceActionsModel.canRename(from: original, to: label), !actions.isWorking else { return }
-        Task {
-            let renamed = await actions.rename(workspaceID: workspaceID, to: label)
-            attempts.append(renamed)
-            if renamed { dismiss() }
-        }
     }
 }
 
@@ -397,6 +462,7 @@ struct NewWorktreeSheet: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle("New Worktree")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

@@ -22,17 +22,9 @@ struct HostEditorView: View {
     let onCancel: () -> Void
     /// 只改了圖示就儲存：主機設定沒變，不必重新連線。
     let onIconSaved: () -> Void
-    /// 已存主機的主機設定(#274):主機主題、You should know、Codex 啟動器，放在主機頁最下方;新增主機時沒有。
-    let hostSettings: HostSettings?
-    /// 已配對 HTTPS 主機的主機服務與已配對裝置(#290、#291),在主機頁下方;可以下拉重新整理。
-    @State private var hostStatus: HostStatusModels?
 
-    /// - Parameters:
-    ///   - hostStatusConnection: 已配對 HTTPS 主機的連線。
-    ///   - onRemoveHost: 已配對裝置「這支裝置」那列走移除主機的流程。
     init(
-        model: HostEditorModel, hostSettings: HostSettings? = nil, hostStatusConnection: (any HostConnection)? = nil,
-        onRemoveHost: (@MainActor () -> Void)? = nil,
+        model: HostEditorModel,
         onSaved: @escaping (HostConfiguration) -> Void,
         onCancel: @escaping () -> Void, onIconSaved: @escaping () -> Void
     ) {
@@ -42,14 +34,6 @@ struct HostEditorView: View {
         self.onSaved = onSaved
         self.onCancel = onCancel
         self.onIconSaved = onIconSaved
-        self.hostSettings = hostSettings
-        _hostStatus = State(initialValue: hostStatusConnection.map { HostStatusModels(connection: $0, removeHost: onRemoveHost) })
-    }
-
-    /// 主機服務與已配對裝置的下拉重新整理;沒有這兩個區塊時不能下拉。
-    private var refreshHostStatus: (@Sendable () async -> Void)? {
-        guard let hostStatus else { return nil }
-        return { await hostStatus.refresh() }
     }
 
     var body: some View {
@@ -102,18 +86,8 @@ struct HostEditorView: View {
                         .foregroundStyle(.secondaryText)
                 }
             }
-
-            if let hostSettings {
-                HostThemeSettingsSection(model: hostSettings.hostTheme)
-                YouShouldKnowSettingsSection(model: hostSettings.youShouldKnow)
-                CodexLauncherSection(model: hostSettings.codexLauncher)
-            }
-
-            if let hostStatus {
-                HostStatusSections(models: hostStatus)
-            }
         }
-        .refreshable(refreshHostStatus)
+        .appGroupedList()
         // 捲動表單就收起鍵盤(#312):`.interactively` 只在手指拖進鍵盤時才收，往下捲看下面的按鈕時鍵盤仍擋著。
         // 數字鍵盤與多行私鑰沒有能收鍵盤的 return,另有鍵盤上方的「完成」。
         .scrollDismissesKeyboard(.immediately)
@@ -126,7 +100,6 @@ struct HostEditorView: View {
                 guard !privateKeyFrame.contains(drag.startLocation) else { return }
                 focus = nil
             })
-        .modifier(PairedDevicesDialogs(model: hostStatus?.pairedDevices))
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
         }
@@ -155,9 +128,10 @@ struct HostEditorView: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    let changesOnlyIcon = model.changesOnlyIcon
+                    // 只改名稱或圖示:主機設定沒變,不必重新連線。
+                    let changesOnlyAppearance = model.changesOnlyAppearance
                     guard let host = model.save() else { return }
-                    if changesOnlyIcon { onIconSaved() } else { onSaved(host) }
+                    if changesOnlyAppearance { onIconSaved() } else { onSaved(host) }
                 }
                 .disabled(!model.canSave)
                 .accessibilityIdentifier("hostEditor.save")

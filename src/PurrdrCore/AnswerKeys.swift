@@ -57,9 +57,10 @@ extension BlockedPrompt {
 }
 
 extension PromptOption {
-    /// Claude 的「Type something.」列(不是勾選列)。
+    /// 輸入組宣告的「Type something.」列(不是勾選列);只有設定檔有宣告的 agent 才有。
     func opensTextEntry(agentKind: String) -> Bool {
-        agentKind == "claude" && checked == nil && keys == nil && label == "Type something."
+        guard let label = AgentCatalog.profile(forHerdrName: agentKind).input.answers?.typedAnswerLabel else { return false }
+        return checked == nil && keys == nil && self.label == label
     }
 }
 
@@ -74,7 +75,9 @@ public enum GenericAnswer: String, Sendable, Equatable, Hashable, CaseIterable {
 /// 回答提示時送給 pane 的按鍵(herdr 鍵名，`pane.send_keys`;行為規格 §5.5)。
 public enum AnswerKeys {
     /// `answer` 要送的按鍵;`nil` = 不能從手機回答(顯示但停用)。
+    /// 輸入組沒有回答方言、或回答方言沒驗證過的 agent 一律 `nil`(不送可能選錯的按鍵;畫面改打字或開終端機,#440)。
     public static func keys(for answer: PromptAnswer, agentKind: String) -> [String]? {
+        guard let dialect = AgentCatalog.profile(forHerdrName: agentKind).input.answers, dialect.isVerified else { return nil }
         switch answer {
         case .option(let option):
             if let keys = option.keys { return keys }
@@ -84,7 +87,7 @@ public enum AnswerKeys {
             guard let number = option.number, (1...9).contains(number) else { return nil }
             let digit = String(number)
             // 勾選列：數字只切換勾選;多一個 Enter 會多勾一列或送出。
-            if option.checked != nil || answersWithDigitAlone(agentKind) { return [digit] }
+            if option.checked != nil || dialect.digitAnswer == .digitAlone { return [digit] }
             return [digit, "enter"]
         case .continueMultiSelect:
             return ["right"]
@@ -112,14 +115,9 @@ public enum AnswerKeys {
         }
         // 行內輸入裡的換行等於 Enter:會用半段文字回答，剩下的字落到下一題。
         let line = text.split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
-        guard option.opensTextEntry(agentKind: agentKind), let number = option.number, (1...9).contains(number),
+        guard let dialect = AgentCatalog.profile(forHerdrName: agentKind).input.answers, dialect.isVerified,
+              option.opensTextEntry(agentKind: agentKind), let number = option.number, (1...9).contains(number),
               !line.isEmpty else { return nil }
         return [.keys([String(number)]), .text(line), .keys(["enter"])]
-    }
-
-    /// 數字本身就是回答的 agent(R-Q03):多一個 Enter 會回答下一題(Claude)或落進輸入框(Antigravity)。
-    /// 其他 agent(Codex、Pi、OMP、不認得的)的數字只移動游標，要再按 Enter。
-    public static func answersWithDigitAlone(_ agentKind: String) -> Bool {
-        ["claude", "grok", "agy", "antigravity"].contains(agentKind)
     }
 }

@@ -10,6 +10,8 @@ public struct ConversationScroll: Equatable, Sendable {
     public static let threshold = 48.0
 
     private var following = true
+    /// 剛跳到最新、使用者還沒再按下拖動(#401):手指放開後的慣性減速仍算「使用者捲動」，量到的位移不能把模式改回閱讀中。
+    private var jumpPending = false
     private var distanceFromBottom = 0.0
     /// 內容最近一次被重建的時間(#130):之後短時間內停在內容之外才捲到底。
     private var rebuiltAt: Date?
@@ -42,12 +44,17 @@ public struct ConversationScroll: Equatable, Sendable {
     /// 使用者自己捲動結束時呼叫。
     public mutating func userScrolled(distanceFromBottom: Double) {
         self.distanceFromBottom = distanceFromBottom
+        if jumpPending, distanceFromBottom > Self.threshold { return }
+        jumpPending = false
         rebuiltAt = nil
         refills = 0
         returns = 0
         offsetFollowedLayout = nil
         following = distanceFromBottom <= Self.threshold
     }
+
+    /// 使用者手指按下開始新的拖動(#401)。
+    public mutating func userBeganDragging() { jumpPending = false }
 
     /// 排版造成的位移:只更新量測。
     public mutating func layoutChanged(distanceFromBottom: Double) {
@@ -84,6 +91,12 @@ public struct ConversationScroll: Equatable, Sendable {
     public mutating func jumpToLatest() {
         following = true
         distanceFromBottom = 0
+    }
+
+    /// 使用者點「跳到最新」(#401):同 `jumpToLatest()`，並在使用者再按下拖動之前，不讓慣性減速的量測把模式改回閱讀中。
+    public mutating func jumpToLatestByTap() {
+        jumpToLatest()
+        jumpPending = true
     }
 }
 

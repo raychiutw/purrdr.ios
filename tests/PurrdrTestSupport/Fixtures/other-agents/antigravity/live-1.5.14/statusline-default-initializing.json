@@ -1,0 +1,31 @@
+{
+  "cwd": "/Users/demo/Projects/fixture-work",
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "conversation_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/Users/demo/.gemini/antigravity/brain/.system_generated/logs/transcript.jsonl",
+  "model": {
+    "id": "Gemini 4 Neon (Medium)",
+    "display_name": "Gemini 4 Neon (Medium)"
+  },
+  "workspace": {
+    "current_dir": "/Users/demo/Projects/fixture-work",
+    "project_dir": "/Users/demo/Projects/fixture-work"
+  },
+  "version": "1.5.14",
+  "context_window": {
+    "total_input_tokens": 0,
+    "total_output_tokens": 0,
+    "context_window_size": 0,
+    "used_percentage": 0,
+    "remaining_percentage": 0,
+    "current_usage": null
+  },
+  "exceeds_200k_tokens": null,
+  "product": "antigravity",
+  "agent_state": "initializing",
+  "sandbox": {
+    "enabled": false
+  },
+  "email": "demo@example.com",
+  "terminal_width": 163
+}

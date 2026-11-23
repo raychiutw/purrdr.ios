@@ -111,6 +111,38 @@ struct WorkspaceActionsModelTests {
         #expect(counter.count == 0)
     }
 
+    @Test("重新命名 Tab 成功：送 tab.rename 與修剪後的名稱，之後重讀列表(#456)")
+    func renameTabSendsTrimmedLabelAndRefreshes() async {
+        let host = FakeHost()
+        let reply = #"{"id":"purrdr:tab.rename","result":{"type":"tab_info","tab":{"tab_id":"w1:t1","workspace_id":"w1","number":1,"label":"tests","focused":true,"pane_count":1,"agent_status":"done"}}}"#
+        await host.expect(Self.bridge, reply: FakeReply(stdout: Data(reply.utf8 + [0x0A]), trigger: .afterStdinLine))
+        let counter = RefreshCounter()
+        let model = Self.model(host: host, counter: counter)
+
+        let renamed = await model.renameTab(tabID: "w1:t1", to: "  tests ")
+
+        #expect(renamed)
+        #expect(await host.executions.first?.stdinText.contains(#""method":"tab.rename","params":{"label":"tests","tab_id":"w1:t1"}"#) == true)
+        #expect(counter.count == 1)
+        #expect(model.renameError == nil)
+    }
+
+    @Test("重新命名 Tab 失敗：保留 herdr 原文給提示框顯示，不重讀;下一次操作清掉舊錯誤(#456)")
+    func renameTabFailureKeepsHerdrMessage() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.errorReply(code: "tab_not_found", message: "tab w1:t9 not found"))
+        let counter = RefreshCounter()
+        let model = Self.model(host: host, counter: counter)
+
+        let renamed = await model.renameTab(tabID: "w1:t9", to: "tests")
+
+        #expect(!renamed)
+        #expect(model.renameError == "tab w1:t9 not found")
+        #expect(counter.count == 0)
+        model.clearRenameError()
+        #expect(model.renameError == nil)
+    }
+
     // MARK: - 關閉
 
     @Test("關閉成功：清掉這個 workspace 的聊天在本機的釘選與靜音，其他聊天不動，之後重讀列表")

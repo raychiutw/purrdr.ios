@@ -32,7 +32,7 @@ final class PairedDevicesUITests: XCTestCase {
         XCTAssertTrue(otherDevice.waitUntilGone(timeout: 10), "撤銷後還在列表")
     }
 
-    /// 「這支裝置」滑動是「移除主機」:回到主機清單跳出移除主機的確認(撤銷自己沿用移除主機流程)。
+    /// 「這支裝置」滑動是「移除主機」:回到主機 tab 跳出移除主機的確認(撤銷自己沿用移除主機流程)。
     @MainActor
     func testThisDeviceRowOpensHostRemoval() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
@@ -66,18 +66,12 @@ final class PairedDevicesUITests: XCTestCase {
 
     @MainActor
     private func openStatus(_ app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitUntilExists(timeout: 10))
-        more.tap()
-        app.buttons["menu.hosts"].tap()
-        // 主機狀態區塊在主機頁(列尾 ⓘ)最下方。
-        let info = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "hosts.info.", "Studio")).firstMatch
-        XCTAssertTrue(info.waitUntilExists(timeout: 5), "主機清單沒有 Studio")
-        info.tap()
-        XCTAssertTrue(app.buttons["hostEditor.save"].waitUntilExists(timeout: 5), "沒有開啟主機頁")
-        for _ in 0..<6 {
-            app.swipeUp()
-        }
+        app.openHostsTab()
+        // 已配對裝置在主機 tab 總頁的主機服務區塊下,點進去是「已配對裝置」子頁(#392)。
+        let link = app.buttons["hosts.pairedDevices"].firstMatch
+        XCTAssertTrue(app.scrollIntoView(link, timeout: 10), "主機 tab 沒有已配對裝置")
+        link.tap()
+        XCTAssertTrue(app.element("hosts.pairedDevices.page").waitUntilExists(timeout: 5), "沒有開啟已配對裝置")
     }
 
 }

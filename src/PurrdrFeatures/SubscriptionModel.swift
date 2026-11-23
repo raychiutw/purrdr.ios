@@ -21,6 +21,9 @@ public final class SubscriptionModel {
     }
 
     public private(set) var plans: [PlusPlan] = []
+
+    /// 付費牆預設選取的方案:排序後的第一個(年繳在前)。
+    public var defaultPlan: PlusPlan? { plans.first }
     public private(set) var storefront: Storefront = .loading
     /// 後台判定的訂閱;沒登入或從沒訂閱過是 `nil`。
     public private(set) var subscription: MemberSubscription?
@@ -29,22 +32,56 @@ public final class SubscriptionModel {
     /// 要提示使用者的事。畫面顯示後設回 `nil`。
     public var notice: SubscriptionNotice?
 
+    /// 這個 Apple 帳號的訂閱屬於另一個會員(購買或恢復時後台回 `subscription_in_use`,#409):帳號頁顯示轉移選項而非「未開通」。
+    public struct TransferOffer: Equatable, Sendable {
+        /// 擁有者的遮蔽 email(`r***@icloud.com`);後台沒有時是 `nil`。
+        public var maskedEmail: String?
+        /// 這個會員沒有佔著有效訂閱名額。
+        public var canTransfer: Bool
+    }
+
+    public private(set) var transferOffer: TransferOffer?
+    /// 顯示的是上次讀到的訂閱(這一次連不上後台);連得上就消失。
+    public private(set) var isStale = false
+    /// Plus 是依 StoreKit 的權限先行生效、後台還沒確認(#413)。後台回應(成功、拒絕或讀到狀態)後一律以後台為準。
+    public private(set) var isPlusProvisional = false
+    /// 最近一次讀取訂閱連不上後台。
+    private var lastRefreshFailed = false
+
     private let session: MemberSession
     private let store: any PlusStore
+    private let confirmOwner: (@MainActor @Sendable () async -> Bool)?
 
-    public init(session: MemberSession, store: any PlusStore) {
+    /// - Parameter confirmOwner: 轉移訂閱前要求裝置擁有者驗證(Face ID／Touch ID／密碼);回 `false` 就不轉移。`nil` 時不驗證(只有測試)。
+    public init(session: MemberSession, store: any PlusStore, confirmOwner: (@MainActor @Sendable () async -> Bool)? = nil) {
         self.session = session
         self.store = store
+        self.confirmOwner = confirmOwner
+    }
+
+    /// 帳號頁用的 Plus 狀態:後台判定的訂閱優先;沒有 Plus 時,Apple 帳號的訂閱屬於別的會員會顯示轉移;連不上又沒讀到過是「連不上」。
+    public var plusStatus: PlusStatus {
+        let status = PlusStatus(subscription: subscription)
+        if status.entitlesPlus { return status }
+        if isPlusProvisional { return .active(source: .appStore) }
+        if let transferOffer { return .ownedByAnotherMember(maskedEmail: transferOffer.maskedEmail) }
+        if subscription == nil, lastRefreshFailed { return .unreachable }
+        return status
+    }
+
+    public var plusCard: PlusCard {
+        PlusCard(plus: plusStatus, subscription: subscription, canTransfer: transferOffer?.canTransfer ?? true, isStale: isStale)
     }
 
     /// 有 Purrdr Plus 權限(含帳單寬限期)。推播與主機同步據此開關。
     public var isPlusActive: Bool {
-        subscription?.isActive == true
+        subscription?.isActive == true || isPlusProvisional
     }
 
     /// 曾經訂閱、現在到期或被退款：提示續訂。
     public var needsRenewal: Bool {
-        subscription.map { !$0.isActive } ?? false
+        guard !isPlusProvisional else { return false }
+        return subscription.map { !$0.isActive } ?? false
     }
 
     // MARK: - 付費牆
@@ -55,7 +92,10 @@ public final class SubscriptionModel {
             return
         }
         do {
-            plans = try await store.loadPlans()
+            let loaded = try await store.loadPlans()
+            // 依 productIDs 的順序(年繳在前);不認得的商品排在最後。
+            let order = MemberSubscription.productIDs
+            plans = loaded.sorted { (order.firstIndex(of: $0.id) ?? order.count) < (order.firstIndex(of: $1.id) ?? order.count) }
             storefront = plans.isEmpty ? .unavailable : .available
         } catch {
             storefront = .unavailable
@@ -66,10 +106,56 @@ public final class SubscriptionModel {
     public func refresh() async {
         do {
             subscription = try await session.subscription()
+            isPlusProvisional = false
+            lastRefreshFailed = false
+            isStale = false
+            if subscription?.isActive == true { transferOffer = nil }
         } catch BackendError.signedOut {
             subscription = nil
+            transferOffer = nil
+            isPlusProvisional = false
+            lastRefreshFailed = false
+            isStale = false
         } catch {
-            // 連不上時保留上次的狀態。
+            // 連不上時保留上次的狀態,標成上次資料(帳號頁不把它當成「未開通」)。
+            lastRefreshFailed = true
+            isStale = subscription != nil
+        }
+    }
+
+    /// 把屬於另一個會員的 App Store 訂閱轉到目前會員:先要求裝置擁有者驗證,再把這個 Apple 帳號目前的簽章交易交給後台。
+    /// 目前會員已有有效訂閱時後台會擋下(`.transferBlocked`);成功後 Plus 立即生效,原會員的通知與同步由後台停止。
+    public func transferSubscription() async {
+        guard transferOffer != nil, !isWorking else { return }
+        if let confirmOwner, !(await confirmOwner()) {
+            notice = .ownerNotConfirmed
+            return
+        }
+        isWorking = true
+        defer { isWorking = false }
+        guard let transaction = await store.currentTransactions().first else {
+            notice = .nothingToRestore
+            return
+        }
+        do {
+            subscription = try await session.transferAppStoreSubscription(transaction.signedTransaction)
+            transferOffer = nil
+            isStale = false
+            lastRefreshFailed = false
+            await store.finish(transaction)
+            notice = .transferred
+        } catch BackendError.signedOut {
+            notice = .signInRequired
+        } catch let BackendError.backend(_, code, _) where code == BackendErrorCode.subscriptionAlreadyActive {
+            notice = .transferBlocked
+        } catch let BackendError.backend(_, code, _) where code == BackendErrorCode.subscriptionAlreadyOwned {
+            await refresh()
+        } catch let BackendError.backend(_, code, _) where code == BackendErrorCode.subscriptionNotFound {
+            // 這個訂閱沒登記在任何會員:不是轉移,走一般綁定。
+            transferOffer = nil
+            _ = await deliver(transaction, provisional: true)
+        } catch {
+            notice = .failed
         }
     }
 
@@ -77,6 +163,12 @@ public final class SubscriptionModel {
 
     /// 用系統的購買確認畫面購買;`member` 的 ID 當成 appAccountToken。
     public func purchase(planID: String, member: Member) async {
+        // 一個會員同時只有一個有效訂閱:已經有就不再開購買畫面(避免付了款卻被後台擋下)。
+        // 帳單重試期(#462)Apple 仍在扣款、後台仍佔名額:同樣不開購買畫面。
+        if subscription?.occupiesSubscriptionSlot == true {
+            notice = .alreadySubscribed
+            return
+        }
         guard let token = UUID(uuidString: member.id) else {
             notice = .failed
             return
@@ -92,7 +184,7 @@ public final class SubscriptionModel {
         }
         switch outcome {
         case .purchased(let transaction):
-            if await deliver(transaction) == .delivered, isPlusActive {
+            if await deliver(transaction, provisional: true) == .delivered, isPlusActive {
                 notice = .welcome
             }
         case .pending:
@@ -104,6 +196,10 @@ public final class SubscriptionModel {
 
     /// 恢復購買：跟 App Store 同步，把目前有效的交易送到後台;沒有就看後台是否已有訂閱(例如別的商店)。
     public func restore() async {
+        if subscription?.billingRetry == true {
+            notice = .alreadySubscribed
+            return
+        }
         isWorking = true
         defer { isWorking = false }
         do {
@@ -113,7 +209,7 @@ public final class SubscriptionModel {
         }
         let transactions = await store.currentTransactions()
         for transaction in transactions {
-            guard await deliver(transaction) == .delivered else { return }
+            guard await deliver(transaction, provisional: true) == .delivered else { return }
         }
         if transactions.isEmpty { await refresh() }
         notice = isPlusActive ? .restored : .nothingToRestore
@@ -150,19 +246,38 @@ public final class SubscriptionModel {
     }
 
     /// 交易送到後台。成功或後台明確拒絕(重送也不會變)才 finish。
-    private func deliver(_ transaction: PlusTransaction) async -> Delivery {
+    ///
+    /// - Parameter provisional: 這筆是使用者剛購買或恢復的有效權限:後台還沒回應(連不上)時依 StoreKit 先讓 Plus 生效,
+    ///   後台一回應(成功、拒絕)就以後台為準。沒登入時不先行生效(沒有會員就沒有 Plus)。
+    private func deliver(_ transaction: PlusTransaction, provisional: Bool = false) async -> Delivery {
         do {
             subscription = try await session.submitAppStoreTransaction(transaction.signedTransaction)
+            isPlusProvisional = false
             await store.finish(transaction)
             return .delivered
         } catch BackendError.signedOut {
+            isPlusProvisional = false
             notice = .signInRequired
             return .retryLater
-        } catch let BackendError.backend(status, code, _) where (400..<500).contains(status) && status != 401 {
-            notice = code == "subscription_in_use" ? .inUseByAnotherMember : .failed
+        } catch let BackendError.subscriptionInUse(ownerEmail, canTransfer) {
+            isPlusProvisional = false
+            transferOffer = TransferOffer(maskedEmail: ownerEmail, canTransfer: canTransfer)
+            // 這個會員已有有效訂閱:不能轉移,說明原因(Plus 維持原本的訂閱)。
+            notice = canTransfer ? .inUseByAnotherMember : .transferBlocked
+            await store.finish(transaction)
+            return .rejected
+        } catch let BackendError.backend(_, code, _) where code == BackendErrorCode.subscriptionAlreadyActive {
+            isPlusProvisional = false
+            notice = .alreadySubscribed
+            await store.finish(transaction)
+            return .rejected
+        } catch let BackendError.backend(status, _, _) where (400..<500).contains(status) && status != 401 {
+            isPlusProvisional = false
+            notice = .failed
             await store.finish(transaction)
             return .rejected
         } catch {
+            if provisional, subscription?.isActive != true { isPlusProvisional = true }
             notice = .purchaseNotDelivered
             return .retryLater
         }
@@ -183,5 +298,13 @@ public enum SubscriptionNotice: Equatable, Sendable {
     case purchaseNotDelivered
     /// 要先登入會員。
     case signInRequired
+    /// 轉移完成:Plus 歸這個會員。
+    case transferred
+    /// 這個會員已有另一個有效訂閱,不能轉移(一個會員同時只能有一個)。
+    case transferBlocked
+    /// 這個會員已有有效訂閱,不能再購買(一個會員同時只能有一個)。
+    case alreadySubscribed
+    /// 沒通過本人確認(取消或失敗):什麼都沒轉。
+    case ownerNotConfirmed
     case failed
 }

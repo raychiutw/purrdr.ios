@@ -54,9 +54,10 @@ struct DemoAgentFilesTests {
     func ledgerHasEditAndCreateCards() async throws {
         let cards = try await Self.ledgerCards().filter { $0.file.kind != .image }
 
-        #expect(cards.map(\.file.origin) == [.edited, .created, .created, .created])
-        #expect(cards.map(\.file.name) == ["CSVExport.swift", "CSVQuotingTests.swift", "history.csv", "draft.csv"])
-        guard cards.count == 4, case .edit(let change) = cards[0].file.snapshot,
+        #expect(cards.map(\.file.origin) == [.edited, .created, .created, .created, .created])
+        #expect(cards.map(\.file.name) == ["CSVExport.swift", "CSVQuotingTests.swift", "history.csv", "draft.csv", "export-report.pdf"])
+        #expect(cards.last?.file.kind == .pdf)
+        guard cards.count == 5, case .edit(let change) = cards[0].file.snapshot,
               case .content(let content, isTruncated: false) = cards[1].file.snapshot else {
             Issue.record("卡片沒有快照")
             return

@@ -122,6 +122,11 @@ public struct HerdrClient: Sendable {
         _ = try await request(method: "workspace.rename", params: RenameParams(workspaceID: workspaceID, label: label), as: TypedResult.self)
     }
 
+    /// 重新命名 tab(`tab.rename`,herdr 0.9.5;#456)。herdr 可能正規化 label,成功後應重讀 snapshot。
+    public func renameTab(_ tabID: String, to label: String) async throws {
+        _ = try await request(method: "tab.rename", params: TabRenameParams(tabID: tabID, label: label), as: TypedResult.self)
+    }
+
     /// 關閉 workspace(`workspace.close`):裡面每個 tab、pane、程序都會停止。
     ///
     /// 不帶 `close_group`:同 repo 的 worktree workspace 還開著時，herdr 回 `workspace_group_close_required`,
@@ -360,6 +365,16 @@ private struct WorkspaceIDParams: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case workspaceID = "workspace_id"
+    }
+}
+
+private struct TabRenameParams: Encodable {
+    var tabID: String
+    var label: String
+
+    enum CodingKeys: String, CodingKey {
+        case tabID = "tab_id"
+        case label
     }
 }
 

@@ -13,14 +13,7 @@ final class DataUsageUITests: XCTestCase {
     @MainActor
     private func openDataUsage(flags: [String] = []) -> XCUIApplication {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"] + flags)
-        XCTAssertTrue(app.buttons["toolbar.more"].waitUntilExists(timeout: 10))
-        app.buttons["toolbar.more"].tap()
-        let settings = app.buttons["menu.settings"]
-        XCTAssertTrue(settings.waitUntilExists(timeout: 5), "頂部選單沒有設定")
-        settings.tap()
-        let entry = app.buttons["settings.dataUsage"]
-        XCTAssertTrue(entry.waitUntilExists(timeout: 5), "設定沒有數據用量")
-        entry.tap()
+        app.openTab(.traffic)
         XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 5))
         return app
     }
@@ -47,7 +40,7 @@ final class DataUsageUITests: XCTestCase {
         XCTAssertTrue(thirty.waitUntilExists(timeout: 5))
         XCTAssertTrue(thirty.isSelected, "預設不是 30 天")
         optionRow("7 Days", in: app).tap()
-        app.buttons["sheet.done"].tap()
+        app.buttons["sheet.close"].tap()
         XCTAssertTrue(app.buttons["dataUsage.period"].label.contains("7 Days"))
 
         app.buttons["dataUsage.category"].tap()
@@ -55,7 +48,7 @@ final class DataUsageUITests: XCTestCase {
         XCTAssertTrue(total.waitUntilExists(timeout: 5))
         XCTAssertTrue(total.isSelected, "預設不是加總")
         optionRow("Sent & Received", in: app).tap()
-        app.buttons["sheet.done"].tap()
+        app.buttons["sheet.close"].tap()
         let legend = app.element("dataUsage.legend")
         XCTAssertTrue(legend.waitUntilExists(timeout: 5))
         XCTAssertTrue(legend.label.contains("Sent") || app.staticTexts["Sent"].exists, "圖例沒有送出")

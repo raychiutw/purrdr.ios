@@ -3,6 +3,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrDemo
 import PurrdrFeatures
+import PurrdrNotificationContent
 import PurrdrSSH
 import StoreKit
 import SwiftUI
@@ -33,6 +34,7 @@ struct PurrdrApp: App {
     private let forcesOpaqueGlass: Bool
     /// `-uiTesting`:處理 `purrdr://testing-…` 測試連結(不重啟換字級)。
     private let allowsTestingLinks: Bool
+    private let usesTestingSignIn: Bool
     /// App 鎖(#284):所有視窗共用一份鎖定狀態。
     private let appLock: AppLock
     /// 數據用量的流量計量(#353)與網路類型監看(監看物件要活著)。
@@ -65,23 +67,37 @@ struct PurrdrApp: App {
             ? InMemoryHostChatPreferencesStore() : UserDefaultsHostChatPreferencesStore()
         let hostIcons: any HostIconStore = uiTesting ? InMemoryHostIconStore() : UserDefaultsHostIconStore()
         let session = Self.makeMemberSession(uiTesting: uiTesting, arguments: arguments)
+        // 通知與主機同步的本機狀態依會員分區(#405);升級時清掉舊的全域狀態(沒綁會員,登入後依會員重新整理)。
+        let partition = MemberPartition()
+        if !uiTesting { MemberLocalState.removeLegacyGlobalState() }
+        let localState = MemberLocalState(partition: partition, session: session)
+        // 轉移訂閱、撤銷其他裝置前確認是本人(#409);UI 測試的替身一律通過。
+        let owner: any DeviceOwnerAuthenticating = uiTesting
+            ? UITestingDeviceOwnerAuthenticator(hasPasscode: !arguments.contains("-uiTestingNoPasscode")) : SystemDeviceOwnerAuthenticator()
+        let confirmOwner: @MainActor @Sendable () async -> Bool = { await owner.confirmsAccountChange() }
         member = MemberModel(
             session: session,
-            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID))
+            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID)),
+            localState: localState,
+            confirmOwner: confirmOwner,
+            ownerVerificationAvailable: { owner.availability().canAuthenticate }
         )
         // StoreKit:在 Xcode 執行時，scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品，不連 App Store。
         // UI 測試用內容相同的替身(不連網路;命令列 xcodebuild test 不套用 StoreKit 設定檔)。
-        let store: any PlusStore = uiTesting ? UITestingPlusStore() : StoreKitPlusStore()
-        let plus = SubscriptionModel(session: session, store: store)
+        let store: any PlusStore = uiTesting
+            ? UITestingPlusStore(hasCurrentTransaction: arguments.contains("-uiTestingOwnedByOtherMember")) : StoreKitPlusStore()
+        let plus = SubscriptionModel(session: session, store: store, confirmOwner: confirmOwner)
         self.plus = plus
         // 推播(#29):UI 測試不請求權限、不註冊 APNs、配對只在記憶體。
         let push = PushService(
             session: session,
             platform: uiTesting ? UITestingPushPlatform(isAuthorized: Self.uiTestingMemberBackend(arguments) != nil) : PushAppDelegate.platform,
-            store: uiTesting ? InMemoryPushPairingStore() : UserDefaultsPushPairingStore(),
+            store: uiTesting ? InMemoryPushPairingStore(partition: partition) : UserDefaultsPushPairingStore(partition: partition),
             loadDevice: Self.pushDevice(uiTesting: uiTesting),
             configuration: PushConfiguration(
-                endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource)
+                endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource),
+            // 主機名稱對應表放 App Group,Notification Service Extension 用它補通知副標題(#431;UI 測試不寫)。
+            hostNames: uiTesting ? nil : UserDefaultsPushHostNames()
         ) {
             await plus.refresh()
             return plus.isPlusActive
@@ -129,6 +145,7 @@ struct PurrdrApp: App {
                 store: KeychainHostStore(), demoChannel: demo, demoFiles: DemoHostFileFetcher(), demoCompanions: Self.demoCompanions(demo),
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), currentHost: UserDefaultsCurrentHostStore(), planUsageSelection: UserDefaultsPlanUsageSelectionStore(),
+                usageDisplay: UsageDisplaySetting(defaults: .standard),
                 hostPicker: UserDefaultsHostPickerStore(),
                 hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
                 // 裝置名稱只帶裝置種類(同公鑰註解),顯示在主機的裝置列表。
@@ -140,7 +157,9 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck,
                 listMode: UserDefaultsAgentListModeStore(),
                 // 離線佇列存在本機，App 重開仍在(#301)。
-                offlineQueues: UserDefaultsOfflineQueueStore()
+                offlineQueues: UserDefaultsOfflineQueueStore(),
+                // 模型目錄的公開來源(#385);UI 測試不給,不連網路。
+                publicModelCatalog: URLSessionPublicModelCatalog()
             ) { endpoint, pin, credential in
                 SSHHostChannel(
                     endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer,
@@ -151,7 +170,14 @@ struct PurrdrApp: App {
         // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
         if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
         // 沒有主機時的空狀態(#332):正式啟動一律從空狀態開始;UI 測試預設直接列 Demo,`-uiTestingNoHosts` 才看空狀態。
-        hosts.demoEntered = uiTesting && !arguments.contains("-uiTestingNoHosts")
+        // 正式啟動沿用上次的選擇(#394:啟用後才出現在主機選單,移除後不再出現);UI 測試不留紀錄。
+        let demoKey = "demoHostEnabled"
+        if uiTesting {
+            hosts.demoEntered = !arguments.contains("-uiTestingNoHosts")
+        } else {
+            hosts.demoEntered = UserDefaults.standard.bool(forKey: demoKey)
+            hosts.demoEnteredDidChange = { UserDefaults.standard.set($0, forKey: demoKey) }
+        }
         hosts.haptics = SystemHaptics()
         // 流量計量(#353):存在 Application Support(只在這支裝置;UI 測試只放記憶體)。
         let trafficStore: any TrafficStore = uiTesting
@@ -168,8 +194,11 @@ struct PurrdrApp: App {
         hosts.load()
         _hosts = State(initialValue: hosts)
         // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
-        hostSync = HostSyncModel(
-            session: session, plus: plus, hosts: hosts, store: uiTesting ? InMemoryHostSyncStore() : UserDefaultsHostSyncStore())
+        let hostSync = HostSyncModel(
+            session: session, plus: plus, hosts: hosts,
+            store: uiTesting ? InMemoryHostSyncStore(partition: partition) : UserDefaultsHostSyncStore(partition: partition))
+        self.hostSync = hostSync
+        localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
         settings = Self.makeSettings(hosts: hosts)
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
@@ -177,6 +206,9 @@ struct PurrdrApp: App {
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
         allowsTestingLinks = uiTesting
+        usesTestingSignIn = uiTesting
+            && (arguments.contains("-uiTestingSignUp") || arguments.contains("-uiTestingNoMember") || arguments.contains("-uiTestingLinkMerge")
+                || arguments.contains("-uiTestingLinkMergeBlocked") || arguments.contains("-uiTestingUpgradedMember"))
         forcesOpaqueGlass = uiTesting && UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency")
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
     }
@@ -228,9 +260,9 @@ struct PurrdrApp: App {
             device: UIDevice.current.model
         )
         return SettingsModel(
-            // 選取中的主機(沒有已存主機時是 Demo 主機);主機數只算已存的主機，不含 Demo。
-            app: app, client: { hosts.herdrClient }, hostCount: { hosts.hosts.count }, defaults: .standard,
-            platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks
+            // 主機數只算已存的主機，不含 Demo。
+            app: app, hostCount: { hosts.hosts.count }, defaults: .standard,
+            platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks, usageDisplay: hosts.usageDisplay
         )
     }
 
@@ -326,21 +358,48 @@ struct PurrdrApp: App {
         if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
         if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
+        if arguments.contains("-demoSentImages") { return .sentImages }
+        if arguments.contains("-demoAntigravity") { return .antigravity }
         if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(1), hangs: false) }
         if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(1), hangs: true) }
         if arguments.contains("-demoNoNetwork") { return .goesOffline(after: .zero, hangs: true) }
         return .standard
     }
 
+    /// 登入時帶給後台的這支裝置 id:正式是推播共用的 Keychain id,UI 測試是固定值。
+    private static func memberDeviceID(uiTesting: Bool) -> @Sendable () -> String? {
+        if uiTesting { return { UITestingBackendTransport.thisDeviceID } }
+        return {
+            guard let id = try? KeychainPushDeviceID().load() else { return nil }
+            return id.backendValue
+        }
+    }
+
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
     /// `-uiTestingMember`／`-uiTestingPlusMember`:改用假後台，以已登入的會員啟動(帳號頁的開通流程,#246)。
     private static func makeMemberSession(uiTesting: Bool, arguments: [String]) -> MemberSession {
+        // 登入時帶這支裝置的 id(與推播共用,Keychain);讀不到時不帶,照常登入。UI 測試用固定 id。
+        let deviceID = memberDeviceID(uiTesting: uiTesting)
+        if uiTesting, arguments.contains("-uiTestingMemberOffline") {
+            // 已登入過(有更新權杖與會員快照),但後台一律連不上:帳號頁「暫時連不上,你仍是登入狀態」。
+            let tokens = InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken)
+            try? tokens.setMemberSnapshot(Data(UITestingBackendTransport.memberJSON.utf8))
+            return MemberSession(transport: UITestingOfflineBackend(), tokenStore: tokens, deviceID: deviceID)
+        }
         if uiTesting, let backend = uiTestingMemberBackend(arguments) {
-            return MemberSession(transport: backend, tokenStore: InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken))
+            let seed = backend.startsWithStaleToken ? UITestingBackendTransport.staleRefreshToken : UITestingBackendTransport.refreshToken
+            let tokens = backend.startsSignedIn ? InMemoryTokenStore(refreshToken: seed) : InMemoryTokenStore()
+            return MemberSession(transport: backend, tokenStore: tokens, deviceID: deviceID, supportsSignInOnly: true)
         }
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
         let tokenStore: any TokenStore = uiTesting ? InMemoryTokenStore() : KeychainTokenStore()
-        return MemberSession(transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore)
+        var diagnostics: MemberDiagnostics = MemberLog.system
+        if uiTesting { diagnostics = { _ in } }
+        return MemberSession(
+            transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore, deviceID: deviceID,
+            diagnostics: diagnostics,
+            // 後台 `createMember: false`(purrdr.server#34 已上線):登入頁查無會員不新建,改問要不要加入(#434、#453)。
+            supportsSignInOnly: true)
     }
 
     /// 這支裝置(#266):推播 id 存 Keychain(讀不到時稍後再試),名稱預設是系統的裝置名稱(使用者可在帳號頁改)。
@@ -358,7 +417,28 @@ struct PurrdrApp: App {
 
     private static func uiTestingMemberBackend(_ arguments: [String]) -> UITestingBackendTransport? {
         if arguments.contains("-uiTestingPlusMember") { return UITestingBackendTransport(isPlusActive: true) }
+        // 帳號頁 Plus 卡的各狀態(#409)。
+        let scenarios: [(flag: String, scenario: UITestingBackendTransport.Scenario)] = [
+            ("-uiTestingGooglePlayMember", .googlePlay), ("-uiTestingGraceMember", .grace), ("-uiTestingExpiredMember", .expired),
+            ("-uiTestingOwnedByOtherMember", .ownedByAnotherMember), ("-uiTestingPendingReviewMember", .pendingReview),
+        ]
+        if let match = scenarios.first(where: { arguments.contains($0.flag) }) { return UITestingBackendTransport(scenario: match.scenario) }
+        // 帳號頁「登入方式」新增 Google 時發現它已屬另一個會員(合併確認,#410)。
+        if arguments.contains("-uiTestingLinkMerge") || arguments.contains("-uiTestingLinkMergeBlocked") {
+            return UITestingBackendTransport(
+                scenario: .none, linkFindsAnotherMember: true, mergeBlocked: arguments.contains("-uiTestingLinkMergeBlocked"))
+        }
+        // 從舊版升級(#414):舊的更新權杖被拒絕、要重新登入一次;重新登入後的訂閱有待處理的合併提示。
+        if arguments.contains("-uiTestingUpgradedMember") {
+            return UITestingBackendTransport(scenario: .pendingReview, startsWithStaleToken: true)
+        }
         if arguments.contains("-uiTestingMember") { return UITestingBackendTransport(isPlusActive: false) }
+        // 沒登入,按 Apple／Google 登入或註冊會直接登入假後台(登入與加入流程,#408)。
+        // 沒登入且這個帳號沒有會員:登入頁擋下並問要不要加入(#453)。
+        if arguments.contains("-uiTestingNoMember") {
+            return UITestingBackendTransport(scenario: .none, startsSignedIn: false, hasNoMember: true)
+        }
+        if arguments.contains("-uiTestingSignUp") { return UITestingBackendTransport(isPlusActive: false, startsSignedIn: false) }
         return nil
     }
 
@@ -375,6 +455,7 @@ struct PurrdrApp: App {
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
             .environment(\.allowsTestingLinks, allowsTestingLinks)
+            .environment(\.usesTestingSignIn, usesTestingSignIn)
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in

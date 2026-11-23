@@ -13,16 +13,19 @@ public struct SlashPanel: Sendable, Equatable {
     public var slider: SlashPanelSlider?
     /// 可用 ←/→ 調整時為那一行的文字(例如 `◐ Medium effort`;寫在提示行時是空字串);不能調整為 `nil`。
     public var adjustment: String?
+    /// Ultracode 開關(effort 面板軌道右邊的 `Ultracode  off|on`,Tab 切換;#384):面板沒有這個控制項(目前模型不支援)為 `nil`。
+    public var ultracode: Bool?
     /// 面板自己的動作(取自提示行，例如設為預設、只用於此 session、取消)。
     public var actions: [SlashPanelAction]
 
     public init(title: String?, notes: [String] = [], options: [SlashPanelOption] = [], slider: SlashPanelSlider? = nil,
-                adjustment: String? = nil, actions: [SlashPanelAction] = []) {
+                adjustment: String? = nil, ultracode: Bool? = nil, actions: [SlashPanelAction] = []) {
         self.title = title
         self.notes = notes
         self.options = options
         self.slider = slider
         self.adjustment = adjustment
+        self.ultracode = ultracode
         self.actions = actions
     }
 
@@ -38,6 +41,8 @@ public struct SlashPanel: Sendable, Equatable {
         case level(Int)
         /// ←/→ 調整。
         case adjust(Direction)
+        /// 切換 Ultracode(Tab);面板沒有開關時停用。
+        case toggleUltracode
         case action(SlashPanelAction)
     }
 
@@ -53,6 +58,8 @@ public struct SlashPanel: Sendable, Equatable {
         case .adjust(let direction):
             guard adjustment != nil || slider != nil else { return nil }
             return [direction == .left ? "left" : "right"]
+        case .toggleUltracode:
+            return ultracode == nil ? nil : ["tab"]
         case .action(let action):
             guard actions.contains(action) else { return nil }
             return [action.key]
@@ -115,14 +122,19 @@ public struct SlashPanelAction: Sendable, Equatable, Hashable {
 /// 從 pane 畫面解析 slash 面板(§5.6)。只有 Claude 與 Codex 有。
 public enum SlashPanelParser {
     public static func parse(screen: String, agentKind: String) -> SlashPanel? {
+        parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agentKind).screen)
+    }
+
+    /// 依畫面方言解析;方言沒有面板格式(`panel == nil`)回 `nil`。是否驗證過由呼叫端用 `readsPanels` 決定。
+    public static func parse(screen: String, dialect: ScreenDialect) -> SlashPanel? {
+        guard let style = dialect.panel else { return nil }
         let lines = ClaudeTranscriptParser.stripANSI(screen)
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { String($0).replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\t", with: "    ") }
             .map { $0.trimmingTrailingWhitespace() }
-        switch agentKind {
-        case "claude": return claude(lines)
-        case "codex": return codex(lines)
-        default: return nil
+        switch style {
+        case .claude: return claude(lines)
+        case .codex: return codex(lines)
         }
     }
 
@@ -159,6 +171,10 @@ public enum SlashPanelParser {
             panel.adjustment = content[index].replacing(adjustPhrase, with: "").trimmingCharacters(in: .whitespaces)
         } else if let hint, isAdjustLine(body[hint]) {
             panel.adjustment = ""
+        }
+
+        if let match = content.compactMap({ $0.firstMatch(of: /Ultracode\s+(on|off)\b/) }).first {
+            panel.ultracode = match.output.1 == "on"
         }
 
         // 標題與說明：第一個選項(或滑桿)之前、沒被用掉的非空行。

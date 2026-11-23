@@ -30,7 +30,7 @@ public actor HTTPSHostConnection: HostConnection {
     /// 追蹤串流(`followTranscript`,路徑 → 串流)。同一個路徑只有一個。
     var transcriptStreams: [String: TranscriptStream] = [:]
     /// 列表預覽定位到的對話紀錄(主機服務只認得這條連線定位過的;連線結束時清空)。
-    var previewLocations: [TranscriptTarget.Location: PreviewLocation] = [:]
+    var previewLocations: [TranscriptLocation: PreviewLocation] = [:]
 
     /// 被拒的權杖與原因(同一個權杖不再撥號)。
     private struct RejectedToken {
@@ -310,7 +310,8 @@ public actor HTTPSHostConnection: HostConnection {
 
     /// `workspace.create` 的 `invalid_message` 是資料夾不存在或不是絕對路徑(協定沒有專屬錯誤碼),換成 herdr 錯誤 `folder_not_found`。
     static func error(for message: HostServiceProtocol.ErrorMessage, herdrMethod: String?) -> any Error {
-        if herdrMethod == HerdrMethod.workspaceCreate.rawValue, message.code == .invalidMessage {
+        // 0.12.0 起資料夾不存在回 `directory_not_found`;更舊的主機服務回 `invalid_message`。
+        if herdrMethod == HerdrMethod.workspaceCreate.rawValue, message.code == .invalidMessage || message.code == .directoryNotFound {
             return HerdrError.herdr(code: "folder_not_found", message: message.message)
         }
         return error(for: message)
@@ -419,6 +420,9 @@ public actor HTTPSHostConnection: HostConnection {
         // Send When Done 佇列(#305)。
         case .queueFull: HostServiceError.queueFull
         case .queueItemUnknown: HostServiceError.queueItemUnknown
+        // 用量與資料夾瀏覽(0.12.0):`HTTPSHostUsage.swift` 依操作直接對應;其他操作收到就是看不懂。
+        case .codexNotFound, .codexNotSignedIn, .codexFailed, .claudeNotFound, .claudeSettingsNotJson, .hostWriteFailed,
+            .directoryNotFound, .directoryNotAllowed, .directoryUnreadable: HostServiceError.unexpectedResponse
         }
     }
 

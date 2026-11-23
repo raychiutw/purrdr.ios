@@ -25,7 +25,7 @@ public final class AgentListModel {
               let chunk = try? await transcripts.window(
                   path: file.path, endingAt: file.size, lines: 400, maxBytes: 256 << 10)
         else { return nil }
-        let items = Conversation.items(from: chunk.lines.flatMap(target.format.messages(in:)))
+        let items = Conversation.items(from: chunk.lines.flatMap(target.dialect.messages(in:)))
         return AwaySummary.make(items: items, awayFrom: openedAt, cutoff: now)?.turns
     }
     private let sleep: Sleep
@@ -278,7 +278,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public var route: ChatRoute { ChatRoute(host: host, paneID: paneID) }
 
     public init(
-        host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, workspace: String? = nil, subtitle: String,
+        host: HostSelection = .demo, paneID: String, kind: String = AgentID.claude.canonicalName, title: String, workspace: String? = nil, subtitle: String,
         hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus,
         isUnread: Bool = false, isAway: Bool = false, awayTurns: Int? = nil, isPinned: Bool = false, isMuted: Bool = false, progress: AgentProgress? = nil
     ) {

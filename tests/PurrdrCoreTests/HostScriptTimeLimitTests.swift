@@ -97,22 +97,24 @@ struct HostScriptTimeLimitTests {
     func stuckPosixScriptEndsWithinLimit() async throws {
         let host = try LocalShellHost.temporary(feedsStdin: true)
         let stuck = """
-            sleep 30 &
+            sleep 90 &
             echo "$!"
-            sh -c 'echo "$$"; exec sleep 30' &
+            sh -c 'echo "$$"; exec sleep 90' &
             sh -c 'echo "$$"; exec cat'
             """
         let started = ContinuousClock.now
 
         let session = try await host.execute(Self.posixCommand(HostScriptTimeLimit.posix(stuck, seconds: "2")))
         let stdinCloser = Task {
-            try await Task.sleep(for: .seconds(30))
+            try await Task.sleep(for: .seconds(90))
             await session.closeStdin()
         }
         defer { stdinCloser.cancel() }
         let output = try await session.collectOutput()
 
-        #expect(ContinuousClock.now - started < .seconds(15))
+        // 時限 2 秒;CI 的 macOS runner 負載高時曾跑到 17~19 秒(2026-11-22 起)。背景程序都睡 90 秒,
+        // 所以只要明顯早於 90 秒就代表時限有生效,門檻放在 45 秒避免 runner 變慢造成誤判。
+        #expect(ContinuousClock.now - started < .seconds(45))
         #expect(output.exitCode == 124)
         let children = output.stdoutText.split(separator: "\n").compactMap { Int32($0) }
         #expect(children.count == 3)

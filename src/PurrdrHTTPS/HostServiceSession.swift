@@ -422,6 +422,8 @@ extension HostServiceProtocol.ServerMessage {
              .transcriptSubagentResult,
              .transcriptWorkflowResult,
              .transcriptDelegationResult,
+             .directoryListResult, .usageCodexResult, .usageClaudeResult, .usageSessionContextResult,
+             .claudeUsageStatusResult, .claudeUsageInstallResult, .claudeUsageRemoveResult,
              .pushStatusResult,
              .pushInstallResult,
              .pushRemoveResult,
@@ -429,6 +431,7 @@ extension HostServiceProtocol.ServerMessage {
              .pushTestResult,
              .workspaceCreateResult,
              .workspaceRenameResult,
+             .tabRenameResult,
              .workspaceCloseResult,
              .worktreeCreateResult,
              .agentStartResult,
@@ -489,6 +492,7 @@ extension HostServiceProtocol.ServerMessage {
         case .transcriptDelegationResult(let message): message.requestId
         case .workspaceCreateResult(let message): message.requestId
         case .workspaceRenameResult(let message): message.requestId
+        case .tabRenameResult(let message): message.requestId
         case .workspaceCloseResult(let message): message.requestId
         case .worktreeCreateResult(let message): message.requestId
         case .agentStartResult(let message): message.requestId
@@ -507,6 +511,13 @@ extension HostServiceProtocol.ServerMessage {
         case .queueAddResult(let message): message.requestId
         case .queueRemoveResult(let message): message.requestId
         case .queueReorderResult(let message): message.requestId
+        case .directoryListResult(let message): message.requestId
+        case .usageCodexResult(let message): message.requestId
+        case .usageClaudeResult(let message): message.requestId
+        case .usageSessionContextResult(let message): message.requestId
+        case .claudeUsageStatusResult(let message): message.requestId
+        case .claudeUsageInstallResult(let message): message.requestId
+        case .claudeUsageRemoveResult(let message): message.requestId
         // `queue.changed` 是這條連線的廣播，不對應請求也不屬於串流。
         case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed, .queueChanged: nil
         }

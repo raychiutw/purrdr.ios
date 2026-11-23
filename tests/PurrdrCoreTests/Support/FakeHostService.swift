@@ -87,6 +87,11 @@ final class FakeHostService: Sendable {
         var deviceReplies: [String: [String]] = [:]
         /// git 讀取訊息(`git.status`／`git.diff`,#310)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
         var gitReplies: [String: [String]] = [:]
+        /// 用量與資料夾瀏覽訊息(`usage.*`、`claude_usage.*`、`directory.list`,0.12.0)依序回的 JSON 物件(不含 `request_id`):
+        /// 訊息種類 → 回應;沒設定時回同名的範例檔(`server.<種類>-result.json`)。
+        var usageReplies: [String: [String]] = [:]
+        /// `welcome` 的 `home_directory`;`nil` 是範例的值。
+        var homeDirectory: String?
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
@@ -355,6 +360,7 @@ final class FakeHostService: Sendable {
             let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) ?? false
             var changing: [String: Any] = ["read_only": readOnly]
             if let version = settings.hostServiceVersion { changing["host_service_version"] = version }
+            if let home = settings.homeDirectory { changing["home_directory"] = home }
             return [.text(Self.example("server.welcome.json", requestID: requestID, changing: changing))]
         case "agents.list":
             switch settings.agentsReply {
@@ -415,6 +421,26 @@ final class FakeHostService: Sendable {
             }
             object["request_id"] = requestID
             return [.text(Self.json(object))]
+        case "usage.codex", "usage.claude", "usage.session_context", "claude_usage.status", "claude_usage.install",
+            "claude_usage.remove", "directory.list":
+            if ["claude_usage.install", "claude_usage.remove"].contains(type),
+               let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+                return [.text(Self.error(requestID, "read_only_device"))]
+            }
+            let reply = state.withLock { state -> String? in
+                guard let queue = state.settings.usageReplies[type], let first = queue.first else { return nil }
+                if queue.count > 1 { state.settings.usageReplies[type] = Array(queue.dropFirst()) }
+                return first
+            }
+            guard let reply else {
+                let name = "server.\(type.replacingOccurrences(of: ".", with: "-").replacingOccurrences(of: "_", with: "-"))-result.json"
+                return [.text(Self.example(name, requestID: requestID))]
+            }
+            guard var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
+                return [.text(Self.error(requestID, "invalid_message"))]
+            }
+            object["request_id"] = requestID
+            return [.text(Self.json(object))]
         case "devices.list", "devices.revoke", "queue.list", "queue.add", "queue.remove", "queue.reorder":
             let reply = state.withLock { state -> String? in
                 guard let queue = state.settings.deviceReplies[type], let first = queue.first else { return nil }
@@ -444,11 +470,15 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
-        case "workspace.create", "workspace.rename", "workspace.close", "worktree.create", "agent.start":
+        case "workspace.create", "workspace.rename", "tab.rename", "workspace.close", "worktree.create", "agent.start":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
             }
             if type == "workspace.create", let cwd = message["cwd"] as? String, settings.missingFolders.contains(cwd) || !cwd.hasPrefix("/") {
+                // 0.12.0 起資料夾不存在有專屬錯誤碼。
+                if let version = settings.hostServiceVersion.flatMap(HostServiceVersion.init), version >= HostServiceVersion(0, 12, 0) {
+                    return [.text(Self.error(requestID, "directory_not_found", message: "directory not found"))]
+                }
                 return [.text(Self.error(requestID, "invalid_message", message: "cwd must be an absolute path to an existing folder on this host"))]
             }
             if let herdrCode = settings.structureHerdrErrors[type] {

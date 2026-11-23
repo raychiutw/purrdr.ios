@@ -11,9 +11,7 @@ final class ChangesUITests: XCTestCase {
         let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
-        let button = app.buttons["changes.open"].firstMatch
-        XCTAssertTrue(button.waitUntilExists(timeout: 10), "對話標題列沒有變更鈕")
-        button.tap()
+        app.conversationMoreItem("changes.open").tap()
     }
 
     @MainActor
@@ -57,6 +55,17 @@ final class ChangesUITests: XCTestCase {
         // 回到聊天，評論組成的訊息出現在對話裡。
         let echo = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Count carriage returns too")).firstMatch
         XCTAssertTrue(echo.waitUntilExists(timeout: 10), "評論沒有送到聊天")
-        XCTAssertTrue(app.buttons["changes.open"].firstMatch.exists, "沒有回到聊天")
+        XCTAssertTrue(app.buttons["conversation.more"].firstMatch.waitUntilExists(timeout: 5), "沒有回到聊天")
+    }
+
+    /// 更多選單(#381):資料夾不是 Git repo 時，「Git 變更」停用並寫原因;其他兩項照常。
+    @MainActor
+    func testGitItemDisabledOutsideRepository() {
+        let app = XCUIApplication.launchUITesting()
+        app.openConversation(paneID: "w2:p1")
+        let git = app.conversationMoreItem("changes.open")
+        XCTAssertTrue(UITestWait.until(timeout: 10) { !git.isEnabled }, "不在 Git 資料夾卻沒有停用")
+        XCTAssertTrue(app.buttons["terminal.open"].firstMatch.isEnabled, "終端機項目不該停用")
+        XCTAssertTrue(app.buttons["layout.show"].firstMatch.exists, "更多選單沒有顯示版面")
     }
 }

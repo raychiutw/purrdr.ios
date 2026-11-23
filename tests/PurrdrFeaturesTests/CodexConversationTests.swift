@@ -38,7 +38,7 @@ struct CodexConversationTests {
         #expect(setup.model.phase == .ready)
         #expect(setup.model.banner == nil)
         #expect(setup.model.items.count == 3)
-        #expect(setup.model.metadata == TranscriptMetadata(model: "gpt-5.5", contextTokens: 18234, effort: "medium"))
+        #expect(setup.model.metadata == TranscriptMetadata(model: "gpt-5.5", contextTokens: 18234, effort: "medium", approvalPolicy: "on-request"))
     }
 
     /// Codex 會壓縮 7 天未動的 rollout:讀不了，但不是「還沒有訊息」。

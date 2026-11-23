@@ -182,6 +182,8 @@ public final class HostEditorModel {
     private let originalIcon: HostIcon
     /// 儲存後套用圖示(主機 id 存好才知道)。
     private let saveIcon: @MainActor (HostIcon, UUID) -> Void
+    /// 只改名稱時存下新名稱並讓主機清單換名稱(主機 id、新名稱;失敗就不儲存)。
+    private let renameHost: @MainActor (UUID, String) throws -> Void
     private let credentials: HostCredentials
     /// 確認 host key 後要繼續的是加入公鑰，不是連線測試。
     private let hostService: HostServiceAccess
@@ -194,9 +196,11 @@ public final class HostEditorModel {
         store: any HostStore, editing: HostConfiguration? = nil, credentials: HostCredentials = HostCredentials(),
         hostService: HostServiceAccess = HostServiceAccess(),
         icon: HostIcon = .default, saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
+        renameHost: @escaping @MainActor (UUID, String) throws -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
+        self.renameHost = renameHost
         existing = editing
         flow = HostConnectionFlow(
             store: store, existing: editing, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
@@ -296,7 +300,7 @@ public final class HostEditorModel {
     public var canTest: Bool { draft != nil && phase != .testing && phase != .updating }
 
     /// 最近一次測試成功，而且之後沒有改過任何欄位。
-    public var canSave: Bool { changesOnlyIcon || flow.canSave(draft) }
+    public var canSave: Bool { changesOnlyAppearance || flow.canSave(draft) }
 
     /// 有沒有未儲存的變更(按取消時要確認放棄)。
     public var hasChanges: Bool { settingsChanged || icon != originalIcon }
@@ -304,8 +308,24 @@ public final class HostEditorModel {
     /// 編輯既有主機時只改了圖示：不必測試連線，儲存也不動主機設定與連線。
     public var changesOnlyIcon: Bool { existing != nil && icon != originalIcon && !settingsChanged }
 
+    /// 編輯既有主機時只改了名稱與(或)圖示(#392):不必測試連線,儲存也不動連線設定。名稱不能是空白。
+    public var changesOnlyAppearance: Bool {
+        guard let existing, !trimmedName.isEmpty, !connectionChanged else { return false }
+        return icon != originalIcon || trimmedName != existing.name
+    }
+
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private var secretsEntered: Bool { !(password.isEmpty && privateKeyText.isEmpty && pairingCode.isEmpty) }
+
+    /// 連線設定(位址、帳號、登入方式、祕密…)有沒有改;名稱與圖示不算。
+    private var connectionChanged: Bool {
+        guard let existing else { return true }
+        guard let draft else { return true }
+        return secretsEntered || !draft.connection.sameSettings(as: existing.connection)
+    }
+
     private var settingsChanged: Bool {
-        let secretsEntered = !(password.isEmpty && privateKeyText.isEmpty && pairingCode.isEmpty)
         guard let existing else {
             return secretsEntered || !(name.isEmpty && address.isEmpty && username.isEmpty && herdrPath.isEmpty && herdrSession.isEmpty)
         }
@@ -409,9 +429,14 @@ public final class HostEditorModel {
     /// 儲存。測試沒通過或之後改過欄位就不存;寫入失敗時留在編輯器並說明原因。
     @discardableResult
     public func save() -> HostConfiguration? {
-        if changesOnlyIcon, let existing {
-            saveIcon(icon, existing.id)
-            return existing
+        if changesOnlyAppearance, let existing {
+            var renamed = existing
+            if trimmedName != existing.name {
+                renamed.name = trimmedName
+                do { try renameHost(existing.id, trimmedName) } catch { return nil }
+            }
+            if icon != originalIcon { saveIcon(icon, existing.id) }
+            return renamed
         }
         guard let host = flow.save(draft) else { return nil }
         if icon != originalIcon { saveIcon(icon, host.id) }

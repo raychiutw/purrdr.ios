@@ -72,11 +72,16 @@ public struct PromptDetails: Sendable, Equatable {
 public enum BlockedPromptParser {
     /// 解析畫面上的提示;看不出任何選單時回 `nil`。
     public static func parse(screen: String, agentKind: String) -> BlockedPrompt? {
+        parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agentKind).screen)
+    }
+
+    /// 依畫面方言解析(提示解析是純讀取,不受驗證狀態管制;回答按鍵由輸入組的驗證管制)。
+    public static func parse(screen: String, dialect: ScreenDialect) -> BlockedPrompt? {
         let lines = ClaudeTranscriptParser.stripANSI(screen)
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { String($0).replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\t", with: "    ") }
             .map { $0.trimmingTrailingWhitespace() }
-        if agentKind == "codex", isCodexFilePicker(lines) {
+        if dialect.detectsFilePicker, isCodexFilePicker(lines) {
             return BlockedPrompt(kind: .filePicker, question: "Codex has its file picker open.")
         }
         if let trust = trustPrompt(lines) { return trust }

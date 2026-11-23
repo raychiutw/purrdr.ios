@@ -45,6 +45,26 @@ struct HTTPSStructureActionsTests {
         #expect(actions.renameError == HostErrorText.message(for: Self.outdated))
     }
 
+    @Test("主機服務版本不足：Tab 改名失敗顯示更新主機服務的提示(#458)")
+    func renameTabOnOutdatedHostService() async {
+        let error = HostServiceError.hostServiceUpdateRequired(.tabRename, installedVersion: "0.13.0")
+        let actions = Self.actions(RefusingHostConnection(error: error))
+
+        #expect(await actions.renameTab(tabID: "w1:t1", to: "build-logs") == false)
+
+        #expect(actions.renameError == HostErrorText.message(for: error))
+    }
+
+    @Test("唯讀裝置：Tab 改名被拒時說明唯讀(#458)")
+    func renameTabOnReadOnlyDevice() async {
+        let actions = Self.actions(RefusingHostConnection(error: HostServiceError.readOnlyDevice, readOnly: true))
+        await actions.loadAccess()
+
+        #expect(actions.isReadOnly)
+        #expect(await actions.renameTab(tabID: "w1:t1", to: "build-logs") == false)
+        #expect(actions.renameError == HostErrorText.message(for: HostServiceError.readOnlyDevice))
+    }
+
     @Test("唯讀裝置：讀到唯讀後停用改到主機的操作;關閉被拒時說明唯讀")
     func readOnlyDeviceActions() async {
         let actions = Self.actions(RefusingHostConnection(error: HostServiceError.readOnlyDevice, readOnly: true))

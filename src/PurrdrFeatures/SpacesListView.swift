@@ -17,14 +17,22 @@ struct SpacesSectionsContent: View {
                 ForEach(section.tabs) { tab in
                     tabRow(tab, in: section)
                         .workspaceActionsMenu(
-                            WorkspaceTarget(workspaceID: section.workspaceID, label: section.workspace, snapshot: model.snapshot(for: section.host)),
+                            workspaceTarget(section),
+                            tab: TabTarget(tabID: tab.key, snapshot: model.snapshot(for: section.host), workspaceLabel: section.workspace),
                             host: section.host, snapshot: model.snapshot(for: section.host), presentation: presentation)
                         .accessibilityIdentifier("spaces.tab.\(tab.id)")
                 }
             } header: {
                 SpacesSectionHeader(section: section)
+                    .workspaceHeaderMenu(
+                        workspaceTarget(section), host: section.host, snapshot: model.snapshot(for: section.host),
+                        isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation)
             }
         }
+    }
+
+    private func workspaceTarget(_ section: SpacesSection) -> WorkspaceTarget {
+        WorkspaceTarget(workspaceID: section.workspaceID, label: section.workspace, snapshot: model.snapshot(for: section.host))
     }
 
     @ViewBuilder
@@ -101,6 +109,9 @@ private struct SpacesSectionHeader: View {
         .font(.subheadline)
         .foregroundStyle(Color.secondaryText)
         .textCase(nil)
+        // 整列寬都能長按(標題的長按選單,#456)。
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("spaces.section.\(section.id)")
@@ -143,6 +154,7 @@ struct PaneTerminalScreen: View {
     var body: some View {
         #if canImport(UIKit)
         PaneTerminalView(model: model)
+            .hidesTabBarWhenCompact()
         #else
         EmptyView()
         #endif
@@ -159,51 +171,70 @@ extension AgentListMode {
     }
 }
 
-/// 列表最上面的 Agents／Spaces 切換(#268;#313:二選一也攤開成兩列勾選，不用分段):檢視切換只有這一個入口，沒有大標題、也不在任何選單裡。
-struct AgentListModeControl: View {
-    @Binding var mode: AgentListMode
+extension AgentListMode {
+    /// 左上角切換鈕的符號:顯示目前的檢視(#391)。
+    var symbol: String {
+        switch self {
+        case .spaces: "square.grid.2x2"
+        case .agents: "person.2"
+        }
+    }
+
+    /// VoiceOver 念的目前檢視,例:「檢視:Agents」。
+    var accessibilityName: String {
+        switch self {
+        case .spaces: String(localized: "View: Spaces")
+        case .agents: String(localized: "View: Agents")
+        }
+    }
+
+    /// VoiceOver 的提示:點兩下會切到另一個檢視。
+    var switchHint: LocalizedStringKey {
+        switch self {
+        case .spaces: "Switches to Agents."
+        case .agents: "Switches to Spaces."
+        }
+    }
+}
+
+/// 聊天 tab 左上角的 Agents／Spaces 一鍵切換(#391):只有符號、顯示目前檢視;點一下切換,長按出選單(兩列勾選)。
+/// 其他 tab 這個位置留空。
+struct AgentListModeButton: View {
+    @Bindable var list: MergedAgentListModel
 
     var body: some View {
-        Picker("View", selection: $mode) {
-            ForEach([AgentListMode.agents, .spaces], id: \.self) { mode in
-                Text(mode.title).tag(mode)
+        Menu {
+            Picker("View", selection: $list.mode) {
+                ForEach([AgentListMode.agents, .spaces], id: \.self) { mode in
+                    Label(mode.title, systemImage: mode.symbol).tag(mode)
+                }
             }
+            .pickerStyle(.inline)
+        } label: {
+            Label(list.mode.title, systemImage: list.mode.symbol)
+                .labelStyle(.iconOnly)
+        } primaryAction: {
+            list.toggleMode()
         }
-        .pickerStyle(.inline)
-        .labelsHidden()
+        .accessibilityLabel(Text(verbatim: list.mode.accessibilityName))
+        .accessibilityHint(Text(list.mode.switchHint))
         .accessibilityIdentifier("agentList.mode")
     }
 }
 
-/// Agents 檢視的搜尋欄(#268):放在分段控制下方(原型 purrdr-screens 定案版),不用 `.searchable`(iOS 26 會放到底部工具列)。
-struct AgentListSearchField: View {
-    @Binding var query: String
-    var focused: FocusState<Bool>.Binding
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondaryText)
-                .accessibilityHidden(true)
-            TextField("Search", text: $query)
-                .focused(focused)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-                #if os(iOS)
-                .textInputAutocapitalization(.never)
-                #endif
-                .accessibilityIdentifier("agentList.search")
-            if !query.isEmpty {
-                Button("Clear Search", systemImage: "xmark.circle.fill") { query = "" }
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(.secondaryText)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .accessibilityIdentifier("agentList.search.clear")
-            }
-        }
-        .padding(.horizontal, 10)
-        .frame(minHeight: 44)
-        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
+extension View {
+    /// 聊天列表的系統搜尋欄(#391):放在導覽列下方的抽屜(iOS 26 的 `.automatic` 會移到底部工具列,與 tab bar 擠在一起)。
+    /// 抽屜用 `.always`:導覽列是 inline 標題(中間是主機選單),`.automatic` 會在列表頂端時也收著、要下拉才出現;
+    /// 代價是捲動時不會收起(偏離設計稿「捲動才收起」)。
+    @ViewBuilder
+    func agentListSearch(text: Binding<String>, focused: FocusState<Bool>.Binding) -> some View {
+        #if os(iOS)
+        searchable(text: text, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("Search"))
+            .searchFocused(focused)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+        #else
+        searchable(text: text, prompt: Text("Search"))
+        #endif
     }
 }

@@ -1,1 +1,1 @@
-{"type":"push.status.result","request_id":"r30","plugin_installed":true,"paired":false,"other_devices":1}
+{"type":"push.status.result","request_id":"r30","plugin_installed":false,"paired":false,"other_devices":1,"direct_push":true}

@@ -1,17 +1,6 @@
 import Foundation
 import PurrdrCore
 
-/// 新增對話可以啟動的 agent(行為規格 F3.1)。`rawValue` 是 herdr 的 kind(`herdr agent start --kind`)。
-public enum NewChatAgent: String, CaseIterable, Sendable {
-    case claude
-    case codex
-    case grok
-    /// Antigravity。
-    case agy
-    case pi
-    case omp
-}
-
 /// Claude Code 的權限模式(`claude --permission-mode`)。只有 Claude Code 有。
 ///
 /// 預設是 `agentDefault`:**不帶** `--permission-mode`,沿用使用者在主機上給 Claude Code 的設定。
@@ -32,19 +21,23 @@ public struct NewChatRequest: Sendable, Equatable {
     public var folder: String
     /// workspace 名稱;`nil` 時由 herdr 命名(資料夾名)。
     public var label: String?
-    public var agent: NewChatAgent
+    /// 啟動的種類(`AgentCatalog.startableAgents`);herdr 的 kind 是它的正式名稱。
+    public var agent: AgentID
     /// 只有 Claude Code 會用到。
     public var permissionMode: ClaudePermissionMode
     /// agent 就緒後送出的第一則訊息(#272);空白時不送。
     public var message: String
     /// 續接的 session id(#309);`nil` 是全新的聊天。續接時第一則訊息可以留空。
     public var resumeSession: String?
+    /// 接續最近一次對話(Antigravity 的 `-c`,#446);沒有這個旗標的種類忽略。
+    public var continuesLastSession: Bool
 
     public init(
-        folder: String, label: String? = nil, agent: NewChatAgent, permissionMode: ClaudePermissionMode = .agentDefault, message: String = "",
-        resumeSession: String? = nil
+        folder: String, label: String? = nil, agent: AgentID, permissionMode: ClaudePermissionMode = .agentDefault, message: String = "",
+        resumeSession: String? = nil, continuesLastSession: Bool = false
     ) {
         self.resumeSession = resumeSession
+        self.continuesLastSession = continuesLastSession
         self.folder = folder
         self.label = label
         self.agent = agent
@@ -52,10 +45,14 @@ public struct NewChatRequest: Sendable, Equatable {
         self.message = message
     }
 
-    /// 交給 agent 的參數(`herdr agent start … -- <參數>`)。權限模式只給 Claude Code,而且只在使用者選了的時候。
+    /// 交給 agent 的參數(`herdr agent start … -- <參數>`)。權限模式只給設定檔有旗標的種類(Claude Code),而且只在使用者選了的時候;
+    /// 恢復對話(`--conversation <id>`)與接續最近一次(`-c`)只給設定檔有旗標的種類(Antigravity,#446)。
     public var agentArguments: [String] {
-        guard agent == .claude, permissionMode != .agentDefault else { return [] }
-        return ["--permission-mode", permissionMode.rawValue]
+        let session = AgentCatalog.profile(for: agent).session
+        if let flag = session.permissionModeFlag, permissionMode != .agentDefault { return [flag, permissionMode.rawValue] }
+        if let flag = session.resumeConversationFlag, let resumeSession { return [flag, resumeSession] }
+        if let flag = session.continueFlag, continuesLastSession { return [flag] }
+        return []
     }
 
     /// herdr 的 agent 名稱：workspace 名稱的 slug(桌機的 `herdr agent list` 看到同名,行為規格 F3.2)。
@@ -87,11 +84,6 @@ public enum ResumeSupport: Sendable, Equatable {
     case needsHostService
     /// 主機服務版本不足(`installed` 是它回報的版本)。
     case updateRequired(installed: String?)
-}
-
-extension NewChatAgent {
-    /// 主機服務能續接的 Agent(只有 Claude Code 與 Codex)。
-    public var supportsResume: Bool { self == .claude || self == .codex }
 }
 
 /// 新對話開始的結果。
@@ -146,10 +138,10 @@ public actor NewChatLauncher {
     }
 
     /// `folder` 過去的 session(新到舊;`~` 先在主機上解析)。只在 `resumeSupport() == .available` 時呼叫。
-    public func resumableSessions(folder: String, agent: NewChatAgent) async throws -> [ResumableSession] {
-        guard agent.supportsResume else { return [] }
+    public func resumableSessions(folder: String, agent: AgentID) async throws -> [ResumableSession] {
+        guard let kind = AgentCatalog.profile(for: agent).session.resumeKind else { return [] }
         let resolved = try await folders.resolve(folder)
-        return try await client.listSessions(cwd: resolved, agent: agent.rawValue)
+        return try await client.listSessions(cwd: resolved, agent: kind)
     }
 
     /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)與第一則訊息送了沒有。
@@ -182,8 +174,8 @@ public actor NewChatLauncher {
         while true {
             do {
                 try await client.startAgent(
-                    name: name, kind: request.agent.rawValue, paneID: workspace.rootPaneID,
-                    arguments: request.agentArguments, resumeSession: request.resumeSession, timeout: Self.agentTimeout)
+                    name: name, kind: request.agent.canonicalName, paneID: workspace.rootPaneID,
+                    arguments: request.agentArguments, resumeSession: Self.hostServiceResumeSession(for: request), timeout: Self.agentTimeout)
                 return true
             } catch HerdrError.herdr(code: "agent_not_ready", _) {
                 // agent 已經起來，但停在啟動問題(例如資料夾信任):在聊天裡回答。
@@ -194,6 +186,11 @@ public actor NewChatLauncher {
                 try await sleep(Self.busyRetryInterval)
             }
         }
+    }
+
+    /// 主機服務的 `resume_session` 只給主機服務能恢復的種類(Claude Code、Codex);旗標式恢復(Antigravity)已經放在 args。
+    private static func hostServiceResumeSession(for request: NewChatRequest) -> String? {
+        AgentCatalog.profile(for: request.agent).session.resumeKind == nil ? nil : request.resumeSession
     }
 
     private static func lastComponent(of path: String) -> String {

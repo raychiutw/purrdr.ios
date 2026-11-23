@@ -70,11 +70,11 @@ final class YouShouldKnowUITests: XCTestCase {
     @MainActor
     func testHostThemeToggle() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
-        app.openSeededHostPage()
+        app.openSeededHostSettings()
 
         let toggle = app.switches["settings.hostTheme"]
         for _ in 0..<6 where !toggle.isHittable { app.swipeUp() }
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "主機頁沒有主機主題開關")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "這台主機的設定沒有主機主題開關")
         toggle.switches.firstMatch.tap()
         let alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitUntilExists(timeout: 5), "沒有詢問同意")

@@ -45,7 +45,7 @@ final class ImageAttachmentUITests: XCTestCase {
 
         let text = app.element("composer.text")
         text.tap()
-        XCTAssertTrue(app.element("composer.hideKeyboard").waitUntilExists(timeout: 5), "輸入框沒有聚焦")
+        XCTAssertTrue(UITestWait.until(timeout: 5) { text.hasKeyboardFocus }, "輸入框沒有聚焦")
         text.typeKey("v", modifierFlags: .command)
 
         if !app.element("composer.attachment.0").waitUntilExists(timeout: 5) {
@@ -86,43 +86,10 @@ final class ImageAttachmentUITests: XCTestCase {
         // 最新的泡泡貼著輸入列：點圖片上緣，避免點到浮在上面的輸入列。
         image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
 
-        let viewer = app.element("image.viewer")
-        XCTAssertTrue(viewer.waitUntilExists(timeout: 5), "點泡泡圖片沒有全螢幕檢視")
-        viewer.tap()
-        XCTAssertTrue(viewer.waitUntilGone(timeout: 5), "點一下沒有關閉全螢幕檢視")
-    }
-
-    /// 展開畫面裡管理附件(#142):在裡面加入的附件收回後還在輸入列，輸入列加入的在展開畫面看得到、可移除。
-    @MainActor
-    func testExpandedEditorManagesAttachments() {
-        Self.putImageOnPasteboard()
-        let app = openLedger()
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-
-        app.element("composer.text").tap()
-        app.element("composer.expand").tap()
-        let add = app.element("composer.expanded.attach")
-        XCTAssertTrue(add.waitUntilExists(timeout: 5), "展開畫面沒有「＋附加」")
-        add.tap()
-        XCTAssertTrue(app.element("attach.paste").waitUntilExists(timeout: 5))
-        app.element("attach.paste").tap()
-        for label in ["Allow Paste", "允許貼上"] where springboard.buttons[label].waitUntilExists(timeout: 2) {
-            springboard.buttons[label].tap()
-        }
-        XCTAssertTrue(app.element("composer.expanded.attachment.0").waitUntilExists(timeout: 5), "展開畫面沒有顯示加入的附件")
-
-        app.element("composer.expanded.done").tap()
-        XCTAssertTrue(app.element("composer.attachment.0").waitUntilExists(timeout: 5), "收回後附件不見了")
-
-        app.element("composer.text").tap()
-        app.element("composer.expand").tap()
-        let remove = app.element("composer.expanded.attachment.remove.0")
-        XCTAssertTrue(remove.waitUntilExists(timeout: 5), "展開畫面沒有移除鈕")
-        remove.tap()
-        XCTAssertTrue(app.element("composer.expanded.attachment.0").waitUntilGone(timeout: 5), "移除後附件還在")
-        app.element("composer.expanded.done").tap()
-        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5))
-        XCTAssertFalse(app.element("composer.attachment.0").exists, "展開畫面移除的附件回到輸入列還在")
+        let viewer = app.element("imageViewer")
+        XCTAssertTrue(viewer.waitUntilExists(timeout: 5), "點泡泡圖片沒有圖片檢視器")
+        app.element("imageViewer.close").tap()
+        XCTAssertTrue(viewer.waitUntilGone(timeout: 5), "按 Done 沒有關閉圖片檢視器")
     }
 
     /// 「＋」念「附加」、至少 44pt;點了升起面板:最近的照片(替身)、所有照片、檔案、貼上(#352)。
@@ -143,6 +110,17 @@ final class ImageAttachmentUITests: XCTestCase {
         for id in ["attach.photos", "attach.files", "attach.paste"] {
             XCTAssertTrue(app.element(id).exists, "面板沒有 \(id)")
         }
+        // 直幅(1)、橫幅(2)的替身照片也要是方格,不溢出(#386)。
+        for index in [1, 2] {
+            let frame = app.element("attach.recent.\(index)").frame
+            XCTAssertEqual(frame.width, frame.height, accuracy: 1, "第 \(index) 張照片格子不是正方形")
+            XCTAssertLessThanOrEqual(frame.maxX, app.element("attach.panel").frame.maxX, "第 \(index) 張溢出面板")
+        }
+        XCTAssertTrue(app.element("attach.close").exists, "左上沒有關閉(xmark)")
+        XCTAssertTrue(app.element("attach.selectedCount").label.contains("0"), "一打開就要看到已選數量")
+        // 關閉在左上 xmark:關掉後輸入列的「＋」回來可點(#386)。
+        app.element("attach.close").tap()
+        XCTAssertTrue(app.element("attach.panel").waitUntilGone(timeout: 5), "xmark 沒有關閉加入 sheet")
     }
 
     /// 最近的照片可多選，「加入 N」把它們放進輸入框成小卡，可個別移除。
@@ -155,6 +133,8 @@ final class ImageAttachmentUITests: XCTestCase {
 
         app.element("attach.recent.0").tap()
         app.element("attach.recent.1").tap()
+        XCTAssertTrue(app.element("attach.selectedCount").waitUntilExists(timeout: 5), "沒顯示已選數量")
+        XCTAssertTrue(app.element("attach.selectedCount").label.contains("2"), "沒顯示已選 2 張")
         XCTAssertTrue(app.element("attach.add").label.contains("2"), "按鈕沒顯示選了 2 張")
         app.element("attach.add").tap()
 

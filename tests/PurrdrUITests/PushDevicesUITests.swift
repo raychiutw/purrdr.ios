@@ -18,16 +18,17 @@ final class PushDevicesUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
         app.openAccountSheet()
 
+        openPushDevices(app)
         let ipad = app.element("account.pushDevice.\(Self.studioIPad)")
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: ipad, search: .down, timeout: 10), "沒有 Studio iPad 的列")
+        XCTAssertTrue(ipad.waitUntilExists(timeout: 10), "沒有 Studio iPad 的列")
         XCTAssertTrue(ipad.label.contains("Studio iPad"), ipad.label)
         XCTAssertTrue(ipad.label.contains("Hosts: 2"), ipad.label)
         XCTAssertFalse(ipad.label.contains("This Device"), ipad.label)
         let legacy = app.element("account.pushDevice.\(Self.legacyDevice)")
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: legacy, search: .down, timeout: 10), "沒有舊版 app 的裝置列")
+        XCTAssertTrue(legacy.waitUntilExists(timeout: 10), "沒有舊版 app 的裝置列")
         XCTAssertTrue(legacy.label.contains("Unnamed Device"), legacy.label)
 
-        app.buttons["account.pushDevice.\(Self.studioIPad).actions"].tap()
+        app.buttons["account.pushDevice.\(Self.studioIPad)"].tap()
         app.buttons["Rename…"].firstMatch.tap()
         // SwiftUI 不把 identifier 帶到 alert 裡的 TextField。
         let field = app.alerts.textFields.firstMatch
@@ -44,9 +45,10 @@ final class PushDevicesUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
         app.openAccountSheet()
 
+        openPushDevices(app)
         let ipad = app.element("account.pushDevice.\(Self.studioIPad)")
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: ipad, search: .down, timeout: 10), "沒有 Studio iPad 的列")
-        app.buttons["account.pushDevice.\(Self.studioIPad).actions"].tap()
+        XCTAssertTrue(ipad.waitUntilExists(timeout: 10), "沒有 Studio iPad 的列")
+        app.buttons["account.pushDevice.\(Self.studioIPad)"].tap()
         app.buttons["Turn Off Notifications…"].firstMatch.tap()
 
         let confirm = app.buttons["account.pushDevices.confirmTurnOff"].firstMatch
@@ -62,9 +64,10 @@ final class PushDevicesUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
         app.openAccountSheet()
 
+        openPushDevices(app)
         let ipad = app.element("account.pushDevice.\(Self.studioIPad)")
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: ipad, search: .down, timeout: 10), "沒有 Plus 時沒有列出裝置")
-        app.buttons["account.pushDevice.\(Self.studioIPad).actions"].tap()
+        XCTAssertTrue(ipad.waitUntilExists(timeout: 10), "沒有 Plus 時沒有列出裝置")
+        app.buttons["account.pushDevice.\(Self.studioIPad)"].tap()
         XCTAssertFalse(app.buttons["Rename…"].firstMatch.waitUntilExists(timeout: 2), "沒有 Plus 仍能改名")
         app.buttons["Turn Off Notifications…"].firstMatch.tap()
         let confirm = app.buttons["account.pushDevices.confirmTurnOff"].firstMatch
@@ -80,26 +83,41 @@ final class PushDevicesUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
         app.openAccountSheet()
 
+        app.openAccountNotifications()
         let toggle = app.switches["account.push.\(Self.seededHost)"]
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: toggle, search: .down, timeout: 10), "沒有主機的通知開關")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
         toggle.tap()
         let install = app.alerts.buttons["settings.push.install"].firstMatch
         XCTAssertTrue(install.waitUntilExists(timeout: 10))
         install.tap()
         toggle.expectValue("Notifications On")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
 
+        openPushDevices(app)
         let thisDevice = app.element("account.pushDevice.\(Self.thisDevice)")
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: thisDevice, search: .down, timeout: 10), "開了主機後沒有列出這支裝置")
+        XCTAssertTrue(thisDevice.waitUntilExists(timeout: 10), "開了主機後沒有列出這支裝置")
         thisDevice.expectLabel(containing: "This Device")
-        app.buttons["account.pushDevice.\(Self.thisDevice).actions"].tap()
+        app.buttons["account.pushDevice.\(Self.thisDevice)"].tap()
         app.buttons["Turn Off Notifications…"].firstMatch.tap()
         let confirm = app.buttons["account.pushDevices.confirmTurnOff"].firstMatch
         XCTAssertTrue(confirm.waitUntilExists(timeout: 5))
         confirm.tap()
 
+        XCTAssertTrue(thisDevice.waitUntilGone(timeout: 10), "關閉後仍在清單")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.openAccountNotifications()
         toggle.expectValue("Notifications Off")
     }
 
     // MARK: - 輔助
+
+    /// 帳號頁捲到「Notification Devices」入口並點開子頁(設計稿第 28 組)。
+    @MainActor
+    private func openPushDevices(_ app: XCUIApplication) {
+        let link = app.element("member.pushDevices")
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: link, search: .down, timeout: 10), "帳號頁沒有通知裝置入口")
+        link.tap()
+        XCTAssertTrue(app.element("account.pushDevices").waitUntilExists(timeout: 10), "沒有進到通知裝置子頁")
+    }
 
 }

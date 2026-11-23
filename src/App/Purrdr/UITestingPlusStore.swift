@@ -17,12 +17,12 @@ final class UITestingPlusStore: PlusStore {
     func loadPlans() async throws -> [PlusPlan] {
         [
             PlusPlan(
-                id: "com.raychiu.purrdr.plus.monthly", displayName: "Purrdr Plus Monthly", description: Self.description,
-                displayPrice: "$4.99", period: PlusPeriod(value: 1, unit: .month), freeTrial: PlusPeriod(value: 2, unit: .week)
-            ),
-            PlusPlan(
                 id: "com.raychiu.purrdr.plus.yearly", displayName: "Purrdr Plus Yearly", description: Self.description,
                 displayPrice: "$39.99", period: PlusPeriod(value: 1, unit: .year), freeTrial: PlusPeriod(value: 2, unit: .week)
+            ),
+            PlusPlan(
+                id: "com.raychiu.purrdr.plus.monthly", displayName: "Purrdr Plus Monthly", description: Self.description,
+                displayPrice: "$4.99", period: PlusPeriod(value: 1, unit: .month), freeTrial: PlusPeriod(value: 2, unit: .week)
             ),
         ]
     }
@@ -31,8 +31,15 @@ final class UITestingPlusStore: PlusStore {
         .canceled
     }
 
+    /// 這個 Apple 帳號目前有有效訂閱(`-uiTestingOwnedByOtherMemberPlus`:訂閱屬於另一個會員,恢復購買或轉移要送簽章交易)。
+    private let hasCurrentTransaction: Bool
+
+    init(hasCurrentTransaction: Bool = false) {
+        self.hasCurrentTransaction = hasCurrentTransaction
+    }
+
     func currentTransactions() async -> [PlusTransaction] {
-        []
+        hasCurrentTransaction ? [PlusTransaction(id: 1, signedTransaction: "ui-testing-jws")] : []
     }
 
     func syncWithAppStore() async throws {}

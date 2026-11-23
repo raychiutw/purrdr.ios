@@ -39,19 +39,12 @@ final class UnreadPinnedUITests: XCTestCase {
         XCTAssertTrue(ledger.wait(for: NSPredicate(format: "value == %@", "Unread"), timeout: 10), "等待的條件沒有成立")
 
         // 有需要你的 workspace 時，主機與設定 sheet 的「完成」旁也不放數字徽章(#322)。
-        for (menuItem, sheet) in [("menu.hosts", "sheet.hosts"), ("menu.settings", "sheet.settings")] {
-            app.buttons["toolbar.more"].tap()
-            app.buttons[menuItem].tap()
-            let done = app.buttons["sheet.done"]
-            XCTAssertTrue(done.waitUntilExists(timeout: 5), "\(sheet) 沒有「完成」")
-            XCTAssertTrue(app.descendants(matching: .any)[sheet].firstMatch.exists, "沒有開出 \(sheet)")
-            XCTAssertFalse(app.descendants(matching: .any)["attention.badge"].firstMatch.exists, "\(sheet) 的「完成」旁有數字徽章")
-            XCTAssertEqual(done.label, "Done", "「完成」多念了徽章")
-            done.tap()
-            // 等 sheet 收完再點列表，否則點擊落在收合中的 sheet 上。
-            let closed = NSPredicate(format: "exists == false")
-            XCTAssertTrue(app.descendants(matching: .any)[sheet].firstMatch.wait(for: closed, timeout: 5), "等待的條件沒有成立")
+        // 導覽入口(主機、設定 tab)旁不放數字徽章(#322);聊天 tab 的 badge 是「需要你」數(#390)。
+        for tab in [AppTab.hosts, .settings] {
+            app.openTab(tab)
+            XCTAssertFalse(app.descendants(matching: .any)["attention.badge"].firstMatch.exists, "\(tab.rawValue) 旁有數字徽章")
         }
+        app.openTab(.chats)
 
         ledger.tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()

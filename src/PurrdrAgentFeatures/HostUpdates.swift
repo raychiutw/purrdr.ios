@@ -21,6 +21,9 @@ public final class HostUpdates {
     /// 這次連線從什麼時候開始(`phase` 是 `.loading` 時才有意義;列表據此顯示「仍在連線」,#221)。
     public private(set) var connectingSince: Date
 
+    /// 最後一次讀到快照的時間(主機 tab 離線時顯示「最後連線」,#392);還沒讀到過是 `nil`。
+    public private(set) var lastLoadedAt: Date?
+
     /// 最後一次成功讀到的主機快照。讀取失敗時保留。
     public private(set) var snapshot: HostSnapshot?
 
@@ -238,6 +241,7 @@ public final class HostUpdates {
         snapshot = fresh
         isRestarting = false
         phase = .loaded
+        lastLoadedAt = now()
         for id in paneWatchers.keys { paneWatchers[id]?.publish(from: fresh) }
         for reader in snapshotReaders.values { reader.yield(namedPanes) }
         onSnapshot?(fresh)

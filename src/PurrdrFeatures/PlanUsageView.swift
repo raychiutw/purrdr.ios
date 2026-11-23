@@ -16,52 +16,45 @@ public struct PlanUsageView: View {
 
     public var body: some View {
         List {
-            Section {
-                Picker("Host", selection: hostSelection) {
-                    ForEach(model.hosts) { option in
-                        HostMenuLabel(option.name, icon: option.icon).tag(option.id)
+            Group {
+                Section {
+                    Picker("Host", selection: hostSelection) {
+                        ForEach(model.hosts) { option in
+                            HostMenuLabel(option.name, icon: option.icon).tag(option.id)
+                        }
                     }
+                    .accessibilityIdentifier("planUsage.host")
+                } footer: {
+                    costNote
                 }
-                .accessibilityIdentifier("planUsage.host")
-            } footer: {
-                costNote
-            }
-            // Agent 與顯示方式攤開成勾選列(#313);顯示方式不再放在「⋯」裡。
-            Section {
-                Picker("Agent", selection: agentSelection) {
-                    ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
-                        Text(verbatim: agent.name).tag(agent)
+                // Agent 攤開成勾選列(#313);已用／剩餘是全域偏好,在設定 tab(#393)。
+                Section {
+                    Picker("Agent", selection: agentSelection) {
+                        ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
+                            Text(verbatim: agent.name).tag(agent)
+                        }
                     }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                    .accessibilityIdentifier("planUsage.agent")
+                } header: {
+                    Text("Agent")
+                        .foregroundStyle(.secondaryText)
                 }
-                .pickerStyle(.inline)
-                .labelsHidden()
-                .accessibilityIdentifier("planUsage.agent")
-            } header: {
-                Text("Agent")
-                    .foregroundStyle(.secondaryText)
-            }
-            Section {
-                Picker("Show", selection: $model.display) {
-                    Text("Remaining").tag(PlanUsageModel.Display.remaining)
-                    Text("Used").tag(PlanUsageModel.Display.used)
+                Section {
+                    content
+                } footer: {
+                    footnote
                 }
-                .pickerStyle(.inline)
-                .labelsHidden()
-                .accessibilityIdentifier("planUsage.display")
-            } header: {
-                Text("Show")
-                    .foregroundStyle(.secondaryText)
             }
-            Section {
-                content
-            } footer: {
-                footnote
-            }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+            .listRowBackground(AppSurface.groupedRow)
         }
+        .appGroupedList()
         .navigationTitle("Plan Usage")
         .refreshable { await model.refresh() }
         .toolbar { options }
-        .alert("Show Claude Plan Usage?", isPresented: confirming) {
+        .alert(consentAlertTitle, isPresented: confirming) {
             Button("Change Settings") { Task { await model.confirm() } }
             Button("Cancel", role: .cancel) { model.cancelConsent() }
         } message: {
@@ -88,14 +81,26 @@ public struct PlanUsageView: View {
         case .loading:
             PlanUsageMessage(systemImage: nil, title: "Checking \(hostName)…", detail: nil)
         case .loaded:
-            let rows = model.rows
-            if rows.isEmpty {
+            let groups = model.rowGroups
+            if groups.isEmpty {
                 noData
             } else {
-                HStack(alignment: .top, spacing: 12) {
-                    ForEach(rows) { row in
-                        PlanUsageRingView(row: row, display: model.display)
-                            .accessibilityIdentifier(row.period.accessibilityIdentifier)
+                // 同一用量週期依模型群組有多份(Antigravity):每個群組一列圓環,標明群組(#448)。
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(groups, id: \.group) { entry in
+                        if let title = entry.group.title {
+                            Text(title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondaryText)
+                                .accessibilityAddTraits(.isHeader)
+                                .accessibilityIdentifier("planUsage.group.\(entry.group.accessibilityKey)")
+                        }
+                        HStack(alignment: .top, spacing: 12) {
+                            ForEach(entry.rows) { row in
+                                PlanUsageRingView(row: row, display: model.display)
+                                    .accessibilityIdentifier(row.accessibilityIdentifier)
+                            }
+                        }
                     }
                 }
                 .padding(.vertical, 8)
@@ -104,8 +109,10 @@ public struct PlanUsageView: View {
             noData
         case .needsConsent, .confirming:
             PlanUsageMessage(
-                systemImage: "lock", title: "Show Claude plan usage on this host?",
-                detail: "Purrdr changes the Claude Code status line on \(hostName) so it saves plan usage. You can turn it off and restore the original anytime."
+                systemImage: "lock", title: model.agent == .antigravity ? "Show Antigravity plan usage on this host?" : "Show Claude plan usage on this host?",
+                detail: model.agent == .antigravity
+                    ? "Purrdr changes the Antigravity status line on \(hostName) so it saves plan usage. You can turn it off and restore the original anytime."
+                    : "Purrdr changes the Claude Code status line on \(hostName) so it saves plan usage. You can turn it off and restore the original anytime."
             ) {
                 Button("Check and Show") { Task { await model.requestConsent() } }
                     .filledProminentButtonStyle()
@@ -114,9 +121,9 @@ public struct PlanUsageView: View {
         case .checking:
             PlanUsageMessage(systemImage: nil, title: "Checking the host…", detail: nil)
         case .installing:
-            PlanUsageMessage(systemImage: nil, title: "Changing the host’s Claude settings…", detail: nil)
+            PlanUsageMessage(systemImage: nil, title: model.agent == .antigravity ? "Changing the host’s Antigravity settings…" : "Changing the host’s Claude settings…", detail: nil)
         case .turningOff:
-            PlanUsageMessage(systemImage: nil, title: "Restoring the host’s Claude settings…", detail: nil)
+            PlanUsageMessage(systemImage: nil, title: model.agent == .antigravity ? "Restoring the host’s Antigravity settings…" : "Restoring the host’s Claude settings…", detail: nil)
         case .unsupportedConnection:
             PlanUsageMessage(
                 systemImage: "nosign", title: "Plan usage isn’t available for this connection method",
@@ -142,8 +149,10 @@ public struct PlanUsageView: View {
 
     private var noData: some View {
         PlanUsageMessage(
-            systemImage: "hourglass", title: "Claude Code hasn’t reported plan usage yet",
-            detail: "Use Claude Code once on \(hostName), then pull down to refresh.")
+            systemImage: "hourglass", title: model.agent == .antigravity ? "Antigravity hasn’t reported plan usage yet" : "Claude Code hasn’t reported plan usage yet",
+            detail: model.agent == .antigravity
+                ? "Use Antigravity once on \(hostName), then pull down to refresh."
+                : "Use Claude Code once on \(hostName), then pull down to refresh.")
     }
 
     /// 查詢方式(DESIGN.md:選單與圓環之間標出)。
@@ -174,6 +183,10 @@ public struct PlanUsageView: View {
                     Text("As of \(asOf, format: .dateTime.hour().minute()). Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host.")
                 case (.codex, nil):
                     Text("Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host.")
+                case (.antigravity, let asOf?):
+                    Text("As of \(asOf, format: .dateTime.hour().minute()), when Antigravity last reported on this host.")
+                case (.antigravity, nil):
+                    Text("Antigravity reports these numbers while it runs on this host.")
                 }
             }
             .foregroundStyle(.secondaryText)
@@ -186,7 +199,13 @@ public struct PlanUsageView: View {
         if model.canTurnOff {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    Button("Turn Off Claude Plan Usage", systemImage: "arrow.uturn.backward", role: .destructive) {
+                    if model.wrapperUpdateAvailable {
+                        Button("Update Claude Usage Script", systemImage: "arrow.triangle.2.circlepath") {
+                            Task { await model.requestWrapperUpdate() }
+                        }
+                        .accessibilityIdentifier("planUsage.updateWrapper")
+                    }
+                    Button(turnOffTitle, systemImage: "arrow.uturn.backward", role: .destructive) {
                         Task { await model.turnOff() }
                     }
                 } label: {
@@ -195,6 +214,14 @@ public struct PlanUsageView: View {
                 .accessibilityIdentifier("planUsage.menu")
             }
         }
+    }
+
+    private var consentAlertTitle: LocalizedStringKey {
+        model.agent == .antigravity ? "Show Antigravity Plan Usage?" : "Show Claude Plan Usage?"
+    }
+
+    private var turnOffTitle: LocalizedStringKey {
+        model.agent == .antigravity ? "Turn Off Antigravity Plan Usage" : "Turn Off Claude Plan Usage"
     }
 
     private var hostSelection: Binding<HostSelection> {
@@ -216,6 +243,9 @@ public struct PlanUsageView: View {
 
     private var consentMessage: String {
         guard case .confirming(let user) = model.state else { return "" }
+        if model.agent == .antigravity {
+            return String(localized: "To show plan usage, Purrdr changes one Antigravity setting on this host (signed in as \(user)). Turning this off puts it back.")
+        }
         return String(localized: "To show plan usage, Purrdr changes one Claude Code setting on this host (signed in as \(user)). Turning this off puts it back.")
     }
 }
@@ -263,6 +293,7 @@ extension PlanUsageAgent {
         switch self {
         case .claudeCode: "Claude Code"
         case .codex: "Codex"
+        case .antigravity: "Antigravity"
         }
     }
 }
@@ -365,5 +396,31 @@ struct PlanUsageRingView: View {
     /// 一天內只顯示時間，否則加上星期。時間依裝置地區與 12/24 小時制。
     static func resetFormat(_ date: Date, now: Date = Date()) -> Date.FormatStyle {
         date.timeIntervalSince(now) < PlanUsage.Period.day ? .dateTime.hour().minute() : .dateTime.weekday(.abbreviated).hour().minute()
+    }
+}
+
+extension PlanUsage.Group {
+    /// 詳細面板的群組標題;只有一個群組(`.general`)時沒有。
+    var title: LocalizedStringResource? {
+        switch self {
+        case .general: nil
+        case .gemini: "Gemini Models"
+        case .thirdParty: "Third-Party Models"
+        }
+    }
+
+    var accessibilityKey: String {
+        switch self {
+        case .general: "general"
+        case .gemini: "gemini"
+        case .thirdParty: "thirdParty"
+        }
+    }
+}
+
+extension PlanUsageRow {
+    /// 圓環的識別碼:一般是 `planUsage.period.<週期>`,有模型群組的(Antigravity)多一段群組,兩組的同一週期才分得開。
+    var accessibilityIdentifier: String {
+        group == .general ? period.accessibilityIdentifier : "planUsage.period.\(group.accessibilityKey).\(period.accessibilityKey)"
     }
 }

@@ -64,3 +64,64 @@ public struct SignInCredential: Sendable, Equatable {
         self.authorizationCode = authorizationCode
     }
 }
+
+/// 登入中的裝置(後台的工作階段,每支裝置一個):帳號頁「登入中的裝置」列出,撤銷另一支等於把它登出。
+public struct SignInDevice: Equatable, Identifiable, Sendable {
+    /// 工作階段 id(撤銷用)。
+    public var id: String
+    public var name: String?
+    /// 後台的 `deviceModel`(`iPhone`、`iPad`…);沒有時是 `nil`。
+    public var model: String?
+    public var lastActiveAt: Date
+    /// 發出目前存取權杖的那支(這支裝置):不能撤銷,要登出請用「登出」。
+    public var isCurrent: Bool
+
+    public init(id: String, name: String?, model: String?, lastActiveAt: Date, isCurrent: Bool) {
+        self.id = id
+        self.name = name
+        self.model = model
+        self.lastActiveAt = lastActiveAt
+        self.isCurrent = isCurrent
+    }
+}
+
+/// 合併確認摘要(409 `merge_required` 的 `error.details`,#410):兩個會員各自的登入方式、訂閱與主機數。
+/// email 後台已遮蔽(只留第一個字元與網域);不含對方的會員 ID。
+public struct MemberMergeSummary: Equatable, Sendable {
+    public struct Side: Equatable, Sendable {
+        public struct Identity: Equatable, Sendable {
+            public var method: SignInMethod
+            public var email: String?
+
+            public init(method: SignInMethod, email: String?) {
+                self.method = method
+                self.email = email
+            }
+        }
+
+        public var identities: [Identity]
+        /// 有有效訂閱(含帳單寬限期與重試期)。
+        public var hasActiveSubscription: Bool
+        /// 主機數(不含已刪除的)。
+        public var hostCount: Int
+
+        public init(identities: [Identity], hasActiveSubscription: Bool, hostCount: Int) {
+            self.identities = identities
+            self.hasActiveSubscription = hasActiveSubscription
+            self.hostCount = hostCount
+        }
+    }
+
+    /// 兩邊都有有效訂閱時是 `false`:一個會員只能有一個訂閱,要先讓其中一邊不再有效。
+    public var canMerge: Bool
+    /// 目前登入的會員。
+    public var current: Side
+    /// 擁有這個登入方式的另一個會員。
+    public var other: Side
+
+    public init(canMerge: Bool, current: Side, other: Side) {
+        self.canMerge = canMerge
+        self.current = current
+        self.other = other
+    }
+}

@@ -16,7 +16,7 @@ final class ConversationStatusSheetUITests: XCTestCase {
         header.tap()
 
         XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出狀態 sheet")
-        app.buttons["Done"].tap()
+        app.buttons["sheet.close"].tap()
         XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "完成後狀態 sheet 還在")
     }
 

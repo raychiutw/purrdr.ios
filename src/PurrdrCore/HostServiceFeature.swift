@@ -31,6 +31,20 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case pushTest
     /// 對話紀錄視窗的位元組上限 `transcript.window` 的 `max_bytes`(#356、raychiutw/purrdr.host#52)。
     case transcriptWindowMaxBytes
+    /// 方案用量 `usage.codex`／`usage.claude`(raychiutw/purrdr.host#62)。
+    case planUsage
+    /// 每個 Claude session 的 context 用量 `usage.session_context`(raychiutw/purrdr.host#62、#64)。
+    case sessionContext
+    /// 用量擷取(Claude status line 包裝)的狀態、安裝與還原 `claude_usage.status`／`install`／`remove`;後兩者是寫入類。
+    case claudeUsageSetup
+    /// 資料夾瀏覽 `directory.list` 與 `welcome.home_directory`(raychiutw/purrdr.host#26)。
+    case directoryBrowsing
+    /// 主機服務直接送推播:`push.*` 結果的 `direct_push`(有的話 `push.install` 不安裝外掛)。
+    case directPush
+    /// 取檔放行使用者 prompt 裡 Purrdr 上傳資料夾的路徑(raychiutw/purrdr.host#73、#430);更舊的主機服務一律回 `denied`。
+    case userUploadFetch
+    /// 重新命名 Tab `tab.rename`(#458、raychiutw/purrdr.host#78)。
+    case tabRename
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -49,6 +63,13 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .gitChanges: HostServiceVersion(0, 7, 0)
         case .pushTest: HostServiceVersion(0, 11, 0)
         case .transcriptWindowMaxBytes: HostServiceVersion(0, 11, 0)
+        case .planUsage: HostServiceVersion(0, 12, 0)
+        case .sessionContext: HostServiceVersion(0, 12, 0)
+        case .claudeUsageSetup: HostServiceVersion(0, 12, 0)
+        case .directoryBrowsing: HostServiceVersion(0, 12, 0)
+        case .directPush: HostServiceVersion(0, 12, 0)
+        case .userUploadFetch: HostServiceVersion(0, 13, 0)
+        case .tabRename: HostServiceVersion(0, 13, 1)
         }
     }
 

@@ -1,13 +1,14 @@
 import Foundation
 
-/// Antigravity(`agy`)對話紀錄的解析器(行為規格 §4.4)。【未實測】
+/// Antigravity(`agy`)對話紀錄的解析器(行為規格 §4.4)。已用 agy 1.5.14 的真實錄製驗證(#446,
+/// `Fixtures/other-agents/antigravity/live-1.5.14/`)。
 ///
 /// 位置：`$HOME/.gemini/antigravity-cli/brain/<session id>/.system_generated/logs/transcript.jsonl`(或 herdr 回報的路徑)。
 /// 一行一個 step:`{step_index, source, type, status, created_at, content, thinking?, tool_calls?, input_tokens?,
 /// cache_read_tokens?, output_tokens?}`。旁邊的 `transcript_full.jsonl` 保留完整工具輸出，刻意不用。
 ///
-/// 依 agy 1.3.6 的行為描述撰寫，本機沒有 agy 可以驗證。`tool_calls[i]` 的參數欄位名(`args` 或 `arguments`)沒有
-/// 公開文件，兩者都接受。
+/// 真實資料確認:`tool_calls[i]` 的參數在 `args`(仍容許 `arguments`),檔案路徑欄位是 `Path`(舊描述是 `AbsolutePath`);
+/// 權限被拒的 `GENERIC` step 是 `status: "ERROR"` 並帶 `error` 欄位;`PLANNER_RESPONSE.model` 是 `gemini-4-neon-medium` 這種 id。
 public enum AntigravityTranscriptParser {
     public static func messages(in line: String) -> [TranscriptMessage] {
         guard let step = step(line) else { return [] }
@@ -33,25 +34,31 @@ public enum AntigravityTranscriptParser {
             return parts.isEmpty ? [] : [TranscriptMessage(id: id, role: .assistant, date: date, parts: parts)]
         case "GENERIC":
             // 輸出配給**前一個 step** 的第一個呼叫，不依順序(R-I17)。
-            let text = output(step.object["content"] as? String ?? "")
+            // `status: "ERROR"` 時真正的原因在 `error` 欄位(`content` 裡是夾著時間行的同一段文字)。
+            let failed = step.object["status"] as? String == "ERROR"
+            let errorText = (step.object["error"] as? String).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            let text = failed && !(errorText ?? "").isEmpty ? errorText! : output(step.object["content"] as? String ?? "")
             return [TranscriptMessage(id: id, role: .user, date: date, parts: [
-                .toolResult(callID: "agy-\(step.index - 1):0", text: text.truncated(to: 4000), isError: false),
+                .toolResult(callID: "agy-\(step.index - 1):0", text: text.truncated(to: 4000), isError: failed),
             ])]
         default:
             return []
         }
     }
 
-    /// 模型：任何 `USER_INPUT` 的「setting `Model Selection` from … to X.」;context = `input_tokens + cache_read_tokens`。
+    /// 模型與 effort:`PLANNER_RESPONSE` 的 `model` id(`gemini-4-neon-medium` → 「Gemini 4 Neon」、effort `medium`),
+    /// 或任何 `USER_INPUT` 的「setting `Model Selection` from … to Gemini 4 Neon (Medium).」;較晚的覆蓋較早的。
+    /// context = `input_tokens + cache_read_tokens`。
     public static func updateMetadata(_ metadata: inout TranscriptMetadata, with line: String) {
         guard let step = step(line) else { return }
         switch step.object["type"] as? String {
         case "USER_INPUT":
             let content = step.object["content"] as? String ?? ""
             if let match = content.firstMatch(of: /setting `Model Selection` from .*? to (.+?)\.(\s|$)/) {
-                metadata.model = String(match.output.1)
+                apply(modelLabel: String(match.output.1), to: &metadata)
             }
         case "PLANNER_RESPONSE":
+            if let id = step.object["model"] as? String, !id.isEmpty { apply(modelID: id, to: &metadata) }
             let counts = ["input_tokens", "cache_read_tokens"].compactMap { step.object[$0] as? Int }
             if !counts.isEmpty, counts.reduce(0, +) > 0 { metadata.contextTokens = counts.reduce(0, +) }
         default:
@@ -60,6 +67,29 @@ public enum AntigravityTranscriptParser {
     }
 
     // MARK: - 內部
+
+    private static let efforts: Set<String> = ["low", "medium", "high", "xhigh", "max"]
+
+    /// 「Gemini 4 Neon (Medium)」→ 模型「Gemini 4 Neon」、effort `medium`;沒有括號就整段是模型(effort 沿用)。
+    private static func apply(modelLabel label: String, to metadata: inout TranscriptMetadata) {
+        let trimmed = label.trimmingCharacters(in: .whitespaces)
+        if let match = trimmed.firstMatch(of: /^(.+?)\s*\((\w+)\)$/), efforts.contains(match.output.2.lowercased()) {
+            metadata.model = String(match.output.1)
+            metadata.effort = match.output.2.lowercased()
+        } else {
+            metadata.model = trimmed
+        }
+    }
+
+    /// `gemini-4-neon-medium` → 「Gemini 4 Neon」、effort `medium`:最後一段是 effort 等級就拆出來,其餘各段首字大寫。
+    private static func apply(modelID id: String, to metadata: inout TranscriptMetadata) {
+        var parts = id.split(separator: "-").map(String.init)
+        if let last = parts.last, efforts.contains(last.lowercased()), parts.count > 1 {
+            metadata.effort = last.lowercased()
+            parts.removeLast()
+        }
+        metadata.model = parts.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+    }
 
     private struct Step {
         var object: [String: Any]
@@ -84,7 +114,7 @@ public enum AntigravityTranscriptParser {
     private static func arguments(_ call: [String: Any]) -> [String: Any] {
         var raw = call["args"] ?? call["arguments"]
         if let text = raw as? String { raw = ClaudeTranscriptParser.jsonObject(text) }
-        let renamed = ["CommandLine": "command", "Cwd": "cwd", "AbsolutePath": "file_path", "toolSummary": "description"]
+        let renamed = ["CommandLine": "command", "Cwd": "cwd", "AbsolutePath": "file_path", "Path": "file_path", "toolSummary": "description"]
         var result: [String: Any] = [:]
         for (key, value) in raw as? [String: Any] ?? [:] where key != "toolAction" {
             var decoded = value

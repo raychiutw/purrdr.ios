@@ -10,12 +10,15 @@ struct AddHostGuideScreen: View {
     let onAdded: (HostConfiguration) -> Void
     /// 這台主機的推播開關(最後一頁用)。
     let hostPush: (UUID) -> HostPush?
+    let onTryDemo: (() -> Void)?
 
     init(
         make: () -> AddHostGuideModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void,
-        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil }
+        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil },
+        onTryDemo: (() -> Void)? = nil
     ) {
         _model = State(initialValue: make())
+        self.onTryDemo = onTryDemo
         self.onAdded = onAdded
         self.hostPush = hostPush
         self.onSaved = onSaved
@@ -24,7 +27,7 @@ struct AddHostGuideScreen: View {
 
     var body: some View {
         AddHostGuideView(
-            model: model, onSaved: onSaved, onCancel: onCancel, onAdded: onAdded, hostPush: hostPush)
+            model: model, onSaved: onSaved, onCancel: onCancel, onAdded: onAdded, hostPush: hostPush, onTryDemo: onTryDemo)
     }
 }
 
@@ -38,6 +41,8 @@ struct AddHostGuideView: View {
     /// 這個引導接不了的路徑(目前是原生 SSH 與 HTTPS):換成主機編輯頁。
     var onAdded: (HostConfiguration) -> Void = { _ in }
     var hostPush: (UUID) -> HostPush? = { _ in nil }
+    /// 第一頁最下面的「體驗範例主機」(#394);沒有就不顯示(帳號頁補配對等不是新增主機的入口)。
+    var onTryDemo: (() -> Void)?
     @Environment(\.openURL) private var openURL
     @State private var expandedHelp: AddHostGuideModel.Field?
     @State private var showOtherWays = false
@@ -47,6 +52,23 @@ struct AddHostGuideView: View {
     @FocusState private var focus: AddHostGuideModel.Field?
 
     var body: some View {
+        ScrollViewReader { scroller in
+            scrollContent
+                // 展開「Enter It Manually」後欄位會落在底部面板底下點不到:捲到配對頁最下面(面板上緣)。
+                .onChange(of: manualExpanded) { _, expanded in
+                    guard expanded else { return }
+                    // 展開動畫與版面更新完才捲得到新的底部。
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(350))
+                        withAnimation { scroller.scrollTo(Self.pairBottomID, anchor: .bottom) }
+                    }
+                }
+        }
+    }
+
+    private static let pairBottomID = "guide.pairBottom"
+
+    private var scrollContent: some View {
         ScrollView {
             VStack(spacing: 16) {
                 hero
@@ -226,6 +248,7 @@ struct AddHostGuideView: View {
                         .font(.footnote)
                 }
                 .accessibilityIdentifier("guide.pairingHelp")
+                .id(Self.pairBottomID)
             }
         case .enable:
             instructions(model.enableInstructions)
@@ -257,7 +280,7 @@ struct AddHostGuideView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: .rect(cornerRadius: 18))
+        .background(AppSurface.card, in: .rect(cornerRadius: 18))
     }
 
     private func pairField(
@@ -300,7 +323,7 @@ struct AddHostGuideView: View {
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.background.secondary, in: .rect(cornerRadius: 18))
+                .background(AppSurface.card, in: .rect(cornerRadius: 18))
                 .accessibilityElement(children: .contain)
             }
         }
@@ -357,7 +380,7 @@ struct AddHostGuideView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: .rect(cornerRadius: 18))
+        .background(AppSurface.card, in: .rect(cornerRadius: 18))
     }
 
     /// 金鑰三步:打開終端機並貼上指令,回來測試連線。
@@ -411,7 +434,7 @@ struct AddHostGuideView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: .rect(cornerRadius: 18))
+        .background(AppSurface.card, in: .rect(cornerRadius: 18))
     }
 
     private func identifier(_ field: AddHostGuideModel.Field) -> String {
@@ -451,7 +474,7 @@ struct AddHostGuideView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.background.secondary, in: .rect(cornerRadius: 18))
+            .background(AppSurface.card, in: .rect(cornerRadius: 18))
         case .hostKeyChanged:
             ErrorLabel(String(localized: "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself."))
                 .accessibilityIdentifier("guide.result")
@@ -571,6 +594,12 @@ struct AddHostGuideView: View {
             option(
                 "https", "HTTPS (Host Service)", detail: "Install the Purrdr host service for send-when-done and stuck alerts",
                 symbol: "lock.shield") { model.choose(.https) }
+            if let onTryDemo {
+                Button("Try the Demo", action: onTryDemo)
+                    .buttonStyle(.borderless)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("guide.tryDemo")
+            }
         case .tailscale:
             primary("I’ve Got Tailscale on Both", id: "guide.next", enabled: true) { model.advance() }
         case .install:

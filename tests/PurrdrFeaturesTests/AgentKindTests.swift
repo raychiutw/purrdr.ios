@@ -15,6 +15,16 @@ struct AgentKindTests {
         #expect(AgentKind(rawKind: "") == .unknown(""))
     }
 
+    @Test("herdr 的正式名稱與別名都對應到同一種類(#435)")
+    func parsesHerdrNamesAndAliases() {
+        for name in ["opencode", "opencode2", "open-code"] { #expect(AgentKind(rawKind: name) == .openCode) }
+        for name in ["copilot", "github-copilot", "ghcs"] { #expect(AgentKind(rawKind: name) == .copilot) }
+        for name in ["agy", "antigravity", "antigravity-cli"] { #expect(AgentKind(rawKind: name).displayName == "Antigravity") }
+        #expect(AgentKindSymbol.name(for: "opencode") == "curlybraces")
+        #expect(AgentKindSymbol.name(for: "ghcs") == "airplane")
+        #expect(AgentKindSymbol.name(for: "antigravity-cli") == AgentKindSymbol.name(for: "agy"))
+    }
+
     @Test("顯示名稱：已知種類有固定名稱，其他種類照既有對照或原文")
     func displayNames() {
         #expect(AgentKind.claudeCode.displayName == "Claude Code")

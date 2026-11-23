@@ -47,6 +47,7 @@ final class HTTPSHostUITests: XCTestCase {
             XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有通過連線測試")
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
+            app.openTab(.chats)
 
             // Demo 的 w2:p1 卡在 Bash 權限(AnswerPromptUITests)。此時只有這一台 HTTPS 主機。
             let row = app.descendants(matching: .any)
@@ -72,8 +73,8 @@ final class HTTPSHostUITests: XCTestCase {
             app.navigationBars.buttons.element(boundBy: 0).tap()
         }
 
-        // 配對、測試、儲存後列表顯示這台主機的 Agent,選單沒有登入 Shell 的限制(Demo 仍能開);
-        // 主機服務比最新版舊(#198;UI 測試的最新版固定，不連 GitHub,#362):主機清單標示可更新，點進去有兩種作業系統的更新指令;
+        // 配對、測試、儲存後列表顯示這台主機的 Agent,HTTPS 主機沒有登入 Shell;
+        // 主機服務比最新版舊(#198;UI 測試的最新版固定，不連 GitHub,#362):主機 tab 標示可更新，點進去有兩種作業系統的更新指令;
         // 選「這個版本不再提醒」後這台的標示消失。
         step("配對可寫主機後列表有 Agent，並提示更新主機服務") {
             pairManually(app, code: "K7QM-2XPA")
@@ -81,19 +82,19 @@ final class HTTPSHostUITests: XCTestCase {
             XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有通過連線測試")
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
+            app.openTab(.chats)
 
             let row = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT (identifier BEGINSWITH %@)", "agent.row.", "agent.row.demo/"))
                 .firstMatch
             XCTAssertTrue(row.waitUntilExists(timeout: 10), "列表沒有 HTTPS 主機的 Agent")
-            app.buttons["toolbar.more"].tap()
-            XCTAssertTrue(app.buttons["menu.hosts"].waitUntilExists(timeout: 5))
-            XCTAssertTrue(app.buttons["menu.loginShell"].exists, "選取中主機是 HTTPS 時，Demo 仍能開登入 Shell")
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
+            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 5), "主機 tab 沒有連線狀態")
+            XCTAssertFalse(app.buttons["hosts.tool.loginShell"].exists, "HTTPS 主機沒有登入 Shell")
 
             let updates = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "hosts.update."))
-            XCTAssertTrue(updates.firstMatch.waitUntilExists(timeout: 10), "主機清單沒有更新提示")
-            XCTAssertTrue(app.descendants(matching: .any)["hosts.row.hostServiceUpdate"].firstMatch.exists, "主機列沒有標示可更新")
+            _ = updates.firstMatch.waitUntilExists(timeout: 10)
+            XCTAssertTrue(app.scrollIntoView(updates.firstMatch, timeout: 5), "主機 tab 沒有更新提示")
             let before = updates.count
             updates.firstMatch.tap()
 
@@ -105,7 +106,7 @@ final class HTTPSHostUITests: XCTestCase {
             XCTAssertTrue(dismiss.waitUntilExists(timeout: 5))
             dismiss.tap()
 
-            XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機清單")
+            XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機 tab")
             XCTAssertTrue(UITestWait.until(timeout: 5) { updates.count == before - 1 }, "關閉後那台仍有更新提示(\(before) → \(updates.count))")
         }
     }
@@ -117,10 +118,7 @@ final class HTTPSHostUITests: XCTestCase {
     private func openPairStep(_ app: XCUIApplication) {
         // 已在主機清單(例如取消上一段引導後)就直接用「＋」。
         if !app.buttons["hosts.add"].waitUntilExists(timeout: 2) {
-            let more = app.buttons["toolbar.more"]
-            XCTAssertTrue(more.waitUntilExists(timeout: 10))
-            more.tap()
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
         }
         let add = app.buttons["hosts.add"]
         XCTAssertTrue(add.waitUntilExists(timeout: 5))

@@ -54,7 +54,7 @@ struct HTTPSTranscriptTests {
         ])
         defer { Task { await service.stop() } }
 
-        let file = try await Self.reader(for: service).0.locate(TranscriptTarget(format: .codex, location: .codex(sessionID: id), sessionKey: id))
+        let file = try await Self.reader(for: service).0.locate(TranscriptTarget.id(.codex, id))
 
         #expect(file == TranscriptFile(path: rollout, size: 900))
         let sent = try #require(service.messages(ofType: "transcript.locate").first)
@@ -71,7 +71,7 @@ struct HTTPSTranscriptTests {
         ])
         defer { Task { await service.stop() } }
 
-        _ = try? await Self.reader(for: service).0.locate(TranscriptTarget(format: .piJournal, location: .reportedPath(journal), sessionKey: journal))
+        _ = try? await Self.reader(for: service).0.locate(TranscriptTarget.path(.piJournal, journal))
 
         let sent = try #require(service.messages(ofType: "transcript.locate").first)
         #expect(sent["session"] as? [String: String] == ["kind": "path", "value": journal])
@@ -278,7 +278,7 @@ struct HTTPSTranscriptTests {
         defer { Task { await service.stop() } }
 
         await #expect(throws: HostServiceError.unsupported("transcript")) {
-            try await Self.reader(for: service).0.locate(TranscriptTarget(format: .grok, location: .grok(sessionID: "abc"), sessionKey: "abc"))
+            try await Self.reader(for: service).0.locate(TranscriptTarget.id(.grok, "abc"))
         }
     }
 }

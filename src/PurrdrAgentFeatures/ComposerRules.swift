@@ -38,14 +38,19 @@ public enum ComposerKeys {
     }
 }
 
-/// 送出鈕的外觀：可送或送出中是主色填色，不能送是中性停用樣式(`.fill.tertiary` 底、次要色箭頭)。
+/// 送出鈕的外觀：可送是主色填色；送出中是同樣的主色填色但不可點(不套系統 disabled，
+/// 系統 prominent 的停用外觀在深色模式是黑色實心圓);不能送是中性停用樣式(`.fill.tertiary` 底、次要色箭頭)。
 public enum ComposerSendAppearance: Sendable, Equatable {
     case prominent
+    case sending
     case neutralDisabled
 
     public init(canSend: Bool, isSending: Bool) {
-        self = canSend || isSending ? .prominent : .neutralDisabled
+        self = if isSending { .sending } else if canSend { .prominent } else { .neutralDisabled }
     }
+
+    /// 只有可送時點得到;送出中與不能送都不可點。
+    public var isTappable: Bool { self == .prominent }
 }
 
 // MARK: - 長高
@@ -76,10 +81,10 @@ public struct ComposerTextMetrics: Sendable, Equatable {
     }
 }
 
-/// 輸入框長高規則(#137,偏離 F6.1 的 4 行):空白時一行高(#196),有內容時至少兩行高(#187),最多 8 行且不超過
-/// 鍵盤上方可用高度的 40%(取小),最小 44pt,超過才內捲。
+/// 輸入框長高規則(#137,偏離 F6.1 的 4 行):空白時一行高(#196),有內容時至少兩行高(#187),最多 5 行(#382)且不超過
+/// 鍵盤上方可用高度的 40%(取小),最小 44pt,超過才在框內捲動。
 public enum ComposerSizing {
-    public static let maxLines = 8.0
+    public static let maxLines = 5.0
     /// 有內容時至少留的行數(上下版面的整寬輸入框，#187)。
     public static let defaultLines = 2.0
     /// 空白時的行數：空白的輸入框佔兩行太高，打字時再長高(#196 留言)。
@@ -102,16 +107,49 @@ public enum ComposerSizing {
     }
 }
 
-// MARK: - 展開編輯
+// MARK: - 兩態(#382)
 
-/// 「展開」鈕(#142):內容超過 2 行或聚焦時顯示，打開展開編輯(large sheet)。
-public enum ComposerExpansion {
-    public static func showsExpandButton(_ metrics: ComposerTextMetrics, isFocused: Bool) -> Bool {
-        if isFocused { return true }
-        guard metrics.lineHeight > 0 else { return false }
-        // 四捨五入：量到的高度可能比行高的整數倍多一點點。
-        return ((metrics.contentHeight - metrics.verticalInsets) / metrics.lineHeight).rounded() > 2
+/// 輸入列的兩種形態:收合是一列(+、輸入、送出),展開是兩列(上方輸入、下方 +、模型膠囊、送出)。
+public enum ComposerForm: Sendable, Equatable {
+    case collapsed
+    case expanded
+
+    /// 收合只在「沒聚焦、沒有文字、沒有附件」時;其餘展開。
+    /// 草稿只有空白或換行也算有內容(使用者打過字，收起鍵盤後草稿還在)。
+    public static func resolve(isFocused: Bool, draft: String, hasAttachments: Bool) -> ComposerForm {
+        isFocused || !draft.isEmpty || hasAttachments ? .expanded : .collapsed
     }
+
+    /// 模型膠囊只在展開時顯示(收合沒有位置，也不會被截成「Opu…」)。
+    public var showsModelCapsule: Bool { self == .expanded }
+}
+
+/// 輸入框提示文字的種類(#382):有待回答的「需要你」卡片時提示可以直接告訴 Agent 怎麼做。
+public enum ComposerPlaceholderKind: Sendable, Equatable {
+    case message
+    /// 自訂回答(#120)。
+    case typedAnswer
+    case tellAgent
+
+    public static func choose(hasTypedAnswer: Bool, hasPendingPrompt: Bool) -> ComposerPlaceholderKind {
+        if hasTypedAnswer { return .typedAnswer }
+        return hasPendingPrompt ? .tellAgent : .message
+    }
+}
+
+/// 「+」現在能不能用(#382):離線時附件不能排隊(上傳需要連線)，鈕呈停用外觀但點了會說明;滿 10 個點了提示上限。
+public enum ComposerAttachAvailability: Sendable, Equatable {
+    case available
+    case offline
+    case limitReached
+
+    public static func resolve(isOffline: Bool, remainingSlots: Int) -> ComposerAttachAvailability {
+        if isOffline { return .offline }
+        return remainingSlots > 0 ? .available : .limitReached
+    }
+
+    /// 停用外觀(不用系統 disabled:點了要能說明原因)。
+    public var isDimmed: Bool { self == .offline }
 }
 
 // MARK: - 組字

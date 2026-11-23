@@ -93,6 +93,16 @@ public final class WorkspaceActionsModel {
         }
     }
 
+    /// 重新命名 tab(#456)。成功回 `true` 並重讀列表;失敗時原因放在 `renameError`。
+    public func renameTab(tabID: String, to label: String) async -> Bool {
+        renameError = nil
+        return await perform {
+            try await client.renameTab(tabID, to: label.trimmingCharacters(in: .whitespacesAndNewlines))
+        } onError: {
+            renameError = $0
+        }
+    }
+
     public func clearRenameError() { renameError = nil }
 
     // MARK: - 關閉

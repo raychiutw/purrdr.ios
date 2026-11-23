@@ -17,7 +17,9 @@ public struct ConversationView: View {
     /// Reduce Motion:自動捲到底不做動畫，直接跳過去(HIG:減少自動、重複的動畫)。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scroll = ConversationScroll()
-    @State private var position = ScrollPosition(edge: .bottom)
+    /// 初始位置不指定邊緣:`ScrollPosition(edge: .bottom)` 搭配 `scrollTargetLayout()` 與水平 padding 時，
+    /// SwiftUI 會把水平位移設成 padding 的寬度(16pt),訊息貼到左邊、頂端被裁掉(#418)。開啟時的底部定位交給 `defaultScrollAnchor(.bottom)`。
+    @State private var position = ScrollPosition()
     @State private var userIsScrolling = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
     @State private var userHasDragged = false
     /// 畫面上看得到的列(內容被重建時的錨點,#130)。
@@ -25,7 +27,7 @@ public struct ConversationView: View {
     /// 上次看到的列 id(`model.entriesRevision` 改變時與新的比較，#130)。
     @State private var entryIDs: [String] = []
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
-    @State private var viewerImage: ViewerImage?
+    @State private var viewerItem: ImageViewerItem?
     /// 新訊息與狀態變化的 VoiceOver 公告(有節流，#35)。
     @State private var announcer = ConversationAnnouncer()
     /// 對話的可見高度(扣掉上下 inset;輸入列依它決定鍵盤出現時要不要讓位，#196)。
@@ -60,9 +62,9 @@ public struct ConversationView: View {
             .slashPanelSheet(model: model)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
-                show: { viewerImage = ViewerImage(url: $0) }
+                show: { viewerItem = $0 }
             ))
-            .imageViewer(item: $viewerImage)
+            .imageViewer(item: $viewerItem)
             .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
             .environment(\.delegationContext, DelegationContext(
                 workflowModel: { [model] in model.workflowModel(for: $0) },
@@ -227,7 +229,10 @@ public struct ConversationView: View {
         }
         .onScrollPhaseChange { _, phase in
             userIsScrolling = phase == .interacting || phase == .tracking || phase == .decelerating
-            if phase == .interacting { userHasDragged = true }
+            if phase == .interacting {
+                userHasDragged = true
+                scroll.userBeganDragging()
+            }
         }
         .onScrollGeometryChange(for: ConversationScrollMetrics.self) { geometry in
             ConversationScrollMetrics(
@@ -325,16 +330,19 @@ public struct ConversationView: View {
         .overlay(alignment: .bottomTrailing) {
             if scroll.showsJumpToLatest {
                 Button {
-                    scroll.jumpToLatest()
+                    scroll.jumpToLatestByTap()
                     withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
                         .frame(width: 44, height: 44)
+                        .floatingGlass(in: Circle())
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.plain)
                 .padding()
-                .accessibilityIdentifier("conversation.jumpToLatest")            }
+                .accessibilityIdentifier("conversation.jumpToLatest")
+            }
         }
     }
 
@@ -346,7 +354,7 @@ public struct ConversationView: View {
         if isNewContent { scroll.followedNewContent() }
         let target = ConversationFollowTarget.target(
             showsWorkingRow: model.showsWorkingIndicator && model.workingSince != nil,
-            showsPromptCard: model.prompt != nil || model.lastAnswer != nil, lastEntryID: model.entries.last?.id)
+            showsPromptCard: model.lastAnswer != nil, lastEntryID: model.entries.last?.id)
         switch target {
         case .row(let id): proxy.scrollTo(id, anchor: .bottom)
         case .bottomEdge: position.scrollTo(edge: .bottom)
@@ -409,7 +417,7 @@ public struct ConversationView: View {
             ContentUnavailableView {
                 Label("Getting Ready", systemImage: "hourglass")
             } description: {
-                if model.agentKind == "codex" {
+                if model.transcriptStartsAfterFirstMessage {
                     Text("Its messages appear here after you send the first message.")
                 } else {
                     Text("Waiting for the agent to get ready. Its messages appear here soon.")
@@ -433,6 +441,13 @@ public struct ConversationView: View {
             } description: {
                 Text("This pane no longer has an agent running.")
             }
+        case .newConversation:
+            ContentUnavailableView {
+                Label("New Conversation", systemImage: "bubble.left.and.bubble.right")
+            } description: {
+                Text("Its messages appear here after you send the first message.")
+            }
+            .accessibilityIdentifier("conversation.new")
         case .ready:
             ContentUnavailableView {
                 Label("No Messages Yet", systemImage: "bubble.left.and.bubble.right")
@@ -573,7 +588,7 @@ struct AgentMessageView: View {
     /// 點了的主機路徑：開啟中或開不了時在訊息下方顯示狀態。
     @State private var openedPath: String?
     @State private var previewFile: URL?
-    @State private var viewer: AgentImageViewerItem?
+    @State private var viewer: ImageViewerItem?
 
     var body: some View {
         let markdown = MarkdownView(text.markdown)
@@ -601,7 +616,7 @@ struct AgentMessageView: View {
             return .handled
         })
         .quickLookPreview($previewFile)
-        .agentImageViewer(item: $viewer)
+        .imageViewer(item: $viewer)
     }
 
     private func open(_ path: String) {
@@ -612,7 +627,7 @@ struct AgentMessageView: View {
             if HostPathOpenStatus.isImage(path) {
                 await loads.load(path, scope: scope, userRequested: true)
                 guard case .loaded(let data, _) = loads.states[path] else { return }
-                viewer = AgentImageViewerItem(data: data, name: HostPathOpenStatus.name(of: path))
+                viewer = ImageViewerItem(data: data, name: HostPathOpenStatus.name(of: path))
             } else {
                 guard let file = await loads.open(path, scope: scope) else { return }
                 previewFile = file
@@ -733,10 +748,13 @@ struct UserBubbleView: View {
                 if bubble.imageCount > 0 {
                     // 主機路徑依檔名找手機上的副本;路徑數不足(例如只有圖片區塊)的部分顯示「Image」標籤。
                     let known = bubble.imagePaths.map { context.localImage($0) }
-                    BubbleImagesView(images: known + Array(repeating: nil, count: max(0, bubble.imageCount - known.count)))
+                    BubbleImagesView(
+                        images: known + Array(repeating: nil, count: max(0, bubble.imageCount - known.count)),
+                        hostPaths: bubble.imagePaths)
                 }
-                if !bubble.text.isEmpty {
-                    Text(Self.highlighted(bubble.text))
+                ForEach(bubble.filePaths, id: \.self) { UserFileCardView(path: $0) }
+                if !bubble.displayText.isEmpty {
+                    Text(Self.highlighted(bubble.displayText))
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
@@ -751,7 +769,7 @@ struct UserBubbleView: View {
         }
         // VoiceOver:一則訊息一個元素(HIG 20.5,#35)。有圖片時圖片可點開，泡泡改成容器。
         // 合併後念「Your message.」+ 內容 + 時間(作者、內容、時間一次念完)。
-        .accessibilityElement(children: bubble.imageCount > 0 ? .contain : .combine)
+        .accessibilityElement(children: bubble.imageCount > 0 || !bubble.filePaths.isEmpty ? .contain : .combine)
         .accessibilityLabel { label in
             Text("Your message.")
             label

@@ -16,8 +16,8 @@ public struct NewChatView: View {
     /// 開始了：新 workspace 與沒送出的第一則訊息(agent 停在啟動問題時)。
     let onStarted: (CreatedWorkspace, String?) -> Void
 
-    /// 原型只有這兩種;其他 agent 的啟動另議。
-    private static let agents: [NewChatAgent] = [.claude, .codex]
+    /// 原型只有這兩種;其他 agent 的啟動另議(設定檔的 `startableAgents` 是 app 能啟動的全部)。
+    private static let agents: [AgentID] = [.claude, .codex]
 
     public init(
         model: NewChatModel, hostPicker: HostPickerModel? = nil, onCancel: @escaping () -> Void,
@@ -35,7 +35,7 @@ public struct NewChatView: View {
                 Section {
                     Picker("Agent", selection: $model.agent) {
                         ForEach(Self.agents, id: \.self) { agent in
-                            Text(verbatim: agent.displayName).tag(agent)
+                            Text(verbatim: AgentCatalog.profile(for: agent).presentation.displayName ?? agent.canonicalName).tag(agent)
                         }
                     }
                     // 選項攤開成勾選列(#313)。
@@ -123,6 +123,7 @@ public struct NewChatView: View {
                     .listRowBackground(Color.clear)
                 }
             }
+            .appSheetList()
             .accessibilityIdentifier("sheet.newChat")
             .navigationTitle("New Chat")
             #if os(iOS)
@@ -151,6 +152,9 @@ public struct NewChatView: View {
                 }
             }
         }
+        // 部分高度的系統 sheet,系統自動套玻璃(#425);鍵盤升起或內容多時系統自動拉到 large。
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     /// 一份清單(#309,選定版 C):第一列「新的聊天」,下面是這個資料夾過去的 session;勾號只有一個。
@@ -306,21 +310,8 @@ struct FolderPickerView: View {
                     }
                 }
             }
+            .appSheetList()
             .accessibilityIdentifier("folderPicker.list")
-        }
-    }
-}
-
-extension NewChatAgent {
-    /// 產品名稱，不翻譯。
-    var displayName: String {
-        switch self {
-        case .claude: "Claude Code"
-        case .codex: "Codex"
-        case .grok: "Grok"
-        case .agy: "Antigravity"
-        case .pi: "Pi"
-        case .omp: "OMP"
         }
     }
 }

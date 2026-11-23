@@ -25,6 +25,11 @@
 | 1.15 | 供應地區：排除歐盟 27 國(DSA 貿易商狀態)與中國大陸(ICP 備案),共 147 個地區(`app-store-metadata.md`) | 主 session | ✅ |
 | 1.13 | 審查資訊：備註貼 `review-notes.md` 的英文段落、勾「不需要登入」、聯絡資訊 | 主 session | ⬜ |
 | 1.14 | 出口合規(2026-11-16 決定 A 案):`ITSAppUsesNonExemptEncryption = NO` 維持。理由：app **只用作業系統提供的加密**——CryptoKit(swift-crypto 在 Apple 平台轉呼叫 CryptoKit;swift-nio-ssh 的金鑰交換、AES-GCM、簽章都走它)、CommonCrypto、系統 TLS(URLSession)。已移除自寫的 bcrypt／Blowfish 與 `_CryptoExtras`(AES-CTR);有 passphrase 的 OpenSSH 私鑰改成明確錯誤，請使用者先 `ssh-keygen -p -N "" -f <私鑰>` 移除 passphrase。**日後不可再引入非系統加密**(自寫演算法、`_CryptoExtras`、OpenSSL／libsodium 等),否則要重新評估出口合規 | 本 repo | ✅ |
+| 1.16 | App Group `group.com.raychiu.purrdr`(Certificates, Identifiers & Profiles → Identifiers → App Groups → 新增;主機名稱對應表給 Notification Service Extension 讀,#431) | 使用者(Apple Developer 網站) | ✅ 2026-11-22(由 Claude 在使用者的瀏覽器登入狀態下操作) |
+| 1.17 | App ID `com.raychiu.purrdr` 的 App Groups capability 勾選並設定 `group.com.raychiu.purrdr`(App ID 一旦改了 capability,要讓雲端管理簽章重新產生描述檔) | 使用者 | ✅ 2026-11-22(由 Claude 在使用者的瀏覽器登入狀態下操作) |
+| 1.18 | Notification Service Extension 的 App ID `com.raychiu.purrdr.notification-service`:匯出時雲端管理簽章用 API key 會自動註冊;若沒自動建立,手動新增並勾 App Groups = `group.com.raychiu.purrdr`(不需要 Push Notifications capability) | 使用者 | ✅ 2026-11-22(由 Claude 在使用者的瀏覽器登入狀態下操作) |
+| 1.19 | 第一次含 extension 的 build 上傳前,看 testflight.yml 的「匯出的 entitlements」檢查是否通過(App 與 extension 都要有 App Group);失敗訊息會指出缺哪一個 | 使用者 | ⬜ |
+| 1.20 | 真機驗證一次:鎖定畫面與通知中心分組(同主機同 workspace 疊成一組、副標題是主機名稱、改主機名稱後新通知跟著變) | 使用者 | ⬜ |
 
 ## 2. TestFlight CI
 
@@ -33,7 +38,7 @@
 | 2.1 | `.github/workflows/testflight.yml`、`.github/ExportOptions.plist`、`scripts/wait-for-testflight.rb`(合併進 `master` 自動上傳，可 `workflow_dispatch`) | 本 repo | ✅ |
 | 2.2 | GitHub environment `testflight`,部署分支限定 `master` | 主 session | ✅ |
 | 2.3 | environment 變數 `APPLE_TEAM_ID` = `8Z6WVFJ574`;secret `ASC_KEY_ID`、`ASC_ISSUER_ID`、`ASC_PRIVATE_KEY`(`.p8` 全文;與 my-money.ios 相同) | 主 session | ✅ |
-| 2.4 | 發版前遞增 `MARKETING_VERSION`(專案 4 處;每次上傳都要比上一版大) | 主 session | ⬜ |
+| 2.4 | 發版前遞增 `MARKETING_VERSION`(專案 6 處:app、Notification Service Extension、UI 測試 × Debug/Release;每次上傳都要比上一版大) | 主 session | ⬜ |
 | 2.5 | 第一次上傳後：確認 Apple 沒寄 ITMS-91053(privacy manifest 缺 required reason API)等警告信;有就補 `src/App/Purrdr/PrivacyInfo.xcprivacy` | 主 session | ⬜ |
 | 2.6 | TestFlight 內部群組「內部測試」,開啟自動分發，加入測試者 | 主 session | ✅ |
 | 2.7 | 驗收:TestFlight 能從 CI 收到 build(`wait-for-testflight.rb` 回報 ready for internal testing) | 主 session | ⬜ |
@@ -46,6 +51,27 @@
 | 3.2 | Sign in with Apple key、APNs key、存取權杖密鑰、Apple Root CA - G3、Google OAuth client(`raychiutw/purrdr.server` 的 `README.md`) | 主 session | ✅ 2026-11-19 |
 | 3.3 | app 的 `BackendConfiguration.baseURL`、`googleClientID` 換成真值(`src/App/Purrdr/BackendConfiguration.swift`) | 主 session | ✅ 2026-11-19 |
 | 3.4 | 主機外掛的公開來源：已併入公開 repo `raychiutw/purrdr.host` 的 `host-plugin/`(app 以 `herdr plugin install raychiutw/purrdr.host/host-plugin` 安裝),不另開 repo | 主 session | ✅ 2026-11-19 |
+
+## 3B. 會員架構重做上線(#402、#414)
+
+上線順序固定:**後台遷移 → 後台部署 → 新版 app 發版**。遷移與部署由使用者本人執行;app 端不對線上後台做任何遷移或寫入。細節見 `raychiutw/purrdr.server` 的 `README.md`「0009 遷移」。
+
+| # | 步驟 | 誰做 | 狀態 |
+|---|---|---|---|
+| 3B.1 | 套用前記下 D1 bookmark:`npx wrangler d1 time-travel info purrdr`(回滾用) | 使用者 | ⬜ |
+| 3B.2 | 後台套用遷移 0009:`npx wrangler d1 migrations apply purrdr --remote`;緊接著 `npx wrangler deploy`(兩步連續做,中間舊版 Worker 讀不了新表) | 使用者 | ⬜ |
+| 3B.3 | 驗證遷移結果:會員數、有效訂閱數與遷移前一致;`pending_review` 的訂閱有哪些 | 使用者 | ⬜ |
+| 3B.4 | 通知網址:App Store Server Notifications Production 與 Sandbox 皆為 `https://purrdr-backend.lean-lean.workers.dev/v1/app-store/notifications`、Version 2;Google Play RTDN 等 Android 上線前再設 | 使用者 | ✅(見 1.8)|
+| 3B.5 | app 版本:遞增 `MARKETING_VERSION`(4 處)、`CHANGELOG.md` 寫「登入需要重新登入一次」 | 本 repo(發版 PR) | ⬜ |
+| 3B.6 | **使用者本人同意後才發版**(合併進 `master` 觸發 TestFlight) | 使用者 | ⬜ |
+| 3B.7 | TestFlight 內部測試以舊版升級:開 app 看到「Signed Out」提示、重新登入一次、通知與主機同步為未開啟、(有兩個訂閱者)帳號頁有待處理提示 | 使用者 | ⬜ |
+
+app 端行為(升級時,#414):
+- 啟動先清掉舊的全域通知與同步狀態(`MemberLocalState.removeLegacyGlobalState`:`push.pairings`、`push.registeredTokens`、`push.kinds`、`hostSync.enabled`、`hostSync.journal`;新格式已依會員分區,不受影響)。
+- 舊的更新權杖被後台拒絕(401 `invalid_refresh_token`)才登出並提示重新登入;連不上後台時不登出、不清權杖(`MemberUpgradeTests`)。重新登入後通知與同步從「未開啟」開始。
+- 兩個訂閱合併後,沒保留的那筆 `pendingReview`,帳號頁提示到商店取消。
+
+**回滾**:D1 migration 不能 down。出問題時 `npx wrangler d1 time-travel restore purrdr --bookmark=<3B.1 的 bookmark>`,再 `npx wrangler rollback` 退回上一版 Worker;還原會丟掉套用後新登入與新訂閱,要在新版 app 發版前決定。新版 app 發出後不能只退後台(舊版 app 讀不了新契約)。
 
 ## 3A. 主機服務發行(#198)
 

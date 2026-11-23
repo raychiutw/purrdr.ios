@@ -92,7 +92,7 @@ public final class StoreKitPlusStore: PlusStore {
     public func loadPlans() async throws -> [PlusPlan] {
         let loaded = try await Product.products(for: MemberSubscription.productIDs)
         var plans: [PlusPlan] = []
-        // 依 productIDs 的順序(月繳在前)。
+        // 依 productIDs 的順序(年繳在前)。
         for id in MemberSubscription.productIDs {
             guard let product = loaded.first(where: { $0.id == id }), let subscription = product.subscription else { continue }
             products[id] = product

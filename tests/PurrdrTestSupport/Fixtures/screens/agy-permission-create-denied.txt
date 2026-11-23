@@ -1,0 +1,30 @@
+
+      ▄▀▀▄        Antigravity CLI 1.5.14
+     ▀▀▀▀▀▀       demo@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Neon (Medium)
+   ▄▀▀    ▀▀▄     /Users/demo/Projects/fixture-work
+  ▄▀▀      ▀▀▄
+
+> /help
+  ⎿  Exited /help command
+
+> /model
+  ⎿  Exited /model command
+
+> /effort
+  ⎿  Exited /effort command
+
+────────────────────────────────────────────────────────────
+> Create a new file named note.txt in the current folder containing the single line: hi. Do nothing else.
+
+○ Thought for 5.0s (Attempting to create a new file named `note.txt` containing the text "hi". Checking if the operation completes successfully.)
+● Edited 1 file (note.txt) (ctrl+o to expand)
+
+Create file
+  ⎿  User declined the tool call
+
+  ⎿  Interrupted · What should Antigravity CLI do instead?
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+? for shortcuts                                                                                                                              Gemini 4 Neon · medium

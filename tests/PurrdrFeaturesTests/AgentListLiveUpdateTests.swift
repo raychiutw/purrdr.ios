@@ -21,11 +21,13 @@ struct AgentListLiveUpdateTests {
     /// 全主機事件(不分檢視)。
     static let hostWideTypes = [
         "workspace.created", "workspace.closed", "workspace.renamed", "workspace.updated", "pane.agent_detected", "pane.exited",
+        // 聊天列表選單顯示 Tab 名稱,電腦或另一支手機改名要即時更新(#456)。
+        "tab.renamed",
     ]
     /// 版面事件(#40):只有 Spaces 檢視訂閱(行為規格 §3.7「Spaces 檢視另加版面事件」),卡片統計、終端機列與版面圖要即時更新。
     /// 型別都在 herdr 回報的可訂閱清單裡(Fixtures/herdr-0.9.5/error.unknown-subscription-type.ndjson)。
     static let layoutTypes = [
-        "tab.created", "tab.closed", "tab.renamed", "tab.moved", "pane.created", "pane.closed", "layout.updated",
+        "tab.created", "tab.closed", "tab.moved", "pane.created", "pane.closed", "layout.updated",
         "workspace.moved", "workspace.reordered",
     ]
 

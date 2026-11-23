@@ -17,12 +17,23 @@ public struct DemoHostFileFetcher: HostFileFetching {
     /// 匯出說明的 PDF(訊息內路徑可點，#229)。
     public static let reportPath = "/Users/demo/ledger/docs/export-report.pdf"
 
+    /// 使用者送出的圖片(#428):在 Demo 主機的上傳資料夾,手機上沒有副本;另一張已被主機清掉。
+    public static let sentImagePath = DemoHost.uploadFolder + "/export-preview.png"
+    public static let clearedImagePath = DemoHost.uploadFolder + "/cleared-screenshot.png"
+    /// 同一則訊息的第三張(還在主機):圖片檢視器左右切換用(#426)。
+    public static let secondSentImagePath = DemoHost.uploadFolder + "/export-preview-2.png"
+
+    /// 使用者送出的檔案(#429):一份還在主機上傳資料夾的 CSV、一份已被主機清掉的壓縮檔。
+    public static let sentFilePath = DemoHost.uploadFolder + "/budget.csv"
+    public static let clearedFilePath = DemoHost.uploadFolder + "/old-archive.zip"
+
     public init() {}
 
     static func file(at path: String) -> Data? {
         switch path {
-        case previewPath: DemoImages.preview
+        case previewPath, sentImagePath, secondSentImagePath: DemoImages.preview
         case scanPath: DemoImages.scan
+        case sentFilePath: Data("month,amount\njan,120\nfeb,95\n".utf8)
         case exportPath: Data(DemoTranscripts.exportSource.utf8)
         case quotingTestsPath: Data(DemoTranscripts.quotingTests.utf8)
         case reportPath: DemoDocuments.report
@@ -33,7 +44,7 @@ public struct DemoHostFileFetcher: HostFileFetching {
     /// 檔案大小。圖片由尺寸算出，查狀態時不必先產生內容(掃描檔約 8.8 MiB,等使用者點擊才產生)。
     static func size(at path: String) -> Int? {
         switch path {
-        case previewPath: DemoImages.encodedSize(width: DemoImages.previewSize.width, height: DemoImages.previewSize.height)
+        case previewPath, sentImagePath, secondSentImagePath: DemoImages.encodedSize(width: DemoImages.previewSize.width, height: DemoImages.previewSize.height)
         case scanPath: DemoImages.encodedSize(width: DemoImages.scanSize.width, height: DemoImages.scanSize.height)
         default: file(at: path)?.count
         }

@@ -85,6 +85,49 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Edit"].waitUntilExists(timeout: 5), "展開後沒有看到每個呼叫")
     }
 
+    // MARK: - 已送出圖片情境(`-demoSentImages`,#428:手機沒有副本，經主機讀回縮圖)
+
+    /// 使用者送出的三張圖：兩張經主機取檔讀回縮圖、可點開圖片檢視器;一張已被主機清掉，顯示「主機上已找不到」。
+    @MainActor
+    func testSentImagesReadBackFromHost() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
+        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
+        let thumbnail = app.element("conversation.sentImage.thumbnail")
+        XCTAssertTrue(app.revealInConversation(thumbnail), "已送出的圖片沒有經主機讀回縮圖")
+        XCTAssertTrue(
+            app.element("conversation.sentImage.note").waitUntilExists(timeout: 10), "被主機清掉的圖片沒有說明")
+        thumbnail.tap()
+        // 圖片檢視器(#426):同一則訊息還在主機的兩張圖(被清掉的那張不進清單);頁數、左右切換、分享、下滑關閉。
+        XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 5), "點縮圖沒有開圖片檢視器")
+        XCTAssertEqual(app.element("imageViewer.pageLabel").label, "Image 1 of 2")
+        XCTAssertTrue(app.element("imageViewer.share").waitUntilExists(timeout: 10), "讀到圖後沒有分享鈕")
+        let image = app.element("imageViewer.image")
+        XCTAssertTrue(image.waitUntilExists(timeout: 5))
+        image.swipeLeft()
+        let second = NSPredicate(format: "label == %@", "Image 2 of 2")
+        let moved = XCTNSPredicateExpectation(predicate: second, object: app.element("imageViewer.pageLabel"))
+        XCTAssertEqual(XCTWaiter().wait(for: [moved], timeout: 5), .completed, "左滑沒有切到第 2 張")
+        image.swipeRight()
+        let first = NSPredicate(format: "label == %@", "Image 1 of 2")
+        let back = XCTNSPredicateExpectation(predicate: first, object: app.element("imageViewer.pageLabel"))
+        XCTAssertEqual(XCTWaiter().wait(for: [back], timeout: 5), .completed, "右滑沒有回到第 1 張")
+        app.element("imageViewer.image").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            .press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
+        XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5), "下滑沒有關閉圖片檢視器")
+    }
+
+    /// 使用者送出的兩份檔案(#429):一份經主機讀回縮小檔案卡片(大小、點開以 QuickLook),一份已被主機清掉顯示說明。
+    @MainActor
+    func testSentFilesShowCards() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
+        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
+        let size = app.element("conversation.userFile.size")
+        XCTAssertTrue(app.revealInConversation(size), "使用者送出的檔案沒有顯示大小")
+        XCTAssertTrue(app.element("conversation.userFile.note").waitUntilExists(timeout: 10), "被主機清掉的檔案沒有說明")
+        app.buttons["conversation.userFile"].firstMatch.tap()
+        XCTAssertTrue(app.otherElements["QLPreviewControllerView"].waitUntilExists(timeout: 10), "點檔案卡片沒有以 QuickLook 開啟")
+    }
+
     // MARK: - 檔案情境(`-demoAgentFiles`:ledger 的對話換成寫檔、讀圖、提到主機路徑的一段)
 
     /// 略過 ledger 輸入列上方的 You should know 註記(第一次要同意)。
@@ -123,7 +166,7 @@ final class ConversationUITests: XCTestCase {
         dismissNote(in: app)
 
         // 檔案卡片:標題念出動作、檔名、類型與路徑。
-        let header = "conversation.agentFile.header"
+        let header = "conversation.agentFile.row"
         for prefix in ["Created file draft.csv", "Created file history.csv"] {
             XCTAssertTrue(app.revealInConversation(app.element(header, labelPrefix: prefix)), "沒有 \(prefix) 的卡片")
         }
@@ -134,22 +177,19 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(edited.label.contains("1 lines added, 1 removed"), "\(edited.label)")
         XCTAssertFalse(edited.label.contains("Path:"), "路徑是進階資訊，收合時標題不念：\(edited.label)")
 
-        // #330:路徑預設收起，點「Details」揭露控制才看到。
-        let pathText = app.staticTexts["/Users/demo/ledger/Sources/Ledger/CSVExport.swift"]
-        XCTAssertFalse(pathText.exists, "路徑不該預設顯示")
-        let disclosure = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.disclosure").element(boundBy: 0)
-        XCTAssertTrue(app.revealInConversation(disclosure), "沒有「Details」揭露控制")
-        XCTAssertGreaterThanOrEqual(disclosure.frame.height, 43.9)
-        disclosure.tap()
-        XCTAssertTrue(app.element("conversation.agentFile.path").waitUntilExists(timeout: 3), "展開後沒有路徑")
-
-        let toggle = app.element("conversation.agentFile.toggle")
-        XCTAssertTrue(app.revealInConversation(toggle), "新建的測試檔超過 8 行，應該可以展開")
-        XCTAssertGreaterThanOrEqual(toggle.frame.height, 44)
-        toggle.tap()
+        // #465:卡片是緊湊單列,路徑與內容(修改摘要)在長按選單的「Details」sheet。
+        XCTAssertFalse(app.staticTexts["/Users/demo/ledger/Sources/Ledger/CSVExport.swift"].exists, "路徑不該顯示在卡片上")
+        XCTAssertFalse(app.element("conversation.agentFile.content").exists, "內容不該顯示在卡片上")
+        created.press(forDuration: 1.0)
+        let details = app.buttons["Details"].firstMatch
+        XCTAssertTrue(details.waitUntilExists(timeout: 5), "長按沒有「Details」")
+        details.tap()
+        XCTAssertTrue(app.element("conversation.agentFile.path").waitUntilExists(timeout: 5), "詳細沒有路徑")
+        XCTAssertTrue(app.element("conversation.agentFile.content").waitUntilExists(timeout: 5), "詳細沒有內容")
         let lastLine = app.staticTexts[#"    #expect(CSVExport.columns.first == "date")"#]
-        XCTAssertTrue(app.revealInConversation(lastLine), "展開後沒有看到後面的行")
-        XCTAssertEqual(toggle.label, "Show Less")
+        XCTAssertTrue(lastLine.waitUntilExists(timeout: 5), "詳細沒有完整內容(含最後一行)")
+        app.element("conversation.agentFile.details.close").tap()
+        XCTAssertTrue(app.element("conversation.agentFile.details").waitUntilGone(timeout: 5))
 
         // 圖片卡片:小圖自動載入縮圖，點開全螢幕;超過 8 MiB 的掃描檔等點擊。
         let previewHeader = app.element("conversation.agentImage.header", labelPrefix: "Read file export-preview.png, Image")
@@ -159,11 +199,11 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.revealInConversation(thumbnail))
         XCTAssertFalse(app.staticTexts["docs/export-preview.png"].exists)
         thumbnail.tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 5), "沒有全螢幕檢視")
-        XCTAssertGreaterThanOrEqual(app.element("agentImage.viewer.done").frame.height, 44)
+        XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 5), "沒有全螢幕檢視")
+        XCTAssertGreaterThanOrEqual(app.element("imageViewer.close").frame.height, 44)
 
         // #330:雙點兩下放大、再雙點兩下縮回;1× 下滑關閉。
-        let image = app.element("agentImage.viewer.image")
+        let image = app.element("imageViewer.image")
         XCTAssertEqual(image.value as? String, "Not zoomed")
         image.doubleTap()
         let zoomed = waitForValue(of: image, beginning: "Zoomed in")
@@ -173,13 +213,13 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(image.value as? String, "Not zoomed", "再雙點兩下沒有縮回")
         image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5), "1× 下滑沒有關閉")
+        XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5), "1× 下滑沒有關閉")
 
         XCTAssertTrue(app.revealInConversation(thumbnail))
         thumbnail.tap()
-        XCTAssertTrue(app.element("agentImage.viewer.done").waitUntilExists(timeout: 5))
-        app.element("agentImage.viewer.done").tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5))
+        XCTAssertTrue(app.element("imageViewer.close").waitUntilExists(timeout: 5))
+        app.element("imageViewer.close").tap()
+        XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5))
 
         let imageDisclosure = app.element("conversation.agentImage.disclosure")
         XCTAssertTrue(app.revealInConversation(imageDisclosure))
@@ -194,18 +234,23 @@ final class ConversationUITests: XCTestCase {
         let scan = app.element("conversation.agentImage.thumbnail", labelPrefix: "Image statement-scan.png")
         XCTAssertTrue(scan.waitUntilExists(timeout: 15), "點了之後掃描檔沒有載入")
 
-        // 點開檔案:「Open」下載後以 QuickLook 預覽，關閉後可以分享。
-        let open = app.buttons["Open CSVQuotingTests.swift"].firstMatch
-        XCTAssertTrue(app.revealInConversation(open), "新建的測試檔沒有「Open」")
-        XCTAssertGreaterThanOrEqual(open.frame.height, 44)
-        open.tap()
+        // 點開檔案:點整列下載後以 QuickLook 預覽,關閉後長按選單可以分享。
+        XCTAssertTrue(app.revealInConversation(created), "新建的測試檔沒有卡片")
+        XCTAssertGreaterThanOrEqual(created.frame.height, 44)
+        created.tap()
         let preview = quickLookBar(named: "CSVQuotingTests", in: app)
         XCTAssertTrue(preview.waitUntilExists(timeout: 15), "沒有出現 QuickLook 預覽")
         closeQuickLook(preview)
         XCTAssertTrue(preview.waitUntilGone(timeout: 5))
-        let share = app.buttons["Share CSVQuotingTests.swift"].firstMatch
-        XCTAssertTrue(app.revealInConversation(share), "下載好之後沒有「Share」")
-        XCTAssertGreaterThanOrEqual(share.frame.height, 44)
+
+        // 檔案縮圖(#427、#465):PDF 卡片左側自動載入第一頁縮圖,點整列以 QuickLook 開。
+        let pdfRow = app.element("conversation.agentFile.row", labelPrefix: "Created file export-report.pdf")
+        XCTAssertTrue(app.revealInConversation(pdfRow), "沒有 PDF 卡片")
+        pdfRow.tap()
+        let pdfBar = quickLookBar(named: "export-report", in: app)
+        XCTAssertTrue(pdfBar.waitUntilExists(timeout: 15), "點整列沒有出現 QuickLook 預覽")
+        closeQuickLook(pdfBar)
+        XCTAssertTrue(pdfBar.waitUntilGone(timeout: 5))
 
         // 訊息內主機路徑(#229):PDF 在 app 內以 QuickLook 開，圖片全螢幕看(不交給系統 openURL)。
         let report = app.links["/Users/demo/ledger/docs/export-report.pdf"].firstMatch
@@ -219,9 +264,15 @@ final class ConversationUITests: XCTestCase {
         let pathImage = app.links["/Users/demo/ledger/docs/export-preview.png"].firstMatch
         XCTAssertTrue(app.revealInConversation(pathImage), "訊息中的圖片路徑不是連結")
         pathImage.tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
-        app.element("agentImage.viewer.done").tap()
-        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5))
+        XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
+        app.element("imageViewer.close").tap()
+        XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5))
+
+        // 下載好的檔案:長按選單可以分享(放最後,免得還要收起選單)。
+        XCTAssertTrue(app.revealInConversation(created))
+        created.press(forDuration: 1.0)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Share")).firstMatch.waitUntilExists(timeout: 5), "下載好之後長按沒有「Share」")
+
     }
 
     // MARK: - 輸入列與鍵盤(F6)
@@ -236,8 +287,8 @@ final class ConversationUITests: XCTestCase {
     }
 
     /// 輸入列與鍵盤(單一啟動,原本 9 個測試合併,#374;不送出):建議提示詞只填入不送出(#123、#240)、
-    /// 上下版面與按鈕尺寸(#187)、收起鍵盤保留草稿(#37)、點訊息區與捲動收起鍵盤(#329)、
-    /// 長高超過 4 行(#137)、展開編輯保留草稿(#142)。
+    /// 兩態(收合一列、展開兩列與模型膠囊,#382)、沒有收起鍵盤鈕與展開鈕、收起鍵盤保留草稿(#37)、
+    /// 點訊息區與往下拖曳收起鍵盤(#329)、長高到 5 行後框內捲動(#382)。
     @MainActor
     func testComposerAndKeyboard() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
@@ -260,35 +311,38 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(suggestion.waitUntilExists(timeout: 5), "輸入框刪光後建議沒有再出現")
         app.dismissKeyboard()
 
-        // 上下版面:整寬輸入框在上、按鈕列在下。
+        // 收合(#382):一列 +、輸入、送出;沒有模型膠囊、收鍵盤鈕、展開鈕。
         let addImage = app.element("composer.attach")
         XCTAssertTrue(addImage.exists, "沒有加入圖片鈕")
         XCTAssertFalse(send.isEnabled, "空白時送出鈕應停用")
-        let window = app.windows.firstMatch.frame
-        XCTAssertGreaterThanOrEqual(text.frame.width, window.width - 64, "輸入框沒有整寬(\(text.frame.width) / \(window.width))")
-        let emptyHeight = text.frame.height
-        XCTAssertGreaterThanOrEqual(emptyHeight, 44, "空白時低於 44pt(\(emptyHeight)pt)")
-        XCTAssertLessThan(emptyHeight, 60, "空白時應是一行高(\(emptyHeight)pt)")
-        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
-        XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "加入圖片鈕要在輸入框下方")
-        XCTAssertLessThan(addImage.frame.maxX, send.frame.minX, "加入圖片在左、送出在右")
         XCTAssertGreaterThanOrEqual(send.frame.height, 44)
         XCTAssertGreaterThanOrEqual(addImage.frame.height, 44)
-        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "沒聚焦時不該有收起鍵盤鈕")
-        XCTAssertFalse(app.element("composer.expand").exists, "沒聚焦、空白時不該有展開鈕")
+        XCTAssertLessThan(addImage.frame.maxX, text.frame.minX + 1, "收合時加入圖片在輸入框左邊")
+        XCTAssertLessThan(text.frame.maxX, send.frame.minX + 1, "收合時送出在輸入框右邊")
+        XCTAssertEqual(text.frame.midY, send.frame.midY, accuracy: 4, "收合時輸入與送出同一列")
+        XCTAssertGreaterThanOrEqual(text.frame.height, 44, "空白時低於 44pt(\(text.frame.height)pt)")
+        XCTAssertFalse(app.element("composer.model").exists, "收合時不該有模型膠囊")
+        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "輸入列不該有收起鍵盤鈕")
+        XCTAssertFalse(app.element("composer.expand").exists, "輸入列不該有展開鈕")
+        XCTAssertFalse(app.element("composer.permissionMode").exists, "輸入列不該有權限模式鈕")
 
-        // 聚焦:收起鍵盤鈕在按鈕列;打字後至少兩行高;收起後草稿還在、沒有送出。
+        // 聚焦展開:上方輸入、下方 +、模型膠囊、送出;打字後至少兩行高;收起後草稿還在、沒有送出。
         text.tap()
-        let hide = app.element("composer.hideKeyboard")
-        XCTAssertTrue(hide.waitUntilExists(timeout: 5), "聚焦時沒有收起鍵盤鈕")
-        XCTAssertEqual(hide.label, "Hide Keyboard")
-        XCTAssertGreaterThanOrEqual(hide.frame.minY, text.frame.maxY - 1, "收起鍵盤鈕要在按鈕列")
-        XCTAssertLessThan(hide.frame.maxX, send.frame.minX + 1, "收起鍵盤鈕在送出鈕左邊")
+        let capsule = app.element("composer.model")
+        XCTAssertTrue(capsule.waitUntilExists(timeout: 5), "聚焦展開後沒有模型膠囊")
+        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "展開時送出鈕要在輸入框下方")
+        XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "展開時加入圖片鈕要在輸入框下方")
+        XCTAssertGreaterThan(capsule.frame.minX, addImage.frame.maxX - 1, "模型膠囊在加入圖片右邊")
+        XCTAssertLessThan(capsule.frame.maxX, send.frame.minX, "模型膠囊不壓到送出")
+        XCTAssertEqual(capsule.frame.midY, addImage.frame.midY, accuracy: 2, "模型膠囊與加入圖片同一列")
+        let capsuleText = capsule.value as? String ?? ""
+        XCTAssertFalse(capsuleText.isEmpty || capsuleText.hasSuffix("…"), "模型膠囊被截斷:\(capsuleText)")
+        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "聚焦時也沒有收起鍵盤鈕")
         text.typeEnglish("Line one")
         XCTAssertGreaterThanOrEqual(text.frame.height, 60, "有內容時不到兩行高(\(text.frame.height)pt)")
-        hide.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "鍵盤沒有收起")
+        app.dismissKeyboard()
         XCTAssertEqual(text.value as? String, "Line one", "草稿不見了")
+        XCTAssertTrue(app.element("composer.model").exists, "有草稿時收起鍵盤仍是展開")
         XCTAssertFalse(app.element("conversation.echo").exists, "收起鍵盤不該送出")
 
         // 點訊息區收起鍵盤。
@@ -297,52 +351,32 @@ final class ConversationUITests: XCTestCase {
         app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "點訊息區後鍵盤沒有收起")
 
-        // 上下滑動聊天收起鍵盤。
+        // 往下拖曳聊天收起鍵盤。
         text.tap()
         XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
         let screen = app.windows.firstMatch
         screen.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).press(
             forDuration: 0.05, thenDragTo: screen.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "滑動後鍵盤沒有收起")
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "拖曳後鍵盤沒有收起")
         clearDraft(text)
 
-        // 長高超過舊的 4 行上限:7 行全部攤開。
+        // 長高到 5 行為止,超過在框內捲動(#382)。
         text.typeEnglish("1\n2")
         let twoLines = text.frame.height
         text.typeEnglish("\n3")
         let lineHeight = text.frame.height - twoLines
         XCTAssertGreaterThan(lineHeight, 10, "第 3 行沒有長高")
-        text.typeEnglish("\n4\n5\n6\n7")
-        // 上限是鍵盤上方可用高度的 40%(#137):收起鍵盤再量，不依賴模擬器接的是軟體還是實體鍵盤(#190)。
+        text.typeEnglish("\n4\n5\n6\n7\n8")
+        // 上限同時受鍵盤上方可用高度的 40% 限制(#137):收起鍵盤再量，不依賴模擬器接的是軟體還是實體鍵盤(#190)。
         app.dismissKeyboard()
-        let sevenLines = text.frame.height
-        XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
-        XCTAssertTrue(app.element("composer.expand").exists, "沒聚焦、7 行時應有展開鈕")
-        clearDraft(text)
-
-        // 展開編輯:同一份草稿，收回保留在展開畫面打的字。
-        let expand = app.element("composer.expand")
-        XCTAssertTrue(expand.waitUntilExists(timeout: 5), "聚焦時沒有展開鈕")
-        XCTAssertEqual(expand.label, "Expand")
-        XCTAssertHitTarget(expand)
-        text.typeEnglish("1\n2\n3")
-        expand.tap()
-        let expanded = app.element("composer.expanded.text")
-        XCTAssertTrue(expanded.waitUntilExists(timeout: 5), "沒有開出展開畫面")
-        XCTAssertEqual(expanded.value as? String, "1\n2\n3", "展開畫面不是同一份草稿")
-        XCTAssertGreaterThan(expanded.frame.height, text.frame.height, "展開畫面的輸入框沒有比輸入列大")
-        expanded.tap()
-        expanded.typeEnglish("\n4")
-        app.element("composer.expanded.done").tap()
-        XCTAssertTrue(expanded.waitUntilGone(timeout: 5), "「完成」沒有收回")
-        XCTAssertEqual(text.value as? String, "1\n2\n3\n4", "收回後草稿不見了")
-        XCTAssertFalse(app.element("conversation.echo").exists, "收回不該送出")
-        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "收回後輸入列不該聚焦")
-        XCTAssertTrue(expand.exists, "沒聚焦、4 行時應有展開鈕")
+        let capped = text.frame.height
+        XCTAssertGreaterThan(capped, twoLines + lineHeight * 2.5, "5 行沒有攤開(\(capped)pt,2 行 \(twoLines)、行高 \(lineHeight))")
+        XCTAssertLessThan(capped, twoLines + lineHeight * 3.5, "超過 5 行應在框內捲動而不是繼續長高(\(capped)pt)")
+        XCTAssertEqual(text.value as? String, "1\n2\n3\n4\n5\n6\n7\n8", "草稿不完整")
     }
 
     /// 送出(單一啟動,原本 3 個測試合併,#374):輸入框清空、回音出現，agent 收下後對話紀錄接上回覆、回音消失;
-    /// 送出後立刻收起鍵盤(#329);在展開畫面送出回到對話(#142)。
+    /// 送出後立刻收起鍵盤(#329)。
     @MainActor
     func testSending() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
@@ -370,28 +404,6 @@ final class ConversationUITests: XCTestCase {
             .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
         XCTAssertTrue(reply.waitUntilExists(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
         XCTAssertFalse(app.element("conversation.echo").exists, "對話紀錄確認後回音應消失")
-
-        // 在展開畫面送出:回到對話、輸入列清空、有回音;送出與完成鈕在鍵盤上方。
-        text.tap()
-        app.element("composer.expand").tap()
-        let expanded = app.element("composer.expanded.text")
-        XCTAssertTrue(expanded.waitUntilExists(timeout: 5), "沒有開出展開畫面")
-        expanded.tap()
-        expanded.typeEnglish("Sent from the big editor")
-        let expandedSend = app.element("composer.expanded.send")
-        let done = app.element("composer.expanded.done")
-        let keyboard = app.keyboards.firstMatch
-        if keyboard.exists {
-            XCTAssertLessThanOrEqual(expandedSend.frame.maxY, keyboard.frame.minY + 1, "送出鈕被鍵盤擋住")
-            XCTAssertLessThanOrEqual(done.frame.maxY, keyboard.frame.minY + 1, "完成鈕被鍵盤擋住")
-        }
-        XCTAssertTrue(expandedSend.isHittable)
-        XCTAssertTrue(done.isHittable)
-        XCTAssertGreaterThanOrEqual(expandedSend.frame.height, 44)
-        expandedSend.tap()
-        XCTAssertTrue(expanded.waitUntilGone(timeout: 5), "送出後沒有回到對話")
-        XCTAssertTrue(sentMessage("Sent from the big editor", in: app).waitUntilExists(timeout: 5), "沒有回音")
-        XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
     }
 
     /// 送出可撤回(#300):送出後訊息先以倒數泡泡出現，撤回把文字放回輸入框;再送一次按「立即送出」就變成回音。
@@ -511,8 +523,9 @@ final class ConversationUITests: XCTestCase {
     /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
     @MainActor
     func testJumpToLatestOnlyWhenAwayFromBottom() {
-        let app = openSharedConversation(paneID: "w2:p1")
-        XCTAssertTrue(app.element("prompt.card").waitUntilExists(timeout: 10), "沒有提示卡")
+        // 「需要你」改成浮動卡(#424)後對話列表本身不夠長，改用長對話。
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
+        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
         let jump = app.element("conversation.jumpToLatest")
         let list = app.scrollViews.firstMatch
         XCTAssertFalse(jump.waitUntilExists(timeout: 2), "在底部時不該顯示")
@@ -529,7 +542,30 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(jump.waitUntilExists(timeout: 5), "再往上捲應顯示")
         jump.tap()
         XCTAssertTrue(jump.waitUntilGone(timeout: 5), "點了回到最新後應隱藏")
-        XCTAssertTrue(app.element("prompt.option.3").isHittable, "回到底部後最後一個選項應可點")
+    }
+
+    /// #401:往上滑後(含手指剛放開、畫面還在減速時)點「Jump to Latest」,真的回到最底(最後一則在輸入框之上)、按鈕不再冒出來。
+    @MainActor
+    func testJumpToLatestReturnsToBottomEvenWhileDecelerating() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
+        let list = app.scrollViews.firstMatch
+        XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
+        let jump = app.element("conversation.jumpToLatest")
+        let composer = app.element("composer.text")
+        XCTAssertTrue(composer.waitUntilExists(timeout: 5))
+
+        for attempt in 1...3 {
+            // 用力快滑幾次:放開後仍在減速時立刻點。
+            for _ in 0..<3 { list.swipeDown(velocity: .fast) }
+            XCTAssertTrue(jump.waitUntilExists(timeout: 5), "第 \(attempt) 次往上捲後應顯示")
+            jump.tap()
+            let lastUser = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Question 150:'")).firstMatch
+            XCTAssertTrue(lastUser.waitUntilExists(timeout: 5), "第 \(attempt) 次點了之後最後一則沒有出現在畫面上")
+            XCTAssertTrue(jump.waitUntilGone(timeout: 5), "第 \(attempt) 次點了之後按鈕沒有消失")
+            // 之後也不能又冒出來(被拉回閱讀中)。
+            XCTAssertFalse(jump.waitUntilExists(timeout: 2), "第 \(attempt) 次點了之後按鈕又出現(沒有真的到底)")
+            XCTAssertLessThanOrEqual(lastUser.frame.maxY, composer.frame.minY + 1, "第 \(attempt) 次最後一則被輸入框蓋住")
+        }
     }
 
     /// 對話載入中(#114):輸入列與載入完成後在同一個位置(畫面底部),轉圈仍在輸入列上方的中段。

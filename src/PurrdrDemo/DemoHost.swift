@@ -34,9 +34,14 @@ public actor DemoHost: HostChannel {
         case workingAfterPrompt(for: Duration)
         /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
         case agentFiles
+        /// 已送出圖片的情境(#428):ledger 的對話只有使用者送出的兩張圖(手機上沒有副本)——
+        /// 一張還在主機的上傳資料夾(經主機取檔讀回縮圖)、一張已被主機清掉。
+        case sentImages
         /// 聊天中斷網(#219):第一次定位對話紀錄(對話載入完成，#371)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
+        /// Antigravity 情境(#446):列表多一個 Antigravity Agent「garden」(w4:p1),畫面狀態列是 accept-edits · Gemini 4 Neon · medium。
+        case antigravity
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -86,7 +91,12 @@ public actor DemoHost: HostChannel {
 
     /// 這個情境的 Claude Code 對話紀錄。
     private var transcripts: [DemoTranscripts.Session] {
-        scenario == .agentFiles ? [DemoTranscripts.agentFiles, DemoTranscripts.weather] : DemoTranscripts.sessions
+        switch scenario {
+        case .agentFiles: [DemoTranscripts.agentFiles, DemoTranscripts.weather]
+        case .sentImages: [DemoTranscripts.sentImages, DemoTranscripts.weather]
+        case .antigravity: DemoTranscripts.sessions + [DemoAntigravity.session]
+        default: DemoTranscripts.sessions
+        }
     }
 
     /// 「送出後工作中」到期判斷用的現在時間(測試注入手動時鐘)。
@@ -109,6 +119,7 @@ public actor DemoHost: HostChannel {
             isOffline = true
             offlineScheduled = true
         }
+        state.includesAntigravity = scenario == .antigravity
         if scenario == .largeOutputOnPrompt {
             appended[DemoTranscripts.ledger.sessionID] = DemoTranscripts.longChat(at: Date(timeIntervalSince1970: 1_794_819_660))
         }
@@ -355,6 +366,12 @@ public actor DemoHost: HostChannel {
                 }
             }
             return DemoSnapshot.prompted(id: id, paneID: target)
+        case DemoAntigravity.paneID where scenario == .antigravity:
+            prompts += 1
+            let sessionID = DemoAntigravity.conversationID
+            let existing = DemoAntigravity.session.lines.count + (appended[sessionID]?.count ?? 0)
+            appended[sessionID, default: []] += DemoAntigravity.reply(to: text, number: prompts, startingAt: existing, at: Date())
+            return DemoSnapshot.prompted(id: id, paneID: target)
         default:
             return DemoSnapshot.error(id: id, code: "agent_not_found", message: "agent not found: \(target)")
         }
@@ -437,6 +454,10 @@ public actor DemoHost: HostChannel {
             let ansi = params["format"] as? String == "ansi"
             if pendingReplies.contains(where: { $0.paneID == paneID }) {
                 return DemoSnapshot.paneRead(id: id, paneID: paneID, text: Self.workingScreen, ansi: ansi)
+            }
+            if paneID == DemoAntigravity.paneID, scenario == .antigravity {
+                let mode = answers.permissionModes[paneID] ?? DemoAntigravity.initialMode
+                return DemoSnapshot.paneRead(id: id, paneID: paneID, text: DemoAntigravity.screen(mode: mode), ansi: ansi)
             }
             return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID, ansi: ansi), ansi: ansi)
         case "pane.send_keys":
@@ -710,9 +731,13 @@ enum DemoSnapshot {
     /// 這次啟動中對 workspace 做過的改動。
     struct State {
         var labels: [String: String] = [:]
+        /// 改過的 Tab 名稱(tab id → 名稱,#456)。
+        var tabLabels: [String: String] = [:]
         var closed: Set<String> = []
         /// 依「需要你」情境改過的 Agent 狀態(pane id → 狀態)。
         var statuses: [String: String] = [:]
+        /// Antigravity 情境:快照多一個 w4(garden)。
+        var includesAntigravity = false
     }
 
     /// 依 socket API 的請求產生一行回應(`{id,result}` 或 `{id,error}`)。
@@ -747,6 +772,15 @@ enum DemoSnapshot {
             state.labels[workspaceID] = params["label"] as? String ?? ""
             let workspace = (snapshot(applying: state)["workspaces"] as? [[String: Any]])?.first { $0["workspace_id"] as? String == workspaceID }
             return (result(id: id, ["type": "workspace_info", "workspace": workspace ?? [:]]), false)
+        case "tab.rename":
+            let tabs = snapshot(applying: state)["tabs"] as? [[String: Any]] ?? []
+            let tabID = params["tab_id"] as? String ?? ""
+            guard tabs.contains(where: { $0["tab_id"] as? String == tabID }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"tab_not_found","message":\#(quoted("tab \(tabID) not found"))}}"#), false)
+            }
+            state.tabLabels[tabID] = params["label"] as? String ?? ""
+            let tab = (snapshot(applying: state)["tabs"] as? [[String: Any]])?.first { $0["tab_id"] as? String == tabID }
+            return (result(id: id, ["type": "tab_info", "tab": tab ?? [:]]), false)
         case "workspace.create", "worktree.create", "tab.create", "pane.split":
             return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
         case "pane.report_metadata":
@@ -783,11 +817,14 @@ enum DemoSnapshot {
         (line(#"{"id":\#(quoted(id)),"result":{"type":"ok"}}"#), false)
     }
 
-    private static let workspaceIDs: Set<String> = ["w1", "w2", "w3"]
+    private static let workspaceIDs: Set<String> = ["w1", "w2", "w3", "w4"]
 
     /// 範例 snapshot 套上這次啟動中的改動：關掉的 workspace 連同 tab、pane、版面、Agent 一起拿掉;改過的名稱換掉。
     private static func snapshot(applying state: State) -> [String: Any] {
         guard var snapshot = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] else { return [:] }
+        if state.includesAntigravity {
+            for (key, entries) in DemoAntigravity.snapshotEntries { snapshot[key] = (snapshot[key] as? [[String: Any]] ?? []) + entries }
+        }
         for key in ["workspaces", "tabs", "panes", "layouts", "agents"] {
             snapshot[key] = (snapshot[key] as? [[String: Any]])?.filter { !state.closed.contains($0["workspace_id"] as? String ?? "") }
         }
@@ -797,6 +834,11 @@ enum DemoSnapshot {
                 if let pane = item["pane_id"] as? String, let status = state.statuses[pane] { item["agent_status"] = status }
                 return item
             }
+        }
+        snapshot["tabs"] = (snapshot["tabs"] as? [[String: Any]])?.map { tab in
+            var tab = tab
+            if let id = tab["tab_id"] as? String, let label = state.tabLabels[id] { tab["label"] = label }
+            return tab
         }
         snapshot["workspaces"] = (snapshot["workspaces"] as? [[String: Any]])?.map { workspace in
             var workspace = workspace

@@ -164,7 +164,7 @@ struct HostPushRow: View {
 }
 
 /// 通知開著的主機:「傳送測試通知」(#328),結果以提示說明,失敗附原因。
-private struct HostPushTestRow: View {
+struct HostPushTestRow: View {
     let push: HostPush
 
     private var model: PushModel { push.model }

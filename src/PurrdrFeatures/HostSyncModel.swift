@@ -15,37 +15,101 @@ public protocol HostChangeRecorder: AnyObject {
 public protocol HostSyncStore: AnyObject {
     var isEnabled: Bool { get set }
     var journal: HostSyncJournal { get set }
+    /// 清除某個會員的分區(登出、刪除會員或換會員時,#405)。
+    func removePartition(of memberID: String)
+    /// 清除所有會員的分區(登入已失效或冷啟動時沒有會員)。
+    func removeAllPartitions()
+    /// 合併後留下的是另一個會員(#410):把舊會員分區的紀錄搬到新會員,舊的不留。
+    func movePartition(from oldID: String, to newID: String)
 }
 
+/// 只在記憶體。依會員分區(#405):沒有會員時讀到未開啟與空紀錄、寫入不留下。
 @MainActor
 public final class InMemoryHostSyncStore: HostSyncStore {
-    public var isEnabled = false
-    public var journal = HostSyncJournal()
+    private struct Records {
+        var isEnabled = false
+        var journal = HostSyncJournal()
+    }
 
-    public init() {}
-}
+    private let partition: MemberPartition
+    private var partitions: [String: Records] = [:]
 
-/// 存在 UserDefaults(`hostSync.enabled`、`hostSync.journal`)。
-@MainActor
-public final class UserDefaultsHostSyncStore: HostSyncStore {
-    static let enabledKey = "hostSync.enabled"
-    static let journalKey = "hostSync.journal"
-    private let defaults: UserDefaults
-
-    public init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
+    public init(partition: MemberPartition = .fixed()) {
+        self.partition = partition
     }
 
     public var isEnabled: Bool {
-        get { defaults.bool(forKey: Self.enabledKey) }
-        set { defaults.set(newValue, forKey: Self.enabledKey) }
+        get { partition.memberID.flatMap { partitions[$0] }?.isEnabled ?? false }
+        set {
+            guard let id = partition.memberID else { return }
+            partitions[id, default: Records()].isEnabled = newValue
+        }
+    }
+
+    public var journal: HostSyncJournal {
+        get { partition.memberID.flatMap { partitions[$0] }?.journal ?? HostSyncJournal() }
+        set {
+            guard let id = partition.memberID else { return }
+            partitions[id, default: Records()].journal = newValue
+        }
+    }
+
+    public func removePartition(of memberID: String) { partitions[memberID] = nil }
+
+    public func removeAllPartitions() { partitions = [:] }
+
+    public func movePartition(from oldID: String, to newID: String) {
+        guard oldID != newID else { return }
+        partitions[newID] = partitions.removeValue(forKey: oldID)
+    }
+}
+
+/// 存在 UserDefaults(`hostSync.enabled.<會員 ID>`、`hostSync.journal.<會員 ID>`);沒有會員時讀到未開啟、寫入不留下。
+@MainActor
+public final class UserDefaultsHostSyncStore: HostSyncStore {
+    /// 舊版(沒有分區)的 key:`MemberLocalState.removeLegacyGlobalState` 升級時清掉。
+    static let enabledKey = "hostSync.enabled"
+    static let journalKey = "hostSync.journal"
+    private let defaults: UserDefaults
+    private let partition: MemberPartition
+
+    public init(defaults: UserDefaults = .standard, partition: MemberPartition) {
+        self.defaults = defaults
+        self.partition = partition
+    }
+
+    public var isEnabled: Bool {
+        get { partition.key(Self.enabledKey).map { defaults.bool(forKey: $0) } ?? false }
+        set { partition.key(Self.enabledKey).map { defaults.set(newValue, forKey: $0) } }
     }
 
     public var journal: HostSyncJournal {
         get {
-            defaults.data(forKey: Self.journalKey).flatMap { try? JSONDecoder().decode(HostSyncJournal.self, from: $0) } ?? HostSyncJournal()
+            partition.key(Self.journalKey).flatMap { defaults.data(forKey: $0) }
+                .flatMap { try? JSONDecoder().decode(HostSyncJournal.self, from: $0) } ?? HostSyncJournal()
         }
-        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Self.journalKey) }
+        set { partition.key(Self.journalKey).map { defaults.set(try? JSONEncoder().encode(newValue), forKey: $0) } }
+    }
+
+    public func removePartition(of memberID: String) {
+        defaults.removeObject(forKey: "\(Self.enabledKey).\(memberID)")
+        defaults.removeObject(forKey: "\(Self.journalKey).\(memberID)")
+    }
+
+    public func removeAllPartitions() {
+        for key in defaults.dictionaryRepresentation().keys {
+            for base in [Self.enabledKey, Self.journalKey] where key.hasPrefix("\(base).") {
+                defaults.removeObject(forKey: key)
+            }
+        }
+    }
+
+    public func movePartition(from oldID: String, to newID: String) {
+        guard oldID != newID else { return }
+        for base in [Self.enabledKey, Self.journalKey] {
+            defaults.set(defaults.object(forKey: "\(base).\(oldID)"), forKey: "\(base).\(newID)")
+            defaults.removeObject(forKey: "\(base).\(oldID)")
+        }
     }
 }
 
@@ -104,6 +168,25 @@ public final class HostSyncModel: HostChangeRecorder {
         store.isEnabled = true
         await sync()
     }
+
+    /// 停止同步(登出、刪除會員或換會員前,#405):關閉並回到未開啟;後台的資料不動。
+    public func stop() {
+        isEnabled = false
+        store.isEnabled = false
+        status = .off
+    }
+
+    /// 會員分區換了:重讀這個會員的同步開關。
+    public func reload() {
+        isEnabled = store.isEnabled
+        if !isEnabled { status = .off }
+    }
+
+    func removeLocalState(of memberID: String) { store.removePartition(of: memberID) }
+
+    func removeAllLocalState() { store.removeAllPartitions() }
+
+    func moveLocalState(from oldID: String, to newID: String) { store.movePartition(from: oldID, to: newID) }
 
     /// 同步一次(開啟時):上傳這支裝置還沒上傳的修改與刪除，再把後台的結果併回來。
     /// 同步中又被要求同步時，做完這次再做一次。

@@ -189,4 +189,17 @@ struct AppLockTests {
     func systemAuthenticatorAllowsPasscodeFallback() {
         #expect(SystemDeviceOwnerAuthenticator.policy == .deviceOwnerAuthentication)
     }
+
+    // MARK: - 帳號操作的身分確認(沒有裝置密碼時不能被擋死)
+
+    @Test("帳號操作確認:成功與「無法驗證(沒有裝置密碼)」放行，取消與失敗擋下")
+    func accountChangeConfirmationDistinguishesUnavailable() async {
+        for (result, expected) in [
+            (AppLockAuthenticationResult.success, true), (.unavailable, true), (.cancelled, false), (.failed, false),
+        ] {
+            let authenticator = ScriptedAuthenticator([result])
+            #expect(await authenticator.confirmsAccountChange() == expected, "\(result)")
+            #expect(authenticator.purposes == [.confirmAccountChange])
+        }
+    }
 }

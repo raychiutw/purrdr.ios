@@ -86,12 +86,12 @@ struct StringCatalogTests {
     static let avoidedWords = [
         "伺服器", "機器", "帳戶", "授權碼", "會話",
         "信息", "默認", "設置", "文件夾", "屏幕", "軟件", "網絡", "登錄", "用戶", "視頻", "粘貼", "復制", "鏈接",
+        "連線助理",
     ]
 
     @Test("繁體中文不用 GLOSSARY 避免的詞與中國大陸用語")
     func usesGlossaryTerms() throws {
         for entry in try Self.entries() {
-            // 「電腦」「帳號」畫面可用(2026-11-21 使用者決定,見 GLOSSARY),不在避免清單。
             for chinese in entry.chinese {
                 for word in Self.avoidedWords {
                     #expect(!chinese.contains(word), "「\(entry.key)」→「\(chinese)」用了「\(word)」")
@@ -100,13 +100,14 @@ struct StringCatalogTests {
         }
     }
 
-    /// 畫面文字給沒有電腦概念的人看(#331,AGENTS.md):繁中對使用者說「電腦」「帳號」,不留「主機」「使用者名稱」。
-    @Test("繁體中文畫面文字不用「主機」「使用者名稱」(畫面稱電腦、帳號)")
-    func chineseUsesComputerAndAccountWording() throws {
+    /// 畫面文字一律稱「主機」(2026-11-22 使用者決定,取代 2026-11-21 的「電腦」,#394):繁中不留「電腦」「使用者名稱」(欄位稱「帳號」)。
+    /// 英文鍵值不變。
+    @Test("繁體中文畫面文字不用「電腦」「使用者名稱」(畫面稱主機、帳號)")
+    func chineseUsesHostAndAccountWording() throws {
         for entry in try Self.entries() {
             for chinese in entry.chinese {
-                for word in ["主機", "使用者名稱"] {
-                    #expect(!chinese.contains(word), "「\(entry.key)」→「\(chinese)」用了「\(word)」，畫面請說電腦／帳號")
+                for word in ["電腦", "使用者名稱"] {
+                    #expect(!chinese.contains(word), "「\(entry.key)」→「\(chinese)」用了「\(word)」，畫面請說主機／帳號")
                 }
             }
         }

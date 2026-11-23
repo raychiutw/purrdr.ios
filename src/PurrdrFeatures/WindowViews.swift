@@ -23,8 +23,10 @@ struct WindowSidebar: View {
                 ForEach(hosts.rows) { row in
                     hostButton(.host(row.id), title: row.title, icon: row.icon, isSelected: row.isSelected)
                 }
-                hostButton(.demo, title: String(localized: "Demo"), icon: .default, isSelected: hosts.selection == .demo)
-                    .accessibilityIdentifier("sidebar.host.demo")
+                if hosts.demoEntered {
+                    hostButton(.demo, title: String(localized: "Demo"), icon: .default, isSelected: hosts.selection == .demo)
+                        .accessibilityIdentifier("sidebar.host.demo")
+                }
             }
             Section("Workspaces") {
                 Label("All Workspaces", systemImage: "square.grid.2x2")
@@ -36,6 +38,7 @@ struct WindowSidebar: View {
                 }
             }
         }
+        .appGroupedList()
         .navigationTitle(hostTitle)
         .accessibilityIdentifier("sidebar")
     }
@@ -196,20 +199,34 @@ struct WindowDetail: View {
 
     var body: some View {
         NavigationStack {
-            if let route = navigation.selectedChat, let title = hosts.agentList.terminalTitle(of: route) {
-                // agent 以外的 pane(Spaces 的終端機列、版面圖的終端機方塊):開它的 Pane 終端機(#40)。
-                PaneTerminalScreen(model: hosts.terminal(route, title: title))
-            } else if let route = navigation.selectedChat {
-                ConversationScreen(
-                    model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
-                    makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route)
-            } else {
-                ContentUnavailableView("Select a Chat", systemImage: "bubble.left.and.bubble.right")
-                    .accessibilityIdentifier("detail.empty")
-            }
+            detailContent
+                .appNavigationBackground()
         }
         // 換一個聊天就整個重建(對話 model、推入的終端機)。
         .id(navigation.selectedChat)
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        if let route = navigation.selectedChat, let title = hosts.agentList.terminalTitle(of: route) {
+            // agent 以外的 pane(Spaces 的終端機列、版面圖的終端機方塊):開它的 Pane 終端機(#40)。
+            PaneTerminalScreen(model: hosts.terminal(route, title: title))
+        } else if let route = navigation.selectedChat {
+            ConversationScreen(
+                model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
+                makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route,
+                otherNeedsYou: hosts.agentList.needsYouCount(excluding: route),
+                layoutSnapshot: { hosts.agentList.snapshot(for: route.host) },
+                openLayoutTarget: { target in
+                    switch target {
+                    case .chat(let paneID), .terminal(let paneID): navigation.selectedChat = ChatRoute(host: route.host, paneID: paneID)
+                    }
+                })
+                .environment(\.usageHost, route.host)
+        } else {
+            ContentUnavailableView("Select a Chat", systemImage: "bubble.left.and.bubble.right")
+                .accessibilityIdentifier("detail.empty")
+        }
     }
 }
 
@@ -228,6 +245,7 @@ public struct PaneWindowView: View {
 
     public var body: some View {
         NavigationStack {
+            Group {
             if let route = window.route(hostIDs: hosts.listedHostIDs) {
                 PaneWindowContent(window: window, route: route, hosts: hosts)
             } else {
@@ -238,6 +256,8 @@ public struct PaneWindowView: View {
                 )
                 .navigationTitle(window.title)
             }
+            }
+            .appNavigationBackground()
         }
         // 跟主視窗一樣套用選取中主機的主題(#23)。
         .selectedHostTheme(hosts)
@@ -255,6 +275,7 @@ private struct PaneWindowContent: View {
             ConversationScreen(
                 model: hosts.conversation(route, sessionID: window.sessionID),
                 makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) })
+            .environment(\.usageHost, route.host)
             // 新視窗開著的聊天也記開啟時間、不算未讀(#41;每個視窗各算一次)。
             .onAppear { hosts.agentList.chatAppeared(route) }
             .onDisappear { hosts.agentList.chatDisappeared(route) }

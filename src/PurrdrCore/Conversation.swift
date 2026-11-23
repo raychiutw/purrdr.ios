@@ -44,6 +44,11 @@ public struct UserBubble: Sendable, Equatable {
     /// 主機上的圖片路徑(Purrdr 上傳的圖片;畫面依檔名找手機上的副本)。
     public var imagePaths: [String]
 
+    /// 使用者在聊天附加的非圖片檔案(主機上傳資料夾的路徑，#429):畫面以縮小的檔案卡片顯示。
+    public var filePaths: [String] { UploadedImages.filePaths(in: text) }
+    /// 畫面顯示的文字:拿掉檔案路徑行(`text` 原樣保留，回音配對用)。
+    public var displayText: String { UploadedImages.removingFilePaths(from: text) }
+
     public init(id: String, text: String, date: Date?, imageCount: Int, imagePaths: [String] = []) {
         self.id = id
         self.text = text

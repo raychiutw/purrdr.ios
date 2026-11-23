@@ -150,6 +150,49 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
   `/effort` 的軌道上方有 `Faster … Smarter`、軌道右邊有 `Ultracode  off`／`Tab to toggle`(目前不提供)、軌道下方有一行說明、
   提示行多了 `s for this session only`。
 
+## Antigravity CLI 真實錄製(`screens/agy-*.txt`、`other-agents/antigravity/live-1.5.14/`,#445)
+
+**真實錄製**(2026-11-23,**Antigravity CLI 1.5.14**、herdr 0.9.5、作者的 Mac,使用者同意;Gemini 4 Neon,方案 Google AI Pro)。
+
+- **錄製方式**:`herdr workspace create --no-focus --label purrdr-fixture --cwd <暫存資料夾>` 建專用 workspace,只對它的 pane 操作;
+  `herdr agent start fixture --kind agy --pane <pane> -- --settings <暫存 settings.json>`。暫存設定只開 statusline(`stack_with_default: true`,
+  指令把 stdin 的 JSON 存檔),**沒改使用者的全域設定**。畫面以 `herdr pane read <pane> --source visible --lines 40` 存檔(pane 寬 163 欄，原樣保留)。
+  權限提示由 prompt 觸發(建立 `note.txt`、執行 `date -u`、修改 `sample.txt`、以 `ask_question` 問一題);回答只送單一數字鍵。
+  最後 `/exit`、`herdr workspace close <id>`。沒碰其他 workspace／pane。
+- **換成假值**:email → `demo@example.com`、工作資料夾 → `/Users/demo/Projects/fixture-work`、家目錄 → `/Users/demo`、對話 id → `00000000-0000-4000-8000-000000000000`、
+  log 檔名的時間。存檔後以 `grep` 確認沒有真實 email、使用者名稱、路徑或 id。
+- **畫面**:信任提示(`agy-cli-trust`,文字與手寫的 `agy-trust.txt` 不同:多了 `Do you trust the contents of this project?`、`Antigravity CLI requires …`)、
+  四種權限模式的閒置畫面(`agy-idle-{auto,plan,default,accept-edits}`)、`/help` 三個分頁(`commands` 共 51 項，分三段)、`/model`(含 effort 滑桿;
+  `-moved` 是移到 Gemini 4 Argon 並往右調 effort 的樣子)、`/effort`、建立／執行指令／修改檔案的權限提示與回答後畫面、`ask_question` 提問、工作中(`Working...`)。
+- **`live-1.5.14/`**:這次對話的 `transcript.jsonl`、herdr 對兩種提示的 `agent explain` 結果、statusline JSON(每種「模式 × agent_state」一份)。
+
+### 實測發現(影響 #446–#448)
+
+- **權限模式**:`Shift+Tab` 循環順序是 auto → plan → default → accept-edits → auto。狀態列右下是「模式 · 模型 · effort」,
+  **default 模式不顯示模式那一段**(只有「模型 · effort」),statusline JSON 也**沒有 `cycle_mode`**;輸入框上方提示行依模式不同
+  (`Auto mode: edits & safe commands auto-approved (shift+tab to cycle)` 等，default 沒有)。
+- **回答**:權限提示與 `ask_question` 都是**單按數字即生效**(不需 Enter)。指令權限有四個選項(執行一次、這段對話永遠允許同前綴、永久允許並寫入 settings.json、取消),
+  建立與修改檔案各兩個選項;`ask_question` 自動加 `Write-in...`。
+- **herdr 的「需要你」**:herdr 0.9.5(agy 偵測規則 2026.10.05.1)**認不出 agy 1.5.14 的權限提示**(`rule: none`,退回 idle、回報 `done`);
+  `ask_question` 則正確認成 `blocked`(`rule: question_prompt`)。
+- **`/model`、`/effort`**:`/model` 面板內含 effort 滑桿;不同模型的 effort 等級不同(Gemini 4 Neon 到 xhigh,Gemini 4 Argon 只到 high)。Esc 取消時畫面沒有提示，
+  對話紀錄區留下 `⎿  Exited /model command`。
+- **statusline JSON**:`quota` 除了文件寫的 `gemini-5h`、`gemini-weekly`、`3p-5h`、`3p-weekly`,還有**未記載的 `gemini-argon-wtu-weekly`**(程式要容忍未知 bucket);
+  有 `version`、`plan_tier`、`context_window`(`context_window_size` 1048576)。**`transcript_path` 是錯的**(指向 `~/.gemini/antigravity/brain/…`,
+  實際檔案在 `~/.gemini/antigravity-cli/brain/…`),不要依賴它。
+
+### Antigravity 會送按鍵的功能:驗證現況(#447)
+
+- **已用錄製驗證、開放**:回答權限提示與 `ask_question`(單按數字,#445)、**切換權限模式**(Shift+Tab 輪替 auto → plan → default → accept-edits,
+  切換後的狀態列以 `agy-idle-*` 四張畫面對照;只在閒置時切換,錄製沒有工作中按 Shift+Tab 的畫面)。
+- **維持未驗證、不開放**:在 app 內選模型與調 effort(`/model`、`/effort` 面板)。面板畫面已錄(`agy-panel-*`),但沒錄到**選定之後**的結果,
+  所以不知道 Enter 是只改這個 session、還是寫進使用者設定,也不知道 Esc 的後果。要開放需要在專用 workspace 補錄:
+  1. `/model` 移到另一個模型後按 Enter:畫面、狀態列、對話紀錄(`<USER_SETTINGS_CHANGE>`)、`~/.gemini/antigravity-cli` 設定檔有沒有被改;
+  2. `/model` 面板內 `←/→` 調 effort 後 Enter 的結果,以及不同模型 effort 等級數量不同時游標落點;
+  3. `/effort` 單獨面板調整後 Enter、Esc 各自的畫面;
+  4. Agent 工作中按 Shift+Tab 的結果(目前 app 在工作中鎖住切換);
+  5. 權限提示開著時按 Shift+Tab 的結果(herdr 認不出 agy 權限提示,app 看不到 blocked)。
+
 ## Tailscale SSH check mode(`tailscale/`)——依文件模擬、未實測
 
 `tailscale/check-mode.banner.txt`:Tailscale SSH 在 check mode 時送出的 SSH 認證橫幅。**不是錄製的**:作者的 Mac 無法經 Tailscale SSH 連自己，也不變更作者的 ACL。
@@ -183,3 +226,7 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
   `webwright` 在專案層 `settings.local.json` 設成 `false`;專案層 skills／commands(作者 Mac 沒有)寫在測試裡;
   `skill_listing` 的增量行(`isInitial: false`)以錄製行為底改動。
 - 存檔後以 `grep` 確認沒有真實的使用者名稱、主機名或專案名。
+
+## Claude Code 模型目錄(`claude-code/model-catalog/`,#385)
+
+`host-cache-cc.json`:作者 Mac 上 `~/.claude/cache/model-catalog/tok-*-cc.json`(Claude Code 的模型目錄快取，13 個模型含 Max 的使用量倍率徽章),組織 id 換成 `00000000-…-0001`,其餘原樣,2026-11-22。`public-catalog.json`:`https://downloads.claude.ai/model-catalog/v1/catalog.json` 的內容，只留 `surfaces.cc.model_selector_config`(去掉簽章與其他 surface),2026-11-22。只讀取來源，不改動。

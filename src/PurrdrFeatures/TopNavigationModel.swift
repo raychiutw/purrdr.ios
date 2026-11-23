@@ -5,18 +5,20 @@ import PurrdrCore
 
 /// 一個視窗的導覽狀態(#37 故事 21、#31):Agent 列表之上以 sheet 開啟的畫面、三欄的選取、鍵盤快捷鍵。
 ///
-/// 不採 tab bar:列表工具列的帳號鈕開帳號頁、「⋯」選單進入設定與主機，「+」新增對話;一次只開一個 sheet。
+/// 頂層是 5 個 tab(聊天、檔案、主機、流量、設定,#376);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
 @MainActor
 @Observable
 public final class TopNavigationModel {
-    /// 目前開著的 sheet;`nil` 表示停在 Agent 列表。
+    /// 目前選的 tab。
+    public var tab = TopLevelTab.chats
+    /// 目前開著的 sheet;`nil` 表示沒有 sheet。
     public var sheet: TopLevelSheet?
-    /// 等著匯入的主機分享連結(`purrdr://host?d=…`)或主機配對連結(`purrdr://pair?…`)。主機 sheet 開啟時帶入新增主機編輯器，之後清掉。
+    /// 等著匯入的主機分享連結(`purrdr://host?d=…`)或主機配對連結(`purrdr://pair?…`)。主機 tab 出現時帶入新增主機編輯器，之後清掉。
     public var pendingHostImport: URL?
-    /// 等著開編輯頁的主機(點了主機服務通知,#293)。主機 sheet 開啟時推入它的編輯器，之後清掉。
+    /// 等著開編輯頁的主機(點了主機服務通知,#293)。主機 tab 出現時推入它的編輯器，之後清掉。
     public var pendingHostEditor: UUID?
-    /// 等著開新增主機引導(Agent 列表沒有主機時的「新增主機」,#332)。主機 sheet 開啟時推入，之後清掉。
+    /// 等著開新增主機引導(Agent 列表沒有主機時的「新增主機」,#332)。主機 tab 出現時推入，之後清掉。
     public var pendingAddHost = false
 
     /// 對話欄顯示的 Agent(主機 + pane id,#39)。iPhone 與窄視窗時是推入的對話。
@@ -73,27 +75,30 @@ public final class TopNavigationModel {
         sheet = .welcome
     }
 
-    /// 歡迎頁的「Try the Demo」:進入 Demo 主機(空列表時才看得到)並回到列表。
+    /// 歡迎頁的「Try the Demo」:進入 Demo 主機(空列表時才看得到)並回到聊天 tab。
     public func welcomeTryDemo(hosts: HostsModel) {
         hosts.enterDemo()
+        tab = .chats
         sheet = nil
     }
 
-    /// 歡迎頁的「新增主機」:換成主機 sheet 並直接進新增主機引導(#332:各入口都走引導)。
+    /// 歡迎頁的「新增主機」:收起歡迎頁、選主機 tab 並直接進新增主機引導(#332:各入口都走引導)。
     public func welcomeAddHost() {
         openAddHost()
     }
 
-    /// Agent 列表空狀態的「新增主機」:開主機 sheet 並直接進新增主機引導。
+    /// 主機選單的「新增主機…」、Agent 列表空狀態的「新增主機」:選主機 tab 並直接進新增主機引導。
     public func openAddHost() {
         pendingAddHost = true
-        sheet = .hosts
+        tab = .hosts
+        sheet = nil
     }
 
-    /// 點了主機服務通知：開主機 sheet 並推入那台主機的編輯頁(主機服務區塊在那裡)。
+    /// 點了主機服務通知：選主機 tab 並推入那台主機的編輯頁(主機服務區塊在那裡)。
     public func openHostEditor(_ id: UUID) {
         pendingHostEditor = id
-        sheet = .hosts
+        tab = .hosts
+        sheet = nil
     }
 
     /// 換了選取中主機：側欄的 workspace 篩選與版面圖卡片屬於前一台主機，清掉。
@@ -111,7 +116,9 @@ public final class TopNavigationModel {
         case .search: isSearchFocused = true
         case .openTerminal: if let selectedChat { openedTerminal = selectedChat }
         case .newChat: sheet = .newChat
-        case .settings: sheet = .settings
+        case .settings:
+            sheet = nil
+            tab = .settings
         }
     }
 
@@ -131,9 +138,10 @@ public final class TopNavigationModel {
         guard url.scheme?.lowercased() == Self.urlScheme else { return false }
         switch url.host()?.lowercased() {
         case "settings":
-            sheet = .settings
+            sheet = nil
+            tab = .settings
         case "plus":
-            // 付費牆(#246):「⋯」選單不再有 Purrdr Plus,未加入會員也能從連結看方案。
+            // 付費牆(#246):未加入會員也能從連結看方案。
             sheet = .plus
         case "testing-content-size":
             // UI 測試不重啟換 Dynamic Type:`purrdr://testing-content-size?category=<類別>`,沒帶就回到系統字級。
@@ -146,9 +154,10 @@ public final class TopNavigationModel {
                 .queryItems?.first { $0.name == "style" }?.value
         case "host", "pair":
             // 系統相機掃 QR code(主機分享連結，或主機配對指令的 `purrdr://pair?…`)或點連結都會走到這裡;
-            // 內容在主機 sheet 裡解析與說明。
+            // 內容在主機 tab 裡解析與說明。
             pendingHostImport = url
-            sheet = .hosts
+            sheet = nil
+            tab = .hosts
         default:
             return false
         }
@@ -159,10 +168,38 @@ public final class TopNavigationModel {
     public static let urlScheme = "purrdr"
 }
 
-/// 從 Agent 列表開啟的頂層 sheet。
+/// 頂層 tab(#376):聊天、檔案、主機、流量、設定。
+public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case chats, files, hosts, traffic, settings
+
+    public var id: String { rawValue }
+
+    /// 右上角(帳號鈕左邊)的動作:聊天新增聊天、檔案上傳、主機新增主機;流量與設定不放。
+    public enum TrailingAction: Sendable { case newChat, upload, addHost }
+
+    public var trailingAction: TrailingAction? {
+        switch self {
+        case .chats: .newChat
+        case .files: .upload
+        case .hosts: .addHost
+        case .traffic, .settings: nil
+        }
+    }
+
+    /// 頂列中間的主機選單改哪個值:聊天 tab 改「目前主機」(含所有主機),檔案與主機 tab 只改「選取中主機」;流量與設定沒有。
+    public enum HostMenuScope: Sendable { case currentHost, selectedHost }
+
+    public var hostMenu: HostMenuScope? {
+        switch self {
+        case .chats: .currentHost
+        case .files, .hosts: .selectedHost
+        case .traffic, .settings: nil
+        }
+    }
+}
+
+/// 以 sheet 開啟的畫面(不是 tab)。
 public enum TopLevelSheet: String, Identifiable, Sendable {
-    case settings
-    case hosts
     case newChat
     /// 帳號頁(#246;右上角帳號鈕):會員、Purrdr Plus 開通步驟、登入方式、刪除會員。
     case member

@@ -58,10 +58,17 @@ extension RecentPhotoSource {
     private static func simulatedImage(_ index: Int, size: CGFloat) -> Data? {
         #if canImport(UIKit)
         let colors = [0.52, 0.08, 0.92, 0.7, 0.35, 0.15].map { UIColor(hue: $0, saturation: 0.6, brightness: 0.85, alpha: 1) }
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+        // 第 2、5 張直幅、第 3、6 張橫幅:面板的格子不能被非正方形的照片撐開(#386)。
+        let pixelSize: CGSize =
+            switch index % 3 {
+            case 1: CGSize(width: size * 0.6, height: size * 1.6)
+            case 2: CGSize(width: size * 1.6, height: size * 0.6)
+            default: CGSize(width: size, height: size)
+            }
+        let renderer = UIGraphicsImageRenderer(size: pixelSize)
         return renderer.jpegData(withCompressionQuality: 0.8) { context in
             colors[index % colors.count].setFill()
-            context.fill(CGRect(x: 0, y: 0, width: size, height: size))
+            context.fill(CGRect(origin: .zero, size: pixelSize))
         }
         #else
         return nil

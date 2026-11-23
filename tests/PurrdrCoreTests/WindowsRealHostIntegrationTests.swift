@@ -141,10 +141,10 @@ struct WindowsRealHostIntegrationTests {
         let claude = try await reader.locate(sessionID: id, cwd: #"C:\work"#)
         #expect(claude == TranscriptFile(path: claudeFile, size: body.count))
         for target in [
-            TranscriptTarget(format: .codex, location: .codex(sessionID: id), sessionKey: id),
-            TranscriptTarget(format: .grok, location: .grok(sessionID: id), sessionKey: id),
-            TranscriptTarget(format: .piJournal, location: .piJournal(sessionID: id), sessionKey: id),
-            TranscriptTarget(format: .antigravity, location: .antigravity(sessionID: id), sessionKey: id),
+            TranscriptTarget.id(.codex, id),
+            TranscriptTarget.id(.grok, id),
+            TranscriptTarget.id(.piJournal, id),
+            TranscriptTarget.id(.antigravity, id),
         ] {
             do {
                 let file = try await reader.locate(target)
@@ -397,12 +397,17 @@ struct WindowsRealHostIntegrationTests {
         let viaPowerShell = try await WindowsRealHost.collect(
             try await DefaultShellChannel(base: ssh, shell: .powershell).execute("\(PowerShell.quote(second)) | " + command))
         log("PowerShell:exit \(viaPowerShell.exitCode) · \(viaPowerShell.stdout) \(viaPowerShell.stderr)")
-        #expect(viaPowerShell.stdout.hasPrefix("orig-"))
+        // 轉給原 status line 的 stdin 不帶 BOM(#388):有 BOM 時 `head -c 9` 會多吃 3 bytes,JSON 前面多出 U+FEFF。
+        #expect(viaPowerShell.stdout.hasPrefix(#"orig-{"session"#))
+        #expect(!viaPowerShell.stdout.contains("\u{FEFF}"))
         #expect(try await usage.readPlanUsage()?.fiveHour?.usedPercentage == 30)
 
-        log("沒有 rate_limits 的輸入不覆寫…")
-        _ = try await WindowsRealHost.collect(try await ssh.execute("printf '%s\\n' '{\"session_id\":\"s2\"}' | " + command))
+        log("沒有 rate_limits 的輸入不覆寫用量,但每個 session 各存一份…")
+        _ = try await WindowsRealHost.collect(try await ssh.execute("printf '%s\\n' '{\"session_id\":\"s2\",\"context_window\":{\"used_percentage\":12}}' | " + command))
         #expect(try await usage.readPlanUsage()?.fiveHour?.usedPercentage == 30)
+        let statuses = try await usage.sessionStatuses(sessionIDs: ["s1", "s2"])
+        #expect(statuses["s2"]?.contextPercent == 12)
+        #expect(statuses["s1"] != nil)
 
         log("還原…")
         try await usage.restore()

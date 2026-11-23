@@ -1,0 +1,25 @@
+
+      ▄▀▀▄        Antigravity CLI 1.5.14
+     ▀▀▀▀▀▀       demo@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Neon (Medium)
+   ▄▀▀    ▀▀▄     /Users/demo/Projects/fixture-work
+  ▄▀▀      ▀▀▄
+
+> /help
+  ⎿  Exited /help command
+
+> /model
+  ⎿  Exited /model command
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Set Effort
+
+  ◂      ●━━━━━━━━━━◉──────────○──────────○      ▸
+        low      medium      high       xhigh
+    Balanced speed and reasoning quality for most tasks  (current)
+
+Keyboard: ←/→ Effort  enter Select  esc Go Back
+
+                                                                                                                                             Gemini 4 Neon · medium

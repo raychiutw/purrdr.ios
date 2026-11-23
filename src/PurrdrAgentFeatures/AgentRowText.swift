@@ -46,40 +46,9 @@ package enum AgentRowText {
         return folders.contains(label.lowercased()) ? nil : label
     }
 
-    /// Session 標題：哪個欄位才是標題依 agent 種類而定;預設終端機標題、resume 指令、像 session id 的字串都不算。
+    /// Session 標題:哪個欄位才是標題依 Agent 設定檔的 session 組而定。
     package static func sessionTitle(of agent: Agent) -> String? {
-        let candidate: String? = switch agent.kind {
-        // Codex 的 `title` 是被截斷的第一個 prompt;真正的名稱是終端機標題去掉結尾「 | 資料夾」。
-        case "codex": agent.terminalTitle.flatMap { title in
-            title.range(of: " | ", options: .backwards).map { String(title[..<$0.lowerBound]) }
-        }
-        case "grok": agent.terminalTitle.flatMap(grokTitle)
-        default: agent.sessionTitle ?? agent.terminalTitle
-        }
-        guard let title = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty,
-              !isDefaultTerminalTitle(title) else { return nil }
-        return title
-    }
-
-    /// Grok:取「 - grok」前一段，去掉前導 spinner 與「Action Required」。
-    private static func grokTitle(_ terminalTitle: String) -> String? {
-        var title = terminalTitle
-        if let suffix = title.range(of: " - grok", options: [.backwards, .caseInsensitive]) {
-            title = String(title[..<suffix.lowerBound])
-        }
-        title = title.replacingOccurrences(of: "Action Required", with: "")
-        title = String(title.drop { !$0.isLetter && !$0.isNumber })
-        return title
-    }
-
-    private static let defaultTitles: Set<String> = ["claude code", "claude", "codex", "grok", "omp", "agy"]
-
-    private static func isDefaultTerminalTitle(_ title: String) -> Bool {
-        let lowered = title.lowercased()
-        if defaultTitles.contains(lowered) { return true }
-        if lowered.contains("--resume") || lowered.contains("--continue") || lowered.hasPrefix("codex resume") { return true }
-        // 含 UUID 片段(8-4 位十六進位)的多半是 session id。
-        return lowered.contains(/[0-9a-f]{8}-[0-9a-f]{4}/)
+        AgentCatalog.profile(forHerdrName: agent.kind).session.title(sessionTitle: agent.sessionTitle, terminalTitle: agent.terminalTitle)
     }
 
     /// 依主機的路徑語法(#26:Windows 是 `C:\…`)。
@@ -98,45 +67,35 @@ package enum AgentKind: Equatable {
     case unknown(String)
 
     package init(rawKind: String) {
-        self = switch rawKind {
-        case "claude": .claudeCode
-        case "codex": .codex
-        case "gemini": .gemini
-        case "open_code": .openCode
-        case "github_copilot": .copilot
+        self = switch AgentID(herdrName: rawKind) {
+        case .claude: .claudeCode
+        case .codex: .codex
+        case .gemini: .gemini
+        case .opencode: .openCode
+        case .copilot: .copilot
         default: .unknown(rawKind)
         }
     }
 
-    /// 顯示名稱。不認得的種類照 herdr 原文;沒有種類時 `nil`。
-    package var displayName: String? {
+    /// 設定檔的 Agent 種類。
+    package var agentID: AgentID {
         switch self {
-        case .claudeCode: "Claude Code"
-        case .codex: "Codex"
-        case .gemini: "Gemini"
-        case .openCode: "opencode"
-        case .copilot: "GitHub Copilot"
-        case .unknown(let rawKind): Self.otherDisplayName(rawKind)
+        case .claudeCode: .claude
+        case .codex: .codex
+        case .gemini: .gemini
+        case .openCode: .opencode
+        case .copilot: .copilot
+        case .unknown(let rawKind): AgentID(herdrName: rawKind)
         }
+    }
+
+    /// 顯示名稱(取自 Agent 設定檔)。不認得的種類照 herdr 原文;沒有種類時 `nil`。
+    package var displayName: String? {
+        AgentCatalog.profile(for: agentID).presentation.displayName
     }
 
     /// herdr 種類字串的顯示名稱。
     package static func displayName(_ kind: String) -> String? {
         AgentKind(rawKind: kind).displayName
-    }
-
-    /// 沒有專屬樣式的種類。
-    private static func otherDisplayName(_ kind: String) -> String? {
-        switch kind {
-        case "": nil
-        case "grok": "Grok"
-        case "agy", "antigravity": "Antigravity"
-        case "pi": "Pi"
-        case "omp": "OMP"
-        case "cline": "Cline"
-        case "amp": "Amp"
-        case "droid": "Droid"
-        default: kind
-        }
     }
 }

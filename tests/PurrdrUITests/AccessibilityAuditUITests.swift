@@ -169,9 +169,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             _ = openChat("w1:p1", in: app)
-            let open = app.buttons["terminal.open"].firstMatch
-            XCTAssertTrue(open.waitUntilExists(timeout: 10))
-            open.tap()
+            app.conversationMoreItem("terminal.open").tap()
             XCTAssertTrue(app.element("terminal.screen").waitUntilExists(timeout: 10))
             try audit(app, "終端機", contentSize: size)
             app.terminate()
@@ -182,10 +180,11 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     private func openMenu(_ item: String, in app: XCUIApplication) {
-        app.tapToolbarItem("toolbar.more", overflowLabel: "More")
-        let button = app.buttons[item]
-        XCTAssertTrue(button.waitUntilExists(timeout: 5))
-        button.tap()
+        switch item {
+        case "menu.hosts": app.openHostsTab()
+        case "menu.newChat": app.openNewChatSheet()
+        default: XCTFail("沒有這個入口 \(item)")
+        }
     }
 
     @MainActor
@@ -193,12 +192,11 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(flags: ["-seedHost"], contentSize: size)
             openMenu("menu.hosts", in: app)
-            let row = app.buttons["hosts.row.5EED0000-0000-4000-8000-000000000001"]
-            XCTAssertTrue(row.waitUntilExists(timeout: 5))
-            try audit(app, "主機清單", contentSize: size)
+            let share = app.overviewRow("hosts.share")
+            XCTAssertTrue(share.exists)
+            try audit(app, "主機總頁", contentSize: size)
 
-            row.press(forDuration: 1)
-            app.buttons["Share…"].firstMatch.tap()
+            share.tap()
             XCTAssertTrue(app.element("hostShare.qr").waitUntilExists(timeout: 5))
             try audit(app, "分享主機", contentSize: size)
             // 返回鈕:AX5 時系統只留箭頭，不以標題找。
@@ -242,7 +240,10 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             app.openAccount()
-            // 沒登入時帳號頁直接是登入頁(#328)。
+            // 沒登入時帳號頁先選登入或加入(#408)。
+            XCTAssertTrue(app.buttons["account.entry.signIn"].waitUntilExists(timeout: 10))
+            try audit(app, "登入或加入", contentSize: size)
+            app.buttons["account.entry.signIn"].tap()
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 10))
             try audit(app, "登入", contentSize: size)
             app.terminate()

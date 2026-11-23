@@ -11,6 +11,25 @@ struct ClaudeTranscriptParserTests {
         Conversation.items(from: lines.flatMap(ClaudeTranscriptParser.messages(in:)))
     }
 
+    /// #418:只有零寬字元、或只有空 code fence 的 assistant text 畫出來是「只有標頭、沒有文字」的列(或空的程式碼框),不產生訊息。
+    @Test("看不見的文字不產生訊息:零寬空白、BOM、只有空的 code fence", arguments: ["\u{200B}", "\u{FEFF}", " \u{200B}\n\u{200D} ", "```", "```\n```", "```swift\n\n```"])
+    func invisibleAssistantTextProducesNoMessage(text: String) throws {
+        let quoted = String(String(data: try JSONSerialization.data(withJSONObject: [text]), encoding: .utf8)!.dropFirst().dropLast())
+        let line = #"{"type":"assistant","uuid":"u1","timestamp":"2026-11-22T05:01:00Z","message":{"role":"assistant","content":[{"type":"text","text":\#(quoted)}]}}"#
+        #expect(ClaudeTranscriptParser.messages(in: line).isEmpty)
+        let plain = #"{"type":"assistant","uuid":"u2","timestamp":"2026-11-22T05:01:00Z","message":{"role":"assistant","content":\#(quoted)}}"#
+        #expect(ClaudeTranscriptParser.messages(in: plain).isEmpty)
+    }
+
+    @Test("看得見的文字照常保留:一般文字、有內容的 code fence")
+    func visibleAssistantTextIsKept() throws {
+        for text in ["好", "```\nlet a = 1\n```", "\u{200B}好"] {
+            let quoted = String(String(data: try JSONSerialization.data(withJSONObject: [text]), encoding: .utf8)!.dropFirst().dropLast())
+            let line = #"{"type":"assistant","uuid":"u1","timestamp":"2026-11-22T05:01:00Z","message":{"role":"assistant","content":[{"type":"text","text":\#(quoted)}]}}"#
+            #expect(ClaudeTranscriptParser.messages(in: line).count == 1, "\(text.debugDescription)")
+        }
+    }
+
     /// 把對話項目寫成一行好讀的字，期望值依行為規格 §4.1、F5.8 對照 fixture 逐行手算。
     static func describe(_ item: ConversationItem) -> String {
         switch item {

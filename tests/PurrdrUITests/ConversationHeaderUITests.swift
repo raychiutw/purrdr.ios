@@ -6,7 +6,7 @@ final class ConversationHeaderUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 標題列(#270,原型 purrdr-screens 定案版):標題是 workspace 名稱，下一行是狀態與主機名;右邊只有終端機鈕，
+    /// 標題列(#270、#380):標題是 workspace 名稱，下一行是狀態與主機名(context 百分比在狀態 sheet);右邊只有終端機鈕，
     /// 沒有重新載入(改成下拉重新整理)。不在工作中沒有停止列。
     @MainActor
     func testHeaderShowsWorkspaceStatusAndHost() {
@@ -16,7 +16,7 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.staticTexts["ledger"].firstMatch.exists, "標題不是 workspace 名稱")
         let header = app.element("conversation.header")
         XCTAssertTrue(header.waitUntilExists(timeout: 5), "標題下沒有資訊行")
-        XCTAssertEqual(header.label, "Done, Demo, 10%", "資訊行應只有狀態、主機名與 context 百分比(待辦在狀態 sheet，#349)")
+        XCTAssertEqual(header.label, "Done, Demo", "資訊行應只有狀態與主機名(context、待辦在狀態 sheet，#349、#380)")
         XCTAssertFalse(app.element("conversation.reload").exists, "標題列不該再有重新載入")
         XCTAssertFalse(app.element("stopBar").exists, "不在工作中不該有停止列")
 

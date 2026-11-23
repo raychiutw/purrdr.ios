@@ -75,4 +75,42 @@ struct ConversationReviewTests {
         #expect(cwds.count == 2 && cwds.allSatisfy { $0.hasPrefix("/") })
         #expect(changes.canSendReview)
     }
+
+    // MARK: - 更多選單的 Git 變更項目(#381)
+
+    @Test("Git 變更項目:沒有 git 讀取時停用，原因是這個連線讀不了")
+    func gitMenuUnavailableWithoutReader() async throws {
+        let setup = try await Self.opened(steps: [])
+        await setup.model.refreshGitMenu()
+        #expect(setup.model.gitMenu == .unavailable(.unsupported))
+    }
+
+    @Test("Git 變更項目:讀到清單後可用，帶分支與檔案數")
+    func gitMenuAvailableShowsBranchAndCount() async throws {
+        let setup = try await Self.opened(steps: [])
+        setup.model.gitChanges = FakeGitChanges(
+            status: GitWorkingTreeStatus(branch: "fix/composer", files: [
+                GitChange(path: "a", kind: .modified), GitChange(path: "b", kind: .added), GitChange(path: "c", kind: .untracked),
+            ]),
+            diffs: GitDiffSet(files: [], truncated: false))
+        await setup.model.refreshGitMenu()
+        #expect(setup.model.gitMenu == .available(branch: "fix/composer", fileCount: 3))
+    }
+
+    @Test("Git 變更項目:不是 Git 資料夾時停用並說明原因")
+    func gitMenuNotRepository() async throws {
+        let setup = try await Self.opened(steps: [])
+        setup.model.gitChanges = FakeGitChanges(failing: GitChangesError.notGitRepository)
+        await setup.model.refreshGitMenu()
+        #expect(setup.model.gitMenu == .unavailable(.notGitRepository))
+    }
+
+    @Test("Git 變更項目:暫時讀不到(網路等)不停用，維持可點")
+    func gitMenuTransientFailureStaysEnabled() async throws {
+        let setup = try await Self.opened(steps: [])
+        setup.model.gitChanges = FakeGitChanges(failing: HostServiceError.connectionLost)
+        await setup.model.refreshGitMenu()
+        #expect(setup.model.gitMenu == .checking)
+        #expect(setup.model.gitMenu.isEnabled)
+    }
 }

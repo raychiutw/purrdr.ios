@@ -24,16 +24,17 @@ final class ConversationVisibleHeight {
     }
 }
 
-/// 輸入列(行為規格 F6.1;HIG 20.6)。
+/// 輸入列(行為規格 F6.1;HIG 20.6;兩態 #382)。
 ///
-/// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`。
-/// - 上下版面(#187):一張玻璃卡片，整寬輸入框在上，按鈕列(加入圖片｜收起鍵盤、送出)在下。
-/// - 多行，空白時一行高、有內容時至少兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
-/// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
+/// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`(建議卡與輸入卡片同一個容器)。
+/// - 兩態(`ComposerForm`):收合(沒聚焦、沒文字、沒附件)是一列 +、輸入、送出;聚焦或有內容展開成兩列，
+///   上方輸入、下方 +、模型膠囊、送出(`ComposerCardLayout`:同一個輸入框換位置，不重建、不失去焦點)。
+/// - 輸入框最多 5 行(`ComposerSizing`,且不超過鍵盤上方可用高度的 40%),超過在框內捲動。沒有收鍵盤鈕與展開鈕:
+///   收鍵盤靠對話往下拖曳與點空白處(`ConversationView`)。
+/// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。「+」與送出都 ≥ 44pt;離線時「+」停用外觀、點了說明。
 /// - agent 工作中時，玻璃卡片最上面是停止列(#220,`StopBar`);送出鈕維持原樣，工作中仍可打字送出。
 /// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
 ///   這時不能附圖。打過字之後清空輸入框也會取消(#127,`ConversationModel`)。
-/// - 內容超過 2 行或聚焦時有「展開」鈕(`ComposerExpansion`,#142),打開 `ExpandedComposer`。
 /// - 鍵盤出現時 You should know 註記與建議提示詞依 `ComposerKeyboardLayout` 收成一行或暫時拿掉，對話至少留最小可見高度(#196)。
 struct ComposerBar: View {
     @Bindable var model: ConversationModel
@@ -43,10 +44,7 @@ struct ComposerBar: View {
     @State private var isFocused = false
     /// 鍵盤上方可用高度(輸入框量到後回報;變了要重新量輸入框高度)。
     @State private var availableHeight: CGFloat?
-    /// 輸入框回報的「展開」鈕顯示條件。
-    @State private var showsExpandButton = false
     @State private var isDropTargeted = false
-    @State private var isExpanded = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 內文一行的高度(最小對話可見高度用)。
@@ -83,6 +81,13 @@ struct ComposerBar: View {
                     guard let insertion else { return }
                     AccessibilityNotification.Announcement(String(localized: "Inserted /\(insertion.name)")).post()
                 }
+        } else if case .needsYou = model.topAccessory {
+            // 唯讀裝置仍要看得到 Agent 在等什麼(題目與詳情);卡片自己不放選項(#60、#349)。
+            GlassEffectContainer(spacing: ComposerKeyboardLayout.spacing) {
+                NeedsYouCard(model: model)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
         }
     }
 
@@ -124,14 +129,6 @@ struct ComposerBar: View {
             if !model.attachments.isEmpty && model.typedAnswer == nil {
                 AttachmentStrip(model: model)
             }
-            // Claude Code 的建議提示詞(#123):輸入框空白、沒有問題在等也不在工作時才有(#240),點了填入並聚焦，不送出。
-            if case .suggestion(let suggestion) = model.topAccessory, shownArrangement.suggestion != .hidden {
-                let isCompact = shownArrangement.suggestion == .compact
-                PromptSuggestionView(suggestion: suggestion, isCompact: isCompact) { acceptSuggestion() }
-                    .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
-                        if isCompact { suggestionHeights.compact = height } else { suggestionHeights.full = height }
-                    }
-            }
             // 上下版面(#187):一張玻璃卡片，整寬輸入框在上、按鈕列在下;卡片內的按鈕不再疊玻璃。
             // 工作中膠囊(原型 purrdr-screens 定案版):輸入卡片上方置中，不在卡片裡。
             if model.showsStopBar {
@@ -141,31 +138,22 @@ struct ComposerBar: View {
                         if isCompact { stopBarHeights.compact = height } else { stopBarHeights.full = height }
                     }
             }
-            GlassEffectContainer {
-                VStack(spacing: 0) {
-                    editor
-                        .padding(.horizontal, 4)
-                        .padding(.top, 4)
-                    buttonRow
-                }
-                .floatingGlass(in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("composer.card")
-                .onDrop(of: ComposerDrop.types, isTargeted: $isDropTargeted) { ComposerDrop.handle($0, into: model) }
-                .overlay {
-                    if isDropTargeted {
-                        RoundedRectangle(cornerRadius: Self.cardCornerRadius)
-                            .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2.5, dash: [8, 6]))
-                            .overlay { Text("Drop to Attach").font(.headline).foregroundStyle(.tint) }
-                            .background(.softAccentFill(opacity: 0.1), in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
-                            .allowsHitTesting(false)
+            // 建議卡與輸入卡片同一個 GlassEffectContainer(#382):間距 8pt,玻璃一起取樣、一起讓位。
+            GlassEffectContainer(spacing: ComposerKeyboardLayout.spacing) {
+                VStack(spacing: ComposerKeyboardLayout.spacing) {
+                    // Claude Code 的建議提示詞(#123):輸入框空白、沒有問題在等也不在工作時才有(#240),點了填入並聚焦，不送出。
+                    if case .suggestion(let suggestion) = model.topAccessory, shownArrangement.suggestion != .hidden {
+                        let isCompact = shownArrangement.suggestion == .compact
+                        PromptSuggestionView(suggestion: suggestion, isCompact: isCompact) { acceptSuggestion() }
+                            .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
+                                if isCompact { suggestionHeights.compact = height } else { suggestionHeights.full = height }
+                            }
                     }
-                }
-                .overlay {
-                    // 聚焦時中性邊框(F6.1);主色只留給送出鈕(HIG CO-4,#236)。
-                    RoundedRectangle(cornerRadius: Self.cardCornerRadius)
-                        .strokeBorder(isFocused ? AnyShapeStyle(.separator) : AnyShapeStyle(.clear), lineWidth: 1)
-                        .allowsHitTesting(false)
+                    // 「需要你」浮動卡(#424):取代建議卡與工作中膠囊，與輸入卡片同一個玻璃容器。
+                    if case .needsYou = model.topAccessory {
+                        NeedsYouCard(model: model)
+                    }
+                    card
                 }
             }
         }
@@ -197,12 +185,47 @@ struct ComposerBar: View {
             guard scenePhase == .active else { return }
             await model.youShouldKnow?.liveUpdates.attach()
         }
-        // 用 sheet 而非 fullScreenCover:後者會讓底下的對話 onDisappear(取消自訂回答、停掉輪詢)。
-        .sheet(isPresented: $isExpanded) {
-            ExpandedComposer(model: model, placeholder: placeholder, returnSends: returnSends) {
-                isExpanded = false
+    }
+
+    /// 輸入卡片:收合一列、展開兩列(`ComposerCardLayout`),同一個輸入框，聚焦不會因換版而丟失。
+    private var card: some View {
+        ComposerCardLayout(form: form) {
+            if model.canAttachImages && model.typedAnswer == nil {
+                AttachButton(model: model)
+                    .composerCardRole(.attach)
+            }
+            editor
+                .composerCardRole(.editor)
+            if form.showsModelCapsule && model.showsModelCapsule && model.typedAnswer == nil {
+                ModelCapsule(model: model)
+                    .composerCardRole(.model)
+            }
+            ComposerSendButton(model: model, identifier: "composer.send", action: send)
+                .composerCardRole(.send)
+        }
+        .floatingGlass(in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composer.card")
+        .onDrop(of: ComposerDrop.types, isTargeted: $isDropTargeted) { ComposerDrop.handle($0, into: model) }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: Self.cardCornerRadius)
+                    .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2.5, dash: [8, 6]))
+                    .overlay { Text("Drop to Attach").font(.headline).foregroundStyle(.tint) }
+                    .background(.softAccentFill(opacity: 0.1), in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+                    .allowsHitTesting(false)
             }
         }
+        .overlay {
+            // 聚焦時中性邊框(F6.1);主色只留給送出鈕(HIG CO-4,#236)。
+            RoundedRectangle(cornerRadius: Self.cardCornerRadius)
+                .strokeBorder(isFocused ? AnyShapeStyle(.separator) : AnyShapeStyle(.clear), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var form: ComposerForm {
+        ComposerForm.resolve(isFocused: isFocused, draft: model.draft, hasAttachments: !model.attachments.isEmpty)
     }
 
     /// 點一行的註記：收起鍵盤，註記與建議提示詞完整顯示(鍵盤收起時規則不會自己換回完整卡片)。
@@ -236,7 +259,7 @@ struct ComposerBar: View {
 
     private var editor: some View {
         ComposerTextEditor(
-            text: $model.draft, isFocused: $isFocused, availableHeight: $availableHeight, showsExpandButton: $showsExpandButton,
+            text: $model.draft, isFocused: $isFocused, availableHeight: $availableHeight,
             options: ComposerEditorOptions(
                 placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
                 slashKey: { model.slash.handle($0) },
@@ -270,36 +293,15 @@ struct ComposerBar: View {
             }
         }
         .frame(minHeight: 44)
-        .overlay(alignment: .topTrailing) {
-            if showsExpandButton {
-                expandButton
-            }
-        }
-    }
-
-    private var expandButton: some View {
-        Button {
-            // 打開前就交出焦點：不然 sheet 收回時 UIKit 把焦點還給輸入列、叫出鍵盤。
-            #if canImport(UIKit)
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            #endif
-            isFocused = false
-            isExpanded = true
-        } label: {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.footnote.weight(.semibold))
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondaryText)
-        .accessibilityLabel(Text("Expand"))
-        .accessibilityIdentifier("composer.expand")
     }
 
     /// 輸入框的提示(也是朗讀標籤)。
     private var placeholder: String {
-        model.typedAnswer == nil ? String(localized: "Message") : String(localized: "Type your answer")
+        switch model.placeholderKind {
+        case .message: String(localized: "Message")
+        case .typedAnswer: String(localized: "Type your answer")
+        case .tellAgent: String(localized: "Or tell the agent what to do")
+        }
     }
 
     /// 參數提示要排在後面的字(游標前);游標後同一行還有字時不顯示，避免提示疊在字上(#230)。
@@ -324,40 +326,6 @@ struct ComposerBar: View {
 
     private static let cardCornerRadius: CGFloat = 24
 
-    /// 卡片下半的按鈕列：左加入圖片，右收起鍵盤(聚焦時)與送出。
-    private var buttonRow: some View {
-        HStack(spacing: 8) {
-            if model.canAttachImages && model.typedAnswer == nil {
-                AttachButton(model: model, isInCard: true)
-            }
-            if model.supportsPermissionMode && model.typedAnswer == nil {
-                ModelCapsule(model: model)
-                PermissionModeCapsule(model: model)
-            }
-            Spacer(minLength: 0)
-            if isFocused {
-                hideKeyboardButton
-            }
-            ComposerSendButton(model: model, identifier: "composer.send", isInCard: true, action: send)
-        }
-        .padding(.horizontal, 6)
-        .padding(.bottom, 6)
-    }
-
-    private var hideKeyboardButton: some View {
-        Button {
-            isFocused = false
-        } label: {
-            Image(systemName: "keyboard.chevron.compact.down")
-                .frame(width: 30, height: 30)
-        }
-        .composerSecondaryButtonStyle(isInCard: true)
-        .buttonBorderShape(.circle)
-        .frame(minWidth: 44, minHeight: 44)
-        .accessibilityLabel(Text("Hide Keyboard"))
-        .accessibilityIdentifier("composer.hideKeyboard")
-    }
-
     private func send() {
         // 送出就收起鍵盤，看得到 Agent 的回覆;被步驟擋下放回草稿時，再點輸入框繼續打(#329)。
         isFocused = false
@@ -374,15 +342,20 @@ struct ComposerBar: View {
 }
 
 /// 送出鈕：唯一 tinted 主要動作(44pt),送出中顯示轉圈。輸入列與展開畫面共用。
+/// 外觀一律無陰影(bordered 系列，不用玻璃)。
 struct ComposerSendButton: View {
     let model: ConversationModel
     let identifier: String
-    /// 放在輸入列的玻璃卡片裡(#187):不再疊玻璃。
-    var isInCard = false
     let action: () -> Void
 
+    private var appearance: ComposerSendAppearance {
+        ComposerSendAppearance(canSend: model.canSend, isSending: model.isSending)
+    }
+
     var body: some View {
-        styled(Button(action: action) {
+        styled(Button {
+            if appearance.isTappable { action() }
+        } label: {
             Group {
                 if model.isSending {
                     ProgressView()
@@ -396,27 +369,20 @@ struct ComposerSendButton: View {
         })
         .buttonBorderShape(.circle)
         .frame(minWidth: 44, minHeight: 44)
-        .disabled(!model.canSend)
+        // 送出中不用 .disabled:系統 prominent 的停用外觀在深色模式是黑色實心圓。改以不接受點擊表示。
+        .allowsHitTesting(appearance.isTappable)
+        .disabled(appearance == .neutralDisabled)
         .accessibilityLabel(model.isSending ? Text("Sending") : Text("Send"))
         .accessibilityIdentifier(identifier)
     }
 
     @ViewBuilder
     private func styled(_ button: some View) -> some View {
-        switch ComposerSendAppearance(canSend: model.canSend, isSending: model.isSending) {
-        case .prominent:
-            if isInCard {
-                button.filledProminentButtonStyle()
-            } else {
-                button.filledGlassProminentButtonStyle()
-            }
+        switch appearance {
+        case .prominent, .sending:
+            button.filledProminentButtonStyle()
         case .neutralDisabled:
-            // 系統 prominent 的停用外觀在深色模式是黑色實心圓(onAccent 黑字)，幾乎看不見。
-            if isInCard {
-                button.buttonStyle(NeutralDisabledSendButtonStyle())
-            } else {
-                button.buttonStyle(.glass).foregroundStyle(.secondaryText)
-            }
+            button.buttonStyle(NeutralDisabledSendButtonStyle())
         }
     }
 }
@@ -431,15 +397,36 @@ private struct NeutralDisabledSendButtonStyle: ButtonStyle {
     }
 }
 
+/// 輸入列的圓形次要鈕(加入、收起鍵盤):無陰影的中性填色圓;停用(例如送出中)時仍看得見,只是字色換成次要文字色。
+/// 不用系統 `.bordered` 的停用外觀,它在深色模式幾乎看不見。
+struct ComposerCircleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        ComposerCircleButtonBody(configuration: configuration)
+    }
+}
+
+private struct ComposerCircleButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .foregroundStyle(isEnabled ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondaryText))
+            .padding(7)
+            .background(.fill.tertiary, in: Circle())
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
 extension View {
-    /// 輸入列次要圓鈕(加入圖片、收起鍵盤):卡片內用中性色的 bordered(紅色只給送出),卡片外用玻璃(#187)。
-    @ViewBuilder
-    func composerSecondaryButtonStyle(isInCard: Bool) -> some View {
-        if isInCard {
-            buttonStyle(.bordered).tint(.primary)
-        } else {
-            buttonStyle(.glass)
-        }
+    /// 輸入列次要圓鈕(加入圖片、收起鍵盤):中性色、無陰影(紅色只給送出)。
+    func composerSecondaryButtonStyle() -> some View {
+        buttonStyle(.bordered).tint(.primary)
+    }
+
+    /// 輸入列的圓形次要鈕外觀(`ComposerCircleButtonStyle`)。
+    func composerCircleButtonStyle() -> some View {
+        buttonStyle(ComposerCircleButtonStyle())
     }
 }
 
@@ -538,8 +525,10 @@ extension SendNotice {
         case .unconfirmed(.mayBeInTerminal): String(localized: "Couldn’t confirm delivery. The message may be stuck in the terminal.")
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but Codex hasn’t confirmed it yet. Check the host before trying again.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
+        case .modelSwitchFailed: String(localized: "Couldn’t switch the model. This chat keeps using its current model.")
         case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .attachmentLimit: String(localized: "You can attach up to 10 items to a message.")
+        case .attachOffline: String(localized: "Attachments can be added once you’re connected.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
         case .imageTooLarge: String(localized: "This image is over 20 MB.")
         case .uploadFailed: String(localized: "Couldn’t upload the image to the host. Your message wasn’t sent; try again.")
@@ -562,8 +551,9 @@ extension SendNotice {
         case .agentGone, .superseded: "xmark.bubble"
         case .readOnlyDevice: "lock"
         case .offline: "wifi.slash"
-        case .rejected, .noResponse, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
+        case .rejected, .noResponse, .uploadFailed, .panelKeysFailed, .modelSwitchFailed: "exclamationmark.triangle"
         case .attachmentLimit, .imageUnreadable, .imageTooLarge: "photo"
+        case .attachOffline: "wifi.slash"
         case .fileTooLarge, .fileUnreadable: "doc"
         case .fileUploadFailed: "exclamationmark.triangle"
         case .hostServiceUpdateRequired: "arrow.down.circle"
@@ -699,7 +689,7 @@ struct QueuedPromptBubbleView: View {
                     .fontWeight(.semibold)
                     .accessibilityIdentifier("conversation.queued.putBack")
                 Button(role: .destructive, action: delete) { HitTarget("Delete") }
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.destructiveText)
                     .accessibilityIdentifier("conversation.queued.delete")
             }
         } else {
@@ -739,8 +729,6 @@ extension EchoFailure {
 
 /// 輸入框的設定與回呼(`ComposerTextEditor` 的 UIKit 版與 macOS 替代版共用)。
 struct ComposerEditorOptions {
-    /// 展開畫面(#142):填滿給它的空間、一律可捲動，不套用長高規則。
-    var isExpanded = false
     var identifier = "composer.text"
     /// 輸入框的提示，也當朗讀標籤。
     var placeholder: String
@@ -771,13 +759,9 @@ struct ComposerTextEditor: UIViewRepresentable {
     @Binding var isFocused: Bool
     /// 鍵盤上方可用高度，由輸入框回報;只用來讓 SwiftUI 在它變了時重新量高度。
     var availableHeight: Binding<CGFloat?> = .constant(nil)
-    /// 「展開」鈕要不要顯示，由輸入框回報(#142);顯示時右側留位置給它。
-    var showsExpandButton: Binding<Bool> = .constant(false)
     var options: ComposerEditorOptions
 
     static let insets = UIEdgeInsets(top: 11, left: 8, bottom: 11, right: 8)
-    /// 顯示「展開」鈕時右側內距(鈕疊在輸入框右上角)。
-    static let expandButtonInset: CGFloat = 40
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -787,9 +771,7 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.font = .preferredFont(forTextStyle: .body)
         view.adjustsFontForContentSizeCategory = true
         view.backgroundColor = .clear
-        view.fillsAvailableSpace = options.isExpanded
-        view.focusesWhenAttached = options.isExpanded
-        view.isScrollEnabled = options.isExpanded
+        view.isScrollEnabled = false
         view.textContainerInset = Self.insets
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.accessibilityIdentifier = options.identifier
@@ -800,10 +782,6 @@ struct ComposerTextEditor: UIViewRepresentable {
         let availableHeight = availableHeight
         view.onAvailableHeightChange = { height in
             DispatchQueue.main.async { availableHeight.wrappedValue = height }
-        }
-        let showsExpandButton = showsExpandButton
-        view.onShowsExpandChange = { shows in
-            DispatchQueue.main.async { showsExpandButton.wrappedValue = shows }
         }
         return view
     }
@@ -819,11 +797,6 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.tabKey = options.tabKey
         view.pasteAction = options.pasteAction
         view.onPasteImages = options.onPasteImages
-        let trailingInset = showsExpandButton.wrappedValue ? Self.expandButtonInset : Self.insets.right
-        if !options.isExpanded, view.textContainerInset.right != trailingInset {
-            view.textContainerInset.right = trailingInset
-            view.contentDidChange()
-        }
         // 程式改寫草稿：組字中延後到組字結束，不打斷正在組的字(#138)。
         if view.text != text,
            let applied = context.coordinator.overwrite.request(text, current: view.text, isComposing: view.markedTextRange != nil) {
@@ -850,7 +823,6 @@ struct ComposerTextEditor: UIViewRepresentable {
     /// SwiftUI 也會以 0 與無限寬度探問理想大小，拿探問的結果切換內捲會把捲動位置歸零(#94)。
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: KeyHandlingTextView, context: Context) -> CGSize? {
         let width = proposal.width ?? 240
-        if options.isExpanded { return CGSize(width: width, height: proposal.height ?? 240) }
         let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
         var height = uiView.sizing(contentHeight: fitting).height
         // 卡片上方的元素與鍵盤擠掉空間時讓出高度(不壓到按鈕列，#187);框內捲動由 layoutSubviews 依實際高度決定。
@@ -943,12 +915,6 @@ final class KeyHandlingTextView: UITextView {
     /// 鍵盤上方可用高度：視窗安全區域內、鍵盤以上;iPad 分割畫面依當下視窗。
     private(set) var availableHeight: CGFloat?
     var onAvailableHeightChange: ((CGFloat?) -> Void)?
-    /// 展開畫面：填滿空間、由 UIKit 自己捲動，不套用長高規則與展開鈕。
-    var fillsAvailableSpace = false
-    /// 放進視窗後取得焦點一次(展開畫面打開時鍵盤不收起)。
-    var focusesWhenAttached = false
-    var onShowsExpandChange: ((Bool) -> Void)?
-    private var reportedShowsExpand: Bool?
 
     /// 依目前字級與可用高度，內容高 `contentHeight` 時輸入框的高度與是否內捲(#137)。
     func sizing(contentHeight: CGFloat) -> ComposerHeight {
@@ -971,10 +937,6 @@ final class KeyHandlingTextView: UITextView {
                 name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         }
         updateAvailableHeight()
-        if window != nil, focusesWhenAttached {
-            focusesWhenAttached = false
-            DispatchQueue.main.async { [weak self] in self?.becomeFirstResponder() }
-        }
     }
 
     @objc private func keyboardWillChangeFrame(_ notification: Notification) {
@@ -1026,17 +988,26 @@ final class KeyHandlingTextView: UITextView {
         var current: NSRange?
         if storage.length > 0 {
             var effective = NSRange()
-            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == tintColor {
+            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == accentTint {
                 current = effective
             }
         }
         guard force || current != token else { return }
         storage.beginEditing()
         storage.addAttribute(.foregroundColor, value: UIColor.label, range: whole)
-        if let token { storage.addAttribute(.foregroundColor, value: tintColor as UIColor, range: token) }
+        if let token { storage.addAttribute(.foregroundColor, value: accentTint, range: token) }
         storage.endEditing()
         // 接著打的字照一般顏色，不延續指令的綠色。
         typingAttributes[.foregroundColor] = UIColor.label
+    }
+
+    /// 繼承來的主色(跟著 SwiftUI 的 tint 與主機主題):指令著色用它。
+    private var accentTint: UIColor { super.tintColor }
+
+    /// 系統畫的輸入法指示膠囊(聽寫、「國」)以這個色為底、白字(#396):深色模式換成白字夠對比的同色相;游標與選取也跟著用它。
+    override var tintColor: UIColor! {
+        get { super.tintColor.indicatorTint(for: traitCollection.userInterfaceStyle) }
+        set { super.tintColor = newValue }
     }
 
     /// 主題、深淺色或高對比改變時 tint 跟著變:重畫指令著色。
@@ -1047,24 +1018,15 @@ final class KeyHandlingTextView: UITextView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        guard !fillsAvailableSpace else { return }
         updateAvailableHeight()
         // 使用者自己捲動時也會排版：只在內容、游標或大小變了才動捲動位置，不把人拉回游標。
         guard needsCaretFollow || bounds.size != measuredSize, bounds.width > 0 else { return }
         needsCaretFollow = false
         measuredSize = bounds.size
         let contentHeight = sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
-        reportShowsExpand(contentHeight: contentHeight)
         let scrolls = sizing(contentHeight: contentHeight).scrolls || contentHeight > bounds.height + 0.5
         if isScrollEnabled != scrolls { isScrollEnabled = scrolls }
         if scrolls { scrollCaretIntoView(contentHeight: contentHeight) }
-    }
-
-    private func reportShowsExpand(contentHeight: CGFloat) {
-        let shows = ComposerExpansion.showsExpandButton(metrics(contentHeight: contentHeight), isFocused: isFirstResponder)
-        guard shows != reportedShowsExpand else { return }
-        reportedShowsExpand = shows
-        onShowsExpandChange?(shows)
     }
 
     /// 讓捲動位置包含游標(組字中是組字尾端)。直接設 `contentOffset`:`scrollRangeToVisible` 在剛開啟內捲時不會動，
@@ -1164,7 +1126,6 @@ struct ComposerTextEditor: View {
     @Binding var text: String
     @Binding var isFocused: Bool
     var availableHeight: Binding<CGFloat?> = .constant(nil)
-    var showsExpandButton: Binding<Bool> = .constant(false)
     var options: ComposerEditorOptions
     @FocusState private var focused: Bool
 
@@ -1176,10 +1137,7 @@ struct ComposerTextEditor: View {
             .padding(.vertical, 11)
             .focused($focused)
             .onChange(of: focused) { isFocused = focused }
-            .onChange(of: isFocused) {
-                focused = isFocused
-                if !options.isExpanded { showsExpandButton.wrappedValue = isFocused }
-            }
+            .onChange(of: isFocused) { focused = isFocused }
             .accessibilityIdentifier(options.identifier)
     }
 }

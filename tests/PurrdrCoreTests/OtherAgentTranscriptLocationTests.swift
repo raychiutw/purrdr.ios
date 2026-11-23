@@ -24,15 +24,15 @@ struct OtherAgentTranscriptLocationTests {
     @Test("Agent 的 session 參照決定讀哪個檔;不安全或不接受的參照沒有目標")
     func sessionReferenceBecomesTarget() {
         let grok = Self.agent("grok", Self.id(Self.grokID)).transcriptTarget
-        #expect(grok?.format == .grok)
-        #expect(grok?.location == .grok(sessionID: Self.grokID))
+        #expect(grok?.dialect == .grok)
+        #expect(grok?.location == .id(.grok, Self.grokID))
         #expect(grok?.sessionKey == Self.grokID)
-        #expect(Self.agent("agy", Self.id(Self.agyID)).transcriptTarget?.location == .antigravity(sessionID: Self.agyID))
-        #expect(Self.agent("pi", Self.id(Self.piID)).transcriptTarget?.location == .piJournal(sessionID: Self.piID))
+        #expect(Self.agent("agy", Self.id(Self.agyID)).transcriptTarget?.location == .id(.antigravity, Self.agyID))
+        #expect(Self.agent("pi", Self.id(Self.piID)).transcriptTarget?.location == .id(.piJournal, Self.piID))
         #expect(Self.agent("omp", Self.path("/home/demo/.omp/agent/sessions/x/a.jsonl")).transcriptTarget?.location
-            == .reportedPath("/home/demo/.omp/agent/sessions/x/a.jsonl"))
+            == .path("/home/demo/.omp/agent/sessions/x/a.jsonl", readsHeader: true))
         #expect(Self.agent("agy", Self.path("/home/demo/t.jsonl")).transcriptTarget?.sessionKey == "/home/demo/t.jsonl")
-        #expect(Self.agent("claude", Self.id("abc-1"), cwd: "/home/demo").transcriptTarget?.location == .claude(sessionID: "abc-1", cwd: "/home/demo"))
+        #expect(Self.agent("claude", Self.id("abc-1"), cwd: "/home/demo").transcriptTarget?.location == .id(.claude, "abc-1", cwd: "/home/demo"))
 
         #expect(Self.agent("grok", Self.path("/home/demo/updates.jsonl")).transcriptTarget == nil)
         #expect(Self.agent("claude", Self.path("/home/demo/x.jsonl")).transcriptTarget == nil)

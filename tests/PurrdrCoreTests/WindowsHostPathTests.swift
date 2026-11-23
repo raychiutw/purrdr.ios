@@ -17,9 +17,9 @@ struct WindowsHostPathTests {
     func reportedTranscriptPath(path: String, valid: Bool) async throws {
         let host = FakeHost()
         let reader = TranscriptReader(channel: host)
-        let target = TranscriptTarget(format: .antigravity, location: .reportedPath(path), sessionKey: "k")
+        let target = TranscriptTarget(dialect: .antigravity, location: .path(path), sessionKey: "k")
         await host.expect(
-            TranscriptCommand.locate(.reportedPath(path), readsHeader: false),
+            TranscriptCommand.locate(.path(path)),
             reply: FakeReply(stdout: Data("\(path)\n42\n".utf8)))
 
         if valid {
@@ -35,16 +35,16 @@ struct WindowsHostPathTests {
         let id = "019a1b2c-3d4e-7f00-8000-000000000001"
         let host = FakeHost()
         let grok = #"C:\Users\demo\.grok\sessions\C--work\"# + id + #"\updates.jsonl"#
-        await host.expect(TranscriptCommand.locate(.grok(sessionID: id), readsHeader: false), reply: FakeReply(stdout: Data("\(grok)\n10\n".utf8)))
+        await host.expect(TranscriptCommand.locate(.id(.grok, id)), reply: FakeReply(stdout: Data("\(grok)\n10\n".utf8)))
         let codex = #"C:\Users\demo\.codex\sessions\2026\11\16\rollout-2026-11-16T10-00-00-"# + id + ".jsonl"
         let header = #"{"type":"session_meta","payload":{"id":"\#(id)"}}"#
         await host.expect(
-            TranscriptCommand.locate(.codex(sessionID: id), readsHeader: true),
+            TranscriptCommand.locate(.id(.codex, id)),
             reply: FakeReply(stdout: Data("\(codex)\n10\n\(header)\n".utf8)))
         let reader = TranscriptReader(channel: host)
 
-        #expect(try await reader.locate(TranscriptTarget(format: .grok, location: .grok(sessionID: id), sessionKey: id)).path == grok)
-        #expect(try await reader.locate(TranscriptTarget(format: .codex, location: .codex(sessionID: id), sessionKey: id)).path == codex)
+        #expect(try await reader.locate(TranscriptTarget.id(.grok, id)).path == grok)
+        #expect(try await reader.locate(TranscriptTarget.id(.codex, id)).path == codex)
     }
 
     @Test("subagent 的 session 資料夾：Windows 路徑去掉 \\subagents\\ 之後的部分")

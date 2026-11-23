@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import PurrdrCore
 
-/// 主機清單 sheet 內 push 的畫面。
+/// 主機 tab 內 push 的畫面。
 enum HostRoute: Hashable {
     /// 新增主機引導(#341)。
     case add
@@ -14,6 +14,11 @@ enum HostRoute: Hashable {
     /// 新增主機引導的捷徑(#344):匯入連結直接到測試連線／配對,同步來還沒配對的主機直接到配對。
     case importGuide(URL)
     case pairGuide(UUID)
+    /// 主機 tab 總頁推進去的子頁(#392)。
+    case notifications
+    case hostSettings(UUID)
+    case pairedDevices(UUID)
+    case loginShell
 
     var hostID: UUID? {
         if case .edit(let id) = self { return id }

@@ -42,6 +42,14 @@ enum AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xD1, green: 0xD1, blue: 0xD6)   // 黑底 13.8:1、#1C1C1E 11.2:1、#2C2C2E 9.2:1
     )
 
+    /// tab bar 選取態的圖示與標籤(DESIGN.md「深色層次與新色票」):淺色 `#075C45`(對白 8.0:1)、深色 `#3CCF9E`。
+    static let tabSelection = ContrastPalette(
+        light: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
+        dark: ThemeColor(red: 0x3C, green: 0xCF, blue: 0x9E),
+        lightHighContrast: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
+        darkHighContrast: ThemeColor(red: 0x5D, green: 0xE0, blue: 0xB3)
+    )
+
     /// 主色上的字與符號(ADR-0011):主色本身只有 Asset Catalog 的 `AccentColor` 一份，這組只配它當底。
     /// 淺色白字(`#0B7A5C` 5.3:1、高對比 `#075C45` 8.0:1),深色黑字(`#3CCF9E` 10.6:1、高對比 `#5DE0B3` 12.8:1)。
     static let onAccent = ContrastPalette(
@@ -52,7 +60,21 @@ enum AccessibleColors {
     )
 }
 
+extension AccessibleColors {
+    /// 紅字按鈕(刪除、重設、強制結束;#379):系統紅 #FF453A 在深色的 #2C2C2E 以上只有約 4.1:1,
+    /// 所以文字改用這組(圖示、填色與分隔等非文字仍用系統紅)。
+    static let destructiveText = ContrastPalette(
+        light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白底 5.4:1
+        dark: ThemeColor(red: 0xFF, green: 0x8A, blue: 0x82),              // 設計稿 redtext;對 #3A3A3C 以上 ≥ 4.5:1
+        lightHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11), // 白底 8.1:1
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0xC7, blue: 0xC2)
+    )
+}
+
 extension ShapeStyle where Self == Color {
+    /// 紅字按鈕的文字顏色(`AccessibleColors.destructiveText`)。
+    static var destructiveText: Color { AccessibleColors.destructiveText.color }
+
     /// 承載資訊的次要文字顏色(取代系統 `.secondary`／`.tertiary` 文字)。圖示、分隔線、底色等純裝飾仍用系統階層色。
     static var secondaryText: Color { AccessibleColors.secondaryText.color }
 
@@ -93,23 +115,17 @@ struct AgentKindAvatarStyle {
     var palette: ContrastPalette
 
     init(kind: AgentKind) {
-        let (letter, normal, highContrast): (String?, ThemeColor, ThemeColor) = switch kind {
-        case .claudeCode: ("C", ThemeColor(red: 0x8A, green: 0x5A, blue: 0x48), ThemeColor(red: 0x6D, green: 0x47, blue: 0x39)) // 5.8／8.0:1
-        case .codex: ("X", ThemeColor(red: 0x55, green: 0x56, blue: 0x5C), ThemeColor(red: 0x4F, green: 0x50, blue: 0x56)) // 7.3／8.0:1
-        case .gemini: ("G", ThemeColor(red: 0x4A, green: 0x5F, blue: 0x86), ThemeColor(red: 0x3E, green: 0x50, blue: 0x71)) // 6.4／8.1:1
-        case .openCode: ("O", ThemeColor(red: 0x5C, green: 0x6B, blue: 0x4A), ThemeColor(red: 0x48, green: 0x53, blue: 0x3A)) // 5.7／8.2:1
-        case .copilot: ("P", ThemeColor(red: 0x6A, green: 0x58, blue: 0x84), ThemeColor(red: 0x58, green: 0x49, blue: 0x6E)) // 6.3／8.1:1
-        // 其他種類：中性色 + 顯示名首字母。
-        case .unknown: (nil, ThemeColor(red: 0x5A, green: 0x5A, blue: 0x5F), ThemeColor(red: 0x50, green: 0x50, blue: 0x55)) // 6.9／8.0:1
-        }
-        self.letter = letter ?? (kind.displayName?.first.map { String($0).uppercased() } ?? "?")
-        palette = ContrastPalette(light: normal, dark: normal, lightHighContrast: highContrast, darkHighContrast: highContrast)
+        let presentation = AgentCatalog.profile(for: kind.agentID).presentation
+        let avatar = presentation.avatar
+        // 沒有專屬字母的種類：顯示名首字母。
+        letter = avatar.letter ?? (presentation.displayName?.first.map { String($0).uppercased() } ?? "?")
+        palette = ContrastPalette(light: avatar.normal, dark: avatar.normal, lightHighContrast: avatar.highContrast, darkHighContrast: avatar.highContrast)
     }
 }
 
 extension AccessibleColors {
-    /// 方案用量圓環的顏色(#177):依剩餘比例分三級。
-    /// 非文字圖形，對列背景(白、#1C1C1E、#2C2C2E)≥ 3:1,高對比 ≥ 4.5:1。
+    /// 低飽和用量色(#389、DESIGN.md「低飽和用量色」):用量條、圓環與 context 圓環依已用比例分三級(70% 起偏高、85% 起將用完)。
+    /// 顏色只上圖形,數字另寫、到門檻加三角形,不只靠顏色。非文字圖形對軌道 ≥ 3:1(`PlanUsageColorsTests`),高對比 ≥ 4.5:1。
     static func planUsage(_ level: PlanUsageLevel) -> ContrastPalette {
         switch level {
         case .ample: planUsageAmple
@@ -119,24 +135,24 @@ extension AccessibleColors {
     }
 
     static let planUsageAmple = ContrastPalette(
-        light: ThemeColor(red: 0x24, green: 0x8A, blue: 0x3D),             // 白底 4.4:1
-        dark: ThemeColor(red: 0x30, green: 0xD1, blue: 0x58),              // #1C1C1E 8.4:1、#2C2C2E 6.9:1
-        lightHighContrast: ThemeColor(red: 0x1E, green: 0x7A, blue: 0x35), // 白底 5.4:1
-        darkHighContrast: ThemeColor(red: 0x5F, green: 0xE0, blue: 0x7E)   // #2C2C2E 8.3:1
+        light: ThemeColor(red: 0x3D, green: 0x75, blue: 0x61),             // 對軌道 4.0:1(設計稿 #4F8572 只有 3.2:1)
+        dark: ThemeColor(red: 0x6F, green: 0xAE, blue: 0x98),
+        lightHighContrast: ThemeColor(red: 0x2F, green: 0x5E, blue: 0x4E),
+        darkHighContrast: ThemeColor(red: 0x9F, green: 0xDC, blue: 0xC4)
     )
 
     static let planUsageLow = ContrastPalette(
-        light: ThemeColor(red: 0xC2, green: 0x5E, blue: 0x00),             // 白底 4.3:1
-        dark: ThemeColor(red: 0xFF, green: 0x9F, blue: 0x0A),              // #1C1C1E 8.3:1、#2C2C2E 6.8:1
-        lightHighContrast: ThemeColor(red: 0x9A, green: 0x4A, blue: 0x00), // 白底 6.3:1
-        darkHighContrast: ThemeColor(red: 0xFF, green: 0xB3, blue: 0x40)   // #2C2C2E 7.8:1
+        light: ThemeColor(red: 0xA9, green: 0x78, blue: 0x4A),
+        dark: ThemeColor(red: 0xC9, green: 0x9A, blue: 0x6A),
+        lightHighContrast: ThemeColor(red: 0x7D, green: 0x52, blue: 0x30),
+        darkHighContrast: ThemeColor(red: 0xEB, green: 0xC4, blue: 0x98)
     )
 
     static let planUsageDepleted = ContrastPalette(
-        light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白底 5.4:1
-        dark: ThemeColor(red: 0xFF, green: 0x69, blue: 0x61),              // #1C1C1E 6.0:1、#2C2C2E 4.9:1
-        lightHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11), // 白底 8.1:1
-        darkHighContrast: ThemeColor(red: 0xFF, green: 0x9F, blue: 0x97)   // #2C2C2E 7.1:1
+        light: ThemeColor(red: 0xB0, green: 0x64, blue: 0x5D),
+        dark: ThemeColor(red: 0xC9, green: 0x80, blue: 0x78),
+        lightHighContrast: ThemeColor(red: 0x84, green: 0x3D, blue: 0x38),
+        darkHighContrast: ThemeColor(red: 0xEF, green: 0xAE, blue: 0xA7)
     )
 }
 

@@ -4,16 +4,18 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 設定裡的「數據用量」入口:進頁面時才建立 model。
+/// 流量 tab 的入口:進頁面時才建立 model。
 struct DataUsageScreen: View {
     @State private var model: DataUsageModel
+    let account: AnyView?
 
-    init(make: () -> DataUsageModel) {
+    init(make: () -> DataUsageModel, account: AnyView? = nil) {
         _model = State(wrappedValue: make())
+        self.account = account
     }
 
     var body: some View {
-        DataUsageView(model: model)
+        DataUsageView(model: model, account: account)
     }
 }
 
@@ -27,9 +29,17 @@ public struct DataUsageView: View {
     @State private var detailHostID: String?
     @State private var confirmsReset = false
     @State private var selectedDate: Date?
+    /// 流量 tab 最右上角的帳號鈕(#390);有的話是 tab 版面:大標題、主機選單放在內容最上面。
+    private let account: AnyView?
 
     public init(model: DataUsageModel) {
         self.model = model
+        account = nil
+    }
+
+    init(model: DataUsageModel, account: AnyView?) {
+        self.model = model
+        self.account = account
     }
 
     enum OptionsSheet: String, Identifiable {
@@ -40,6 +50,9 @@ public struct DataUsageView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if account != nil {
+                    HostCapsule(model: model)
+                }
                 summaryTiles
                 chips
                 chartCard
@@ -56,9 +69,16 @@ public struct DataUsageView: View {
         .background(DataUsageColors.groupedBackground)
         .navigationTitle("Data Usage")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(account == nil ? .inline : .large)
         #endif
-        .toolbar { ToolbarItem(placement: .principal) { HostCapsule(model: model) } }
+        .toolbar {
+            if let account {
+                ToolbarItem(placement: .primaryAction) { account }
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .principal) { HostCapsule(model: model) }
+            }
+        }
         .sheet(item: $optionsSheet) { sheet in
             DataUsageOptionsSheet(model: model, sheet: sheet)
         }
@@ -107,7 +127,7 @@ public struct DataUsageView: View {
             selectionDetail
         }
         .padding(14)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
+        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func legend(for bars: [DataUsageBar]) -> some View {
@@ -164,7 +184,7 @@ public struct DataUsageView: View {
                             .accessibilityIdentifier("dataUsage.host.\(row.id)")
                     }
                 }
-                .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
+                .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
             }
         }
     }
@@ -176,8 +196,8 @@ public struct DataUsageView: View {
             Text("Reset Statistics").frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.red)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
+        .foregroundStyle(.destructiveText)
+        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityIdentifier("dataUsage.reset")
     }
 
@@ -347,13 +367,12 @@ private struct DataUsageOptionsSheet: View {
                     .accessibilityIdentifier("dataUsage.categoryOptions")
                 }
             }
+            .appGroupedList()
             .navigationTitle(sheet == .period ? Text("Period") : Text("Category"))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("sheet.done") }
-            }
+            .toolbar { SheetCloseToolbar() }
         }
         .presentationDetents([.medium])
     }
@@ -370,28 +389,31 @@ private struct DataUsageHostSheet: View {
             let detail = model.detail(forHost: hostID)
             let row = model.hostRows.first { $0.id == hostID }
             List {
-                Section {
-                    LabeledContent("Received", value: DataUsageFormat.bytes(detail?.received ?? 0))
-                    LabeledContent("Sent", value: DataUsageFormat.bytes(detail?.sent ?? 0))
-                    LabeledContent("Cellular", value: DataUsageFormat.bytes(detail?.cellular ?? 0))
-                } header: {
-                    Text(model.period.hostsHeader).foregroundStyle(.secondaryText)
+                Group {
+                    Section {
+                        LabeledContent("Received", value: DataUsageFormat.bytes(detail?.received ?? 0))
+                        LabeledContent("Sent", value: DataUsageFormat.bytes(detail?.sent ?? 0))
+                        LabeledContent("Cellular", value: DataUsageFormat.bytes(detail?.cellular ?? 0))
+                    } header: {
+                        Text(model.period.hostsHeader).foregroundStyle(.secondaryText)
+                    }
+                    Section {
+                        LabeledContent("Total", value: DataUsageFormat.bytes(detail?.thirtyDayTotal ?? 0))
+                    } header: {
+                        Text("Last 30 Days").foregroundStyle(.secondaryText)
+                    }
                 }
-                Section {
-                    LabeledContent("Total", value: DataUsageFormat.bytes(detail?.thirtyDayTotal ?? 0))
-                } header: {
-                    Text("Last 30 Days").foregroundStyle(.secondaryText)
-                }
+                // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+                .listRowBackground(AppSurface.groupedRow)
             }
+            .appGroupedList()
             .monospacedDigit()
             .accessibilityIdentifier("dataUsage.hostDetail")
             .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Host") : (row?.name ?? ""))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("sheet.done") }
-            }
+            .toolbar { SheetCloseToolbar() }
         }
         .presentationDetents([.medium])
     }
@@ -563,7 +585,7 @@ extension DataUsageSegment.Kind {
 
 private enum DataUsageColors {
     #if canImport(UIKit)
-    static let groupedBackground = Color(uiColor: .systemGroupedBackground)
+    static let groupedBackground = AppSurface.groupedPage
     static let neutral = Color(uiColor: .systemGray)
     #else
     static let groupedBackground = Color(nsColor: .windowBackgroundColor)

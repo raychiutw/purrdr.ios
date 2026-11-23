@@ -49,13 +49,10 @@ extension HTTPSHostConnection {
     /// 定位過的路徑;找不到或主機讀不了這種 agent 的對話紀錄時為 `nil`(不在預覽結果裡，同 SSH)。
     private func previewLocation(of target: TranscriptTarget) async throws -> PreviewLocation? {
         if let known = previewLocations[target.location] { return known }
-        let readsHeader: Bool = switch target.location {
-        case .codex: true
-        default: target.format == .piJournal
-        }
+        let readsHeader = target.location.locator.readsHeader
         do {
             let result = try await withDeadline(HostCommandDeadline.standard) {
-                try await self.locateResult(Self.sessionReference(target.location), header: readsHeader)
+                try await self.locateResult(target.location.sessionReference, header: readsHeader)
             }
             let location = PreviewLocation(path: result.path, header: readsHeader ? result.header ?? [] : nil)
             previewLocations[target.location] = location

@@ -1,23 +1,19 @@
 import SwiftUI
 
-/// 帳號頁開通後的「主機同步」區(#30):開關、狀態、沒有 Purrdr Plus 時的訂閱入口;footer 說明同步什麼、不同步什麼。
-struct HostSyncSection: View {
+/// 帳號頁「Plus 功能」區裡的「主機同步」列(#30、#463):開關與狀態、沒有 Purrdr Plus 時的訂閱入口。
+/// 說明同步什麼、不同步什麼的文字放在 `HostSyncRows.footer`,由「Plus 功能」區當 footer。
+struct HostSyncRows: View {
+    static let footer: LocalizedStringKey =
+        "Your hosts’ names, addresses, accounts, and icons sync to your other devices through your Purrdr member account. Passwords and keys never leave this device. Requires Purrdr Plus."
+
     let model: HostSyncModel
     let plus: SubscriptionModel?
     let member: MemberModel
 
     var body: some View {
-        Section {
-            Toggle("Sync Hosts", isOn: Binding(get: { model.isEnabled }, set: { enabled in Task { await model.setEnabled(enabled) } }))
-                .accessibilityIdentifier("settings.hostSync")
-            statusRow
-        } header: {
-            Text("Host Sync")
-                .foregroundStyle(.secondaryText)
-        } footer: {
-            Text("Your hosts’ names, addresses, accounts, and icons sync to your other devices through your Purrdr member account. Passwords and keys never leave this device. Requires Purrdr Plus.")
-                .foregroundStyle(.secondaryText)
-        }
+        Toggle("Sync Hosts", isOn: Binding(get: { model.isEnabled }, set: { enabled in Task { await model.setEnabled(enabled) } }))
+            .accessibilityIdentifier("settings.hostSync")
+        statusRow
     }
 
     @ViewBuilder

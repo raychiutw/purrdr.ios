@@ -6,12 +6,15 @@ public struct PlanUsage: Equatable, Sendable {
         public enum Kind: Equatable, Hashable, Sendable { case fiveHour, week }
 
         public var kind: Kind
+        /// 這份用量屬於哪個模型群組(同一個用量週期可以依群組有多份,Antigravity,#448);Claude、Codex 只有 `.general`。
+        public var group: Group
         /// 已用比例，0～100(來源可能超出，顯示時夾住)。
         public var usedPercentage: Double
         public var resetsAt: Date?
 
-        public init(kind: Kind, usedPercentage: Double, resetsAt: Date?) {
+        public init(kind: Kind, group: Group = .general, usedPercentage: Double, resetsAt: Date?) {
             self.kind = kind
+            self.group = group
             self.usedPercentage = usedPercentage
             self.resetsAt = resetsAt
         }
@@ -23,13 +26,28 @@ public struct PlanUsage: Equatable, Sendable {
         public static func clamped(_ percentage: Double) -> Double { min(max(percentage, 0), 100) }
     }
 
+    /// 用量依哪個維度分群組:一般(整個方案共用)、Antigravity 的 Gemini 模型與第三方模型。
+    public enum Group: Equatable, Hashable, Sendable {
+        case general, gemini, thirdParty
+
+        /// 模型名稱所屬的群組(Gemini 開頭是 Gemini,其他是第三方);沒有名稱是 `nil`。
+        public init?(modelName: String) {
+            let name = modelName.trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { return nil }
+            self = name.lowercased().hasPrefix("gemini") ? .gemini : .thirdParty
+        }
+    }
+
     public var periods: [Period]
     /// 來源擷取這份用量的時間。
     public var capturedAt: Date
+    /// 來源回報的目前模型所屬群組(Antigravity 的 statusline 有目前模型);沒有時是 `nil`。
+    public var activeGroup: Group?
 
-    public init(periods: [Period], capturedAt: Date) {
+    public init(periods: [Period], capturedAt: Date, activeGroup: Group? = nil) {
         self.periods = periods
         self.capturedAt = capturedAt
+        self.activeGroup = activeGroup
     }
 }
 

@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   # 合併前後的版本號不同才發版(project.pbxproj 也會因為別的原因改到);手動觸發一律發版。
-  # 4 處 MARKETING_VERSION 不一致時直接失敗(scripts/marketing-version.sh)。
+  # 6 處 MARKETING_VERSION 不一致時直接失敗(scripts/marketing-version.sh)。
   version:
     name: 確認版本號有變
     runs-on: ubuntu-24.04
@@ -172,7 +172,9 @@ jobs:
 
           # entitlements 是簽章時才寫進執行檔的：不簽章的 archive 沒有推播與 Sign in with Apple 的 entitlement,
           # 匯出重簽也不會補(my-money.ios #346)。先用 ad-hoc 簽章寫進去，匯出時再換成正式簽章。
+          # Notification Service Extension(#431)同樣要先寫 entitlements(App Group);由內往外簽:extension 先、App 後。
           app_path="$(echo "$archive_path"/Products/Applications/*.app)"
+          codesign --force --sign - --entitlements src/App/PurrdrNotificationService.entitlements --timestamp=none --generate-entitlement-der "$app_path"/PlugIns/PurrdrNotificationService.appex
           codesign --force --sign - --entitlements src/App/Purrdr.entitlements --timestamp=none --generate-entitlement-der "$app_path"
 
           # 不簽章的 archive 裡沒有團隊資訊：匯出設定要帶 teamID(Team ID 在 environment 變數裡)。
@@ -199,9 +201,17 @@ jobs:
           aps="$(/usr/libexec/PlistBuddy -c 'Print :aps-environment' "$entitlements" 2>/dev/null || true)"
           time_sensitive="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.usernotifications.time-sensitive' "$entitlements" 2>/dev/null || true)"
           apple_sign_in="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.applesignin:0' "$entitlements" 2>/dev/null || true)"
-          echo "aps-environment=$aps time-sensitive=$time_sensitive applesignin=$apple_sign_in"
+          app_group="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' "$entitlements" 2>/dev/null || true)"
+          extension_entitlements="$RUNNER_TEMP/EntitlementsCheck/extension-entitlements.plist"
+          codesign -d --entitlements - --xml "$RUNNER_TEMP"/EntitlementsCheck/ipa/Payload/*.app/PlugIns/PurrdrNotificationService.appex > "$extension_entitlements" 2>/dev/null || true
+          extension_group="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' "$extension_entitlements" 2>/dev/null || true)"
+          echo "aps-environment=$aps time-sensitive=$time_sensitive applesignin=$apple_sign_in app-group=$app_group extension-app-group=$extension_group"
           if [ "$aps" != "production" ] || [ "$time_sensitive" != "true" ] || [ "$apple_sign_in" != "Default" ]; then
             echo "::error::匯出的 App entitlements 不對(要 aps-environment=production、time-sensitive、Sign in with Apple);檢查 App ID 的 Push Notifications、Time Sensitive Notifications、Sign in with Apple capability"
+            exit 1
+          fi
+          if [ "$app_group" != "group.com.raychiu.purrdr" ] || [ "$extension_group" != "group.com.raychiu.purrdr" ]; then
+            echo "::error::App 或 Notification Service Extension 的 App Group 不對(要 group.com.raychiu.purrdr);檢查 Apple Developer 的 App Group 識別碼,以及 App ID com.raychiu.purrdr 與 com.raychiu.purrdr.notification-service 的 App Groups capability(docs/launch/checklist.md 1.16–1.18)"
             exit 1
           fi
 

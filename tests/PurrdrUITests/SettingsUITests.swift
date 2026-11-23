@@ -1,7 +1,7 @@
 import UIKit
 import XCTest
 
-/// 設定頁(#32、#246):外觀、Return 送出、觸覺回饋、評分、支援、診斷資訊、關於(版本、主機 herdr 版本、隱私權政策);
+/// 設定頁(#32、#246):外觀、Return 送出、觸覺回饋、評分、支援、診斷資訊、關於(版本、隱私權政策);
 /// 會員與 Purrdr Plus 不在設定頁(在帳號頁);繁體中文介面。
 final class SettingsUITests: XCTestCase {
     override func setUp() {
@@ -12,7 +12,7 @@ final class SettingsUITests: XCTestCase {
     /// 外觀下的「自動」與送出可撤回的秒數說明、支援段的隱私揭露是例外，數據用量列下沒有說明;主機設定與會員不在這裡。
     /// 一次啟動由上而下檢查(#372:原本四個測試各啟動一次)。
     @MainActor
-    func testSettingsShowsOnlyAppWideSectionsAndHostHerdrVersion() {
+    func testSettingsShowsOnlyAppWideSections() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
         XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
@@ -36,19 +36,15 @@ final class SettingsUITests: XCTestCase {
             app.scrollIntoView(entry, search: .down)
             XCTAssertTrue(entry.waitUntilExists(timeout: 5), "設定頁沒有 \(identifier)")
         }
-        let dataUsage = app.element("settings.dataUsage")
-        app.scrollIntoView(dataUsage, search: .down)
-        XCTAssertFalse(app.staticTexts["How much data Purrdr uses to talk to your hosts."].exists, "數據用量列下方不該有說明")
+        XCTAssertFalse(app.element("settings.dataUsage").exists, "數據用量已移到流量 tab")
         expectHeaders(["App Lock", "Support", "About"])
-        // 捲到最後一列(隱私權政策):herdr 版本列可能只露出一部分，露出部分就算 hittable,值卻還沒進 accessibility 樹。
         let privacy = app.element("settings.privacy")
         app.scrollIntoView(privacy, search: .down)
         let paragraph = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Diagnostics include")).firstMatch
         XCTAssertTrue(paragraph.exists, "支援段要保留診斷資訊的隱私揭露")
-        // Demo 主機回報 herdr 0.9.5。
-        let version = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "0.9.5", "0.9.5")).firstMatch
-        XCTAssertTrue(version.waitUntilExists(timeout: 10), "沒有顯示主機的 herdr 版本")
+        // herdr 版本只在主機 tab 逐台顯示(#419),設定頁不再有。
+        XCTAssertFalse(app.element("settings.herdrVersion").exists, "設定頁不該顯示 herdr 版本")
+        XCTAssertFalse(app.staticTexts["herdr on Host"].exists)
         XCTAssertTrue(app.element("settings.version").exists)
         XCTAssertTrue(privacy.exists)
         // 會員與 Purrdr Plus 移到帳號頁(#246)。
@@ -96,12 +92,41 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(delete.waitUntilExists(timeout: 10), "帳號頁沒有刪除會員")
         XCTAssertEqual(delete.label, "Delete Member")
         delete.tap()
-        let confirm = app.sheets.buttons["Delete Member"].firstMatch
-        let confirmInPlace = app.buttons["Delete Member"].firstMatch
-        XCTAssertTrue(
-            UITestWait.until(timeout: 5) { confirm.exists || confirmInPlace.exists },
-            "按下刪除會員沒有先跳確認")
-        XCTAssertTrue(app.staticTexts["Delete your member account?"].exists, "沒有確認的標題")
+        XCTAssertTrue(app.alerts["Delete Member?"].waitForExistence(timeout: 5), "沒有訂閱的會員按刪除要直接跳確認")
+        XCTAssertFalse(app.otherElements["member.deleteSubscription"].exists, "沒有訂閱不該先出現訂閱說明頁")
+    }
+
+    /// 有 App Store 訂閱的會員刪除前先處理訂閱(#412):說明頁有「管理訂閱」,繼續後才是刪除確認。
+    @MainActor
+    func testDeleteMemberWithSubscriptionShowsSubscriptionStepFirst() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+        let account = app.buttons["toolbar.account"]
+        XCTAssertTrue(account.waitUntilExists(timeout: 10))
+        account.tap()
+        let delete = app.buttons["member.delete"]
+        app.scrollIntoView(delete, search: .down)
+        XCTAssertTrue(delete.waitUntilExists(timeout: 10))
+        delete.tap()
+        XCTAssertTrue(app.buttons["member.deleteSubscription.manage"].waitForExistence(timeout: 5), "沒有先處理訂閱")
+        XCTAssertFalse(app.alerts["Delete Member?"].exists, "訂閱說明之前不該有刪除確認")
+        app.buttons["member.deleteSubscription.continue"].tap()
+        XCTAssertTrue(app.alerts["Delete Member?"].waitForExistence(timeout: 5))
+    }
+
+    /// 登出(#412):先說明會停止這支裝置的通知,確認後才登出。
+    @MainActor
+    func testSignOutExplainsBeforeSigningOut() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
+        let account = app.buttons["toolbar.account"]
+        XCTAssertTrue(account.waitUntilExists(timeout: 10))
+        account.tap()
+        let signOut = app.buttons["member.signOut"]
+        app.scrollIntoView(signOut, search: .down)
+        XCTAssertTrue(signOut.waitUntilExists(timeout: 10))
+        signOut.tap()
+        XCTAssertTrue(app.alerts["Sign Out?"].waitForExistence(timeout: 5), "登出前沒有說明")
+        app.alerts["Sign Out?"].buttons["Cancel"].tap()
+        XCTAssertTrue(signOut.exists, "取消後仍在帳號頁")
     }
 
     @MainActor
@@ -124,14 +149,16 @@ final class SettingsUITests: XCTestCase {
 
         // 列表沒有導覽列標題(#268):看 Agents／Spaces 切換。
         XCTAssertTrue(app.listModeControl.waitUntilExists(timeout: 10), "沒有看到列表")
-        XCTAssertEqual(app.textFields["agentList.search"].firstMatch.placeholderValue, "搜尋", "列表不是繁體中文")
+        XCTAssertEqual(app.searchFields.firstMatch.placeholderValue, "搜尋", "列表不是繁體中文")
+        XCTAssertEqual(app.listModeControl.label, "檢視:Agents", "切換鈕沒有念出目前檢視")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["設定"].waitUntilExists(timeout: 5), "設定頁標題不是繁體中文")
+        XCTAssertTrue(app.staticTexts["用量顯示"].waitUntilExists(timeout: 5), "設定沒有「用量顯示」")
         // Codex 區在上面，評分列要捲動才出現。
         let rate = app.buttons["為 Purrdr 評分"]
         app.scrollIntoView(rate, search: .down)
         XCTAssertTrue(rate.waitUntilExists(timeout: 5), "沒有「為 Purrdr 評分」")
-        XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "設定是 tab,沒有關閉鈕")
     }
 
     /// Codex 啟動器(#24,ADR-0002)在主機頁(#274):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。
@@ -139,11 +166,11 @@ final class SettingsUITests: XCTestCase {
     @MainActor
     func testCodexLauncherAsksConsentThenInstallsAndRemoves() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
-        app.openSeededHostPage()
+        app.openSeededHostSettings()
 
         let toggle = app.switches["settings.codexLauncher"]
         app.scrollIntoView(toggle, search: .down)
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "主機頁沒有 Codex 啟動器")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "這台主機的設定沒有 Codex 啟動器")
         XCTAssertEqual(toggle.value as? String, "0")
         toggle.switches.firstMatch.tap()
 
@@ -165,13 +192,7 @@ final class SettingsUITests: XCTestCase {
 
     @MainActor
     private func openSettings(in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」")
-        more.tap()
-        let item = app.buttons["menu.settings"]
-        XCTAssertTrue(item.waitUntilExists(timeout: 5))
-        item.tap()
-        XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
+        app.openSettingsTab()
     }
 
     /// 元素截圖的平均亮度(0 黑～1 白)。

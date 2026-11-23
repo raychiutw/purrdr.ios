@@ -39,12 +39,12 @@ struct StoreKitConfigurationTests {
         }
     }
 
-    @Test("月繳與年繳，商品 ID 與程式(MemberSubscription.productIDs)相同")
+    @Test("年繳與月繳(年繳在前)，商品 ID 與程式(MemberSubscription.productIDs)相同")
     func products() throws {
         let subscriptions = try subscriptions()
         #expect(subscriptions.map(\.productID) == MemberSubscription.productIDs)
-        #expect(subscriptions.map(\.period) == ["P1M", "P1Y"])
-        #expect(subscriptions.map(\.displayName) == ["Purrdr Plus Monthly", "Purrdr Plus Yearly"])
+        #expect(subscriptions.map(\.period) == ["P1Y", "P1M"])
+        #expect(subscriptions.map(\.displayName) == ["Purrdr Plus Yearly", "Purrdr Plus Monthly"])
     }
 
     @Test("新訂閱者 2 週免費試用")
@@ -55,16 +55,16 @@ struct StoreKitConfigurationTests {
         }
     }
 
-    @Test("價格與上架設定相同：月繳 US$4.99、年繳 US$39.99(docs/launch/subscriptions.md)")
+    @Test("價格與上架設定相同：年繳 US$39.99、月繳 US$4.99(docs/launch/subscriptions.md)")
     func prices() throws {
-        #expect(try subscriptions().map(\.displayPrice) == ["4.99", "39.99"])
+        #expect(try subscriptions().map(\.displayPrice) == ["39.99", "4.99"])
     }
 
     @Test("Offer Code 只有月繳一組：1 個月免費、限新訂閱者、不與 2 週試用疊加(docs/launch/subscriptions.md)")
     func offerCode() throws {
         let subscriptions = try subscriptions()
-        #expect(subscriptions.map(\.codeOffers.count) == [1, 0])
-        let offer = try #require(subscriptions.first?.codeOffers.first)
+        #expect(subscriptions.map(\.codeOffers.count) == [0, 1])
+        let offer = try #require(subscriptions.last?.codeOffers.first)
         #expect(offer["paymentMode"] as? String == "free")
         #expect(offer["subscriptionPeriod"] as? String == "P1M")
         #expect(offer["eligibility"] as? [String] == ["new"])

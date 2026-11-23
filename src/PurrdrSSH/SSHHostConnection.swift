@@ -198,11 +198,8 @@ struct TranscriptPlan {
 
     init(_ request: TranscriptRequest) {
         switch request {
-        case .locateClaude(let sessionID, let projectFolder):
-            command = TranscriptCommand.locate(sessionID: sessionID, projectFolder: projectFolder)
-            deadline = HostCommandDeadline.standard
-        case .locate(let location, let readsHeader):
-            command = TranscriptCommand.locate(location, readsHeader: readsHeader)
+        case .locate(let location):
+            command = TranscriptCommand.locate(location)
             deadline = HostCommandDeadline.standard
         case .window(let path, let end, let lines, let chunkBytes, let maxBytes):
             command = TranscriptCommand.window(path: path, end: end, lines: lines, chunkBytes: chunkBytes, maxBytes: maxBytes)

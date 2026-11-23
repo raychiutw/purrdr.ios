@@ -9,62 +9,113 @@ import UIKit
 
 // MARK: - 泡泡圖片(F7;#37 故事 35)
 
-/// 泡泡圖片要用的東西：主機路徑或副本檔名 → 手機上的副本、打開全螢幕檢視。
+/// 泡泡圖片要用的東西：主機路徑或副本檔名 → 手機上的副本、打開圖片檢視器(#426)。
 struct BubbleImageContext {
     var localImage: (String) -> URL? = { _ in nil }
-    var show: (URL) -> Void = { _ in }
+    var show: (ImageViewerItem) -> Void = { _ in }
 }
 
 extension EnvironmentValues {
     @Entry var bubbleImages = BubbleImageContext()
 }
 
-/// 全螢幕檢視的圖片。
-struct ViewerImage: Identifiable, Equatable {
-    let url: URL
-    var id: URL { url }
+/// 泡泡圖片的排版規則(#465,設計稿第 30 組;使用者送出的與本機送出的共用):
+/// 單張依原圖比例(長邊 220pt);兩張以上排成兩欄 124pt 的方塊格子(iOS 訊息 app 習慣)。
+struct BubbleImageLayout: Equatable {
+    let count: Int
+
+    static let longEdge: CGFloat = 220
+    static let tile: CGFloat = 124
+    static let gridColumns = 2
+    static let gridSpacing: CGFloat = 4
+    static let cornerRadius: CGFloat = 16
+
+    var isGrid: Bool { count > 1 }
+
+    /// 一張圖的顯示大小:格子是方塊;單張長邊 220pt、依比例;尺寸未知是 220pt 方塊。
+    func size(forImage size: CGSize) -> CGSize {
+        if isGrid { return CGSize(width: Self.tile, height: Self.tile) }
+        guard size.width > 0, size.height > 0 else { return CGSize(width: Self.longEdge, height: Self.longEdge) }
+        let scale = Self.longEdge / max(size.width, size.height)
+        return CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+    }
 }
 
-/// 泡泡裡的圖片：長邊 220pt、依比例;點開全螢幕。手機上沒有副本(例如別台裝置送的)時顯示「Image」標籤(圖在主機上)。
+/// 泡泡裡的圖片：單張依原圖比例(長邊 220pt)、多張排成 124pt 方塊格子(#465);點開全螢幕。
+/// 手機上沒有副本(例如別台裝置送的)時經主機讀回縮圖,讀不到顯示「Image」標籤(圖在主機上)。
 struct BubbleImagesView: View {
     /// 每張圖的副本位置;`nil` 表示只有主機上有。
     let images: [URL?]
+    /// 每張圖在主機上的路徑(依序對應 `images`);手機沒有副本時經主機取檔讀回縮圖(#428)。
+    var hostPaths: [String?] = []
     @Environment(\.bubbleImages) private var context
+    @Environment(\.agentImages) private var agentImages
 
-    static let longEdge: CGFloat = 220
+    private var layout: BubbleImageLayout { BubbleImageLayout(count: images.count) }
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 6) {
-            ForEach(Array(images.enumerated()), id: \.offset) { index, url in
-                if let url, let size = BubbleImageCache.size(of: url) {
-                    Button {
-                        context.show(url)
-                    } label: {
-                        BubbleImageCache.image(at: url)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: Self.fitted(size).width, height: Self.fitted(size).height)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                    .buttonStyle(.pressableThumbnail(cornerRadius: 14))
-                    .accessibilityLabel(Text("Image \(index + 1)"))
-                    .accessibilityHint(Text("Opens the image full screen."))
-                    .accessibilityIdentifier("conversation.image")
-                } else {
-                    Label("Image", systemImage: "photo")
-                        .font(.caption)
-                        .foregroundStyle(.secondaryText)
-                        .accessibilityLabel(Text("Image on the host"))
+        if layout.isGrid {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.fixed(BubbleImageLayout.tile), spacing: BubbleImageLayout.gridSpacing), count: BubbleImageLayout.gridColumns),
+                alignment: .trailing, spacing: BubbleImageLayout.gridSpacing
+            ) { tiles }
+                .frame(width: BubbleImageLayout.tile * CGFloat(BubbleImageLayout.gridColumns) + BubbleImageLayout.gridSpacing)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("conversation.imageGrid")
+        } else {
+            VStack(alignment: .trailing, spacing: 6) { tiles }
+        }
+    }
+
+    @ViewBuilder
+    private var tiles: some View {
+        ForEach(Array(images.enumerated()), id: \.offset) { index, url in
+            if let url, let size = BubbleImageCache.size(of: url) {
+                let fitted = layout.size(forImage: size)
+                Button {
+                    open(tapped: index)
+                } label: {
+                    BubbleImageCache.image(at: url)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: fitted.width, height: fitted.height)
+                        .clipShape(RoundedRectangle(cornerRadius: BubbleImageLayout.cornerRadius))
                 }
+                .buttonStyle(.pressableThumbnail(cornerRadius: BubbleImageLayout.cornerRadius))
+                .accessibilityLabel(Text("Image \(index + 1)"))
+                .accessibilityHint(Text("Opens the image full screen."))
+                .accessibilityIdentifier("conversation.image")
+            } else if index < hostPaths.count, let path = hostPaths[index] {
+                HostSentImageView(path: path, index: index, layout: layout) { open(tapped: index) }
+            } else {
+                Label("Image", systemImage: "photo")
+                    .font(.caption)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityLabel(Text("Image on the host"))
             }
         }
     }
 
-    /// 長邊 220pt,依比例。
-    static func fitted(_ size: CGSize) -> CGSize {
-        guard size.width > 0, size.height > 0 else { return CGSize(width: longEdge, height: longEdge) }
-        let scale = longEdge / max(size.width, size.height)
-        return CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+    /// 點某一張:同一則訊息的圖片一起放進圖片檢視器,從點的那張開始(#426)。
+    private func open(tapped index: Int) {
+        let loads = agentImages.loads
+        let plan = ImageViewerPlan(images: images, hostPaths: hostPaths, tapped: index) { path in
+            switch loads?.states[path] {
+            case .missing, .denied, .unsupported, .tooLarge: false
+            default: true
+            }
+        }
+        guard let plan else { return }
+        let sources = plan.entries.enumerated().map { id, entry -> ImageViewerSource in
+            switch entry {
+            case .local(let url): ImageViewerSource(id: id, name: url.lastPathComponent, origin: .file(url))
+            case .host(let path):
+                ImageViewerSource(id: id, name: HostPathOpenStatus.name(of: path), origin: .deferred { [agentImages] in
+                    await agentImages.fullImageData(at: path)
+                })
+            }
+        }
+        context.show(ImageViewerItem(sources: sources, startIndex: plan.startIndex))
     }
 }
 
@@ -87,44 +138,6 @@ enum BubbleImageCache {
     static func size(of url: URL) -> CGSize? { nil }
     static func image(at url: URL) -> Image { Image(systemName: "photo") }
     #endif
-}
-
-/// 全螢幕檢視：點任一處關閉(F7)。VoiceOver 有「Close」動作，也可用兩指 Z 字手勢(escape)。
-struct ImageViewer: View {
-    let image: ViewerImage
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            BubbleImageCache.image(at: image.url)
-                .resizable()
-                .scaledToFit()
-                .accessibilityLabel(Text("Image"))
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { dismiss() }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isImage)
-        .accessibilityHint(Text("Tap to close."))
-        .accessibilityAction(named: Text("Close")) { dismiss() }
-        .accessibilityAction(.escape) { dismiss() }
-        .accessibilityIdentifier("image.viewer")
-        #if os(iOS)
-        .statusBarHidden()
-        #endif
-    }
-}
-
-extension View {
-    /// 全螢幕打開泡泡圖片(macOS 只為了 `swift test` 編譯，用 sheet)。
-    func imageViewer(item: Binding<ViewerImage?>) -> some View {
-        #if os(iOS)
-        fullScreenCover(item: item) { ImageViewer(image: $0) }
-        #else
-        sheet(item: item) { ImageViewer(image: $0) }
-        #endif
-    }
 }
 
 // MARK: - 輸入列的附件
@@ -245,8 +258,6 @@ struct AttachmentStrip: View {
 struct AttachButton: View {
     let model: ConversationModel
     var identifier = "composer.attach"
-    /// 放在輸入列的玻璃卡片裡(#187):不再疊玻璃。
-    var isInCard = false
     @Environment(\.recentPhotoSource) private var recentPhotos
     @State private var showsPanel = false
     @State private var next: AttachPanel.Choice?
@@ -257,16 +268,18 @@ struct AttachButton: View {
 
     var body: some View {
         Button {
-            if model.remainingImageSlots > 0 { showsPanel = true } else { model.noteImageLimit() }
+            // 離線時停用外觀但仍可點:點了說明「連上後才能加入附件」(#382)。
+            if model.requestAttach() { showsPanel = true }
         } label: {
             Image(systemName: "plus")
                 .frame(width: 30, height: 30)
         }
-        .composerSecondaryButtonStyle(isInCard: isInCard)
-        .buttonBorderShape(.circle)
+        .composerCircleButtonStyle()
         .frame(minWidth: 44, minHeight: 44)
+        .opacity(model.attachAvailability.isDimmed ? 0.4 : 1)
         .disabled(model.isSending || model.loadingFileName != nil)
         .accessibilityLabel(Text("Attach"))
+        .accessibilityHint(model.attachAvailability == .offline ? Text("Attachments can be added once you’re connected.") : Text(verbatim: ""))
         .accessibilityIdentifier(identifier)
         .sheet(isPresented: $showsPanel, onDismiss: presentNext) {
             AttachPanel(model: model, source: recentPhotos) { choice in
@@ -327,74 +340,107 @@ struct AttachPanel: View {
     let choose: (Choice) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var photos: [RecentPhoto] = []
-    @State private var selected: [String] = []
+    @State private var selection = AttachSelection()
 
     var body: some View {
-        VStack(spacing: 16) {
-            if !photos.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Recent Photos")
-                        .font(.footnote)
-                        .foregroundStyle(.secondaryText)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
-                        ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                            tile(photo, index: index)
+        // 一次只開一個 sheet(#386):關閉在左上 xmark，選檔案或拍照由呼叫端先關掉這張再開系統畫面。
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    HStack(alignment: .top) {
+                        if ImageSources.cameraAvailable { action("Take Photo", symbol: "camera", id: "camera", .camera) }
+                        action("All Photos", symbol: "photo.on.rectangle", id: "photos", .library)
+                        if model.canAttachFiles { action("Files", symbol: "doc", id: "files", .files) }
+                        pasteTile
+                    }
+                    if !photos.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Recent Photos")
+                                Spacer()
+                                Text("Selected \(selection.count)")
+                                    .monospacedDigit()
+                                    .accessibilityIdentifier("attach.selectedCount")
+                            }
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
+                                ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                                    tile(photo, index: index)
+                                }
+                            }
                         }
                     }
                 }
+                .padding(.horizontal)
+                .padding(.bottom)
             }
-            HStack(alignment: .top) {
-                if ImageSources.cameraAvailable { action("Take Photo", symbol: "camera", id: "camera", .camera) }
-                action("All Photos", symbol: "photo.on.rectangle", id: "photos", .library)
-                if model.canAttachFiles { action("Files", symbol: "doc", id: "files", .files) }
-                pasteTile
-            }
-            if !selected.isEmpty {
-                Button {
-                    addSelected()
-                } label: {
-                    Text("Add \(selected.count)")
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 44)
+            .safeAreaInset(edge: .bottom) {
+                if selection.count > 0 {
+                    Button {
+                        addSelected()
+                    } label: {
+                        Text("Add \(selection.count)")
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .filledProminentButtonStyle()
+                    .padding([.horizontal, .bottom])
+                    .accessibilityIdentifier("attach.add")
                 }
-                .filledProminentButtonStyle()
-                .accessibilityIdentifier("attach.add")
             }
-            Spacer(minLength: 0)
+            .navigationTitle("Add")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar { SheetCloseToolbar(identifier: "attach.close") }
         }
-        .padding()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("attach.panel")
         .task { photos = await source.recent(limit: 12) }
     }
 
+    /// 固定的正方形格子:照片填滿並裁掉多的部分，直幅、橫幅都不會依原始比例溢出而蓋住按鈕(#386)。
     private func tile(_ photo: RecentPhoto, index: Int) -> some View {
-        let isSelected = selected.contains(photo.id)
+        let number = selection.number(of: photo.id)
         return Button {
-            if isSelected {
-                selected.removeAll { $0 == photo.id }
-            } else if selected.count < model.remainingImageSlots {
-                selected.append(photo.id)
-            } else {
+            if selection.toggle(photo.id, limit: model.remainingImageSlots) == .overLimit {
                 model.noteImageLimit()
             }
         } label: {
-            ThumbnailImage(data: photo.thumbnail)
-                .aspectRatio(1, contentMode: .fill)
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay { ThumbnailImage(data: photo.thumbnail) }
+                .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(alignment: .topTrailing) {
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, .tint)
-                            .padding(4)
-                    }
-                }
+                .overlay(alignment: .topTrailing) { selectionMark(number: number).padding(4) }
+                .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.pressableThumbnail(cornerRadius: 8))
         .accessibilityLabel(Text("Photo \(index + 1)"))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAddTraits(number != nil ? .isSelected : [])
         .accessibilityIdentifier("attach.recent.\(index)")
+    }
+
+    /// 選取圈:未選是半透明深底加白邊與陰影(對任何照片 ≥ 3:1),已選是主色圓加編號。
+    @ViewBuilder
+    private func selectionMark(number: Int?) -> some View {
+        if let number {
+            Text(verbatim: "\(number)")
+                .font(.caption.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(.onProminentFill)
+                .frame(width: 24, height: 24)
+                .background(.prominentFill, in: .circle)
+                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                .shadow(color: .black.opacity(0.5), radius: 2)
+        } else {
+            Circle()
+                .fill(.black.opacity(0.35))
+                .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+                .frame(width: 24, height: 24)
+                .shadow(color: .black.opacity(0.5), radius: 2)
+        }
     }
 
     /// 貼上用系統的 `PasteButton`(HIG):使用者按的就是系統按鈕，不會跳「允許貼上」的詢問;剪貼簿沒有圖片時系統自己停用。
@@ -442,7 +488,7 @@ struct AttachPanel: View {
     }
 
     private func addSelected() {
-        let ids = selected
+        let ids = selection.ids
         dismiss()
         Task { await model.addImages(await source.imageData(for: ids)) }
     }

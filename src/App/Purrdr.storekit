@@ -37,6 +37,35 @@
 
           ],
           "codeOffers" : [
+
+          ],
+          "displayPrice" : "39.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "5A1C6E12",
+          "introductoryOffer" : {
+            "internalID" : "5A1C6E13",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P2W"
+          },
+          "localizations" : [
+            {
+              "description" : "Notifications when an agent needs you, and host sync across your devices.",
+              "displayName" : "Purrdr Plus Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.raychiu.purrdr.plus.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Purrdr Plus Yearly",
+          "subscriptionGroupID" : "21500000",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
             {
               "eligibility" : [
                 "new"
@@ -67,35 +96,6 @@
           "productID" : "com.raychiu.purrdr.plus.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Purrdr Plus Monthly",
-          "subscriptionGroupID" : "21500000",
-          "type" : "RecurringSubscription"
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "39.99",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "5A1C6E12",
-          "introductoryOffer" : {
-            "internalID" : "5A1C6E13",
-            "paymentMode" : "free",
-            "subscriptionPeriod" : "P2W"
-          },
-          "localizations" : [
-            {
-              "description" : "Notifications when an agent needs you, and host sync across your devices.",
-              "displayName" : "Purrdr Plus Yearly",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.raychiu.purrdr.plus.yearly",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Purrdr Plus Yearly",
           "subscriptionGroupID" : "21500000",
           "type" : "RecurringSubscription"
         }

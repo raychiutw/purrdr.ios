@@ -1,0 +1,115 @@
+import Foundation
+import PurrdrCore
+import Testing
+
+/// Agent 種類字串比對的守門(#444、ADR-0013)。
+///
+/// herdr 回報的 `agent` 字串只在 `AgentID(herdrName:)` 轉成種類;之後一律比對 `AgentID` 或問 `AgentCatalog` 的設定檔。
+/// 這個測試掃 `src/` 全部原始碼:出現「拿 Agent 名稱字面值做比較」(`== "claude"`、`case "codex"`…)就失敗,
+/// 白名單只有設定檔本身(`AgentProfile.swift`,別名表與設定檔都在那裡)與 schema 產生的協定型別。
+@Suite("Agent 字串比對守門")
+struct AgentStringGuardTests {
+    /// 設定檔本身:`AgentID` 的名稱表與目錄。
+    static let allowedFiles: Set<String> = ["AgentProfile.swift", "HostServiceProtocol.swift"]
+
+    /// 字面值剛好是 Agent 名稱、但不是 Agent 種類的少數地方(連同理由)。新增前先確認真的不是 Agent 種類。
+    static let allowedLines: [(file: String, literal: String, reason: String)] = [
+        ("WindowsErrorText.swift", "amp", "XML 實體 `&amp;`,不是 amp 這個 Agent"),
+    ]
+
+    /// 要擋的名稱:herdr 的正式名稱、別名與舊版誤用拼法。
+    static let names: [String] = {
+        let aliases = ["claude-code", "antigravity", "antigravity-cli", "open_code", "open-code", "github_copilot", "github-copilot"]
+        return Set(AgentID.allCases.map(\.canonicalName) + aliases).sorted()
+    }()
+
+    static var repositoryRoot: URL {
+        URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    static var sourceFiles: [URL] {
+        FileManager.default.enumerator(at: repositoryRoot.appending(path: "src"), includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
+    }
+
+    /// 找出一份原始碼裡的 Agent 名稱比對(略過整行註解)。回傳 (行號, 名稱)。
+    static func violations(inSource source: String) -> [(line: Int, literal: String)] {
+        let alternatives = names.map(NSRegularExpression.escapedPattern(for:)).joined(separator: "|")
+        let comparison = try? NSRegularExpression(pattern: "(?:(?:==|!=)\\s*\"(\(alternatives))\"|\"(\(alternatives))\"\\s*(?:==|!=))")
+        let literal = try? NSRegularExpression(pattern: "\"(\(alternatives))\"")
+        var found: [(line: Int, literal: String)] = []
+        for (index, text) in source.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let trimmed = text.drop(while: { $0 == " " })
+            if trimmed.hasPrefix("//") { continue }
+            let line = String(text)
+            for match in comparison?.matches(in: line, range: NSRange(line.startIndex..., in: line)) ?? [] {
+                for group in 1...2 {
+                    if let range = Range(match.range(at: group), in: line) { found.append((index + 1, String(line[range]))) }
+                }
+            }
+            // `case "grok", "agy":`:冒號之前的每個字面值都算。
+            if trimmed.hasPrefix("case \""), let colon = line.firstIndex(of: ":") {
+                let head = String(line[..<colon])
+                for match in literal?.matches(in: head, range: NSRange(head.startIndex..., in: head)) ?? [] {
+                    if let range = Range(match.range(at: 1), in: head) { found.append((index + 1, String(head[range]))) }
+                }
+            }
+        }
+        return found
+    }
+
+    @Test("核心以外沒有直接比對 Agent 名稱的程式碼")
+    func noAgentNameComparisonsOutsideProfiles() throws {
+        let files = Self.sourceFiles
+        #expect(files.count > 100, "沒有掃到原始碼，路徑可能錯了")
+        var problems: [String] = []
+        for file in files where !Self.allowedFiles.contains(file.lastPathComponent) {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            for hit in Self.violations(inSource: source) {
+                if Self.allowedLines.contains(where: { $0.file == file.lastPathComponent && $0.literal == hit.literal }) { continue }
+                problems.append("\(file.lastPathComponent):\(hit.line) 比對 \"\(hit.literal)\"(請改用 AgentID／AgentCatalog)")
+            }
+        }
+        #expect(problems.isEmpty, "\(problems)")
+    }
+
+    @Test("掃描器抓得到各種比對寫法，不誤判註解與一般字串")
+    func scannerRecognizesPatterns() {
+        let source = """
+        if kind == "claude" { }
+        if "codex" != agent { }
+        switch kind {
+        case "grok", "agy": break
+        case .claude: break
+        }
+        // kind == "claude" 在註解裡不算
+        let titles = ["claude code", "claude"]
+        let id = AgentID(herdrName: "claude")
+        guard agentKind != "antigravity" else { return }
+        """
+        let hits = Self.violations(inSource: source).map { "\($0.line):\($0.literal)" }
+        #expect(hits.sorted() == ["1:claude", "10:antigravity", "2:codex", "4:agy", "4:grok"].sorted(), "\(hits)")
+    }
+
+    @Test("舊的 AgentKindName 已刪除")
+    func agentKindNameIsGone() throws {
+        for file in Self.sourceFiles {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            #expect(!source.contains("AgentKindName"), "\(file.lastPathComponent) 還在用 AgentKindName")
+        }
+    }
+
+    @Test("目錄裡每一份設定檔:id 對得上、顯示組齊全、能開新聊天的種類有 session 組")
+    func everyProfileIsConsistent() {
+        for id in AgentID.allCases {
+            let profile = AgentCatalog.profile(for: id)
+            #expect(profile.id == id)
+            #expect(profile.presentation.displayName?.isEmpty == false, "\(id.canonicalName) 沒有顯示名稱")
+            #expect(AgentID(herdrName: id.canonicalName) == id)
+        }
+        for id in AgentCatalog.startableAgents {
+            #expect(AgentID.allCases.contains(id))
+            #expect(AgentCatalog.profile(for: id).session.startsNewChat, "\(id.canonicalName) 不能開新聊天")
+        }
+    }
+}

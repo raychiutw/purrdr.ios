@@ -126,9 +126,23 @@ public struct TerminalRow: Identifiable, Equatable, Sendable {
 
 extension AgentListProjection {
     /// Spaces 檢視(#275):每台主機(順序同合併列表)的每個 workspace(依主機上的順序)一段，段內每個 Tab 一列(依 Tab 順序)。
-    /// 沒有任何 pane 的 workspace 不出現。Spaces 檢視沒有搜尋與釘選。
+    /// 沒有任何 pane 的 workspace 不出現。Spaces 檢視沒有釘選。
     /// - Parameter visible: 目前開著的聊天(頭像狀態的未讀折算與 Agents 列相同)。
-    package static func spacesSections(sources: [Source], visible: Set<ChatRoute> = []) -> [SpacesSection] {
+    /// - Parameter query: 搜尋(#391):比對 workspace 與 Tab 名稱。workspace 名稱符合時整段保留;
+    ///   否則只留名稱符合的 Tab,一個都沒有的段落不出現。空白時不篩選。
+    package static func spacesSections(sources: [Source], visible: Set<ChatRoute> = [], query: String = "") -> [SpacesSection] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sections = allSpacesSections(sources: sources, visible: visible)
+        guard !needle.isEmpty else { return sections }
+        return sections.compactMap { section in
+            if contains(needle, in: [section.workspace]) { return section }
+            var section = section
+            section.tabs = section.tabs.filter { contains(needle, in: [$0.title]) }
+            return section.tabs.isEmpty ? nil : section
+        }
+    }
+
+    private static func allSpacesSections(sources: [Source], visible: Set<ChatRoute>) -> [SpacesSection] {
         sources.flatMap { source -> [SpacesSection] in
             guard let snapshot = source.snapshot else { return [] }
             var workspaceIDs = snapshot.workspaces.sorted { $0.number < $1.number }.map(\.id)

@@ -61,6 +61,17 @@ struct HostFileAccessPolicyTests {
         }
     }
 
+    @Test("TMPDIR 不明時:上傳資料夾必須是檔案的直接上層;更深一層或巢狀的同名資料夾不放行(與主機端一致)")
+    func unknownTemporaryDirectoryAllowsOnlyDirectUploadFolder() {
+        // 非標準暫存位置(不在 schema 的 /tmp、/var/folders)才會走「TMPDIR 不明」的名稱判斷。
+        let allowed = "/data/t/purrdr-uploads-501/a1.jpg"
+        let deeper = ["/data/t/purrdr-uploads-501/sub/a1.jpg", "/data/t/purrdr-uploads-501/purrdr-uploads-501/a1.jpg",
+                      "/srv/purrdr-uploads/agent-made/dir/a1.jpg"]
+        let scope = HostFileAccessScope(workingDirectories: [], mentionedPaths: Set([allowed] + deeper))
+        #expect(HostFileAccessPolicy.decision(for: allowed, in: scope) == .allowed(HostFileTarget(path: allowed, root: nil)))
+        for path in deeper { #expect(HostFileAccessPolicy.decision(for: path, in: scope) == .denied, "\(path)") }
+    }
+
     @Test("Windows 主機(#226):工作目錄比對不分大小寫、`\\` 與 `/` 都是分隔，帶原本的工作目錄給主機")
     func windowsWorkingDirectory() {
         let scope = HostFileAccessScope(workingDirectories: [#"C:\Users\Demo\Ledger"#], mentionedPaths: [])

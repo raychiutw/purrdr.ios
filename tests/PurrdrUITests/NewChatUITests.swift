@@ -10,8 +10,10 @@ final class NewChatUITests: XCTestCase {
     @MainActor
     private func openNewChat() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
-        app.openMoreMenuItem("menu.newChat")
+        app.openNewChatSheet()
         XCTAssertTrue(app.textFields["newChat.folder"].waitUntilExists(timeout: 5), "沒有開出新增對話")
+        // 新增對話是部分高度的 sheet(#425):往上拉到 large,「開始」才在畫面內。
+        app.textFields["newChat.folder"].swipeUp()
         return app
     }
 
