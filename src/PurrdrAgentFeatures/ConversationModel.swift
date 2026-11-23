@@ -1082,11 +1082,11 @@ public final class ConversationModel {
         try await readEarlierUntilMessages(path: path, generation: generation)
     }
 
-    /// 開啟視窗內沒有任何訊息(最後幾十行都是 system、api-request-blob、file-history-snapshot 這類不產生訊息的紀錄)
+    /// 開啟視窗內沒有任何使用者／Agent 文字(最後幾十行都是 system、api-request-blob、file-history-snapshot 這類不產生訊息的紀錄)
     /// 但檔案前面有:往前一頁一頁讀到有訊息為止，不顯示「還沒有訊息」(#418)。有上限，避免超大檔案讀不完。
     private func readEarlierUntilMessages(path: String, generation: Int) async throws {
         var pages = 0
-        while items.isEmpty, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
+        while !hasReadableMessage, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
             pages += 1
             let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
             guard generation == self.generation else { return }
@@ -1096,6 +1096,11 @@ public final class ConversationModel {
             older = page.start > 0 ? .available : .reachedStart
             rebuild()
         }
+    }
+
+    /// 畫面上有沒有至少一則使用者或 Agent 的文字;工具串(`.toolRun`)本身也是 item,不算(#473)。
+    private var hasReadableMessage: Bool {
+        items.contains { if case .user = $0 { true } else if case .agentText = $0 { true } else { false } }
     }
 
     /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
