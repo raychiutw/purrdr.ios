@@ -107,7 +107,8 @@ private struct TopBarOverlay: View {
                 .opacity(scroll.progress)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-            titleRow
+            // 收合後標題列整個拿掉(透明度已是 0):只靠 accessibilityHidden 時,XCUI 的樹仍留著它的元素。
+            if !scroll.isCollapsed { titleRow }
             switch spec.collapsed {
             case .searchCapsule:
                 if let search = content.search {
