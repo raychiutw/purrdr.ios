@@ -150,19 +150,34 @@ struct AttachmentStrip: View {
     /// accessibility identifier 的前綴(展開畫面用 `composer.expanded`)。
     var identifierPrefix = "composer"
 
+    @State private var showsVideoNote = false
+
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(Array(model.attachments.enumerated()), id: \.element.id) { index, attachment in
-                    card(attachment, index: index)
+        VStack(alignment: .leading, spacing: 4) {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(Array(model.attachments.enumerated()), id: \.element.id) { index, attachment in
+                        card(attachment, index: index)
+                    }
                 }
+                .padding(.top, 6)
+                .padding(.trailing, 6)
             }
-            .padding(.top, 6)
-            .padding(.trailing, 6)
+            .scrollIndicators(.hidden)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("\(identifierPrefix).attachments")
+            // 進階說明預設收起(HIG Disclosure controls):影片附加後才出現。
+            if model.attachments.contains(where: { $0.duration != nil }) {
+                DisclosureGroup("About videos", isExpanded: $showsVideoNote) {
+                    Text("Agents may not be able to watch videos.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.footnote)
+                .accessibilityIdentifier("\(identifierPrefix).videoNote")
+            }
         }
-        .scrollIndicators(.hidden)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("\(identifierPrefix).attachments")
     }
 
     private func card(_ attachment: ComposerAttachment, index: Int) -> some View {
@@ -215,16 +230,13 @@ struct AttachmentStrip: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
         case .file:
             HStack(spacing: 8) {
-                Image(systemName: "doc.fill")
-                    .foregroundStyle(.tint)
-                    .frame(width: 40, height: 40)
-                    .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
+                fileIcon(attachment)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: attachment.displayName)
                         .font(.footnote.weight(.semibold))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Text(verbatim: Self.size(attachment))
+                    Text(verbatim: Self.sizeAndDuration(attachment))
                         .font(.caption)
                         .foregroundStyle(.secondaryText)
                 }
@@ -233,6 +245,30 @@ struct AttachmentStrip: View {
             .frame(maxWidth: 190, minHeight: 64, alignment: .leading)
             .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12))
         }
+    }
+
+    /// 檔案圖示;影片是第一格縮圖。
+    @ViewBuilder
+    private func fileIcon(_ attachment: ComposerAttachment) -> some View {
+        if let name = attachment.thumbnailFileName, let url = model.localImage(named: name) {
+            BubbleImageCache.image(at: url)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 40, height: 40)
+                .overlay { Image(systemName: "play.fill").font(.caption).foregroundStyle(.white).shadow(radius: 2) }
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        } else {
+            Image(systemName: attachment.duration == nil ? "doc.fill" : "video.fill")
+                .foregroundStyle(.tint)
+                .frame(width: 40, height: 40)
+                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private static func sizeAndDuration(_ attachment: ComposerAttachment) -> String {
+        guard let duration = attachment.duration else { return size(attachment) }
+        let seconds = Int(duration.rounded())
+        return "\(seconds / 60):\(String(format: "%02d", seconds % 60)) · \(size(attachment))"
     }
 
     private static func size(_ attachment: ComposerAttachment) -> String {
@@ -615,6 +651,39 @@ struct FileUploadProgressView: View {
         .background(.bar, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("composer.fileUpload")
+    }
+}
+
+/// 送出時附件上傳中(#474):百分比與取消。
+struct UploadProgressView: View {
+    let progress: UploadProgress
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView(value: progress.fraction)
+                .progressViewStyle(.circular)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Sending \(progress.displayName)…")
+                    .font(.footnote)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(progress.fraction, format: .percent.precision(.fractionLength(0)))
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Cancel", action: cancel)
+                .font(.footnote.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityIdentifier("composer.upload.cancel")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composer.upload")
     }
 }
 

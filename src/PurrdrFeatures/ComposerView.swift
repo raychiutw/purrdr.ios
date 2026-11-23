@@ -76,6 +76,14 @@ struct ComposerBar: View {
         // 這裡讀 `model.isReadOnly` 而不是橫幅:離線時橫幅是「離線」,但輸入列仍然不能送。
         if !model.isReadOnly {
             composer
+                .confirmationDialog(
+                    "Use mobile data?", isPresented: cellularWarningShown, titleVisibility: .visible
+                ) {
+                    Button("Send Anyway") { Task { await model.confirmCellularUpload() } }
+                    Button("Cancel", role: .cancel) { model.dismissCellularWarning() }
+                } message: {
+                    Text("Sending this video uses about \(ByteCountFormatter.string(fromByteCount: Int64(model.cellularUploadWarning ?? 0), countStyle: .file)) of mobile data.")
+                }
                 .onChange(of: model.lastSlashInsertion) { _, insertion in
                     // 選定後念出插入了哪個指令(文中選定時輸入框其他文字不變，光看朗讀不知道插了什麼,#230)。
                     guard let insertion else { return }
@@ -105,6 +113,9 @@ struct ComposerBar: View {
             }
             if let fileName = model.loadingFileName {
                 FileUploadProgressView(fileName: fileName)
+            }
+            if let progress = model.uploadProgress {
+                UploadProgressView(progress: progress) { model.cancelUpload() }
             }
             if let preparation = model.videoPreparation {
                 VideoPreparationView(preparation: preparation) { model.cancelVideoPreparation() }
@@ -329,6 +340,10 @@ struct ComposerBar: View {
     // MARK: - 按鈕
 
     private static let cardCornerRadius: CGFloat = 24
+
+    private var cellularWarningShown: Binding<Bool> {
+        Binding { model.cellularUploadWarning != nil } set: { if !$0 { model.dismissCellularWarning() } }
+    }
 
     private func send() {
         // 送出就收起鍵盤，看得到 Agent 的回覆;被步驟擋下放回草稿時，再點輸入框繼續打(#329)。

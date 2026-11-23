@@ -1062,6 +1062,17 @@
         }
       }
     },
+    "About videos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關於影片"
+          }
+        }
+      }
+    },
     "Accept Edits" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1355,6 +1366,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent"
+          }
+        }
+      }
+    },
+    "Agents may not be able to watch videos." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 不一定看得懂影片。"
           }
         }
       }
@@ -10566,6 +10588,17 @@
         }
       }
     },
+    "Sending %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在傳送 %@…"
+          }
+        }
+      }
+    },
     "Sending in %lld seconds. Undo is available." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10584,6 +10617,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 秒後送出"
+          }
+        }
+      }
+    },
+    "Sending this video uses about %@ of mobile data." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳這支影片會用掉約 %@ 的行動網路流量。"
           }
         }
       }
@@ -15229,6 +15273,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用這支裝置產生的金鑰"
+          }
+        }
+      }
+    },
+    "Use mobile data?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要用行動網路傳送嗎?"
           }
         }
       }
