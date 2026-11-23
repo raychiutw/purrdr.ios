@@ -53,6 +53,8 @@ public struct ConversationTimeline: Sendable {
     /// 確認了回音的使用者項目 id → 沿用的回音列 id。
     private var rowIDByConfirmedItemID: [String: String] = [:]
     private var expandedRowIDs: Set<String> = []
+    /// 列 id → 展開的子項 id(思考、呼叫結果等列內的可展開區塊)。
+    private var expandedPartIDsByRowID: [String: Set<String>] = [:]
     private var markdownCache: [String: (source: String, blocks: [MarkdownBlock])] = [:]
 
     public init() {}
@@ -97,17 +99,29 @@ public struct ConversationTimeline: Sendable {
 
     // MARK: - 列的狀態(跟著列,不放在畫面元件裡)
 
-    /// 列是否展開(工具串、思考)。預設收起。
-    public func isExpanded(rowID: String) -> Bool {
-        expandedRowIDs.contains(rowID)
+    /// 列(或列內的子項)是否展開。`partID` 為 `nil` 是整列(工具串),否則是列內以穩定 id 區分的子項(思考、呼叫結果)。預設收起。
+    public func isExpanded(rowID: String, partID: String? = nil) -> Bool {
+        guard let partID else { return expandedRowIDs.contains(rowID) }
+        return expandedPartIDsByRowID[rowID]?.contains(partID) ?? false
     }
 
-    /// 設定列的展開狀態;跨增量保留,列被移除時才清掉。
-    public mutating func setExpanded(_ expanded: Bool, rowID: String) {
+    /// 設定展開狀態;跨增量保留,列被移除時連同子項一起清掉。
+    public mutating func setExpanded(_ expanded: Bool, rowID: String, partID: String? = nil) {
+        guard let partID else {
+            if expanded {
+                expandedRowIDs.insert(rowID)
+            } else {
+                expandedRowIDs.remove(rowID)
+            }
+            return
+        }
         if expanded {
-            expandedRowIDs.insert(rowID)
+            expandedPartIDsByRowID[rowID, default: []].insert(partID)
         } else {
-            expandedRowIDs.remove(rowID)
+            expandedPartIDsByRowID[rowID]?.remove(partID)
+            if expandedPartIDsByRowID[rowID]?.isEmpty == true {
+                expandedPartIDsByRowID[rowID] = nil
+            }
         }
     }
 
@@ -189,6 +203,7 @@ public struct ConversationTimeline: Sendable {
     private mutating func pruneState() {
         let liveRowIDs = Set(rows.map(\.id))
         expandedRowIDs.formIntersection(liveRowIDs)
+        expandedPartIDsByRowID = expandedPartIDsByRowID.filter { liveRowIDs.contains($0.key) }
         let liveItemIDs = Set(items.map(\.id))
         markdownCache = markdownCache.filter { liveItemIDs.contains($0.key) }
         rowIDByConfirmedItemID = rowIDByConfirmedItemID.filter { liveItemIDs.contains($0.key) }

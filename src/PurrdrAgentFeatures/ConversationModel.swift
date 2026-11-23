@@ -653,14 +653,14 @@ public final class ConversationModel {
     /// 列展開狀態每變一次遞增,讓讀 `isExpanded` 的畫面重畫。
     private var expansionRevision = 0
 
-    /// 列是否展開(工具串)。狀態存在時間軸,跟著列走。
-    public func isExpanded(rowID: String) -> Bool {
+    /// 列(或列內以 `partID` 區分的子項)是否展開。狀態存在時間軸,跟著列走。
+    public func isExpanded(rowID: String, partID: String? = nil) -> Bool {
         _ = expansionRevision
-        return timeline.isExpanded(rowID: rowID)
+        return timeline.isExpanded(rowID: rowID, partID: partID)
     }
 
-    public func setExpanded(_ expanded: Bool, rowID: String) {
-        timeline.setExpanded(expanded, rowID: rowID)
+    public func setExpanded(_ expanded: Bool, rowID: String, partID: String? = nil) {
+        timeline.setExpanded(expanded, rowID: rowID, partID: partID)
         expansionRevision &+= 1
     }
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
