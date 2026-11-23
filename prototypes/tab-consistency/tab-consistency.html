@@ -156,8 +156,8 @@ textarea#out{width:100%;min-height:210px;font:13px/1.55 ui-monospace,SFMono-Regu
 /* A 寬鬆版 */
 .loose .sh{padding:26px 20px 8px;font-size:calc(14px*var(--m));font-weight:600;letter-spacing:.02em}
 .loose .sh:first-child{padding-top:10px}
-.loose .row{padding:14px 16px 0;gap:14px}
-.loose .av{width:48px;height:48px}
+.loose .row{padding:14px 16px 0;gap:14px;align-items:center}
+.loose .av{width:48px;height:48px;margin-bottom:17px}
 .loose .face{width:48px;height:48px;border-radius:14px}
 .loose .rb{padding-bottom:16px;gap:10px}
 .loose .mc{gap:5px}
@@ -360,7 +360,7 @@ const DECIDED=[
  'D-4 沒有搜尋的 tab(主機、流量)往下滑:大標題收成置中小標題(玻璃膠囊)。',
  'D-5 帳號與設定:大 sheet,右上角「X」玻璃圓鈕關閉。',
  'D-7 tab 名稱:維持「聊天」,符號為對話泡泡。',
- 'D-8 Spaces 列:A 郵件式三層的「寬鬆版」(標題 17pt Semibold,Tab 名與預覽用次要色,列高、行距、內距、區段間距加大,時間與用量環不擠;Dynamic Type 放大時右欄堆到文字下方)。',
+ 'D-8 Spaces 列:A 郵件式三層的「寬鬆版」(標題 17pt Semibold,Tab 名與預覽用次要色,列高、行距、內距、區段間距加大,時間與用量環不擠;頭像垂直置中,狀態點跟著頭像右下角;Dynamic Type 放大時右欄堆到文字下方)。',
  'D-9 離開期間:第二行開頭的小標籤,不擠標題。',
  'D-10 新增聊天符號:plus(加號)。',
  'D-11 流量頁:保留卡片,寬度與邊距對齊其他頁。',
@@ -666,7 +666,7 @@ const SPEC_COMMON=[
 const SPEC_TAB={
  chats:[
   [5,'區段標題「主機 · Workspace」','高 36(第一個上內距 10,其餘 26,下內距 8)、左右 20;14pt Semibold、字距 .02em、次要色;前面 16pt 主機圖示。'],
-  [6,'列(A 寬鬆版)','高 101 = 上內距 14 + 內容 70 + 下內距 16 + 分隔線 1。頭像 48×48、圓角 14、狀態點 12pt(見 9);頭像與文字間距 14、左右邊距 16。三行、行距 5:標題 17pt Semibold 主色(行高 22)、Tab 名 15pt Medium 次要色(行高 20;「離開期間」小標籤 12pt Semibold、圓角 6,放在這一行開頭)、預覽 14pt 次要色(行高 18)。右欄寬 58:時間 13pt 次要色、用量環 18pt 加 13pt 數字,上下間距 8;箭頭 14pt。分隔線 1pt,自文字起算。'],
+  [6,'列(A 寬鬆版)','高 101 = 上內距 14 + 內容 70 + 下內距 16 + 分隔線 1。頭像 48×48、圓角 14、狀態點 12pt(見 9);頭像垂直置中(相對於文字內容高度,不含下內距與分隔線;兩行、三行、折行與 AX 大字級都置中);頭像與文字間距 14、左右邊距 16。三行、行距 5:標題 17pt Semibold 主色(行高 22)、Tab 名 15pt Medium 次要色(行高 20;「離開期間」小標籤 12pt Semibold、圓角 6,放在這一行開頭)、預覽 14pt 次要色(行高 18)。右欄寬 58:時間 13pt 次要色、用量環 18pt 加 13pt 數字,上下間距 8;箭頭 14pt。分隔線 1pt,自文字起算。'],
   [9,'狀態點(頭像右下角)','12×12 圓點,右、下各超出頭像邊 3pt(疊在頭像外緣);外圈 2pt 列背景色(陰影墊出)。四色:需要你=橘、工作中／已連線=主色綠、錯誤／失敗=紅、其他=灰。實心 = 未讀;空心 = 已讀(2pt 色環、中間填列底色)。標題膠囊與停止列的圓點維持 8pt。'],
   ['AX','Dynamic Type 放大(超過 ×1.4)','右欄堆到文字下方同一行;標題與預覽可折成 2 行;列高自動撐開,頭像、內距不變。']],
  files:[
