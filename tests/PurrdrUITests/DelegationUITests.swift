@@ -41,7 +41,7 @@ final class DelegationUITests: XCTestCase {
         // 展開結果後對話跟著底部捲，箭頭可能被推到導覽列底下：捲回看得到再點。
         let navigationBottom = app.navigationBars.firstMatch.frame.maxY
         for _ in 0..<6 where !open.isHittable || open.frame.minY < navigationBottom {
-            app.scrollViews.firstMatch.swipeDown(velocity: .slow)
+            app.conversationList.swipeDown(velocity: .slow)
         }
         open.tap()
         XCTAssertTrue(app.element("subagent.messages").waitUntilExists(timeout: 10), "沒有打開 subagent 畫面")

@@ -22,7 +22,7 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertFalse(app.element("stopBar").exists, "不在工作中不該有停止列")
 
         // 下拉重新整理：重讀後對話仍在。
-        let list = app.scrollViews.firstMatch
+        let list = app.conversationList
         list.swipeDown()
         list.swipeDown()
         XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10), "下拉重新整理後沒有重讀對話")
