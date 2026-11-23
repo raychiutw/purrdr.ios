@@ -39,7 +39,8 @@ extension XCUIApplication {
         guard list.waitUntilExists(timeout: timeout) else { return false }
         // 列表載入中：先等一下;畫面上的列都建好之後還是沒有，才往下捲。
         if !row.waitUntilExists(timeout: min(timeout, 4)) {
-            for _ in 0..<8 where !row.exists {
+            // AX 字級時每列很高,列表比預設字級長好幾倍:多拖幾次才到得了最後一段。
+            for _ in 0..<24 where !row.exists {
                 drag(list)
             }
             guard row.waitUntilExists(timeout: max(timeout - 4, 1)) else { return false }

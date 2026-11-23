@@ -28,7 +28,7 @@ struct ScrollSmoothnessOverlay: View {
 
     private var content: some View {
         let log = probe.log
-        VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 2) {
             Text(verbatim: log.latest?.overlayText ?? "尚無量測")
             Text(verbatim: "樣本 \(log.sampleCount) ・ 疑似黑框 \(log.suspectedBlankCount) 次")
         }

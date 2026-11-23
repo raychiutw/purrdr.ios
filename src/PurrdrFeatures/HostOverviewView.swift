@@ -41,6 +41,7 @@ struct HostOverviewView: View {
                     if let hostID {
                         Section {
                             Button("Remove Host", role: .destructive) { removeHost(hostID) }
+                                .foregroundStyle(.destructiveText)
                                 .frame(maxWidth: .infinity)
                                 .accessibilityIdentifier("hosts.delete")
                         }

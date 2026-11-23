@@ -40,8 +40,10 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testLayout() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchAuditing(contentSize: size)
+            // w3 的 Tab 列在長列表下方(lazy):先露出它的段落標題,再點 Tab 列(同 SpacesUITests)。
+            XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")))
             let tab = app.element("spaces.tab.demo/w3:t1")
-            XCTAssertTrue(app.reveal(tab))
+            XCTAssertTrue(tab.waitUntilExists(timeout: 5))
             tab.tap()
             XCTAssertTrue(app.buttons["layout.block.w3:p2"].waitUntilExists(timeout: 5))
             try audit(app, "版面圖", contentSize: size)
@@ -184,7 +186,8 @@ final class AccessibilityAuditUITests: XCTestCase {
             XCTAssertTrue(share.exists)
             try audit(app, "主機總頁", contentSize: size)
 
-            share.tap()
+            // 稽核可能捲動過頁面:重新找一次(lazy)再點。
+            app.overviewRow("hosts.share").tap()
             XCTAssertTrue(app.element("hostShare.qr").waitUntilExists(timeout: 5))
             try audit(app, "分享主機", contentSize: size)
             // 返回鈕:AX5 時系統只留箭頭，不以標題找。
@@ -236,7 +239,9 @@ final class AccessibilityAuditUITests: XCTestCase {
             app.scrollIntoView(app.buttons["account.entry.signIn"].firstMatch)
             XCTAssertTrue(app.buttons["account.entry.signIn"].firstMatch.waitUntilExists(timeout: 10))
             try audit(app, "登入或加入", contentSize: size)
-            app.buttons["account.entry.signIn"].tap()
+            // 稽核可能捲動過頁面:重新捲到看得到(lazy)再點。
+            app.scrollIntoView(app.buttons["account.entry.signIn"].firstMatch)
+            app.buttons["account.entry.signIn"].firstMatch.tap()
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 10))
             try audit(app, "登入", contentSize: size)
             app.terminate()

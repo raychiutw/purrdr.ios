@@ -345,10 +345,11 @@ private struct TopBarSmallTitle: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: TopBarMetrics.smallTitleSize, weight: .semibold))
+            // 17pt Semibold 就是 headline:跟著 Dynamic Type 放大,高度只設下限(AX 字級不裁字)。
+            .font(.headline)
             .foregroundStyle(Color.primary)
             .padding(.horizontal, TopBarMetrics.smallTitleInset)
-            .frame(height: TopBarMetrics.smallTitleHeight)
+            .frame(minHeight: TopBarMetrics.smallTitleHeight)
             .floatingGlass(in: Capsule())
     }
 }

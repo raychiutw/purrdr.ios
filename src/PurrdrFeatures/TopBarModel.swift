@@ -166,7 +166,6 @@ public enum TopBarMetrics {
     /// 沒有搜尋的 tab 收合後的置中小標題膠囊:高、左右內距、字級。
     public static let smallTitleHeight: CGFloat = 40
     public static let smallTitleInset: CGFloat = 20
-    public static let smallTitleSize: CGFloat = 17
     /// 內容從狀態列下滑過時,上緣的漸層遮罩高度。
     public static let fadeMaskHeight: CGFloat = 64
 }
