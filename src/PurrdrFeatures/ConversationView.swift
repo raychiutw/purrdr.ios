@@ -28,6 +28,10 @@ public struct ConversationView: View {
     @State private var autoLoadedPages = 0
     /// 畫面上看得到的列(內容被重建時的錨點,#130)。
     @State private var visibleIDs: [String] = []
+    #if DEBUG
+    /// 順暢度除錯層(#484):只在除錯建置。
+    @State private var smoothnessProbe = ScrollSmoothnessProbe()
+    #endif
     /// 上次看到的列 id(`model.entriesRevision` 改變時與新的比較，#130)。
     @State private var entryIDs: [String] = []
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
@@ -227,6 +231,9 @@ public struct ConversationView: View {
                     .accessibilityIdentifier("conversation.refreshing")
             }
         }
+        #if DEBUG
+        .overlay(alignment: .topLeading) { ScrollSmoothnessOverlay(probe: smoothnessProbe) }
+        #endif
         // 下拉重新整理(#270,取代標題列的重新載入鈕):重讀後切回跟隨尾端並捲到底(F5.12)。
         .refreshable {
             await model.reload()
@@ -249,6 +256,11 @@ public struct ConversationView: View {
                 bottomInset: geometry.contentInsets.bottom
             )
         } action: { _, metrics in
+            #if DEBUG
+            smoothnessProbe.report(ScrollSmoothnessSnapshot(
+                contentHeight: metrics.contentHeight, containerHeight: metrics.containerHeight,
+                contentOffsetY: metrics.contentOffsetY, topInset: metrics.topInset, visibleRowCount: visibleIDs.count))
+            #endif
             conversationHeight.update(metrics.containerHeight)
             if userIsScrolling {
                 scroll.userScrolled(distanceFromBottom: metrics.distanceFromBottom)
