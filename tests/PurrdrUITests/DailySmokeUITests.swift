@@ -304,6 +304,10 @@ final class DailySmokeUITests: XCTestCase {
         }
         step("帳號頁與通知裝置") {
             back(app)
+            // 返回後頁面仍捲在下面,頂列已收合(標題列與頭像淡出、不能點):捲回頂端才點得到帳號鈕。
+            let account = app.buttons["toolbar.account"].firstMatch
+            for _ in 0..<5 where !account.isHittable { app.element("sheet.hosts").swipeDown() }
+            XCTAssertTrue(account.isHittable, "回到主機總頁後頂列沒有展開")
             app.openAccountSheet()
             let card = app.element("account.plusCard.status")
             XCTAssertTrue(card.waitUntilExists(timeout: 10), "帳號頁沒有 Plus 卡")
@@ -344,7 +348,7 @@ final class DailySmokeUITests: XCTestCase {
             codex.switches.firstMatch.tap()
             XCTAssertTrue(codex.wait(for: NSPredicate(format: "value == '0'"), timeout: 5), "Codex 開關沒有關掉")
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有回到主機總頁")
+            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有回到主機總頁\n\(app.debugDescription)")
             XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "Claude 用量被一起關掉了")
             XCTAssertFalse(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 2), "關掉 Codex 後用量區還列著它")
         }

@@ -25,23 +25,6 @@ extension View {
     }
 }
 
-/// 每個 tab 頂列最右上角的帳號鈕(#246)。前面有別的右上動作時中間隔開,各自是獨立的玻璃。
-struct AccountToolbarItem: ToolbarContent {
-    let member: MemberModel
-    let hasPrecedingAction: Bool
-    let open: () -> Void
-
-    var body: some ToolbarContent {
-        if hasPrecedingAction {
-            ToolbarSpacer(.fixed, placement: .primaryAction)
-        }
-        ToolbarItem(placement: .primaryAction) {
-            AccountButton(member: member, action: open)
-        }
-        // 頭像本身就是圓形，不再包一層玻璃。
-    }
-}
-
 /// 沒有可看的主機或內容時的空與不支援狀態(`ContentUnavailableView`,不停用、不隱藏 tab)。
 struct TabUnavailableView: View {
     let title: LocalizedStringKey
@@ -55,12 +38,19 @@ struct TabUnavailableView: View {
     }
 }
 
-/// 檔案 tab:選取中主機的檔案瀏覽。主機選單只改選取中主機(不列所有主機);右上上傳與帳號。
+/// 檔案 tab:選取中主機的檔案瀏覽。共用頂列(#500):電腦圖示選看哪台主機(只改選取中主機,不列所有主機)、「＋」上傳、頭像。
 struct FilesTab: View {
     let hosts: HostsModel
     let member: MemberModel
     let openAccount: () -> Void
     let addHost: () -> Void
+
+    @State private var unavailableQuery = ""
+    @FocusState private var unavailableSearchFocused: Bool
+
+    private var actions: TabTopBarActions {
+        TabTopBarActions(addHost: addHost, account: AnyView(TopBarAccountButton(member: member, action: openAccount)))
+    }
 
     var body: some View {
         NavigationStack {
@@ -68,30 +58,33 @@ struct FilesTab: View {
                 TabUnavailableView(
                     title: "No Hosts", systemImage: "folder",
                     message: "Add a host to browse its files.", identifier: "files.noHost")
-                    .navigationTitle("Files")
-                    .toolbar { AccountToolbarItem(member: member, hasPrecedingAction: false, open: openAccount) }
+                    .topBarPage(unavailableContent(picker: nil))
             } else if !hosts.selectedHostSupportsFiles {
-                let picker = hosts.selectedHostPicker()
                 TabUnavailableView(
                     title: "Files Aren’t Available", systemImage: "folder",
                     message: "Files need an SSH connection. This host connects through the host service.",
                     identifier: "files.unsupported")
-                    .navigationTitle("Files")
-                    .toolbar(removing: .title)
-                    .toolbar {
-                        ToolbarItem(placement: TopNavigationView.modePlacement) { HostPickerButton(model: picker, identifier: "files.host", addHost: addHost, inToolbar: true) }
-                        AccountToolbarItem(member: member, hasPrecedingAction: false, open: openAccount)
-                    }
+                    .topBarPage(unavailableContent(picker: hosts.selectedHostPicker()))
             } else {
-                FilesScreen(
-                    hosts: hosts, picker: hosts.selectedHostPicker(), addHost: addHost,
-                    account: AnyView(AccountButton(member: member, action: openAccount)))
+                FilesScreen(hosts: hosts, picker: hosts.selectedHostPicker(), actions: actions)
             }
         }
     }
+
+    /// 還不能瀏覽檔案時的頂列:同一個版型,上傳停用。
+    private func unavailableContent(picker: HostPickerModel?) -> TopBarContent {
+        TopBarContent(
+            tab: .files, title: "Files",
+            hostScope: .selected(hostName: picker?.selectedOption?.name),
+            hostMenu: picker.map { AnyView(HostSelectionMenu(model: $0, addHost: addHost)) },
+            hostIdentifier: "files.host",
+            plus: AnyView(TopBarPlusButton(title: "Upload File", identifier: "files.upload") {}.disabled(true)),
+            account: actions.account,
+            search: TopBarContent.Search(text: $unavailableQuery, focus: $unavailableSearchFocused))
+    }
 }
 
-/// 流量 tab:原「數據用量」頁(#354)的新位置。大標題「網路流量」,右上只有帳號。
+/// 流量 tab:原「數據用量」頁(#354)的新位置。大標題「流量」,右側只有電腦圖示圓鈕(篩選主機)與頭像。
 struct TrafficTab: View {
     let hosts: HostsModel
     let member: MemberModel
@@ -99,7 +92,9 @@ struct TrafficTab: View {
 
     var body: some View {
         NavigationStack {
-            DataUsageScreen(make: { hosts.dataUsage() }, account: AnyView(AccountButton(member: member, action: openAccount)))
+            DataUsageScreen(
+                make: { hosts.dataUsage() },
+                account: AnyView(TopBarAccountButton(member: member, action: openAccount)))
         }
     }
 }

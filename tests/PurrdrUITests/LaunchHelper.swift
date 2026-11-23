@@ -165,15 +165,12 @@ extension XCUIApplication {
         return row
     }
 
-    /// 主機 tab 頂列的主機選單選了某一台(#392;名稱是選單項目的標籤)。
+    /// 主機 tab 的主機清單(#500)選了某一台(多台主機才有清單;名稱是列的標籤)。
     @MainActor
     func selectHostOnHostsTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let picker = buttons["hosts.host"].firstMatch
-        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "主機 tab 沒有主機選單", file: file, line: line)
-        picker.tap()
-        let item = buttons[name].firstMatch
-        XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機選單沒有 \(name)", file: file, line: line)
-        item.tap()
+        let row = buttons["hosts.host.\(name)"].firstMatch
+        XCTAssertTrue(row.waitUntilExists(timeout: 10), "主機 tab 的主機清單沒有 \(name)", file: file, line: line)
+        row.tap()
     }
 
     /// 開已存主機(`-seedHost` 的 Studio Mac,啟動時就是選取中主機)的「這台主機的設定」頁(#392):

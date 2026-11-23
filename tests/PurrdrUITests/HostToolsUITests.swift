@@ -50,14 +50,13 @@ final class HostToolsUITests: XCTestCase {
         let ledger = app.buttons["files.row.ledger"].firstMatch
         XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "沒有列出家目錄")
         XCTAssertTrue(app.descendants(matching: .any)["files.row..zshrc"].firstMatch.exists, "隱藏檔沒有列出")
-        XCTAssertTrue(app.navigationBars["demo"].exists, "標題不是資料夾最後一段")
+        XCTAssertEqual(app.staticTexts["topBar.title"].firstMatch.label, "Files", "檔案頁的大標題不是 tab 名稱")
         XCTAssertEqual(app.buttons["files.upload"].firstMatch.label, "Upload File")
         XCTAssertFalse(app.buttons["files.up"].exists, "不該再有「上一層」按鈕")
         XCTAssertEqual(app.buttons["files.crumb.0"].firstMatch.label, "Home Folder")
 
         ledger.tap()
         XCTAssertTrue(app.descendants(matching: .any)["files.row.export.csv"].firstMatch.waitUntilExists(timeout: 10), "沒有打開資料夾")
-        XCTAssertTrue(app.navigationBars["ledger"].exists)
         XCTAssertEqual(app.buttons["files.crumb.1"].firstMatch.label, "ledger")
 
         app.buttons["files.crumb.0"].firstMatch.tap()

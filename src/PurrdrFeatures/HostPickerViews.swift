@@ -1,62 +1,66 @@
 import PurrdrAgentFeatures
 import SwiftUI
 
-/// 標題列中間的主機挑選鈕(#245、DESIGN.md「主機挑選鈕」):主機圖示＋名稱＋▾,點了選另一台主機。
-struct HostPickerButton: View {
+/// 頂列電腦圖示點開的選單內容(#500):選這個畫面看哪一台主機(檔案),不列「所有主機」。最下面是「新增主機…」。
+struct HostSelectionMenu: View {
+    let model: HostPickerModel
+    var addHost: (() -> Void)?
+
+    var body: some View {
+        Picker(selection: selection) {
+            ForEach(model.options) { option in
+                HostMenuLabel(option.name, icon: option.icon).tag(option.id)
+            }
+        } label: {
+            Text("Host")
+        }
+        .pickerStyle(.inline)
+        if let addHost {
+            Divider()
+            Button("Add Host…", systemImage: "plus", action: addHost)
+                .accessibilityIdentifier("hostMenu.addHost")
+        }
+    }
+
+    private var selection: Binding<HostSelection> {
+        Binding { model.selection } set: { model.select($0) }
+    }
+}
+
+/// sheet 與全螢幕畫面標題列中間的主機挑選鈕(新增聊天、登入 Shell;DESIGN.md「主機挑選鈕」):主機圖示＋名稱＋▾,
+/// 點了選另一台主機。頂層 tab 的主機選擇在共用頂列(`TopBarContent.hostMenu`),不用這個。
+struct SheetHostPicker: View {
     let model: HostPickerModel
     let identifier: String
-    /// 選單最下面的「新增主機…」(頂層 tab 的主機選單才有,#390)。
-    var addHost: (() -> Void)?
-    /// 放在工具列(頂層 tab 的左上,#475):膠囊底色由工具列的玻璃提供;否則(sheet 內)自己畫底色。
-    var inToolbar = false
 
     var body: some View {
         Menu {
-            Picker(selection: selection) {
-                ForEach(model.options) { option in
-                    HostMenuLabel(option.name, icon: option.icon).tag(option.id)
-                }
-            } label: {
-                Text("Host")
-            }
-            .pickerStyle(.inline)
-            if let addHost {
-                Divider()
-                Button("Add Host…", systemImage: "plus", action: addHost)
-                    .accessibilityIdentifier("hostMenu.addHost")
-            }
+            HostSelectionMenu(model: model)
         } label: {
             HStack(spacing: 6) {
                 HostIconBadge(model.selectedOption?.icon ?? .default, diameter: 24)
                 Text(verbatim: name)
                     .font(.headline)
-                    .foregroundStyle(inToolbar ? Color.appAccent : Color.primary)
+                    .foregroundStyle(Color.primary)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(inToolbar ? Color.appAccent : Color.secondaryText)
+                    .foregroundStyle(.secondaryText)
                     .accessibilityHidden(true)
             }
             .padding(.leading, 6)
             .padding(.trailing, 10)
-            // 所有 tab 的主機選單與其他按鈕同高(#475)。
             .frame(minHeight: TopBarMetrics.controlHeight)
-            .background { if !inToolbar { Capsule().fill(.fill.tertiary) } }
+            .background { Capsule().fill(.fill.tertiary) }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        // 頂層 tab 的主機選單文字與圖示用 app 主色(綠,#477),不吃主機主題。
-        .tint(inToolbar ? Color.appAccent : nil)
-        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label(同選取中主機鈕)。
+        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label。
         .accessibilityLabel(Text("Host: \(name)"))
         .accessibilityIdentifier(identifier)
     }
 
     private var name: String { model.selectedOption?.name ?? "" }
-
-    private var selection: Binding<HostSelection> {
-        Binding { model.selection } set: { model.select($0) }
-    }
 }
 
 /// 主機 tab 推進來的登入 Shell:換主機就掛斷舊的 shell、在新主機開一個新的(#245)。
@@ -92,18 +96,10 @@ private struct LoginShellContent: View {
 struct FilesScreen: View {
     let hosts: HostsModel
     let picker: HostPickerModel
-    let addHost: (() -> Void)?
-    let account: AnyView?
-
-    init(hosts: HostsModel, picker: HostPickerModel, addHost: (() -> Void)? = nil, account: AnyView? = nil) {
-        self.hosts = hosts
-        self.picker = picker
-        self.addHost = addHost
-        self.account = account
-    }
+    let actions: TabTopBarActions
 
     var body: some View {
-        FilesContent(model: hosts.folderBrowser(on: picker.selection), picker: picker, addHost: addHost, account: account)
+        FilesContent(model: hosts.folderBrowser(on: picker.selection), picker: picker, actions: actions)
             .id(picker.selection)
     }
 }
@@ -111,17 +107,15 @@ struct FilesScreen: View {
 private struct FilesContent: View {
     @State private var model: FolderBrowserModel
     let picker: HostPickerModel
-    let addHost: (() -> Void)?
-    let account: AnyView?
+    let actions: TabTopBarActions
 
-    init(model: @autoclosure () -> FolderBrowserModel, picker: HostPickerModel, addHost: (() -> Void)?, account: AnyView?) {
+    init(model: @autoclosure () -> FolderBrowserModel, picker: HostPickerModel, actions: TabTopBarActions) {
         _model = State(wrappedValue: model())
         self.picker = picker
-        self.addHost = addHost
-        self.account = account
+        self.actions = actions
     }
 
     var body: some View {
-        FolderBrowserView(model: model, hostPicker: picker, addHost: addHost, account: account)
+        FolderBrowserView(model: model, hostPicker: picker, actions: actions)
     }
 }

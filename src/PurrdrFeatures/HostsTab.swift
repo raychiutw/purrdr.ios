@@ -37,26 +37,12 @@ struct HostsTab: View {
     var body: some View {
         NavigationStack(path: $flow.path) {
             content
-                .navigationTitle("Host")
-                .toolbar(removing: hosts.overview != nil ? .title : nil)
-                #if os(iOS)
-                // 頂列左邊是主機選單(#475,各 tab 同一個位置),不顯示大標題(設計稿 Host)。
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar {
-                    if hosts.overview != nil {
-                        ToolbarItem(placement: TopNavigationView.modePlacement) {
-                            HostPickerButton(model: hosts.selectedHostPicker(), identifier: "hosts.host", addHost: openAddHost, inToolbar: true)
-                        }
-                    }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
-                            .tint(Color.appAccent)
-                            .accessibilityIdentifier("hosts.add")
-                    }
-                    ToolbarSpacer(.fixed, placement: .primaryAction)
-                    ToolbarItem(placement: .primaryAction) { AccountButton(member: member, action: openAccount) }
-                }
+                // 共用頂列(#500):大標題「主機」,右側單顆「＋」新增主機與頭像(沒有電腦圖示;多台主機在頁面的「主機」清單切換);
+                // 沒有搜尋,往下滑收成置中小標題。
+                .topBarPage(TopBarContent(
+                    tab: .hosts, title: "Hosts",
+                    plus: AnyView(TopBarPlusButton(title: "Add Host", identifier: "hosts.add") { flow.path.append(.add) }),
+                    account: AnyView(TopBarAccountButton(member: member, action: openAccount))))
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }
         .alert(
@@ -97,8 +83,6 @@ struct HostsTab: View {
                 openRoute: { flow.path.append($0) })
                 // 換主機就重新建立(用量區與主機服務各自的 model 屬於那台主機)。
                 .id(overview.host)
-                // iPad 寬視窗不把總頁拉滿整個螢幕:內容寬度上限,置中。
-                .appPageContentWidth()
         } else {
             TabUnavailableView(
                 title: "No Hosts", systemImage: "desktopcomputer",

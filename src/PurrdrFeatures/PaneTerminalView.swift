@@ -135,7 +135,7 @@ struct TerminalTitle: View {
         if let hostPicker {
             // 主機挑選鈕是自己的按鈕;狀態另成一個元素，念出主機與狀態。
             VStack(spacing: 2) {
-                HostPickerButton(model: hostPicker, identifier: "loginShell.host")
+                SheetHostPicker(model: hostPicker, identifier: "loginShell.host")
                 statusRow
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(Text(verbatim: "\(title), \(statusText)"))

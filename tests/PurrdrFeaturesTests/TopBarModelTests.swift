@@ -14,19 +14,19 @@ struct TopBarModelTests {
         #expect(TopLevelTab.settings.topBar == nil)
     }
 
-    @Test("控制項形狀:聊天是膠囊(電腦圖示｜＋),檔案只有＋,主機只有＋,流量只有電腦圖示")
+    @Test("控制項形狀:聊天與檔案是膠囊(電腦圖示｜＋),主機只有＋,流量只有電腦圖示(#500)")
     func controlsShape() {
         #expect(TopLevelTab.chats.topBar?.controls == .pill)
-        #expect(TopLevelTab.files.topBar?.controls == .plusOnly)
+        #expect(TopLevelTab.files.topBar?.controls == .pill)
         #expect(TopLevelTab.hosts.topBar?.controls == .plusOnly)
         #expect(TopLevelTab.traffic.topBar?.controls == .hostScopeOnly)
     }
 
-    @Test("只有聊天與流量有主機範圍;主機 tab 本身是清單、檔案沒有主機範圍")
+    @Test("聊天、檔案與流量有主機範圍(電腦圖示);主機 tab 本身是清單,沒有")
     func hostScopeDependsOnTab() {
         #expect(TopLevelTab.chats.topBar?.hasHostScope == true)
         #expect(TopLevelTab.traffic.topBar?.hasHostScope == true)
-        #expect(TopLevelTab.files.topBar?.hasHostScope == false)
+        #expect(TopLevelTab.files.topBar?.hasHostScope == true)
         #expect(TopLevelTab.hosts.topBar?.hasHostScope == false)
     }
 
@@ -48,6 +48,14 @@ struct TopBarModelTests {
         let one = TopBarHostScope(filteredHostName: "Studio Mac")
         #expect(one.showsDot)
         #expect(one.accessibilityLabel == "Showing: Studio Mac")
+    }
+
+    @Test("檔案的電腦圖示是「這頁看哪台」:沒有篩選小圓點、念「主機:名稱」(#500)")
+    func selectedHostHasNoDot() {
+        let scope = TopBarHostScope.selected(hostName: "Studio Mac")
+        #expect(!scope.showsDot)
+        #expect(scope.accessibilityLabel == "Host: Studio Mac")
+        #expect(TopBarHostScope.selected(hostName: nil).accessibilityLabel == "Host")
     }
 
     @Test("標題列與內容起點照設計稿:預設字級標題列 52、有搜尋內容起點 106、沒搜尋 62")

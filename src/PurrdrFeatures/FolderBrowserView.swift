@@ -4,59 +4,25 @@ import PurrdrSSH
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// 檔案瀏覽(行為規格 F13):標題是資料夾最後一段、副標是主機;工具列有上一層、上傳到這裡(「+」);
-/// 下拉重新整理。資料夾在前，點資料夾或 symlink 打開，檔案只顯示大小與修改時間。
+/// 檔案瀏覽(行為規格 F13):檔案 tab 的頁面。共用頂列(#500):大標題「檔案」、右側 [電腦圖示｜＋](電腦圖示選看哪台主機、
+/// 「＋」上傳到這裡)與頭像;搜尋欄篩目前資料夾的項目。目前在哪一層看列表最上面的路徑麵包屑(#273)。
+/// 資料夾在前,點資料夾或 symlink 打開,檔案只顯示大小與修改時間;下拉重新整理。
 public struct FolderBrowserView: View {
     let model: FolderBrowserModel
-    /// 標題列中間的主機挑選鈕(#245);沒有時副標顯示主機名稱。
-    let hostPicker: HostPickerModel?
-    /// 頂層 tab(#390):主機選單的「新增主機…」與最右上角的帳號鈕。
-    let addHost: (() -> Void)?
-    let account: AnyView?
+    let hostPicker: HostPickerModel
+    let actions: TabTopBarActions
     @State private var importing = false
+    @FocusState private var searchFocused: Bool
 
-    public init(model: FolderBrowserModel, hostPicker: HostPickerModel? = nil) {
-        self.init(model: model, hostPicker: hostPicker, addHost: nil, account: nil)
-    }
-
-    init(model: FolderBrowserModel, hostPicker: HostPickerModel?, addHost: (() -> Void)?, account: AnyView?) {
+    init(model: FolderBrowserModel, hostPicker: HostPickerModel, actions: TabTopBarActions) {
         self.model = model
         self.hostPicker = hostPicker
-        self.addHost = addHost
-        self.account = account
+        self.actions = actions
     }
 
     public var body: some View {
         content
-            .navigationTitle(model.title)
-            .toolbar(removing: hostPicker != nil ? .title : nil)
-            .navigationSubtitle(hostPicker == nil ? model.hostName : "")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                if let hostPicker {
-                    // 主機挑選鈕佔標題位置;目前在哪一層看下面的路徑麵包屑(#273)。
-                    ToolbarItem(placement: TopNavigationView.modePlacement) {
-                        HostPickerButton(model: hostPicker, identifier: "files.host", addHost: addHost, inToolbar: true)
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    if let name = model.uploading {
-                        ProgressView()
-                            .accessibilityLabel(Text("Uploading \(name)"))
-                            .accessibilityIdentifier("files.uploading")
-                    } else {
-                        Button("Upload File", systemImage: "plus") { importing = true }
-                            .disabled(model.path == nil)
-                            .accessibilityIdentifier("files.upload")
-                    }
-                }
-                if let account {
-                    ToolbarSpacer(.fixed, placement: .primaryAction)
-                    ToolbarItem(placement: .primaryAction) { account }
-                }
-            }
+            .topBarPage(topBarContent)
             .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in
                 guard case .success(let url) = result else { return }
                 Task { await model.upload(fileAt: url) }
@@ -66,15 +32,44 @@ public struct FolderBrowserView: View {
             } message: {
                 Text(model.notice ?? "")
             }
-            // 路徑麵包屑(#273,原型):每段可點回那一層(取代「上一層」按鈕)。
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if !model.breadcrumbs.isEmpty {
-                    FolderBreadcrumbBar(crumbs: model.breadcrumbs) { crumb in Task { await model.go(to: crumb) } }
-                }
-            }
             .task {
                 if model.path == nil { await model.load() }
             }
+    }
+
+    private var topBarContent: TopBarContent {
+        @Bindable var model = model
+        return TopBarContent(
+            tab: .files, title: "Files",
+            hostScope: .selected(hostName: hostPicker.selectedOption?.name),
+            hostMenu: AnyView(HostSelectionMenu(model: hostPicker, addHost: actions.addHost)),
+            hostIdentifier: "files.host",
+            plus: AnyView(uploadControl),
+            account: actions.account,
+            search: TopBarContent.Search(text: $model.query, focus: $searchFocused))
+    }
+
+    @ViewBuilder
+    private var uploadControl: some View {
+        if let name = model.uploading {
+            ProgressView()
+                .accessibilityLabel(Text("Uploading \(name)"))
+                .accessibilityIdentifier("files.uploading")
+        } else {
+            TopBarPlusButton(title: "Upload File", identifier: "files.upload") { importing = true }
+                .disabled(model.path == nil)
+        }
+    }
+
+    /// 路徑麵包屑(#273):列表最上面、第一個區段的標頭,每段可點回那一層。
+    @ViewBuilder
+    private var breadcrumbBar: some View {
+        if !model.breadcrumbs.isEmpty {
+            FolderBreadcrumbBar(crumbs: model.breadcrumbs, showsBar: false) { crumb in Task { await model.go(to: crumb) } }
+                .frame(height: 44)
+                .textCase(nil)
+                .listRowInsets(EdgeInsets())
+        }
     }
 
     @ViewBuilder
@@ -91,33 +86,44 @@ public struct FolderBrowserView: View {
                         }
                     }
                     .skeleton(identifier: "files.loading")
-                }
+                } header: { breadcrumbBar }
             }
             .appGroupedList()
         case .failed(let message):
-            ContentUnavailableView {
-                Label("Can’t Show This Folder", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text(message)
-            } actions: {
-                Button("Try Again") { Task { await model.load() } }
-                    .accessibilityIdentifier("files.retry")
+            List {
+                Section { EmptyView() } header: { breadcrumbBar }
+                ContentUnavailableView {
+                    Label("Can’t Show This Folder", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("Try Again") { Task { await model.load() } }
+                        .accessibilityIdentifier("files.retry")
+                }
+                .accessibilityIdentifier("files.error")
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
-            .accessibilityIdentifier("files.error")
+            .appGroupedList()
         case .loaded(let listing):
             List {
-                if listing.entries.isEmpty {
-                    Text("This folder is empty.")
-                        .foregroundStyle(.secondaryText)
-                        .accessibilityIdentifier("files.empty")
-                }
                 Section {
-                    ForEach(listing.entries, id: \.name) { entry in
+                    if listing.entries.isEmpty {
+                        Text("This folder is empty.")
+                            .foregroundStyle(.secondaryText)
+                            .accessibilityIdentifier("files.empty")
+                    } else if model.visibleEntries.isEmpty {
+                        Text("No Results")
+                            .foregroundStyle(.secondaryText)
+                            .accessibilityIdentifier("files.noResults")
+                    }
+                    ForEach(model.visibleEntries, id: \.name) { entry in
                         FolderEntryRow(entry: entry) {
                             Task { await model.open(entry) }
                         }
                     }
-                }
+                } header: { breadcrumbBar }
             }
             .appGroupedList()
             .refreshable { await model.load() }
@@ -214,6 +220,8 @@ struct FolderBreadcrumbBar: View {
     let crumbs: [FolderBreadcrumb]
     /// UI 測試的識別字開頭(檔案頁 `files.crumb.`、資料夾瀏覽 `folderPicker.crumb.`)。
     var identifierPrefix = "files.crumb."
+    /// 檔案頁的列表內不畫底(跟列表同一個頁面底色);sheet 內的資料夾瀏覽用系統 bar 材質。
+    var showsBar = true
     let go: (FolderBreadcrumb) -> Void
 
     var body: some View {
@@ -248,7 +256,7 @@ struct FolderBreadcrumbBar: View {
             }
             .onChange(of: crumbs, initial: true) { _, crumbs in proxy.scrollTo(crumbs.count - 1, anchor: .trailing) }
         }
-        .background(.bar)
+        .background { if showsBar { Rectangle().fill(.bar) } }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("files.breadcrumbs")
     }

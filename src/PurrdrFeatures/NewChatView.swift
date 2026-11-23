@@ -143,7 +143,7 @@ public struct NewChatView: View {
                 if let hostPicker {
                     // 主機挑選鈕佔標題位置(原型);頁面只顯示標題，不放說明。
                     ToolbarItem(placement: .principal) {
-                        HostPickerButton(model: hostPicker, identifier: "newChat.host")
+                        SheetHostPicker(model: hostPicker, identifier: "newChat.host")
                             .disabled(model.isStarting)
                     }
                 }

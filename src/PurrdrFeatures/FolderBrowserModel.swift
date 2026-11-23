@@ -24,6 +24,8 @@ public final class FolderBrowserModel {
     /// 一次性的提示(上傳失敗、檔案太大)。
     public var notice: String?
     public let hostName: String
+    /// 頂列搜尋欄的字串(#500):只比對目前資料夾的項目名稱;換資料夾就清掉。
+    public var query = ""
 
     /// 家目錄(第一次列出的資料夾):麵包屑以「~」代表。
     private var home: String?
@@ -40,6 +42,17 @@ public final class FolderBrowserModel {
         self.folders = folders
         self.hostName = hostName
         self.skeletonRowCounts = skeletonRowCounts
+    }
+
+    public var isSearching: Bool { !trimmedQuery.isEmpty }
+
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// 目前資料夾要顯示的項目:沒搜尋是全部,有搜尋是名稱含搜尋字串的(不分大小寫)。
+    public var visibleEntries: [FolderEntry] {
+        guard case .loaded(let listing) = phase else { return [] }
+        guard isSearching else { return listing.entries }
+        return listing.entries.filter { $0.name.localizedCaseInsensitiveContains(trimmedQuery) }
     }
 
     /// 載入骨架的列數:取上次列出的項目數(#496)。
@@ -87,7 +100,7 @@ public final class FolderBrowserModel {
         // 重新整理已經列出的同一個資料夾:留著原本的列,不退回骨架(#496)。
         let isRefresh: Bool
         if case .loaded = phase, target == path { isRefresh = true } else { isRefresh = false }
-        if !isRefresh { phase = .loading }
+        if !isRefresh { phase = .loading; query = "" }
         do {
             let listing = try await folders.list(target)
             guard self.generation == generation else { return }

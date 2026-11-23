@@ -7,9 +7,9 @@ import SwiftUI
 /// 流量 tab 的入口:進頁面時才建立 model。
 struct DataUsageScreen: View {
     @State private var model: DataUsageModel
-    let account: AnyView?
+    let account: AnyView
 
-    init(make: () -> DataUsageModel, account: AnyView? = nil) {
+    init(make: () -> DataUsageModel, account: AnyView) {
         _model = State(wrappedValue: make())
         self.account = account
     }
@@ -19,10 +19,10 @@ struct DataUsageScreen: View {
     }
 }
 
-/// 數據用量頁(#354、spec #337、DESIGN.md「數據用量」)。
+/// 流量頁(#354、spec #337、#500、DESIGN.md「數據用量」)。
 ///
-/// 標題是主機選單膠囊(預設所有主機,有目前主機就顯示那台);由上到下:兩個玻璃摘要方塊、期間與分類膠囊、
-/// 30 天長條圖、各主機的用量、重設統計與說明。
+/// 共用頂列:大標題「流量」,右側單顆電腦圖示圓鈕(篩選主機,預設所有主機,篩選時右上角有小圓點)與頭像,沒有「＋」;
+/// 往下滑大標題收成置中小標題。由上到下:兩個玻璃摘要方塊、期間與分類膠囊、30 天長條圖、各主機的用量、重設統計與說明。
 public struct DataUsageView: View {
     @Bindable var model: DataUsageModel
     @Environment(\.scenePhase) private var scenePhase
@@ -30,15 +30,10 @@ public struct DataUsageView: View {
     @State private var detailHostID: String?
     @State private var confirmsReset = false
     @State private var selectedDate: Date?
-    /// 流量 tab 最右上角的帳號鈕(#390);有的話是 tab 版面:大標題、主機選單放在內容最上面。
-    private let account: AnyView?
+    /// 流量 tab 最右上角的帳號鈕(#390)。
+    private let account: AnyView
 
-    public init(model: DataUsageModel) {
-        self.model = model
-        account = nil
-    }
-
-    init(model: DataUsageModel, account: AnyView?) {
+    init(model: DataUsageModel, account: AnyView) {
         self.model = model
         self.account = account
     }
@@ -50,6 +45,7 @@ public struct DataUsageView: View {
 
     public var body: some View {
         ScrollView {
+            // 邊距與其他頁一致(16pt,iPad 內容寬度上限由共用頁面給);上方起點由共用頂列給。
             VStack(alignment: .leading, spacing: 16) {
                 summaryTiles
                 chips
@@ -59,27 +55,10 @@ public struct DataUsageView: View {
                 footnote
             }
             .padding(.horizontal, 16)
-            .padding(.top, account == nil ? 0 : 16)
             .padding(.bottom, 24)
-            // iPad:不撐滿寬度。
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
         }
-        .background(DataUsageColors.groupedBackground)
-        .navigationTitle("Data Usage")
-        .toolbar(removing: account != nil ? .title : nil)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .toolbar {
-            if let account {
-                ToolbarItem(placement: .primaryAction) { account }
-                // 流量 tab:主機選單靠左,與其他 tab 同一個位置(#475)。
-                ToolbarItem(placement: TopNavigationView.modePlacement) { HostCapsule(model: model) }
-            } else {
-                ToolbarItem(placement: .principal) { HostCapsule(model: model) }
-            }
-        }
+        .accessibilityIdentifier("dataUsage.page")
+        .topBarPage(topBarContent)
         .sheet(item: $optionsSheet) { sheet in
             DataUsageOptionsSheet(model: model, sheet: sheet)
         }
@@ -99,7 +78,15 @@ public struct DataUsageView: View {
             model.refresh()
             await model.run()
         }
-        .accessibilityIdentifier("dataUsage.page")
+    }
+
+    private var topBarContent: TopBarContent {
+        TopBarContent(
+            tab: .traffic, title: "Traffic",
+            hostScope: TopBarHostScope(filteredHostName: model.hosts.first { $0.id == model.host }?.name),
+            hostMenu: AnyView(DataUsageHostMenu(model: model)),
+            hostIdentifier: "dataUsage.host",
+            plus: nil, account: account)
     }
 
     // MARK: - 摘要
@@ -229,43 +216,20 @@ private struct HostDetailID: Identifiable {
 
 // MARK: - 元件
 
-/// 標題的主機選單膠囊(主機選擇維持選單,DESIGN.md「選擇控制」例外)。
-private struct HostCapsule: View {
+/// 電腦圖示點開的主機選單內容:所有主機或某一台(主機選擇維持選單,DESIGN.md「選擇控制」例外)。
+private struct DataUsageHostMenu: View {
     @Bindable var model: DataUsageModel
 
     var body: some View {
-        Menu {
-            Picker(selection: selection) {
-                Text("All Hosts").tag(HostSelection?.none)
-                ForEach(model.hosts) { option in
-                    HostMenuLabel(option.name, icon: option.icon).tag(HostSelection?.some(option.id))
-                }
-            } label: {
-                Text("Host")
+        Picker(selection: selection) {
+            Text("All Hosts").tag(HostSelection?.none)
+            ForEach(model.hosts) { option in
+                HostMenuLabel(option.name, icon: option.icon).tag(HostSelection?.some(option.id))
             }
-            .pickerStyle(.inline)
         } label: {
-            HStack(spacing: 6) {
-                if let option = model.hosts.first(where: { $0.id == model.host }) {
-                    HostIconBadge(option.icon, diameter: 22)
-                }
-                // 與其他 tab 的主機下拉一致,用 app 主色(綠,#477)。
-                Text(verbatim: name).font(.headline).foregroundStyle(Color.appAccent).lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold)).foregroundStyle(Color.appAccent).accessibilityHidden(true)
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: TopBarMetrics.controlHeight)
-            .contentShape(Capsule())
+            Text("Host")
         }
-        .buttonStyle(.plain)
-        .tint(Color.appAccent)
-        .accessibilityLabel(Text("Host: \(name)"))
-        .accessibilityIdentifier("dataUsage.host")
-    }
-
-    private var name: String {
-        model.hosts.first { $0.id == model.host }?.name ?? String(localized: "All Hosts")
+        .pickerStyle(.inline)
     }
 
     private var selection: Binding<HostSelection?> {

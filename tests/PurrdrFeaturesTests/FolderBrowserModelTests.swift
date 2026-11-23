@@ -33,6 +33,23 @@ struct FolderBrowserModelTests {
         return []
     }
 
+    @Test("搜尋只比對目前資料夾的項目名稱(不分大小寫、前後空白不算);清掉搜尋回到全部(#500)")
+    func searchFiltersCurrentFolder() async throws {
+        let host = FakeHost()
+        await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        let model = Self.model(host)
+        await model.load()
+        #expect(model.visibleEntries.map(\.name) == ["ledger", ".zshrc"])
+        model.query = "  LED "
+        #expect(model.visibleEntries.map(\.name) == ["ledger"])
+        model.query = "zzz"
+        #expect(model.visibleEntries.isEmpty)
+        #expect(model.isSearching)
+        model.query = ""
+        #expect(model.visibleEntries.count == 2)
+        #expect(!model.isSearching)
+    }
+
     @Test("路徑麵包屑(#273,原型):家目錄底下以「~」開頭，每段可點回那一層;家目錄外從根目錄開始")
     func breadcrumbs() async throws {
         let host = FakeHost()

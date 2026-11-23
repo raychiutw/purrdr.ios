@@ -62,37 +62,41 @@ final class TopNavigationUITests: XCTestCase {
         XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "點頭像外圍(44pt 範圍內)沒有開出帳號頁")
     }
 
-    /// 各 tab 頂端的版面規則(#475):主機選單在每個 tab 同一個水平位置、各 tab 頂端的主機選單與帳號鈕高度一致。
-    /// 只比各 tab 之間的相對關係(容差內相等),不寫死像素。
+    /// 各 tab 頂端的版面規則(#475、#500):大標題的水平與垂直位置、帳號鈕的高度與位置在每個 tab 一致;
+    /// 右側控制項(膠囊或單顆圓鈕)的右緣都貼著帳號鈕左邊。只比各 tab 之間的相對關係(容差內相等),不寫死像素。
     @MainActor
     func testTopBarsAlignAcrossTabs() {
         let app = XCUIApplication.launchUITesting()
-        let tabs: [(name: String, open: () -> Void, hostMenu: String)] = [
-            // 聊天 tab 已換成共用頂列(#499),其他 tab 套用後(#500)再把聊天加回來。
-            ("檔案", { app.openTab(.files) }, "files.host"),
-            ("主機", { app.openHostsTab() }, "hosts.host"),
-            ("流量", { app.openTab(.traffic) }, "dataUsage.host"),
+        let tabs: [(name: String, open: () -> Void, title: String, control: String)] = [
+            ("聊天", { app.openTab(.chats) }, "Chats", "toolbar.newChat"),
+            ("檔案", { app.openTab(.files) }, "Files", "files.upload"),
+            ("主機", { app.openHostsTab() }, "Hosts", "hosts.add"),
+            ("流量", { app.openTab(.traffic) }, "Traffic", "dataUsage.host"),
         ]
-        var hostFrames: [(name: String, frame: CGRect)] = []
+        var titleFrames: [(name: String, frame: CGRect)] = []
         var accountFrames: [(name: String, frame: CGRect)] = []
         for tab in tabs {
             tab.open()
-            let host = app.descendants(matching: .any)[tab.hostMenu].firstMatch
-            XCTAssertTrue(host.waitUntilExists(timeout: 10), "\(tab.name) tab 沒有主機選單(\(tab.hostMenu))")
+            let title = app.staticTexts["topBar.title"].firstMatch
+            XCTAssertTrue(title.waitUntilExists(timeout: 10), "\(tab.name) tab 沒有大標題")
+            XCTAssertEqual(title.label, tab.title, "\(tab.name) tab 的大標題不是 tab 名稱")
             let account = app.buttons["toolbar.account"].firstMatch
             XCTAssertTrue(account.waitUntilExists(timeout: 5), "\(tab.name) tab 沒有帳號鈕")
-            hostFrames.append((tab.name, host.frame))
+            let control = app.descendants(matching: .any)[tab.control].firstMatch
+            XCTAssertTrue(control.waitUntilExists(timeout: 5), "\(tab.name) tab 沒有右側控制項(\(tab.control))")
+            XCTAssertLessThan(control.frame.maxX, account.frame.minX, "\(tab.name) tab 的右側控制項和帳號鈕重疊")
+            titleFrames.append((tab.name, title.frame))
             accountFrames.append((tab.name, account.frame))
-            print("TOPBAR \(tab.name) host=\(host.frame) account=\(account.frame)")
+            print("TOPBAR \(tab.name) title=\(title.frame) account=\(account.frame) control=\(control.frame)")
         }
-        let reference = hostFrames[0]
-        for entry in hostFrames.dropFirst() {
-            XCTAssertEqual(entry.frame.minX, reference.frame.minX, accuracy: 2, "\(entry.name) tab 的主機選單水平位置和\(reference.name)不同")
-            XCTAssertEqual(entry.frame.height, reference.frame.height, accuracy: 2, "\(entry.name) tab 的主機選單高度和\(reference.name)不同")
-            XCTAssertEqual(entry.frame.midY, reference.frame.midY, accuracy: 2, "\(entry.name) tab 的主機選單垂直位置和\(reference.name)不同")
+        let titleReference = titleFrames[0]
+        for entry in titleFrames.dropFirst() {
+            XCTAssertEqual(entry.frame.minX, titleReference.frame.minX, accuracy: 2, "\(entry.name) tab 的大標題水平位置和\(titleReference.name)不同")
+            XCTAssertEqual(entry.frame.midY, titleReference.frame.midY, accuracy: 2, "\(entry.name) tab 的大標題垂直位置和\(titleReference.name)不同")
         }
         let accountReference = accountFrames[0]
         for entry in accountFrames.dropFirst() {
+            XCTAssertEqual(entry.frame.minX, accountReference.frame.minX, accuracy: 2, "\(entry.name) tab 的帳號鈕水平位置和\(accountReference.name)不同")
             XCTAssertEqual(entry.frame.height, accountReference.frame.height, accuracy: 2, "\(entry.name) tab 的帳號鈕高度和\(accountReference.name)不同")
             XCTAssertEqual(entry.frame.midY, accountReference.frame.midY, accuracy: 2, "\(entry.name) tab 的帳號鈕垂直位置和\(accountReference.name)不同")
         }

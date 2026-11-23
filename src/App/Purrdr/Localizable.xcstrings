@@ -7409,6 +7409,17 @@
         }
       }
     },
+    "No Results" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有結果"
+          }
+        }
+      }
+    },
     "No Subscription Needed" : {
       "extractionState" : "manual",
       "localizations" : {

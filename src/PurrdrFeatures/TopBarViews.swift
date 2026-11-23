@@ -6,6 +6,17 @@ import SwiftUI
 // 往下滑時標題列淡出,有搜尋的 tab 搜尋欄變成貼頂玻璃膠囊,其餘 tab 顯示置中小標題膠囊。
 // 邏輯與尺寸在 `TopBarModel.swift`。顏色一律系統單色(`.primary`),不吃外層 tint、也不吃主機主題。
 
+/// 檔案、主機、流量 tab 的頂列動作(#500):由 `TopNavigationView` 提供,畫面本身不知道有哪些 sheet。
+package struct TabTopBarActions {
+    var addHost: () -> Void
+    var account: AnyView
+
+    package init(addHost: @escaping () -> Void, account: AnyView) {
+        self.addHost = addHost
+        self.account = account
+    }
+}
+
 /// 一個 tab 的頂列內容。畫面狀態(捲動、搜尋焦點)在 `TopBarModifier` 裡。
 struct TopBarContent {
     var tab: TopLevelTab
@@ -14,6 +25,8 @@ struct TopBarContent {
     var hostScope = TopBarHostScope(filteredHostName: nil)
     /// 點電腦圖示出現的選單內容(主機範圍有多個實作:聊天改「目前主機」、流量過濾主機)。
     var hostMenu: AnyView?
+    /// 電腦圖示的 accessibility identifier(各 tab 各自的測試入口;聊天沿用 `toolbar.currentHost`)。
+    var hostIdentifier = "toolbar.currentHost"
     /// 「＋」那一段:按鈕或選單(只有符號,尺寸由共用頂列給)。
     var plus: AnyView?
     /// 最右側的頭像圓鈕。
@@ -30,6 +43,18 @@ struct TopBarContent {
 }
 
 extension View {
+    /// 共用頁面(#500):第一階 tab 的頁面骨架。頁面底色、iPad 寬視窗的內容寬度上限、導覽標題(返回鈕用,導覽列本身隱藏)與共用頂列
+    /// (大標題、捲動收合、右側控制項)都在這裡,各 tab 不再各自設定。內容是含捲動視圖的畫面(List 或 ScrollView)。
+    func topBarPage(_ content: TopBarContent) -> some View {
+        appPageContentWidth()
+            .background(AppSurface.groupedPage)
+            .topBar(content)
+            .navigationTitle(content.title)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+    }
+
     /// 套上共用頂列:內容(列表)從頂列下面開始,往下滑時頂列收合。要放在含有捲動視圖的內容上。
     func topBar(_ content: TopBarContent) -> some View {
         modifier(TopBarModifier(content: content))
@@ -185,7 +210,7 @@ private struct TopBarControls: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(verbatim: content.hostScope.accessibilityLabel))
-            .accessibilityIdentifier("toolbar.currentHost")
+            .accessibilityIdentifier(content.hostIdentifier)
         }
     }
 

@@ -31,7 +31,7 @@ extension TopLevelTab {
     public var topBar: TopBarSpec? {
         switch self {
         case .chats: TopBarSpec(plus: .newChat, hasHostScope: true, hasSearch: true)
-        case .files: TopBarSpec(plus: .upload, hasHostScope: false, hasSearch: true)
+        case .files: TopBarSpec(plus: .upload, hasHostScope: true, hasSearch: true)
         case .hosts: TopBarSpec(plus: .addHost, hasHostScope: false, hasSearch: false)
         case .traffic: TopBarSpec(plus: nil, hasHostScope: true, hasSearch: false)
         case .settings: nil
@@ -42,12 +42,30 @@ extension TopLevelTab {
 /// 電腦圖示的主機範圍:篩選某台主機時右上角有小圓點。
 public struct TopBarHostScope: Equatable, Sendable {
     public var filteredHostName: String?
-    public init(filteredHostName: String?) { self.filteredHostName = filteredHostName }
-    public var showsDot: Bool { filteredHostName != nil }
+    /// 檔案這類「這頁看哪一台」的選擇:永遠有一台,不是篩選,所以不畫小圓點、念「主機:名稱」。
+    public var isSelection: Bool
+
+    public init(filteredHostName: String?, isSelection: Bool = false) {
+        self.filteredHostName = filteredHostName
+        self.isSelection = isSelection
+    }
+
+    /// 這頁正在看某一台主機(檔案 tab)。
+    public static func selected(hostName: String?) -> TopBarHostScope {
+        TopBarHostScope(filteredHostName: hostName, isSelection: true)
+    }
+
+    public var showsDot: Bool { !isSelection && filteredHostName != nil }
 
     /// VoiceOver 念的主機範圍(小圓點只是視覺,名字放在這裡)。
     public var accessibilityLabel: String {
-        if let filteredHostName { String(localized: "Showing: \(filteredHostName)") } else { String(localized: "Showing: All Hosts") }
+        if isSelection {
+            if let filteredHostName { String(localized: "Host: \(filteredHostName)") } else { String(localized: "Host") }
+        } else if let filteredHostName {
+            String(localized: "Showing: \(filteredHostName)")
+        } else {
+            String(localized: "Showing: All Hosts")
+        }
     }
 }
 
