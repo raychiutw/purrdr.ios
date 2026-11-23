@@ -1456,6 +1456,9 @@ public struct HostOverview: Equatable, Sendable {
     public var hasHostSettings: Bool
     /// 已存的主機(可編輯、移除);範例主機不是。
     public var isSaved: Bool
+
+    /// 狀態卡要不要畫骨架(#496):只有「第一次連線、還沒讀到任何內容」才畫;重連時(已有 herdr 版本)保留最後已知的內容。
+    public var showsSkeleton: Bool { status == .connecting && herdrVersion == nil }
 }
 
 /// 偵測主機上的 Agent 失敗(HTTPS 主機讀不到 herdr 快照)。

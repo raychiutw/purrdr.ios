@@ -360,8 +360,8 @@ struct HostStatusRow: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 10) {
-                if case .connecting = overview.status {
-                    // 第一次連線、還沒有狀態:同形狀的狀態卡骨架(#496)。
+                if overview.showsSkeleton {
+                    // 第一次連線、還沒有任何內容:同形狀的狀態卡骨架(#496);重連時保留最後已知的內容。
                     VStack(alignment: .leading, spacing: 10) {
                         SkeletonBlock(height: 18).containerRelativeFrame(.horizontal) { width, _ in width * 0.3 }
                         SkeletonBlock(height: 13).containerRelativeFrame(.horizontal) { width, _ in width * 0.62 }

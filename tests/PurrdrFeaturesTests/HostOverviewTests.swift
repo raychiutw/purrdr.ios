@@ -97,6 +97,23 @@ struct HostOverviewTests {
         #expect(model.overview?.status == .connecting)
     }
 
+    @Test("第一次連線、沒有任何內容才是骨架;重連(再試一次)時保留最後已知的內容(#496)")
+    func skeletonOnlyBeforeAnyContent() async {
+        let model = await Self.sshModel()
+        #expect(model.overview?.status == .connecting)
+        #expect(model.overview?.showsSkeleton == true, "第一次連線還沒有內容,要骨架")
+
+        await model.agentList.load()
+        #expect(model.overview?.status == .online)
+        #expect(model.overview?.showsSkeleton == false)
+        // 第二次讀取失敗(假主機只預期一次)→ 離線;再試一次回到連線中,但上次的 herdr 版本還在。
+        await model.agentList.load()
+        model.agentList.retry()
+        #expect(model.overview?.status == .connecting)
+        #expect(model.overview?.herdrVersion != nil)
+        #expect(model.overview?.showsSkeleton == false, "重連時不能把連線方式與 herdr 版本換成骨架")
+    }
+
     @Test("讀不到快照:離線,帶原因;保留最後連線時間")
     func offline() async {
         let model = await Self.sshModel(loading: false)
