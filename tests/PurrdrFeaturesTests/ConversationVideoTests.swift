@@ -293,4 +293,26 @@ struct ConversationVideoTests {
         #expect(uploads.map(\.name) == [Self.fileName])
         #expect(uploads.first?.data.count == 2_000)
     }
+
+    @Test("送出時上傳影片:顯示進度;取消後草稿與附件留著、不提示、不送出")
+    func cancelWhileUploading() async throws {
+        let setup = try await Self.opened(compressor: FakeVideoCompressor())
+        await setup.model.addVideo(displayName: "Demo.mov") { try Self.source(size: 2_000) }
+        await setup.uploader.hold()
+        setup.model.draft = "看這段錄影"
+
+        let sending = Task { await setup.model.send() }
+        for _ in 0..<400 where setup.model.uploadProgress?.fraction != 0.5 { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(setup.model.uploadProgress?.fraction == 0.5)
+        #expect(setup.model.uploadProgress?.displayName == "Demo.mp4" || setup.model.uploadProgress?.displayName == "Demo.mov")
+
+        setup.model.cancelUpload()
+        await sending.value
+
+        #expect(setup.model.uploadProgress == nil)
+        #expect(setup.model.notice == nil, "使用者自己取消不提示")
+        #expect(setup.model.draft == "看這段錄影")
+        #expect(setup.model.attachments.count == 1, "附件留著可以再送")
+        #expect(await setup.uploader.uploads.isEmpty)
+    }
 }

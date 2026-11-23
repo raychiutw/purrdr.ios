@@ -559,6 +559,13 @@ public final class ConversationModel {
         return .hostServiceUpdateRequired(installedVersion: installedVersion)
     }
 
+    /// 送出時上傳中的附件進度;沒有在上傳時是 `nil`。
+    public private(set) var uploadProgress: UploadProgress?
+    @ObservationIgnored private var uploadTask: Task<[String], any Error>?
+
+    /// 取消送出時的上傳(使用者按取消):附件與草稿留著,不提示。SSH 主機上的暫存檔因連線提早結束而刪掉。
+    public func cancelUpload() { uploadTask?.cancel() }
+
     /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗丟出那個錯誤：整則不送(F6.5)。
     private func uploadAttachments() async throws -> [String] {
         guard let images else {
@@ -573,8 +580,13 @@ public final class ConversationModel {
             }
             let name = attachments[index].fileName
             guard let url = images.store.url(of: name.value) else { throw CocoaError(.fileReadNoSuchFile) }
-            let data = try Data(contentsOf: url)
-            let path = try await images.uploader.upload(data, named: name)
+            // 分塊讀檔上傳(影片最多 25 MiB,不整份進記憶體),回報進度。
+            let source = try HostUploadSource.file(at: url)
+            uploadProgress = UploadProgress(displayName: attachments[index].displayName, fraction: 0)
+            defer { uploadProgress = nil }
+            let path = try await images.uploader.upload(source, named: name) { [weak self] fraction in
+                Task { @MainActor in self?.uploadProgress?.fraction = fraction }
+            }
             if let current = attachments.firstIndex(where: { $0.fileName == name }) {
                 attachments[current].uploadedPath = path
             }
@@ -1510,8 +1522,16 @@ public final class ConversationModel {
         rebuildEntries()
         // 圖片先逐張上傳;任何一張失敗 → 整則不送，草稿與圖片保留(F6.5、F7)。
         let paths: [String]
+        let upload = Task { try await uploadAttachments() }
+        uploadTask = upload
+        defer { uploadTask = nil }
         do {
-            paths = try await uploadAttachments()
+            paths = try await withTaskCancellationHandler { try await upload.value } onCancel: { upload.cancel() }
+        } catch is CancellationError {
+            // 使用者取消上傳:什麼都沒送出,草稿與附件留著,不提示。
+            removeEcho(echo.id)
+            putBackInDraft(text)
+            return
         } catch {
             removeEcho(echo.id)
             putBackInDraft(text)

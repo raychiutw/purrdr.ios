@@ -62,3 +62,11 @@ public struct VideoSourceFile: Sendable {
         self.discard = discard ?? url
     }
 }
+
+/// 送出時附件上傳中的進度(顯示百分比與取消)。
+public struct UploadProgress: Equatable, Sendable {
+    /// 正在上傳的那個附件的顯示名稱。
+    public var displayName: String
+    /// 0…1。
+    public var fraction: Double
+}
