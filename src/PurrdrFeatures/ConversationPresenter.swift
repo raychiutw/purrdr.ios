@@ -33,9 +33,10 @@ struct ExpansionState: DynamicProperty {
     var binding: Binding<Bool> {
         guard let expansion, let rowID = rowIDOverride ?? environmentRowID else { return $localExpanded }
         let partID = partID
+        // SwiftUI 只在主執行緒讀寫 Binding。
         return Binding(
-            get: { expansion.isExpanded(rowID, partID) },
-            set: { expansion.setExpanded($0, rowID, partID) })
+            get: { MainActor.assumeIsolated { expansion.isExpanded(rowID, partID) } },
+            set: { newValue in MainActor.assumeIsolated { expansion.setExpanded(newValue, rowID, partID) } })
     }
 
 }
