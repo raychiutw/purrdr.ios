@@ -32,20 +32,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public let paneID: String
     public let title: String
 
-    public private(set) var sizeMode: TerminalSizeMode
-    /// 電腦上 Pane 目前的格數(保留模式下取自 full frame)。
-    public private(set) var displaySize: TerminalGridSize?
-    public var supportsSizeMode: Bool { !isViewOnly }
-    public var keepsDesktopLayout: Bool { supportsSizeMode && sizeMode == .keepDesktop }
-    /// 保留電腦版面卻讀不到 Pane 在電腦上的格數(電腦沒開 herdr 等),這次是以手機的格數接上的(#357)。
-    public private(set) var keepDesktopFallback = false
-
-    private let defaults: UserDefaults
-    /// 保留模式下最後一次看到的電腦格數;換成配合手機後還要靠它還原。
-    private var desktopSize: TerminalGridSize?
     private let client: PaneTerminalClient
-    /// 讀 Pane 在電腦上的格數;保留模式接上時 handshake 帶它，herdr 一接上就把 Pane 改成 handshake 的尺寸(#357)。
-    private let nativeSize: (@Sendable () async -> TerminalGridSize?)?
     private let resizeDebounce: Duration
     /// 去抖用的等待;測試注入假的。
     private let sleep: Sleep
@@ -54,18 +41,20 @@ public final class PaneTerminalModel: TerminalSessionModel {
     private var outbox: AsyncStream<Outgoing>.Continuation?
     /// 每開一條新連線加一;舊連線晚到的事件依此丟棄。
     private var generation = 0
+    /// 是自己放開的(離開畫面)，回來時 `resume()` 才接回;連線中斷、被接管都不算。
+    private var isSuspended = false
+    /// 目前這條連線的開啟與寫入:寫入者送完 release、結束後才算完成。
+    private var connectTask: Task<Void, Never>?
+    /// 最近一次放開控制要等的工作(`released()`)。
+    private var releaseTask: Task<Void, Never>?
     private var resizeTask: Task<Void, Never>?
     private var renderer: ((Data) -> Void)?
     private var pending: [Data] = []
 
     public init(
         client: PaneTerminalClient, paneID: String, title: String, resizeDebounce: Duration = .milliseconds(250),
-        sleep: @escaping Sleep = Sleeping.task, defaults: UserDefaults = .standard,
-        nativeSize: (@Sendable () async -> TerminalGridSize?)? = nil
+        sleep: @escaping Sleep = Sleeping.task
     ) {
-        self.nativeSize = nativeSize
-        self.defaults = defaults
-        self.sizeMode = TerminalSizeSettings.mode(in: defaults)
         self.client = client
         self.paneID = paneID
         self.title = title
@@ -92,8 +81,8 @@ public final class PaneTerminalModel: TerminalSessionModel {
         switch status {
         case .connected where isViewOnly: String(localized: "This device is paired read-only. You can watch this pane but not type.")
         case .waitingForSize, .connecting, .connected: nil
-        case .disconnected: String(localized: "Reconnect to pick up where this pane is now.")
-        case .inUse: String(localized: "Someone else is controlling this pane. Take over to use it here.")
+        case .disconnected: String(localized: "The connection dropped. Reconnect to pick up where this pane is now.")
+        case .inUse: String(localized: "The host is using this pane. Take over to use it here.")
         case .takenOver: String(localized: "Another device took over this pane.")
         case .ended: String(localized: "The program in this pane has exited.")
         case .unavailable(let reason): reason
@@ -110,6 +99,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
     /// 本機 scrollback 是空的(herdr 每次都重畫整個 viewport):滑動送 `terminal.scroll`。
     public var usesRemoteScroll: Bool { true }
     public var seesProgramModes: Bool { false }
+    public var resizesWithKeyboard: Bool { false }
 
     // MARK: - 畫面
 
@@ -130,8 +120,6 @@ public final class PaneTerminalModel: TerminalSessionModel {
             connect(takeover: false)
             return
         }
-        // 保留電腦版面:手機大小只記著(切換模式時用),不送給主機。
-        guard !keepsDesktopLayout else { return }
         resizeTask?.cancel()
         let debounce = resizeDebounce
         let sleep = sleep
@@ -160,15 +148,31 @@ public final class PaneTerminalModel: TerminalSessionModel {
         connect(takeover: true)
     }
 
-    /// 掛斷：送 release、關閉通道(離開畫面、App 進背景)。不會自動重連。
+    /// 回到畫面(回到前景、切回這個 tab):離開時是自己放開的,就以同一組手機格數重新接上。
+    /// 之後被別人佔著就停在「被佔用」並提供接管，不自動搶。
+    public func resume() {
+        guard isSuspended else { return }
+        connect(takeover: false)
+    }
+
+    /// 等 release 送出、通道關閉:進背景時 App 要等它完成才能被系統凍結。
+    public func released() async {
+        await releaseTask?.value
+    }
+
+    /// 放開控制:送 release、關閉通道,Pane 在電腦上還原成原本的尺寸(離開畫面、App 進背景或鎖定)。
+    /// 回到畫面時由 `resume()` 重新套用。
     public func hangUp() {
         resizeTask?.cancel()
         generation += 1
         outbox?.yield(.release)
         outbox?.finish()
         outbox = nil
+        releaseTask = connectTask
         switch status {
-        case .connecting, .connected: status = .disconnected
+        case .connecting, .connected:
+            status = .disconnected
+            isSuspended = true
         default: break
         }
     }
@@ -178,27 +182,18 @@ public final class PaneTerminalModel: TerminalSessionModel {
         outbox?.finish()
         generation += 1
         let generation = generation
+        isSuspended = false
         status = .connecting
         sentSize = size
         let (outgoing, outbox) = AsyncStream<Outgoing>.makeStream()
         self.outbox = outbox
         let client = client
         let paneID = paneID
-        let lookup = sizeMode == .keepDesktop ? nativeSize : nil
-        let wantsDesktop = sizeMode == .keepDesktop
-        Task { [weak self] in
-            // 保留電腦版面:帶 Pane 目前的格數,讀不到才退回手機的格數。
-            var handshake = size
-            var fellBack = wantsDesktop
-            if let native = await lookup?() {
-                handshake = (min(native.columns, Self.maxColumns), min(native.rows, Self.maxRows))
-                fellBack = false
-            }
-            if let self, self.generation == generation { self.keepDesktopFallback = fellBack }
+        connectTask = Task { [weak self] in
             let connection: PaneTerminalConnection
             do {
                 connection = try await client.control(
-                    target: paneID, columns: handshake.columns, rows: handshake.rows, takeover: takeover
+                    target: paneID, columns: size.columns, rows: size.rows, takeover: takeover
                 )
             } catch {
                 self?.finish(.disconnected, generation: generation)
@@ -216,14 +211,19 @@ public final class PaneTerminalModel: TerminalSessionModel {
                 }
                 await connection.release()
             }
-            for await event in connection.events {
-                guard let self, self.generation == generation else { break }
-                self.handle(event)
+            // 讀事件另開:放開控制後(世代已換)寫入者要照常把 release 送完，不能被這裡取消。
+            Task { [weak self] in
+                for await event in connection.events {
+                    guard let self, self.generation == generation else { return }
+                    self.handle(event)
+                }
+                guard let self, self.generation == generation else { return }
+                writer.cancel()
+                if self.status == .connecting || self.status == .connected {
+                    self.status = .disconnected
+                }
             }
-            writer.cancel()
-            if let self, self.generation == generation, self.status == .connecting || self.status == .connected {
-                self.status = .disconnected
-            }
+            await writer.value
         }
     }
 
@@ -232,13 +232,8 @@ public final class PaneTerminalModel: TerminalSessionModel {
         case .frame(let frame):
             if status == .connecting {
                 status = .connected
-                // 開啟期間尺寸變了：handshake 用的是舊格數，補送一次(保留模式不送)。
-                if !keepsDesktopLayout { sendResizeIfNeeded() }
-            }
-            if frame.full, keepsDesktopLayout {
-                let size = TerminalGridSize(columns: frame.columns, rows: frame.rows)
-                desktopSize = size
-                displaySize = size
+                // 開啟期間尺寸變了：handshake 用的是舊格數，補送一次。
+                sendResizeIfNeeded()
             }
             render(frame.bytes)
         case .closed(let reason):
@@ -332,25 +327,6 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int) {
         guard isInteractive, rows > 0 else { return }
         outbox?.yield(.input(.scroll(direction, lines: rows, column: 0, row: 0, source: .pageKey)))
-    }
-
-    // MARK: - 大小模式
-
-    /// 切換大小模式並記在這支裝置。已連線時:換成配合手機立刻送一次手機的格數;換回保留則把電腦原本的格數還回去。
-    public func setSizeMode(_ mode: TerminalSizeMode) {
-        guard mode != sizeMode else { return }
-        sizeMode = mode
-        TerminalSizeSettings.setMode(mode, in: defaults)
-        guard isInteractive else { return }
-        switch mode {
-        case .fitPhone:
-            sentSize = nil
-            sendResizeIfNeeded()
-        case .keepDesktop:
-            guard let desktopSize else { return }
-            sentSize = (desktopSize.columns, desktopSize.rows)
-            outbox?.yield(.input(.resize(columns: desktopSize.columns, rows: desktopSize.rows)))
-        }
     }
 
     // MARK: - 字級

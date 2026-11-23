@@ -3908,17 +3908,6 @@
         }
       }
     },
-    "Couldn’t read this pane’s size on your computer, so it opened at this phone’s size. Open it again once herdr is running there." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "讀不到這個 Pane 在主機上的大小，所以改用這支手機的大小開啟。等主機上的 herdr 開著之後再開一次。"
-          }
-        }
-      }
-    },
     "Couldn’t remove this host from this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5118,17 +5107,6 @@
         }
       }
     },
-    "Fit This Phone" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "配合這支手機"
-          }
-        }
-      }
-    },
     "Focused" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6316,17 +6294,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "繼續編輯"
-          }
-        }
-      }
-    },
-    "Keep Host Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保留主機版面"
           }
         }
       }
@@ -8443,17 +8410,6 @@
         }
       }
     },
-    "Opens the size options." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟大小選項。"
-          }
-        }
-      }
-    },
     "Opens the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9759,17 +9715,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新連線"
-          }
-        }
-      }
-    },
-    "Reconnect to pick up where this pane is now." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新連線以接上這個 Pane 目前的畫面。"
           }
         }
       }
@@ -11347,17 +11292,6 @@
         }
       }
     },
-    "Size" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "大小"
-          }
-        }
-      }
-    },
     "Skip" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11398,17 +11332,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "縮小文字"
-          }
-        }
-      }
-    },
-    "Someone else is controlling this pane. Take over to use it here." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "有人正在操作這個 Pane。接管後就能在這裡使用。"
           }
         }
       }
@@ -12460,6 +12383,17 @@
         }
       }
     },
+    "The connection dropped. Reconnect to pick up where this pane is now." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線中斷了。重新連線以接上這個 Pane 目前的畫面。"
+          }
+        }
+      }
+    },
     "The connection dropped. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12691,6 +12625,17 @@
         }
       }
     },
+    "The host is using this pane. Take over to use it here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機正在操作這個 Pane。接管後就能在這裡使用。"
+          }
+        }
+      }
+    },
     "The host needs curl to send a test notification." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12786,17 +12731,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "金鑰只留在這支裝置，不會離開。照上面的步驟讓這支裝置登入。"
-          }
-        }
-      }
-    },
-    "The layout on your computer changes to match this phone, and returns when you leave." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機上的版面會跟著這支手機變動,離開後恢復。"
           }
         }
       }
@@ -14085,17 +14019,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要貼上的內容太大，無法送到終端機。"
-          }
-        }
-      }
-    },
-    "This phone shows the pane at your computer’s size, so the layout on your computer doesn’t change." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這支手機以主機上的 Pane 大小顯示,主機上的版面不會改變。"
           }
         }
       }
@@ -15548,17 +15471,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你離開期間 · %@ · 工作 %lld 分鐘"
-          }
-        }
-      }
-    },
-    "While you’re connected, the pane keeps this size, even if you resize the window on your computer." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連線期間，這個 Pane 會維持這個大小，就算你在主機上調整視窗也一樣。"
           }
         }
       }

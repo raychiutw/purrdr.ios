@@ -368,3 +368,21 @@ $ … observe w1:p1 --cols 50 --rows 30
 - 接上期間不送 `terminal.resize`;電腦端在接上期間改視窗不會生效(Pane 被鎖住),sheet 的 footer 也說明。
 - 唯讀裝置(observe)同樣帶推算出的尺寸,viewport 才不會比 Pane 小而被從左上角裁切。
 - 尚未驗證:經真正的 SSH 與主機服務各跑一次;電腦 client 停在別的 workspace／tab 時的 `rect` 與 PTY 關係。
+
+#### 定案做法(Heeler)的離開還原實測(#357,2026-11-23)
+
+只對自建的 `purrdr-test` workspace 的 Pane 操作(測完以 id 關閉)。數字是 PTY 列數(macOS 另以 `stty size` 核對欄數);基準是接上前 Pane 在主機上的尺寸。
+
+| 情境 | macOS 直接執行 | Windows 經 OpenSSH exec | HTTPS 主機服務(macOS／Windows) |
+|---|---|---|---|
+| 以 40×12 接上 | 12 列 40 欄 | 12 列 | 12 列 |
+| 接上期間 resize 60×15(旋轉) | 15 列 60 欄 | 15 列 | 15 列 |
+| release 後 | 還原(33 列 163 欄) | 還原(32 列) | 還原 |
+| 回來重新接上(`resume`) | — | — | 15 列(以同一組格數) |
+| 被終止:SIGKILL 的 CLI／切斷 ssh／WSS 斷線(不送 release) | 還原 | 還原 | 還原 |
+| 只關 stdin(無 release) | 還原 | 還原 | — |
+| 快速進出 6～8 次(一半未收到 frame 就放開) | 還原 | 還原 | 還原 |
+| 同時第二個 control | 被拒「already has an attached client」,結束後仍是基準 | 同左 | — |
+
+- 沒有殘留程序:Windows 上以 CIM 查 `terminal session` 沒有留下 herdr 子行程。自己啟動的第二個主機服務(`--state-dir` 指到暫存資料夾)在 ssh 斷線後 `purrdr-host-service.exe` 仍留在 Windows(只有本機 ssh 被殺,遠端 exe 沒跟著結束),測完以 PID 手動清掉;這是測試方式造成,不是 app 的行為。
+- 沒測:macOS 經 SSH(本機 Remote Login 沒開,`ssh localhost` 被拒;herdr 行為與直接執行同一指令)。
