@@ -106,7 +106,25 @@ private struct PresentedSheet<Sheet: View>: ViewModifier {
     }
 }
 
+private struct ListContextMenu<MenuItems: View>: ViewModifier {
+    @ViewBuilder let items: () -> MenuItems
+    @Environment(\.conversationPresenter) private var presenter
+
+    func body(content: Content) -> some View {
+        if presenter != nil {
+            content
+        } else {
+            content.contextMenu(menuItems: items)
+        }
+    }
+}
+
 extension View {
+    /// 長按選單:在對話列表裡由列表(UIKit)提供,才能知道選單何時開著(#488);其他畫面維持 SwiftUI `contextMenu`。
+    func listContextMenu<MenuItems: View>(@ViewBuilder items: @escaping () -> MenuItems) -> some View {
+        modifier(ListContextMenu(items: items))
+    }
+
     /// 預覽檔案:有對話呈現者時交給它，否則自己呈現。
     func presentedQuickLook(_ file: Binding<URL?>) -> some View {
         modifier(PresentedQuickLook(file: file))

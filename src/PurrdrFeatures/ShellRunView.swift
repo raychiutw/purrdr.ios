@@ -126,7 +126,7 @@ struct ShellRunView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12))
-        .contextMenu {
+        .listContextMenu {
             if let output = display.copyableOutput {
                 Button("Copy Output", systemImage: "document.on.document") { Clipboard.copy(output) }
             }

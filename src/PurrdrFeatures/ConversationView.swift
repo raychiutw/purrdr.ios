@@ -246,6 +246,50 @@ public struct ConversationView: View {
         )
     }
 
+    /// 列的長按選單項目(#488):檔案卡片、圖片卡片、shell 區塊;項目與規則同舊列表,其他列沒有(留給文字選取)。
+    /// 選單由列表(UIKit)呈現,開著時列表暫停捲動與套用內容。
+    private func menuEntries(for rowContent: ChatListRowContent) -> [ChatListMenuEntry] {
+        #if os(iOS)
+        guard case .entry(let row, _) = rowContent, case .item(let item) = row.entry else { return [] }
+        switch item {
+        case .agentFile(let card) where card.file.isImageFromAgent:
+            return ChatListMenuPlan.items(for: .image).map { menuEntry($0, card: card, display: AgentFileCardDisplay(file: card.file)) }
+        case .agentFile(let card):
+            let display = AgentFileCardDisplay(file: card.file)
+            let shareableFile = AgentFileOpenDisplay(state: model.agentFiles?.opens[card.file.path]).shareableFile
+            let kind = ChatListMenuKind.file(hasCopyableContent: display.copyableContent != nil, hasShareableFile: shareableFile != nil)
+            return ChatListMenuPlan.items(for: kind).map { menuEntry($0, card: card, display: display, shareableFile: shareableFile) }
+        case .shell(let run):
+            let output = ShellRunDisplay(run: run).copyableOutput
+            return ChatListMenuPlan.items(for: .shell(hasCopyableOutput: output != nil)).map { menuItem in
+                switch menuItem {
+                case .copyOutput: ChatListMenuEntry(item: menuItem) { if let output { Clipboard.copy(output) } }
+                default: ChatListMenuEntry(item: menuItem) { Clipboard.copy(run.command) }
+                }
+            }
+        default:
+            return []
+        }
+        #else
+        return []
+        #endif
+    }
+
+    #if os(iOS)
+    private func menuEntry(_ menuItem: ChatListMenuItem, card: AgentFileCard, display: AgentFileCardDisplay, shareableFile: URL? = nil) -> ChatListMenuEntry {
+        switch menuItem {
+        case .details:
+            ChatListMenuEntry(item: menuItem) { presentedSheet = ConversationSheetContent(content: AnyView(AgentFileDetailsSheet(card: card, display: display))) }
+        case .copyContent:
+            ChatListMenuEntry(item: menuItem) { if let content = display.copyableContent { Clipboard.copy(content) } }
+        case .share:
+            ChatListMenuEntry(item: menuItem, shareURL: shareableFile)
+        default:
+            ChatListMenuEntry(item: menuItem) { Clipboard.copy(card.file.path) }
+        }
+    }
+    #endif
+
     @ViewBuilder
     private func rowBody(_ rowContent: ChatListRowContent) -> some View {
         switch rowContent {
@@ -291,7 +335,7 @@ public struct ConversationView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             ChatListView(
-                content: listContent, model: model, handle: listHandle, rowView: { rowView($0) },
+                content: listContent, model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
                 smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
                 onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
                 onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) }

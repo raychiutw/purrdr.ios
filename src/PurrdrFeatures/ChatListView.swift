@@ -41,6 +41,8 @@ struct ChatListView: UIViewControllerRepresentable {
     let model: ConversationModel
     let handle: ChatListHandle
     let rowView: (ChatListRowContent) -> AnyView
+    /// 一列長按選單的項目(空陣列表示這一列沒有選單,留給文字選取)。
+    let menuEntries: (ChatListRowContent) -> [ChatListMenuEntry]
     let smoothness: (any ScrollSmoothnessReporting)?
     /// 避開玻璃導覽列、橫幅與輸入列後的安全區域框(全域座標):列表延伸到玻璃底下,上下留白由它與列表框的差決定。
     let safeAreaFrame: CGRect
@@ -58,6 +60,7 @@ struct ChatListView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: ChatListViewController, context: Context) {
         controller.rowView = rowView
+        controller.menuEntries = menuEntries
         controller.smoothness = smoothness
         controller.safeAreaFrame = safeAreaFrame
         controller.onShowsJumpToLatestChanged = onShowsJumpToLatestChanged
@@ -78,6 +81,7 @@ struct ChatListView: UIViewControllerRepresentable {
 final class ChatListViewController: UIViewController, UICollectionViewDelegate, UIGestureRecognizerDelegate {
     var model: ConversationModel?
     var rowView: (ChatListRowContent) -> AnyView = { _ in AnyView(EmptyView()) }
+    var menuEntries: (ChatListRowContent) -> [ChatListMenuEntry] = { _ in [] }
     var smoothness: (any ScrollSmoothnessReporting)?
     var safeAreaFrame: CGRect = .zero
     var onShowsJumpToLatestChanged: (Bool) -> Void = { _ in }
@@ -94,7 +98,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     /// 拖曳、鍵盤動畫、選單開著時先留著的最新內容,安全了再套用。
     private var pendingContent: ChatListContent?
     private var isKeyboardAnimating = false
-    private var isMenuOpen = false
+    private var menuTracker = ChatListMenuTracker()
+    private var isMenuOpen: Bool { menuTracker.isOpen }
 
     private var decider = ConversationScrollDecider()
     private var flushTask: Task<Void, Never>?
@@ -485,6 +490,59 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
         guard decider.isFollowingLatest, abs(distanceFromBottom) > 1 else { return }
         scrollToBottom(animated: false)
+    }
+
+    // MARK: - 長按選單
+
+    func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemAt indexPath: IndexPath, point: CGPoint)
+        -> UIContextMenuConfiguration? {
+        guard let id = dataSource.itemIdentifier(for: indexPath), let rowContent = content.rows[id] else { return nil }
+        let entries = menuEntries(rowContent)
+        guard !entries.isEmpty else { return nil }
+        return UIContextMenuConfiguration(identifier: id as NSString, previewProvider: nil) { [weak self] _ in
+            let actions = entries.map { entry in
+                UIAction(title: entry.item.title, image: UIImage(systemName: entry.item.symbolName)) { _ in
+                    if let shareURL = entry.shareURL {
+                        self?.presentShare(shareURL, from: indexPath)
+                    } else {
+                        entry.perform()
+                    }
+                }
+            }
+            return UIMenu(children: actions)
+        }
+    }
+
+    func collectionView(_ collectionView: UICollectionView, willDisplayContextMenu configuration: UIContextMenuConfiguration, animator: (any UIContextMenuInteractionAnimating)?) {
+        menuChanged(isOpen: true)
+    }
+
+    /// 選單收起的動畫結束後才算關閉:預覽飛回原處時列表不能動。
+    func collectionView(_ collectionView: UICollectionView, willEndContextMenuInteraction configuration: UIContextMenuConfiguration, animator: (any UIContextMenuInteractionAnimating)?) {
+        guard let animator else {
+            menuChanged(isOpen: false)
+            return
+        }
+        animator.addCompletion { [weak self] in
+            Task { @MainActor in self?.menuChanged(isOpen: false) }
+        }
+    }
+
+    private func menuChanged(isOpen: Bool) {
+        guard let changedTo = menuTracker.menuDidChange(isOpen: isOpen) else { return }
+        decider.receive(.menu(isOpen: changedTo))
+        guard !changedTo else { return }
+        applyPendingContentIfSafe()
+        scheduleFlush(after: 0.05)
+    }
+
+    private func presentShare(_ url: URL, from indexPath: IndexPath) {
+        let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        if let popover = sheet.popoverPresentationController, let cell = collectionView.cellForItem(at: indexPath) {
+            popover.sourceView = cell
+            popover.sourceRect = cell.bounds
+        }
+        present(sheet, animated: true)
     }
 
     // MARK: - 下拉重新整理、鍵盤、點擊
