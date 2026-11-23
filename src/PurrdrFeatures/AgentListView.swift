@@ -89,11 +89,10 @@ public struct AgentListView: View {
             await model.runNotes()
         }
         // 有主機在連線時每秒更新現在時間，連線狀態行到 10 秒換成「仍在連線」(#221)。
-        .task(id: hasConnectingHosts) {
-            while hasConnectingHosts, !Task.isCancelled {
-                now = Date()
-                try? await Task.sleep(for: .seconds(1))
-            }
+        // 只在前景跑，過了門檻(「仍在連線」)就停(#492)。
+        .task(id: ConnectingClockKey(active: scenePhase == .active, needsTicks: needsConnectingTicks)) {
+            await ConnectingClock.run(
+                isActive: scenePhase == .active, needsTicks: { needsConnectingTicks }, tick: { now = $0 }, sleep: Sleeping.task)
         }
         // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
         .task(id: model.agentRows.filter(\.isAway).map(\.id)) {
@@ -112,7 +111,12 @@ public struct AgentListView: View {
         return model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty
     }
 
-    private var hasConnectingHosts: Bool { !model.hostStatuses(at: now).isEmpty }
+    private var needsConnectingTicks: Bool { ConnectingClock.needsTicks(for: model.hostStatuses(at: now)) }
+
+    private struct ConnectingClockKey: Equatable {
+        var active: Bool
+        var needsTicks: Bool
+    }
 
     /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
     private var sections: [AgentSection] {
