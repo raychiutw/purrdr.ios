@@ -9,7 +9,7 @@
 <body>
 <x-dc>
 <helmet><style>body{margin:0}</style></helmet>
-<div class="board" style="width:1760px;height:980px">
+<div class="board" style="width:2640px;height:980px">
 <sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
 <div class="col">
 <div class="cap">{{t.name}} · 主機頁:這台主機的 Agent</div>
@@ -50,10 +50,23 @@
 </div>
 </div>
 </div>
+<div class="col">
+<div class="cap">{{t.name}} · 方案用量頁:這台主機沒有啟用任何 Agent</div>
+<div class="phone grouped {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><span style="font-size:17px;font-weight:600">方案用量</span></div>
+</div>
+<div class="gl">
+<div class="card"><div class="cell"><span class="cb"><span class="main">主機</span><span style="color:var(--sec);display:flex;align-items:center;gap:6px">Ray PC<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></span></div></div>
+<div class="cuv" style="top:160px;bottom:0"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l3-8h12l3 8v6H3z M3 13h5l1 2h6l1-2h5"></path></svg><div class="ttl">還沒有開啟任何 Agent</div><div class="msg">到「主機」分頁的「Agent」開啟。</div></div>
+</div>
+</div>
+</div>
 </sc-for>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2640,"height":980}}'>
 class Component extends DCLogic {
   renderVals() {
     const A = (av, kind, name, sub, on) => ({ av, kind, name, sub, on: on ? 'on' : '', checked: on ? 'true' : 'false' });

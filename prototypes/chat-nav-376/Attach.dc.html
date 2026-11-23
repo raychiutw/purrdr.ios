@@ -9,7 +9,7 @@
 <body>
 <x-dc>
 <helmet><style>body{margin:0}</style></helmet>
-<div class="board" style="width:5280px;height:980px">
+<div class="board" style="width:7920px;height:980px">
 <sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
 <div class="col">
 <div class="cap">{{t.name}} · 點輸入列的 +</div>
@@ -76,10 +76,58 @@
 </div>
 </div>
 <div class="col">
-<div class="cap">{{t.name}} · 影片已加入</div>
+<div class="cap">{{t.name}} · 影片已加入(說明收起,只有 chevron)</div>
 <div class="phone {{t.cls}}">
 <div class="msgs"><div>好,PR 已開好,CI 正在跑。</div></div>
-<div style="position:absolute;left:16px;bottom:150px;z-index:3"><div style="position:relative;width:176px;height:64px;border-radius:14px;background:var(--fill);display:flex;align-items:center;gap:10px;padding:0 10px;box-sizing:border-box"><span style="width:38px;height:38px;border-radius:10px;background:var(--scard);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h8l5 5v13H6z"></path></svg></span><span style="display:flex;flex-direction:column;min-width:0"><span style="font-size:14px;font-weight:600;white-space:nowrap">Demo.mov</span><span style="font-size:12px;color:var(--sec)">3 KB</span></span><button aria-label="移除 Demo.mov" style="position:absolute;top:-10px;right:-10px;width:44px;height:44px;border:none;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span style="width:22px;height:22px;border-radius:11px;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button></div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:146px;z-index:3"><div style="position:relative;width:208px;height:72px;border-radius:14px;background:var(--fill);display:flex;align-items:center;gap:10px;padding:0 10px;box-sizing:border-box"><span style="width:52px;height:52px;border-radius:10px;background:#2B2B2E;display:flex;align-items:center;justify-content:center;color:#FFFFFF;flex-shrink:0" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"></path></svg></span><span style="display:flex;flex-direction:column;min-width:0"><span style="font-size:14px;font-weight:600;white-space:nowrap">Demo.mov</span><span style="font-size:12px;color:var(--sec)">0:01 · 3 KB</span></span><button aria-label="移除 Demo.mov" style="position:absolute;top:-10px;right:-10px;width:44px;height:44px;border:none;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span style="width:22px;height:22px;border-radius:11px;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button></div><div style="width:344px;padding-top:6px"><div role="button" aria-expanded="false" style="display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--accent);height:28px"><span>關於影片</span><span style="color:var(--text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div></div></div>
+<div class="composer-x glass" style="bottom:34px">
+<div class="txt" style="min-height:30px;color:var(--sec)">訊息</div>
+<div style="display:flex;align-items:center;gap:6px">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button class="chip" aria-label="模型 Opus 5.5,投入程度中"><span>Opus 5.5</span><span style="color:var(--sec)">中</span></button>
+<span style="flex-grow:1"></span>
+<button class="cbtn send" aria-label="送出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 影片已加入(展開「關於影片」)</div>
+<div class="phone {{t.cls}}">
+<div class="msgs"><div>好,PR 已開好,CI 正在跑。</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:146px;z-index:3"><div style="position:relative;width:208px;height:72px;border-radius:14px;background:var(--fill);display:flex;align-items:center;gap:10px;padding:0 10px;box-sizing:border-box"><span style="width:52px;height:52px;border-radius:10px;background:#2B2B2E;display:flex;align-items:center;justify-content:center;color:#FFFFFF;flex-shrink:0" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"></path></svg></span><span style="display:flex;flex-direction:column;min-width:0"><span style="font-size:14px;font-weight:600;white-space:nowrap">Demo.mov</span><span style="font-size:12px;color:var(--sec)">0:01 · 3 KB</span></span><button aria-label="移除 Demo.mov" style="position:absolute;top:-10px;right:-10px;width:44px;height:44px;border:none;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span style="width:22px;height:22px;border-radius:11px;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button></div><div style="width:344px;padding-top:6px"><div role="button" aria-expanded="true" style="display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--accent);height:28px"><span>關於影片</span><span style="color:var(--text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"></path></svg></span></div><div style="font-size:13px;color:var(--sec);padding-top:4px">Agent 不一定看得懂影片。</div></div></div>
+<div class="composer-x glass" style="bottom:34px">
+<div class="txt" style="min-height:30px;color:var(--sec)">訊息</div>
+<div style="display:flex;align-items:center;gap:6px">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button class="chip" aria-label="模型 Opus 5.5,投入程度中"><span>Opus 5.5</span><span style="color:var(--sec)">中</span></button>
+<span style="flex-grow:1"></span>
+<button class="cbtn send" aria-label="送出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 上傳進度(百分比與取消)</div>
+<div class="phone {{t.cls}}">
+<div class="msgs"><div>好,PR 已開好,CI 正在跑。</div></div>
+<div class="glass" role="status" aria-label="正在傳送 Demo.mov,42%" style="position:absolute;left:16px;right:16px;bottom:146px;height:60px;border-radius:30px;padding:0 8px 0 16px;display:flex;align-items:center;gap:12px;z-index:3"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="var(--sep)" stroke-width="3"></circle><circle cx="12" cy="12" r="9" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-dasharray="56.5" stroke-dashoffset="32.77" transform="rotate(-90 12 12)"></circle></svg><span style="display:flex;flex-direction:column;flex-grow:1;min-width:0"><span style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">正在傳送 Demo.mov…</span><span style="font-size:12px;color:var(--sec);font-variant-numeric:tabular-nums">42%</span></span><button class="btn-plain" style="font-size:15px;color:var(--accent);font-weight:600;min-width:44px;height:44px">取消</button></div>
+<div class="composer-x glass" style="bottom:34px">
+<div class="txt" style="min-height:30px;color:var(--sec)">訊息</div>
+<div style="display:flex;align-items:center;gap:6px">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button class="chip" aria-label="模型 Opus 5.5,投入程度中"><span>Opus 5.5</span><span style="color:var(--sec)">中</span></button>
+<span style="flex-grow:1"></span>
+<button class="cbtn send" aria-label="送出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 行動網路上傳大影片(≥ 10 MiB)送出前確認</div>
+<div class="phone {{t.cls}}">
+<div class="msgs"><div>好,PR 已開好,CI 正在跑。</div></div>
+<div style="position:absolute;left:16px;right:16px;bottom:146px;z-index:3"><div style="position:relative;width:208px;height:72px;border-radius:14px;background:var(--fill);display:flex;align-items:center;gap:10px;padding:0 10px;box-sizing:border-box"><span style="width:52px;height:52px;border-radius:10px;background:#2B2B2E;display:flex;align-items:center;justify-content:center;color:#FFFFFF;flex-shrink:0" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"></path></svg></span><span style="display:flex;flex-direction:column;min-width:0"><span style="font-size:14px;font-weight:600;white-space:nowrap">Demo.mov</span><span style="font-size:12px;color:var(--sec)">0:01 · 12 MB</span></span><button aria-label="移除 Demo.mov" style="position:absolute;top:-10px;right:-10px;width:44px;height:44px;border:none;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span style="width:22px;height:22px;border-radius:11px;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button></div><div style="width:344px;padding-top:6px"><div role="button" aria-expanded="false" style="display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--accent);height:28px"><span>關於影片</span><span style="color:var(--text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div></div></div><div style="position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:9"></div><div role="alertdialog" aria-label="要用行動網路傳送嗎?" style="position:absolute;left:36px;right:36px;top:300px;border-radius:24px;background:var(--scard);z-index:10;overflow:hidden;text-align:center"><div style="padding:22px 18px 16px;display:flex;flex-direction:column;gap:8px"><div style="font-size:17px;font-weight:600">要用行動網路傳送嗎?</div><div style="font-size:13px;line-height:1.45">傳這支影片會用掉約 12 MB 的行動網路流量。</div></div><div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px"><button style="height:48px;border:none;border-radius:24px;background:transparent;color:var(--accent);font-size:17px;font-weight:600">仍要送出</button><button style="height:48px;border:none;border-radius:24px;background:var(--fill);color:var(--text);font-size:17px">取消</button></div></div>
 <div class="composer-x glass" style="bottom:34px">
 <div class="txt" style="min-height:30px;color:var(--sec)">訊息</div>
 <div style="display:flex;align-items:center;gap:6px">
@@ -140,7 +188,7 @@
 </sc-for>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":5280,"height":980}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":7920,"height":980}}'>
 class Component extends DCLogic {
   renderVals() {
     const tiles = ['#B9C2C9', '#C9B8A6', '#A9BDB3', '#C3C0CF'];

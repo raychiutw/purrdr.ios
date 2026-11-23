@@ -59,7 +59,7 @@ class Component extends DCLogic {
         { ...base, label: 'Pane 終端機(顯示時以手機格數接上;離開即還原電腦尺寸)' },
         { ...base, kb: true, outTop: '112px', barBottom: '306px', label: '鍵盤展開(列數不變,畫面只上移)' },
         { ...base, status: '連線中斷', dot: 'var(--red)', banner: '連線中斷,Pane 已還原尺寸', bannerAction: '重新連線', outTop: '186px', label: '連線中斷' },
-        { ...base, status: '主機正在操作 · 接管', dot: 'var(--orange)', banner: '主機正在操作這個 Pane', bannerAction: '接管', bannerIcon: 'var(--orange)', outTop: '186px', label: '主機上正在操作' },
+        { ...base, status: '主機正在操作 · 接管', dot: 'var(--orange)', banner: '主機上有人正在使用。點「接管」就能在這裡使用。', bannerAction: '接管', bannerIcon: 'var(--orange)', outTop: '186px', label: '主機上正在操作' },
         { ...base, title: '登入 Shell', status: '已連線 · Ray Mac Mini', label: '登入 Shell(手機自己的 shell)' }
       ],
       keys: [
