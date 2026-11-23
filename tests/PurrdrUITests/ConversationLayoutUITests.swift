@@ -48,4 +48,50 @@ final class ConversationLayoutUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(bar.frame.minX, 15, "膠囊超出左右邊界")
     }
 
+
+    /// 返回後 tab bar 與畫面同時就位(#495):點返回時轉場已結束(tap 會等 app 閒置),
+    /// tab bar 落後超過 0.1 秒就是「轉場後才冒出」。
+    @MainActor
+    private func expectTabBarReturnsWithBack(_ app: XCUIApplication, _ tabBar: XCUIElement, _ label: String) {
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        let start = Date()
+        back.tap()
+        let tapReturned = Date().timeIntervalSince(start)
+        var lag: TimeInterval?
+        while Date().timeIntervalSince(start) < 5 {
+            if tabBar.exists, tabBar.isHittable { lag = Date().timeIntervalSince(start) - tapReturned; break }
+        }
+        print("TABBAR-LATENCY \(label) tapReturned=\(String(format: "%.3f", tapReturned)) lag=\(lag.map { String(format: "%.3f", $0) } ?? "never")")
+        XCTAssertNotNil(lag, "\(label):返回後 tab bar 沒有回來")
+        XCTAssertLessThanOrEqual(lag ?? 99, 0.1, "\(label):tab bar 在返回轉場結束後才出現")
+    }
+
+    /// 帶動畫從聊天返回列表,tab bar 與列表同時出現;對話裡不能有 tab bar。
+    @MainActor
+    func testTabBarReturnsTogetherWithListOnBack() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAnimations"])
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitUntilExists(timeout: 10))
+        let row = app.descendants(matching: .any)[chatRowID("w1:p1")].firstMatch
+        XCTAssertTrue(app.reveal(row))
+        row.tap()
+        XCTAssertTrue(app.element("conversation.header").waitUntilExistsAndSettled(timeout: 15))
+        XCTAssertTrue(tabBar.waitUntilGone(timeout: 5), "對話裡不該有 tab bar")
+        expectTabBarReturnsWithBack(app, tabBar, "chat")
+    }
+
+    /// 對照組:主機 tab 的第二層(登入 Shell)返回,同樣量測。
+    @MainActor
+    func testTabBarReturnsTogetherOnHostsTabBack() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAnimations", "-seedHost"])
+        app.openHostsTab()
+        let tabBar = app.tabBars.firstMatch
+        let item = app.overviewRow("hosts.tool.loginShell")
+        XCTAssertTrue(item.exists, "主機 tab 沒有登入 Shell")
+        item.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["terminal.screen"].firstMatch.waitUntilExists(timeout: 10))
+        XCTAssertTrue(tabBar.waitUntilGone(timeout: 5), "登入 Shell 裡不該有 tab bar")
+        print("NAVDEBUG", app.navigationBars.debugDescription)
+        expectTabBarReturnsWithBack(app, tabBar, "hosts-shell")
+    }
 }
