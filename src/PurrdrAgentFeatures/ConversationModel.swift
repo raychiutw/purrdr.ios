@@ -1847,8 +1847,14 @@ public final class ConversationModel {
         reportedCaret = (filled.draft, filled.caret)
         draft = filled.draft
         pickedHint = command.argumentHint.map { (draft, $0) }
+        pickedSlashNames.insert(command.name)
         lastSlashInsertion = SlashInsertion(name: command.name, sequence: (lastSlashInsertion?.sequence ?? 0) + 1)
     }
+
+    /// 訊息中間要上色的指令名稱(#469):這個聊天的 slash 清單(非內建)加上從選單選用過的名稱。輸入框與使用者泡泡共用。
+    public var inlineSlashNames: Set<String> { slash.inlineNames.union(pickedSlashNames) }
+
+    private var pickedSlashNames: Set<String> = []
 
     /// 最近一次選定插入的指令(VoiceOver 念出插入了哪個指令)。
     public private(set) var lastSlashInsertion: SlashInsertion?

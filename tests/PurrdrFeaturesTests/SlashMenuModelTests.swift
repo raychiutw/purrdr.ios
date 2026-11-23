@@ -23,6 +23,15 @@ struct SlashMenuModelTests {
         SlashMenuModel(loader: { catalog })
     }
 
+    @Test("文中上色用的已知名稱:載入後是非內建指令，內建指令(只在開頭有意義)不算(#469)")
+    func inlineNames() async {
+        let menu = Self.menu()
+        #expect(menu.inlineNames.isEmpty, "還沒載入時是空集合")
+        menu.update(draft: "/")
+        await menu.load()
+        #expect(menu.inlineNames == ["mattpocock-skills:implement", "mattpocock-skills:tdd"])
+    }
+
     @Test("游標前是 / 加名稱字元時才出現;接著打空白就收起")
     func visibilityFollowsDraft() async {
         let menu = Self.menu()

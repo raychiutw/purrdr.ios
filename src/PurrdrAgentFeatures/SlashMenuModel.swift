@@ -44,6 +44,12 @@ public final class SlashMenuModel {
         self.loader = loader
     }
 
+    /// 文中指令上色用的已知名稱(#469):載入後清單裡的非內建指令(與文中選單列出的一致);還沒載入時是空集合。
+    public var inlineNames: Set<String> {
+        guard case .loaded(let catalog?) = state else { return [] }
+        return Set(Self.available(in: catalog, for: .inline).flatMap(\.commands).map(\.name))
+    }
+
     /// 選單是否顯示在輸入列上方。
     public var isVisible: Bool {
         guard let trigger, trigger.range.lowerBound != dismissedStart else { return false }

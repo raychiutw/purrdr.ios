@@ -64,6 +64,7 @@ public struct ConversationView: View {
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerItem = $0 }
             ))
+            .environment(\.inlineSlashNames, model.inlineSlashNames)
             .imageViewer(item: $viewerItem)
             .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
             .environment(\.delegationContext, DelegationContext(
@@ -729,14 +730,16 @@ extension View {
 struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context
+    @Environment(\.inlineSlashNames) private var slashNames
 
     /// 開頭的 skill／slash 指令用主色(有主機主題時是主題 accent;#329),其餘照泡泡的文字色。
-    static func highlighted(_ text: String) -> AttributedString {
+    static func highlighted(_ text: String, known: Set<String> = []) -> AttributedString {
         var attributed = AttributedString(text)
-        if let range = SlashToken.range(in: text),
-           let start = AttributedString.Index(range.lowerBound, within: attributed),
-           let end = AttributedString.Index(range.upperBound, within: attributed) {
-            attributed[start..<end].foregroundColor = Color.commandText
+        for range in SlashToken.ranges(in: text, known: known) {
+            if let start = AttributedString.Index(range.lowerBound, within: attributed),
+               let end = AttributedString.Index(range.upperBound, within: attributed) {
+                attributed[start..<end].foregroundColor = Color.commandText
+            }
         }
         return attributed
     }
@@ -754,7 +757,7 @@ struct UserBubbleView: View {
                 }
                 ForEach(bubble.filePaths, id: \.self) { UserFileCardView(path: $0) }
                 if !bubble.displayText.isEmpty {
-                    Text(Self.highlighted(bubble.displayText))
+                    Text(Self.highlighted(bubble.displayText, known: slashNames))
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)

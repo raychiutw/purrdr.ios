@@ -57,6 +57,18 @@ struct ConversationSlashPanelTests {
         #expect(await setup.host.bridge.unmetExpectations.count == 2)
     }
 
+    @Test("選單選用的指令進入文中上色的已知名稱，送出後仍在(#469)")
+    func pickedNamesStayKnown() async throws {
+        let setup = try await Self.opened()
+        #expect(setup.model.inlineSlashNames.isEmpty)
+        setup.model.draft = "先 /gri"
+        setup.model.pick(slash: SlashCommand(name: "grill", summary: "Grill me"))
+        #expect(setup.model.draft == "先 /grill ")
+        #expect(setup.model.inlineSlashNames == ["grill"])
+        setup.model.draft = ""
+        #expect(setup.model.inlineSlashNames == ["grill"])
+    }
+
     @Test("在 slash 選單按 Return 選定 `/model`:只填入 `/model `,不送出(#83)")
     func returnInMenuOnlyFills() async throws {
         let setup = try await Self.opened()

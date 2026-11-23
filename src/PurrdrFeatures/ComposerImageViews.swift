@@ -17,6 +17,8 @@ struct BubbleImageContext {
 
 extension EnvironmentValues {
     @Entry var bubbleImages = BubbleImageContext()
+    /// 使用者泡泡裡訊息中間要上色的 slash 指令名稱(#469);聊天畫面提供。
+    @Entry var inlineSlashNames: Set<String> = []
 }
 
 /// 泡泡圖片的排版規則(#465,設計稿第 30 組;使用者送出的與本機送出的共用):

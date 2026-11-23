@@ -524,4 +524,28 @@ public enum SlashToken {
         guard !name.isEmpty, !name.contains("/") else { return nil }
         return text.startIndex..<end
     }
+
+    /// 要上色的所有指令範圍(#469):開頭的 `/名稱` 照 `range(in:)` 一律算;接在空白之後的 `/名稱`(到空白或結尾為止、
+    /// 名稱不含 `/`)只有名稱在 `known` 裡才算,所以 `/tmp`、`/usr/bin` 這類路徑與未知字詞不會誤上色。
+    public static func ranges(in text: String, known: Set<String>) -> [Range<String.Index>] {
+        var result: [Range<String.Index>] = []
+        if let leading = range(in: text) { result.append(leading) }
+        guard !known.isEmpty else { return result }
+        var index = text.startIndex
+        var previousIsWhitespace = false
+        while index < text.endIndex {
+            let character = text[index]
+            if character == "/", previousIsWhitespace {
+                let end = text[index...].firstIndex(where: \.isWhitespace) ?? text.endIndex
+                let name = text[text.index(after: index)..<end]
+                if !name.isEmpty, !name.contains("/"), known.contains(String(name)) { result.append(index..<end) }
+                index = end
+                previousIsWhitespace = false
+                continue
+            }
+            previousIsWhitespace = character.isWhitespace
+            index = text.index(after: index)
+        }
+        return result
+    }
 }
