@@ -109,6 +109,20 @@ struct HostsModelAgentSettingsTests {
         #expect(model.hosts.first?.enabledAgents == [.claude])
     }
 
+    @Test("HTTPS 主機:快照裡當下沒有任何 Agent 時不寫入空集合,維持還沒設定(新增聊天仍有預設的 Agent)")
+    func httpsEmptySnapshotDoesNotInitialize() async {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Fixtures.modifiedLine("session.snapshot.ndjson") {
+            SnapshotEdit.removeAgents(in: &$0)
+        })
+        let model = HostOverviewTests.httpsModel(connection: connection)
+        let id = HostOverviewTests.buildBox.id
+        await model.agentList.load()
+        await model.initializeAgentSettings(for: id, isNewHost: true)
+        #expect(model.hosts.first?.enabledAgents == nil)
+        #expect(model.enabledAgents(on: .host(id)) == [.claude, .codex])
+    }
+
     @Test("新增聊天只列這台主機啟用的 Agent")
     func newChatListsOnlyEnabled() {
         let host = Self.host(enabled: [.codex, .agy])

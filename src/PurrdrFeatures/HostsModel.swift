@@ -698,6 +698,9 @@ public final class HostsModel {
             // 偵測期間使用者可能已經手動設定過。
             hosts.first(where: { $0.id == id })?.enabledAgents == nil
         else { return }
+        // HTTPS 只看得到「當下有在跑的 Agent」:一個都沒看到不代表沒裝,不寫入空集合(否則新增聊天選單會全空),
+        // 維持還沒設定、沿用預設,稍後再偵測。
+        if host.connectionMethod.usesHostService, detected.intersection(HostAgentSettings.configurable).isEmpty { return }
         setEnabledAgents(isNewHost ? HostAgentSettings.initial(detected: detected) : HostAgentSettings.migrated(detected: detected), for: id)
     }
 

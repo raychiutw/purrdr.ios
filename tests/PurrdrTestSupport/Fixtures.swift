@@ -168,6 +168,14 @@ public enum SnapshotEdit {
         }
     }
 
+    /// 拿掉所有 Agent(`agents[]` 與 `panes[]`):模擬主機上當下沒有 Agent 在跑。
+    public static func removeAgents(in response: inout [String: Any]) {
+        editSnapshot(&response) { snapshot in
+            snapshot["agents"] = [[String: Any]]()
+            snapshot["panes"] = [[String: Any]]()
+        }
+    }
+
     /// 改 `workspace_id` 為 `workspaceID` 的 workspace。
     public static func workspace(_ workspaceID: String, in response: inout [String: Any], _ change: (inout [String: Any]) -> Void) {
         editSnapshot(&response) { snapshot in
