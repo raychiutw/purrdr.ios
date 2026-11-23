@@ -41,6 +41,20 @@ struct HTTPSHostUploadTests {
         #expect(chunks.allSatisfy { $0["upload_id"] as? String == started["request_id"] as? String })
     }
 
+    @Test("分塊讀來源:每塊不超過 1 MiB、不整份讀,進度遞增到 1,主機收到的內容相同")
+    func streamsSourceInChunks() async throws {
+        let service = try await Self.start()
+        defer { Task { await service.stop() } }
+        let recording = HostUploadTests.RecordingSource(Self.twoChunks)
+        let log = HostUploadTests.ProgressLog()
+
+        _ = try await Self.connection(service).upload(recording.source, named: Self.name, progress: { log.add($0) })
+
+        #expect(service.log.storedUploads == [Self.twoChunks])
+        #expect(recording.ranges == [0..<1_048_576, 1_048_576..<1_048_589])
+        #expect(log.all.last == 1 && log.all == log.all.sorted())
+    }
+
     @Test("沒有副檔名的檔名不帶 extension")
     func nameWithoutExtensionSendsNoExtension() async throws {
         let service = try await Self.start()

@@ -5,6 +5,46 @@ import Foundation
 /// SSH 實作是 `PurrdrSSH.SSHHostUploader`(exec 的 stdin,ADR-0003);HTTPS 實作走主機服務的分塊上傳。
 public protocol HostUploading: Sendable {
     func upload(_ data: Data, named name: HostUploadName) async throws -> String
+    /// 分塊讀取來源上傳(影片這類大檔不整支放進記憶體),`progress` 是 0…1。被取消時丟 `CancellationError`,主機上不留這個檔案(SSH);
+    /// 預設實作把來源整個讀成 `Data` 再傳(小檔案、測試替身用)。
+    func upload(_ source: HostUploadSource, named name: HostUploadName, progress: @escaping @Sendable (Double) -> Void) async throws -> String
+}
+
+extension HostUploading {
+    public func upload(_ source: HostUploadSource, named name: HostUploadName, progress: @escaping @Sendable (Double) -> Void) async throws -> String {
+        let path = try await upload(source.read(0..<source.size), named: name)
+        progress(1)
+        return path
+    }
+}
+
+/// 上傳的內容來源:大小加上「讀某個範圍」,讓傳輸層一塊一塊讀、不整份留在記憶體。
+public struct HostUploadSource: Sendable {
+    public let size: Int
+    /// 讀 `range`(位元組範圍,在 `0..<size` 之內)。
+    public let read: @Sendable (Range<Int>) throws -> Data
+
+    public init(size: Int, read: @escaping @Sendable (Range<Int>) throws -> Data) {
+        self.size = size
+        self.read = read
+    }
+
+    public static func data(_ data: Data) -> HostUploadSource {
+        HostUploadSource(size: data.count) { range in
+            data.subdata(in: (data.startIndex + range.lowerBound)..<(data.startIndex + range.upperBound))
+        }
+    }
+
+    /// 本機檔案:每次讀取開檔、定位、讀那一段(檔案不進記憶體)。
+    public static func file(at url: URL) throws -> HostUploadSource {
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        return HostUploadSource(size: size) { range in
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            try handle.seek(toOffset: UInt64(range.lowerBound))
+            return try handle.read(upToCount: range.count) ?? Data()
+        }
+    }
 }
 
 /// 上傳到主機的檔名：`[A-Za-z0-9-]+`,可再接一個英數副檔名。
