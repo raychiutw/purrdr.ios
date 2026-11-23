@@ -7,6 +7,8 @@ struct HostPickerButton: View {
     let identifier: String
     /// 選單最下面的「新增主機…」(頂層 tab 的主機選單才有,#390)。
     var addHost: (() -> Void)?
+    /// 放在工具列(頂層 tab 的左上,#475):膠囊底色由工具列的玻璃提供;否則(sheet 內)自己畫底色。
+    var inToolbar = false
 
     var body: some View {
         Menu {
@@ -28,6 +30,7 @@ struct HostPickerButton: View {
                 HostIconBadge(model.selectedOption?.icon ?? .default, diameter: 24)
                 Text(verbatim: name)
                     .font(.headline)
+                    .foregroundStyle(Color.primary)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.semibold))
@@ -36,13 +39,14 @@ struct HostPickerButton: View {
             }
             .padding(.leading, 6)
             .padding(.trailing, 10)
-            .padding(.vertical, 6)
-            // 跟兩旁的玻璃鈕(返回、＋)看起來一樣 44pt 高(實機回報 2026-11-20):工具列中間那格最高 36pt,
-            // 玻璃鈕也是 36pt 的 frame 外多畫一圈;底色同樣往外多畫 4pt。
-            .background { Capsule().fill(.fill.tertiary).padding(-4) }
+            // 所有 tab 的主機選單與其他按鈕同高(#475)。
+            .frame(minHeight: TopBarMetrics.controlHeight)
+            .background { if !inToolbar { Capsule().fill(.fill.tertiary) } }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        // 頂層 tab 的 tint 是主色(綠):工具列裡的選單文字照一般文字色,與聊天 tab 的主機選單一致(#475)。
+        .tint(inToolbar ? Color.primary : nil)
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label(同選取中主機鈕)。
         .accessibilityLabel(Text("Host: \(name)"))
         .accessibilityIdentifier(identifier)

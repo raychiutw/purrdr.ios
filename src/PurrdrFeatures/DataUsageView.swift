@@ -50,9 +50,6 @@ public struct DataUsageView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if account != nil {
-                    HostCapsule(model: model)
-                }
                 summaryTiles
                 chips
                 chartCard
@@ -61,6 +58,7 @@ public struct DataUsageView: View {
                 footnote
             }
             .padding(.horizontal, 16)
+            .padding(.top, account == nil ? 0 : 16)
             .padding(.bottom, 24)
             // iPad:不撐滿寬度。
             .frame(maxWidth: 640)
@@ -68,13 +66,15 @@ public struct DataUsageView: View {
         }
         .background(DataUsageColors.groupedBackground)
         .navigationTitle("Data Usage")
+        .toolbar(removing: account != nil ? .title : nil)
         #if os(iOS)
-        .navigationBarTitleDisplayMode(account == nil ? .inline : .large)
+        .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
             if let account {
                 ToolbarItem(placement: .primaryAction) { account }
-                    .sharedBackgroundVisibility(.hidden)
+                // 流量 tab:主機選單靠左,與其他 tab 同一個位置(#475)。
+                ToolbarItem(placement: TopNavigationView.modePlacement) { HostCapsule(model: model) }
             } else {
                 ToolbarItem(placement: .principal) { HostCapsule(model: model) }
             }
@@ -243,13 +243,12 @@ private struct HostCapsule: View {
                 if let option = model.hosts.first(where: { $0.id == model.host }) {
                     HostIconBadge(option.icon, diameter: 22)
                 }
-                Text(verbatim: name).font(.headline).lineLimit(1)
+                Text(verbatim: name).font(.headline).foregroundStyle(Color.primary).lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.semibold)).foregroundStyle(.secondaryText).accessibilityHidden(true)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .glassEffect(.regular.interactive(), in: Capsule())
+            .frame(minHeight: TopBarMetrics.controlHeight)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

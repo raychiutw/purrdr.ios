@@ -364,8 +364,13 @@ struct AttachPanel: View {
     let source: RecentPhotoSource
     let choose: (Choice) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var photos: [RecentPhoto] = []
+    @State private var pager = RecentPhotoPager(columns: Self.columns, fetch: { _, _ in [] })
+    @State private var panelSize = CGSize.zero
     @State private var selection = AttachSelection()
+
+    private static let columns = 4
+    private static let spacing: CGFloat = 4
+    private var photos: [RecentPhoto] { pager.photos }
 
     var body: some View {
         // 一次只開一個 sheet(#386):關閉在左上 xmark，選檔案或拍照由呼叫端先關掉這張再開系統畫面。
@@ -390,7 +395,7 @@ struct AttachPanel: View {
                             }
                             .font(.footnote)
                             .foregroundStyle(.secondaryText)
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Self.spacing), count: Self.columns), spacing: Self.spacing) {
                                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                                     tile(photo, index: index)
                                 }
@@ -423,7 +428,17 @@ struct AttachPanel: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("attach.panel")
-        .task { photos = await source.recent(limit: 12) }
+        // 最近照片依 sheet 高度填滿、捲到底繼續載入(#475);量到尺寸後才讀第一頁。
+        .onGeometryChange(for: CGSize.self, of: \.size) { panelSize = $0 }
+        .task(id: panelSize == .zero) {
+            guard panelSize != .zero else { return }
+            let side = (panelSize.width - 32 - Self.spacing * CGFloat(Self.columns - 1)) / CGFloat(Self.columns)
+            let source = source
+            pager = RecentPhotoPager(columns: Self.columns) { offset, limit in await source.recent(offset: offset, limit: limit) }
+            await pager.loadFirstPage(
+                count: RecentPhotoPager.firstPageCount(
+                    availableHeight: panelSize.height, tileSide: side, spacing: Self.spacing, columns: Self.columns))
+        }
     }
 
     /// 固定的正方形格子:照片填滿並裁掉多的部分，直幅、橫幅都不會依原始比例溢出而蓋住按鈕(#386)。
@@ -446,6 +461,7 @@ struct AttachPanel: View {
         .accessibilityLabel(Text("Photo \(index + 1)"))
         .accessibilityAddTraits(number != nil ? .isSelected : [])
         .accessibilityIdentifier("attach.recent.\(index)")
+        .task { await pager.tileAppeared(at: index) }
     }
 
     /// 選取圈:未選是半透明深底加白邊與陰影(對任何照片 ≥ 3:1),已選是主色圓加編號。

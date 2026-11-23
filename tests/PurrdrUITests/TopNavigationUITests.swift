@@ -54,7 +54,10 @@ final class TopNavigationUITests: XCTestCase {
         XCTAssertTrue(newChat.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天")
         XCTAssertEqual(newChat.label, "New Chat")
         XCTAssertEqual(app.buttons["toolbar.account"].firstMatch.label, "Account")
-        XCTAssertHitTarget(app.buttons["toolbar.account"].firstMatch)
+        // 帳號鈕外框是工具列的 44pt 玻璃圓鈕(#475);XCUI 回報的 frame 只有裡面 30pt 的頭像。
+        let account = app.buttons["toolbar.account"].firstMatch.frame
+        XCTAssertGreaterThanOrEqual(account.width, 30)
+        XCTAssertEqual(account.width, account.height, accuracy: 1, "帳號頭像不是圓的")
         XCTAssertLessThan(newChat.frame.maxX, app.buttons["toolbar.account"].firstMatch.frame.minX, "兩顆右上按鈕重疊")
     }
 

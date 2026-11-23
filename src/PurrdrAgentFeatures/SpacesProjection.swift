@@ -92,10 +92,13 @@ public struct SpacesTab: Identifiable, Equatable, Sendable {
     public var title: String
     public var target: Target
     public var avatar: Avatar
+    /// Tab 名稱(#475):人取的名稱,沒有時「Tab N」;沒有 Tab 的 pane 是 `nil`。標題沒有名稱時用 Agent 標題,所以另外帶。
+    public var tabName: String?
 
     public var id: String { "\(host.storedValue)/\(key)" }
 
-    public init(host: HostSelection, key: String, title: String, target: Target, avatar: Avatar = .terminal) {
+    public init(host: HostSelection, key: String, title: String, target: Target, avatar: Avatar = .terminal, tabName: String? = nil) {
+        self.tabName = tabName
         self.host = host
         self.key = key
         self.title = title
@@ -186,7 +189,7 @@ extension AgentListProjection {
             } ?? TerminalRow(pane: first, host: host, hostLabel: nil).program
             return SpacesTab(
                 host: host, key: tab.id, title: tabTitle(tab.label, contents: contents, position: index + 1), target: target,
-                avatar: avatar(for: tabAgents, source: source, visible: visible))
+                avatar: avatar(for: tabAgents, source: source, visible: visible), tabName: tabName(label: tab.label, position: index + 1))
         }
         let known = Set(tabs.map(\.id))
         for pane in panes where tabID(of: pane).map({ !known.contains($0) }) ?? true {
@@ -210,6 +213,22 @@ extension AgentListProjection {
 
     /// Tab 名稱：人取的照原文;沒有名稱或是 herdr 的預設數字名稱(「1」「2」…)時用 Tab 裡的內容
     /// (第一個 Agent 的聊天標題，多個時加「+N」;只有終端機時是程式名);都沒有才是「Tab N」(N 是在 workspace 裡的順序)。
+    /// 列上顯示的 Tab 名稱(#475):人取的照原文;沒有名稱或是預設數字名稱時是「Tab N」(N 是在 workspace 裡的順序)。
+    package static func tabName(label: String?, position: Int) -> String {
+        if let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty, !label.allSatisfy(\.isNumber) {
+            return label
+        }
+        return String(localized: "Tab \(position)")
+    }
+
+    /// 一個 Tab 在它的 workspace 裡的順序(1 起算);snapshot 沒有這個 Tab 時 `nil`。
+    package static func tabPosition(of tabID: String?, in snapshot: HostSnapshot) -> (tab: Tab, position: Int)? {
+        guard let tabID, let tab = snapshot.tabs.first(where: { $0.id == tabID }) else { return nil }
+        let siblings = snapshot.tabs.filter { $0.workspaceID == tab.workspaceID }.sorted { $0.number < $1.number }
+        guard let index = siblings.firstIndex(where: { $0.id == tabID }) else { return nil }
+        return (tab, index + 1)
+    }
+
     package static func tabTitle(_ label: String?, contents: String?, position: Int) -> String {
         if let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty, !label.allSatisfy(\.isNumber) {
             return label

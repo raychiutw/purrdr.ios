@@ -10,8 +10,8 @@ struct ConversationTitleView: View {
     let header: ConversationHeader
     @Bindable var model: ConversationModel
 
-    /// 膠囊最小高度:兩行字加上內距,比單行標題高(原生相簿膠囊約 48pt)。
-    private static let minimumHeight: CGFloat = 48
+    /// 膠囊最小高度:兩行字加上內距,比單行標題高(#475:52pt,其他按鈕與膠囊 44pt)。
+    private static let minimumHeight = TopBarMetrics.titleCapsuleHeight
 
     var body: some View {
         VStack(spacing: 1) {

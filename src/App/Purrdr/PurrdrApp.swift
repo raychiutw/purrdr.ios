@@ -230,7 +230,8 @@ struct PurrdrApp: App {
 
     /// `-uiTestingRecentPhotos`:「＋」面板有 6 張替身照片;沒帶(`-uiTestingPhotosDenied` 或預設)就是沒有相簿權限。UI 測試一律不碰系統相簿。
     private static func recentPhotoSource(_ arguments: [String]) -> RecentPhotoSource {
-        arguments.contains("-uiTestingRecentPhotos") ? .simulated(count: 6) : .simulatedDenied
+        arguments.contains("-uiTestingManyRecentPhotos") ? .simulated(count: 80)
+            : arguments.contains("-uiTestingRecentPhotos") ? .simulated(count: 6) : .simulatedDenied
     }
 
     /// `-uiTestingPairingScan`:掃描畫面一開就像掃到配對 QR code;`-uiTestingCameraDenied`:沒有相機權限。

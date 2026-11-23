@@ -272,6 +272,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public var isMuted: Bool
     /// context 百分比與待辦進度(#307);讀不出時為 `nil`。
     public var progress: AgentProgress?
+    /// 所在 Tab 的名稱(#475):人取的名稱,沒有時「Tab N」;snapshot 沒帶 Tab 時空字串。
+    public var tabName: String
 
     /// 主機身分 + pane id:不同主機的同一個 pane id 是不同的列(也是 UI 測試的 `agent.row.<id>`)。
     public var id: String { "\(host.storedValue)/\(paneID)" }
@@ -280,8 +282,10 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public init(
         host: HostSelection = .demo, paneID: String, kind: String = AgentID.claude.canonicalName, title: String, workspace: String? = nil, subtitle: String,
         hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus,
-        isUnread: Bool = false, isAway: Bool = false, awayTurns: Int? = nil, isPinned: Bool = false, isMuted: Bool = false, progress: AgentProgress? = nil
+        isUnread: Bool = false, isAway: Bool = false, awayTurns: Int? = nil, isPinned: Bool = false, isMuted: Bool = false, progress: AgentProgress? = nil,
+        tabName: String = ""
     ) {
+        self.tabName = tabName
         self.host = host
         self.paneID = paneID
         self.kind = kind

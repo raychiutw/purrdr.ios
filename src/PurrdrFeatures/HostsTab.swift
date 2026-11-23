@@ -38,14 +38,15 @@ struct HostsTab: View {
         NavigationStack(path: $flow.path) {
             content
                 .navigationTitle("Host")
+                .toolbar(removing: hosts.overview != nil ? .title : nil)
                 #if os(iOS)
-                // 頂列中間是主機選單,不顯示大標題(設計稿 Host)。
+                // 頂列左邊是主機選單(#475,各 tab 同一個位置),不顯示大標題(設計稿 Host)。
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
                     if hosts.overview != nil {
-                        ToolbarItem(placement: .principal) {
-                            HostPickerButton(model: hosts.selectedHostPicker(), identifier: "hosts.host", addHost: openAddHost)
+                        ToolbarItem(placement: TopNavigationView.modePlacement) {
+                            HostPickerButton(model: hosts.selectedHostPicker(), identifier: "hosts.host", addHost: openAddHost, inToolbar: true)
                         }
                     }
                     ToolbarItem(placement: .primaryAction) {
@@ -54,7 +55,6 @@ struct HostsTab: View {
                     }
                     ToolbarSpacer(.fixed, placement: .primaryAction)
                     ToolbarItem(placement: .primaryAction) { AccountButton(member: member, action: openAccount) }
-                        .sharedBackgroundVisibility(.hidden)
                 }
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }

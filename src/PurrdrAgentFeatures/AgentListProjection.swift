@@ -61,8 +61,10 @@ package enum AgentListProjection {
         return snapshot.agents.enumerated().compactMap { position, agent -> RowEntry? in
             let siblings = byWorkspace[agent.workspaceID] ?? [agent]
             let chat = ChatUnread.State(agent: agent, source: source, visible: visible)
+            let tabName = tabPosition(of: agent.tabID, in: snapshot).map { tabName(label: $0.tab.label, position: $0.position) } ?? ""
             let row = AgentRow(
-                agent: agent, siblings: siblings, preview: source.previews[agent.paneID], host: source.host, label: source.label, chat: chat)
+                agent: agent, siblings: siblings, preview: source.previews[agent.paneID], host: source.host, label: source.label, chat: chat,
+                tabName: tabName)
             guard needle.isEmpty || matches(needle, agent: agent, row: row) else { return nil }
             return RowEntry(row: row, order: Entry(
                 status: row.status, hostOrder: hostOrder, workspaceOrder: order[agent.workspaceID] ?? .max, position: position,
@@ -165,7 +167,7 @@ extension AgentStatus {
 extension AgentRow {
     package init(
         agent: Agent, siblings: [Agent], preview: MessagePreview?, host: HostSelection, label: HostLabel?,
-        chat: ChatUnread.State = ChatUnread.State()
+        chat: ChatUnread.State = ChatUnread.State(), tabName: String = ""
     ) {
         let status = chat.displayStatus(agent.effectiveStatus)
         let title = AgentRowText.title(for: agent, siblings: siblings)
@@ -184,7 +186,7 @@ extension AgentRow {
             host: host, paneID: agent.paneID, kind: agent.kind, title: title, workspace: AgentRowText.workspaceName(for: agent),
             subtitle: subtitle, hostLabel: label,
             preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isAway: chat.isAway, awayTurns: chat.awayTurns, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted,
-            progress: preview?.progress
+            progress: preview?.progress, tabName: tabName
         )
     }
 }

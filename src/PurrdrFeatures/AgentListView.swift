@@ -79,6 +79,7 @@ public struct AgentListView: View {
         // Agents 檢視比對 Agent、資料夾與主機,Spaces 檢視比對 workspace 與 Tab 名稱。
         .agentListSearch(text: $model.query, focused: $searchFocused)
         .navigationTitle(model.mode.title)
+        .toolbar(removing: .title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -527,7 +528,7 @@ struct AgentRowView: View {
         case .none: hostName
         }
         let parts: [String?] = [
-            AgentKind(rawKind: row.kind).displayName, row.workspace, String(localized: row.status.title),
+            AgentKind(rawKind: row.kind).displayName, row.workspace, row.tabName.isEmpty ? nil : row.tabName, String(localized: row.status.title),
             row.isPinned ? String(localized: "Pinned") : nil, row.isMuted ? String(localized: "Muted") : nil,
             row.isAway ? String(localized: "New since you were away") : nil,
             preview.isEmpty ? nil : preview, row.time?.text(),
@@ -554,6 +555,15 @@ struct AgentRowView: View {
             // 第一行是 workspace 名稱(#269,原型 B);聊天標題在對話裡。
             Text(row.workspace)
                 .lineLimit(lines(1))
+            // Tab 名稱(#475):workspace 名稱旁的次要文字;沒有名稱時是「Tab N」。
+            if !row.tabName.isEmpty {
+                Text(verbatim: row.tabName)
+                    .font(.subheadline)
+                    .foregroundStyle(secondary)
+                    .lineLimit(lines(1))
+                    .layoutPriority(-1)
+                    .accessibilityIdentifier("agent.tabName.\(row.paneID)")
+            }
             // 釘選、靜音：名稱後的小圖示，不只靠顏色(#37 故事 18)。
             if row.isPinned {
                 Image(systemName: "pin.fill")

@@ -80,15 +80,23 @@ struct SpacesTabLabel: View {
                 AgentStatusAvatar(content: .terminal, status: nil)
             }
             // 按鈕列(多個 pane)的 label 會被 tint 染成主色;`.primary` 在按鈕裡解析成 tint,要用 `Color.primary`。
-            Text(verbatim: tab.title)
-                .foregroundStyle(Color.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: tab.title)
+                    .foregroundStyle(Color.primary)
+                // Tab 名稱(#475):標題沒有人取的名稱時是 Agent 標題,這行補上「Tab N」。
+                if let name = tab.tabName, name != tab.title {
+                    Text(verbatim: name)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.secondaryText)
+                }
+            }
         }
     }
 
     /// 「名稱, 種類, 狀態」;只有終端機時「名稱, 終端機」。
     static func accessibilityText(_ tab: SpacesTab) -> String {
         let parts: [String?] = switch tab.avatar {
-        case .agent(let kind, let status): [tab.title, AgentKind(rawKind: kind).displayName, String(localized: status.title)]
+        case .agent(let kind, let status): [tab.title, tab.tabName == tab.title ? nil : tab.tabName, AgentKind(rawKind: kind).displayName, String(localized: status.title)]
         case .terminal: [tab.title, String(localized: "Terminal")]
         }
         return parts.compactMap { $0 }.joined(separator: ", ")
