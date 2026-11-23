@@ -4260,6 +4260,17 @@
         }
       }
     },
+    "Current: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前:%@"
+          }
+        }
+      }
+    },
     "Dark" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9895,6 +9906,17 @@
         }
       }
     },
+    "Rename" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名"
+          }
+        }
+      }
+    },
     "Rename Device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9902,6 +9924,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名裝置"
+          }
+        }
+      }
+    },
+    "Rename Tab" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名 Tab"
+          }
+        }
+      }
+    },
+    "Rename Tab…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名 Tab…"
           }
         }
       }
@@ -11809,6 +11853,17 @@
         }
       }
     },
+    "Tab name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 名稱"
+          }
+        }
+      }
+    },
     "Tailscale SSH" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12830,6 +12885,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Subagent 開始後，它的訊息會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "The tab in “%@”. herdr on the host will be renamed too." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 裡的 Tab,主機上的 herdr 也會一起改。"
           }
         }
       }
@@ -14008,17 +14074,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支手機以主機上的 Pane 大小顯示,主機上的版面不會改變。"
-          }
-        }
-      }
-    },
-    "This renames the workspace on the host too." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機上的 Workspace 也會一起改名。"
           }
         }
       }
@@ -16188,6 +16243,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "那台主機的 herdr 太舊了。請在那台主機更新 herdr，再試一次。"
+          }
+        }
+      }
+    },
+    "herdr on the host will be renamed too." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上的 herdr 也會一起改。"
           }
         }
       }

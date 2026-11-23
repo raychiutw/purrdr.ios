@@ -42,7 +42,7 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(app.reveal(tab))
 
         tab.press(forDuration: 1.2)
-        for title in ["Show Layout", "Rename Workspace…", "Close Workspace…"] {
+        for title in ["Show Layout", "Rename Tab…", "Close Workspace…"] {
             XCTAssertTrue(app.buttons[title].waitUntilExists(timeout: 5), "長按選單沒有「\(title)」")
         }
         // 點螢幕下方的空白處關選單(列變高後選單位置會移動，點正中央可能點到選單項目)。
@@ -57,6 +57,37 @@ final class SpacesUITests: XCTestCase {
         let status = app.element("terminal.status")
         XCTAssertTrue(status.waitUntilExists(timeout: 10), "點終端機方塊沒有開 Pane 終端機")
         XCTAssertTrue(status.label.contains("npm run dev"), "終端機標題不是程式名:\(status.label)")
+    }
+
+    /// 長按 Tab 列改的是那個 Tab;長按 Workspace 標題改 Workspace(#456)。
+    @MainActor
+    func testRenameTabAndWorkspaceFromSpaces() {
+        let app = XCUIApplication.launchUITesting()
+        app.switchListMode(to: "Spaces")
+        let tab = app.element("spaces.tab.demo/w1:t1")
+        XCTAssertTrue(app.reveal(tab))
+
+        tab.press(forDuration: 1.2)
+        XCTAssertFalse(app.buttons["menu.renameWorkspace"].exists, "Tab 列的選單不該改 Workspace")
+        app.buttons["menu.renameTab"].tap()
+        let tabAlert = app.alerts["Rename Tab"]
+        XCTAssertTrue(tabAlert.waitUntilExists(timeout: 5))
+        XCTAssertEqual(tabAlert.textFields.firstMatch.value as? String, "1")
+        tabAlert.textFields.firstMatch.typeEnglish(XCUIKeyboardKey.delete.rawValue + "tests")
+        tabAlert.buttons["Rename"].tap()
+        XCTAssertTrue(tabAlert.waitUntilGone(timeout: 5))
+        // 這個 Tab 只有一個 Agent,列標題由內容決定;Workspace 標題沒變。
+        XCTAssertTrue(app.element("spaces.section.demo/w1").label.contains("ledger"))
+
+        let header = app.element("spaces.section.demo/w1")
+        header.press(forDuration: 1.2)
+        let workspaceAlert = app.alerts["Rename Workspace"]
+        XCTAssertTrue(workspaceAlert.waitUntilExists(timeout: 5))
+        workspaceAlert.textFields.firstMatch.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6) + "Budget")
+        workspaceAlert.buttons["Rename"].tap()
+        XCTAssertTrue(workspaceAlert.waitUntilGone(timeout: 5))
+        let renamed = NSPredicate(format: "label CONTAINS %@", "Budget")
+        XCTAssertTrue(app.element("spaces.section.demo/w1").wait(for: renamed, timeout: 5), "Workspace 標題沒有更新")
     }
 
     /// 選 Agents 後每個 agent 一列，沒有群組與終端機列(#244)。

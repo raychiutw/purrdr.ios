@@ -72,6 +72,27 @@ struct HostUpdatesTests {
         #expect(updates.snapshot?.agents.count == 3)
     }
 
+    @Test("tab.renamed／workspace.renamed 事件(電腦或另一支手機改名)訂閱在內，到達時重讀快照對帳(#456)")
+    func renameEventsReconcile() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await connection.expect("events.subscribe", reply: Self.started)
+        await Self.expectSnapshots(connection, count: 3)
+        let (_, task) = Self.start(connection)
+        defer { task.cancel() }
+        try await waitUntil { await connection.requests.count == 3 }
+
+        let subscribe = await connection.requests.first { $0.contains("events.subscribe") } ?? ""
+        #expect(subscribe.contains("tab.renamed"))
+        #expect(subscribe.contains("workspace.renamed"))
+
+        await connection.send(event: Data(#"{"event":"tab_renamed","data":{"type":"tab_renamed","tab_id":"w1:tA","workspace_id":"w1","label":"tests"}}"#.utf8), toSubscription: 0)
+        try await waitUntil { await connection.requests.count == 4 }
+        await connection.send(event: Data(#"{"event":"workspace_renamed","data":{"type":"workspace_renamed","workspace_id":"w1","label":"Budget"}}"#.utf8), toSubscription: 0)
+        try await waitUntil { await connection.requests.count == 5 }
+        #expect(await Self.methods(connection).suffix(2) == ["session.snapshot", "session.snapshot"])
+    }
+
     @Test("事件立刻觸發重讀快照，不等固定延遲;每個事件之間沒有多餘的快照請求")
     func eventTriggersSnapshotWithoutDelay() async throws {
         let connection = FakeHostConnection()

@@ -17,14 +17,22 @@ struct SpacesSectionsContent: View {
                 ForEach(section.tabs) { tab in
                     tabRow(tab, in: section)
                         .workspaceActionsMenu(
-                            WorkspaceTarget(workspaceID: section.workspaceID, label: section.workspace, snapshot: model.snapshot(for: section.host)),
+                            workspaceTarget(section),
+                            tab: TabTarget(tabID: tab.key, snapshot: model.snapshot(for: section.host), workspaceLabel: section.workspace),
                             host: section.host, snapshot: model.snapshot(for: section.host), presentation: presentation)
                         .accessibilityIdentifier("spaces.tab.\(tab.id)")
                 }
             } header: {
                 SpacesSectionHeader(section: section)
+                    .workspaceHeaderRename(
+                        workspaceTarget(section), host: section.host,
+                        isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation)
             }
         }
+    }
+
+    private func workspaceTarget(_ section: SpacesSection) -> WorkspaceTarget {
+        WorkspaceTarget(workspaceID: section.workspaceID, label: section.workspace, snapshot: model.snapshot(for: section.host))
     }
 
     @ViewBuilder
@@ -101,6 +109,9 @@ private struct SpacesSectionHeader: View {
         .font(.subheadline)
         .foregroundStyle(Color.secondaryText)
         .textCase(nil)
+        // 整列寬都能長按(標題的長按選單,#456)。
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("spaces.section.\(section.id)")

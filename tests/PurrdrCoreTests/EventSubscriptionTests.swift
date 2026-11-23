@@ -22,9 +22,11 @@ struct EventSubscriptionTests {
     @Test("版面事件與全主機事件分開：只有 Spaces 檢視訂閱版面事件(行為規格 §3.7,#40)")
     func layoutEventsAreSeparateFromHostWide() {
         let layout: Set<EventSubscription.EventType> = [
-            .tabCreated, .tabClosed, .tabRenamed, .tabMoved, .paneCreated, .paneClosed, .layoutUpdated, .workspaceMoved, .workspaceReordered,
+            .tabCreated, .tabClosed, .tabMoved, .paneCreated, .paneClosed, .layoutUpdated, .workspaceMoved, .workspaceReordered,
         ]
         #expect(Set(EventSubscription.layout.map(\.type)) == layout)
         #expect(Set(EventSubscription.hostWide.map(\.type)).isDisjoint(with: layout))
+        // 聊天列表選單顯示 Tab 名稱,所以 tab.renamed 不分檢視都訂閱(#456)。
+        #expect(EventSubscription.hostWide.map(\.type).contains(.tabRenamed))
     }
 }

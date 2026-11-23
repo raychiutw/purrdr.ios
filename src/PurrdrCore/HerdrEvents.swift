@@ -17,16 +17,16 @@ public struct EventSubscription: Sendable, Equatable, Hashable {
         EventSubscription(.paneAgentStatusChanged, paneID: paneID)
     }
 
-    /// 不分 pane、整台主機的事件:workspace 的建立／關閉／改名／更新，偵測到新 agent、pane 結束。兩種檢視都訂閱。
+    /// 不分 pane、整台主機的事件:workspace 的建立／關閉／改名／更新，偵測到新 agent、pane 結束、tab 改名(#456)。兩種檢視都訂閱。
     public static let hostWide: [EventSubscription] = [
         .init(.workspaceCreated), .init(.workspaceClosed), .init(.workspaceRenamed), .init(.workspaceUpdated),
-        .init(.paneAgentDetected), .init(.paneExited),
+        .init(.paneAgentDetected), .init(.paneExited), .init(.tabRenamed),
     ]
 
-    /// 版面事件(#40):tab 與 pane 的建立／關閉、tab 改名與移動、版面更新、workspace 移動與排序。只有 Spaces 檢視訂閱。
+    /// 版面事件(#40):tab 與 pane 的建立／關閉、tab 移動、版面更新、workspace 移動與排序。只有 Spaces 檢視訂閱。
     /// `layout.updated` 在拖動調整大小時每一步都送(#159),靠主機更新來源的 single-flight 合併成少數幾次快照，不讀預覽。
     public static let layout: [EventSubscription] = [
-        .init(.tabCreated), .init(.tabClosed), .init(.tabRenamed), .init(.tabMoved), .init(.paneCreated), .init(.paneClosed),
+        .init(.tabCreated), .init(.tabClosed), .init(.tabMoved), .init(.paneCreated), .init(.paneClosed),
         .init(.layoutUpdated), .init(.workspaceMoved), .init(.workspaceReordered),
     ]
 

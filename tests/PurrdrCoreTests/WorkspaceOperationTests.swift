@@ -45,6 +45,34 @@ struct WorkspaceOperationTests {
         }
     }
 
+    @Test("重新命名 Tab:送 tab.rename {tab_id, label},不送 EOF,讀到回應後關閉通道(#456)")
+    func renameTabSendsTabRename() async throws {
+        let host = FakeHost()
+        // schema 的 `tab_info`。
+        let reply = #"{"id":"purrdr:tab.rename","result":{"type":"tab_info","tab":{"tab_id":"w1:t1","workspace_id":"w1","number":1,"label":"tests","focused":true,"pane_count":1,"agent_status":"done"}}}"#
+        await host.expect(Self.bridge, reply: FakeReply(stdout: Data(reply.utf8 + [0x0A]), trigger: .afterStdinLine))
+
+        try await HerdrClient(channel: host).renameTab("w1:t1", to: "tests")
+
+        let execution = try #require(await host.executions.first)
+        #expect(execution.stdinText ==
+            #"{"id":"purrdr:tab.rename","method":"tab.rename","params":{"label":"tests","tab_id":"w1:t1"}}"# + "\n")
+        #expect(execution.closedStdin == false)
+        #expect(execution.closed == true)
+    }
+
+    @Test("重新命名 Tab:herdr 的錯誤碼與原文原樣丟出")
+    func renameTabKeepsHerdrError() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: .recorded("error.workspace-not-found.ndjson") {
+            $0["error"] = ["code": "tab_not_found", "message": "tab w1:t9 not found"]
+        })
+
+        await #expect(throws: HerdrError.herdr(code: "tab_not_found", message: "tab w1:t9 not found")) {
+            try await HerdrClient(channel: host).renameTab("w1:t9", to: "tests")
+        }
+    }
+
     @Test("關閉 workspace:送 workspace.close {workspace_id},不帶 close_group")
     func closeSendsWorkspaceClose() async throws {
         let host = FakeHost()

@@ -17,6 +17,24 @@ struct DemoWorkspaceTests {
         #expect(snapshot.agents.first { $0.paneID == "w1:p1" }?.workspaceLabel == "Budget")
     }
 
+    @Test("重新命名 Tab 後，之後的 snapshot 用新名稱(#456)")
+    func renameTabChangesLabel() async throws {
+        let client = HerdrClient(channel: DemoHost())
+
+        try await client.renameTab("w1:t1", to: "tests")
+
+        let snapshot = try await client.snapshot()
+        #expect(snapshot.tabs.first { $0.id == "w1:t1" }?.label == "tests")
+        #expect(snapshot.tabs.first { $0.id == "w2:t1" }?.label == "1")
+    }
+
+    @Test("不存在的 Tab:tab_not_found(與 herdr 相同)")
+    func unknownTab() async {
+        await #expect(throws: HerdrError.herdr(code: "tab_not_found", message: "tab w9:t9 not found")) {
+            try await HerdrClient(channel: DemoHost()).renameTab("w9:t9", to: "tests")
+        }
+    }
+
     @Test("關閉後，那個 workspace 的 tab、pane、版面與 Agent 都不見了")
     func closeRemovesWorkspace() async throws {
         let client = HerdrClient(channel: DemoHost())
