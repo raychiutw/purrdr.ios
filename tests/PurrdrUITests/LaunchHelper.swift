@@ -148,6 +148,7 @@ extension XCUIApplication {
     @MainActor
     func openHostsTab(file: StaticString = #filePath, line: UInt = #line) {
         openTab(.hosts, file: file, line: line)
+        scrollToTopBar(containing: "hosts.add")
         XCTAssertTrue(buttons["hosts.add"].waitUntilExists(timeout: 10), "沒有開出主機 tab", file: file, line: line)
     }
 
@@ -227,12 +228,25 @@ extension XCUIApplication {
         return item
     }
 
+    /// 往下捲過的頁面頂列會收合(收合後只剩小標題、不渲染右側的按鈕):要點頂列按鈕前先把頁面捲回最上面。
+    /// 按鈕已經在畫面上就不動;捲不回來不在這裡失敗(後面的斷言會說明找不到什麼)。
+    @MainActor
+    func scrollToTopBar(containing identifier: String) {
+        guard !buttons[identifier].firstMatch.waitUntilExists(timeout: 1),
+              !buttons["OverflowBarButtonItem"].firstMatch.exists else { return }
+        for _ in 0..<10 where !buttons[identifier].firstMatch.exists {
+            windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+                .press(forDuration: 0.05, thenDragTo: windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
+        }
+    }
+
     /// 點工具列右側的項目。AX 字級時系統把右側的項目收進工具列的溢出選單(More):
     /// 選單項目沒有 identifier,以 VoiceOver 也會念的名稱找(名稱不對就是 a11y 問題)。
     @MainActor
     func tapToolbarItem(_ identifier: String, overflowLabel: String, file: StaticString = #filePath, line: UInt = #line) {
         let item = buttons[identifier].firstMatch
         let overflow = buttons["OverflowBarButtonItem"].firstMatch
+        scrollToTopBar(containing: identifier)
         XCTAssertTrue(UITestWait.until(timeout: 15) { item.exists || overflow.exists }, "工具列沒有 \(identifier) 也沒有溢出選單", file: file, line: line)
         if item.exists {
             item.tap()

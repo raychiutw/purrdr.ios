@@ -106,6 +106,7 @@ final class HTTPSHostUITests: XCTestCase {
             XCTAssertTrue(dismiss.waitUntilExists(timeout: 5))
             dismiss.tap()
 
+            app.scrollToTopBar(containing: "hosts.add")
             XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機 tab")
             XCTAssertTrue(UITestWait.until(timeout: 5) { updates.count == before - 1 }, "關閉後那台仍有更新提示(\(before) → \(updates.count))")
         }
