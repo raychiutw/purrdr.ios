@@ -878,7 +878,8 @@ public final class ConversationModel {
     /// 輪詢綁定新 session 時丟掉快取，舊內容留著到新內容讀回來(#329)。
     public func restoreFromCache() async {
         guard items.isEmpty, let cached = await cache.load(chatKey: chatKey),
-              knownSessionID.map({ cached.matches(sessionID: $0) }) ?? (cached.parserVersion == CachedConversation.parserVersion) else { return }
+              knownSessionID.map({ cached.matches(sessionID: $0) }) ?? (cached.parserVersion == CachedConversation.parserVersion),
+              Self.isWorthRestoring(cached) else { return }
         boundSessionID = cached.sessionID
         file = (cached.path, TranscriptFollow(cursor: cached.cursor, isLive: false), cached.windowStart)
         recent = cached.messages
@@ -1245,13 +1246,21 @@ public final class ConversationModel {
         }
     }
 
-    /// 畫面上有沒有至少一則使用者或 Agent 的文字;工具串(`.toolRun`)本身也是 item,不算(#473)。
-    private var hasReadableMessage: Bool {
-        items.contains { if case .user = $0 { true } else if case .agentText = $0 { true } else { false } }
+    /// 畫面上有沒有「可讀訊息」(#473):使用者訊息、Agent 文字、備註、skill、subagent、workflow、shell、檔案卡都算;
+    /// 只有摺起來的工具串(`.toolRun`)不算。
+    private var hasReadableMessage: Bool { Self.hasReadableMessage(in: items) }
+
+    private static func hasReadableMessage(in items: [ConversationItem]) -> Bool {
+        items.contains { if case .toolRun = $0 { false } else { true } }
+    }
+
+    /// 快取的訊息組出的畫面有可讀訊息(或根本沒有訊息)才值得還原:尾端只有工具步驟的快取會讓開啟時看到一片空白的步驟串(#473)。
+    private static func isWorthRestoring(_ cached: CachedConversation) -> Bool {
+        cached.messages.isEmpty || hasReadableMessage(in: Conversation.items(from: cached.messages))
     }
 
     /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
-    static let maximumEmptyWindowPages = 25
+    package static let maximumEmptyWindowPages = 25
 
     private func append(_ chunk: TranscriptChunk) {
         let known = Set(recent.map(\.id))
@@ -1330,7 +1339,8 @@ public final class ConversationModel {
         clearSuggestion()
         banner = .offline
         updateWorkingSince()
-        if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID) {
+        if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID),
+            Self.isWorthRestoring(cached) {
             recent = cached.messages
             segments = [(cached.windowStart, cached.messages.count)]
             metadata = cached.metadata
