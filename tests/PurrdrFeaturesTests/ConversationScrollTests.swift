@@ -372,6 +372,53 @@ struct ConversationScrollTests {
         #expect(refills == ConversationScroll.maximumReturns)
     }
 
+    @Test("進背景時可見高度來回跳:捲回次數有總量上限，不因高度變化歸零(#492)")
+    func returningHasTotalCapWhenVisibleHeightAlternates() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var scroll = ConversationScroll()
+        // 0x8BADF00D(0.49.0):背景中可見高度在兩個值之間跳，每次高度不同就把連續次數歸零，主執行緒一直捲。
+        var returns = 0
+        for index in 0..<200 {
+            let height = index.isMultiple(of: 2) ? 195.33 : 301.0
+            let metrics = ConversationScrollMetrics(
+                contentHeight: 618 + Double(index), containerHeight: height, contentOffsetY: 869.33, topInset: 116, bottomInset: 562.67)
+            if scroll.returnsToContent(metrics, at: now) {
+                scroll.returnedToContent(metrics)
+                returns += 1
+            }
+        }
+        #expect(returns <= ConversationScroll.maximumTotalReturns)
+        #expect(returns == ConversationScroll.maximumTotalReturns, "上限內仍會捲回")
+    }
+
+    @Test("總量上限在新內容或使用者操作時重設(#492)")
+    func totalCapResetsOnNewContentAndUserAction() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        func exhaust(_ scroll: inout ConversationScroll) {
+            for index in 0..<200 {
+                let metrics = ConversationScrollMetrics(
+                    contentHeight: 618 + Double(index), containerHeight: index.isMultiple(of: 2) ? 195.33 : 301, contentOffsetY: 869.33,
+                    topInset: 116, bottomInset: 562.67)
+                if scroll.returnsToContent(metrics, at: now) { scroll.returnedToContent(metrics) }
+            }
+        }
+        let probe = ConversationScrollMetrics(contentHeight: 900, containerHeight: 222, contentOffsetY: 2000, topInset: 116, bottomInset: 500)
+        var scroll = ConversationScroll()
+        exhaust(&scroll)
+        #expect(!scroll.returnsToContent(probe, at: now))
+        scroll.contentChanged(from: ["a"], to: ["a", "b"], at: now)
+        #expect(scroll.returnsToContent(probe, at: now), "新內容重設")
+
+        exhaust(&scroll)
+        #expect(!scroll.returnsToContent(probe, at: now))
+        scroll.userScrolled(distanceFromBottom: 0)
+        #expect(scroll.returnsToContent(probe, at: now), "使用者捲動重設")
+
+        exhaust(&scroll)
+        scroll.jumpToLatestByTap()
+        #expect(scroll.returnsToContent(probe, at: now), "點跳到最新重設")
+    }
+
     @Test("以位移捲到底：ScrollPosition 的 y 從內容頂端量起，不含頂部 inset")
     func bottomScrollPosition() {
         // iPhone 17 實測(#251,AX5 開啟需要你的對話):內容 927、可見範圍 616、頂部 inset 116,`scrollTo(y: 195)`

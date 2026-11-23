@@ -29,6 +29,9 @@ public struct ConversationScroll: Equatable, Sendable {
     private var returns = 0
     /// 上面那些捲回時的可見範圍高度：變了(鍵盤、輸入列、旋轉)就重新計算。
     private var returnsContainerHeight: Double?
+    /// 捲回內容與以位移再捲的總次數(#492):不因可見範圍高度變化歸零(進背景時高度來回跳，連續次數永遠歸零，主執行緒一直捲)，
+    /// 只在新內容、使用者操作時重設。
+    private var totalReturns = 0
 
     /// 內容重建後這段時間內，停在內容之外就切回跟隨並捲到底(LazyVStack 重新估算高度要幾個畫面才定下來)。
     public static let rebuildSettleTime: TimeInterval = 1
@@ -51,6 +54,7 @@ public struct ConversationScroll: Equatable, Sendable {
         rebuiltAt = nil
         refills = 0
         returns = 0
+        totalReturns = 0
         offsetFollowedLayout = nil
         following = distanceFromBottom <= Self.threshold
     }
@@ -70,7 +74,8 @@ public struct ConversationScroll: Equatable, Sendable {
     /// 畫面就停在對話中間(AX5 開啟長對話,#251)。跟隨中、排版又變了(內容變高、停止列或鍵盤讓可見範圍變小)、不在底部時，以新的底部位移再捲。
     /// 捲動途中同一個排版的位置不算;次數有上限，使用者自己捲過或下一次以位移捲回時重新計算。
     public func followsByOffset(_ metrics: ConversationScrollMetrics) -> Bool {
-        guard following, let layout = offsetFollowedLayout, offsetFollows < Self.maximumOffsetFollows else { return false }
+        guard following, let layout = offsetFollowedLayout, offsetFollows < Self.maximumOffsetFollows,
+              totalReturns < Self.maximumTotalReturns else { return false }
         // 以位移捲就是要貼齊底部：差 1pt 以上就再捲(「在底部」的門檻 48pt 會讓最後一列有一截留在輸入卡片底下)。
         return metrics.layout != layout && abs(metrics.distanceFromBottom) > 1
     }
@@ -79,6 +84,7 @@ public struct ConversationScroll: Equatable, Sendable {
     public mutating func followedByOffset(_ metrics: ConversationScrollMetrics) {
         offsetFollowedLayout = metrics.layout
         offsetFollows += 1
+        totalReturns += 1
     }
 
     /// 以位移捲回後、內容高度又變時再以位移捲的次數上限(#251)。
@@ -87,6 +93,7 @@ public struct ConversationScroll: Equatable, Sendable {
     /// 跟隨中畫面捲去顯示新出現、但不是對話項目的內容(slash 面板、需要你、工作中指示)時呼叫(#251)。
     public mutating func followedNewContent() {
         returns = 0
+        totalReturns = 0
     }
 
     /// 開啟、點「跳到最新」、重新載入:變跟隨並捲到底。
@@ -99,6 +106,7 @@ public struct ConversationScroll: Equatable, Sendable {
     public mutating func jumpToLatestByTap() {
         jumpToLatest()
         jumpPending = true
+        totalReturns = 0
     }
 }
 
@@ -127,7 +135,10 @@ extension ConversationScroll {
     /// 列表內容改變時呼叫(不論跟隨或閱讀中):記下重建的時間。
     public mutating func contentChanged(from old: [String], to new: [String], at now: Date) {
         if Self.isRebuild(from: old, to: new) { rebuiltAt = now }
-        if old != new { returns = 0 }
+        if old != new {
+            returns = 0
+            totalReturns = 0
+        }
     }
 
     /// 可見範圍停在內容之外時要不要切回跟隨並捲到底。跟隨尾端時一律要(開啟時 LazyVStack 的估算高度收斂，
@@ -165,8 +176,12 @@ extension ConversationScroll {
     public static let maximumReturns = 3
 
     private func canReturnAgain(_ metrics: ConversationScrollMetrics) -> Bool {
-        returns < Self.maximumReturns || metrics.containerHeight != returnsContainerHeight
+        totalReturns < Self.maximumTotalReturns
+            && (returns < Self.maximumReturns || metrics.containerHeight != returnsContainerHeight)
     }
+
+    /// 沒有新內容、使用者也沒操作時，不論可見範圍高度怎麼變，捲回內容(含以位移再捲)的總次數上限(#492)。
+    public static let maximumTotalReturns = 8
 
     /// 畫面上看得到的列數改變時呼叫。
     public mutating func visibleRowsChanged(count: Int) {
@@ -188,6 +203,7 @@ extension ConversationScroll {
             returnsContainerHeight = metrics.containerHeight
         }
         returns += 1
+        totalReturns += 1
     }
 
     /// 重建：原有的列(不算回音)沒有原封不動、連續地留在新的列裡(後面接上、前面加上舊頁都不是)。

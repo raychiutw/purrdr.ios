@@ -249,6 +249,8 @@ public struct ConversationView: View {
                 bottomInset: geometry.contentInsets.bottom
             )
         } action: { _, metrics in
+            // 不在前景時不捲動、不寫量測狀態(#492):進背景時可見高度來回跳，會讓主執行緒一直更新而被看門狗殺掉。
+            guard scenePhase == .active else { return }
             conversationHeight.update(metrics.containerHeight)
             if userIsScrolling {
                 scroll.userScrolled(distanceFromBottom: metrics.distanceFromBottom)

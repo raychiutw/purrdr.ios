@@ -79,9 +79,15 @@ struct AppLockScreen: View {
 
 #if os(iOS)
 /// 鎖定畫面放在視窗場景上層的獨立 UIWindow:sheet 是另一層 presentation,一般 overlay 蓋不住。
-private struct AppLockWindowPresenter: UIViewRepresentable {
+///
+/// 顯示與收起(`endEditing`、`makeKeyAndVisible`)不能在 `updateUIView` 裡同步做(#492):那是 SwiftUI 更新途中，
+/// 改焦點與 key window 會同步觸發另一輪更新，與 #34 的重入迴圈同型，主執行緒滿載被看門狗殺掉。
+/// 一律延後到這次更新結束後(下一輪 main actor)再套用，同一狀態合併成一次。
+struct AppLockWindowPresenter: UIViewRepresentable {
     let lock: AppLock
     let isPresented: Bool
+    /// 鎖定視窗的建立方式(測試注入;沒有 window scene 的測試環境用)。預設用內容視窗的 scene。
+    var windowFactory: (@MainActor (UIWindow) -> UIWindow?)?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -89,7 +95,7 @@ private struct AppLockWindowPresenter: UIViewRepresentable {
         let anchor = AnchorView()
         anchor.isUserInteractionEnabled = false
         let coordinator = context.coordinator
-        anchor.onWindowChange = { [weak coordinator] in coordinator?.apply() }
+        anchor.onWindowChange = { [weak coordinator] in coordinator?.scheduleApply() }
         coordinator.anchor = anchor
         return anchor
     }
@@ -97,7 +103,8 @@ private struct AppLockWindowPresenter: UIViewRepresentable {
     func updateUIView(_ anchor: AnchorView, context: Context) {
         context.coordinator.lock = lock
         context.coordinator.isPresented = isPresented
-        context.coordinator.apply()
+        if let windowFactory { context.coordinator.makeWindow = windowFactory }
+        context.coordinator.scheduleApply()
     }
 
     static func dismantleUIView(_ anchor: AnchorView, coordinator: Coordinator) {
@@ -120,11 +127,26 @@ private struct AppLockWindowPresenter: UIViewRepresentable {
         var lock: AppLock?
         var isPresented = false
         var lockWindow: UIWindow?
+        var makeWindow: @MainActor (UIWindow) -> UIWindow? = { content in
+            content.windowScene.map { UIWindow(windowScene: $0) }
+        }
+        private var applyScheduled = false
 
-        func apply() {
-            guard let lock, let contentWindow = anchor?.window, let scene = contentWindow.windowScene else { return }
-            if lockWindow?.windowScene !== scene {
-                let window = UIWindow(windowScene: scene)
+        /// 延後到這次 SwiftUI 更新結束後套用;已排定就不重複排。
+        func scheduleApply() {
+            guard !applyScheduled else { return }
+            applyScheduled = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                applyScheduled = false
+                apply()
+            }
+        }
+
+        private func apply() {
+            guard let lock, let contentWindow = anchor?.window else { return }
+            if lockWindow == nil || lockWindow?.windowScene !== contentWindow.windowScene {
+                guard let window = makeWindow(contentWindow) else { return }
                 window.windowLevel = .alert + 1
                 let host = UIHostingController(rootView: AppLockScreen(lock: lock).appAppearance())
                 host.view.accessibilityViewIsModal = true
