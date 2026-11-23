@@ -130,9 +130,6 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
-                // 列表檢視(Spaces／Agents)用預設的記憶體實作:每次啟動都從 Agents 開始(同正式 app 沒存過時;
-                // #275 起 Spaces 檢視是 Tab 列、沒有 Agent 列，測 Spaces 的測試自己切過去)。
-                listMode: InMemoryAgentListModeStore(.agents),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
                 makeChannel: { endpoint, _, _ in
                     if endpoint.host == Self.unreachableHost.ssh?.endpoint.host { return DemoUnreachableChannel() as any HostChannel }
@@ -158,7 +155,7 @@ struct PurrdrApp: App {
                 // 最新的主機服務版本從 purrdr.host 的 GitHub Release 取得，主機服務發版時 app 不用改版號(#362)。
                 hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
-                listMode: UserDefaultsAgentListModeStore(), skeletonRowCounts: UserDefaultsSkeletonRowCountStore(),
+                skeletonRowCounts: UserDefaultsSkeletonRowCountStore(),
                 // 離線佇列存在本機，App 重開仍在(#301)。
                 offlineQueues: UserDefaultsOfflineQueueStore(),
                 // 模型目錄的公開來源(#385);UI 測試不給,不連網路。

@@ -18,14 +18,14 @@ struct TopBarContent {
     var plus: AnyView?
     /// 最右側的頭像圓鈕。
     var account: AnyView
-    /// 膠囊左邊暫時多出的一顆圓鈕(聊天的 Agents／Spaces 切換,#501 移除後不再使用)。
-    var accessory: AnyView?
     /// 有搜尋的 tab 才有:搜尋字串與焦點。
     var search: Search?
 
     struct Search {
         var text: Binding<String>
         var focus: FocusState<Bool>.Binding
+        /// 搜尋欄的提示文字(聊天:搜尋 Tab、Workspace、主機)。
+        var prompt: LocalizedStringKey = "Search"
     }
 }
 
@@ -135,11 +135,6 @@ private struct TopBarControls: View {
 
     var body: some View {
         HStack(spacing: TopBarMetrics.controlSpacing) {
-            if let accessory = content.accessory {
-                accessory
-                    .frame(width: TopBarMetrics.circleDiameter, height: TopBarMetrics.controlHeight)
-                    .floatingGlass(in: Circle())
-            }
             switch spec.controls {
             case .pill:
                 HStack(spacing: 0) {
@@ -269,7 +264,7 @@ private struct TopBarSearchField: View {
                 .foregroundStyle(Color.secondaryText)
                 .accessibilityHidden(true)
             TextField(text: search.text) {
-                Text("Search")
+                Text(search.prompt)
             }
             .focused(search.focus)
             .submitLabel(.search)

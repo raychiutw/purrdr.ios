@@ -159,7 +159,7 @@ public struct TopNavigationView: View {
                 let list = hosts.agentList
                 navigation.perform(
                     command,
-                    visibleAgents: navigation.visibleAgents(list.sections, host: hosts.selection, snapshot: list.snapshot(for: hosts.selection)))
+                    visibleAgents: navigation.visibleAgents(list.spacesSections, host: hosts.selection, snapshot: list.snapshot(for: hosts.selection)))
             },
             isLayoutCardShown: card.workspaceID != nil,
             closeLayoutCard: { card.close() })

@@ -502,7 +502,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
         let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-        let ledger = app.element("agent.row.demo/w1:p1")
+        let ledger = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
         ledger.tap()
         let text = app.element("composer.text")
@@ -619,7 +619,7 @@ final class ConversationUITests: XCTestCase {
         list.swipeDown()
         list.swipeUp()
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch.waitUntilExists(timeout: 10), "斷網後點返回沒有回到列表")
+        XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch.waitUntilExists(timeout: 10), "斷網後點返回沒有回到列表")
     }
 
     /// 等元素的 accessibility value 以指定文字開頭(縮放有動畫)。

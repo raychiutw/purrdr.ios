@@ -51,7 +51,7 @@ final class HTTPSHostUITests: XCTestCase {
 
             // Demo 的 w2:p1 卡在 Bash 權限(AnswerPromptUITests)。此時只有這一台 HTTPS 主機。
             let row = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier ENDSWITH %@ AND NOT (identifier BEGINSWITH %@)", "/w2:p1", "agent.row.demo/"))
+                .matching(NSPredicate(format: "identifier ENDSWITH %@ AND NOT (identifier BEGINSWITH %@)", "/w2:t1", "spaces.tab.demo/"))
                 .firstMatch
             XCTAssertTrue(app.reveal(row), "列表沒有 HTTPS 主機的 Agent")
             row.tap()
@@ -85,7 +85,7 @@ final class HTTPSHostUITests: XCTestCase {
             app.openTab(.chats)
 
             let row = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT (identifier BEGINSWITH %@)", "agent.row.", "agent.row.demo/"))
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT (identifier BEGINSWITH %@)", "spaces.tab.", "spaces.tab.demo/"))
                 .firstMatch
             XCTAssertTrue(row.waitUntilExists(timeout: 10), "列表沒有 HTTPS 主機的 Agent")
             app.openHostsTab()

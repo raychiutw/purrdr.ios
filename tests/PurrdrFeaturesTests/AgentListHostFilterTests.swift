@@ -12,12 +12,15 @@ struct AgentListHostFilterTests {
     static let studio = HostSelection.host(UUID(uuidString: "00000000-0000-0000-0000-0000000000B1")!)
     static let lab = HostSelection.host(UUID(uuidString: "00000000-0000-0000-0000-0000000000B2")!)
 
-    static func source(_ host: HostSelection, name: String, icon: HostIcon = .default, fails: Bool = false) async -> MergedAgentListModel.Source {
+    static func source(
+        _ host: HostSelection, name: String, icon: HostIcon = .default, fails: Bool = false,
+        modify: ((inout [String: Any]) -> Void)? = nil
+    ) async -> MergedAgentListModel.Source {
         let fake = FakeHost()
         if fails {
             await fake.failConnection(with: SSHConnectionError.timedOut)
         } else {
-            await fake.expect(bridge, reply: .recorded("session.snapshot.ndjson"))
+            await fake.expect(bridge, reply: modify.map { .recorded("session.snapshot.ndjson", modify: $0) } ?? .recorded("session.snapshot.ndjson"))
         }
         let client = HerdrClient(channel: fake)
         return MergedAgentListModel.Source(
@@ -25,10 +28,10 @@ struct AgentListHostFilterTests {
             actions: WorkspaceActionsModel(client: client, preferences: InMemoryChatPreferencesStore()))
     }
 
-    static func loadedModel(labFails: Bool = false) async -> MergedAgentListModel {
+    static func loadedModel(labFails: Bool = false, modify: ((inout [String: Any]) -> Void)? = nil) async -> MergedAgentListModel {
         let model = MergedAgentListModel()
         let sources = [
-            await source(studio, name: "Studio", icon: .macMini),
+            await source(studio, name: "Studio", icon: .macMini, modify: modify),
             await source(lab, name: "Lab", icon: .rack, fails: labFails),
         ]
         model.update(sources: sources, selected: studio)

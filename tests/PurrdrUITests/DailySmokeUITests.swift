@@ -22,26 +22,25 @@ final class DailySmokeUITests: XCTestCase {
     @MainActor
     func testListAndChat() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo"])
-        let ledger = app.element("agent.row.demo/w1:p1")
+        let ledger = app.element("spaces.tab.demo/w1:t1")
 
         step("列表看到 Demo 的 Agent") {
             XCTAssertTrue(app.reveal(ledger), "沒有看到 Demo 主機的 Agent")
-            XCTAssertTrue(ledger.label.contains("ledger"), "列沒有 workspace 名稱:\(ledger.label)")
+            XCTAssertTrue(ledger.label.contains("Done"), "列沒有狀態文字:\(ledger.label)")
+            XCTAssertTrue(app.element("spaces.section.demo/w1").exists, "沒有 workspace 段落標題")
         }
         step("搜尋篩選列表") {
             let search = app.chatSearch
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
-            XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 5))
+            XCTAssertTrue(app.element("spaces.tab.demo/w2:t1").waitUntilExists(timeout: 5))
             XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "不符合的列仍在")
             search.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 7) + "\n")
             XCTAssertTrue(ledger.waitUntilExists(timeout: 5), "清掉搜尋後列表沒有回來")
-            // 搜尋啟用時導覽列換成搜尋欄:取消後才看得到左上角的切換鈕。
             app.cancelSearchIfActive()
         }
-        step("Spaces 檢視:一鍵切換、搜尋 workspace 與長按選單") {
-            app.switchListMode(to: "Spaces")
+        step("Spaces:搜尋 workspace、沒有檢視切換") {
             XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")), "Spaces 沒有 workspace 段落")
             let search = app.chatSearch
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
@@ -56,10 +55,8 @@ final class DailySmokeUITests: XCTestCase {
             clear.tap()
             XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 5), "清掉搜尋後 Spaces 沒有回來")
             app.cancelSearchIfActive()
-            app.listModeControl.press(forDuration: 1.0)
-            XCTAssertTrue(app.buttons["Agents"].firstMatch.waitUntilExists(timeout: 5), "長按切換鈕沒有出現選單")
-            app.buttons["Agents"].firstMatch.tap()
-            XCTAssertTrue(app.listModeControl.waitForLabel("View: Agents", timeout: 5), "從選單選 Agents 沒有切換")
+            // 聊天只有 Spaces(#501):沒有 Agents／Spaces 切換。
+            XCTAssertFalse(app.buttons["agentList.mode"].exists, "聊天不該有檢視切換鈕")
         }
         step("打開聊天並送出") {
             XCTAssertTrue(app.reveal(ledger))
@@ -374,7 +371,7 @@ final class DailySmokeUITests: XCTestCase {
         }
         step("試用 Demo") {
             app.buttons["agentList.tryDemo"].tapWhenReady()
-            XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有列出 Demo 的 Agent")
+            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有列出 Demo 的 Agent")
         }
         step("移除範例主機回到空狀態") {
             app.openTab(.hosts)
@@ -388,7 +385,7 @@ final class DailySmokeUITests: XCTestCase {
             app.openTab(.hosts)
             app.buttons["hosts.add"].tapWhenReady()
             app.buttons["guide.tryDemo"].tapWhenReady()
-            XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有列出範例主機的 Agent")
+            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有列出範例主機的 Agent")
         }
     }
 
@@ -399,23 +396,23 @@ final class DailySmokeUITests: XCTestCase {
         step("歡迎頁試用 Demo") {
             XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10), "沒有歡迎頁")
             app.buttons["welcome.demo"].tap()
-            XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有回到列表")
+            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有回到列表")
         }
     }
 }
 
 
 extension XCUIApplication {
-    /// 搜尋啟用時導覽列換成搜尋欄與取消:取消後才看得到左上角的切換鈕(已經收起就不動)。
+    /// 搜尋啟用時導覽列換成搜尋欄與取消:取消後才看得到頂列(已經收起就不動)。
     @MainActor
     func cancelSearchIfActive() {
-        guard !listModeControl.isHittable else { return }
+        guard !chatListReady.isHittable else { return }
         let cancel = navigationBars.buttons.matching(NSPredicate(format: "label IN {'Cancel', 'Close', 'Dismiss'}")).firstMatch
         if cancel.waitUntilExists(timeout: 5) {
             cancel.tap()
         } else {
             print("SEARCH-CANCEL-MISSING", navigationBars.firstMatch.debugDescription)
         }
-        _ = listModeControl.waitUntilExists(timeout: 5)
+        _ = chatListReady.waitUntilExists(timeout: 5)
     }
 }

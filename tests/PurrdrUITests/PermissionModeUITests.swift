@@ -10,7 +10,7 @@ final class PermissionModeUITests: XCTestCase {
     @MainActor
     func testTitlePanelSwitchesModeAndCapsuleShowsIt() {
         let app = XCUIApplication.launchUITesting()
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         let header = app.element("conversation.header")
@@ -35,7 +35,7 @@ final class PermissionModeUITests: XCTestCase {
     @MainActor
     func testModelCapsuleOpensSheetAndSwitchesModel() {
         let app = XCUIApplication.launchUITesting()
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         // 模型膠囊只在輸入列展開(聚焦或有文字)時顯示(#382)。
@@ -62,7 +62,7 @@ final class PermissionModeUITests: XCTestCase {
     @MainActor
     func testAntigravitySwitchesModeAndShowsModel() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoAntigravity"])
-        let row = app.element("agent.row.demo/w4:p1")
+        let row = app.element("spaces.tab.demo/w4:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 的 Antigravity Agent")
         row.tap()
         let header = app.element("conversation.header")

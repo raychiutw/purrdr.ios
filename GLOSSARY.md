@@ -137,19 +137,15 @@ _避免_:輪詢器、Poller、事件迴圈、Event loop
 ## Agent 列表
 
 **Agent 列表**:
-所有主機的 Agent 合併成的一個列表，是 app 的首頁。有兩種檢視。
+所有主機的 Agent 合併成的一個列表，是 app 的首頁。只有 Spaces 一種呈現(沒有檢視切換)。
 _避免_:Chat list、Inbox、Home
 
-**Spaces 檢視**:
-Agent 列表以 workspace 為單位呈現(#275):每台主機的每個 workspace 一段，段落標題是「主機 · workspace」,段內每個 Tab 一列。點 Tab:只有一個 Pane 直接開(Agent 開聊天、其他開 Pane 終端機),多個 Pane 開那個 Tab 的版面圖。UI 稱「Spaces」,繁中也保留英文。
+**Spaces**:
+Agent 列表唯一的呈現(#275、#501):以 workspace 為單位:每台主機的每個 workspace 一段，段落標題是「主機 · workspace」,段內每個 Tab 一列。點 Tab:只有一個 Pane 直接開(Agent 開聊天、其他開 Pane 終端機),多個 Pane 開那個 Tab 的版面圖。UI 稱「Spaces」,繁中也保留英文。
 _避免_:Workspace 檢視、Grouped view、Workspace 群組(#103 的可收合群組已移除)
 
-**Agents 檢視**:
-Agent 列表每個 Agent 一列，不分 workspace。列的第一行是 workspace 名稱，第二行是「主機 · 最後一句」(#269)。
-_避免_:Flat view、Chats 檢視
-
 **已釘選**(Pinned):
-使用者在這支裝置上釘到 Agent 列表最前面的聊天，自成一組、不論 Agent 狀態。只存在這支裝置。
+使用者在這支裝置上釘到 Agent 列表最前面的聊天，自成一組、不論 Agent 狀態。只存在這支裝置。(#501 移除 Agents 檢視後列表暫時沒有釘選的入口，待 #502 的新列版型決定。)
 _避免_:Favorite、置頂、Starred
 
 **未讀**(Unread):

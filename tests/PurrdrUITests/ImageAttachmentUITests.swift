@@ -22,7 +22,7 @@ final class ImageAttachmentUITests: XCTestCase {
 
     @MainActor
     private func openLedger(in app: XCUIApplication) {
-        let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
+        let row = app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))

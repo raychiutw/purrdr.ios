@@ -20,7 +20,7 @@ final class IPadLayoutUITests: XCTestCase {
     func testThreeColumnsShowChatBesideList() {
         let app = launchInLandscape()
 
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
         XCTAssertTrue(app.element("sidebar.host.demo").exists, "側欄沒有主機")
         XCTAssertTrue(app.element("sidebar.workspace.w1").waitUntilExists(timeout: 5), "側欄沒有 workspace")
@@ -36,7 +36,7 @@ final class IPadLayoutUITests: XCTestCase {
     @MainActor
     func testSelectedRowUsesNeutralGray() throws {
         let app = launchInLandscape()
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
         let unselectedColor = try rowBackgroundColor(row, in: app)
 
@@ -70,41 +70,33 @@ final class IPadLayoutUITests: XCTestCase {
         return (Int(pixel[0]), Int(pixel[1]), Int(pixel[2]))
     }
 
-    /// 列表欄沒有大標題(#268):分段切換在列表欄裡，切到 Agents 群組消失(#244)。
+    /// 列表欄沒有大標題(#268)也沒有檢視切換(#501:聊天只有 Spaces)。
     @MainActor
-    func testListColumnModeControlSwitchesView() {
+    func testListColumnHasOnlySpaces() {
         let app = launchInLandscape()
-        app.switchListMode(to: "Spaces")
         let card = app.element("spaces.section.demo/w3")
-        XCTAssertTrue(app.reveal(card), "沒有看到 Spaces 檢視")
+        XCTAssertTrue(app.reveal(card), "沒有看到 Spaces")
 
-        let control = app.listModeControl
-        XCTAssertTrue(control.waitUntilExists(timeout: 5), "列表欄沒有 Agents／Spaces 切換")
-        XCTAssertEqual(app.listModeName, "Spaces")
-        let list = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch.frame
-        XCTAssertTrue(list.insetBy(dx: -1, dy: -1).contains(control.frame), "切換不在列表欄:\(control.frame) 列表 \(list)")
+        XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 5), "列表欄沒有頂列")
+        XCTAssertFalse(app.buttons["agentList.mode"].exists, "列表欄不該有 Agents／Spaces 切換")
         XCTAssertFalse(app.staticTexts["agentList.title"].exists, "列表欄不該有大標題(#268)")
-
-        app.switchListMode(to: "Agents")
-        XCTAssertTrue(card.waitUntilGone(timeout: 5), "沒有切到 Agents 檢視")
-        XCTAssertEqual(app.listModeName, "Agents")
     }
 
     /// 側欄選 workspace:列表只留那個 workspace 的 Agent;選「All Workspaces」回到全部。
     @MainActor
     func testSidebarWorkspaceFiltersList() {
         let app = launchInLandscape()
-        XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")))
+        XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")))
 
         let weather = app.element("sidebar.workspace.w2")
         XCTAssertTrue(weather.waitUntilExists(timeout: 5))
         weather.tap()
 
-        XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 5))
-        XCTAssertTrue(app.element("agent.row.demo/w1:p1").waitUntilGone(timeout: 5), "篩選後還看得到別的 workspace 的 Agent")
+        XCTAssertTrue(app.element("spaces.tab.demo/w2:t1").waitUntilExists(timeout: 5))
+        XCTAssertTrue(app.element("spaces.tab.demo/w1:t1").waitUntilGone(timeout: 5), "篩選後還看得到別的 workspace 的 Agent")
 
         app.element("sidebar.allWorkspaces").tap()
-        XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1"), timeout: 5))
+        XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1"), timeout: 5))
     }
 
     /// 點版面圖按鈕：浮動卡片出現並釘住;「關閉」才關。點卡片裡的 Agent 方塊：對話開在對話欄。
@@ -134,7 +126,7 @@ final class IPadLayoutUITests: XCTestCase {
     @MainActor
     func testCommandCommaOpensAppSettings() {
         let app = launchInLandscape()
-        XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")))
+        XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")))
 
         app.typeKey(",", modifierFlags: .command)
 
@@ -160,7 +152,7 @@ final class IPadLayoutUITests: XCTestCase {
         for size in [nil, AccessibilityAuditUITests.ax5] {
             XCUIDevice.shared.orientation = .landscapeLeft
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            let row = app.element("agent.row.demo/w2:p1")
+            let row = app.element("spaces.tab.demo/w2:t1")
             // AX5 時列表最上面的大標題(#66)換行變高，`reveal` 會把列表往上拖，列的上半段停在導覽列的玻璃底下
             // (中線剛好在 scroll edge effect 外，排除規則判斷不到)，audit 量到被模糊的那一塊。AX5 只等列出現、
             // 不捲動，稽核的是列表最上面(含大標題)的樣子。
@@ -185,7 +177,7 @@ final class IPadLayoutUITests: XCTestCase {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             let button = app.element("sidebar.layout.w3")
             // 依畫面狀態分支：app 載入完(Agent 列或側欄的版面圖鈕出現)後，有按鈕就走下去，沒有就是 AX5 收起了側欄。
-            let loaded = app.element("agent.row.demo/w2:p1")
+            let loaded = app.element("spaces.tab.demo/w2:t1")
             XCTAssertTrue(UITestWait.until(timeout: 15) { button.exists || loaded.exists }, "app 沒有載入")
             guard button.exists else {
                 // AX5 時寬度不夠三欄，系統收起側欄(沒有側欄就沒有浮動卡片;版面圖改由 Spaces 卡片開 sheet,iPhone 的 audit 已涵蓋)。

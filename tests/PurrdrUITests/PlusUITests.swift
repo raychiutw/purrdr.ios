@@ -71,7 +71,7 @@ final class PlusUITests: XCTestCase {
         let done = app.buttons["plus.close"]
         XCTAssertTrue(done.waitUntilExists(timeout: 5))
         done.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitUntilExists(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch.waitUntilExists(timeout: 5))
     }
 
     /// 頁首只有標題(#236);預設年繳(年繳在前,#408 後續),改選月繳時說明跟著換成月繳的價格與期間;方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。

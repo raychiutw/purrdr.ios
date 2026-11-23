@@ -59,26 +59,19 @@ extension XCUIApplication {
     }
 }
 
-extension XCUIApplication {
-    /// 聊天 tab 左上角的 Agents／Spaces 一鍵切換鈕(#391:只有符號;label 是「View: Agents」或「View: Spaces」)。
-    var listModeControl: XCUIElement { buttons["agentList.mode"].firstMatch }
+/// 聊天列(Spaces 的 Tab 列,#501 起聊天只有 Spaces)的識別碼。Demo 主機每個 workspace 只有一個 Tab:`w1:p1` 在 `w1:t1`。
+/// 同一個 Tab 有多個 Pane 的(Demo 的 `w3`)是版面圖列:點開後在版面圖選 Pane(`layout.block.<paneID>`)。
+func chatRowID(_ paneID: String, host: String = "demo") -> String {
+    let workspace = paneID.split(separator: ":").first.map(String.init) ?? paneID
+    return "spaces.tab.\(host)/\(workspace):t1"
+}
 
+extension XCUIApplication {
     /// 聊天 tab 共用頂列的搜尋欄(#499:自己畫的文字欄位,往下滑收成貼頂玻璃膠囊)。
     var chatSearch: XCUIElement { textFields["agentList.search"].firstMatch }
 
-    /// 目前的檢視名稱(「Agents」或「Spaces」)。
-    var listModeName: String {
-        listModeControl.label.replacingOccurrences(of: "View: ", with: "")
-    }
-
-    /// 切到指定檢視:已經是那個檢視就不動,否則點一下切換鈕。
-    @MainActor
-    func switchListMode(to mode: String, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(listModeControl.waitUntilExists(timeout: 15), "沒有 Agents／Spaces 切換", file: file, line: line)
-        guard listModeName != mode else { return }
-        listModeControl.tap()
-        XCTAssertTrue(listModeControl.waitForLabel("View: \(mode)", timeout: 5), "點了切換沒有變成 \(mode)", file: file, line: line)
-    }
+    /// 聊天列表已經出現(取代舊的 Agents／Spaces 切換鈕:用來等列表載入完成;頂列的新增聊天鈕一直都在)。
+    var chatListReady: XCUIElement { buttons["toolbar.newChat"].firstMatch }
 
     /// 左上角的主機篩選選了某一項(#244)。
     @MainActor

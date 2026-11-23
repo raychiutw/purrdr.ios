@@ -7530,17 +7530,6 @@
         }
       }
     },
-    "No workspace on your hosts is running an agent. Spaces also shows their terminals." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機上沒有 workspace 在跑 agent。Spaces 也會列出它們的終端機。"
-          }
-        }
-      }
-    },
     "None" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10467,6 +10456,17 @@
         }
       }
     },
+    "Search Tabs, Workspaces, Hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋 Tab、Workspace、主機"
+          }
+        }
+      }
+    },
     "See Purrdr Plus" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10984,17 +10984,6 @@
         }
       }
     },
-    "Show Spaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示 Spaces"
-          }
-        }
-      }
-    },
     "Show Status" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11490,17 +11479,6 @@
         }
       }
     },
-    "Spaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spaces"
-          }
-        }
-      }
-    },
     "Start Free Trial" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11827,28 +11805,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支援"
-          }
-        }
-      }
-    },
-    "Switches to Agents." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切換到 Agents 檢視。"
-          }
-        }
-      }
-    },
-    "Switches to Spaces." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切換到 Spaces 檢視。"
           }
         }
       }
@@ -15416,39 +15372,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "影片"
-          }
-        }
-      }
-    },
-    "View" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢視"
-          }
-        }
-      }
-    },
-    "View: Agents" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢視:Agents"
-          }
-        }
-      }
-    },
-    "View: Spaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢視:Spaces"
           }
         }
       }

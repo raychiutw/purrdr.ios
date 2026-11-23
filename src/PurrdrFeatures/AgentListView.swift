@@ -15,9 +15,9 @@ package struct ChatTopBarActions {
     }
 }
 
-/// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「已釘選／需要你／工作中／閒置」分 section,標題帶數量。
+/// Agent 列表:聊天 tab 只有 Spaces 一種呈現(#501)——依「主機 · Workspace」分組、每個 Tab 一列。
 ///
-/// 所有主機的 Agent 合併在同一個列表(#39):非選取中主機的列在副標開頭標示主機名;某台主機連不上時保留它最後的列，
+/// 所有主機合併在同一個列表(#39):每段標題帶主機名;某台主機連不上時保留它最後的列，
 /// 列表下方顯示「主機名：原因」。每台主機都讀不到、也沒有任何列時，選取中主機的錯誤才佔滿畫面。
 /// 不整頁轉圈(#221):還在連的主機在列表上方各一行「連線中」(超過 10 秒「仍在連線」與再試一次);
 /// 第一次載入還沒有列時是列表骨架;裝置沒網路時直接顯示離線。
@@ -97,7 +97,7 @@ public struct AgentListView: View {
             }
         }
         // 共用頂列(#499):左側大標題「聊天」,右側 [電腦圖示｜＋] 膠囊與頭像;往下滑時收合,搜尋欄貼頂。
-        // 搜尋範圍是目前主機(所有主機就搜全部):Agents 檢視比對 Agent、資料夾與主機,Spaces 檢視比對 workspace 與 Tab 名稱。
+        // 搜尋範圍是目前主機(所有主機就搜全部),比對 Tab、Workspace、主機(含 Tab 裡的 Agent 標題)。
         // 導覽列隱藏(頂列自己畫);標題仍設定,給返回鈕用。
         .topBar(topBarContent)
         .navigationTitle("Chats")
@@ -138,15 +138,13 @@ public struct AgentListView: View {
             hostMenu: AnyView(CurrentHostMenu(list: model, addHost: topBarActions.addHost)),
             plus: AnyView(TopBarPlusButton(title: "New Chat", identifier: "toolbar.newChat", action: topBarActions.newChat)),
             account: topBarActions.account,
-            // 暫時:Agents／Spaces 切換留在頂列,等 #501 移除 Agents 檢視時一起拿掉。
-            accessory: AnyView(AgentListModeButton(list: model)),
-            search: TopBarContent.Search(text: $model.query, focus: $searchFocused))
+            search: TopBarContent.Search(text: $model.query, focus: $searchFocused, prompt: "Search Tabs, Workspaces, Hosts"))
     }
 
     /// 搜尋了但沒有任何符合(顯示「找不到」,連線錯誤區塊先收起,免得疊在說明上)。
     private var searchHasNoMatch: Bool {
         guard !model.query.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-        return model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty
+        return spacesSections.isEmpty
     }
 
     private var needsConnectingTicks: Bool { ConnectingClock.needsTicks(for: model.hostStatuses(at: now)) }
@@ -154,11 +152,6 @@ public struct AgentListView: View {
     private struct ConnectingClockKey: Equatable {
         var active: Bool
         var needsTicks: Bool
-    }
-
-    /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
-    private var sections: [AgentSection] {
-        window?.visibleSections(model.sections, host: model.selected, snapshot: model.snapshot(for: model.selected)) ?? model.sections
     }
 
     private var selection: Binding<ChatRoute?> {
@@ -242,15 +235,6 @@ public struct AgentListView: View {
                 systemImage: "bubble.left.and.text.bubble.right",
                 description: Text("Agents you start in herdr on your hosts appear here.")
             )
-        case .noAgentsInAgentsView:
-            ContentUnavailableView {
-                Label("No Agents", systemImage: "bubble.left.and.text.bubble.right")
-            } description: {
-                Text("No workspace on your hosts is running an agent. Spaces also shows their terminals.")
-            } actions: {
-                Button("Show Spaces") { model.mode = .spaces }
-                    .accessibilityIdentifier("agentList.showSpaces")
-            }
         case .list:
             list
         }
@@ -299,19 +283,18 @@ public struct AgentListView: View {
     }
 
     private var list: some View {
-        let sections = sections
-        return Group {
+        Group {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             if window != nil {
                 List(selection: selection) {
                     hostStatusRows
-                    listRows(sections)
+                    listRows
                 }
                 .environment(\.selectedChatRoute, window?.selectedChat)
             } else {
                 List {
                     hostStatusRows
-                    listRows(sections)
+                    listRows
                 }
             }
         }
@@ -319,11 +302,9 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
-        // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
-        .id(model.mode)
         // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。
         .onAppear { model.rememberRowCount() }
-        .onChange(of: model.agentRows.count) { model.rememberRowCount() }
+        .onChange(of: spacesSections.reduce(0) { $0 + $1.tabs.count }) { model.rememberRowCount() }
         .overlay {
             if searchHasNoMatch {
                 ContentUnavailableView.search(text: model.query)
@@ -337,7 +318,7 @@ public struct AgentListView: View {
             case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
             }
         }
-        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(兩種檢視都有搜尋,#391)。
+        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(#391)。
         .onChange(of: window?.isSearchFocused ?? false) { _, focused in
             guard focused else { return }
             searchFocused = true
@@ -348,19 +329,12 @@ public struct AgentListView: View {
     }
 
     @ViewBuilder
-    private func listRows(_ sections: [AgentSection]) -> some View {
+    private var listRows: some View {
         let failures = model.failures
-        if model.mode == .spaces {
-            SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation)
-        } else if !sections.isEmpty {
-            // 單一清單(#244):不分段，順序仍是已釘選、需要你、工作中、閒置。
-            Section {
-                ForEach(sections.flatMap(\.rows)) { row in agentRow(row) }
-            }
-        }
+        SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation)
         if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
-           model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty {
+           spacesSections.isEmpty {
             // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。
             Section {
                 Text("No agents on \(filtered.name).")
@@ -388,26 +362,9 @@ public struct AgentListView: View {
         }
     }
 
-    /// 一個 Agent 列(兩種檢視共用：同樣的滑動、選單、已讀與釘選;Spaces 檢視的版面不同)。
-    private func agentRow(_ row: AgentRow) -> some View {
-        NavigationLink(value: row.route) {
-            AgentRowView(row: row, host: model.hostLabel(of: row.host))
-        }
-            .accessibilityIdentifier("agent.row.\(row.id)")
-            .selectionFill(for: row.route)
-            .workspaceRowActions(
-                WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
-                actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host),
-                openInNewWindow: openInNewWindow.map { open in { kind in open(kind, row) } }
-            )
-    }
-
-    /// Spaces 檢視：套用側欄的 workspace 篩選(選取中主機的那個 workspace)。
+    /// 套用側欄的 workspace 篩選(選取中主機的那個 workspace)後的 Spaces 段落。
     private var spacesSections: [SpacesSection] {
-        let all = model.spacesSections
-        guard let filter = window?.workspaceFilter,
-              let snapshot = model.snapshot(for: model.selected), snapshot.workspaces.contains(where: { $0.id == filter }) else { return all }
-        return all.filter { $0.host == model.selected && $0.workspaceID == filter }
+        window?.visibleSpaces(model.spacesSections, host: model.selected, snapshot: model.snapshot(for: model.selected)) ?? model.spacesSections
     }
 
     /// 某台主機讀不到(Claude 方案用量只在選取中主機讀得到時顯示)。

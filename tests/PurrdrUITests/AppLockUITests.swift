@@ -16,13 +16,13 @@ final class AppLockUITests: XCTestCase {
         XCTAssertEqual(title.label, "Purrdr Is Locked")
         let unlock = app.buttons["appLock.unlock"]
         XCTAssertEqual(unlock.label, "Unlock")
-        XCTAssertFalse(app.listModeControl.isHittable, "鎖定畫面沒有遮住列表")
+        XCTAssertFalse(app.chatListReady.isHittable, "鎖定畫面沒有遮住列表")
 
         unlock.tap()
 
         XCTAssertTrue(title.waitUntilGone(timeout: 10), "解鎖後鎖定畫面沒有消失")
-        XCTAssertTrue(app.listModeControl.waitUntilExists(timeout: 10))
-        XCTAssertTrue(app.listModeControl.isHittable, "解鎖後列表不能操作")
+        XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.chatListReady.isHittable, "解鎖後列表不能操作")
     }
 
     /// VoiceOver 念的「Purrdr 已鎖定」與「解鎖」。

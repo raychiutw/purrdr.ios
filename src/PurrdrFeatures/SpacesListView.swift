@@ -2,7 +2,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// Spaces 檢視(#275,原型 purrdr-screens 定案版):每個「主機圖示 主機 · workspace」一段，段內每個 Tab 一列(名稱與 ›)。
+/// Spaces(#275,原型 purrdr-screens 定案版;#501 起是聊天 tab 唯一的呈現):每個「主機圖示 主機 · workspace」一段，段內每個 Tab 一列(名稱與 ›)。
 ///
 /// 點 Tab:只有一個 pane 直接開(以 `ChatRoute` 導覽，Agent 開對話、其他開 Pane 終端機，iPad 是對話欄選取);
 /// 多個 pane 開那個 Tab 的版面圖選 Pane。長按是 workspace 的動作(版面圖、重新命名、新 worktree、關閉)。
@@ -166,66 +166,5 @@ struct PaneTerminalScreen: View {
         #else
         EmptyView()
         #endif
-    }
-}
-
-extension AgentListMode {
-    /// 列表大標題(也是切換選單的項目)。
-    var title: LocalizedStringKey {
-        switch self {
-        case .spaces: "Spaces"
-        case .agents: "Agents"
-        }
-    }
-}
-
-extension AgentListMode {
-    /// 左上角切換鈕的符號:顯示目前的檢視(#391)。
-    var symbol: String {
-        switch self {
-        case .spaces: "square.grid.2x2"
-        case .agents: "person.2"
-        }
-    }
-
-    /// VoiceOver 念的目前檢視,例:「檢視:Agents」。
-    var accessibilityName: String {
-        switch self {
-        case .spaces: String(localized: "View: Spaces")
-        case .agents: String(localized: "View: Agents")
-        }
-    }
-
-    /// VoiceOver 的提示:點兩下會切到另一個檢視。
-    var switchHint: LocalizedStringKey {
-        switch self {
-        case .spaces: "Switches to Agents."
-        case .agents: "Switches to Spaces."
-        }
-    }
-}
-
-/// 聊天 tab 左上角的 Agents／Spaces 一鍵切換(#391):只有符號、顯示目前檢視;點一下切換,長按出選單(兩列勾選)。
-/// 其他 tab 這個位置留空。
-struct AgentListModeButton: View {
-    @Bindable var list: MergedAgentListModel
-
-    var body: some View {
-        Menu {
-            Picker("View", selection: $list.mode) {
-                ForEach([AgentListMode.agents, .spaces], id: \.self) { mode in
-                    Label(mode.title, systemImage: mode.symbol).tag(mode)
-                }
-            }
-            .pickerStyle(.inline)
-        } label: {
-            Label(list.mode.title, systemImage: list.mode.symbol)
-                .labelStyle(.iconOnly)
-        } primaryAction: {
-            list.toggleMode()
-        }
-        .accessibilityLabel(Text(verbatim: list.mode.accessibilityName))
-        .accessibilityHint(Text(list.mode.switchHint))
-        .accessibilityIdentifier("agentList.mode")
     }
 }

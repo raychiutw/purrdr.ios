@@ -17,7 +17,7 @@ final class TopNavigationUITests: XCTestCase {
         XCTAssertFalse(app.buttons["sheet.close"].exists, "設定是 tab,不該有關閉鈕")
 
         app.openTab(.chats)
-        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch), "沒有回到 Agent 列表")
+        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch), "沒有回到 Agent 列表")
     }
 
     @MainActor
@@ -42,7 +42,7 @@ final class TopNavigationUITests: XCTestCase {
 
         cancel.tap()
         XCTAssertTrue(cancel.waitUntilGone(timeout: 5), "sheet 沒有關閉")
-        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch), "沒有回到 Agent 列表")
+        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch), "沒有回到 Agent 列表")
     }
 
     /// icon-only 按鈕都要有 accessibility label(HIG 檢核清單 20.2);每顆 ≥ 44pt。

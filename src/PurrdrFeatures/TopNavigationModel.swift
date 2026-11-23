@@ -64,6 +64,25 @@ public final class TopNavigationModel {
         visibleSections(sections, host: host, snapshot: snapshot).flatMap { $0.rows.map(\.route) }
     }
 
+    /// 套用側欄 workspace 篩選後的 Spaces 段落(#501);篩選的 workspace 已不在主機上時(被關掉了)顯示全部。
+    ///
+    /// 列表合併了所有主機(#39);workspace 屬於選取中主機(`host`,`snapshot` 是它的),篩選時只留那台主機上那個 workspace 的段落。
+    public func visibleSpaces(_ sections: [SpacesSection], host: HostSelection, snapshot: HostSnapshot?) -> [SpacesSection] {
+        guard let workspaceFilter, let snapshot, snapshot.workspaces.contains(where: { $0.id == workspaceFilter }) else {
+            return sections
+        }
+        return sections.filter { $0.host == host && $0.workspaceID == workspaceFilter }
+    }
+
+    /// 列表看得到的 Agent,依 Spaces 的畫面順序(段落、Tab)。鍵盤切換 Agent 用:只含單一 Pane 的 Agent Tab
+    /// (終端機與多個 Pane 的 Tab 要先開版面圖選 Pane,沒有單一對話可選)。
+    public func visibleAgents(_ sections: [SpacesSection], host: HostSelection, snapshot: HostSnapshot?) -> [ChatRoute] {
+        visibleSpaces(sections, host: host, snapshot: snapshot).flatMap(\.tabs).compactMap { tab in
+            guard case .agent = tab.avatar, case .pane(let route) = tab.target else { return nil }
+            return route
+        }
+    }
+
     /// 視窗出現了：第一次開啟 app 時開出歡迎頁(#34)。已經有 sheet(例如冷啟動的深層連結)時不蓋掉它。
     public func launched(welcome: WelcomeModel) {
         guard sheet == nil, welcome.takeFirstLaunch() else { return }

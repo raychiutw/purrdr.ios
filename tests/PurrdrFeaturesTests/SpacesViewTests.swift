@@ -5,21 +5,19 @@ import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
-/// Spaces／Agents 兩種檢視(#40);Spaces 檢視每個「主機 · workspace」一段、列出 Tab(#275,原型 purrdr-screens 定案版)。
+/// Spaces(#40、#501 起聊天只有 Spaces);Spaces每個「主機 · workspace」一段、列出 Tab(#275,原型 purrdr-screens 定案版)。
 ///
 /// 錄製的 snapshot:`w1`(garden-journal)三個 Claude 各在一個 tab(`w1:t6` idle、`w1:tA`／`w1:tB` working);
 /// `w2`(scratch)只有一個 shell pane `w2:p1`(`/tmp/scratch`)。
 @MainActor
 @Suite("Spaces 檢視")
 struct SpacesViewTests {
-    static func model(
-        modeStore: any AgentListModeStore = InMemoryAgentListModeStore(), modify: ((inout [String: Any]) -> Void)? = nil
-    ) async -> HostsModel {
+    static func model(modify: ((inout [String: Any]) -> Void)? = nil) async -> HostsModel {
         let host = FakeHost()
         let reply: FakeReply = modify.map { .recorded("session.snapshot.ndjson", modify: $0) } ?? .recorded("session.snapshot.ndjson")
         await host.expect(HerdrCommand.bridge(), reply: reply)
         let model = HostsModel(
-            store: MemoryHostStore(), demoChannel: host, listMode: modeStore, makeChannel: { _, _, _ in FakeHost() })
+            store: MemoryHostStore(), demoChannel: host, makeChannel: { _, _, _ in FakeHost() })
         model.load()
         await model.agentList.load()
         return model
@@ -34,19 +32,13 @@ struct SpacesViewTests {
         response["result"] = result
     }
 
-    @Test("版面事件只在 Spaces 檢視訂閱：列表檢視決定每台主機的即時更新要不要訂閱(#40)")
-    func layoutEventsFollowListMode() async {
-        let model = await Self.model(modeStore: InMemoryAgentListModeStore(.agents))
-        #expect(model.agentList.list(for: .demo)?.subscribesToLayout == false)
-
-        model.agentList.mode = .spaces
+    @Test("版面事件一律訂閱：聊天只有 Spaces，每台主機的即時更新都訂版面事件(#40、#501)")
+    func layoutEventsAlwaysSubscribed() async {
+        let model = await Self.model()
         #expect(model.agentList.list(for: .demo)?.subscribesToLayout == true)
-
-        model.agentList.mode = .agents
-        #expect(model.agentList.list(for: .demo)?.subscribesToLayout == false)
     }
 
-    @Test("只有終端機、沒有 Agent:Spaces 檢視照常列出;Agents 檢視說明沒有 Agent 並可切到 Spaces(#40)")
+    @Test("只有終端機、沒有 Agent:Spaces 照常列出(#40)")
     func onlyTerminalsShowInSpaces() async throws {
         let model = await Self.model { response in
             // 改動：拿掉所有 agent(與它們的 pane),只剩 w2 的 shell。
@@ -59,11 +51,8 @@ struct SpacesViewTests {
             response["result"] = result
         }
 
-        model.agentList.mode = .spaces
-        #expect(model.agentList.content == .list, "只有終端機時 Spaces 檢視說成沒有 Agent")
+        #expect(model.agentList.content == .list, "只有終端機時 Spaces 說成沒有 Agent")
         #expect(model.agentList.spacesSections.map(\.workspaceID) == ["w2"])
-        model.agentList.mode = .agents
-        #expect(model.agentList.content == .noAgentsInAgentsView)
     }
 
     @Test("每個 workspace 一段：段落是主機與 workspace 名稱，依主機上的順序;段內每個 Tab 一列")
@@ -164,29 +153,6 @@ struct SpacesViewTests {
         let garden = try #require(model.agentList.spacesSections.first)
         let loose = try #require(garden.tabs.first { $0.target == .pane(ChatRoute(host: .demo, paneID: "w1:pA")) })
         #expect(loose.title == "規劃天氣小工具")
-    }
-
-    @Test("Agents 檢視：每個 agent 一列，沒有群組也沒有終端機列;只有 shell 的 workspace 不出現")
-    func agentsViewHasNoTerminalRows() async throws {
-        let model = await Self.model()
-        model.agentList.mode = .agents
-
-        let rows = model.agentList.sections.flatMap(\.rows)
-        #expect(rows.map(\.id).sorted() == ["demo/w1:p6", "demo/w1:pA", "demo/w1:pB"])
-        #expect(!rows.contains { $0.paneID == "w2:p1" })
-    }
-
-    @Test("檢視選擇會記住;沒存過時是 Agents")
-    func modeIsRemembered() async throws {
-        let store = InMemoryAgentListModeStore()
-        let first = await Self.model(modeStore: store)
-        #expect(first.agentList.mode == .agents)
-
-        first.agentList.mode = .spaces
-
-        #expect(store.load() == .spaces)
-        let second = await Self.model(modeStore: store)
-        #expect(second.agentList.mode == .spaces)
     }
 
     @Test("同一個 ChatRoute 導覽：agent 以外的 pane 開 Pane 終端機(標題是程式名),Agent 的 pane 開對話")

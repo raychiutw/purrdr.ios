@@ -14,9 +14,8 @@ final class AgentListLoadingUITests: XCTestCase {
     @MainActor
     func testSlowHostShowsConnectingThenStillConnecting() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedSlowHost"])
-        app.switchListMode(to: "Agents")
 
-        XCTAssertTrue(app.element("agent.row.\(Self.studio)/w2:p1").waitUntilExists(timeout: 15), "卡住的主機擋住了其他台的列")
+        XCTAssertTrue(app.element("spaces.tab.\(Self.studio)/w2:t1").waitUntilExists(timeout: 15), "卡住的主機擋住了其他台的列")
         let status = app.element("agentList.host.\(Self.slowBox)")
         XCTAssertTrue(status.waitUntilExists(timeout: 5), "沒有卡住那台主機的連線狀態行")
         XCTAssertTrue(status.label.contains("Slow Box"), status.label)

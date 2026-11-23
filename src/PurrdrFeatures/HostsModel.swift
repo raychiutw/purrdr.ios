@@ -195,7 +195,6 @@ public final class HostsModel {
         hostServiceUpdates: HostServiceUpdates = HostServiceUpdates(store: InMemoryHostServiceUpdateStore()),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
-        listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
         skeletonRowCounts: any SkeletonRowCountStore = InMemorySkeletonRowCountStore(),
         offlineQueues: any OfflineQueueStore = InMemoryOfflineQueueStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
@@ -205,7 +204,7 @@ public final class HostsModel {
         self.store = store
         self.sleep = sleep
         self.skeletonRowCounts = skeletonRowCounts
-        agentList = MergedAgentListModel(modeStore: listMode, skeletonRowCounts: skeletonRowCounts)
+        agentList = MergedAgentListModel(skeletonRowCounts: skeletonRowCounts)
         self.selectionStore = selectionStore
         self.currentHostStore = currentHostStore
         self.planUsageSelection = planUsageSelection

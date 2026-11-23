@@ -11,7 +11,7 @@ final class SlashMenuUITests: XCTestCase {
     @MainActor
     func testTypingSlashShowsGroupedMenuAndPicking() {
         let app = XCUIApplication.launchUITesting()
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row))
         row.tap()
 
@@ -73,7 +73,7 @@ final class SlashMenuUITests: XCTestCase {
 
     @MainActor
     private func openLedger(_ app: XCUIApplication) -> XCUIElement {
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row))
         row.tap()
         let text = app.element("composer.text")

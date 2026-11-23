@@ -62,9 +62,11 @@ struct SkeletonLoadingTests {
         ], selected: AgentListLoadingTests.studio)
         await fresh.load()
         #expect(fresh.content == .list)
-        #expect(fresh.agentRows.count == 3)
+        // 聊天只有 Spaces(#501):列數是 Tab 列的數量。
+        let tabCount = fresh.spacesSections.reduce(0) { $0 + $1.tabs.count }
+        #expect(tabCount > 0)
         fresh.rememberRowCount()
-        #expect(fresh.loadingRowCount == 3)
+        #expect(fresh.loadingRowCount == tabCount)
     }
 
     @Test("slash 選單:讀指令清單的第一次(還沒有任何指令)顯示骨架;讀完或背景重讀(已有指令)不顯示")

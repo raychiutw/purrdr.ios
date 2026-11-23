@@ -18,19 +18,8 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testAgentListSpaces() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            app.switchListMode(to: "Spaces")
             XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")))
             try audit(app, "Agent 列表(Spaces)", contentSize: size)
-            app.terminate()
-        }
-    }
-
-    @MainActor
-    func testAgentListAgents() throws {
-        for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
-            XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 15))
-            try audit(app, "Agent 列表(Agents)", contentSize: size)
             app.terminate()
         }
     }
@@ -46,12 +35,11 @@ final class AccessibilityAuditUITests: XCTestCase {
         }
     }
 
-    /// 版面圖(Spaces 檢視點有多個 pane 的 Tab,#275)。
+    /// 版面圖(Spaces 點有多個 pane 的 Tab,#275)。
     @MainActor
     func testLayout() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            app.switchListMode(to: "Spaces")
             let tab = app.element("spaces.tab.demo/w3:t1")
             XCTAssertTrue(app.reveal(tab))
             tab.tap()
