@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrAgentFeatures
+import PurrdrCore
 
 /// 對話的捲動模式(行為規格 F5.12):**跟隨尾端**或**閱讀中**。
 ///
