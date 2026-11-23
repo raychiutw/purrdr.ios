@@ -545,6 +545,8 @@ public final class ConversationModel {
     private var answerQuestion: String?
     /// 按鍵送達主機的時間與當時對話的最後一列(已回答卡片的錨點，#213);還在送時為 `nil`(不判定)。
     private var answerSent: AnsweredCardAnchor?
+    /// 答完後到這個時間為止，blocked 但畫面不是選單時視為過時狀態、不顯示通用鈕(#468)。
+    private var staleBlockedUntil: Date?
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 「已停止」2 秒後的收起;agent 又開始工作或有新的停止時取消(#220)。
     @ObservationIgnored private var stoppedCollapseTask: Task<Void, Never>?
@@ -1465,6 +1467,7 @@ public final class ConversationModel {
         answerSignature = prompt.signature
         answerQuestion = prompt.question
         answerSent = nil
+        staleBlockedUntil = nil
         answerNotice = nil
         haptics.play(.selection)
         let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
@@ -1627,7 +1630,18 @@ public final class ConversationModel {
             return
         }
         let parsed = BlockedPromptParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
-        let next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
+        if blocked, parsed == nil, answerInFlight != nil, answerSent == nil, prompt != nil {
+            // 送出還沒返回、按鍵可能已到 Agent 而畫面重繪：維持原卡片，不換成通用鈕(#468)。
+            agentStatus = .blocked
+            return
+        }
+        var next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
+        if parsed != nil { staleBlockedUntil = nil }
+        if blocked, parsed == nil {
+            // 答完後 herdr 的 blocked 狀態可能還沒更新：畫面不是選單時不冒出通用鈕(其按鍵會真的打進 Agent)，到期限為止。
+            if let sent = answerSent, answerInFlight != nil { staleBlockedUntil = sent.sentAt.addingTimeInterval(Self.answerDeadline) }
+            if let until = staleBlockedUntil, clock.now() < until { next = nil }
+        }
         if next != nil { agentStatus = .blocked }
         update(prompt: next)
     }
