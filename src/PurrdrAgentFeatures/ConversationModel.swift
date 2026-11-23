@@ -588,7 +588,14 @@ public final class ConversationModel {
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
     /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
     /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
-    private var file: (path: String, follow: TranscriptFollow, windowStart: Int)?
+    private var file: (path: String, follow: TranscriptFollow, windowStart: Int)? {
+        // 對話紀錄的路徑出現或換了:清單要連同 session 內的 skill 一起重讀(#469)。
+        didSet {
+            guard let path = file?.path, path != oldValue?.path else { return }
+            slash.markStale()
+            preloadSlash()
+        }
+    }
     /// 開啟視窗與之後追蹤到的訊息(會寫入快取)。
     private var recent: [TranscriptMessage] = []
     /// `recent` 由哪幾段讀取組成(每段的 byte 起點與訊息數，依序、加總等於 `recent.count`)。修剪與寫快取都以整段為單位，
@@ -602,7 +609,17 @@ public final class ConversationModel {
     private var olderMessages: [TranscriptMessage] = []
     private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
-    private var currentAgent: Agent?
+    /// 知道 Agent 後預載 slash 清單(#469);之後每次輪詢檢查是否過期,超過 60 秒在背景重讀。
+    private var currentAgent: Agent? {
+        didSet { preloadSlash() }
+    }
+
+    /// 預載 slash 清單:要等 Agent 已知、對話紀錄路徑也找到(session 內的 skill 才讀得到)才開始,
+    /// 不為預載自己讀 snapshot 或定位。
+    private func preloadSlash() {
+        guard currentAgent != nil, file != nil else { return }
+        slash.refreshIfNeeded()
+    }
     /// 最近一次輪詢看到的 Agent 種類(畫面依種類調整說明，例如 Codex 等 session 的提示)。
     public var agentKind: String? { currentAgent?.kind }
     /// 第一則訊息送出後才有對話紀錄的 Agent(Codex):等待畫面換成對應說明。
@@ -726,6 +743,7 @@ public final class ConversationModel {
     /// 不逐段重播積壓(R-B08、F5.3 第 3 點);畫面還空著時先顯示快取。
     public func reopen() async {
         file?.follow.reopen()
+        preloadSlash()
         await restoreFromCache()
     }
 

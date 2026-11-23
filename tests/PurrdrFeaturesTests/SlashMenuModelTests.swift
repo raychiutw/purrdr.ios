@@ -1,6 +1,7 @@
 import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrTestSupport
 @testable import PurrdrFeatures
 import Testing
 
@@ -239,6 +240,120 @@ struct SlashMenuModelTests {
         await menu.load()
         await menu.load()
         #expect(await counter.value == 1)
+    }
+
+
+    /// 依序回不同結果的 loader 與可調的時鐘(測試預載、重試、重讀)。
+    actor Script {
+        var replies: [SlashCatalog?]
+        var clock = Date(timeIntervalSince1970: 1_000)
+        private(set) var calls = 0
+        init(_ replies: [SlashCatalog?]) { self.replies = replies }
+        func next() -> SlashCatalog? {
+            calls += 1
+            return replies.count > 1 ? replies.removeFirst() : replies[0]
+        }
+        func advance(_ seconds: TimeInterval) { clock += seconds }
+        func now() -> Date { clock }
+    }
+
+    static func waitUntil(_ condition: @escaping () async -> Bool) async {
+        for _ in 0..<200 where !(await condition()) { try? await Task.sleep(for: .milliseconds(10)) }
+    }
+
+    static let partialCatalog = SlashCatalog(sections: catalog.sections, isComplete: false)
+
+    @Test("預載:不用打 / 就載入清單,文中指令上色立刻有名稱(#469)")
+    func preloadWithoutTyping() async {
+        let menu = SlashMenuModel(loader: { Self.catalog })
+        menu.refreshIfNeeded()
+        await menu.load()
+        #expect(menu.inlineNames == ["mattpocock-skills:implement", "mattpocock-skills:tdd"])
+        #expect(!menu.isVisible)
+    }
+
+    @Test("沒讀到或不完整就退避重讀(2、5、15 秒),讀完整就停")
+    func retriesUntilComplete() async {
+        let script = Script([nil, Self.partialCatalog, Self.catalog])
+        let sleeper = RecordingSleeper(fires: { _ in true })
+        let menu = SlashMenuModel(loader: { await script.next() }, sleep: sleeper.sleep, now: { Date() })
+        menu.refreshIfNeeded()
+        await menu.load()
+        await Self.waitUntil { await script.calls == 3 }
+        await Self.waitUntil { !menu.inlineNames.isEmpty }
+        #expect(await script.calls == 3)
+        #expect(await sleeper.requested == [.seconds(2), .seconds(5)])
+        #expect(menu.inlineNames.contains("mattpocock-skills:tdd"))
+        #expect(!menu.isIncomplete)
+    }
+
+    @Test("重讀失敗(沒讀到或變不完整)保留舊清單")
+    func failedRefreshKeepsOldCatalog() async {
+        let ticks = Ticks()
+        let script = Script([Self.catalog, nil])
+        let sleeper = RecordingSleeper(fires: { _ in false })
+        let menu = SlashMenuModel(loader: { await script.next() }, sleep: sleeper.sleep, now: { ticks.read() })
+        menu.refreshIfNeeded()
+        await menu.load()
+        ticks.advance(61)
+        menu.refreshIfNeeded()
+        await Self.waitUntil { await script.calls == 2 }
+        #expect(await script.calls == 2)
+        #expect(menu.inlineNames == ["mattpocock-skills:implement", "mattpocock-skills:tdd"])
+    }
+
+    @Test("超過 60 秒再觸發會背景重讀並換成新清單")
+    func staleRefreshReplaces() async {
+        let ticks = Ticks()
+        let added = SlashCatalog(sections: Self.catalog.sections + [
+            SlashSection(source: .plugin("new-kit"), commands: [SlashCommand(name: "new-kit:fresh", summary: "New")]),
+        ], isComplete: true)
+        let script = Script([Self.catalog, added])
+        let menu = SlashMenuModel(loader: { await script.next() }, now: { ticks.read() })
+        menu.refreshIfNeeded()
+        await menu.load()
+        ticks.advance(61)
+        menu.refreshIfNeeded()
+        #expect(!menu.isLoading, "重讀在背景,不顯示載入中")
+        await Self.waitUntil { menu.inlineNames.contains("new-kit:fresh") }
+        #expect(menu.inlineNames.contains("new-kit:fresh"))
+    }
+
+    @Test("載入中途標記過期(對話紀錄路徑才出現):這輪結束後立刻重讀,換成新結果(#472)")
+    func markStaleWhileLoadingRereads() async {
+        let gate = Gate()
+        let added = SlashCatalog(sections: Self.catalog.sections + [
+            SlashSection(source: .session, commands: [SlashCommand(name: "session-skill", summary: "S")]),
+        ], isComplete: true)
+        let script = Script([Self.catalog, added])
+        let menu = SlashMenuModel(loader: {
+            let result = await script.next()
+            await gate.wait()
+            return result
+        })
+        menu.refreshIfNeeded()
+        await Self.waitUntil { await script.calls == 1 }
+        #expect(menu.isLoading)
+        menu.markStale()
+        await gate.open()
+        await menu.load()
+        await Self.waitUntil { await script.calls == 2 }
+        await Self.waitUntil { menu.inlineNames.contains("session-skill") }
+        #expect(await script.calls == 2)
+        #expect(menu.inlineNames.contains("session-skill"))
+    }
+
+    actor Gate {
+        private var opened = false
+        func open() { opened = true }
+        func wait() async { while !opened { try? await Task.sleep(for: .milliseconds(5)) } }
+    }
+
+    final class Ticks: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = Date(timeIntervalSince1970: 1_000)
+        func read() -> Date { lock.withLock { value } }
+        func advance(_ seconds: TimeInterval) { lock.withLock { value += seconds } }
     }
 
     actor Counter {
