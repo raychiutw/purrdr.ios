@@ -97,9 +97,7 @@ struct HostsTab: View {
                 // 換主機就重新建立(用量區與主機服務各自的 model 屬於那台主機)。
                 .id(overview.host)
                 // iPad 寬視窗不把總頁拉滿整個螢幕:內容寬度上限,置中。
-                .frame(maxWidth: 720)
-                .frame(maxWidth: .infinity)
-                .background(AppSurface.groupedPage)
+                .appPageContentWidth()
         } else {
             TabUnavailableView(
                 title: "No Hosts", systemImage: "desktopcomputer",
@@ -157,6 +155,7 @@ struct HostsTab: View {
                 } onIconSaved: {
                     finish()
                 }
+                .appPageContentWidth()
             case .hostServiceUpdate(let id):
                 if let row = hosts.rows.first(where: { $0.id == id }), let version = row.hostServiceUpdate,
                     let commands = row.hostServiceUpdateCommands
@@ -165,23 +164,28 @@ struct HostsTab: View {
                         hosts.dismissHostServiceUpdate(for: id)
                         flow.path.removeLast()
                     }
+                    .appPageContentWidth()
                 }
             case .share(let id):
                 if let host = hosts.hosts.first(where: { $0.id == id }), let link = hosts.shareLink(for: id) {
                     HostShareView(name: host.name, link: link)
+                        .appPageContentWidth()
                 }
             case .notifications:
                 HostNotificationsPage(
                     hosts: hosts, host: hosts.selection, signedIn: signedIn, openAccount: openAccount, openPlus: openPlus,
                     pair: { flow.path.append(.pairGuide($0)) })
+                    .appPageContentWidth()
             case .hostSettings(let id):
                 if let settings = hosts.hostSettings(for: id) {
                     HostSettingsPage(
                         hosts: hosts, hostID: id, settings: settings, isReadOnly: hosts.overview?.status == .readOnly)
+                        .appPageContentWidth()
                 }
             case .pairedDevices(let id):
                 if let devices = statusCache.models(for: id, hosts: hosts)?.pairedDevices {
                     HostPairedDevicesPage(model: devices)
+                        .appPageContentWidth()
                 }
             case .loginShell:
                 LoginShellTool(hosts: hosts)

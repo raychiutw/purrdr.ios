@@ -191,7 +191,7 @@ private struct PanelValueRow: View {
                 .foregroundStyle(.secondaryText)
                 .lineLimit(1)
         }
-        .frame(minHeight: 44)
+        // 列高用 List 的標準列高;列本身(NavigationLink 或唯讀)已有 44pt 以上的點擊範圍,再疊 minHeight 44 會多出約 22pt。
         .accessibilityElement(children: .combine)
     }
 }

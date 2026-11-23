@@ -293,7 +293,8 @@ struct HostRowLabel: View {
                     .foregroundStyle(.secondaryText)
             }
         }
-        .frame(minHeight: 44, alignment: .leading)
+        // 列高交給 List 的標準列高(再疊 minHeight 44 會讓主機 tab 的列比設定 tab 高約 22pt,設計稿 Host 是標準列高)。
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

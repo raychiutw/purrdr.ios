@@ -218,8 +218,7 @@ struct UsageBarRow: View {
             }
             UsageBar(fraction: row.fraction, level: row.level)
         }
-        .frame(minHeight: 44)
-        .padding(.vertical, 2)
+        // 唯讀的進度列:列高用 List 的標準列高,不再疊 minHeight 44(設計稿 Host 的用量列是緊湊的)。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: accessibilityText))
         .accessibilityIdentifier("usage.row.\(agent.rawValue).\(row.period.accessibilityKey)")
@@ -316,7 +315,6 @@ struct ContextUsageRow: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(minHeight: 44)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(display == .used ? Text("Context \(shown)% used") : Text("Context \(shown)% left"))
         .accessibilityIdentifier("progress.context")

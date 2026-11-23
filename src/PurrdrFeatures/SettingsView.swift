@@ -128,6 +128,7 @@ public struct SettingsView: View {
                 .listRowBackground(AppSurface.groupedRow)
             }
             .appGroupedList()
+            .appPageContentWidth()
             .accessibilityIdentifier("sheet.settings")
             .navigationTitle("Settings")
             .toolbar {

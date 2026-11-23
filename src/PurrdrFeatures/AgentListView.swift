@@ -735,7 +735,7 @@ extension AgentStatus {
     var symbol: String {
         switch self {
         case .blocked: "exclamationmark.circle.fill"
-        case .working: "ellipsis.circle"
+        case .working: "ellipsis.circle.fill"
         // 實心圓 = 有未讀的回覆、空心圓 = 已讀(行為規格 F2.5;列表會把未讀折算成 done、已讀折算成 idle)。
         case .done: "circle.fill"
         case .idle: "circle"

@@ -44,6 +44,9 @@ enum AppSurface {
     static let groupedRow = card
     static let inner = card
     #endif
+
+    /// iPad 寬視窗下頁面內容的寬度上限(主機 tab 原本的 720pt)。
+    static let pageContentWidth: CGFloat = 720
 }
 
 extension View {
@@ -52,6 +55,16 @@ extension View {
         scrollContentBackground(.hidden)
             .background(AppSurface.groupedPage)
             .listRowBackground(AppSurface.groupedRow)
+    }
+}
+
+extension View {
+    /// 全頁清單在 iPad 寬視窗不拉滿整個螢幕(HIG:內容寬度跟閱讀寬度):上限 `AppSurface.pageContentWidth`、置中,
+    /// 兩側露出頁面底色。iPhone 與窄視窗寬度不到上限,等於沒有作用。
+    func appPageContentWidth() -> some View {
+        frame(maxWidth: AppSurface.pageContentWidth)
+            .frame(maxWidth: .infinity)
+            .background(AppSurface.groupedPage)
     }
 }
 
