@@ -52,6 +52,14 @@ _避免_:二次驗證、2FA、re-auth
 HTTPS 連線方式在主機上執行的 Purrdr 常駐程式;只聽本機，直接連 herdr 的本機 socket,只提供 herdr 相關操作，不能執行任意指令。
 _避免_:Daemon、Agent、Server、主機外掛(主機外掛是推播用的另一個元件)
 
+**HTTPS 埠**(HTTPS port):
+主機服務經 Tailscale Serve 對 tailnet 公開的埠，決定 app 連的 HTTPS 位址(443 時位址不帶埠號，其他埠要帶,例如 `https://my-mac.tailnet.ts.net:8443`)。每台主機一個，安裝時可指定;與主機服務在本機聽的埠是兩回事。
+_避免_:Serve 埠、本機埠、Port(單獨說 port 指 SSH 的埠)
+
+**標準安裝／自訂安裝**(Standard install／Custom install):
+安裝主機服務的兩種走法。標準安裝直接套用建議的設定(預設值，已安裝過時沿用上次的設定);自訂安裝由使用者逐項調整後才安裝。兩種安裝完成後的主機服務沒有差別。
+_避免_:快速安裝／進階安裝、預設安裝
+
 **連線配對**:
 讓一支裝置可以用 HTTPS 連上某台主機的授權流程：主機顯示 QR code,裝置掃描後取得裝置權杖。
 _避免_:推播配對(那是推播用的)、Login、Register
