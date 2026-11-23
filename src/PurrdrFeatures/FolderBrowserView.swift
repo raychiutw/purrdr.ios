@@ -46,7 +46,7 @@ public struct FolderBrowserView: View {
             hostIdentifier: "files.host",
             plus: AnyView(uploadControl),
             account: actions.account,
-            search: TopBarContent.Search(text: $model.query, focus: $searchFocused))
+            search: TopBarContent.Search(text: $model.query, focus: $searchFocused, identifier: "files.search"))
     }
 
     @ViewBuilder

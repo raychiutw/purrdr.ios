@@ -13,6 +13,21 @@ enum ChatListRowContent: Equatable {
     case working
 }
 
+extension ChatListRowContent {
+    /// 這一列在 diffable data source 裡的 id(與 `ChatListRowPlan.ids` 的組法一致)。
+    var rowID: String {
+        switch self {
+        case .older: ChatListRowPlan.olderID
+        case .away: ChatListRowPlan.awayID
+        case .entry(let row, _): row.id
+        case .pending(let item): item.id
+        case .notice: ChatListRowPlan.noticeID
+        case .prompt: ChatListRowPlan.promptID
+        case .working: ChatListRowPlan.workingID
+        }
+    }
+}
+
 /// 聊天列表由上而下的列與各列內容。
 struct ChatListContent: Equatable {
     var ids: [String] = []

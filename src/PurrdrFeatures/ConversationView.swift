@@ -221,6 +221,8 @@ public struct ConversationView: View {
     private func rowView(_ rowContent: ChatListRowContent) -> AnyView {
         AnyView(
             rowBody(rowContent)
+                // 每一列以自己的 id 當 SwiftUI 身分:cell 重用時 hosted view 不會把某個 view 的 @State 帶到別列。
+                .id(rowContent.rowID)
                 .environment(\.bubbleImages, BubbleImageContext(
                     localImage: { [model] in model.localImage(forHostPath: $0) },
                     show: { viewerItem = $0 }
@@ -251,7 +253,6 @@ public struct ConversationView: View {
     /// 列的長按選單項目(#488):檔案卡片、圖片卡片、shell 區塊;項目與規則同舊列表,其他列沒有(留給文字選取)。
     /// 選單由列表(UIKit)呈現,開著時列表暫停捲動與套用內容。
     private func menuEntries(for rowContent: ChatListRowContent) -> [ChatListMenuEntry] {
-        #if os(iOS)
         if case .pending(let pendingItem) = rowContent {
             return queuedPromptMenuEntries(for: pendingItem)
         }
@@ -275,9 +276,6 @@ public struct ConversationView: View {
         default:
             return []
         }
-        #else
-        return []
-        #endif
     }
     #endif
 
@@ -316,7 +314,6 @@ public struct ConversationView: View {
             case .item(let item):
                 ConversationItemView(item: item, turnHeader: turnHeader)
                     .environment(\.expansionRowID, row.id)
-                    .id(row.id)
             case .echo(let echo):
                 EchoBubbleView(echo: echo) {
                     Task { await model.retry(echoID: echo.id) }

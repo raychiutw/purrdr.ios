@@ -798,7 +798,7 @@ public final class ConversationModel {
     /// 對話紀錄的解析與重建在背景做(#498);測試用:每次背景計算開頭呼叫(在背景執行緒上)。
     package var onTranscriptWork: (@Sendable () -> Void)?
     /// 對話紀錄各段依到達順序套用的鎖:解析在背景做,結果回主執行緒以時間軸增量套用(`applyTimeline`)。
-    private let applyGate = TranscriptApplyGate()
+    private let applyGate = TranscriptSerialGate()
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
     /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
     /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
@@ -1352,8 +1352,7 @@ public final class ConversationModel {
             pages += 1
             let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
             guard generation == self.generation else { return }
-await prepend(page, generation: generation)
-            guard generation == self.generation else { return }
+            await prepend(page, generation: generation)
         }
     }
 
@@ -1373,7 +1372,7 @@ await prepend(page, generation: generation)
     /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
     package static let maximumEmptyWindowPages = 25
 
-private func append(_ chunk: TranscriptChunk) async {
+    private func append(_ chunk: TranscriptChunk) async {
         let generation = generation
         await applyGate.run {
             guard generation == self.generation else { return }
@@ -1443,8 +1442,7 @@ private func append(_ chunk: TranscriptChunk) async {
         do {
             let chunk = try await transcripts.window(path: file.path, endingAt: file.windowStart, lines: pageLines)
             guard generation == self.generation else { return }
-await prepend(chunk, generation: generation)
-            guard generation == self.generation else { return }
+            await prepend(chunk, generation: generation)
         } catch {
             guard generation == self.generation else { return }
             older = .available
@@ -2972,7 +2970,7 @@ await prepend(chunk, generation: generation)
 
     /// 以目前的訊息整份取代時間軸(開啟、重新整理、清空);已存在的列沿用身分。
     private func rebuild() {
-applyTimeline(timeline.reset(olderMessages + recent))
+        applyTimeline(timeline.reset(olderMessages + recent))
     }
 
     /// 把時間軸的變更交給畫面:沒有變更就不動 `items`(不觸發重繪)。

@@ -275,7 +275,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     /// 所在 Tab 的名稱(#475):人取的名稱,沒有時「Tab N」;snapshot 沒帶 Tab 時空字串。
     public var tabName: String
 
-    /// 主機身分 + pane id:不同主機的同一個 pane id 是不同的列(也是 UI 測試的 `agent.row.<id>`)。
+    /// 主機身分 + pane id:不同主機的同一個 pane id 是不同的列(Agent 的穩定身分;UI 測試的列識別碼是 `spaces.tab.<主機>/<tab>`)。
     public var id: String { "\(host.storedValue)/\(paneID)" }
     public var route: ChatRoute { ChatRoute(host: host, paneID: paneID) }
 

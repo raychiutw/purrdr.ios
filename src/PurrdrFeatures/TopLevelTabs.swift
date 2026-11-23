@@ -80,7 +80,7 @@ struct FilesTab: View {
             hostIdentifier: "files.host",
             plus: AnyView(TopBarPlusButton(title: "Upload File", identifier: "files.upload") {}.disabled(true)),
             account: actions.account,
-            search: TopBarContent.Search(text: $unavailableQuery, focus: $unavailableSearchFocused))
+            search: TopBarContent.Search(text: $unavailableQuery, focus: $unavailableSearchFocused, identifier: "files.search"))
     }
 }
 

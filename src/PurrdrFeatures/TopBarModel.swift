@@ -27,8 +27,8 @@ public struct TopBarSpec: Equatable, Sendable {
 }
 
 extension TopLevelTab {
-    /// 這個 tab 的頂列規格(設計稿最終定稿);
-    public var topBar: TopBarSpec? {
+    /// 這個 tab 的頂列規格(設計稿最終定稿)。`plus` 決定控制項的形狀,內容端(`TopBarContent.plus`)提供對應的按鈕。
+    public var topBar: TopBarSpec {
         switch self {
         case .chats: TopBarSpec(plus: .newChat, hasHostScope: true, hasSearch: true)
         case .files: TopBarSpec(plus: .upload, hasHostScope: true, hasSearch: true)

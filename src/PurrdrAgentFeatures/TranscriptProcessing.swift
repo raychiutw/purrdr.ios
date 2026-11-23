@@ -56,8 +56,12 @@ enum TranscriptProcessing {
 
 /// 套用對話紀錄的先進先出鎖(#498):解析在背景做，等待期間主執行緒可以重入，
 /// 多段內容(追蹤推送、往上翻、重讀視窗)仍照到達順序套用。
+///
+/// 與聊天列表的 `ChatListApplyGate`(UIKit 列表要不要延後套用內容的純判斷)是不同的東西。
+/// 注意:`body` 裡**不可以再進同一把 gate**(不可重入,會永遠等不到自己);排隊等待時**不理會取消**
+/// (等到輪到才執行 `body`,取消要由 `body` 自己檢查)。
 @MainActor
-final class TranscriptApplyGate {
+final class TranscriptSerialGate {
     private var isHeld = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 

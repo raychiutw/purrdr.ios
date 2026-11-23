@@ -37,6 +37,8 @@ struct TopBarContent {
     struct Search {
         var text: Binding<String>
         var focus: FocusState<Bool>.Binding
+        /// 搜尋欄的 accessibility identifier(各 tab 各自明確指定:聊天 `agentList.search`、檔案 `files.search`)。
+        var identifier: String
         /// 搜尋欄的提示文字(聊天:搜尋 Tab、Workspace、主機)。
         var prompt: LocalizedStringKey = "Search"
     }
@@ -67,10 +69,16 @@ private struct TopBarModifier: ViewModifier {
     @ScaledMetric(relativeTo: .largeTitle) private var typeScale: CGFloat = 1
     @Environment(\.scenePhase) private var scenePhase
 
-    private var spec: TopBarSpec { content.tab.topBar ?? TopBarSpec(plus: nil, hasHostScope: false, hasSearch: false) }
+    private var spec: TopBarSpec { content.tab.topBar }
     private var layout: TopBarLayout { TopBarLayout(hasSearch: spec.hasSearch, typeScale: typeScale) }
 
+    private func checkPlusConsistency() {
+        assert((spec.plus != nil) == (content.plus != nil), "\(content.tab) 的頂列規格與內容對「＋」不一致")
+    }
+
     func body(content view: Content) -> some View {
+        // 「＋」有沒有:規格(`TopBarSpec.plus`,決定控制項形狀)與內容給的按鈕要一致,不一致時開發期立刻看得到。
+        let _: Void = checkPlusConsistency()
         let scroll = TopBarScroll(offset: offset)
         view
             .contentMargins(.top, layout.contentInset, for: .scrollContent)
@@ -306,7 +314,7 @@ private struct TopBarSearchField: View {
             .textInputAutocapitalization(.never)
             #endif
             .autocorrectionDisabled()
-            .accessibilityIdentifier("agentList.search")
+            .accessibilityIdentifier(search.identifier)
             if !search.text.wrappedValue.isEmpty {
                 Button {
                     search.text.wrappedValue = ""

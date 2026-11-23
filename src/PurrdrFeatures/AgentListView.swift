@@ -98,12 +98,8 @@ public struct AgentListView: View {
         }
         // 共用頂列(#499):左側大標題「聊天」,右側 [電腦圖示｜＋] 膠囊與頭像;往下滑時收合,搜尋欄貼頂。
         // 搜尋範圍是目前主機(所有主機就搜全部),比對 Tab、Workspace、主機(含 Tab 裡的 Agent 標題)。
-        // 導覽列隱藏(頂列自己畫);標題仍設定,給返回鈕用。
-        .topBar(topBarContent)
-        .navigationTitle("Chats")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
+        // 共用頁面(`topBarPage`):頁面底色、iPad 內容寬度上限、導覽標題(返回鈕用,導覽列隱藏)與頂列。
+        .topBarPage(topBarContent)
         // 「You should know」:每台主機各自輪詢(列表可見且在前景時，#23)。
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
             guard scenePhase == .active else { return }
@@ -135,7 +131,7 @@ public struct AgentListView: View {
             hostMenu: AnyView(CurrentHostMenu(list: model, addHost: topBarActions.addHost)),
             plus: AnyView(TopBarPlusButton(title: "New Chat", identifier: "toolbar.newChat", action: topBarActions.newChat)),
             account: topBarActions.account,
-            search: TopBarContent.Search(text: $model.query, focus: $searchFocused, prompt: "Search Tabs, Workspaces, Hosts"))
+            search: TopBarContent.Search(text: $model.query, focus: $searchFocused, identifier: "agentList.search", prompt: "Search Tabs, Workspaces, Hosts"))
     }
 
     /// 搜尋了但沒有任何符合(顯示「找不到」,連線錯誤區塊先收起,免得疊在說明上)。
