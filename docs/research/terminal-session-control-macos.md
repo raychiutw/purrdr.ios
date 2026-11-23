@@ -384,5 +384,5 @@ $ … observe w1:p1 --cols 50 --rows 30
 | 快速進出 6～8 次(一半未收到 frame 就放開) | 還原 | 還原 | 還原 |
 | 同時第二個 control | 被拒「already has an attached client」,結束後仍是基準 | 同左 | — |
 
-- 沒有殘留程序:Windows 上以 CIM 查 `terminal session` 沒有留下 herdr 子行程。自己啟動的第二個主機服務(`--state-dir` 指到暫存資料夾)在 ssh 斷線後 `purrdr-host-service.exe` 仍留在 Windows(只有本機 ssh 被殺,遠端 exe 沒跟著結束),測完以 PID 手動清掉;這是測試方式造成,不是 app 的行為。
+- 沒有殘留程序:Windows 上以 CIM 查 `terminal session` 沒有留下 herdr 子行程。自己啟動的第二個主機服務(`--state-dir` 指到暫存資料夾)在 ssh 斷線後 `purrdr-host-service.exe` 仍留在 Windows(只有本機 ssh 被殺,遠端 exe 沒跟著結束),測完以 PID 手動清掉;這是測試方式造成,不是 app 的行為。purrdr.host#88 的結論:Win32-OpenSSH 在非 pty session 異常結束時不結束子程序樹(主機服務收不到 stdin EOF,直接父程序是同樣成孤兒的 Git Bash),不改程式。真主機上跑暫時主機服務的啟動與清理方式見 purrdr.host 的 `AGENTS.md`「在真主機上跑暫時的主機服務」(複製出來的執行檔、獨立 `--state-dir` 與埠、覆寫 `HOME`／`USERPROFILE`,結束時以 `running.json` 的 pid 加指令列標記明確清理)。
 - 沒測:macOS 經 SSH(本機 Remote Login 沒開,`ssh localhost` 被拒;herdr 行為與直接執行同一指令)。
