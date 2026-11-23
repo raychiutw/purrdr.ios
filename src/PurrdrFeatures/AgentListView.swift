@@ -116,9 +116,6 @@ public struct AgentListView: View {
                 isActive: scenePhase == .active, needsTicks: { needsConnectingTicks }, tick: { now = $0 }, sleep: Sleeping.task)
         }
         // 預先載入前幾個聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
-        .task(id: model.agentRows.prefix(Self.prefetchCount).map(\.id)) {
-            await prefetchConversations?(model.agentRows.prefix(Self.prefetchCount).map(\.route))
-        }
         // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
         .task(id: model.agentRows.filter(\.isAway).map(\.id)) {
             await model.refreshAwayTurns()
@@ -142,9 +139,9 @@ public struct AgentListView: View {
     }
 
     /// 搜尋了但沒有任何符合(顯示「找不到」,連線錯誤區塊先收起,免得疊在說明上)。
-    private var searchHasNoMatch: Bool {
+    private func searchHasNoMatch(_ sections: [SpacesSection]) -> Bool {
         guard !model.query.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-        return spacesSections.isEmpty
+        return sections.isEmpty
     }
 
     private var needsConnectingTicks: Bool { ConnectingClock.needsTicks(for: model.hostStatuses(at: now)) }
@@ -283,18 +280,21 @@ public struct AgentListView: View {
     }
 
     private var list: some View {
-        Group {
+        // 這一次繪製只投影一次(投影要走過所有主機的 snapshot);列、搜尋無結果與預讀都用同一份。
+        let sections = spacesSections
+        let prefetchRoutes = AgentListProjection.prefetchRoutes(from: sections, limit: Self.prefetchCount)
+        return Group {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             if window != nil {
                 List(selection: selection) {
                     hostStatusRows
-                    listRows
+                    listRows(sections)
                 }
                 .environment(\.selectedChatRoute, window?.selectedChat)
             } else {
                 List {
                     hostStatusRows
-                    listRows
+                    listRows(sections)
                 }
             }
         }
@@ -304,9 +304,11 @@ public struct AgentListView: View {
         #endif
         // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。
         .onAppear { model.rememberRowCount() }
-        .onChange(of: spacesSections.reduce(0) { $0 + $1.tabs.count }) { model.rememberRowCount() }
+        .onChange(of: sections.reduce(0) { $0 + $1.tabs.count }) { model.rememberRowCount() }
+        // 預先載入畫面上前幾列聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
+        .task(id: prefetchRoutes) { await prefetchConversations?(prefetchRoutes) }
         .overlay {
-            if searchHasNoMatch {
+            if searchHasNoMatch(sections) {
                 ContentUnavailableView.search(text: model.query)
                     .accessibilityIdentifier("agentList.noMatches")
             }
@@ -329,12 +331,12 @@ public struct AgentListView: View {
     }
 
     @ViewBuilder
-    private var listRows: some View {
+    private func listRows(_ sections: [SpacesSection]) -> some View {
         let failures = model.failures
-        SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation, openInNewWindow: openInNewWindow)
+        SpacesSectionsContent(sections: sections, model: model, presentation: presentation, openInNewWindow: openInNewWindow)
         if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
-           spacesSections.isEmpty {
+           sections.isEmpty {
             // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。
             Section {
                 Text("No agents on \(filtered.name).")
@@ -343,7 +345,7 @@ public struct AgentListView: View {
                     .accessibilityIdentifier("agentList.filterEmpty")
             }
         }
-        if !failures.isEmpty, !searchHasNoMatch {
+        if !failures.isEmpty, !searchHasNoMatch(sections) {
             // 讀不到的主機：列已經在畫面上時，錯誤放在列下方，不把列推走(行為規格 F2.9)。不用 alert,也不自動消失:
             // 重新連上才會消失;列保持最後一次讀到的樣子(HIG 20.5)。每台主機一行「主機名：原因」(#37 故事 3)。
             Section {

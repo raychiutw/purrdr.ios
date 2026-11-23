@@ -122,6 +122,11 @@ public struct TerminalRow: Identifiable, Equatable, Sendable {
 }
 
 extension AgentListProjection {
+    /// 列表出現時預讀聊天快取的對象(#356):畫面上 Spaces 由上而下前 `limit` 個有 Agent 的 Tab,取各 Tab 的代表聊天。
+    public static func prefetchRoutes(from sections: [SpacesSection], limit: Int) -> [ChatRoute] {
+        Array(sections.lazy.flatMap(\.tabs).compactMap { tab in tab.agent.map { ChatRoute(host: tab.host, paneID: $0.paneID) } }.prefix(limit))
+    }
+
     /// Spaces 檢視(#275):每台主機(順序同合併列表)的每個 workspace(依主機上的順序)一段，段內每個 Tab 一列(依 Tab 順序)。
     /// 沒有任何 pane 的 workspace 不出現。Spaces 檢視沒有釘選。
     /// - Parameter visible: 目前開著的聊天(頭像狀態的未讀折算與 Agents 列相同)。

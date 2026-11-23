@@ -172,6 +172,18 @@ struct SpacesViewTests {
         #expect(shell.newWindowOpening == SpacesTab.WindowOpening(isTerminal: true, paneID: "w2:p1", title: shell.title))
     }
 
+    @Test("預讀快取取畫面上 Spaces 的前幾列(依列表順序、只算有 Agent 的 Tab、取各 Tab 的代表聊天),不是舊 Agents 排序")
+    func prefetchRoutesFollowVisibleSpacesRows() async throws {
+        let model = await Self.model()
+        let sections = model.agentList.spacesSections
+        let expected = sections.flatMap(\.tabs).compactMap { tab in tab.agent.map { ChatRoute(host: tab.host, paneID: $0.paneID) } }
+        #expect(!expected.isEmpty)
+        #expect(AgentListProjection.prefetchRoutes(from: sections, limit: 8) == expected)
+        #expect(AgentListProjection.prefetchRoutes(from: sections, limit: 1) == Array(expected.prefix(1)))
+        // 只有終端機的 Tab 不預讀(沒有聊天快取)。
+        #expect(!AgentListProjection.prefetchRoutes(from: sections, limit: 8).contains(ChatRoute(host: .demo, paneID: "w2:p1")))
+    }
+
     @Test("herdr 沒有回報 Tab 的 Agent 自成一列(標題是 Agent 標題),不會從列表消失")
     func panesWithoutTabs() async throws {
         let model = await Self.model { response in
