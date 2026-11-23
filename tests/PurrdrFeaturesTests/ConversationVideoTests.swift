@@ -61,7 +61,7 @@ struct ConversationVideoTests {
         var model: ConversationModel { base.model }
     }
 
-    static func opened(compressor: FakeVideoCompressor?, wrappingStore: ((FileAttachmentStore) -> any AttachmentStore)? = nil) async throws -> Setup {
+    static func opened(compressor: FakeVideoCompressor?, onCellular: Bool = false, wrappingStore: ((FileAttachmentStore) -> any AttachmentStore)? = nil) async throws -> Setup {
         let uploader = FakeHostUploader()
         let fileStore = FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-attachments-\(UUID().uuidString)"))
         let store: any AttachmentStore = wrappingStore?(fileStore) ?? fileStore
@@ -70,7 +70,8 @@ struct ConversationVideoTests {
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                images: ComposerImages(uploader: uploader, store: store, makeFileName: { _ in Self.fileName }, videoCompressor: compressor)
+                images: ComposerImages(
+                    uploader: uploader, store: store, makeFileName: { _ in Self.fileName }, videoCompressor: compressor, isOnCellular: { onCellular })
             )
         }
         return Setup(base: base, uploader: uploader, store: store, compressor: compressor)
@@ -348,5 +349,53 @@ struct ConversationVideoTests {
 
         #expect(setup.model.attachments.isEmpty)
         #expect(setup.store.url(of: thumbnail) == nil)
+    }
+
+    @Test("行動網路:大影片送出前先提醒,確認才上傳;取消提醒什麼都不動")
+    func largeVideoOnCellularAsksFirst() async throws {
+        let size = ConversationModel.cellularWarningBytes + 1
+        let setup = try await Self.opened(compressor: FakeVideoCompressor(), onCellular: true)
+        await setup.model.addVideo(displayName: "Demo.mov") { try Self.source(size: size) }
+        setup.model.draft = "看這段"
+
+        await setup.model.send()
+
+        #expect(setup.model.cellularUploadWarning == size, "要提醒這次會用掉多少流量")
+        #expect(await setup.uploader.uploads.isEmpty)
+        #expect(setup.model.draft == "看這段", "提醒時草稿留著")
+        #expect(setup.model.attachments.count == 1)
+
+        setup.model.dismissCellularWarning()
+        #expect(setup.model.cellularUploadWarning == nil)
+        #expect(await setup.uploader.uploads.isEmpty)
+
+        await setup.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.snapshot())
+        await setup.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.delivered)
+        await setup.model.send()
+        await setup.model.confirmCellularUpload()
+
+        #expect(await setup.uploader.uploads.count == 1)
+        #expect(setup.model.cellularUploadWarning == nil)
+    }
+
+    @Test("Wi-Fi 或小影片:不提醒")
+    func noWarningOnWiFiOrSmallVideo() async throws {
+        let wifi = try await Self.opened(compressor: FakeVideoCompressor(), onCellular: false)
+        await wifi.model.addVideo(displayName: "Demo.mov") { try Self.source(size: ConversationModel.cellularWarningBytes + 1) }
+        wifi.model.draft = "x"
+        await wifi.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.snapshot())
+        await wifi.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.delivered)
+        await wifi.model.send()
+        #expect(wifi.model.cellularUploadWarning == nil)
+        #expect(await wifi.uploader.uploads.count == 1)
+
+        let small = try await Self.opened(compressor: FakeVideoCompressor(), onCellular: true)
+        await small.model.addVideo(displayName: "Demo.mov") { try Self.source(size: 1_000) }
+        small.model.draft = "x"
+        await small.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.snapshot())
+        await small.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.delivered)
+        await small.model.send()
+        #expect(small.model.cellularUploadWarning == nil)
+        #expect(await small.uploader.uploads.count == 1)
     }
 }

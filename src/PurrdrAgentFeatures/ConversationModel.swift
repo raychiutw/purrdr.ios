@@ -577,6 +577,27 @@ public final class ConversationModel {
         return .hostServiceUpdateRequired(installedVersion: installedVersion)
     }
 
+    /// 影片大到行動網路上傳前要先提醒的大小(10 MiB)。
+    package nonisolated static let cellularWarningBytes = 10 * 1024 * 1024
+    /// 等使用者確認的行動網路上傳提醒(這次要上傳的影片位元組數);沒有提醒時是 `nil`。
+    public private(set) var cellularUploadWarning: Int?
+    @ObservationIgnored private var cellularConfirmed = false
+
+    private var needsCellularConfirmation: Bool {
+        guard !cellularConfirmed, let images, images.isOnCellular() else { return false }
+        return attachments.contains { $0.uploadedPath == nil && $0.duration != nil && $0.byteCount >= Self.cellularWarningBytes }
+    }
+
+    /// 使用者確認用行動網路上傳:接著照常送出。
+    public func confirmCellularUpload() async {
+        cellularUploadWarning = nil
+        cellularConfirmed = true
+        defer { cellularConfirmed = false }
+        await send()
+    }
+
+    public func dismissCellularWarning() { cellularUploadWarning = nil }
+
     /// 刪掉檔案附件的手機副本(影片連縮圖)。
     private func removeStoredCopies(of attachment: ComposerAttachment) {
         images?.store.remove(attachment.fileName.value)
@@ -1493,6 +1514,11 @@ public final class ConversationModel {
     /// 送了但不確定(沒有反應、無法確認)→ 回音標示失敗，可重試，**不自動重送**(§7.3)。
     public func send() async {
         guard canSend else { return }
+        // 行動網路上要傳大影片:先提醒會用掉多少流量,使用者確認才送(#474)。
+        if needsCellularConfirmation {
+            cellularUploadWarning = attachments.filter { $0.uploadedPath == nil && $0.duration != nil }.reduce(0) { $0 + $1.byteCount }
+            return
+        }
         if let typedAnswer {
             await sendTypedAnswer(typedAnswer)
             return

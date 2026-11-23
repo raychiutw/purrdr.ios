@@ -111,12 +111,15 @@ public struct ComposerImages: Sendable {
     public let makeFileName: @Sendable (String) -> HostUploadName
     /// 影片壓縮(#474);`nil` 時輸入列沒有「影片」。
     public let videoCompressor: (any VideoCompressing)?
+    /// 目前是不是只能用行動網路(大影片上傳前提醒用,#474)。
+    public let isOnCellular: @Sendable () -> Bool
 
     public init(
         uploader: any HostUploading, store: any AttachmentStore, makeName: @escaping @Sendable () -> UploadFileName = ComposerImages.randomName,
         makeFileName: @escaping @Sendable (String) -> HostUploadName = ComposerImages.randomFileName,
-        videoCompressor: (any VideoCompressing)? = nil
+        videoCompressor: (any VideoCompressing)? = nil, isOnCellular: @escaping @Sendable () -> Bool = { false }
     ) {
+        self.isOnCellular = isOnCellular
         self.videoCompressor = videoCompressor
         self.uploader = uploader
         self.store = store

@@ -171,6 +171,9 @@ public final class TrafficMeter: Sendable {
     }
 
     /// 平台回報目前的網路類型;之後的位元組記在這一類。
+    /// 目前記錄用的網路類型(行動網路上傳大檔前的提醒也看它)。
+    public var currentNetwork: TrafficNetwork { state.withLock { $0.network } }
+
     public func setNetwork(_ network: TrafficNetwork) {
         state.withLock { $0.network = network }
     }
