@@ -790,6 +790,8 @@ public final class ConversationModel {
     public static let followingMessageLimit = CachedConversation.maxMessages
     /// 往上翻載入的舊訊息(不寫入快取)。
     private var olderMessages: [TranscriptMessage] = []
+    /// 對話時間軸:列身分由它分配,新內容只以增量餵給它(#481)。
+    private var timeline = ConversationTimeline()
     private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
     /// 知道 Agent 後預載 slash 清單(#469);之後每次輪詢檢查是否過期,超過 60 秒在背景重讀。
@@ -1294,10 +1296,11 @@ public final class ConversationModel {
             let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
             guard generation == self.generation else { return }
             let known = Set((olderMessages + recent).map(\.id))
-            olderMessages = parse(page.lines).filter { !known.contains($0.id) } + olderMessages
+            let olderPage = parse(page.lines).filter { !known.contains($0.id) }
+            olderMessages = olderPage + olderMessages
             file?.windowStart = page.start
             older = page.start > 0 ? .available : .reachedStart
-            rebuild()
+            applyTimeline(timeline.prependOlder(olderPage))
         }
     }
 
@@ -1321,28 +1324,36 @@ public final class ConversationModel {
         let known = Set(recent.map(\.id))
         let added = parse(chunk.lines).filter { !known.contains($0.id) }
         recent += added
+        let appendUpdate = timeline.append(added)
         if !added.isEmpty { segments.append((chunk.start, added.count)) }
         for line in chunk.lines {
             dialect.updateMetadata(&metadata, with: line)
             progress.update(with: line, dialect: dialect)
         }
         notePermissionModes(in: chunk.lines)
-        trimIfFollowing()
-        rebuild()
+        if let trimUpdate = trimIfFollowing() {
+            applyTimeline(ConversationTimeline.Update(cause: appendUpdate.cause, changes: appendUpdate.changes + trimUpdate.changes))
+        } else {
+            applyTimeline(appendUpdate)
+        }
     }
 
     /// 跟隨尾端時訊息超過上限：丟掉往上翻的舊頁，再整段丟掉最舊的(至少留最後一段),視窗起點移到留下的第一段開頭，
     /// 之後往上翻可以讀回來(#130)。
-    private func trimIfFollowing() {
-        guard isFollowingLatest, olderMessages.count + recent.count > Self.followingMessageLimit, let first = segments.first else { return }
+    private func trimIfFollowing() -> ConversationTimeline.Update? {
+        guard isFollowingLatest, olderMessages.count + recent.count > Self.followingMessageLimit, let first = segments.first else { return nil }
+        var droppedMessageCount = olderMessages.count
         olderMessages = []
         var start = first.start
         while recent.count > Self.followingMessageLimit, segments.count > 1 {
-            recent.removeFirst(segments.removeFirst().count)
+            let droppedSegment = segments.removeFirst()
+            recent.removeFirst(droppedSegment.count)
+            droppedMessageCount += droppedSegment.count
             start = segments[0].start
         }
         file?.windowStart = start
         older = start > 0 ? .available : .reachedStart
+        return timeline.dropOldest(messageCount: droppedMessageCount)
     }
 
     // MARK: - 往上翻
@@ -1356,10 +1367,11 @@ public final class ConversationModel {
             let chunk = try await transcripts.window(path: file.path, endingAt: file.windowStart, lines: pageLines)
             guard generation == self.generation else { return }
             let known = Set((olderMessages + recent).map(\.id))
-            olderMessages = parse(chunk.lines).filter { !known.contains($0.id) } + olderMessages
+            let olderPage = parse(chunk.lines).filter { !known.contains($0.id) }
+            olderMessages = olderPage + olderMessages
             self.file?.windowStart = chunk.start
             older = chunk.start > 0 ? .available : .reachedStart
-            rebuild()
+            applyTimeline(timeline.prependOlder(olderPage))
         } catch {
             guard generation == self.generation else { return }
             older = .available
@@ -2883,10 +2895,22 @@ public final class ConversationModel {
         rebuild()
     }
 
+    /// 以目前的訊息整份取代時間軸(開啟、重新整理、清空);已存在的列沿用身分。
     private func rebuild() {
-        items = Conversation.items(from: olderMessages + recent)
+        applyTimeline(timeline.reset(olderMessages + recent))
+    }
+
+    /// 把時間軸的變更交給畫面:沒有變更就不動 `items`(不觸發重繪)。
+    private func applyTimeline(_ update: ConversationTimeline.Update) {
+        guard !update.changes.isEmpty else { return }
+        items = timeline.items
         rebuildEntries()
-        for case .workflow(let card) in items { workflowModels[card.id]?.update(card: card) }
+        for change in update.changes {
+            switch change {
+            case .inserted(.workflow(let card), _), .updated(.workflow(let card), _): workflowModels[card.id]?.update(card: card)
+            default: break
+            }
+        }
     }
 
     /// 寫入快取：最多 `CachedConversation.maxMessages` 則(R-B13),以整段為單位從尾端取，視窗起點是取到的第一段開頭，

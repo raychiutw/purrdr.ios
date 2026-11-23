@@ -84,8 +84,8 @@ struct ClaudeTranscriptParserTests {
             ToolRunSummary(thoughts: 1, commands: 1, failures: 1),
             ToolRunSummary(commands: 1, editedFiles: 1),
         ])
-        // 列 key 以最後一個項目命名(往上翻頁會加在前面);展開狀態 key 以第一個項目命名(R-V02)。
-        #expect(runs[1].id != runs[1].expansionID)
+        // 列 key 與展開狀態 key 都以第一個步驟命名(#481)。
+        #expect(runs[1].id == runs[1].expansionID)
     }
 
     @Test("工具結果依 tool_use_id 配對，結果的 is_error 標示失敗")

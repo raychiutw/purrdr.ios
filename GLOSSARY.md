@@ -98,6 +98,10 @@ _避免_:Driver、Adapter、Agent 外掛
 **Agent 狀態**:
 herdr 回報的 `blocked`／`working`／`done`／`idle`／`unknown`。UI 上 `blocked` 稱為「需要你」。
 
+**對話時間軸**(Conversation timeline):
+聊天畫面上有序的列，由對話紀錄的增量維持(只用 Foundation,在可攜核心)。每一列出現時就分配身分，之後永不改變;新內容只有新增、原地更新、往上補舊訊息三種變化，不整份重組。工具串以第一個步驟命名，後續步驟只原地更新那一列，所以展開狀態不會因為多一個步驟而消失。重複的行去重，捨棄過舊訊息後留下的列身分不變。
+_避免_:列表重組、Rebuild
+
 **對話紀錄**(Transcript):
 Agent 自己寫在主機上的對話檔，app 從這裡讀出對話內容。格式由各 agent 自訂，不是公開 API。
 _避免_:Log、History
