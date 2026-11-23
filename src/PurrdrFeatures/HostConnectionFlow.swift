@@ -316,6 +316,13 @@ package final class HostConnectionFlow {
         return true
     }
 
+    /// 編輯已存的主機時保留只存在這支裝置的設定(Agent 設定,#477);編輯畫面沒有這些欄位。
+    private func kept(_ host: HostConfiguration) -> HostConfiguration {
+        var host = host
+        host.enabledAgents = existing?.enabledAgents
+        return host
+    }
+
     /// 儲存。測試沒通過或之後改過欄位就不存;寫入失敗時留在流程並說明原因。
     ///
     /// 祕密先寫(寫不進 Keychain 就什麼都不存),再存主機設定;不再需要的祕密刪掉。
@@ -323,10 +330,10 @@ package final class HostConnectionFlow {
         guard canSave(draft), let tested else { return nil }
         let id = hostID
         if case .https(let address, let pairingCode) = tested.draft.connection {
-            return saveHostService(HostConfiguration(id: id, name: tested.draft.name, hostService: address), pairingCode: pairingCode)
+            return saveHostService(kept(HostConfiguration(id: id, name: tested.draft.name, hostService: address)), pairingCode: pairingCode)
         }
         guard case .ssh(let ssh) = tested.draft.connection else { return nil }
-        let host = HostConfiguration(id: id, name: tested.draft.name, connection: ssh.connection, operatingSystem: tested.operatingSystem)
+        let host = kept(HostConfiguration(id: id, name: tested.draft.name, connection: ssh.connection, operatingSystem: tested.operatingSystem))
         let wroteSecret: Bool
         do {
             if let secret = ssh.secret {

@@ -243,3 +243,68 @@ struct HostPairedDevicesPage: View {
         .accessibilityIdentifier("hosts.pairedDevices.page")
     }
 }
+
+/// 主機的 Agent 設定頁(#477,設計稿 HostAgents):逐一開關這台主機裝了哪些 Agent。
+/// 開著的才顯示用量、才能在這台主機新增聊天;Agent 列表不受影響。
+struct HostAgentSettingsPage: View {
+    let hosts: HostsModel
+    let hostID: UUID
+    @State private var model: HostAgentSettingsModel
+
+    init(hosts: HostsModel, hostID: UUID, model: @autoclosure () -> HostAgentSettingsModel) {
+        self.hosts = hosts
+        self.hostID = hostID
+        _model = State(wrappedValue: model())
+    }
+
+    var body: some View {
+        List {
+            Group {
+                Section {
+                    ForEach(model.rows) { row in
+                        Toggle(isOn: Binding(get: { row.isEnabled }, set: { model.setEnabled(row.agent, $0) })) {
+                            HStack(spacing: 12) {
+                                AgentKindAvatar(kind: AgentKind(rawKind: row.agent.canonicalName))
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(verbatim: row.name)
+                                    if let detection = detectionText(row.detection) {
+                                        detection
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondaryText)
+                                    }
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("hosts.agents.\(row.agent.canonicalName)")
+                    }
+                } header: {
+                    Text("Turned-on Agents show their usage and can start new chats on this host.")
+                        .textCase(nil)
+                        .foregroundStyle(.secondaryText)
+                } footer: {
+                    Text("When you add a host, Purrdr finds the Agents on it. You can also turn on one it didn’t find.")
+                        .foregroundStyle(.secondaryText)
+                }
+            }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+            .listRowBackground(AppSurface.groupedRow)
+        }
+        .appGroupedList()
+        .navigationTitle("Agent")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .navigationSubtitle(hosts.name(of: .host(hostID)))
+        .accessibilityIdentifier("hosts.agents.page")
+        .task { await model.load() }
+    }
+
+    private func detectionText(_ detection: HostAgentSettingsModel.Detection) -> Text? {
+        switch detection {
+        case .detected: Text("Found on this host")
+        case .notDetected: Text("Not found")
+        case .checking, .unknown: nil
+        }
+    }
+}

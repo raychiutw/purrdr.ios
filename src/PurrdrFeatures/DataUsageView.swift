@@ -423,6 +423,30 @@ private struct DataUsageChart: View {
     let bars: [DataUsageBar]
     let selectedDay: String?
     let select: (String?) -> Void
+    @State private var width: CGFloat = 0
+
+    /// 要標籤的日期,取那天中午(長條的正中央)。右側 Y 軸標籤約佔 56pt,標籤寬約 44pt。
+    private var labelDates: [Date] {
+        let indices = DataUsageAxisLabels.labeledIndices(barCount: bars.count, plotWidth: Double(max(0, width - 56)), labelWidth: 44)
+        return indices.compactMap { Calendar.current.date(byAdding: .hour, value: 12, to: bars[$0].date) }
+    }
+
+    /// 每個要標的日期,置中在那根長條下方。
+    @ViewBuilder
+    private func dayLabels(proxy: ChartProxy, geometry: GeometryProxy) -> some View {
+        if let plot = proxy.plotFrame {
+            let frame = geometry[plot]
+            ForEach(labelDates, id: \.self) { date in
+                if let x = proxy.position(forX: date) {
+                    Text(date, format: .dateTime.month(.defaultDigits).day())
+                        .font(.caption2).foregroundStyle(Color.secondaryText)
+                        .fixedSize()
+                        .position(x: frame.minX + x, y: frame.maxY + 12)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+    }
 
     private struct Mark: Identifiable {
         var id: String { "\(bar.day)/\(segment.kind)" }
@@ -468,15 +492,15 @@ private struct DataUsageChart: View {
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                AxisValueLabel(format: .dateTime.month(.defaultDigits).day(), centered: true)
-                    .font(.caption2).foregroundStyle(Color.secondaryText)
-            }
-        }
+        // X 軸(#477):標籤自己畫在每根長條正下方(內建軸的刻度對不準長條、也會丟掉最後一個標籤);
+        // 天數多放不下時整數倍略過、從今天往回數(`DataUsageAxisLabels`)。
+        .chartXAxis(.hidden)
+        .padding(.bottom, 20)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         // 點一根長條:用點的位置換算成那天(不靠 chartXSelection,它在 iOS 要按住或拖曳)。
         .chartOverlay { proxy in
             GeometryReader { geometry in
+                dayLabels(proxy: proxy, geometry: geometry)
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .onTapGesture(coordinateSpace: .local) { location in
                         guard let plot = proxy.plotFrame else { return }

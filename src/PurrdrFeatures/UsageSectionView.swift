@@ -173,8 +173,11 @@ struct UsageSectionContainer: View {
     }
 
     var body: some View {
-        UsageSectionView(model: model, host: host, scopedTitle: scopedTitle)
-            .onChange(of: activeGroup) { _, group in model.activeGroup = group }
+        // 這台主機沒有啟用這個 Agent(#477):不查也不顯示整區。
+        if !model.agents.isEmpty {
+            UsageSectionView(model: model, host: host, scopedTitle: scopedTitle)
+                .onChange(of: activeGroup) { _, group in model.activeGroup = group }
+        }
     }
 }
 

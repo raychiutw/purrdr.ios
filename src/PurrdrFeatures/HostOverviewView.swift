@@ -28,7 +28,7 @@ struct HostOverviewView: View {
                 HostStatusRow(overview: overview, retry: retry, pair: pair, update: { if let hostID { openRoute(.edit(hostID)) } })
                 if overview.showsUsage, let usage {
                     UsageSectionContainer(host: overview.host, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false, detectsInstallation: true)
-                        .id(overview.host)
+                        .id(UsageSectionIdentity(host: overview.host, enabled: hosts.enabledAgents(on: overview.host)))
                 }
                 if overview.showsHostService, let hostID, let models = statusCache.models(for: hostID, hosts: hosts) {
                     hostService(hostID, models)
@@ -104,6 +104,9 @@ struct HostOverviewView: View {
 
     private var thisHostSection: some View {
         Section {
+            if let hostID, showsSettings {
+                agentsRow(hostID)
+            }
             if showsNotifications, let push = pushState {
                 notificationsRow(push)
             }
@@ -151,6 +154,19 @@ struct HostOverviewView: View {
             Text("This Host")
                 .foregroundStyle(.secondaryText)
         }
+    }
+
+    /// 「Agent」列(#477):右側是啟用的 Agent,點進去逐一開關。
+    private func agentsRow(_ id: UUID) -> some View {
+        let enabled = hosts.enabledAgents(on: .host(id))
+        let names = HostAgentSettings.configurable.filter(enabled.contains)
+            .map { AgentCatalog.profile(for: $0).presentation.displayName ?? $0.canonicalName }
+        return NavigationLink(value: HostRoute.agents(id)) {
+            HostRowLabel(
+                title: "Agent",
+                detail: names.isEmpty ? Text("None") : Text(verbatim: names.joined(separator: ", ")))
+        }
+        .accessibilityIdentifier("hosts.agents")
     }
 
     /// 通知(#405):有 Plus 才能進去開關;沒有 Plus 顯示鎖定與原因,點了開付費牆,不誤導成已開啟。
@@ -284,6 +300,7 @@ struct HostRowLabel: View {
                 if let detail {
                     Spacer(minLength: 8)
                     detail
+                        .multilineTextAlignment(.trailing)
                         .foregroundStyle(.secondaryText)
                 }
             }
@@ -411,7 +428,7 @@ extension HostOverview {
         var parts: [String] = []
         switch connection {
         case .tailscaleSSH: parts.append(String(localized: "Tailscale SSH"))
-        case .openSSH: parts.append(String(localized: "OpenSSH"))
+        case .openSSH: parts.append(String(localized: "SSH"))
         case .https: parts.append(String(localized: "HTTPS"))
         case nil: break
         }
@@ -423,4 +440,10 @@ extension HostOverview {
         }
         return parts.joined(separator: " · ")
     }
+}
+
+/// 用量區的身分:換主機或這台主機啟用的 Agent 變了(#477)就重建用量區 model,不查剛關掉的、補查剛打開的。
+struct UsageSectionIdentity: Hashable {
+    let host: HostSelection
+    let enabled: Set<AgentID>
 }

@@ -51,6 +51,7 @@ struct HostsTab: View {
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
+                            .tint(Color.appAccent)
                             .accessibilityIdentifier("hosts.add")
                     }
                     ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -180,6 +181,11 @@ struct HostsTab: View {
                 if let settings = hosts.hostSettings(for: id) {
                     HostSettingsPage(
                         hosts: hosts, hostID: id, settings: settings, isReadOnly: hosts.overview?.status == .readOnly)
+                        .appPageContentWidth()
+                }
+            case .agents(let id):
+                if let model = hosts.agentSettings(for: id) {
+                    HostAgentSettingsPage(hosts: hosts, hostID: id, model: model)
                         .appPageContentWidth()
                 }
             case .pairedDevices(let id):

@@ -17,6 +17,8 @@ enum HostRoute: Hashable {
     /// 主機 tab 總頁推進去的子頁(#392)。
     case notifications
     case hostSettings(UUID)
+    /// 這台主機啟用的 Agent(#477)。
+    case agents(UUID)
     case pairedDevices(UUID)
     case loginShell
 

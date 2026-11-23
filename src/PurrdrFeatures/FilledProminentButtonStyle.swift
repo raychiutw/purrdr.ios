@@ -79,6 +79,9 @@ extension EnvironmentValues {
 }
 
 extension Color {
+    /// app 的主色(emerald,ADR-0011),不跟主機主題(#477):頂端的主機下拉與「+」用它,各 tab 一致。
+    static var appAccent: Color { .accentColor }
+
     /// 承載文字的主色(跟著 tint 與主機主題;#329):AttributedString 的指令著色拿不到 `.tint` 樣式，用它取代直接寫 accentColor。
     static var commandText: Color { .accentColor }
 }

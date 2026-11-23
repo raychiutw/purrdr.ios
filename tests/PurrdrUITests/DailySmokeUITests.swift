@@ -336,6 +336,21 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertFalse(app.buttons["hosts.notifications"].exists, "沒有 Plus 不該能進通知開關")
             XCTAssertTrue(app.overviewRow("hosts.tool.loginShell").exists, "總頁沒有登入 Shell")
         }
+        step("主機的 Agent 設定:關掉 Codex 後用量區不再列、新增聊天不再出現 Codex(#477)") {
+            let row = app.overviewRow("hosts.agents")
+            XCTAssertTrue(row.exists, "這台主機沒有「Agent」列")
+            row.tap()
+            XCTAssertTrue(app.element("hosts.agents.page").waitUntilExists(timeout: 10), "沒有開出 Agent 設定頁")
+            let codex = app.switches["hosts.agents.codex"]
+            XCTAssertTrue(codex.waitUntilExists(timeout: 5), "Agent 設定頁沒有 Codex 開關")
+            XCTAssertEqual(codex.value as? String, "1", "既有主機升級後應預設開啟目前顯示用量的 Codex")
+            codex.switches.firstMatch.tap()
+            XCTAssertTrue(codex.wait(for: NSPredicate(format: "value == '0'"), timeout: 5), "Codex 開關沒有關掉")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有回到主機總頁")
+            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "Claude 用量被一起關掉了")
+            XCTAssertFalse(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 2), "關掉 Codex 後用量區還列著它")
+        }
         step("數據用量摘要") {
             app.openTab(.traffic)
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "沒有數據用量頁")

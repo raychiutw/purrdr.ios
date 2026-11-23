@@ -38,6 +38,21 @@ struct HostOverviewTests {
         return model
     }
 
+    @Test("OpenSSH 主機的連線方式畫面上叫「SSH」(#477);內部值不變")
+    func openSSHIsShownAsSSH() {
+        let store = MemoryHostStore()
+        store.hosts = [
+            HostConfiguration(
+                name: "Home", endpoint: SSHEndpoint(host: "home-mac", username: "demo"), openSSH: .password, operatingSystem: .macOS,
+                hostKeyPin: HostsModelTests.pin)
+        ]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        model.load()
+        #expect(model.overview?.connection == .openSSH)
+        #expect(model.overview?.connectionSummary.hasPrefix("SSH") == true)
+        #expect(model.overview?.connectionSummary.contains("OpenSSH") == false)
+    }
+
     @Test("沒有任何主機也沒有範例主機時沒有總頁")
     func noHostHasNoOverview() {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)

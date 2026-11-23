@@ -228,6 +228,7 @@ public struct TopNavigationView: View {
         ToolbarItemGroup(placement: .primaryAction) {
             AgentListModeButton(list: hosts.agentList)
             Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }
+                .tint(Color.appAccent)
                 .accessibilityIdentifier("toolbar.newChat")
         }
         AccountToolbarItem(member: member, hasPrecedingAction: true) { navigation.sheet = .member }
@@ -394,11 +395,11 @@ struct HostFilterMenu: View {
                     }
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.appAccent)
                 .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondaryText)
+                    .foregroundStyle(Color.appAccent)
                     .accessibilityHidden(true)
             }
             .padding(.trailing, 4)

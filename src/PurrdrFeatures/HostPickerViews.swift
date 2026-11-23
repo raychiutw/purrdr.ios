@@ -30,11 +30,11 @@ struct HostPickerButton: View {
                 HostIconBadge(model.selectedOption?.icon ?? .default, diameter: 24)
                 Text(verbatim: name)
                     .font(.headline)
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(inToolbar ? Color.appAccent : Color.primary)
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondaryText)
+                    .foregroundStyle(inToolbar ? Color.appAccent : Color.secondaryText)
                     .accessibilityHidden(true)
             }
             .padding(.leading, 6)
@@ -45,8 +45,8 @@ struct HostPickerButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        // 頂層 tab 的 tint 是主色(綠):工具列裡的選單文字照一般文字色,與聊天 tab 的主機選單一致(#475)。
-        .tint(inToolbar ? Color.primary : nil)
+        // 頂層 tab 的主機選單文字與圖示用 app 主色(綠,#477),不吃主機主題。
+        .tint(inToolbar ? Color.appAccent : nil)
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label(同選取中主機鈕)。
         .accessibilityLabel(Text("Host: \(name)"))
         .accessibilityIdentifier(identifier)

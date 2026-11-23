@@ -5217,6 +5217,17 @@
         }
       }
     },
+    "Found on this host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已偵測到"
+          }
+        }
+      }
+    },
     "Free for %@. When the trial ends, %@ is charged automatically unless you cancel at least 24 hours before it ends. " : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7255,6 +7266,17 @@
         }
       }
     },
+    "No Agents are turned on for this host. Open the Hosts tab, then Agent, to turn one on." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機還沒有開啟任何 Agent。到「主機」分頁的「Agent」開啟。"
+          }
+        }
+      }
+    },
     "No Changes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7658,6 +7680,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機不能用"
+          }
+        }
+      }
+    },
+    "Not found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有偵測到"
           }
         }
       }
@@ -8340,17 +8373,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在新視窗打開"
-          }
-        }
-      }
-    },
-    "OpenSSH" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原生 SSH"
           }
         }
       }
@@ -13153,6 +13175,17 @@
         }
       }
     },
+    "This chat can’t be read. In a herdr Pane on the host, paste the command below to start a new chat." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這段對話讀不到。請在主機的 herdr Pane 貼上下面的指令，開一段新的對話。"
+          }
+        }
+      }
+    },
     "This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14562,6 +14595,17 @@
         }
       }
     },
+    "Turned-on Agents show their usage and can start new chats on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟的 Agent 才會顯示用量，也才能在這台主機新增聊天。"
+          }
+        }
+      }
+    },
     "Turning off notifications…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15460,6 +15504,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要 Agent 做什麼?"
+          }
+        }
+      }
+    },
+    "When you add a host, Purrdr finds the Agents on it. You can also turn on one it didn’t find." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增主機時會自動偵測主機上的 Agent；偵測不到的也可以手動開啟。"
           }
         }
       }
@@ -16443,17 +16498,6 @@
       "extractionState" : "manual",
       "shouldTranslate" : false,
       "localizations" : {}
-    },
-    "This chat can’t be read. In a herdr Pane on the host, paste the command below to start a new chat." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這段對話讀不到。請在主機的 herdr Pane 貼上下面的指令，開一段新的對話。"
-          }
-        }
-      }
     }
   },
   "version" : "1.1"
