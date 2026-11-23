@@ -172,6 +172,23 @@ struct DemoHostTests {
         #expect(try await reader.catchUp(path: before.path, from: chunk.end) == .unchanged)
     }
 
+    /// #489:工具步驟情境，ledger 一開始是長對話，定位後 agent 一次接上 20 個工具步驟(呼叫加結果各一行)。
+    @Test("工具步驟：長對話開場，定位後一次接上 20 個工具步驟")
+    func toolBurstAppendsTwentyToolSteps() async throws {
+        let host = DemoHost(scenario: .toolBurst(after: .zero))
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        #expect(before.size > 0)
+
+        guard case .appended(let chunk) = try await reader.catchUp(path: before.path, from: before.size) else {
+            Issue.record("定位後應讀到新接上的工具步驟")
+            return
+        }
+        #expect(chunk.lines.count == 40)
+        #expect(chunk.lines.filter { $0.contains("\"tool_use\"") }.count == 20)
+        #expect(try await reader.catchUp(path: before.path, from: chunk.end) == .unchanged)
+    }
+
     @Test("圖片：Demo 收下上傳(stdin 到 EOF)回傳上傳資料夾的路徑;送出帶路徑的 prompt 後對話紀錄像 Claude 一樣記成圖片")
     func uploadAndImagePrompt() async throws {
         let host = DemoHost()

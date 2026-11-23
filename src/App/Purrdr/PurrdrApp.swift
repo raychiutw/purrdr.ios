@@ -362,6 +362,7 @@ struct PurrdrApp: App {
         if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
         if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(5)) }
         if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
+        if arguments.contains("-demoToolBurst") { return .toolBurst(after: .seconds(10)) }
         if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
         if arguments.contains("-demoSentImages") { return .sentImages }
