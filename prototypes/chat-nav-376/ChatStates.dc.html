@@ -16,7 +16,7 @@
 <div class="phone {{s.cls}}">
 <div class="top">
 <button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
-<div class="top-c"><button class="titlecap glass" aria-label="{{s.title}},{{s.st}},{{s.host}}"><span class="t1">{{s.title}}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="t2"><span class="sb {{s.sb}} sm" aria-hidden="true">{{s.sbt}}</span><span>{{s.st}} · {{s.host}}</span></span></button></div>
+<div class="top-c"><button class="titlecap one glass" aria-label="{{s.title}},{{s.st}},{{s.host}}"><span class="dot {{s.sb}}" aria-hidden="true"></span><span class="tn">{{s.title}}</span></button></div>
 <button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
 </div>
 <sc-if value="{{s.banner}}" hint-placeholder-val="{{false}}"><div class="banner glass" role="status"><span class="sb need" aria-hidden="true">!</span><span style="flex-grow:1">weather-app 需要你</span><button class="btn-tint">前往</button></div></sc-if>
