@@ -41,24 +41,6 @@ struct ContextMeter: View {
     }
 }
 
-/// 第二行尾的「☑ 3/7」(對 VoiceOver 隱藏，念在整列句子裡)。
-struct TodoCount: View {
-    let done: Int
-    let total: Int
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "checkmark.square")
-            Text(verbatim: "\(done)/\(total)").monospacedDigit()
-        }
-        .font(.footnote)
-        .foregroundStyle(.secondaryText)
-        .fixedSize()
-        .accessibilityHidden(true)
-        .accessibilityIdentifier("agent.row.todos")
-    }
-}
-
 /// 聊天點標題膠囊升起的面板(#380,原型 Header／PanelStates):上方 context,接著模型、待辦、背景子 Agent、做完再送,
 /// 下方是權限模式選項(直接展開、可切換)。這些資訊只在這裡出現(膠囊第二行只有狀態、主機與非一般的權限模式)。
 struct ConversationStatusSheet: View {

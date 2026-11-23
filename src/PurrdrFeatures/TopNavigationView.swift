@@ -256,14 +256,6 @@ let topBar = ChatTopBarActions(
     }
 }
 
-extension TopNavigationView {
-    #if os(iOS)
-    static let modePlacement = ToolbarItemPlacement.topBarLeading
-    #else
-    static let modePlacement = ToolbarItemPlacement.navigation
-    #endif
-}
-
 /// 新增對話的 sheet:主機挑選鈕在 sheet 開啟時建立一次;換主機就在那台主機重建表單(#245)。
 private struct NewChatSheet: View {
     let hosts: HostsModel

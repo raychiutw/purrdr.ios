@@ -127,8 +127,6 @@ public enum TopBarMetrics {
     public static let controlHeight: CGFloat = 44
     /// 圓形按鈕的直徑。
     public static let circleDiameter: CGFloat = 44
-    /// 工具列玻璃圓鈕裡的頭像直徑(還沒套共用頂列的 tab 用)。
-    public static let avatarDiameter: CGFloat = 30
     /// 聊天畫面單行標題膠囊的高度:與其他 tab 頂端一致。
     public static let titleCapsuleHeight: CGFloat = controlHeight
     /// 長型膠囊 [電腦圖示｜＋] 的寬度(兩段各 46,中間分隔線)。

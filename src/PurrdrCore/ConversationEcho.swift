@@ -49,17 +49,11 @@ public enum EchoFailure: Sendable, Equatable {
 
 /// 回音與對話紀錄的配對(F6.6)。
 public enum EchoMatching {
-    /// 以新到的使用者行確認回音，回傳還沒確認的。`consumed` 記錄已經確認過某則回音的行。
+    /// 以新到的使用者行確認回音,回傳每一組(回音 id、確認它的使用者訊息 id)。`consumed` 記錄已經確認過某則回音的行。
     ///
     /// - 只有**送出之後**才出現的使用者行能確認(比對全部歷史曾讓第二個「again」在送出前就消失)。
     /// - 每個到達只能確認一則回音(最早送出的那則)。
     /// - key = 正規化後的文字 + 圖片張數。
-    public static func confirm(_ echoes: [PromptEcho], against bubbles: [UserBubble], consumed: inout Set<String>) -> [PromptEcho] {
-        let confirmedIDs = Set(matches(echoes, against: bubbles, consumed: &consumed).map(\.echoID))
-        return echoes.filter { !confirmedIDs.contains($0.id) }
-    }
-
-    /// 與 `confirm` 同規則,回傳每一組(回音 id、確認它的使用者訊息 id)。
     public static func matches(_ echoes: [PromptEcho], against bubbles: [UserBubble], consumed: inout Set<String>) -> [(echoID: String, bubbleID: String)] {
         var remaining = echoes
         var matched: [(echoID: String, bubbleID: String)] = []

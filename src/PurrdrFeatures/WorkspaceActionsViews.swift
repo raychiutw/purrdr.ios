@@ -107,18 +107,6 @@ struct WorkspaceRowContext {
 }
 
 extension View {
-    /// 列的滑動與 context menu(行為規格 F2.7)。context menu 頂端的動作與滑動相同;破壞性的「關閉」放最後。
-    ///
-    /// `openInNewWindow` 有值時(支援多視窗)，context menu 最前面加「在新視窗開啟」(HIG Windows,#31)。
-    func workspaceRowActions(
-        _ context: WorkspaceRowContext?, host: HostSelection, actions: WorkspaceActionsModel?, presentation: WorkspacePresentation,
-        snapshot: HostSnapshot?, openInNewWindow: ((PaneWindow.Kind) -> Void)? = nil
-    ) -> some View {
-        modifier(WorkspaceRowActions(
-            context: context, host: host, actions: actions, presentation: presentation, snapshot: snapshot,
-            openInNewWindow: openInNewWindow))
-    }
-
     /// Spaces 檢視 Tab 列的 context menu(#275、#491 補回釘選與靜音):最前面是「在新視窗開啟」(支援多視窗時)與釘選、靜音,
     /// 接著版面圖，其餘同列的 workspace 動作。
     ///
@@ -196,13 +184,6 @@ private struct WorkspaceButtons {
     /// 唯讀裝置：改到主機的操作(改名、建立 worktree、關閉)停用。
     var isReadOnly = false
 
-    /// 改的是 workspace 名稱，不一定是列標題，所以滑動上叫「Workspace」而不叫「重新命名」(行為規格 F2.7)。
-    func rename(title: LocalizedStringKey) -> some View {
-        Button(title, systemImage: "pencil") { askWorkspaceName() }
-            .tint(.gray)
-            .disabled(isReadOnly)
-    }
-
     /// context menu 的「重新命名 Workspace…」;`showsCurrent` 時副標顯示目前名稱(#456)。
     func renameWorkspace(showsCurrent: Bool) -> some View {
         Button { askWorkspaceName() } label: {
@@ -261,74 +242,6 @@ private struct WorkspaceButtons {
             presentation.sheet = .worktree(workspaceID: target.workspaceID, label: target.label)
         }
         .disabled(isReadOnly)
-    }
-}
-
-private struct WorkspaceRowActions: ViewModifier {
-    let context: WorkspaceRowContext?
-    let host: HostSelection
-    let actions: WorkspaceActionsModel?
-    let presentation: WorkspacePresentation
-    let snapshot: HostSnapshot?
-    let openInNewWindow: ((PaneWindow.Kind) -> Void)?
-
-    func body(content: Content) -> some View {
-        if let context, let actions {
-            let buttons = WorkspaceButtons(
-                target: context.workspace, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: actions.isReadOnly)
-            content
-                // 列表是根畫面，沒有返回手勢的邊緣，leading 滑動是安全的。
-                .swipeActions(edge: .leading) {
-                    chatButtons(context, actions: actions)
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    // 滑動上不用 `.destructive` role:List 會在確認前就把列移走;以系統紅標示，確認對話框裡才是 destructive。
-                    buttons.close(title: "Close", role: nil)
-                        .tint(WorkspaceSwipeAction.close.tint.style)
-                    buttons.rename(title: "Workspace")
-                        .tint(WorkspaceSwipeAction.workspace.tint.style)
-                }
-                .contextMenu {
-                    if let openInNewWindow {
-                        Button("Open in New Window", systemImage: "macwindow.badge.plus") { openInNewWindow(.chat) }
-                            .accessibilityIdentifier("menu.openInNewWindow")
-                        Button("Open Terminal in New Window", systemImage: "apple.terminal") { openInNewWindow(.terminal) }
-                            .accessibilityIdentifier("menu.openTerminalInNewWindow")
-                        Divider()
-                    }
-                    chatButtons(context, actions: actions)
-                    if let tab = context.tab { buttons.renameTab(tab, showsCurrent: true) }
-                    buttons.renameWorkspace(showsCurrent: true)
-                    buttons.showLayout()
-                    buttons.newWorktree()
-                    Divider()
-                    buttons.close(title: "Close Workspace…", role: .destructive)
-                    if actions.isReadOnly {
-                        // 唯讀裝置(HTTPS 主機):說明上面的操作為什麼停用(#287)。
-                        Text(WorkspaceActionsModel.readOnlyMessage)
-                    }
-                }
-                .task(id: host) { await actions.loadAccess() }
-        } else {
-            content
-        }
-    }
-
-    /// 釘選、靜音:只在 Agent 有 session 時提供(聊天以 session 識別)。
-    @ViewBuilder
-    private func chatButtons(_ context: WorkspaceRowContext, actions: WorkspaceActionsModel) -> some View {
-        if let sessionID = context.agent.sessionID {
-            let pinned = actions.isPinned(sessionID: sessionID)
-            Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
-                actions.togglePin(sessionID: sessionID)
-            }
-            .tint(WorkspaceSwipeAction.pin.tint.style)
-            let muted = actions.isMuted(sessionID: sessionID)
-            Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
-                actions.toggleMute(sessionID: sessionID)
-            }
-            .tint(WorkspaceSwipeAction.mute.tint.style)
-        }
     }
 }
 
@@ -523,17 +436,6 @@ struct NewWorktreeSheet: View {
                 onCreated(created)
                 dismiss()
             }
-        }
-    }
-}
-
-extension WorkspaceSwipeAction.Tint {
-    /// 主色走 `prominentFill`(跟主機主題);灰用系統灰，跟滑動鈕預設一致。
-    var style: AnyShapeStyle {
-        switch self {
-        case .accent: AnyShapeStyle(.prominentFill)
-        case .gray: AnyShapeStyle(.gray)
-        case .red: AnyShapeStyle(.red)
         }
     }
 }
