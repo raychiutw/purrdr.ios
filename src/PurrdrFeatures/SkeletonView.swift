@@ -1,50 +1,56 @@
 import PurrdrAgentFeatures
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
-/// 骨架畫面(#496)的共用外觀:套在**真實的列元件**(用假資料撐出同樣版型)上,`redacted(.placeholder)` 畫成灰塊,
-/// 加上統一的脈動(1.6 秒 opacity 0.55↔1;開「減少動態效果」時不動),並讓 VoiceOver 只念一個「載入中」。
+/// 骨架畫面(#496)的共用外觀:套在版型與真實內容相同的元件上——有真實的列元件就用它(假資料撐出同樣版型,例如聊天列、用量列),
+/// 沒有的(進度條、頭像、泡泡)用 `SkeletonBlock` 拼——`redacted(.placeholder)` 畫成灰塊,
+/// 加上統一的脈動(1.6 秒 opacity 0.55↔1;開「減少動態效果」、動畫被關掉或 app 不在前景時不動),並讓 VoiceOver 只念一個「載入中」。
 ///
 /// 只在「第一次載入、沒有任何內容」時使用(`SkeletonLoading.isShown`);按鈕送出中、下載進度等動作進行中維持轉圈。
 extension View {
     /// - Parameters:
     ///   - identifier: 這一區的 accessibility identifier(UI 測試用)。
     ///   - label: VoiceOver 念的文字;預設「載入中」。
-    func skeleton(identifier: String, label: LocalizedStringKey = "Loading…") -> some View {
-        modifier(SkeletonStyle(identifier: identifier, label: label))
+    ///   - announces: `false` 時對輔助技術隱藏:同一區有好幾個骨架時只讓一個念「載入中」。
+    func skeleton(identifier: String, label: LocalizedStringKey = "Loading…", announces: Bool = true) -> some View {
+        modifier(SkeletonStyle(identifier: identifier, label: label, announces: announces))
     }
+}
+
+extension EnvironmentValues {
+    /// 動畫是否啟用(app 在 UI 測試關掉動畫時由 composition root 設成 false;骨架據此不脈動)。
+    @Entry var skeletonAnimationsEnabled = true
 }
 
 private struct SkeletonStyle: ViewModifier {
     let identifier: String
     let label: LocalizedStringKey
+    let announces: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.skeletonAnimationsEnabled) private var animationsEnabled
+    @Environment(\.scenePhase) private var scenePhase
     @State private var dimmed = false
 
-    /// UI 測試關掉動畫時(`UIView.setAnimationsEnabled(false)`)也不脈動,免得重複動畫讓 XCUITest 等不到閒置。
     private var pulses: Bool {
-        guard SkeletonLoading.pulses(reduceMotion: reduceMotion) else { return false }
-        #if canImport(UIKit)
-        return UIView.areAnimationsEnabled
-        #else
-        return true
-        #endif
+        SkeletonLoading.pulses(reduceMotion: reduceMotion, animationsEnabled: animationsEnabled, isActive: scenePhase == .active)
     }
 
     func body(content: Content) -> some View {
         content
             .redacted(reason: .placeholder)
             .opacity(pulses && dimmed ? SkeletonLoading.pulseLowOpacity : 1)
-            .onAppear {
-                guard pulses else { return }
-                withAnimation(.easeInOut(duration: SkeletonLoading.pulseDuration / 2).repeatForever(autoreverses: true)) {
-                    dimmed = true
+            // 進背景(或關掉動畫)就停,回前景再開始(背景不持續更新畫面,#492)。
+            .onChange(of: pulses, initial: true) { _, shouldPulse in
+                if shouldPulse {
+                    withAnimation(.easeInOut(duration: SkeletonLoading.pulseDuration / 2).repeatForever(autoreverses: true)) {
+                        dimmed = true
+                    }
+                } else {
+                    withAnimation(.linear(duration: 0)) { dimmed = false }
                 }
             }
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
+            .accessibilityHidden(!announces)
             .accessibilityLabel(Text(label))
             .accessibilityIdentifier(identifier)
     }

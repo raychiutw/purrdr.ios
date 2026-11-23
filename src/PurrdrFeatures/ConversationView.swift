@@ -433,7 +433,7 @@ public struct ConversationView: View {
 
     // MARK: - 佔位與標示
 
-    /// 沒有快取、也還沒讀到任何訊息時的骨架(#356、#496):使用者泡泡、Agent 文字段、步驟列的佔位(設計稿 `Skeleton`),不是整區轉圈。
+    /// 沒有快取、也還沒讀到任何訊息時的骨架(#356、#496):使用者泡泡、Agent 文字段、步驟列的佔位(設計稿 `Skeleton`,用 `SkeletonBlock` 拼出版型),不是整區轉圈。
     /// 對 VoiceOver 是一個「載入中」的元素;輸入列不受影響,可先打字。
     private var loadingSkeleton: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -465,8 +465,9 @@ public struct ConversationView: View {
             VStack(spacing: 20) {
                 // 沒命中快取時先留白約 300 毫秒,一般讀取在這段內完成,不會看到骨架換成列表。
                 if model.showsLoadingSkeleton { loadingSkeleton }
-                // 等超過約 1.5 秒才出現，用系統的 ProgressView(HIG〈Progress indicators〉)。
-                if model.showsLoadingIndicator {
+                // 等超過約 1.5 秒才出現，用系統的 ProgressView(HIG〈Progress indicators〉);
+                // 骨架已經在(它本身在脈動)就不再疊第二個載入指示。
+                if model.showsLoadingIndicator, !model.showsLoadingSkeleton {
                     ProgressView().accessibilityIdentifier("conversation.loadingIndicator")
                 }
             }

@@ -18,8 +18,10 @@ public enum SkeletonLoading {
         return min(max(lastCount, rowCountRange.lowerBound), rowCountRange.upperBound)
     }
 
-    /// 開「減少動態效果」時不脈動。
-    public static func pulses(reduceMotion: Bool) -> Bool { !reduceMotion }
+    /// 脈動的條件:沒開「減少動態效果」、動畫沒被關掉(UI 測試,免得重複動畫讓 XCUITest 等不到閒置)、app 在前景(進背景要停)。
+    public static func pulses(reduceMotion: Bool, animationsEnabled: Bool, isActive: Bool) -> Bool {
+        !reduceMotion && animationsEnabled && isActive
+    }
 
     /// 脈動週期(秒)與最低不透明度:opacity 0.55 ↔ 1(設計稿 `Skeleton`)。
     public static let pulseDuration: Double = 1.6

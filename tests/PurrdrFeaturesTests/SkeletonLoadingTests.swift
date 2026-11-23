@@ -25,10 +25,12 @@ struct SkeletonLoadingTests {
         #expect(SkeletonLoading.rowCount(lastCount: 40) == SkeletonLoading.rowCountRange.upperBound)
     }
 
-    @Test("開減少動態效果時不脈動")
-    func pulseFollowsReduceMotion() {
-        #expect(SkeletonLoading.pulses(reduceMotion: false))
-        #expect(!SkeletonLoading.pulses(reduceMotion: true))
+    @Test("只有三個條件都成立才脈動:沒開減少動態效果、動畫沒被關掉(UI 測試)、app 在前景(進背景要停)")
+    func pulsesOnlyWhenAllowedAndActive() {
+        #expect(SkeletonLoading.pulses(reduceMotion: false, animationsEnabled: true, isActive: true))
+        #expect(!SkeletonLoading.pulses(reduceMotion: true, animationsEnabled: true, isActive: true))
+        #expect(!SkeletonLoading.pulses(reduceMotion: false, animationsEnabled: false, isActive: true))
+        #expect(!SkeletonLoading.pulses(reduceMotion: false, animationsEnabled: true, isActive: false))
     }
 
     @Test("列數存放處:記憶體與 UserDefaults 都讀得回上次存的數量,各清單互不影響")

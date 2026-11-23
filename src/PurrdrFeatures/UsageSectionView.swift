@@ -117,7 +117,8 @@ struct UsageSectionView: View {
         case .loading:
             // 第一次讀、還沒有資料:同形狀的用量列骨架(#496),資料到時原地換成內容。
             UsageBarRow(agent: entry.agent, row: .skeletonPlaceholder, display: model.displaySetting.display, staleMinutes: nil)
-                .skeleton(identifier: "usage.loading.\(entry.agent.rawValue)")
+                // 同一個 Section 好幾個 Agent 都在載入時只讓第一個念「載入中」。
+                .skeleton(identifier: "usage.loading.\(entry.agent.rawValue)", announces: entry.id == visibleEntries.first { $0.state == .loading }?.id)
         case .noData:
             Text("\(entry.agent.shortName) hasn’t reported plan usage yet.")
                 .foregroundStyle(.secondaryText)

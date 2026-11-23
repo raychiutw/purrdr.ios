@@ -473,6 +473,7 @@ struct PurrdrApp: App {
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.videoSource, videoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
+            .environment(\.skeletonAnimationsEnabled, !Self.disablesAnimations)
             .environment(\.allowsTestingLinks, allowsTestingLinks)
             .environment(\.usesTestingSignIn, usesTestingSignIn)
         }
