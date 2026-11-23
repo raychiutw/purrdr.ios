@@ -18,7 +18,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testAgentListSpaces() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchAuditing(contentSize: size)
-            XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")))
+            XCTAssertTrue(app.slowlyReveal(app.element("spaces.section.demo/w3")))
             try audit(app, "Agent 列表(Spaces)", contentSize: size)
             app.terminate()
         }
