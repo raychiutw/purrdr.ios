@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>骨架畫面</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0}
+.sk{background:var(--fill);border-radius:7px;animation:skp 1.6s ease-in-out infinite}
+@keyframes skp{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.sk{animation:none}}
+.skrow{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:solid 1px var(--sep)}
+.skcol{display:flex;flex-direction:column;gap:8px;flex-grow:1;min-width:0}
+.note{position:absolute;left:16px;right:16px;bottom:24px;font-size:12px;color:var(--sec);text-align:center;z-index:6}
+</style></helmet>
+<div class="board" style="width:1760px;height:1880px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="col">
+<div class="cap">{{t.name}} · 聊天列表第一次載入</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<div class="top-l" style="top:4px"><button class="hostcap glass" aria-label="目前主機:所有主機" style="color:var(--accent)">所有主機<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="top-r" style="display:flex;gap:8px"><div class="grp glass"><button aria-label="檢視"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z"></path></svg></button><button aria-label="新增聊天" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button></div><button class="ib glass" aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="gl" style="top:112px" role="status" aria-label="載入中">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="6"><div class="skrow" aria-hidden="true"><div class="sk" style="width:44px;height:44px;border-radius:13px;flex-shrink:0"></div><div class="skcol"><div class="sk" style="height:14px;width:{{r.a}}%"></div><div class="sk" style="height:12px;width:{{r.b}}%"></div></div></div></sc-for>
+</div>
+<div class="note">列數取上次的數量;資料到時原地換成內容。VoiceOver 只念「載入中」。</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 對話第一次開啟</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap one glass" aria-label="tests,工作中,略過權限"><span class="dot work" aria-hidden="true"></span><span class="tn">tests</span><span class="tm">略過權限</span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="msgs" role="status" aria-label="載入中" style="gap:18px">
+<div class="sk" style="align-self:flex-end;width:62%;height:44px;border-radius:20px" aria-hidden="true"></div>
+<div style="display:flex;flex-direction:column;gap:9px" aria-hidden="true"><div class="sk" style="height:14px;width:92%"></div><div class="sk" style="height:14px;width:86%"></div><div class="sk" style="height:14px;width:58%"></div></div>
+<div class="sk" style="height:20px;width:34%" aria-hidden="true"></div>
+<div style="display:flex;flex-direction:column;gap:9px" aria-hidden="true"><div class="sk" style="height:14px;width:88%"></div><div class="sk" style="height:14px;width:72%"></div></div>
+<div class="sk" style="align-self:flex-end;width:44%;height:44px;border-radius:20px" aria-hidden="true"></div>
+</div>
+<div class="composer glass">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">訊息</label>
+<button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+<div class="note" style="bottom:100px">有本機快取時直接顯示快取，不出現骨架。輸入列可先打字。</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 主機頁狀態與用量</div>
+<div class="phone grouped {{t.cls}}">
+<div class="top">
+<div class="top-l" style="top:4px"><button class="hostcap glass" aria-label="目前主機:Ray Mac Mini" style="color:var(--accent)">Ray Mac Mini<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="top-r" style="display:flex;gap:8px"><button class="ib glass" aria-label="新增主機" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button><button class="ib glass" aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="gl" role="status" aria-label="載入中">
+<div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px" aria-hidden="true"><div class="sk" style="height:18px;width:30%"></div><div class="sk" style="height:13px;width:62%"></div></div>
+<div class="sh">用量</div>
+<div class="card" style="padding:16px;display:flex;flex-direction:column;gap:18px" aria-hidden="true">
+<div style="display:flex;flex-direction:column;gap:9px"><div class="sk" style="height:15px;width:70%"></div><div class="sk" style="height:6px;width:100%;border-radius:3px"></div></div>
+<div style="display:flex;flex-direction:column;gap:9px"><div class="sk" style="height:15px;width:64%"></div><div class="sk" style="height:6px;width:100%;border-radius:3px"></div></div>
+</div>
+<div class="sh">這台主機</div>
+<div class="card"><button class="cell"><span class="cb"><span class="main"><span>Agent</span><span class="sub">Claude Code、Antigravity</span></span></span></button><div class="cell"><span class="cb"><span class="main">登入 Shell</span></span></div></div>
+</div>
+<div class="note">只有讀主機的區塊用骨架;設定列(本機資料)照常顯示。</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 帳號頁</div>
+<div class="phone {{t.cls}}">
+<div class="scrimbg"></div>
+<div class="sheet" style="top:48px">
+<div class="grabber"></div>
+<div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="關閉"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><div class="st">帳號</div><span></span></div>
+<div class="gl2" role="status" aria-label="載入中">
+<div class="card" style="padding:12px 16px;display:flex;gap:12px;align-items:center" aria-hidden="true"><div class="sk" style="width:44px;height:44px;border-radius:22px;flex-shrink:0"></div><div class="skcol"><div class="sk" style="height:16px;width:40%"></div><div class="sk" style="height:12px;width:66%"></div></div></div>
+<div class="sh">Purrdr Plus</div>
+<div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px" aria-hidden="true"><div class="sk" style="height:17px;width:36%"></div><div class="sk" style="height:13px;width:84%"></div><div class="sk" style="height:44px;width:100%;border-radius:22px"></div></div>
+<div class="sh">Plus 功能</div>
+<div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:16px" aria-hidden="true"><div class="sk" style="height:15px;width:50%"></div><div class="sk" style="height:15px;width:44%"></div></div>
+</div>
+</div>
+<div class="note">後台回應前顯示;有上次的會員資料時直接顯示上次的資料。</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }],
+      rows: [{ a: 58, b: 82 }, { a: 46, b: 74 }, { a: 64, b: 68 }, { a: 40, b: 80 }, { a: 52, b: 60 }, { a: 48, b: 76 }]
+    };
+  }
+}
+</script>
+</body>
+</html>
