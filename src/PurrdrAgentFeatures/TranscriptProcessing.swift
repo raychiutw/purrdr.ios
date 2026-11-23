@@ -1,8 +1,8 @@
 import Foundation
 import PurrdrCore
 
-/// 對話紀錄的解析與重建(#498):JSONL 解碼、metadata／進度更新、`Conversation.items` 都是純計算，
-/// 放在背景(`@concurrent`)做，結果回主執行緒套用，大量輸出(#130 一次 64 KiB 以上)與長對話不卡畫面。
+/// 對話紀錄的解析(#498):JSONL 解碼與 metadata／進度更新是純計算，放在背景(`@concurrent`)做，
+/// 大量輸出(#130 一次 64 KiB 以上)不卡畫面。結果回主執行緒交給對話時間軸增量套用(#480:不再整份重建列表)。
 enum TranscriptProcessing {
     struct Prepared: Sendable {
         var messages: [TranscriptMessage]
@@ -45,12 +45,6 @@ enum TranscriptProcessing {
     {
         probe?()
         return parse(lines, dialect: dialect)
-    }
-
-    @concurrent
-    static func items(from messages: [TranscriptMessage], probe: (@Sendable () -> Void)?) async -> [ConversationItem] {
-        probe?()
-        return Conversation.items(from: messages)
     }
 
     private static func parse(_ lines: [String], dialect: TranscriptDialect) -> (messages: [TranscriptMessage], skips: TranscriptSkips) {

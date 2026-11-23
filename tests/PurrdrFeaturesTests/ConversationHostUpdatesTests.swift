@@ -174,8 +174,9 @@ actor TickSleeper {
     }
 
     private func wait(_ duration: Duration) async throws {
-        // 30 秒是預覽輪詢、1.5 秒是載入進度指示的延遲(#356):都不是這裡要量的 2 秒畫面輪詢，不記錄也不返回。
-        guard duration != .seconds(30), duration != ConversationModel.loadingIndicatorDelay else {
+        // 30 秒是預覽輪詢、1.5 秒是載入進度指示的延遲(#356)、300 毫秒是骨架延遲:都不是這裡要量的 2 秒畫面輪詢，不記錄也不返回。
+        guard duration != .seconds(30), duration != ConversationModel.loadingIndicatorDelay,
+              duration != ConversationModel.loadingSkeletonDelay else {
             try await Task.sleep(for: .seconds(3600))
             return
         }

@@ -59,9 +59,11 @@ struct PurrdrApp: App {
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
         // 對話快取(#356):存在這支裝置的本機 SQLite(Caches,排除備份),重開 app 與從推播冷啟動打開聊天都先顯示。
         // UI 測試只放記憶體，不讀寫這台模擬器的檔案。
-        let cache: any ConversationCache = uiTesting
-            ? InMemoryConversationCache()
-            : SQLiteConversationCache(file: URL.cachesDirectory.appending(path: "Purrdr/conversations.sqlite"))
+        // 前面再放一層記憶體快取(最近開過的聊天),打開聊天時同步還原,不閃骨架。
+        let cache: any ConversationCache = MemoryFrontedConversationCache(
+            base: uiTesting
+                ? InMemoryConversationCache()
+                : SQLiteConversationCache(file: URL.cachesDirectory.appending(path: "Purrdr/conversations.sqlite")))
         // UI 測試每次啟動都從空白的釘選、靜音與主機圖示開始，不讀寫這台模擬器的 UserDefaults。
         // 釘選、靜音依主機分開(#39);舊版沒有主機身分的資料在第一次啟動時丟棄。
         let preferences: any HostChatPreferencesStore = uiTesting
@@ -360,6 +362,7 @@ struct PurrdrApp: App {
         if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
         if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(5)) }
         if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
+        if arguments.contains("-demoToolBurst") { return .toolBurst(after: .seconds(10)) }
         if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
         if arguments.contains("-demoSentImages") { return .sentImages }

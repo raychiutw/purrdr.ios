@@ -521,6 +521,13 @@ public final class HostsModel {
         HostScopedConversationCache(base: conversationCache, scope: selection.storedValue)
     }
 
+    /// 把這些聊天的快取讀進記憶體層(Agent 列表顯示時呼叫),打開時同步還原。
+    public func prefetchConversations(_ routes: [ChatRoute]) async {
+        for route in routes where !Task.isCancelled {
+            _ = await conversationCache(for: route.host).load(chatKey: route.paneID)
+        }
+    }
+
     public var rows: [HostRow] {
         hosts.map { host in
             let update = hostServiceUpdate(for: host.id)

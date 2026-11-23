@@ -7,39 +7,39 @@ import SwiftUI
 ///
 /// - 使用者泡泡右對齊、主色填色;agent 文字不是泡泡，全寬如文件。內容層一律不用 Liquid Glass。
 /// - thinking 與工具呼叫收合成一行摘要(DisclosureGroup);呼叫 skill 顯示「Loaded skill: <名稱>」。
-/// - 只在使用者位於底部時自動捲到底(`ConversationScroll`)。
+/// - 列表是 `UICollectionView`(`ChatListView`),只在使用者位於底部時自動捲到底(捲動決策者,ADR-0014)。
 /// - 往上捲到接近頂端時載入更早的訊息。
 /// - 畫面可見且 app 在前景時才輪詢與回報在場。
 /// - 底部是輸入列(`ComposerBar`,功能層 `safeAreaBar`);送出時切回跟隨尾端，讓回音落在視野內。
 public struct ConversationView: View {
     @Bindable var model: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
-    /// Reduce Motion:自動捲到底不做動畫，直接跳過去(HIG:減少自動、重複的動畫)。
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var scroll = ConversationScroll()
-    /// 初始位置不指定邊緣:`ScrollPosition(edge: .bottom)` 搭配 `scrollTargetLayout()` 與水平 padding 時，
-    /// SwiftUI 會把水平位移設成 padding 的寬度(16pt),訊息貼到左邊、頂端被裁掉(#418)。開啟時的底部定位交給 `defaultScrollAnchor(.bottom)`。
-    @State private var position = ScrollPosition()
-    @State private var userIsScrolling = false
+    @Environment(\.hostTheme) private var hostTheme
+    @Environment(\.forcesOpaqueGlass) private var forcesOpaqueGlass
+    /// 列表的呼叫口(「跳到最新」、輸入列重排)與最近量到的可見高度。
+    @State private var listHandle = ChatListHandle()
     /// 「跳到最新」是否已顯示(跟隨中延遲顯示,#476)。
-    @State private var jumpToLatestVisible = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
-    @State private var userHasDragged = false
-    /// 沒拖動過時自動往前讀的頁數(#473)。
-    @State private var autoLoadedPages = 0
-    /// 畫面上看得到的列(內容被重建時的錨點,#130)。
-    @State private var visibleIDs: [String] = []
-    /// 最近一次量到的捲動量測(#497):列數變成 0 時用來判斷要不要捲回內容。
-    @State private var latestMetrics: ConversationScrollMetrics?
-    /// 上次看到的列 id(`model.entriesRevision` 改變時與新的比較，#130)。
-    @State private var entryIDs: [String] = []
+    @State private var jumpToLatestVisible = false
+    /// 列表量到離底超過門檻(只在跨過門檻時才寫入,不隨每次捲動重畫)。
+    @State private var isAwayFromBottom = false
+    #if DEBUG
+    /// 順暢度除錯層(#484):只在除錯建置。
+    @State private var smoothnessProbe = ScrollSmoothnessProbe()
+    #endif
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
     @State private var viewerItem: ImageViewerItem?
+    /// 列內要呈現的預覽、sheet 與導覽:列嵌在 `UIHostingConfiguration` 裡沒有可靠的呈現者,改由這個畫面呈現(`ConversationPresenter`)。
+    @State private var previewFile: URL?
+    @State private var presentedSheet: ConversationSheetContent?
+    @State private var openedRoute: DelegationRoute?
     /// 新訊息與狀態變化的 VoiceOver 公告(有節流，#35)。
     @State private var announcer = ConversationAnnouncer()
     /// 對話的可見高度(扣掉上下 inset;輸入列依它決定鍵盤出現時要不要讓位，#196)。
     /// 放在只有輸入列(聚焦時)讀的 observable 裡：寫進這個畫面的 `@State` 會讓整個對話隨每次捲動量測重畫，
     /// 送出後大量輸出時列表停在一片空白(`testSendingThenLargeOutputKeepsMessagesVisible`)。
     @State private var conversationHeight = ConversationVisibleHeight()
+    /// 避開玻璃導覽列、橫幅與輸入列後的安全區域框(全域座標),列表據此算上下 inset。
+    @State private var safeAreaFrame: CGRect = .zero
 
     public init(model: ConversationModel) {
         self.model = model
@@ -72,6 +72,11 @@ public struct ConversationView: View {
             ))
             .environment(\.inlineSlashNames, model.inlineSlashNames)
             .imageViewer(item: $viewerItem)
+            .quickLookPreview($previewFile)
+            .sheet(item: $presentedSheet) { $0.content }
+            .navigationDestination(item: $openedRoute) { [model] route in
+                DelegationDestination(route: route, conversation: model)
+            }
             .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
             .environment(\.delegationContext, DelegationContext(
                 workflowModel: { [model] in model.workflowModel(for: $0) },
@@ -106,8 +111,6 @@ public struct ConversationView: View {
             }
     }
 
-    private var scrollAnimation: Animation? { reduceMotion ? nil : .default }
-
     private func announce(_ text: String?) {
         guard let text else { return }
         AccessibilityNotification.Announcement(text).post()
@@ -117,17 +120,26 @@ public struct ConversationView: View {
         model.statusSummary.header.title.isEmpty ? String(localized: "Chat") : model.statusSummary.header.title
     }
 
-    @ViewBuilder
+    /// 沒有任何可顯示的內容:列表照常存在(常駐),說明文字畫在列表上面(#487)。
+    /// 認不出 session(#400)時,工作中指示不蓋掉說明:沒有對話可顯示,使用者需要知道原因與解法。
+    private var isEmptyState: Bool {
+        model.phase == .missingSession
+            || model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil
+            && !model.showsWorkingIndicator
+    }
+
     private var content: some View {
-        // 認不出 session(#400)時,工作中指示不蓋掉說明:沒有對話可顯示,使用者需要知道原因與解法。
-        if model.phase == .missingSession || model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
-            // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
-            placeholder
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onAppear { conversationHeight.update(nil) }
-        } else {
-            messages
-        }
+        chatList
+            .overlay {
+                if isEmptyState {
+                    // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
+                    placeholder
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .onChange(of: isEmptyState) { _, isEmpty in
+                conversationHeight.update(isEmpty ? nil : listHandle.visibleHeight)
+            }
     }
 
     // MARK: - 訊息
@@ -149,15 +161,16 @@ public struct ConversationView: View {
         case .undoCountdown:
             if let undoSend = model.undoSend, let pending = undoSend.pending {
                 PendingSendBubbleView(pending: pending, imageCount: model.attachments.count, undo: undoSend.undo, sendNow: undoSend.sendNow)
-                    .id(ConversationFollowTarget.pendingSendRowID)
             }
         }
     }
 
-    private var messages: some View {
-        // 捲到最底下那一列用 `ScrollViewProxy`:每次呼叫都會捲;`position` 的值沒變時 SwiftUI 不再捲(#191)。
-        ScrollViewReader { proxy in
-            messageList(proxy)
+    /// 這個待送項目有沒有東西可畫(列表不放空列,不然列間距會多出一段)。
+    private func rendersPendingRow(_ item: PendingItem) -> Bool {
+        switch item.kind {
+        case .offlineQueued, .offlineProblem: model.queuedPrompts.contains { "queued-\($0.id.uuidString)" == item.id }
+        case .sendWhenDone(let position): position == 1 && model.sendWhenDone != nil
+        case .undoCountdown: model.undoSend?.pending != nil
         }
     }
 
@@ -166,67 +179,183 @@ public struct ConversationView: View {
         AgentTurnHeader(kind: AgentKind(rawKind: model.agentKind ?? ""), name: model.agentName)
     }
 
-    private func messageList(_ proxy: ScrollViewProxy) -> some View {
-        let turnStarts = ConversationEntry.turnStartTextIDs(in: model.visibleEntries)
-        return ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
-                olderRow
-                ForEach(model.visibleEntries) { entry in
-                    if let away = model.awaySummary, away.anchorID == entry.id {
-                        AwayDividerView(summary: away, isCollapsed: Binding(get: { model.isAwayCollapsed }, set: { model.isAwayCollapsed = $0 }))
-                    }
-                    Group {
-                        switch entry {
-                        case .item(let item):
-                            ConversationItemView(item: item, turnHeader: turnStarts.contains(item.id) ? agentTurnHeader : nil)
-                        case .echo(let echo):
-                            EchoBubbleView(echo: echo) {
-                                Task { await model.retry(echoID: echo.id) }
-                            }
-                        }
-                    }
-                    .id(entry.id)
-                }
-                // 待送項目(#347):離線排隊、做完再送、撤回倒數統一從 `pendingItems` 讀，接在最後一則訊息後面。
-                ForEach(model.pendingItems) { item in
-                    pendingRow(item)
-                }
-                if let notice = model.sendWhenDone?.notice {
-                    ErrorLabel(notice)
-                        .font(.footnote)
-                        .accessibilityIdentifier("conversation.sendWhenDone.notice")
-                }
-                // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
-                BlockedPromptView(model: model)
-                    .id(ConversationFollowTarget.promptRowID)
-                // slash 指令開出的面板(#45)改在底部 sheet 顯示(`slashPanelSheet`,#366):放在對話最下面會被浮動的輸入框蓋住。
-                // 即時預覽在列表最底下(工作中狀態在輸入卡片上方的膠囊);agent 停止工作就消失(F5.11)。
-                if model.showsWorkingIndicator, model.workingSince != nil {
-                    WorkingIndicatorView(preview: model.livePreview)
-                        .id(ConversationFollowTarget.workingRowID)
+    /// 列表由上而下的列與各列內容。列 id 取自對話時間軸(`model.rows`):回音被確認後 id 不變。
+    private var listContent: ChatListContent {
+        var rows = model.rows
+        var awayAnchorRowID: String?
+        if let summary = model.awaySummary {
+            if model.isAwayCollapsed {
+                let hiddenEntryIDs = summary.hiddenIDs(in: rows.map { $0.entry.id })
+                rows = rows.filter { !hiddenEntryIDs.contains($0.entry.id) }
+            }
+            awayAnchorRowID = rows.first { $0.entry.id == summary.anchorID }?.id
+        }
+        let turnStartIDs = ConversationEntry.turnStartTextIDs(in: rows.map(\.entry))
+        let turnHeader = agentTurnHeader
+        let pendingItems = model.pendingItems.filter { rendersPendingRow($0) }
+        let noticeText = model.sendWhenDone?.notice
+        let showsPrompt = model.lastAnswer != nil
+        let showsWorking = model.showsWorkingIndicator && model.workingSince != nil
+        let showsOlder = !isEmptyState
+
+        var rowContents: [String: ChatListRowContent] = [:]
+        if showsOlder { rowContents[ChatListRowPlan.olderID] = .older(model.older) }
+        for row in rows {
+            rowContents[row.id] = .entry(row, turnHeader: turnStartIDs.contains(row.entry.id) ? turnHeader : nil)
+        }
+        if awayAnchorRowID != nil, let summary = model.awaySummary {
+            rowContents[ChatListRowPlan.awayID] = .away(summary, isCollapsed: model.isAwayCollapsed)
+        }
+        for item in pendingItems { rowContents[item.id] = .pending(item) }
+        if let noticeText { rowContents[ChatListRowPlan.noticeID] = .notice(noticeText) }
+        if showsPrompt { rowContents[ChatListRowPlan.promptID] = .prompt }
+        if showsWorking { rowContents[ChatListRowPlan.workingID] = .working }
+
+        let ids = ChatListRowPlan.ids(
+            includesOlder: showsOlder, rowIDs: rows.map(\.id), awayAnchorID: awayAnchorRowID, pendingIDs: pendingItems.map(\.id),
+            noticeID: noticeText == nil ? nil : ChatListRowPlan.noticeID, showsPrompt: showsPrompt, showsWorking: showsWorking)
+        return ChatListContent(ids: ids, rows: rowContents)
+    }
+
+    /// 一列的畫面。列嵌在 `UIHostingConfiguration` 裡,看不到這個畫面的環境值,所以這裡重新注入列需要的那幾個。
+    private func rowView(_ rowContent: ChatListRowContent) -> AnyView {
+        AnyView(
+            rowBody(rowContent)
+                .environment(\.bubbleImages, BubbleImageContext(
+                    localImage: { [model] in model.localImage(forHostPath: $0) },
+                    show: { viewerItem = $0 }
+                ))
+                .environment(\.inlineSlashNames, model.inlineSlashNames)
+                .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
+                .environment(\.delegationContext, DelegationContext(
+                    workflowModel: { [model] in model.workflowModel(for: $0) },
+                    canOpen: { [model] in model.canOpen($0) }
+                ))
+                .environment(\.conversationPresenter, ConversationPresenter(
+                    previewFile: { previewFile = $0 },
+                    viewImage: { viewerItem = $0 },
+                    showSheet: { presentedSheet = ConversationSheetContent(content: $0) },
+                    open: { openedRoute = $0 }
+                ))
+                .environment(\.rowExpansion, RowExpansion(
+                    isExpanded: { [model] in model.isExpanded(rowID: $0, partID: $1) },
+                    setExpanded: { [model] in model.setExpanded($0, rowID: $1, partID: $2) }
+                ))
+                .environment(\.markdownBlocks, MarkdownBlockSource(blocks: { [model] in model.markdownBlocks(for: $0) }))
+                .environment(\.hostTheme, hostTheme)
+                .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
+        )
+    }
+
+    #if os(iOS)
+    /// 列的長按選單項目(#488):檔案卡片、圖片卡片、shell 區塊;項目與規則同舊列表,其他列沒有(留給文字選取)。
+    /// 選單由列表(UIKit)呈現,開著時列表暫停捲動與套用內容。
+    private func menuEntries(for rowContent: ChatListRowContent) -> [ChatListMenuEntry] {
+        #if os(iOS)
+        if case .pending(let pendingItem) = rowContent {
+            return queuedPromptMenuEntries(for: pendingItem)
+        }
+        guard case .entry(let row, _) = rowContent, case .item(let item) = row.entry else { return [] }
+        switch item {
+        case .agentFile(let card) where card.file.isImageFromAgent:
+            return ChatListMenuPlan.items(for: .image).map { menuEntry($0, card: card, display: AgentFileCardDisplay(file: card.file)) }
+        case .agentFile(let card):
+            let display = AgentFileCardDisplay(file: card.file)
+            let shareableFile = AgentFileOpenDisplay(state: model.agentFiles?.opens[card.file.path]).shareableFile
+            let kind = ChatListMenuKind.file(hasCopyableContent: display.copyableContent != nil, hasShareableFile: shareableFile != nil)
+            return ChatListMenuPlan.items(for: kind).map { menuEntry($0, card: card, display: display, shareableFile: shareableFile) }
+        case .shell(let run):
+            let output = ShellRunDisplay(run: run).copyableOutput
+            return ChatListMenuPlan.items(for: .shell(hasCopyableOutput: output != nil)).map { menuItem in
+                switch menuItem {
+                case .copyOutput: ChatListMenuEntry(item: menuItem) { if let output { Clipboard.copy(output) } }
+                default: ChatListMenuEntry(item: menuItem) { Clipboard.copy(run.command) }
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-            .scrollTargetLayout()
+        default:
+            return []
         }
-        .scrollPosition($position)
-        // 捲動與點訊息區都收起鍵盤(#329);用 simultaneousGesture,連結、卡片與按鈕的點擊照常。
-        .scrollDismissesKeyboard(.immediately)
-        .simultaneousGesture(TapGesture().onEnded { KeyboardDismissal.dismiss() })
-        .onScrollTargetVisibilityChange(idType: String.self) { ids in
-            visibleIDs = ids
-            scroll.visibleRowsChanged(count: ids.count)
-            // 跟隨中一列都沒排出來、而且之後沒有新的量測(位移與內容高度都不再變)時，量測的回呼不會再來(#497):
-            // 長對話送出後訊息區空白到下一則內容進來。列數變成 0 時也檢查一次，同一個排版只捲一次、次數有上限。
-            if ids.isEmpty, let metrics = latestMetrics, scroll.refillsVisibleRange(metrics, visibleRows: 0) {
-                scroll.returnedToContent(metrics)
-                scrollToLastRow(proxy, isNewContent: false)
+        #else
+        return []
+        #endif
+    }
+    #endif
+
+    #if os(iOS)
+    /// 離線佇列裡的訊息(#347):還沒送出的才能取消;出問題的訊息在列內有自己的按鈕。
+    private func queuedPromptMenuEntries(for pendingItem: PendingItem) -> [ChatListMenuEntry] {
+        guard let queued = model.queuedPrompts.first(where: { "queued-\($0.id.uuidString)" == pendingItem.id }) else { return [] }
+        return ChatListMenuPlan.items(for: .queuedPrompt(canCancel: queued.problem == nil)).map { menuItem in
+            ChatListMenuEntry(item: menuItem) { model.deleteQueued(queued.id) }
+        }
+    }
+
+    private func menuEntry(_ menuItem: ChatListMenuItem, card: AgentFileCard, display: AgentFileCardDisplay, shareableFile: URL? = nil) -> ChatListMenuEntry {
+        switch menuItem {
+        case .details:
+            ChatListMenuEntry(item: menuItem) { presentedSheet = ConversationSheetContent(content: AnyView(AgentFileDetailsSheet(card: card, display: display))) }
+        case .copyContent:
+            ChatListMenuEntry(item: menuItem) { if let content = display.copyableContent { Clipboard.copy(content) } }
+        case .share:
+            ChatListMenuEntry(item: menuItem, shareURL: shareableFile)
+        default:
+            ChatListMenuEntry(item: menuItem) { Clipboard.copy(card.file.path) }
+        }
+    }
+    #endif
+
+    @ViewBuilder
+    private func rowBody(_ rowContent: ChatListRowContent) -> some View {
+        switch rowContent {
+        case .older(let older):
+            olderRowView(older)
+        case .away(let summary, _):
+            AwayDividerView(summary: summary, isCollapsed: Binding(get: { model.isAwayCollapsed }, set: { model.isAwayCollapsed = $0 }))
+        case .entry(let row, let turnHeader):
+            switch row.entry {
+            case .item(let item):
+                ConversationItemView(item: item, turnHeader: turnHeader)
+                    .environment(\.expansionRowID, row.id)
+                    .id(row.id)
+            case .echo(let echo):
+                EchoBubbleView(echo: echo) {
+                    Task { await model.retry(echoID: echo.id) }
+                }
             }
+        case .pending(let item):
+            // 待送項目(#347):離線排隊、做完再送、撤回倒數統一從 `pendingItems` 讀，接在最後一則訊息後面。
+            pendingRow(item)
+        case .notice(let text):
+            ErrorLabel(text)
+                .font(.footnote)
+                .accessibilityIdentifier("conversation.sendWhenDone.notice")
+        case .prompt:
+            // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
+            BlockedPromptView(model: model)
+        case .working:
+            // 即時預覽在列表最底下(工作中狀態在輸入卡片上方的膠囊);agent 停止工作就消失(F5.11)。
+            ConversationWorkingRow(model: model)
         }
-        .defaultScrollAnchor(.bottom)
-        // 可見範圍改變(鍵盤收放、輸入框長高)時留在底部:收起鍵盤後面板卡片的按鈕不會掉到輸入列底下(#255)。
-        .defaultScrollAnchor(.bottom, for: .sizeChanges)
+    }
+
+    @ViewBuilder
+    private var chatList: some View {
+        #if os(iOS)
+        // 列表延伸到玻璃導覽列、橫幅與輸入列底下(DESIGN.md:內容從玻璃底下捲過去);避開玻璃後的安全區域框由探針量出,
+        // 交給列表當上下 inset。覆蓋物(進度條、跳到最新)掛在這個避開玻璃的容器上,所以停在輸入列上方。
+        ZStack {
+            Color.clear
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { safeAreaFrame = $0 }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            ChatListView(
+                content: listContent, model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
+                smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
+                onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
+                onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) }
+            )
+            .ignoresSafeArea(.container, edges: .vertical)
+        }
         // 重新載入、換 session 讀取中:舊訊息留著，頂端只放一條不遮擋的細進度條(#329)。
         .overlay(alignment: .top) {
             if model.isRefreshing {
@@ -235,128 +364,18 @@ public struct ConversationView: View {
                     .accessibilityIdentifier("conversation.refreshing")
             }
         }
-        // 下拉重新整理(#270,取代標題列的重新載入鈕):重讀後切回跟隨尾端並捲到底(F5.12)。
-        .refreshable {
-            await model.reload()
-            scroll.jumpToLatest()
-            position.scrollTo(edge: .bottom)
-        }
-        .onScrollPhaseChange { _, phase in
-            userIsScrolling = phase == .interacting || phase == .tracking || phase == .decelerating
-            if phase == .interacting {
-                userHasDragged = true
-                scroll.userBeganDragging()
-            }
-        }
-        .onScrollGeometryChange(for: ConversationScrollMetrics.self) { geometry in
-            ConversationScrollMetrics(
-                contentHeight: geometry.contentSize.height,
-                containerHeight: geometry.containerSize.height,
-                contentOffsetY: geometry.contentOffset.y,
-                topInset: geometry.contentInsets.top,
-                bottomInset: geometry.contentInsets.bottom
-            )
-        } action: { _, metrics in
-            // 不在前景時不捲動、不寫量測狀態(#492):進背景時可見高度來回跳，會讓主執行緒一直更新而被看門狗殺掉。
-            guard scenePhase == .active else { return }
-            latestMetrics = metrics
-            conversationHeight.update(metrics.containerHeight)
-            if userIsScrolling {
-                scroll.userScrolled(distanceFromBottom: metrics.distanceFromBottom)
-            } else {
-                scroll.layoutChanged(distanceFromBottom: metrics.distanceFromBottom)
-            }
-            // 內容剛被重建、停在內容之外(內容突然縮短)就切回跟隨並捲到底，不留空白;一般排版變化不介入(#130)。
-            // 可見範圍小時 LazyVStack 可能停在底部卻一列都沒長出來(#191),同樣再捲一次。
-            // 面板卡片(`/model`、`/effort`)在最後:以位移算出的底部不含卡片下半，所以開著時不以位移捲，一律捲到最後一列。
-            let byOffsetAllowed = model.panel == nil
-            if !userIsScrolling,
-               scroll.returnsToContent(metrics, at: .now, byOffsetAllowed: byOffsetAllowed)
-                || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
-                // 先捲到最後一列(LazyVStack 才排出那一列);同一個排版又停在內容之外時，捲到最後一列多捲了一個底部 inset
-                // (可見範圍小、底部 inset 大),改以量到的底部位移再捲一次(#251)。
-                let byOffset = byOffsetAllowed && scroll.returnsByOffset(metrics)
-                scroll.returnedToContent(metrics, byOffsetAllowed: byOffsetAllowed)
-                if byOffset {
-                    // d92584fb 誤刪了這一行:分支是空的，以位移捲回時什麼都沒捲，對話停在中間(最後一列在輸入列底下)。
-                    position.scrollTo(y: metrics.bottomScrollPositionY)
-                } else {
-                    scrollToLastRow(proxy, isNewContent: false)
-                }
-            }
-            // 以位移捲過後 ScrollPosition 停在那個位移、不跟著底部：內容變高(列排出實際高度)或可見範圍變了(停止列、鍵盤)就以新的底部位移再捲(#251)。
-            if !userIsScrolling, model.panel == nil, scroll.followsByOffset(metrics) {
-                scroll.followedByOffset(metrics)
-                position.scrollTo(y: metrics.bottomScrollPositionY)
-            }
-            // 距頂端 ≤ 1 個畫面高就讀上一頁;內容還不夠填滿畫面時不必等使用者拖動(有頁數上限,#473)。
-            if model.older == .available,
-               metrics.wantsOlderPage(
-                   userHasDragged: userHasDragged, autoLoadedPages: autoLoadedPages, autoLoadLimit: ConversationModel.maximumEmptyWindowPages)
-            {
-                if !userHasDragged { autoLoadedPages += 1 }
-                Task { await model.loadOlder() }
-            }
-        }
-        .onAppear { entryIDs = model.entries.map(\.id) }
-        // 只有跟隨尾端時 model 才修剪最舊的訊息(#130)。
-        .onChange(of: scroll.autoScrollsOnNewContent, initial: true) { model.isFollowingLatest = scroll.autoScrollsOnNewContent }
-        .onChange(of: model.entriesRevision) {
-            let old = entryIDs
-            let new = model.entries.map(\.id)
-            entryIDs = new
-            scroll.contentChanged(from: old, to: new, at: .now)
-            // 閱讀中內容被重建：錨定畫面上第一個仍存在的訊息;都不在就捲到底(#130)。
-            let order = Dictionary(old.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-            let visible = visibleIDs.filter { order[$0] != nil }.sorted { order[$0, default: 0] < order[$1, default: 0] }
-            switch scroll.adjustment(from: old, to: new, visible: visible) {
-            case .none:
-                break
-            case .anchor(let id):
-                position.scrollTo(id: id, anchor: .top)
-            case .bottom:
-                scroll.jumpToLatest()
-                scrollToLastRow(proxy)
-            }
-        }
-        // 跟隨尾端一律捲到最底下那一列:`scrollTo(edge: .bottom)` 會多捲一個底部 inset,停在內容外成一片空白(#191、#210)。
-        .onChange(of: model.entries.last?.id) {
-            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
-        }
-        .onChange(of: conversationHeight.arrangementRevision) {
-            if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
-        }
-        .onChange(of: model.livePreview) {
-            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
-        }
-        .onChange(of: model.showsWorkingIndicator) {
-            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
-        }
-        .onChange(of: model.prompt?.signature) {
-            if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
-        }
-        // 面板出現時捲到它;內容更新(選項排出、游標移動)讓卡片長高時也再捲，按鈕不留在輸入列底下。
-        .onChange(of: model.undoSend?.pending == nil) {
-            // 倒數中的訊息出現：切到跟隨尾端並捲到它(同回音,F6.5)。
-            guard model.undoSend?.pending != nil else { return }
-            scroll.jumpToLatest()
-            withAnimation(scrollAnimation) { proxy.scrollTo(ConversationFollowTarget.pendingSendRowID, anchor: .bottom) }
-        }
-        .onChange(of: model.echoes.count) { old, new in
-            // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。
-            guard new > old else { return }
-            scroll.jumpToLatest()
-            // 回音不加動畫(#497):長對話的 LazyVStack 估算高度與實際差很多，動畫捲過一段還沒排出列的距離時整個訊息區是空白的。
-            scrollToLastRow(proxy)
-        }
-        // 跳到最新(#476):顯示只看離底距離(`scroll.showsJumpToLatest`)。跟隨中新內容撐長的瞬間也會量到很遠,
+        #if DEBUG
+        .overlay(alignment: .topLeading) { ScrollSmoothnessOverlay(probe: smoothnessProbe) }
+        #endif
+        .onChange(of: conversationHeight.arrangementRevision) { listHandle.inputBarArranged() }
+        // 跳到最新(#476):顯示只看離底距離。跟隨中新內容撐長的瞬間也會量到很遠,
         // 延遲一下才顯示,避免閃現;閱讀中(往上捲)立刻顯示。位置在輸入列上方正中間(#476)。
-        .task(id: scroll.showsJumpToLatest) {
-            guard scroll.showsJumpToLatest else {
+        .task(id: isAwayFromBottom) {
+            guard isAwayFromBottom else {
                 jumpToLatestVisible = false
                 return
             }
-            if scroll.autoScrollsOnNewContent {
+            if model.isFollowingLatest {
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
             }
@@ -365,14 +384,7 @@ public struct ConversationView: View {
         .overlay(alignment: .bottom) {
             if jumpToLatestVisible {
                 Button {
-                    scroll.jumpToLatestByTap()
-                    withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
-                    // 捲動沒落地(目標列還沒排出來)時,稍後仍離底很遠就再以底部位移捲一次:按了一定有反應。
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(600))
-                        guard !Task.isCancelled, scroll.showsJumpToLatest else { return }
-                        position.scrollTo(edge: .bottom)
-                    }
+                    listHandle.jumpToLatest()
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
@@ -385,27 +397,23 @@ public struct ConversationView: View {
                 .accessibilityIdentifier("conversation.jumpToLatest")
             }
         }
+        #else
+        Color.clear
+        #endif
     }
 
-    /// 捲到最底下那一列的底部。底部輸入列很高時 `scrollTo(edge: .bottom)` 會多捲一個底部 inset、停在估算高度裡，
-    /// 指定列則由 LazyVStack 實際排出那一列(#191)。
-    /// `isNewContent`:跟隨新出現的內容(訊息、面板、需要你、工作中指示、回音)時重新計算連續捲回的次數;
-    /// 停在內容之外而捲回時不算，否則兩個排版輪流時連續捲回沒有上限(#251)。
-    private func scrollToLastRow(_ proxy: ScrollViewProxy, isNewContent: Bool = true) {
-        if isNewContent { scroll.followedNewContent() }
-        let target = ConversationFollowTarget.target(
-            showsWorkingRow: model.showsWorkingIndicator && model.workingSince != nil,
-            showsPromptCard: model.lastAnswer != nil, lastEntryID: model.entries.last?.id)
-        switch target {
-        case .row(let id): proxy.scrollTo(id, anchor: .bottom)
-        case .bottomEdge: position.scrollTo(edge: .bottom)
-        }
+    private var smoothnessReporter: (any ScrollSmoothnessReporting)? {
+        #if DEBUG
+        smoothnessProbe
+        #else
+        nil
+        #endif
     }
 
     /// 頂端固定一列：載入中轉圈／「對話開頭」／空白(保持底部錨定穩定)。
     @ViewBuilder
-    private var olderRow: some View {
-        switch model.older {
+    private func olderRowView(_ older: ConversationModel.Older) -> some View {
+        switch older {
         case .loading:
             ProgressView()
                 .frame(maxWidth: .infinity)
@@ -452,7 +460,8 @@ public struct ConversationView: View {
         switch model.phase {
         case .loading:
             VStack(spacing: 20) {
-                loadingSkeleton
+                // 沒命中快取時先留白約 300 毫秒,一般讀取在這段內完成,不會看到骨架換成列表。
+                if model.showsLoadingSkeleton { loadingSkeleton }
                 // 等超過約 1.5 秒才出現，用系統的 ProgressView(HIG〈Progress indicators〉)。
                 if model.showsLoadingIndicator {
                     ProgressView().accessibilityIdentifier("conversation.loadingIndicator")
@@ -648,13 +657,14 @@ struct AgentMessageView: View {
     let text: AgentText
     var turnHeader: AgentTurnHeader?
     @Environment(\.agentImages) private var context
+    @Environment(\.markdownBlocks) private var markdownBlocks
     /// 點了的主機路徑：開啟中或開不了時在訊息下方顯示狀態。
     @State private var openedPath: String?
     @State private var previewFile: URL?
     @State private var viewer: ImageViewerItem?
 
     var body: some View {
-        let markdown = MarkdownView(text.markdown, cachedAs: text.id)
+        let markdown = MarkdownView(blocks: markdownBlocks?.blocks(text) ?? Markdown.parse(text.markdown))
         VStack(alignment: .leading, spacing: 6) {
             if let turnHeader {
                 AgentTurnHeaderView(header: turnHeader, date: text.date)
@@ -889,7 +899,7 @@ struct AwayDividerView: View {
 struct CapsuleNote: View {
     let text: Text
     let symbol: String
-    @State private var expanded = false
+    private let expansion = ExpansionState(partID: "note")
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(text: Text, symbol: String) {
@@ -902,11 +912,12 @@ struct CapsuleNote: View {
     }
 
     var body: some View {
-        Button { expanded.toggle() } label: {
+        let expanded = expansion.binding
+        Button { expanded.wrappedValue.toggle() } label: {
             Label { text } icon: { Image(systemName: symbol) }
                 .font(.footnote)
                 .foregroundStyle(Color.secondaryText)
-                .lineLimit(expanded || dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .lineLimit(expanded.wrappedValue || dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(minHeight: 28)
                 .contentShape(Rectangle())
@@ -918,10 +929,18 @@ struct CapsuleNote: View {
 /// 工具串：預設收合成一行摘要;有失敗時摘要旁有紅點。展開後每個呼叫一列，有結果者可再展開看結果(最多 12 行)。
 struct ToolRunView: View {
     let run: ToolRun
-    @State private var expanded = false
+    private let expansion: ExpansionState
+
+    /// 展開狀態跟著列(時間軸),列被重用也不會收起;沒有注入時(其他畫面)用本地狀態。
+    private var expanded: Binding<Bool> { expansion.binding }
+
+    init(run: ToolRun) {
+        self.run = run
+        expansion = ExpansionState(partID: nil, rowID: run.expansionID)
+    }
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
+        DisclosureGroup(isExpanded: expanded) {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(run.steps) { step in
                     ToolStepView(step: step)
@@ -953,12 +972,19 @@ struct ToolRunView: View {
 
 struct ToolStepView: View {
     let step: ToolStep
-    @State private var expanded = false
+    private let expansion: ExpansionState
+
+    /// 展開狀態以列 id 加步驟 id 存時間軸(思考、呼叫結果),捲出畫面再回來仍展開。
+    init(step: ToolStep) {
+        self.step = step
+        expansion = ExpansionState(partID: step.id)
+    }
 
     var body: some View {
+        let expanded = expansion.binding
         switch step.kind {
         case .thinking(let text):
-            DisclosureGroup(isExpanded: $expanded) {
+            DisclosureGroup(isExpanded: expanded) {
                 Text(text)
                     .font(.subheadline)
                     .foregroundStyle(.secondaryText)
@@ -971,7 +997,7 @@ struct ToolStepView: View {
             }
         case .call(let call):
             if let result = call.result, !result.isEmpty {
-                DisclosureGroup(isExpanded: $expanded) {
+                DisclosureGroup(isExpanded: expanded) {
                     Text(result.split(separator: "\n", omittingEmptySubsequences: false).prefix(12).joined(separator: "\n"))
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondaryText)
@@ -1019,5 +1045,14 @@ extension ToolCategory {
         case .agent: "person.2"
         case .other: "wrench.and.screwdriver"
         }
+    }
+}
+
+/// 即時預覽列:`livePreview` 在自己的 body 裡讀,列嵌在 `UIHostingConfiguration` 時也跟著更新。
+struct ConversationWorkingRow: View {
+    let model: ConversationModel
+
+    var body: some View {
+        WorkingIndicatorView(preview: model.livePreview)
     }
 }

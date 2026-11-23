@@ -32,6 +32,8 @@ public struct AgentListView: View {
     private let makeConversation: @MainActor (ChatRoute, String?) -> ConversationModel
     /// 建立某台主機上某個 Pane 的終端機 model(標題)。由 composition root 提供。
     private let makeTerminal: (@MainActor (ChatRoute, String) -> PaneTerminalModel)?
+    /// 列表顯示時預先把前幾個聊天的快取讀進記憶體層,點進去時第一幀就有內容。
+    private let prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)?
     /// 所在視窗的導覽狀態(#31)。有的話：列是 split view 的選取(對話顯示在對話欄)、套用側欄的 workspace 篩選;
     /// 沒有的話列表自己推入對話。
     private let window: TopNavigationModel?
@@ -47,16 +49,20 @@ public struct AgentListView: View {
         model: MergedAgentListModel, window: TopNavigationModel? = nil,
         openInNewWindow: ((_ kind: PaneWindow.Kind, _ row: AgentRow) -> Void)? = nil,
         topBar: ChatTopBarActions,
+        prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
     ) {
         self.model = model
         self.makeConversation = conversation
         self.makeTerminal = terminal
+        self.prefetchConversations = prefetchConversations
         self.window = window
         self.openInNewWindow = openInNewWindow
         self.topBarActions = topBar
     }
+
+    private static let prefetchCount = 8
 
     /// 即時更新在前景時執行;主機新增、刪除或編輯後重來。
     private struct RunKey: Equatable {
@@ -108,6 +114,10 @@ public struct AgentListView: View {
         .task(id: ConnectingClockKey(active: scenePhase == .active, needsTicks: needsConnectingTicks)) {
             await ConnectingClock.run(
                 isActive: scenePhase == .active, needsTicks: { needsConnectingTicks }, tick: { now = $0 }, sleep: Sleeping.task)
+        }
+        // 預先載入前幾個聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
+        .task(id: model.agentRows.prefix(Self.prefetchCount).map(\.id)) {
+            await prefetchConversations?(model.agentRows.prefix(Self.prefetchCount).map(\.route))
         }
         // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
         .task(id: model.agentRows.filter(\.isAway).map(\.id)) {

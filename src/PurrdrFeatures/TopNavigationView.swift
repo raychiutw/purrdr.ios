@@ -193,10 +193,13 @@ public struct TopNavigationView: View {
         if supportsMultipleWindows {
             open = { kind, row in openInNewWindow(kind, row) }
         }
-        let topBar = ChatTopBarActions(
+let topBar = ChatTopBarActions(
             newChat: { navigation.sheet = .newChat }, addHost: { navigation.openAddHost() },
             account: AnyView(TopBarAccountButton(member: member) { navigation.sheet = .member }))
-        return AgentListView(model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar) { route, sessionID in
+        return AgentListView(
+            model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
+            prefetchConversations: { await hosts.prefetchConversations($0) }
+        ) { route, sessionID in
             hosts.conversation(route, sessionID: sessionID)
         } terminal: { route, title in
             hosts.terminal(route, title: title)

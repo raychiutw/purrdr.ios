@@ -171,6 +171,10 @@ struct ConversationLayoutTests {
     /// 逐畫面的問題:水平位移不是 0(訊息貼到左邊)、訊息區連續空白超過 `maximumBlankRun` 個畫面。
     static func problems(_ frames: [Frame], requireContent: Bool = true) -> [String] {
         var found: [String] = []
+        // 找不到訊息列表的捲動視圖時下面的逐畫面檢查全部略過,測試會恆真(#480 換成 UICollectionView 後確認仍量得到)。
+        if !frames.contains(where: { $0.offsetY != -1 || $0.offsetX != -1 }) {
+            found.append("所有畫面都找不到訊息列表的捲動視圖")
+        }
         var blankRun: [Frame] = []
         func flushBlankRun() {
             if blankRun.count > maximumBlankRun, let first = blankRun.first {

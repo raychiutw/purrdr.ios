@@ -61,7 +61,11 @@ extension DelegationStatus {
 struct SubagentCardView: View {
     let card: SubagentCard
     @Environment(\.delegationContext) private var context
-    @State private var expanded = false
+    private let expansion = ExpansionState(partID: "subagent")
+    private var expanded: Bool {
+        get { expansion.binding.wrappedValue }
+        nonmutating set { expansion.binding.wrappedValue = newValue }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -99,7 +103,7 @@ struct SubagentCardView: View {
                 .accessibilityHint(card.result == nil ? Text("") : Text(expanded ? "Hides the result" : "Shows the result"))
                 .accessibilityIdentifier("conversation.subagent")
 
-                NavigationLink(value: DelegationRoute.subagent(card)) {
+                DelegationRouteLink(route: .subagent(card)) {
                     Image(systemName: "chevron.forward")
                         .font(.body.weight(.semibold))
                         .frame(width: 44, height: 44)
@@ -131,7 +135,11 @@ struct WorkflowCardView: View {
     let card: WorkflowCard
     @Environment(\.delegationContext) private var context
     @Environment(\.scenePhase) private var scenePhase
-    @State private var expanded = false
+    private let expansion = ExpansionState(partID: "workflow")
+    private var expanded: Bool {
+        get { expansion.binding.wrappedValue }
+        nonmutating set { expansion.binding.wrappedValue = newValue }
+    }
 
     var body: some View {
         let model = context.workflowModel(card)

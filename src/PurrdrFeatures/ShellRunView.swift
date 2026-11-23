@@ -64,12 +64,13 @@ struct ShellRunDisplay {
 /// 內容層，不用玻璃。長按(context menu)可複製輸出或指令;不用會吃掉觸控的按鈕包住內容，橫向捲動才不受影響。
 struct ShellRunView: View {
     let run: ShellRun
-    @State private var expanded = false
+    private let expansion = ExpansionState(partID: "shell")
 
     private var display: ShellRunDisplay { ShellRunDisplay(run: run) }
 
     var body: some View {
-        let visible = display.visible(expanded: expanded)
+        let expanded = expansion.binding
+        let visible = display.visible(expanded: expanded.wrappedValue)
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(verbatim: "$ \(run.command)")
@@ -110,8 +111,8 @@ struct ShellRunView: View {
                 }
                 Spacer()
                 if display.isFoldable {
-                    Button { expanded.toggle() } label: {
-                        (expanded ? Text("Show Less") : Text("Show All"))
+                    Button { expanded.wrappedValue.toggle() } label: {
+                        (expanded.wrappedValue ? Text("Show Less") : Text("Show All"))
                             .frame(minWidth: 44, minHeight: 44)
                             .contentShape(Rectangle())
                     }
@@ -125,7 +126,7 @@ struct ShellRunView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12))
-        .contextMenu {
+        .listContextMenu {
             if let output = display.copyableOutput {
                 Button("Copy Output", systemImage: "document.on.document") { Clipboard.copy(output) }
             }

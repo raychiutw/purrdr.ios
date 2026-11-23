@@ -26,6 +26,9 @@ public final class AgentFileLoads {
     public private(set) var states: [String: State] = [:]
     private let loader: HostFileLoader
 
+    /// 縮圖與尺寸的記憶體快取(#482):圖片卡片、使用者泡泡與檔案縮圖共用,捲出再捲回與再次顯示不重新解碼。
+    public let thumbnails = HostImageCache<ThumbnailImage>(cost: { $0.cost })
+
     /// 點開的非圖片檔案(#228):主機路徑 → 狀態。
     public private(set) var opens: [String: OpenState] = [:]
     private let downloader: HostFileDownloader

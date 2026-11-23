@@ -47,8 +47,26 @@ enum AgentImageDecoder {
     /// 全螢幕檢視的長邊(px)。
     static let fullScreenPixels = 4096
 
-    struct Decoded: @unchecked Sendable {
-        let image: CGImage
+    /// 解碼後的縮圖;放在 `AgentFileLoads.thumbnails` 共用(#482)。
+    typealias Decoded = ThumbnailImage
+
+    /// 快取裡這張圖(目前版本)的縮圖;沒有時 `nil`。列內不自己保存解碼結果。
+    @MainActor
+    static func cachedThumbnail(path: String, state: AgentFileLoads.State?, maxPixels: Int, in loads: AgentFileLoads?) -> Decoded? {
+        guard let loads, case .loaded(_, let version)? = state else { return nil }
+        return loads.thumbnails.cachedThumbnail(for: HostImageKey(path: path, version: version, maxPixels: maxPixels))
+    }
+
+    /// 載入完成的圖解碼進共用快取(已在快取就不重解碼)並記下尺寸。回 `false` 表示解不出圖;還沒載入完成回 `true`。
+    @MainActor
+    @discardableResult
+    static func decodeIntoCache(path: String, state: AgentFileLoads.State?, kind: AgentFileKind, maxPixels: Int, in loads: AgentFileLoads?) async -> Bool {
+        guard let loads, case .loaded(let data, let version)? = state else { return true }
+        let key = HostImageKey(path: path, version: version, maxPixels: maxPixels)
+        let decoded = await loads.thumbnails.thumbnail(for: key) {
+            await decodeThumbnail(data, kind: kind, maxPixels: maxPixels).map { ($0, $0.pixelSize) }
+        }
+        return decoded != nil
     }
 
     /// 檔案卡片的縮圖(#427):圖片同 `decode`,PDF 畫第一頁(白底);其他種類沒有縮圖。
@@ -98,8 +116,8 @@ enum AgentImageDecoder {
 struct AgentImageCardView: View {
     let card: AgentFileCard
     @Environment(\.agentImages) private var context
-    @State private var thumbnail: AgentImageDecoder.Decoded?
-    @State private var thumbnailVersion: HostFileVersion?
+    /// 解碼完成時加一,讓畫面重讀快取(縮圖本身在 `AgentFileLoads.thumbnails`,不放在列內)。
+    @State private var decodeRevision = 0
     /// 載入的檔案解不出圖片。
     @State private var decodeFailed = false
     @State private var viewer: ImageViewerItem?
@@ -109,6 +127,10 @@ struct AgentImageCardView: View {
 
     private var state: AgentFileLoads.State? { context.loads?.states[card.file.path] }
     private var display: AgentFileCardDisplay { AgentFileCardDisplay(file: card.file) }
+    private var thumbnail: AgentImageDecoder.Decoded? {
+        _ = decodeRevision
+        return AgentImageDecoder.cachedThumbnail(path: card.file.path, state: state, maxPixels: AgentImageDecoder.thumbnailPixels, in: context.loads)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -121,15 +143,18 @@ struct AgentImageCardView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12))
-        .contextMenu {
+        .listContextMenu {
             Button("Copy Path", systemImage: "document.on.document") { Clipboard.copy(card.file.path) }
         }
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: Text("Copy Path")) { Clipboard.copy(card.file.path) }
         .accessibilityIdentifier("conversation.agentImage")
-        .task(id: card.file.path) { await load(userRequested: false) }
+        .task(id: card.file.path) {
+            if let size = card.file.pixelSize { context.loads?.thumbnails.recordTranscriptSize(size, forPath: card.file.path) }
+            await load(userRequested: false)
+        }
         .task(id: loadedVersion) { await decodeThumbnail() }
-        .imageViewer(item: $viewer)
+        .presentedImageViewer(item: $viewer)
     }
 
     @ViewBuilder
@@ -190,11 +215,11 @@ struct AgentImageCardView: View {
     }
 
     private func decodeThumbnail() async {
-        guard case .loaded(let data, let version) = state, version != thumbnailVersion else { return }
-        let decoded = await AgentImageDecoder.decode(data, maxPixels: AgentImageDecoder.thumbnailPixels)
+        let isDecoded = await AgentImageDecoder.decodeIntoCache(
+            path: card.file.path, state: state, kind: .image, maxPixels: AgentImageDecoder.thumbnailPixels, in: context.loads
+        )
         guard !Task.isCancelled else { return }
-        thumbnail = decoded
-        thumbnailVersion = decoded == nil ? nil : version
-        decodeFailed = decoded == nil
+        decodeFailed = !isDecoded
+        decodeRevision += 1
     }
 }

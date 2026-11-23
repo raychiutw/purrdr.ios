@@ -64,6 +64,11 @@ public final class ConversationModel {
     /// 載入超過這麼久才出現系統進度指示(HIG〈Loading〉:內容理想上立刻出現，等待超過一兩秒才用進度指示)。
     nonisolated public static let loadingIndicatorDelay: Duration = .seconds(1.5)
     private var loadingIndicatorArmed = false
+    /// 沒命中快取時骨架延後出現的時間:一般讀取在這段內完成,使用者只看到 push 動畫的底,不會看到骨架換成列表。
+    nonisolated public static let loadingSkeletonDelay: Duration = .milliseconds(300)
+    private var loadingSkeletonArmed = false
+    /// 還沒有任何內容、載入已超過 `loadingSkeletonDelay`:畫面才畫骨架。
+    public var showsLoadingSkeleton: Bool { loadingSkeletonArmed && phase == .loading && items.isEmpty }
     /// 還沒有任何內容、載入已超過 `loadingIndicatorDelay`:畫面在骨架下方加系統進度指示。有快取或內容先到就不會出現。
     public var showsLoadingIndicator: Bool { loadingIndicatorArmed && phase == .loading && items.isEmpty }
     public private(set) var items: [ConversationItem] = []
@@ -646,6 +651,28 @@ public final class ConversationModel {
     public private(set) var entries: [ConversationEntry] = []
     /// 列表結構(列的 id 與順序)每變一次遞增。畫面觀察它，不必每次 body 都配置整個 id 陣列(#130)。
     public private(set) var entriesRevision = 0
+    /// 時間軸目前的列(身分穩定,回音確認後仍沿用回音的 id);聊天列表用它的 id 當 diffable 的 identifier(#487)。
+    public private(set) var rows: [ConversationRow] = []
+    /// 時間軸每次產生變更時呼叫(聊天列表據此餵捲動決策者,#487);沒有變更不呼叫。
+    @ObservationIgnored public var onTimelineUpdate: (@MainActor (ConversationTimeline.Update) -> Void)?
+    /// Agent 文字的 Markdown 解析結果:沿用時間軸的快取,同一則、文字沒變時不再解析。
+    public func markdownBlocks(for text: AgentText) -> [MarkdownBlock] {
+        timeline.markdownBlocks(for: text)
+    }
+
+    /// 列展開狀態每變一次遞增,讓讀 `isExpanded` 的畫面重畫。
+    private var expansionRevision = 0
+
+    /// 列(或列內以 `partID` 區分的子項)是否展開。狀態存在時間軸,跟著列走。
+    public func isExpanded(rowID: String, partID: String? = nil) -> Bool {
+        _ = expansionRevision
+        return timeline.isExpanded(rowID: rowID, partID: partID)
+    }
+
+    public func setExpanded(_ expanded: Bool, rowID: String, partID: String? = nil) {
+        timeline.setExpanded(expanded, rowID: rowID, partID: partID)
+        expansionRevision &+= 1
+    }
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
     public private(set) var notice: SendNotice?
     public var isStopping: Bool { stopPhase == .stopping }
@@ -770,9 +797,8 @@ public final class ConversationModel {
     public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
     /// 對話紀錄的解析與重建在背景做(#498);測試用:每次背景計算開頭呼叫(在背景執行緒上)。
     package var onTranscriptWork: (@Sendable () -> Void)?
-    /// 對話紀錄各段依到達順序套用的鎖,與訊息集合的版本(同步 `rebuild()` 會遞增，背景算完的結果若落後就丟掉)。
+    /// 對話紀錄各段依到達順序套用的鎖:解析在背景做,結果回主執行緒以時間軸增量套用(`applyTimeline`)。
     private let applyGate = TranscriptApplyGate()
-    private var messagesVersion = 0
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
     /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
     /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
@@ -795,6 +821,8 @@ public final class ConversationModel {
     public static let followingMessageLimit = CachedConversation.maxMessages
     /// 往上翻載入的舊訊息(不寫入快取)。
     private var olderMessages: [TranscriptMessage] = []
+    /// 對話時間軸:列身分由它分配,新內容只以增量餵給它(#481)。
+    @ObservationIgnored private var timeline = ConversationTimeline()
     private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
     /// 知道 Agent 後預載 slash 清單(#469);之後每次輪詢檢查是否過期,超過 60 秒在背景重讀。
@@ -814,8 +842,6 @@ public final class ConversationModel {
     public var transcriptStartsAfterFirstMessage: Bool { screenDialect.transcriptStartsAfterFirstMessage }
     /// Agent 所在的 workspace(更多選單的「顯示版面」用,#381)。
     public var workspaceID: String? { currentAgent?.workspaceID }
-    /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
-    private var consumedUserIDs = Set<String>()
     private var lastPolledStatus: AgentStatus?
     /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
     @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
@@ -899,6 +925,8 @@ public final class ConversationModel {
         slash.loader = { [weak self] in await self?.slashCatalog() }
         slash.onPick = { [weak self] command in self?.pick(slash: command) }
         slash.update(draft: draft, caret: draftCaret)
+        // 記憶體層有這個聊天最近的內容:同步還原,打開時第一幀就有內容(不閃骨架)。
+        if let cached = cache.cachedConversation(chatKey: paneID), accepts(cached) { restore(cached) }
     }
 
     /// 這個 agent 的 slash 清單(#15):Claude 在主機上發現;Grok、Antigravity 用固定清單;其他沒有選單(`nil`)。
@@ -939,9 +967,17 @@ public final class ConversationModel {
     /// 列表還沒給 session(冷啟動、從推播打開)時也先顯示這個聊天上次的快取(#356):之後快照回報的 session 不同，
     /// 輪詢綁定新 session 時丟掉快取，舊內容留著到新內容讀回來(#329)。
     public func restoreFromCache() async {
-        guard items.isEmpty, let cached = await cache.load(chatKey: chatKey),
-              knownSessionID.map({ cached.matches(sessionID: $0) }) ?? (cached.parserVersion == CachedConversation.parserVersion),
-              Self.isWorthRestoring(cached) else { return }
+        guard items.isEmpty, let cached = await cache.load(chatKey: chatKey), accepts(cached) else { return }
+        restore(cached)
+    }
+
+    /// 快取符合列表給的 session(沒給時只看解析器版本)且值得還原。
+    private func accepts(_ cached: CachedConversation) -> Bool {
+        (knownSessionID.map { cached.matches(sessionID: $0) } ?? (cached.parserVersion == CachedConversation.parserVersion))
+            && Self.isWorthRestoring(cached)
+    }
+
+    private func restore(_ cached: CachedConversation) {
         boundSessionID = cached.sessionID
         file = (cached.path, TranscriptFollow(cursor: cached.cursor, isLive: false), cached.windowStart)
         recent = cached.messages
@@ -972,6 +1008,7 @@ public final class ConversationModel {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
             group.addTask { await self.armLoadingIndicator(sleep: sleep) }
+            group.addTask { await self.armLoadingSkeleton(sleep: sleep) }
             if let updates {
                 group.addTask { await updates.liveUpdates.attach() }
                 group.addTask { await self.wakeOnChanges(from: updates) }
@@ -1020,6 +1057,14 @@ public final class ConversationModel {
         guard !Task.isCancelled else { return }
         let status = statuses?[session].flatMap { $0.isFresh(at: now) ? $0 : nil }
         if status != sessionStatus { sessionStatus = status }
+    }
+
+    /// 載入超過 `loadingSkeletonDelay` 還沒有內容才畫骨架。
+    private func armLoadingSkeleton(sleep: Sleep) async {
+        loadingSkeletonArmed = false
+        guard phase == .loading, items.isEmpty else { return }
+        do { try await sleep(Self.loadingSkeletonDelay) } catch { return }
+        loadingSkeletonArmed = true
     }
 
     /// 載入超過 `loadingIndicatorDelay` 還沒有內容才開啟進度指示。
@@ -1293,7 +1338,7 @@ public final class ConversationModel {
             notePermissionModes(in: opened.lines)
             progress = prepared.progress
             older = opened.start > 0 ? .available : .reachedStart
-            await rebuildOffMain(generation: generation)
+            rebuild()
         }
         guard generation == self.generation else { return }
         try await readEarlierUntilMessages(path: path, generation: generation)
@@ -1307,7 +1352,7 @@ public final class ConversationModel {
             pages += 1
             let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
             guard generation == self.generation else { return }
-            await prepend(page, generation: generation)
+await prepend(page, generation: generation)
             guard generation == self.generation else { return }
         }
     }
@@ -1328,7 +1373,7 @@ public final class ConversationModel {
     /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
     package static let maximumEmptyWindowPages = 25
 
-    private func append(_ chunk: TranscriptChunk) async {
+private func append(_ chunk: TranscriptChunk) async {
         let generation = generation
         await applyGate.run {
             guard generation == self.generation else { return }
@@ -1340,27 +1385,35 @@ public final class ConversationModel {
             let known = Set(recent.map(\.id))
             let added = prepared.messages.filter { !known.contains($0.id) }
             recent += added
+            let appendUpdate = timeline.append(added)
             if !added.isEmpty { segments.append((chunk.start, added.count)) }
             metadata = prepared.metadata
             progress = prepared.progress
             notePermissionModes(in: chunk.lines)
-            trimIfFollowing()
-            await rebuildOffMain(generation: generation)
+            if let trimUpdate = trimIfFollowing() {
+                applyTimeline(ConversationTimeline.Update(cause: appendUpdate.cause, changes: appendUpdate.changes + trimUpdate.changes))
+            } else {
+                applyTimeline(appendUpdate)
+            }
         }
     }
 
     /// 跟隨尾端時訊息超過上限：丟掉往上翻的舊頁，再整段丟掉最舊的(至少留最後一段),視窗起點移到留下的第一段開頭，
     /// 之後往上翻可以讀回來(#130)。
-    private func trimIfFollowing() {
-        guard isFollowingLatest, olderMessages.count + recent.count > Self.followingMessageLimit, let first = segments.first else { return }
+    private func trimIfFollowing() -> ConversationTimeline.Update? {
+        guard isFollowingLatest, olderMessages.count + recent.count > Self.followingMessageLimit, let first = segments.first else { return nil }
+        var droppedMessageCount = olderMessages.count
         olderMessages = []
         var start = first.start
         while recent.count > Self.followingMessageLimit, segments.count > 1 {
-            recent.removeFirst(segments.removeFirst().count)
+            let droppedSegment = segments.removeFirst()
+            recent.removeFirst(droppedSegment.count)
+            droppedMessageCount += droppedSegment.count
             start = segments[0].start
         }
         file?.windowStart = start
         older = start > 0 ? .available : .reachedStart
+        return timeline.dropOldest(messageCount: droppedMessageCount)
     }
 
     // MARK: - 往上翻
@@ -1374,10 +1427,11 @@ public final class ConversationModel {
             guard generation == self.generation else { return }
             if !prepared.skips.isEmpty { onTranscriptSkips?(dialect, prepared.skips) }
             let known = Set((olderMessages + recent).map(\.id))
-            olderMessages = prepared.messages.filter { !known.contains($0.id) } + olderMessages
+            let olderPage = prepared.messages.filter { !known.contains($0.id) }
+            olderMessages = olderPage + olderMessages
             file?.windowStart = page.start
             older = page.start > 0 ? .available : .reachedStart
-            await rebuildOffMain(generation: generation)
+            applyTimeline(timeline.prependOlder(olderPage))
         }
     }
 
@@ -1389,7 +1443,7 @@ public final class ConversationModel {
         do {
             let chunk = try await transcripts.window(path: file.path, endingAt: file.windowStart, lines: pageLines)
             guard generation == self.generation else { return }
-            await prepend(chunk, generation: generation)
+await prepend(chunk, generation: generation)
             guard generation == self.generation else { return }
         } catch {
             guard generation == self.generation else { return }
@@ -1622,6 +1676,7 @@ public final class ConversationModel {
         if let index = echoes.firstIndex(where: { $0.id == echo.id }) {
             echoes[index].imagePaths = paths
             echoes[index].filePaths = zip(sentImages, paths).filter { $0.0.kind == .file }.map(\.1)
+            rebuildEntries()
         }
         let prompt = UploadedImages.prompt(text: text, paths: paths)
         switch await freshTarget() {
@@ -2061,29 +2116,30 @@ public final class ConversationModel {
     }
 
     private var userMessageIDs: Set<String> {
-        Set(userTurns.map(\.id))
-    }
-
-    /// 使用者送出的內容：泡泡，以及 shell 區塊(以 `!指令` 比對回音,F6.4)。
-    private var userTurns: [UserBubble] {
-        items.compactMap { item -> UserBubble? in
+        Set(items.compactMap { item -> String? in
             switch item {
-            case .user(let bubble): bubble
-            case .shell(let run): UserBubble(id: run.id, text: "!" + run.command, date: run.date, imageCount: 0)
+            case .user(let bubble): bubble.id
+            case .shell(let run): run.id
             default: nil
             }
-        }
+        })
     }
 
-    /// 以對話紀錄確認回音;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
+    /// 回音有變(送出、改狀態、移除)時同步給時間軸,由它確認回音並算出列。
     private func rebuildEntries() {
-        let bubbles = userTurns
-        let remaining = EchoMatching.confirm(echoes, against: bubbles, consumed: &consumedUserIDs)
-        if remaining.count < echoes.count {
-            echoes = remaining
+        let update = timeline.setEchoes(echoes)
+        refreshEntries()
+        if !update.changes.isEmpty { onTimelineUpdate?(update) }
+    }
+
+    /// 取回時間軸確認後的回音與列;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
+    private func refreshEntries() {
+        if timeline.pendingEchoes.count < echoes.count {
+            echoes = timeline.pendingEchoes
             notice = nil
         }
-        let merged = EchoTimeline.merge(items: items, echoes: echoes)
+        if rows != timeline.rows { rows = timeline.rows }
+        let merged = timeline.rows.map(\.entry)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
         updateAwaySummary()
@@ -2914,24 +2970,24 @@ public final class ConversationModel {
         rebuild()
     }
 
+    /// 以目前的訊息整份取代時間軸(開啟、重新整理、清空);已存在的列沿用身分。
     private func rebuild() {
-        messagesVersion &+= 1
-        applyItems(Conversation.items(from: olderMessages + recent))
+applyTimeline(timeline.reset(olderMessages + recent))
     }
 
-    /// 背景重建:訊息集合在等待期間被同步的 `rebuild()` 重算過就不用再套(它已經包含這次的變更)。
-    private func rebuildOffMain(generation: Int) async {
-        messagesVersion &+= 1
-        let version = messagesVersion
-        let built = await TranscriptProcessing.items(from: olderMessages + recent, probe: onTranscriptWork)
-        guard generation == self.generation, version == messagesVersion else { return }
-        applyItems(built)
-    }
-
-    private func applyItems(_ built: [ConversationItem]) {
-        items = built
-        rebuildEntries()
-        for case .workflow(let card) in items { workflowModels[card.id]?.update(card: card) }
+    /// 把時間軸的變更交給畫面:沒有變更就不動 `items`(不觸發重繪)。
+    private func applyTimeline(_ update: ConversationTimeline.Update) {
+        guard !update.changes.isEmpty else { return }
+        items = timeline.items
+        refreshEntries()
+        onTimelineUpdate?(update)
+        for change in update.changes {
+            switch change {
+            case .inserted(let row, _), .updated(let row, _), .prepended(let row, _):
+                if case .workflow(let card)? = row.item { workflowModels[card.id]?.update(card: card) }
+            case .removed: break
+            }
+        }
     }
 
     /// 寫入快取：最多 `CachedConversation.maxMessages` 則(R-B13),以整段為單位從尾端取，視窗起點是取到的第一段開頭，

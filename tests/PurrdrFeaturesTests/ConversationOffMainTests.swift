@@ -5,7 +5,8 @@ import PurrdrTestSupport
 import Synchronization
 import Testing
 
-/// 對話紀錄的解析與重建在背景做(#498):開啟視窗與追蹤推送的計算都不在主執行緒，結果仍依序套用。
+/// 對話紀錄的解析在背景做(#498):開啟視窗與追蹤推送的解析都不在主執行緒，結果仍依序套用。
+/// 列表的列由對話時間軸增量更新(#480),不再整份重建，所以只有解析這一步在背景。
 @MainActor
 @Suite("對話紀錄背景解析")
 struct ConversationOffMainTests {
@@ -15,8 +16,8 @@ struct ConversationOffMainTests {
         var onMain: [Bool] { threads.withLock { $0 } }
     }
 
-    @Test("開啟視窗與推送新訊息時，解析與重建不在主執行緒，訊息仍依序出現")
-    func parsingAndRebuildingRunOffMainThread() async throws {
+    @Test("開啟視窗與推送新訊息時，解析不在主執行緒，訊息仍依序出現")
+    func parsingRunsOffMainThread() async throws {
         let connection = FakeHostConnection()
         await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
         await TranscriptFollowViewTests.answering(connection)
@@ -36,7 +37,7 @@ struct ConversationOffMainTests {
         try await waitUntil { await MainActor.run { model.items.count == shown + 1 } }
 
         let calls = probe.onMain
-        #expect(calls.count >= 4)  // 視窗解析、視窗重建、推送解析、推送重建
+        #expect(calls.count >= 2)  // 視窗解析、推送解析
         #expect(!calls.contains(true))
     }
 }

@@ -11,6 +11,12 @@ public protocol ConversationCache: Sendable {
     func remove(chatKey: String) async
     /// 移除 key 以 `prefix` 開頭的所有聊天(刪除主機時清掉那台主機的快取)。
     func removeAll(chatKeyPrefix prefix: String) async
+    /// 同步讀取記憶體裡最近開過的聊天(打開聊天時直接有內容,不等非同步讀取);沒有記憶體層的實作回 `nil`。
+    func cachedConversation(chatKey: String) -> CachedConversation?
+}
+
+extension ConversationCache {
+    public func cachedConversation(chatKey: String) -> CachedConversation? { nil }
 }
 
 /// 某台主機的對話快取：key 前面加上主機身分，因為 pane id(`w1:p1`)在每台主機都會重複(行為規格 F1.3)。
@@ -30,6 +36,7 @@ public struct HostScopedConversationCache: ConversationCache {
     public func save(_ conversation: CachedConversation, chatKey: String) async { await base.save(conversation, chatKey: prefix + chatKey) }
     public func remove(chatKey: String) async { await base.remove(chatKey: prefix + chatKey) }
     public func removeAll(chatKeyPrefix: String) async { await base.removeAll(chatKeyPrefix: prefix + chatKeyPrefix) }
+    public func cachedConversation(chatKey: String) -> CachedConversation? { base.cachedConversation(chatKey: prefix + chatKey) }
 }
 
 /// 一個聊天的快取內容。
