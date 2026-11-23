@@ -163,7 +163,7 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFa
 .mono{font-family:ui-monospace,Menlo,monospace}
 
 .titlecap.one{height:44px;border-radius:22px;flex-direction:row;gap:8px;padding:0 16px;max-width:250px}
-.titlecap .dot{width:10px;height:10px;border-radius:5px;flex-shrink:0;background:var(--gray)}
+.titlecap .dot{width:8px;height:8px;border-radius:4px;flex-shrink:0;background:var(--gray)}
 .titlecap .dot.need{background:var(--orange)}.titlecap .dot.work{background:var(--accent)}.titlecap .dot.done,.titlecap .dot.unk,.titlecap .dot.off{background:var(--gray)}
 .titlecap .tn{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .titlecap .tm{font-size:15px;color:var(--sec);white-space:nowrap;display:flex;align-items:center;gap:4px;flex-shrink:0}
