@@ -232,6 +232,27 @@ jobs:
             --timeout 1800 \
             --interval 30
 
+      # 保留 dSYM(#470):閃退報告要靠它符號化。archive 內的 dSYMs 壓成 zip 上傳為 artifact,保留 90 天;
+      # 不論上傳或等待 TestFlight 是否成功都留(archive 沒做成就沒有資料夾，略過)。
+      - name: 壓縮 dSYM
+        id: dsym
+        if: always()
+        run: |
+          set -euo pipefail
+          dsyms="$RUNNER_TEMP/Purrdr.xcarchive/dSYMs"
+          if [ -d "$dsyms" ]; then
+            (cd "$dsyms" && zip -qry "$RUNNER_TEMP/Purrdr-dSYMs.zip" .)
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 上傳 dSYM
+        if: always() && steps.dsym.outputs.found == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Purrdr-dSYMs-${{ github.run_id }}
+          path: ${{ runner.temp }}/Purrdr-dSYMs.zip
+          retention-days: 90
+          if-no-files-found: error
+
   # TestFlight 上傳成功後，為這個版本建立 GitHub Release(tag 是 v<版本號>,指向這次發版的 commit)。
   # 「本版更新」取自 CHANGELOG.md 那個版本的段落(scripts/changelog-section.sh);沒有對應段落只出 warning，不擋發行。
   # 同一個版本手動重新上傳時 Release 已存在，就略過。Release 失敗不影響已上傳的 build。

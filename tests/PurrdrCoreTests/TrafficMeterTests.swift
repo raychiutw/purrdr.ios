@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import Synchronization
 import Testing
 
 /// 數據用量的流量計量(#353):依主機 × 網路類型 × 方向累計，按日(本地時區)存 30 天。
@@ -98,21 +99,35 @@ struct TrafficMeterTests {
         #expect(second.sinceLaunch().isEmpty)
     }
 
-    @Test("連續寫入不會每次都寫檔，間隔過了才寫;flush 一定寫")
+    @Test("連續寫入合併成一次排程，節流間隔內的排程帶延遲;flush 一定寫")
     func throttlesSaving() {
         let clock = Clock("2026-11-21T10:00:00+08:00")
         let store = InMemoryTrafficStore()
-        let meter = meter(clock, store: store)
+        let jobs = Mutex<[(delay: TimeInterval, work: @Sendable () -> Void)]>([])
+        let meter = TrafficMeter(
+            store: store, now: { clock.now }, calendar: clock.calendar, network: .wifi,
+            scheduler: { delay, work in jobs.withLock { $0.append((delay, work)) } })
+        func runJobs() { jobs.withLock { let all = $0; $0 = []; return all }.forEach { $0.work() } }
+
         meter.record(hostID: "a", direction: .sent, bytes: 1)
         meter.record(hostID: "a", direction: .sent, bytes: 1)
+        #expect(jobs.withLock { $0.map(\.delay) } == [0])
+        runJobs()
         #expect(store.saveCount == 1)
-        clock.now = clock.now.addingTimeInterval(6)
-        meter.record(hostID: "a", direction: .sent, bytes: 1)
+
+        clock.now = clock.now.addingTimeInterval(2)
+        meter.record(hostID: "a", direction: .sent, bytes: 1)  // 距上次存 2 秒:排在剩下的 3 秒後
+        #expect(jobs.withLock { $0.map(\.delay) } == [3])
+        clock.now = clock.now.addingTimeInterval(3)
+        runJobs()
         #expect(store.saveCount == 2)
+
         meter.record(hostID: "a", direction: .sent, bytes: 1)
         meter.flush()
         #expect(store.saveCount == 3)
         #expect(store.load().first?.hosts["a"]?[.wifi]?.sent == 4)
+        runJobs()  // flush 已寫完，排程的那次沒有新內容就不再寫
+        #expect(store.saveCount == 3)
     }
 
     @Test("重設清掉所有歷史與這次開啟，之後重新累計")
@@ -173,5 +188,51 @@ struct TrafficMeterTests {
         #expect(TrafficNetwork(usesWiFi: true, usesCellular: true) == .wifi)
         #expect(TrafficNetwork(usesWiFi: false, usesCellular: true) == .cellular)
         #expect(TrafficNetwork(usesWiFi: false, usesCellular: false) == .other)
+    }
+}
+
+/// #470:record 由 NIO 執行緒呼叫，不能在呼叫者的執行緒上做檔案 I/O(stack 溢位閃退)。
+@Suite("流量計量不在呼叫者執行緒存檔")
+struct TrafficMeterOffThreadSaveTests {
+    final class ThreadRecordingStore: TrafficStore {
+        let saved = DispatchSemaphore(value: 0)
+        let threads = Mutex<[Thread]>([])
+        func load() -> [TrafficDay] { [] }
+        func save(_ days: [TrafficDay]) {
+            threads.withLock { $0.append(Thread.current) }
+            saved.signal()
+        }
+    }
+
+    @Test("record 在呼叫者的執行緒上不存檔，存檔交給別的執行緒")
+    func recordDoesNotSaveOnCallingThread() {
+        let store = ThreadRecordingStore()
+        let meter = TrafficMeter(store: store)
+        let callers = Mutex<Thread?>(nil)
+        let done = DispatchSemaphore(value: 0)
+        let thread = Thread {
+            callers.withLock { $0 = Thread.current }
+            meter.record(hostID: "a", direction: .sent, bytes: 10)
+            done.signal()
+        }
+        thread.start()
+        done.wait()
+        #expect(store.saved.wait(timeout: .now() + 5) == .success)
+        let caller = callers.withLock { $0 }
+        #expect(store.threads.withLock { $0 }.allSatisfy { $0 !== caller })
+    }
+
+    @Test("record 只累加記憶體，排程的存檔執行前存放處沒被寫")
+    func recordOnlyAccumulatesUntilScheduledWorkRuns() {
+        let store = InMemoryTrafficStore()
+        let jobs = Mutex<[@Sendable () -> Void]>([])
+        let meter = TrafficMeter(store: store, scheduler: { _, work in jobs.withLock { $0.append(work) } })
+        meter.record(hostID: "a", direction: .sent, bytes: 10)
+        meter.record(hostID: "a", direction: .sent, bytes: 5)
+        #expect(store.saveCount == 0)
+        #expect(jobs.withLock { $0.count } == 1)  // 合併成一次排程
+        jobs.withLock { $0 }.forEach { $0() }
+        #expect(store.saveCount == 1)
+        #expect(store.load().first?.hosts["a"]?[.other]?.sent == 15)
     }
 }

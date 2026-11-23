@@ -52,6 +52,8 @@ public struct TrafficDay: Sendable, Codable, Equatable {
     }
 }
 
+public typealias TrafficSaveScheduling = @Sendable (TimeInterval, @escaping @Sendable () -> Void) -> Void
+
 /// 主機連線層回報位元組的入口(連線不知道計量長什麼樣子)。
 public typealias TrafficRecording = @Sendable (TrafficDirection, Int) -> Void
 
@@ -121,7 +123,7 @@ public final class TrafficSink: Sendable {
 
 /// 流量計量(#353,spec #337):依主機 × 網路類型 × 方向累計，按日存 30 天;「這次開啟」只在記憶體。
 ///
-/// 時鐘與日曆注入(分日用本地時區的午夜)。寫入存放處有節流,`flush()` 一定寫(app 進背景時呼叫)。
+/// 時鐘與日曆注入(分日用本地時區的午夜)。`record` 只累加記憶體(可從任何執行緒呼叫，含 NIO)，寫入存放處排到背景、有節流並合併;`flush()` 一定寫(app 進背景時呼叫)。
 public final class TrafficMeter: Sendable {
     /// 保留的天數(含今天)。
     public static let retentionDays = 30
@@ -134,20 +136,35 @@ public final class TrafficMeter: Sendable {
         var network: TrafficNetwork
         var lastSave: Date?
         var dirty = false
+        /// 已排了一次背景存檔、還沒執行(合併用)。
+        var savePending = false
     }
 
     private let state: Mutex<State>
     private let store: any TrafficStore
     private let now: @Sendable () -> Date
     private let calendar: Calendar
+    private let scheduler: TrafficSaveScheduling
+    /// 序列化所有 `store.save`(背景排程、`flush()`、`reset()`),不與 `state` 的鎖混用:計量路徑絕不等它。
+    private let saveLock = Mutex<Void>(())
+
+    /// 預設的背景存檔:專用序列佇列(不在呼叫 `record` 的 NIO 執行緒上做 I/O,#470)。
+    private static let saveQueue = DispatchQueue(label: "purrdr.traffic-save", qos: .utility)
 
     public init(
         store: any TrafficStore, now: @escaping @Sendable () -> Date = { Date() }, calendar: Calendar = .current,
-        network: TrafficNetwork = .other
+        network: TrafficNetwork = .other, scheduler: TrafficSaveScheduling? = nil
     ) {
         self.store = store
         self.now = now
         self.calendar = calendar
+        self.scheduler = scheduler ?? { delay, work in
+            if delay <= 0 {
+                Self.saveQueue.async(execute: work)
+            } else {
+                Self.saveQueue.asyncAfter(deadline: .now() + delay, execute: work)
+            }
+        }
         var loaded: [String: [String: HostTraffic]] = [:]
         for day in store.load() { loaded[day.day] = day.hosts }
         state = Mutex(State(days: loaded, network: network))
@@ -167,7 +184,8 @@ public final class TrafficMeter: Sendable {
         guard bytes > 0 else { return }
         let date = now()
         let today = dayKey(date)
-        let toSave: [TrafficDay]? = state.withLock { state in
+        // 只做記憶體累加(O(1));存檔排到背景(#470:這裡在 NIO 執行緒上,不可做檔案 I/O)。
+        let delay: TimeInterval? = state.withLock { state in
             prune(&state, today: date)
             let network = state.network
             func add(_ traffic: inout [String: HostTraffic]) {
@@ -181,12 +199,12 @@ public final class TrafficMeter: Sendable {
             add(&state.launch)
             add(&state.days[today, default: [:]])
             state.dirty = true
-            if let last = state.lastSave, date.timeIntervalSince(last) < Self.saveInterval { return nil }
-            state.lastSave = date
-            state.dirty = false
-            return Self.snapshot(state)
+            guard !state.savePending else { return nil }
+            state.savePending = true
+            guard let last = state.lastSave else { return 0 }
+            return max(0, Self.saveInterval - date.timeIntervalSince(last))
         }
-        if let toSave { store.save(toSave) }
+        if let delay { scheduler(delay) { [self] in performScheduledSave() } }
     }
 
     /// 保留中的每一天(舊到新)。
@@ -211,27 +229,46 @@ public final class TrafficMeter: Sendable {
         state.withLock { $0.launch }
     }
 
-    /// 把還沒寫的用量寫進存放處。
+    /// 把還沒寫的用量寫進存放處(同步,呼叫者的執行緒;app 進背景時從主執行緒呼叫)。
     public func flush() {
-        let toSave: [TrafficDay]? = state.withLock { state in
-            prune(&state, today: now())
-            guard state.dirty else { return nil }
-            state.dirty = false
-            state.lastSave = now()
-            return Self.snapshot(state)
+        saveLock.withLock { _ in
+            let toSave: [TrafficDay]? = state.withLock { state in
+                prune(&state, today: now())
+                guard state.dirty else { return nil }
+                state.dirty = false
+                state.lastSave = now()
+                return Self.snapshot(state)
+            }
+            if let toSave { store.save(toSave) }
         }
-        if let toSave { store.save(toSave) }
     }
 
     /// 重設統計:清掉所有歷史與這次開啟。
     public func reset() {
-        state.withLock { state in
-            state.days = [:]
-            state.launch = [:]
-            state.dirty = false
-            state.lastSave = now()
+        saveLock.withLock { _ in
+            state.withLock { state in
+                state.days = [:]
+                state.launch = [:]
+                state.dirty = false
+                state.lastSave = now()
+            }
+            store.save([])
         }
-        store.save([])
+    }
+
+    /// 排程到背景的存檔:取當下最新的狀態寫(中間累加的都合併進來)。
+    private func performScheduledSave() {
+        saveLock.withLock { _ in
+            let toSave: [TrafficDay]? = state.withLock { state in
+                state.savePending = false
+                prune(&state, today: now())
+                guard state.dirty else { return nil }
+                state.dirty = false
+                state.lastSave = now()
+                return Self.snapshot(state)
+            }
+            if let toSave { store.save(toSave) }
+        }
     }
 
     // MARK: - 內部
