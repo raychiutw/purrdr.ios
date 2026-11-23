@@ -109,21 +109,37 @@ public struct FileTrafficStore: TrafficStore {
 
 /// 主機連線建好之後才接上計量的轉接點:沒接時不記。SSH 主機通道與 HTTPS 主機連線各持有一個。
 public final class TrafficSink: Sendable {
-    private let recording: Mutex<TrafficRecording?>
+    /// 閉包放在 class 的 `let` 裡:放進 `Mutex<TrafficRecording?>` 再以 `withLock { $0 }` 讀取,
+    /// 每次讀取都會在儲存槽的泛型抽象層級與具體型別之間重新包一層 reabstraction thunk 並寫回,
+    /// 呼叫鏈與釋放鏈隨記錄次數無限增長,最後在 NIO 執行緒 stack 溢位(#470)。
+    private final class Box: Sendable {
+        let recording: TrafficRecording
+        init(_ recording: @escaping TrafficRecording) { self.recording = recording }
+    }
 
-    public init(_ recording: TrafficRecording? = nil) { self.recording = Mutex(recording) }
+    private let box: Mutex<Box?>
 
-    public func attach(_ recording: TrafficRecording?) { self.recording.withLock { $0 = recording } }
+    public init(_ recording: TrafficRecording? = nil) { box = Mutex(Self.box(recording)) }
+
+    public func attach(_ recording: TrafficRecording?) {
+        let new = Self.box(recording)
+        box.withLock { $0 = new }
+    }
+
+    private static func box(_ recording: TrafficRecording?) -> Box? {
+        if let recording { return Box(recording) }
+        return nil
+    }
 
     public func record(_ direction: TrafficDirection, _ bytes: Int) {
-        let current = recording.withLock { $0 }
-        current?(direction, bytes)
+        let current = box.withLock { $0 }
+        current?.recording(direction, bytes)
     }
 }
 
 /// 流量計量(#353,spec #337):依主機 × 網路類型 × 方向累計，按日存 30 天;「這次開啟」只在記憶體。
 ///
-/// 時鐘與日曆注入(分日用本地時區的午夜)。`record` 只累加記憶體(可從任何執行緒呼叫，含 NIO)，寫入存放處排到背景、有節流並合併;`flush()` 一定寫(app 進背景時呼叫)。
+/// 時鐘與日曆注入(分日用本地時區的午夜)。`record` 可從任何執行緒呼叫，含 NIO(iOS 非主執行緒 stack 只有 512 KB,#470):它只把(時間、網路類型、方向、位元組數)附加到待處理清單,日曆、日期鍵、字典與存檔排程都在背景序列佇列彙總;讀取介面與 `flush()`／`reset()` 先同步彙總尚未處理的部分,語意不變。寫入存放處有節流並合併;`flush()` 一定寫(app 進背景時呼叫)。
 public final class TrafficMeter: Sendable {
     /// 保留的天數(含今天)。
     public static let retentionDays = 30
@@ -133,14 +149,34 @@ public final class TrafficMeter: Sendable {
     private struct State {
         var days: [String: [String: HostTraffic]]
         var launch: [String: HostTraffic] = [:]
-        var network: TrafficNetwork
         var lastSave: Date?
         var dirty = false
         /// 已排了一次背景存檔、還沒執行(合併用)。
         var savePending = false
     }
 
+    /// `record` 在呼叫端執行緒留下的最小記錄(只有純數值與字串參照)。
+    private struct Pending {
+        var hostID: String
+        var direction: TrafficDirection
+        var bytes: Int
+        var date: Date
+        var network: TrafficNetwork
+    }
+
+    private struct PendingQueue {
+        var items: [Pending] = []
+        /// 已排了一次背景彙總、還沒開始(合併用)。
+        var drainScheduled = false
+    }
+
     private let state: Mutex<State>
+    private let pending = Mutex(PendingQueue())
+    /// 序列化「彙總並排存檔」:讀取介面返回時,先前的 `record` 一定已彙總完、排程已送出。
+    private let drainLock = Mutex<Void>(())
+    private let networkBox: Mutex<TrafficNetwork>
+    /// 彙總開始時呼叫(測試用:確認彙總不在 `record` 的呼叫端執行緒)。
+    private let onAggregate: @Sendable () -> Void
     private let store: any TrafficStore
     private let now: @Sendable () -> Date
     private let calendar: Calendar
@@ -150,11 +186,16 @@ public final class TrafficMeter: Sendable {
 
     /// 預設的背景存檔:專用序列佇列(不在呼叫 `record` 的 NIO 執行緒上做 I/O,#470)。
     private static let saveQueue = DispatchQueue(label: "purrdr.traffic-save", qos: .utility)
+    /// 背景彙總用的專用序列佇列(日期計算、格式化、字典更新都在這裡,#470)。
+    private static let aggregateQueue = DispatchQueue(label: "purrdr.traffic-aggregate", qos: .utility)
 
     public init(
         store: any TrafficStore, now: @escaping @Sendable () -> Date = { Date() }, calendar: Calendar = .current,
-        network: TrafficNetwork = .other, scheduler: TrafficSaveScheduling? = nil
+        network: TrafficNetwork = .other, scheduler: TrafficSaveScheduling? = nil,
+        onAggregate: @escaping @Sendable () -> Void = {}
     ) {
+        self.onAggregate = onAggregate
+        networkBox = Mutex(network)
         self.store = store
         self.now = now
         self.calendar = calendar
@@ -167,15 +208,15 @@ public final class TrafficMeter: Sendable {
         }
         var loaded: [String: [String: HostTraffic]] = [:]
         for day in store.load() { loaded[day.day] = day.hosts }
-        state = Mutex(State(days: loaded, network: network))
+        state = Mutex(State(days: loaded))
     }
 
     /// 平台回報目前的網路類型;之後的位元組記在這一類。
     /// 目前記錄用的網路類型(行動網路上傳大檔前的提醒也看它)。
-    public var currentNetwork: TrafficNetwork { state.withLock { $0.network } }
+    public var currentNetwork: TrafficNetwork { networkBox.withLock { $0 } }
 
     public func setNetwork(_ network: TrafficNetwork) {
-        state.withLock { $0.network = network }
+        networkBox.withLock { $0 = network }
     }
 
     /// 某台主機的計量入口,交給它的連線。
@@ -183,36 +224,62 @@ public final class TrafficMeter: Sendable {
         { [self] direction, bytes in record(hostID: hostID, direction: direction, bytes: bytes) }
     }
 
+    /// 只附加一筆記錄並(必要時)排一次背景彙總:不算日期、不格式化、不碰日曆與字典(#470,呼叫端可能是 NIO 執行緒)。
     public func record(hostID: String, direction: TrafficDirection, bytes: Int) {
         guard bytes > 0 else { return }
-        let date = now()
-        let today = dayKey(date)
-        // 只做記憶體累加(O(1));存檔排到背景(#470:這裡在 NIO 執行緒上,不可做檔案 I/O)。
-        let delay: TimeInterval? = state.withLock { state in
-            prune(&state, today: date)
-            let network = state.network
-            func add(_ traffic: inout [String: HostTraffic]) {
-                var entry = traffic[hostID, default: [:]][network, default: TrafficBytes()]
-                switch direction {
-                case .sent: entry.sent += bytes
-                case .received: entry.received += bytes
+        let item = Pending(hostID: hostID, direction: direction, bytes: bytes, date: now(), network: networkBox.withLock { $0 })
+        let needsSchedule = pending.withLock { queue -> Bool in
+            queue.items.append(item)
+            guard !queue.drainScheduled else { return false }
+            queue.drainScheduled = true
+            return true
+        }
+        if needsSchedule { Self.aggregateQueue.async { [self] in aggregateAndScheduleSave() } }
+    }
+
+    /// 彙總待處理記錄後,必要時排存檔。背景佇列與各讀取介面共用。
+    private func aggregateAndScheduleSave() {
+        drainLock.withLock { _ in
+            if let delay = aggregate() { scheduler(delay) { [self] in performScheduledSave() } }
+        }
+    }
+
+    /// 把待處理記錄併進按日的字典;回傳需要排程存檔時的延遲(已排過、沒新資料則 `nil`)。
+    private func aggregate() -> TimeInterval? {
+        onAggregate()
+        let items = pending.withLock { queue -> [Pending] in
+            queue.drainScheduled = false
+            defer { queue.items = [] }
+            return queue.items
+        }
+        guard !items.isEmpty else { return nil }
+        return state.withLock { state in
+            for item in items {
+                let today = dayKey(item.date)
+                prune(&state, today: item.date)
+                func add(_ traffic: inout [String: HostTraffic]) {
+                    var entry = traffic[item.hostID, default: [:]][item.network, default: TrafficBytes()]
+                    switch item.direction {
+                    case .sent: entry.sent += item.bytes
+                    case .received: entry.received += item.bytes
+                    }
+                    traffic[item.hostID, default: [:]][item.network] = entry
                 }
-                traffic[hostID, default: [:]][network] = entry
+                add(&state.launch)
+                add(&state.days[today, default: [:]])
             }
-            add(&state.launch)
-            add(&state.days[today, default: [:]])
             state.dirty = true
             guard !state.savePending else { return nil }
             state.savePending = true
             guard let last = state.lastSave else { return 0 }
-            return max(0, Self.saveInterval - date.timeIntervalSince(last))
+            return max(0, Self.saveInterval - (items.last?.date ?? now()).timeIntervalSince(last))
         }
-        if let delay { scheduler(delay) { [self] in performScheduledSave() } }
     }
 
     /// 保留中的每一天(舊到新)。
     public func days() -> [TrafficDay] {
-        state.withLock { state in
+        aggregateAndScheduleSave()
+        return state.withLock { state in
             prune(&state, today: now())
             return Self.snapshot(state)
         }
@@ -220,6 +287,7 @@ public final class TrafficMeter: Sendable {
 
     /// 今天(本地時區)各主機的用量。
     public func today() -> [String: HostTraffic] {
+        aggregateAndScheduleSave()
         let key = dayKey(now())
         return state.withLock { state in
             prune(&state, today: now())
@@ -229,11 +297,13 @@ public final class TrafficMeter: Sendable {
 
     /// 這次開啟(從 app 啟動算起,只在記憶體)各主機的用量。
     public func sinceLaunch() -> [String: HostTraffic] {
-        state.withLock { $0.launch }
+        aggregateAndScheduleSave()
+        return state.withLock { $0.launch }
     }
 
     /// 把還沒寫的用量寫進存放處(同步,呼叫者的執行緒;app 進背景時從主執行緒呼叫)。
     public func flush() {
+        _ = aggregate()
         saveLock.withLock { _ in
             let toSave: [TrafficDay]? = state.withLock { state in
                 prune(&state, today: now())
@@ -248,6 +318,7 @@ public final class TrafficMeter: Sendable {
 
     /// 重設統計:清掉所有歷史與這次開啟。
     public func reset() {
+        _ = aggregate()
         saveLock.withLock { _ in
             state.withLock { state in
                 state.days = [:]
@@ -261,6 +332,7 @@ public final class TrafficMeter: Sendable {
 
     /// 排程到背景的存檔:取當下最新的狀態寫(中間累加的都合併進來)。
     private func performScheduledSave() {
+        _ = aggregate()
         saveLock.withLock { _ in
             let toSave: [TrafficDay]? = state.withLock { state in
                 state.savePending = false
@@ -282,7 +354,11 @@ public final class TrafficMeter: Sendable {
 
     private func dayKey(_ date: Date) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+        func padded(_ value: Int, _ width: Int) -> String {
+            let digits = String(max(value, 0))
+            return String(repeating: "0", count: max(0, width - digits.count)) + digits
+        }
+        return padded(parts.year ?? 0, 4) + "-" + padded(parts.month ?? 0, 2) + "-" + padded(parts.day ?? 0, 2)
     }
 
     /// 丟掉保留範圍(今天往前 30 天,含今天)之前的天。

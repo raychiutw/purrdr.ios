@@ -1,5 +1,6 @@
 import Foundation
 import NIOCore
+import NIOPosix
 import PurrdrCore
 import PurrdrTestSupport
 import Synchronization
@@ -34,9 +35,29 @@ struct TailscaleCheckChannelTests {
         let result = try await pending.value
 
         #expect(result.stdout == "ok")
+        try await eventually { prompts.urls.count >= 2 }  // 清除提示經背景佇列(#470)
         #expect(prompts.urls == [Self.url, nil], "先顯示驗證網址，完成後收起")
         #expect(server.snapshot.connections == 1)
         #expect(server.snapshot.commands == ["x"])
+        await channel.disconnect()
+        await server.stop()
+    }
+
+    @Test("驗證網址的觀察者不在 event loop 上執行(#470)", .timeLimit(.minutes(1)))
+    func checkObserverNeverRunsOnEventLoop() async throws {
+        let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .hold) }) { _ in .reply() }
+        let calls = Mutex<(total: Int, onLoop: Int)>((0, 0))
+        let channel = SSHHostChannel(
+            endpoint: server.endpoint, hostKeyPin: server.fingerprint,
+            tailscaleCheck: { _ in
+                let onLoop = MultiThreadedEventLoopGroup.currentEventLoop != nil
+                calls.withLock { $0.total += 1; if onLoop { $0.onLoop += 1 } }
+            })
+
+        let pending = Task { try await channel.execute("x") }
+        try await eventually { calls.withLock { $0.total } >= 1 }
+        pending.cancel()
+        #expect(calls.withLock { $0.onLoop } == 0)
         await channel.disconnect()
         await server.stop()
     }
@@ -53,6 +74,7 @@ struct TailscaleCheckChannelTests {
         await prompt.cancel()
 
         await #expect(throws: SSHConnectionError.tailscaleCheckCancelled) { _ = try await pending.value }
+        try await eventually { prompts.urls.count >= 2 }
         #expect(prompts.urls == [Self.url, nil])
         #expect(server.snapshot.commands.isEmpty)
         try await eventually { server.snapshot.disconnections == 1 }
@@ -72,6 +94,7 @@ struct TailscaleCheckChannelTests {
         #expect(result.stdout == "ok")
         #expect(server.snapshot.connections == 2)
         #expect(server.snapshot.commands == ["x"])
+        try await eventually { prompts.urls.count >= 2 }
         #expect(prompts.urls == [Self.url, nil])
         await channel.disconnect()
         await server.stop()
@@ -87,6 +110,7 @@ struct TailscaleCheckChannelTests {
 
         await #expect(throws: SSHConnectionError.authenticationFailed) { _ = try await channel.execute("x") }
         #expect(server.snapshot.connections == 1)
+        try await eventually { prompts.urls.count >= 2 }
         #expect(prompts.urls == [Self.url, nil])
         await server.stop()
     }
@@ -107,6 +131,7 @@ struct TailscaleCheckChannelTests {
 
         await #expect(throws: SSHConnectionError.tailscaleCheckTimedOut) { _ = try await pending.value }
         #expect(server.snapshot.connections == 1)
+        try await eventually { prompts.urls.count >= 2 }
         #expect(prompts.urls == [Self.url, nil])
         try await eventually { server.snapshot.disconnections == 1 }
         await server.stop()
