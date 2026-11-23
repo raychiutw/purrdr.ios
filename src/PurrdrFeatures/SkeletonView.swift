@@ -64,39 +64,38 @@ struct SkeletonBlock: View {
     }
 }
 
-/// 帳號頁第一次載入(#496,設計稿 `Skeleton` 帳號頁):會員列、Plus 卡、Plus 功能的佔位;整頁一個「載入中」。
+/// 帳號頁第一次載入(#496,設計稿 `Skeleton` 帳號頁):會員列、Plus 卡、Plus 功能的佔位,整段一個「載入中」;
+/// 設定區(`settings`)照常顯示,不被後台狀態擋住(purrdr://settings 與 Cmd-, 開到的要能用)。
 struct AccountSkeletonView: View {
+    var settings: AccountSettings?
+
     var body: some View {
         List {
             Section {
-                HStack(spacing: 12) {
-                    SkeletonBlock(width: 44, height: 44, cornerRadius: 22)
-                    VStack(alignment: .leading, spacing: 8) {
-                        SkeletonBlock(height: 16).containerRelativeFrame(.horizontal) { width, _ in width * 0.4 }
-                        SkeletonBlock(height: 12).containerRelativeFrame(.horizontal) { width, _ in width * 0.62 }
+                // 整段只套一次骨架:同一個 Section 只有一個「載入中」元素。
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack(spacing: 12) {
+                        SkeletonBlock(width: 44, height: 44, cornerRadius: 22)
+                        VStack(alignment: .leading, spacing: 8) {
+                            SkeletonBlock(height: 16).containerRelativeFrame(.horizontal) { width, _ in width * 0.4 }
+                            SkeletonBlock(height: 12).containerRelativeFrame(.horizontal) { width, _ in width * 0.62 }
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 10) {
+                        SkeletonBlock(height: 17).containerRelativeFrame(.horizontal) { width, _ in width * 0.36 }
+                        SkeletonBlock(height: 13).containerRelativeFrame(.horizontal) { width, _ in width * 0.7 }
+                        SkeletonBlock(height: 44, cornerRadius: 22)
+                    }
+                    VStack(alignment: .leading, spacing: 16) {
+                        SkeletonBlock(height: 15).containerRelativeFrame(.horizontal) { width, _ in width * 0.5 }
+                        SkeletonBlock(height: 15).containerRelativeFrame(.horizontal) { width, _ in width * 0.44 }
                     }
                 }
+                .skeleton(identifier: "account.loading")
             }
-            Section {
-                VStack(alignment: .leading, spacing: 10) {
-                    SkeletonBlock(height: 17).containerRelativeFrame(.horizontal) { width, _ in width * 0.36 }
-                    SkeletonBlock(height: 13).containerRelativeFrame(.horizontal) { width, _ in width * 0.7 }
-                    SkeletonBlock(height: 44, cornerRadius: 22)
-                }
-            } header: {
-                Text("Purrdr Plus").foregroundStyle(.secondaryText).unredacted()
-            }
-            Section {
-                VStack(alignment: .leading, spacing: 16) {
-                    SkeletonBlock(height: 15).containerRelativeFrame(.horizontal) { width, _ in width * 0.5 }
-                    SkeletonBlock(height: 15).containerRelativeFrame(.horizontal) { width, _ in width * 0.44 }
-                }
-            } header: {
-                Text("Plus Features").foregroundStyle(.secondaryText).unredacted()
-            }
+            if let settings { SettingsSections(settings) }
         }
         .appGroupedList()
-        .skeleton(identifier: "account.loading")
     }
 }
 

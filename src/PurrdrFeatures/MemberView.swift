@@ -133,15 +133,23 @@ public struct MemberContent: View {
         } else if model.phase == .unknown {
             if model.isWorking {
                 // 後台還沒回應、沒有上次的會員資料:帳號頁骨架(#496)。
-                AccountSkeletonView()
+                AccountSkeletonView(settings: settings)
             } else {
-                ContentUnavailableView {
-                    Label("Can’t Reach Purrdr", systemImage: "wifi.exclamationmark")
-                } description: {
-                    Text("Your sign-in is kept on this device. Try again when you’re online.")
-                } actions: {
-                    Button("Try Again") { Task { await model.restore() } }
+                // 連不上後台:說明加上設定區(設定不被後台狀態擋住)。
+                List {
+                    Section {
+                        ContentUnavailableView {
+                            Label("Can’t Reach Purrdr", systemImage: "wifi.exclamationmark")
+                        } description: {
+                            Text("Your sign-in is kept on this device. Try again when you’re online.")
+                        } actions: {
+                            Button("Try Again") { Task { await model.restore() } }
+                        }
+                        .listRowBackground(Color.clear)
+                    }
+                    if let settings { SettingsSections(settings) }
                 }
+                .appGroupedList()
             }
         } else {
             AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts, settings: settings)

@@ -45,5 +45,8 @@ final class SkeletonUITests: XCTestCase {
         let skeleton = app.element("account.loading")
         XCTAssertTrue(skeleton.waitUntilExists(timeout: 10), "帳號頁沒有骨架")
         XCTAssertEqual(skeleton.label, "Loading…")
+        // 設定不被後台狀態擋住:後台沒回應時帳號頁仍有設定區(purrdr://settings、Cmd-, 開到的要能用)。
+        XCTAssertTrue(app.element("settings.appearance").waitUntilExists(timeout: 5), "後台沒回應時帳號頁沒有設定區")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "account.loading").count, 1, "骨架只該有一個「載入中」元素")
     }
 }
