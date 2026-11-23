@@ -441,4 +441,30 @@ struct ConversationScrollTests {
         let squeezedBeyond = ConversationScrollMetrics(contentHeight: 29390, containerHeight: 6, contentOffsetY: 29653, topInset: 116, bottomInset: 752)
         #expect(!ConversationScroll().returnsToContent(squeezedBeyond, at: Date(timeIntervalSince1970: 1_000)), "停在內容之外也不捲")
     }
+
+    // MARK: 往前讀(#473)
+
+    private func metrics(content: Double, container: Double = 600, offset: Double = 0) -> ConversationScrollMetrics {
+        ConversationScrollMetrics(contentHeight: content, containerHeight: container, contentOffsetY: offset, topInset: 0, bottomInset: 0)
+    }
+
+    @Test("內容不夠填滿畫面:沒拖動過也往前讀")
+    func underfilledContentLoadsOlderWithoutDragging() {
+        #expect(metrics(content: 300).wantsOlderPage(userHasDragged: false, autoLoadedPages: 0, autoLoadLimit: 25))
+    }
+
+    @Test("內容夠長、沒拖動過:不讀;拖動到離頂端一個畫面內才讀")
+    func longContentWaitsForDragging() {
+        #expect(!metrics(content: 5_000, offset: 4_400).wantsOlderPage(userHasDragged: false, autoLoadedPages: 0, autoLoadLimit: 25))
+        #expect(!metrics(content: 5_000, offset: 4_400).wantsOlderPage(userHasDragged: true, autoLoadedPages: 0, autoLoadLimit: 25))
+        #expect(metrics(content: 5_000, offset: 500).wantsOlderPage(userHasDragged: true, autoLoadedPages: 0, autoLoadLimit: 25))
+    }
+
+    @Test("自動補讀有頁數上限;排版還沒量到(高度 0)不觸發")
+    func autoLoadIsBoundedAndWaitsForLayout() {
+        #expect(!metrics(content: 300).wantsOlderPage(userHasDragged: false, autoLoadedPages: 25, autoLoadLimit: 25))
+        #expect(metrics(content: 300).wantsOlderPage(userHasDragged: true, autoLoadedPages: 25, autoLoadLimit: 25), "使用者拖動不受自動上限限制")
+        #expect(!metrics(content: 0).wantsOlderPage(userHasDragged: false, autoLoadedPages: 0, autoLoadLimit: 25))
+        #expect(!metrics(content: 300, container: 0).wantsOlderPage(userHasDragged: false, autoLoadedPages: 0, autoLoadLimit: 25))
+    }
 }

@@ -24,6 +24,8 @@ public struct ConversationView: View {
     /// 「跳到最新」是否已顯示(跟隨中延遲顯示,#476)。
     @State private var jumpToLatestVisible = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
     @State private var userHasDragged = false
+    /// 沒拖動過時自動往前讀的頁數(#473)。
+    @State private var autoLoadedPages = 0
     /// 畫面上看得到的列(內容被重建時的錨點,#130)。
     @State private var visibleIDs: [String] = []
     /// 上次看到的列 id(`model.entriesRevision` 改變時與新的比較，#130)。
@@ -276,8 +278,12 @@ public struct ConversationView: View {
                 scroll.followedByOffset(metrics)
                 position.scrollTo(y: metrics.bottomScrollPositionY)
             }
-            // 距頂端 ≤ 1 個畫面高就讀上一頁。
-            if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
+            // 距頂端 ≤ 1 個畫面高就讀上一頁;內容還不夠填滿畫面時不必等使用者拖動(有頁數上限,#473)。
+            if model.older == .available,
+               metrics.wantsOlderPage(
+                   userHasDragged: userHasDragged, autoLoadedPages: autoLoadedPages, autoLoadLimit: ConversationModel.maximumEmptyWindowPages)
+            {
+                if !userHasDragged { autoLoadedPages += 1 }
                 Task { await model.loadOlder() }
             }
         }

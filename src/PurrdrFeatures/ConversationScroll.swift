@@ -251,4 +251,12 @@ public struct ConversationScrollMetrics: Equatable, Sendable {
     public var distanceFromTop: Double {
         contentOffsetY + topInset
     }
+
+    /// 要不要讀上一頁(#473):距頂端 ≤ 1 個畫面高時,使用者拖動過就讀;沒拖動過時只有內容還不夠填滿(量得到排版之後)
+    /// 才自動讀,而且自動讀最多 `autoLoadLimit` 頁(整份都是工具步驟時摺起來的高度很短,不能一路讀到檔案開頭)。
+    public func wantsOlderPage(userHasDragged: Bool, autoLoadedPages: Int, autoLoadLimit: Int) -> Bool {
+        guard distanceFromTop <= containerHeight else { return false }
+        if userHasDragged { return true }
+        return contentHeight > 0 && containerHeight > 0 && autoLoadedPages < autoLoadLimit
+    }
 }
