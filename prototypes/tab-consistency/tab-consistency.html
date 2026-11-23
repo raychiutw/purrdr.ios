@@ -105,8 +105,8 @@ textarea#out{width:100%;min-height:210px;font:13px/1.55 ui-monospace,SFMono-Regu
 .pw{position:relative;flex:none;overflow:hidden;border-radius:calc(46px*var(--s));box-shadow:0 0 0 calc(5px*var(--s)) #0E0E10;margin:calc(5px*var(--s))}
 .pw.crop{height:calc(var(--ch)*var(--s));border-radius:calc(46px*var(--s)) calc(46px*var(--s)) 0 0}
 .ph{position:absolute;left:0;top:0;width:402px;height:874px;transform:scale(var(--s));transform-origin:0 0;overflow:hidden;background:var(--gbg);color:var(--text);font-family:var(--font);line-height:1.25;border-radius:46px}
-.pd{--bg:#1C1C1E;--gbg:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--text:#FFFFFF;--sec:#AEAEB2;--dis:#8E8E93;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--tabsel:#3CCF9E;--glass:rgba(58,58,60,.72);--glassline:rgba(255,255,255,.16);--orange:#FF9F0A;--ok:#6FAE98;--warnr:#C99A6A;--high:#C98078;--track:rgba(120,120,128,.28);--claude:#4A3A33;--claudefg:#F0B8A0;--codex:#2F3A48;--codexfg:#A9C4E8;--gray:#8E8E93;--badge:#1F3F34}
-.pl{--bg:#FFFFFF;--gbg:#F2F2F7;--card:#FFFFFF;--fill:rgba(120,120,128,.16);--text:#000000;--sec:#636366;--dis:#8E8E93;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--on:#FFFFFF;--tabsel:#075C45;--glass:rgba(255,255,255,.72);--glassline:rgba(0,0,0,.08);--orange:#FF9500;--ok:#4F8572;--warnr:#A9784A;--high:#B0645D;--track:rgba(120,120,128,.16);--claude:#F6E3DA;--claudefg:#8A4A30;--codex:#DDE7F4;--codexfg:#2F4F7A;--gray:#8E8E93;--badge:#D6EBE3}
+.pd{--bg:#1C1C1E;--gbg:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--text:#FFFFFF;--sec:#AEAEB2;--dis:#8E8E93;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--tabsel:#3CCF9E;--glass:rgba(58,58,60,.72);--glassline:rgba(255,255,255,.16);--orange:#FF9F0A;--red:#FF6B63;--ok:#6FAE98;--warnr:#C99A6A;--high:#C98078;--track:rgba(120,120,128,.28);--claude:#4A3A33;--claudefg:#F0B8A0;--codex:#2F3A48;--codexfg:#A9C4E8;--gray:#8E8E93;--badge:#1F3F34}
+.pl{--bg:#FFFFFF;--gbg:#F2F2F7;--card:#FFFFFF;--fill:rgba(120,120,128,.16);--text:#000000;--sec:#636366;--dis:#8E8E93;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--on:#FFFFFF;--tabsel:#075C45;--glass:rgba(255,255,255,.72);--glassline:rgba(0,0,0,.08);--orange:#FF9500;--red:#D92D20;--ok:#4F8572;--warnr:#A9784A;--high:#B0645D;--track:rgba(120,120,128,.16);--claude:#F6E3DA;--claudefg:#8A4A30;--codex:#DDE7F4;--codexfg:#2F4F7A;--gray:#8E8E93;--badge:#D6EBE3}
 .ph svg{display:block;flex:none}
 .glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6)}
 .sbar{position:absolute;top:0;left:0;right:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:6px 34px 0 38px;font-size:16px;font-weight:600;z-index:8}
@@ -194,8 +194,19 @@ textarea#out{width:100%;min-height:210px;font:13px/1.55 ui-monospace,SFMono-Regu
 .face{width:44px;height:44px;border-radius:13px;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .face.claude{background:var(--claude);color:var(--claudefg)}
 .face.codex{background:var(--codex);color:var(--codexfg)}
-.sb{position:absolute;right:-4px;bottom:-4px;width:20px;height:20px;border-radius:10px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2.5px solid var(--gbg);box-sizing:content-box;margin:-2.5px}
-.sb.need{background:var(--orange);color:#000}.sb.work{background:var(--accent);color:var(--on)}.sb.done{background:var(--gray);color:#fff}
+/* 狀態點:12px,疊在頭像右下角外緣,外圈 2px 列背景色;實心=未讀,空心=已讀 */
+.sdt{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;border-radius:6px;box-sizing:border-box;background:var(--c);box-shadow:0 0 0 2px var(--gbg)}
+.sdt.read{background:var(--gbg);border:2px solid var(--c)}
+.sdt.need{--c:var(--orange)}.sdt.work{--c:var(--accent)}.sdt.err{--c:var(--red)}.sdt.other{--c:var(--gray)}
+.sdt.lg{position:static;display:inline-block;flex:none}
+.lgbox{background:var(--gbg);color:var(--text);border-radius:16px;padding:16px;display:flex;flex-wrap:wrap;gap:18px 28px;align-items:center;font-size:14px}
+.lgbox table{border-collapse:collapse;color:inherit;font-size:inherit}
+.lgbox td,.lgbox th{padding:6px 14px 6px 0;text-align:left;font-weight:500;vertical-align:middle}
+.lgbox th{color:var(--sec);font-size:12px}
+.lgbox td:nth-child(n+2),.lgbox th:nth-child(n+2){text-align:center}
+.lgz{width:150px;height:150px;position:relative}
+.lgz .av{transform:scale(3);transform-origin:0 0;position:absolute;left:8px;top:8px}
+.lgn{font-size:13px;color:var(--sec);max-width:36ch;line-height:1.5}
 .rb{flex:1;min-width:0;display:flex;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--sep)}
 .rb.stack{flex-direction:column}
 .mc{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
@@ -298,17 +309,17 @@ const svg=(n,s=22,sw=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" 
 
 /* ---------------- 假資料 ---------------- */
 const AG=[
- {id:'a',ws:'purrdr',tab:'purrdr.ios',n:1,title:'Agent 設定檔的領域文件',host:'Ray PC',hi:'desk',pv:'好,「值得探討」和「推測性」的差別在於有沒有證據',time:'現在',pct:64,st:'work',av:'C',away:'離開期間 · +1 輪'},
- {id:'b',ws:'purrdr',tab:'',n:2,title:'Mattpocock-skills 全部票券單一 PR',host:'Ray Mac Mini',hi:'mini',pv:'PR #89 已經下令合併,0.14.1 即將發佈',time:'15:13',pct:43,st:'done',av:'C'},
- {id:'c',ws:'purrdr',tab:'',n:3,title:'Implement-spec 的 to-spec 與 to-tickets',host:'Ray Mac Mini',hi:'mini',pv:'0.50.0 已經發佈了。PR #418 已合併進主分支',time:'15:12',pct:70,st:'done',av:'C',away:'離開期間 · +1 輪'},
- {id:'d',ws:'purrdr',tab:'',n:4,title:'herdr.sock SSH 公鑰設定',host:'Ray Mac Mini',hi:'mini',pv:'purrdr-ios-ea 已修好設計稿的對比問題',time:'15:12',pct:30,st:'done',av:'C'},
- {id:'e',ws:'purrdr',tab:'',n:5,title:'purrdr',host:'Ray PC',hi:'desk',pv:'要執行 rm -rf build 嗎?',time:'15:10',pct:12,st:'need',av:'A'},
- {id:'f',ws:'herdr',tab:'',n:1,title:'herdr 0.9.6 更新後連線測試',host:'Ray PC',hi:'desk',pv:'連線測試通過,等你確認要不要發版',time:'14:58',pct:22,st:'done',av:'A'},
- {id:'g',ws:'purrdr.host',tab:'',n:2,title:'主機服務 0.14 安裝腳本',host:'Ray Mac Mini',hi:'mini',pv:'install.sh 已加入 --https-port 說明',time:'14:40',pct:55,st:'done',av:'C'},
- {id:'h',ws:'docs',tab:'',n:1,title:'ADR-0013 Agent 設定檔',host:'Ray Mac Mini',hi:'mini',pv:'草稿已寫好,等你看過',time:'13:21',pct:18,st:'done',av:'C'},
- {id:'i',ws:'notes',tab:'',n:1,title:'研究 iOS 27 設計語言',host:'Ray PC',hi:'desk',pv:'報告已存到 docs/research',time:'昨天',pct:80,st:'done',av:'C'}
+ {id:'a',ws:'purrdr',tab:'purrdr.ios',n:1,title:'Agent 設定檔的領域文件',host:'Ray PC',hi:'desk',pv:'好,「值得探討」和「推測性」的差別在於有沒有證據',time:'現在',pct:64,st:'work',unread:1,av:'C',away:'離開期間 · +1 輪'},
+ {id:'b',ws:'purrdr',tab:'',n:2,title:'Mattpocock-skills 全部票券單一 PR',host:'Ray Mac Mini',hi:'mini',pv:'PR #89 已經下令合併,0.14.1 即將發佈',time:'15:13',pct:43,st:'other',av:'C'},
+ {id:'c',ws:'purrdr',tab:'',n:3,title:'Implement-spec 的 to-spec 與 to-tickets',host:'Ray Mac Mini',hi:'mini',pv:'0.50.0 已經發佈了。PR #418 已合併進主分支',time:'15:12',pct:70,st:'other',unread:1,av:'C',away:'離開期間 · +1 輪'},
+ {id:'d',ws:'purrdr',tab:'',n:4,title:'herdr.sock SSH 公鑰設定',host:'Ray Mac Mini',hi:'mini',pv:'purrdr-ios-ea 已修好設計稿的對比問題',time:'15:12',pct:30,st:'err',unread:1,av:'C'},
+ {id:'e',ws:'purrdr',tab:'',n:5,title:'purrdr',host:'Ray PC',hi:'desk',pv:'要執行 rm -rf build 嗎?',time:'15:10',pct:12,st:'need',unread:1,av:'A'},
+ {id:'f',ws:'herdr',tab:'',n:1,title:'herdr 0.9.6 更新後連線測試',host:'Ray PC',hi:'desk',pv:'連線測試通過,等你確認要不要發版',time:'14:58',pct:22,st:'work',av:'A'},
+ {id:'g',ws:'purrdr.host',tab:'',n:2,title:'主機服務 0.14 安裝腳本',host:'Ray Mac Mini',hi:'mini',pv:'install.sh 已加入 --https-port 說明',time:'14:40',pct:55,st:'err',av:'C'},
+ {id:'h',ws:'docs',tab:'',n:1,title:'ADR-0013 Agent 設定檔',host:'Ray Mac Mini',hi:'mini',pv:'草稿已寫好,等你看過',time:'13:21',pct:18,st:'need',av:'C'},
+ {id:'i',ws:'notes',tab:'',n:1,title:'研究 iOS 27 設計語言',host:'Ray PC',hi:'desk',pv:'報告已存到 docs/research',time:'昨天',pct:80,st:'other',av:'C'}
 ];
-const ST={work:'•••',need:'!',done:'✓'};
+const STL={need:'需要你',work:'工作中',err:'錯誤',other:'其他'};
 
 /* ---------------- 全域狀態 ---------------- */
 const URLQ=new URLSearchParams(location.search);
@@ -352,13 +363,14 @@ const DECIDED=[
  'D-8 Spaces 列:A 郵件式三層的「寬鬆版」(標題 17pt Semibold,Tab 名與預覽用次要色,列高、行距、內距、區段間距加大,時間與用量環不擠;Dynamic Type 放大時右欄堆到文字下方)。',
  'D-9 離開期間:第二行開頭的小標籤,不擠標題。',
  'D-10 新增聊天符號:plus(加號)。',
- 'D-11 流量頁:保留卡片,寬度與邊距對齊其他頁。'
+ 'D-11 流量頁:保留卡片,寬度與邊距對齊其他頁。',
+ '聊天列頭像右下角的狀態標記改回四色圓點(不用 ••• ! ✓ 符號):12px,疊在頭像右下角外緣,外圈 2px 列背景色。需要你=橘、工作中／已連線=主色綠、錯誤／失敗=紅、其他=灰;實心=未讀、空心=已讀(色環、中間透出列底色)。標題膠囊與停止列的圓點仍是 8px。'
 ];
 const SECTIONS=[
 {id:'s0',title:'整體版型(依參考圖)',blurb:'依你的 4 張參考圖與決定整理出兩個版型。每個版型可以直接上下滑動手機、點 tab、點電腦圖示、＋與頭像;下面也列出 4 個 tab 在「未捲動」與「已捲動」的對照。這一題選好後,後面所有手機都用你選的版型。',groups:[
  {id:'D-0',key:'layout',title:'整體版型',custom:true}]},
 {id:'s1',title:'頂列顏色與「白色」',blurb:'你要的是「header 文字統一白色」。深色模式下系統單色本來就是白;問題是淺色模式與綠色的來源。',groups:[
- {id:'D-1',key:'color',title:'頂列顏色',q:'頂列現在是 [電腦圖示｜＋] 膠囊與頭像。要全部統一成哪一種?綠色只留給狀態(例如 D-3 的小點、列上的狀態徽章)。',tabs:true,vs:[
+ {id:'D-1',key:'color',title:'頂列顏色',q:'頂列現在是 [電腦圖示｜＋] 膠囊與頭像。要全部統一成哪一種?綠色只留給狀態(例如 D-3 的小點、列上的狀態點)。',tabs:true,vs:[
   {v:'mono',name:'全部系統單色',rec:1,hig:'Color 頁:Liquid Glass 上的符號預設單色,底下內容亮時變暗、暗時變亮;顏色留給主要動作與狀態。',cost:'少了綠色品牌感,新增聊天不再突出(tab bar 選取色仍是綠)。'},
   {v:'green',name:'電腦圖示與 ＋ 綠色',hig:'與 Toolbars「Reduce the use of tinted controls」相反;Branding 建議把 accent 留給主要動作與選取中的 tab。',cost:'顏色靠繼承,各 tab 容易漂移;有 herdr 主題時會變主題色。'},
   {v:'prominent',name:'只有聊天的「＋」那一半綠底',hig:'Toolbars:.prominent 只給 Done、Submit 這類主要動作,全頁一顆;顏色上在底,不上在字。',cost:'新增聊天算不算主要動作要你判斷;檔案與主機的 ＋ 仍是單色,不一致。'}]},
@@ -388,7 +400,7 @@ const SECTIONS=[
   {v:'workspace',name:'改叫「Workspace」',hig:'Tab bars:標籤與清單的分組單位同名,看名稱就知道裡面是什麼。',cost:'標籤較長,tab bar 較擠;Workspace 是 herdr 的概念,新使用者不一定懂;詞彙依 GLOSSARY,Workspace 保留英文,要一起核對。'}]}
 ]},
 {id:'s5',title:'聊天列統一',blurb:'聊天只有 Spaces:依「主機 · Workspace」分組,區段標題是「主機 · Workspace」,底下是 Tab 的列。假資料取自你的截圖:第 1 筆與第 3 筆有「離開期間 · +1 輪」,第 3 筆標題很長。',groups:[
- {id:'D-8',key:'plan',title:'Spaces 列的版型',q:'你選了 A 郵件式三層,並要求更寬鬆、更好讀。下面把「A 原版」與「A 寬鬆版」並排,看列高、行距、內距、區塊間距的差別;現況只當對照。拉上方的字級滑桿到 AX5,看放大時是否仍成立(右欄會堆到文字下方、標題與預覽可折兩行)。',tabs:false,fixTab:'chats',vs:[
+ {id:'D-8',key:'plan',title:'Spaces 列的版型',q:'你選了 A 郵件式三層,並要求更寬鬆、更好讀。下面把「A 原版」與「A 寬鬆版」並排,看列高、行距、內距、區塊間距的差別;現況只當對照。拉上方的字級滑桿到 AX5,看放大時是否仍成立(右欄會堆到文字下方、標題與預覽可折兩行)。',tabs:false,fixTab:'chats',legend:true,vs:[
   {v:'now',name:'現況(對照)',ref:1,hig:'—',cost:'列只有標題,沒有時間、用量、預覽;離開期間膠囊塞在標題同一行,把標題擠成「…」。',phones:[{label:'Spaces'}]},
   {v:'A',name:'A 原版(對照)',hig:'Typography:用字重、字級與顏色建立層級。第一行 Tab 名,第二行 Agent 標題(離開期間標籤在開頭),第三行預覽。',cost:'列高約 83pt、行距 3pt、區段標題上內距 14pt,偏擠;時間與用量環貼在右上。',phones:[{label:'Spaces'}]},
   {v:'AW',name:'A 寬鬆版',rec:1,mine:1,hig:'Typography:標題 17pt Semibold 主色,Tab 名 15pt 與預覽 14pt 用次要色,層級靠字級與顏色分開。離開期間小標籤在第二行開頭,不擠標題。Lists and tables:內容之間留足空白。',cost:'列高約 101pt(原版約 83pt)、行距 5pt、區段標題上內距 26pt,一屏約少看 1 筆 Tab;換來較好閱讀。',phones:[{label:'Spaces'}]}]},
@@ -497,7 +509,7 @@ function ringHTML(p){
   const c=2*Math.PI*7;
   return `<span class="ring"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="var(--track)" stroke-width="2.6"/><circle cx="9" cy="9" r="7" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="${(c*p/100).toFixed(1)} ${c}" transform="rotate(-90 9 9)"/></svg>${p}%</span>`
 }
-function avatar(it){return `<span class="av"><span class="face ${it.av==='A'?'codex':'claude'}">${it.av}</span><span class="sb ${it.st}">${ST[it.st]}</span></span>`}
+function avatar(it){return `<span class="av"><span class="face ${it.av==='A'?'codex':'claude'}">${it.av}</span><span class="sdt ${it.st}${it.unread?'':' read'}" role="img" aria-label="${STL[it.st]},${it.unread?'未讀':'已讀'}"></span></span>`}
 const tabDisp=it=>it.tab||('Tab '+it.n);
 function rowHTML(c,it,ax){
   const plan=c.plan, aw=c.away, stack=ax?' stack':'';
@@ -629,12 +641,12 @@ function groupHTML(g){
     <div class="phones">${slots}</div>
     <dl class="notes"><dt>HIG 依據</dt><dd>${v.hig}</dd><dt>代價</dt><dd>${v.cost}</dd>${v.unc?`<dt>未確認</dt><dd class="unc">${v.unc}</dd>`:''}</dl></div>`;
   }).join('');
-  return `<div class="group" id="g-${g.id}"><div class="ghead"><span class="did">${g.id}</span><h3>${g.title}</h3></div><p class="q">${g.q}</p>${tools}<div class="vrow">${vs}</div><div class="five" data-fivebox="${g.id}" hidden><div class="cap">目前選中的方案,4 個 tab</div><div class="rowp"></div></div></div>`;
+  return `<div class="group" id="g-${g.id}"><div class="ghead"><span class="did">${g.id}</span><h3>${g.title}</h3></div><p class="q">${g.q}</p>${g.legend?'<div id="dotlegend" style="margin-bottom:14px"></div>':''}${tools}<div class="vrow">${vs}</div><div class="five" data-fivebox="${g.id}" hidden><div class="cap">目前選中的方案,4 個 tab</div><div class="rowp"></div></div></div>`;
 }
 const FINAL={layout:'pod',color:'mono',white:'system',ind:'dot',nos:'small',acct:'sheet',tabName:'chat',plan:'AW',away:'line2',compose:'plus',traffic:'scroll',scope:'all'};
 const FS=0.62;
 const PINS_UNS={
- chats:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[4,'.srow'],[5,'.sh'],[6,'.row'],[7,'.tabbar']],
+ chats:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[4,'.srow'],[5,'.sh'],[6,'.row'],[9,'.row .sdt'],[7,'.tabbar']],
  files:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[4,'.srow'],[5,'.crumb'],[6,'.cell'],[7,'.tabbar']],
  hosts:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[5,'.sh'],[6,'.cell'],[7,'.tabbar']],
  traffic:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[5,'.chip3'],[6,'.card'],[7,'.tabbar']],
@@ -654,7 +666,8 @@ const SPEC_COMMON=[
 const SPEC_TAB={
  chats:[
   [5,'區段標題「主機 · Workspace」','高 36(第一個上內距 10,其餘 26,下內距 8)、左右 20;14pt Semibold、字距 .02em、次要色;前面 16pt 主機圖示。'],
-  [6,'列(A 寬鬆版)','高 101 = 上內距 14 + 內容 70 + 下內距 16 + 分隔線 1。頭像 48×48、圓角 14、狀態徽章 20pt;頭像與文字間距 14、左右邊距 16。三行、行距 5:標題 17pt Semibold 主色(行高 22)、Tab 名 15pt Medium 次要色(行高 20;「離開期間」小標籤 12pt Semibold、圓角 6,放在這一行開頭)、預覽 14pt 次要色(行高 18)。右欄寬 58:時間 13pt 次要色、用量環 18pt 加 13pt 數字,上下間距 8;箭頭 14pt。分隔線 1pt,自文字起算。'],
+  [6,'列(A 寬鬆版)','高 101 = 上內距 14 + 內容 70 + 下內距 16 + 分隔線 1。頭像 48×48、圓角 14、狀態點 12pt(見 9);頭像與文字間距 14、左右邊距 16。三行、行距 5:標題 17pt Semibold 主色(行高 22)、Tab 名 15pt Medium 次要色(行高 20;「離開期間」小標籤 12pt Semibold、圓角 6,放在這一行開頭)、預覽 14pt 次要色(行高 18)。右欄寬 58:時間 13pt 次要色、用量環 18pt 加 13pt 數字,上下間距 8;箭頭 14pt。分隔線 1pt,自文字起算。'],
+  [9,'狀態點(頭像右下角)','12×12 圓點,右、下各超出頭像邊 3pt(疊在頭像外緣);外圈 2pt 列背景色(陰影墊出)。四色:需要你=橘、工作中／已連線=主色綠、錯誤／失敗=紅、其他=灰。實心 = 未讀;空心 = 已讀(2pt 色環、中間填列底色)。標題膠囊與停止列的圓點維持 8pt。'],
   ['AX','Dynamic Type 放大(超過 ×1.4)','右欄堆到文字下方同一行;標題與預覽可折成 2 行;列高自動撐開,頭像、內距不變。']],
  files:[
   [5,'麵包屑','top 162、高 18、14pt 次要色、左右 16;層級間用「›」。'],
@@ -695,6 +708,14 @@ function placePins(){
     });
   });
 }
+function renderLegend(){
+  const el=document.getElementById('dotlegend'); if(!el)return;
+  const cls=GL.theme==='dark'?'pd':'pl';
+  const rows=[['need','需要你','橘'],['work','工作中／已連線','主色(綠)'],['err','錯誤／失敗','紅'],['other','其他','灰']];
+  const d=(s,r)=>`<span class="sdt lg ${s}${r?' read':''}"></span>`;
+  const sample={av:'C',st:'need',unread:1};
+  el.innerHTML=`<div class="${cls} lgbox"><div><div style="font-weight:700;margin-bottom:6px">狀態點圖例(頭像右下角)</div><table><thead><tr><th>狀態</th><th>實心 = 未讀</th><th>空心 = 已讀</th></tr></thead><tbody>${rows.map(([s,n,c])=>`<tr><td>${n}(${c})</td><td>${d(s,0)}</td><td>${d(s,1)}</td></tr>`).join('')}</tbody></table></div><div class="lgz">${avatar(sample)}</div><div class="lgn"><b style="color:var(--text)">12px</b> 圓點,疊在頭像右下角外緣(圓心約在頭像邊角外 3px);外圈墊 <b style="color:var(--text)">2px</b> 列背景色。空心 = 色環(2px)、中間透出列底色。左圖是頭像 44px 放大 3 倍的示意。標題膠囊與停止列的圓點仍是 8px。</div></div>`;
+}
 function renderS0(){
   for(const lay of ['pod','in']){
     const c={...SEL,layout:lay};
@@ -710,6 +731,7 @@ function refresh(){
   document.getElementById('axv').textContent=GL.ax===0?'一般':GL.ax>=100?'AX5(最大)':`約 ×${m.toFixed(2)}`;
   renderS0();
   renderFinal();
+  renderLegend();
   document.querySelectorAll('.slot').forEach(el=>{
     const g=ALLG.find(x=>x.id===el.dataset.g), v=optOf(g,el.dataset.v);
     el.innerHTML=slotHTML(g,v,+el.dataset.i);
