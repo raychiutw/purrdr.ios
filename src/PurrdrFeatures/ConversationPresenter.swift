@@ -1,3 +1,4 @@
+import PurrdrCore
 import QuickLook
 import SwiftUI
 
@@ -15,6 +16,11 @@ struct ConversationPresenter {
 struct RowExpansion {
     var isExpanded: @MainActor (String, String?) -> Bool
     var setExpanded: @MainActor (Bool, String, String?) -> Void
+}
+
+/// Agent 文字的 Markdown 解析結果來源(時間軸快取)。
+struct MarkdownBlockSource {
+    var blocks: @MainActor (AgentText) -> [MarkdownBlock]
 }
 
 /// 列內某個可展開區塊的狀態來源:有注入列展開狀態與列 id 時存時間軸，否則(其他畫面)用本地 `@State`。
@@ -47,7 +53,7 @@ extension EnvironmentValues {
     /// 目前這一列的時間軸列 id(列內的可展開區塊以它加子項 id 找狀態)。
     @Entry var expansionRowID: String?
     /// Agent 文字的 Markdown 解析結果(時間軸快取);沒有注入時(其他畫面)才自己解析。
-    @Entry var markdownBlocks: (@MainActor (AgentText) -> [MarkdownBlock])?
+    @Entry var markdownBlocks: MarkdownBlockSource?
 }
 
 /// 對話畫面用的 sheet 內容(`sheet(item:)` 需要 Identifiable)。

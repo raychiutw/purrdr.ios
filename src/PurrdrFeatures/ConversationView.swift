@@ -241,12 +241,13 @@ public struct ConversationView: View {
                     isExpanded: { [model] in model.isExpanded(rowID: $0, partID: $1) },
                     setExpanded: { [model] in model.setExpanded($0, rowID: $1, partID: $2) }
                 ))
-                .environment(\.markdownBlocks, { [model] in model.markdownBlocks(for: $0) })
+                .environment(\.markdownBlocks, MarkdownBlockSource(blocks: { [model] in model.markdownBlocks(for: $0) }))
                 .environment(\.hostTheme, hostTheme)
                 .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
         )
     }
 
+    #if os(iOS)
     /// 列的長按選單項目(#488):檔案卡片、圖片卡片、shell 區塊;項目與規則同舊列表,其他列沒有(留給文字選取)。
     /// 選單由列表(UIKit)呈現,開著時列表暫停捲動與套用內容。
     private func menuEntries(for rowContent: ChatListRowContent) -> [ChatListMenuEntry] {
@@ -278,6 +279,7 @@ public struct ConversationView: View {
         return []
         #endif
     }
+    #endif
 
     #if os(iOS)
     /// 離線佇列裡的訊息(#347):還沒送出的才能取消;出問題的訊息在列內有自己的按鈕。
@@ -658,7 +660,7 @@ struct AgentMessageView: View {
     @State private var viewer: ImageViewerItem?
 
     var body: some View {
-        let markdown = MarkdownView(blocks: markdownBlocks?(text) ?? Markdown.parse(text.markdown))
+        let markdown = MarkdownView(blocks: markdownBlocks?.blocks(text) ?? Markdown.parse(text.markdown))
         VStack(alignment: .leading, spacing: 6) {
             if let turnHeader {
                 AgentTurnHeaderView(header: turnHeader, date: text.date)
