@@ -10,6 +10,8 @@ import PurrdrCore
 /// - 鍵盤：上下移動高亮(停在頭尾)、Return／Tab 選取、Esc 收起(直到離開這段 `/字詞`)。
 /// - 選取 = 交給 `onPick`(對話只把 `/名稱 ` 填進輸入框，#83)。
 /// - 開啟聊天就預載(`refreshIfNeeded()`);第一次結果出來後，沒讀到或不完整的退避重讀(2、5、15 秒)。
+///   重試有預算:同一個清單依據連續失敗用完就停,輪詢路徑不再重開;依據改變(`markStale()`)、
+///   使用者打 `/`、或聊天重新開始(`restartRetries()`)才再試。聊天關掉時以 `cancelBackgroundReload()` 取消。
 ///   載入超過 60 秒，下次開啟、回到前景或打 `/` 時在背景重讀(新增的 skill 會出現;重讀失敗保留舊清單，不閃載入中)。
 /// - `loader` 回傳 `nil` 表示這種 agent 沒有選單。
 @MainActor
@@ -41,6 +43,12 @@ public final class SlashMenuModel {
     private var state: Load = .idle
     private var loadTask: Task<Void, Never>?
     private var backgroundTask: Task<Void, Never>?
+    /// 背景重讀的世代:取消或換新的之後,舊 task 結束時不清掉新的。
+    private var backgroundGeneration = 0
+    /// 清單的依據版本(`markStale()` 遞增)。
+    private var basis = 0
+    /// 重試預算用完時的依據版本;與目前相同時,輪詢路徑不再重開重試。
+    private var gaveUpBasis: Int?
     private var loadedAt: Date?
     /// 載入中途清單的依據變了(`markStale()`):這輪結果出來後立刻重讀。
     private var staleWhileLoading = false
@@ -151,7 +159,7 @@ public final class SlashMenuModel {
         guard next != trigger else { return }
         trigger = next
         refilter()
-        if next != nil { refreshIfNeeded() }
+        if next != nil { refreshIfNeeded(retryAfterGivingUp: true) }
     }
 
     /// 草稿改變、游標在結尾時呼叫。
@@ -166,7 +174,8 @@ public final class SlashMenuModel {
     }
 
     /// 預載與保持新鮮:還沒載入就載入;已載入但沒讀到、不完整或超過 60 秒就在背景重讀。
-    public func refreshIfNeeded() {
+    /// `retryAfterGivingUp`:使用者主動觸發(打 `/`)時,即使預算用完也再試一輪。
+    public func refreshIfNeeded(retryAfterGivingUp: Bool = false) {
         switch state {
         case .idle:
             startLoading()
@@ -174,13 +183,33 @@ public final class SlashMenuModel {
             break
         case .loaded(let catalog):
             guard backgroundTask == nil, isStale(catalog) else { return }
-            backgroundTask = Task { await self.reloadInBackground(immediately: true) }
+            if gaveUpBasis == basis, !retryAfterGivingUp { return }
+            startBackgroundReload(immediately: true)
         }
+    }
+
+    /// 聊天重新開始(開啟、回到前景):重試預算還原,之後的輪詢可以再試。
+    package func restartRetries() {
+        gaveUpBasis = nil
+    }
+
+    /// 聊天關掉:取消背景重讀(不再為已經看不到的畫面跑主機探索)。
+    package func cancelBackgroundReload() {
+        backgroundTask?.cancel()
+        backgroundTask = nil
+        backgroundGeneration += 1
+    }
+
+    private func startBackgroundReload(immediately: Bool) {
+        backgroundGeneration += 1
+        let generation = backgroundGeneration
+        backgroundTask = Task { await self.reloadInBackground(immediately: immediately, generation: generation) }
     }
 
     /// 清單的依據變了(例如對話紀錄路徑才找到):下次 `refreshIfNeeded()` 一定重讀。
     /// 載入中也生效:載入結束後馬上重讀一次(這輪讀的可能還是舊依據)。
     package func markStale() {
+        basis += 1
         loadedAt = nil
         if case .loading = state { staleWhileLoading = true }
     }
@@ -201,17 +230,17 @@ public final class SlashMenuModel {
             self.refilter()
             if self.staleWhileLoading {
                 self.staleWhileLoading = false
-                self.backgroundTask = Task { await self.reloadInBackground(immediately: true) }
+                self.startBackgroundReload(immediately: true)
             } else if self.isStale(catalog) {
-                self.backgroundTask = Task { await self.reloadInBackground(immediately: false) }
+                self.startBackgroundReload(immediately: false)
             }
         }
     }
 
     /// 背景重讀:讀到才換掉舊清單(失敗保留舊的);沒讀到或不完整時退避重試。
     /// `immediately` 為 false 時先等第一個間隔(剛讀過、結果不理想的情況)。
-    private func reloadInBackground(immediately: Bool) async {
-        defer { backgroundTask = nil }
+    private func reloadInBackground(immediately: Bool, generation: Int) async {
+        defer { if generation == backgroundGeneration { backgroundTask = nil } }
         var delays = Self.retryDelays[...]
         var first = immediately
         while !Task.isCancelled {
@@ -219,6 +248,7 @@ public final class SlashMenuModel {
                 guard let delay = delays.popFirst(), (try? await sleep(delay)) != nil else { return }
             }
             first = false
+            let loadBasis = basis
             if let next = await loader() {
                 if case .loaded(let old) = state, let old, old.isComplete, !next.isComplete {
                     // 重讀比舊清單差(例如逾時)就留著舊的。
@@ -226,10 +256,20 @@ public final class SlashMenuModel {
                     state = .loaded(next)
                     refilter()
                 }
-                loadedAt = now()
-                if next.isComplete { return }
+                // 讀的途中依據又變了(`markStale()`):不算「剛讀過」,否則新依據的 skill 要等 60 秒。
+                if basis == loadBasis { loadedAt = now() }
+                if next.isComplete, basis == loadBasis { return }
             }
-            if delays.isEmpty { return }
+            if Task.isCancelled { return }
+            if basis != loadBasis {
+                delays = Self.retryDelays[...]
+                first = true
+                continue
+            }
+            if delays.isEmpty {
+                gaveUpBasis = loadBasis
+                return
+            }
         }
     }
 

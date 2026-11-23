@@ -343,6 +343,79 @@ struct SlashMenuModelTests {
         #expect(menu.inlineNames.contains("session-skill"))
     }
 
+    @Test("重試預算用完就停:輪詢一直呼叫 refreshIfNeeded 也不重開,打 / 或依據改變才再試(#472)")
+    func retryBudgetStopsPollingLoop() async {
+        let script = Script([nil])
+        let sleeper = RecordingSleeper(fires: { _ in true })
+        let menu = SlashMenuModel(loader: { await script.next() }, sleep: sleeper.sleep, now: { Date() })
+        menu.refreshIfNeeded()
+        await menu.load()
+        await Self.waitUntil { await script.calls == 4 }
+        #expect(await script.calls == 4, "首次一次加 2、5、15 秒三次重試")
+        try? await Task.sleep(for: .milliseconds(100))
+        for _ in 0..<5 {
+            menu.refreshIfNeeded()
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(await script.calls == 4, "輪詢路徑不得重開重試")
+        menu.update(draft: "/")
+        await Self.waitUntil { await script.calls == 8 }
+        #expect(await script.calls == 8, "使用者打 / 再試一輪")
+        try? await Task.sleep(for: .milliseconds(100))
+        menu.markStale()
+        menu.refreshIfNeeded()
+        await Self.waitUntil { await script.calls == 12 }
+        #expect(await script.calls == 12, "依據改變重新有預算")
+        menu.restartRetries()
+        try? await Task.sleep(for: .milliseconds(100))
+        menu.refreshIfNeeded()
+        await Self.waitUntil { await script.calls == 16 }
+        #expect(await script.calls == 16, "聊天重新開始也還原預算")
+    }
+
+    @Test("背景重讀進行中依據改變:這輪結果不算最新,馬上用新依據再讀一次(#472)")
+    func markStaleDuringBackgroundReload() async {
+        let gate = Gate()
+        let session = SlashCatalog(sections: Self.catalog.sections + [
+            SlashSection(source: .session, commands: [SlashCommand(name: "session-skill", summary: "S")]),
+        ], isComplete: true)
+        let script = Script([Self.partialCatalog, Self.catalog, session])
+        let sleeper = RecordingSleeper(fires: { _ in true })
+        let menu = SlashMenuModel(loader: {
+            let calls = await script.calls
+            let result = await script.next()
+            if calls == 1 { await gate.wait() }
+            return result
+        }, sleep: sleeper.sleep, now: { Date() })
+        menu.refreshIfNeeded()
+        await menu.load()
+        await Self.waitUntil { await script.calls == 2 }
+        menu.markStale()
+        await gate.open()
+        await Self.waitUntil { menu.inlineNames.contains("session-skill") }
+        #expect(await script.calls == 3)
+        #expect(menu.inlineNames.contains("session-skill"))
+    }
+
+    @Test("聊天關掉就取消背景重讀,不再為看不到的畫面探索主機(#472)")
+    func cancelBackgroundReloadStopsRetries() async {
+        let gate = Gate()
+        let script = Script([Self.partialCatalog])
+        let sleeper = RecordingSleeper(fires: { _ in true })
+        let menu = SlashMenuModel(loader: {
+            let calls = await script.calls
+            let result = await script.next()
+            if calls == 1 { await gate.wait() }
+            return result
+        }, sleep: sleeper.sleep, now: { Date() })
+        menu.refreshIfNeeded()
+        await Self.waitUntil { await script.calls == 2 }
+        menu.cancelBackgroundReload()
+        await gate.open()
+        try? await Task.sleep(for: .milliseconds(150))
+        #expect(await script.calls == 2)
+    }
+
     actor Gate {
         private var opened = false
         func open() { opened = true }

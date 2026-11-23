@@ -857,6 +857,7 @@ public final class ConversationModel {
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
         let runID = UUID()
         currentRunID = runID
+        slash.restartRetries()
         followPace = TranscriptFollowPace(interval: pollInterval, sleep: sleep)
         let pollDue = WakeSignal(sleep: sleep)
         self.pollDue = pollDue
@@ -892,6 +893,7 @@ public final class ConversationModel {
             followPace = nil
             self.pollDue = nil
         }
+        if isCurrentRun { slash.cancelBackgroundReload() }
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
