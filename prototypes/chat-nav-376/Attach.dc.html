@@ -9,7 +9,7 @@
 <body>
 <x-dc>
 <helmet><style>body{margin:0}</style></helmet>
-<div class="board" style="width:1760px;height:980px">
+<div class="board" style="width:5280px;height:980px">
 <sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
 <div class="col">
 <div class="cap">{{t.name}} · 點輸入列的 +</div>
@@ -19,9 +19,9 @@
 <div class="sheet inset" style="top:200px">
 <div class="grabber"></div>
 <div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="關閉"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><div class="st">加入</div><span></span></div>
-<div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:8px">
-<sc-for list="{{kinds}}" as="k" hint-placeholder-count="4">
-<button style="border:none;background:var(--scard);border-radius:18px;height:80px;color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0;font-size:13px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{k.icon}}"></path></svg><span>{{k.name}}</span></button>
+<div style="display:grid;grid-template-columns:repeat(5, minmax(0, 1fr));gap:6px">
+<sc-for list="{{kinds}}" as="k" hint-placeholder-count="5">
+<button style="border:none;background:var(--scard);border-radius:18px;height:80px;color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0;font-size:12px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{k.icon}}"></path></svg><span>{{k.name}}</span></button>
 </sc-for>
 </div>
 <div class="sh" style="display:flex;justify-content:space-between;padding:16px 4px 6px"><span>最近的照片</span><span>已選 2</span></div>
@@ -59,10 +59,88 @@
 <div class="kb"><sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><div class="kr"><sc-for list="{{r.keys}}" as="k" hint-placeholder-count="10"><div class="key" style="width:{{k.w}}px"></div></sc-for></div></sc-for></div>
 </div>
 </div>
+<div class="col">
+<div class="cap">{{t.name}} · 影片準備中</div>
+<div class="phone {{t.cls}}">
+<div class="msgs"><div>好,PR 已開好,CI 正在跑。</div></div>
+<div class="glass" role="status" style="position:absolute;left:16px;right:16px;bottom:150px;height:48px;border-radius:24px;padding:0 16px;display:flex;align-items:center;gap:10px;font-size:15px;z-index:3"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"></path></svg><span style="flex-grow:1">正在取得影片…</span><button class="btn-plain" style="font-size:15px;color:var(--accent);font-weight:600">取消</button></div>
+<div class="composer-x glass" style="bottom:34px">
+<div class="txt" style="min-height:30px;color:var(--sec)">訊息</div>
+<div style="display:flex;align-items:center;gap:6px">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button class="chip" aria-label="模型 Opus 5.5,投入程度中"><span>Opus 5.5</span><span style="color:var(--sec)">中</span></button>
+<span style="flex-grow:1"></span>
+<button class="cbtn send" aria-label="送出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 影片已加入</div>
+<div class="phone {{t.cls}}">
+<div class="msgs"><div>好,PR 已開好,CI 正在跑。</div></div>
+<div style="position:absolute;left:16px;bottom:150px;z-index:3"><div style="position:relative;width:176px;height:64px;border-radius:14px;background:var(--fill);display:flex;align-items:center;gap:10px;padding:0 10px;box-sizing:border-box"><span style="width:38px;height:38px;border-radius:10px;background:var(--scard);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h8l5 5v13H6z"></path></svg></span><span style="display:flex;flex-direction:column;min-width:0"><span style="font-size:14px;font-weight:600;white-space:nowrap">Demo.mov</span><span style="font-size:12px;color:var(--sec)">3 KB</span></span><button aria-label="移除 Demo.mov" style="position:absolute;top:-10px;right:-10px;width:44px;height:44px;border:none;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span style="width:22px;height:22px;border-radius:11px;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></button></div></div>
+<div class="composer-x glass" style="bottom:34px">
+<div class="txt" style="min-height:30px;color:var(--sec)">訊息</div>
+<div style="display:flex;align-items:center;gap:6px">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button class="chip" aria-label="模型 Opus 5.5,投入程度中"><span>Opus 5.5</span><span style="color:var(--sec)">中</span></button>
+<span style="flex-grow:1"></span>
+<button class="cbtn send" aria-label="送出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 影片壓縮後仍太大</div>
+<div class="phone {{t.cls}}">
+<div class="msgs"><div>好,PR 已開好,CI 正在跑。</div></div>
+<div role="alert" style="position:absolute;left:16px;right:16px;bottom:150px;display:flex;align-items:flex-start;gap:8px;font-size:15px;line-height:1.35;z-index:3"><svg width="16" height="16" viewBox="0 0 24 24" fill="var(--red)" style="margin-top:3px;flex-shrink:0" aria-hidden="true"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg><span>這支影片太長,壓縮後還是傳不了。請先剪短一點,再重新加入。</span></div>
+<div class="composer-x glass" style="bottom:34px">
+<div class="txt" style="min-height:30px;color:var(--sec)">訊息</div>
+<div style="display:flex;align-items:center;gap:6px">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<button class="chip" aria-label="模型 Opus 5.5,投入程度中"><span>Opus 5.5</span><span style="color:var(--sec)">中</span></button>
+<span style="flex-grow:1"></span>
+<button class="cbtn send" aria-label="送出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 拉高的加入 sheet(#475:照片填滿,往下捲載入更多)</div>
+<div class="phone {{t.cls}}">
+<div class="msgs" style="opacity:.5"><div>好,PR 已開好,CI 正在跑。</div></div>
+<div class="scrimbg"></div>
+<div class="sheet inset" style="top:70px">
+<div class="grabber"></div>
+<div class="sheettop"><button class="ib" style="background:var(--fill)" aria-label="關閉"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><div class="st">加入</div><span></span></div>
+<div style="display:grid;grid-template-columns:repeat(5, minmax(0, 1fr));gap:6px">
+<sc-for list="{{kinds}}" as="k" hint-placeholder-count="5">
+<button style="border:none;background:var(--scard);border-radius:18px;height:72px;color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0;font-size:12px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{k.icon}}"></path></svg><span>{{k.name}}</span></button>
+</sc-for>
+</div>
+<div class="sh" style="display:flex;justify-content:space-between;padding:14px 4px 6px"><span>最近的照片</span><span>已選 2</span></div>
+<div style="flex-grow:1;min-height:0;overflow:hidden;border-radius:14px;position:relative">
+<div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:3px">
+<sc-for list="{{tall}}" as="p" hint-placeholder-count="20">
+<button aria-label="{{p.label}}" style="aspect-ratio:1;border:none;padding:0;background:{{p.tile}};position:relative;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.35)">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 16l5-5 4 4 3-3 6 6"></path></svg>
+<sc-if value="{{p.sel}}" hint-placeholder-val="{{false}}"><span style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:12px;background:var(--accent);color:var(--on);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:2px solid #FFFFFF;box-shadow:0 0 0 1px rgba(0,0,0,.35)">{{p.n}}</span></sc-if>
+<sc-if value="{{p.unsel}}" hint-placeholder-val="{{true}}"><span style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:12px;border:2px solid #FFFFFF;box-sizing:border-box;background:rgba(0,0,0,.28);box-shadow:0 0 0 1px rgba(0,0,0,.45)"></span></sc-if>
+</button>
+</sc-for>
+</div>
+<div role="status" aria-label="載入更多照片" class="glass" style="position:absolute;left:50%;transform:translateX(-50%);bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0 16px;border-radius:18px;color:var(--text);font-size:13px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"></path></svg>載入更多…</div>
+</div>
+<div style="padding-top:12px"><button class="btn-prom" style="width:100%">加入 2 個</button></div>
+</div>
+</div>
+</div>
 </sc-for>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":5280,"height":980}}'>
 class Component extends DCLogic {
   renderVals() {
     const tiles = ['#B9C2C9', '#C9B8A6', '#A9BDB3', '#C3C0CF'];
@@ -76,10 +154,15 @@ class Component extends DCLogic {
       kinds: [
         { name: '拍照', icon: 'M4 8h3l2-2.5h6L17 8h3v11H4V8z M12 16.5a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z' },
         { name: '所有照片', icon: 'M3 6h18v13H3z M3 15l5-4.5 4 3.5 3-2.5 6 5 M15.5 9.5h.01' },
+        { name: '影片', icon: 'M3 7h12v10H3z M15 11l6-3.5v9L15 13' },
         { name: '檔案', icon: 'M6 3h8l5 5v13H6z M14 3v5h5' },
         { name: '貼上', icon: 'M8 5H6v16h12V5h-2 M9 3h6v4H9z' }
       ],
       photos,
+      tall: Array.from({ length: 24 }, (_, i) => {
+        const n = i === 1 ? 1 : i === 4 ? 2 : 0;
+        return { tile: tiles[(i * 3) % 4], sel: n > 0, unsel: n === 0, n, label: n ? '第 ' + (i + 1) + ' 張照片,已選第 ' + n + ' 個' : '第 ' + (i + 1) + ' 張照片' };
+      }),
       atts: [
         { name: 'IMG_1.png', bg: '#B9C2C9', icon: 'M3 5h18v14H3z M3 16l5-5 4 4 3-3 6 6' },
         { name: 'IMG_2.png', bg: '#C9B8A6', icon: 'M3 5h18v14H3z M3 16l5-5 4 4 3-3 6 6' },
