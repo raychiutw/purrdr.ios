@@ -53,13 +53,20 @@ public struct SpacesTab: Identifiable, Equatable, Sendable {
     public var tabName: String?
     /// 搜尋比對用的字(#501):Tab 裡每個 Agent 的聊天標題。Tab 取了名稱時標題是那個名稱,Agent 標題仍要找得到這個 Tab。
     public var searchTerms: [String]
+    /// 聊天列第一行的標題(#502):Tab 裡第一個 Agent 的聊天標題(多個時加「+N」),只有終端機時是程式名。
+    /// 與 `title` 不同:Tab 取了名稱時 `title` 是那個名稱,這裡仍是內容標題(名稱顯示在第二行)。
+    public var contentTitle: String
+    /// 列上時間、預覽、用量與離開期間用的代表 Agent(Tab 裡第一個 Agent,與頭像同一個);沒有 Agent 時 `nil`。
+    public var agent: AgentRow?
 
     public var id: String { "\(host.storedValue)/\(key)" }
 
     public init(
         host: HostSelection, key: String, title: String, target: Target, avatar: Avatar = .terminal, tabName: String? = nil,
-        searchTerms: [String] = []
+        searchTerms: [String] = [], contentTitle: String? = nil, agent: AgentRow? = nil
     ) {
+        self.contentTitle = contentTitle ?? title
+        self.agent = agent
         self.tabName = tabName
         self.searchTerms = searchTerms
         self.host = host
@@ -153,7 +160,8 @@ extension AgentListProjection {
             return SpacesTab(
                 host: host, key: tab.id, title: tabTitle(tab.label, contents: contents, position: index + 1), target: target,
                 avatar: avatar(for: tabAgents, source: source, visible: visible), tabName: tabName(label: tab.label, position: index + 1),
-                searchTerms: tabAgents.map { AgentRowText.title(for: $0, siblings: agents) })
+                searchTerms: tabAgents.map { AgentRowText.title(for: $0, siblings: agents) }, contentTitle: contents,
+                agent: tabAgents.first.map { representative($0, siblings: agents, source: source, visible: visible) })
         }
         let known = Set(tabs.map(\.id))
         for pane in panes where tabID(of: pane).map({ !known.contains($0) }) ?? true {
@@ -162,9 +170,17 @@ extension AgentListProjection {
             rows.append(SpacesTab(
                 host: host, key: pane.id, title: title, target: .pane(ChatRoute(host: host, paneID: pane.id)),
                 avatar: avatar(for: agents.filter { $0.paneID == pane.id }, source: source, visible: visible),
-                searchTerms: agents.filter { $0.paneID == pane.id }.map { AgentRowText.title(for: $0, siblings: agents) }))
+                searchTerms: agents.filter { $0.paneID == pane.id }.map { AgentRowText.title(for: $0, siblings: agents) },
+                agent: agents.first { $0.paneID == pane.id }.map { representative($0, siblings: agents, source: source, visible: visible) }))
         }
         return rows
+    }
+
+    /// 聊天列的代表 Agent(#502):與 Agents 列同樣的折算(狀態、未讀、離開期間、預覽、用量)。
+    private static func representative(_ agent: Agent, siblings: [Agent], source: Source, visible: Set<ChatRoute>) -> AgentRow {
+        AgentRow(
+            agent: agent, siblings: siblings, preview: source.previews[agent.paneID], host: source.host, label: nil,
+            chat: ChatUnread.State(agent: agent, source: source, visible: visible))
     }
 
     /// Tab 列的頭像(#316):第一個 Agent 的種類;狀態是 Tab 內最需要處理的(需要你 > 工作中 > 未讀 > 閒置),

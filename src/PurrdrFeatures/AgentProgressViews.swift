@@ -17,21 +17,23 @@ extension AgentProgress.ContextLevel {
 /// 列表右欄時間下方的 context 小圓環與百分比(#307)。數字與顏色並用，不只靠顏色。
 struct ContextMeter: View {
     let percent: Int
+    /// 設計稿(#502):環 18pt、數字 13pt;環隨字級放大。
+    @ScaledMetric(relativeTo: .footnote) private var ringSize: CGFloat = 18
 
     private var level: AgentProgress.ContextLevel { AgentProgress(contextPercent: percent).contextLevel }
 
     var body: some View {
         HStack(spacing: 4) {
             ZStack {
-                Circle().stroke(.quaternary, lineWidth: 2.5)
+                Circle().stroke(.quaternary, lineWidth: 2.6)
                 Circle()
                     .trim(from: 0, to: CGFloat(min(max(percent, 0), 100)) / 100)
-                    .stroke(level.tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .stroke(level.tint, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
-            .frame(width: 13, height: 13)
+            .frame(width: ringSize, height: ringSize)
             Text(verbatim: "\(percent)%")
-                .font(.caption.monospacedDigit())
+                .font(.footnote.monospacedDigit())
                 .foregroundStyle(.secondaryText)
         }
         .accessibilityHidden(true)

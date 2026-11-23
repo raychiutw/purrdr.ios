@@ -40,9 +40,10 @@ struct SpacesSectionsContent: View {
         switch tab.target {
         case .pane(let route):
             NavigationLink(value: route) {
-                SpacesTabLabel(tab: tab)
+                ChatRowView(content: ChatRowContent(tab: tab))
             }
-            .accessibilityLabel(Text(verbatim: SpacesTabLabel.accessibilityText(tab)))
+            .listRowInsets(ChatRowView.rowInsets)
+            .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab)))
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
             Button {
@@ -52,7 +53,7 @@ struct SpacesSectionsContent: View {
                 presentation.sheet = .layout(workspaceLabel: tab.title, layout: layout?.onlyTab(tabID))
             } label: {
                 HStack {
-                    SpacesTabLabel(tab: tab)
+                    ChatRowView(content: ChatRowContent(tab: tab))
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
@@ -61,45 +62,10 @@ struct SpacesSectionsContent: View {
                 }
                 .contentShape(Rectangle())
             }
-            .accessibilityLabel(Text(verbatim: SpacesTabLabel.accessibilityText(tab)))
+            .listRowInsets(ChatRowView.rowInsets)
+            .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab)))
             .accessibilityHint(Text("Shows this tab’s layout."))
         }
-    }
-}
-
-/// Tab 列的內容(#316):頭像＋右下角狀態與 Tab 名稱。頭像對 VoiceOver 隱藏;列(按鈕本身)念 `accessibilityText`。
-struct SpacesTabLabel: View {
-    let tab: SpacesTab
-
-    var body: some View {
-        HStack(spacing: 12) {
-            switch tab.avatar {
-            case .agent(let kind, let status):
-                AgentStatusAvatar(content: .agent(AgentKind(rawKind: kind)), status: status)
-            case .terminal:
-                AgentStatusAvatar(content: .terminal, status: nil)
-            }
-            // 按鈕列(多個 pane)的 label 會被 tint 染成主色;`.primary` 在按鈕裡解析成 tint,要用 `Color.primary`。
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: tab.title)
-                    .foregroundStyle(Color.primary)
-                // Tab 名稱(#475):標題沒有人取的名稱時是 Agent 標題,這行補上「Tab N」。
-                if let name = tab.tabName, name != tab.title {
-                    Text(verbatim: name)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.secondaryText)
-                }
-            }
-        }
-    }
-
-    /// 「名稱, 種類, 狀態」;只有終端機時「名稱, 終端機」。
-    static func accessibilityText(_ tab: SpacesTab) -> String {
-        let parts: [String?] = switch tab.avatar {
-        case .agent(let kind, let status): [tab.title, tab.tabName == tab.title ? nil : tab.tabName, AgentKind(rawKind: kind).displayName, String(localized: status.title)]
-        case .terminal: [tab.title, String(localized: "Terminal")]
-        }
-        return parts.compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -126,28 +92,40 @@ private struct SpacesSectionHeader: View {
     }
 }
 
-/// Agent 種類頭像：36pt 圓角方塊，白色字母。種類由列的 VoiceOver 句子念(`AgentStatusAvatar` 整個隱藏)。
+/// Agent 種類頭像：圓角方塊，白色字母。種類由列的 VoiceOver 句子念(`AgentStatusAvatar` 整個隱藏)。
 struct AgentKindAvatar: View {
     let kind: AgentKind
     static let baseSide: CGFloat = 36
     // 方塊隨字級放大但有上限(#314、使用者決定);字母用實際字級(固定字級的字母會被稽核判為 Dynamic Type 不支援)。
-    private let compact: Bool
+    private let size: AvatarBox.Size
 
-    /// `compact` 是對話裡每輪開頭的小頭像(#351,20pt)。
+    /// `compact` 是對話裡每輪開頭的小頭像(#351,20pt);`size: .row` 是聊天列的頭像(#502)。
     init(kind: AgentKind, compact: Bool = false) {
+        self.init(kind: kind, size: compact ? .compact : .regular)
+    }
+
+    init(kind: AgentKind, size: AvatarBox.Size) {
         self.kind = kind
-        self.compact = compact
+        self.size = size
     }
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
-        AvatarBox(fill: style.palette.color, compact: compact)
+        AvatarBox(fill: style.palette.color, size: size)
             .dynamicTypeSize(...AgentStatusAvatar.largestTypeSize)
             .overlay {
                 Text(verbatim: style.letter)
-                    .font(compact ? .caption2.bold() : .subheadline.bold())
+                    .font(letterFont)
                     .foregroundStyle(.white)
             }
+    }
+
+    private var letterFont: Font {
+        switch size {
+        case .compact: .caption2.bold()
+        case .regular: .subheadline.bold()
+        case .row: .headline.bold()
+        }
     }
 }
 

@@ -248,7 +248,7 @@ public struct AgentListView: View {
             Section {
                 VStack(spacing: 20) {
                     ForEach(0..<model.loadingRowCount, id: \.self) { index in
-                        AgentRowView(row: .placeholder(index), host: nil)
+                        ChatRowView(content: .placeholder(index))
                     }
                 }
                 .skeleton(identifier: "agentList.loading.skeleton")
@@ -506,7 +506,7 @@ struct AgentRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            AgentStatusAvatar(content: .agent(AgentKind(rawKind: row.kind)), status: row.status)
+            AgentStatusAvatar(content: .agent(AgentKind(rawKind: row.kind)), dot: row.status.statusDot)
             VStack(alignment: .leading, spacing: 2) {
                 titleLine
                 previewLine

@@ -82,6 +82,20 @@ struct SpacesViewTests {
         #expect(sections.last?.tabs.map(\.title) == ["Shell"], "只有 shell 的 Tab 用程式名")
     }
 
+    @Test("聊天列內容(#502、#505):取了名稱的 Tab 第一行是名稱、第二行是 Agent 標題;沒取名的第一行是「Tab N」")
+    func chatRowContentFromSnapshot() async throws {
+        let model = await Self.model { response in
+            SnapshotEdit.tab("w1:tA", in: &response) { $0["label"] = "CSV 匯出" }
+        }
+
+        let tabs = try #require(model.agentList.spacesSections.first).tabs
+        let named = ChatRowContent(tab: tabs[1])
+        #expect(named.lines.first == .title("CSV 匯出"))
+        #expect(named.lines.contains { if case .detail(_, let title) = $0 { title != nil } else { false } })
+        #expect(tabs[1].agent != nil, "代表 Agent 要帶進來,時間與預覽才有資料")
+        if case .title(let first) = ChatRowContent(tab: tabs[0]).lines.first { #expect(first.hasPrefix("Tab ")) }
+    }
+
     @Test("Tab 裡有多個 Agent:第一個的聊天標題加「+N」;什麼都沒有才是「Tab N」")
     func tabTitleWithSeveralAgents() async throws {
         let model = await Self.model { response in
