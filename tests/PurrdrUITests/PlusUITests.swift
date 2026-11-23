@@ -38,7 +38,7 @@ final class PlusUITests: XCTestCase {
             let disclosure = app.staticTexts["plus.disclosure"]
             app.scrollIntoView(disclosure, search: .down)
             XCTAssertTrue(disclosure.label.contains("2 weeks"), disclosure.label)
-            XCTAssertTrue(disclosure.label.contains("$4.99"), disclosure.label)
+            XCTAssertTrue(disclosure.label.contains("$39.99"), disclosure.label)  // 預設選年繳(完整扣款揭露保留)
             XCTAssertTrue(disclosure.label.contains("renews automatically"), disclosure.label)
             XCTAssertTrue(disclosure.label.contains("24 hours"), disclosure.label)
 
@@ -74,7 +74,7 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitUntilExists(timeout: 5))
     }
 
-    /// 頁首只有標題(#236);選年繳時說明跟著換成年繳的價格與期間;方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
+    /// 頁首只有標題(#236);預設年繳(年繳在前,#408 後續),改選月繳時說明跟著換成月繳的價格與期間;方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
     /// 一次啟動做完(#372:原本三個測試各啟動一次)。方案內容仍要寫出來(App Store 3.1.2)。
     @MainActor
     func testPaywallHeaderAndPlanSelection() {
@@ -85,14 +85,22 @@ final class PlusUITests: XCTestCase {
         XCTAssertFalse(app.scrollViews.staticTexts["Purrdr Plus"].exists, "內容裡重複了標題")
         XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
 
+        // 年繳在前、預設選年繳。
         let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
+        let monthly = app.descendants(matching: .any)[Self.monthly].firstMatch
         XCTAssertTrue(yearly.waitUntilExists(timeout: 15))
-        yearly.press(forDuration: 0.3)
-        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "\(String(describing: yearly.value))")
+        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "預設沒選年繳:\(String(describing: yearly.value))")
+        XCTAssertLessThan(yearly.frame.minY, monthly.frame.minY, "年繳沒有排在月繳前面")
         let disclosure = app.staticTexts["plus.disclosure"]
         app.scrollIntoView(disclosure, search: .down)
         XCTAssertTrue(disclosure.label.contains("$39.99"), disclosure.label)
         XCTAssertTrue(disclosure.label.contains("year"), disclosure.label)
+        // 改選月繳:說明跟著換,按住再放開仍選取。
+        app.scrollIntoView(monthly, search: .up)
+        monthly.press(forDuration: 0.3)
+        XCTAssertTrue(monthly.isSelected || monthly.value as? String == "Selected", "\(String(describing: monthly.value))")
+        app.scrollIntoView(disclosure, search: .down)
+        XCTAssertTrue(disclosure.label.contains("$4.99"), disclosure.label)
     }
 
     /// 已訂閱(#323):方案區塊有「管理訂閱」,「你的 Plus 包含」逐項帶目前狀態,點了到帳號頁;不再只有一張卡片。

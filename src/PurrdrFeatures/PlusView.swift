@@ -37,7 +37,7 @@ public struct PlusView: View {
     }
 
     private var selectedPlan: PlusPlan? {
-        model.plans.first { $0.id == selectedPlanID } ?? model.plans.first
+        model.plans.first { $0.id == selectedPlanID } ?? model.defaultPlan
     }
 
     public var body: some View {

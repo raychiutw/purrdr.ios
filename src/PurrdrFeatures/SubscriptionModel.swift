@@ -21,6 +21,9 @@ public final class SubscriptionModel {
     }
 
     public private(set) var plans: [PlusPlan] = []
+
+    /// 付費牆預設選取的方案:排序後的第一個(年繳在前)。
+    public var defaultPlan: PlusPlan? { plans.first }
     public private(set) var storefront: Storefront = .loading
     /// 後台判定的訂閱;沒登入或從沒訂閱過是 `nil`。
     public private(set) var subscription: MemberSubscription?
@@ -89,7 +92,10 @@ public final class SubscriptionModel {
             return
         }
         do {
-            plans = try await store.loadPlans()
+            let loaded = try await store.loadPlans()
+            // 依 productIDs 的順序(年繳在前);不認得的商品排在最後。
+            let order = MemberSubscription.productIDs
+            plans = loaded.sorted { (order.firstIndex(of: $0.id) ?? order.count) < (order.firstIndex(of: $1.id) ?? order.count) }
             storefront = plans.isEmpty ? .unavailable : .available
         } catch {
             storefront = .unavailable

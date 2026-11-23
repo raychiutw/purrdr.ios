@@ -17,12 +17,12 @@ final class UITestingPlusStore: PlusStore {
     func loadPlans() async throws -> [PlusPlan] {
         [
             PlusPlan(
-                id: "com.raychiu.purrdr.plus.monthly", displayName: "Purrdr Plus Monthly", description: Self.description,
-                displayPrice: "$4.99", period: PlusPeriod(value: 1, unit: .month), freeTrial: PlusPeriod(value: 2, unit: .week)
-            ),
-            PlusPlan(
                 id: "com.raychiu.purrdr.plus.yearly", displayName: "Purrdr Plus Yearly", description: Self.description,
                 displayPrice: "$39.99", period: PlusPeriod(value: 1, unit: .year), freeTrial: PlusPeriod(value: 2, unit: .week)
+            ),
+            PlusPlan(
+                id: "com.raychiu.purrdr.plus.monthly", displayName: "Purrdr Plus Monthly", description: Self.description,
+                displayPrice: "$4.99", period: PlusPeriod(value: 1, unit: .month), freeTrial: PlusPeriod(value: 2, unit: .week)
             ),
         ]
     }

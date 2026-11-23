@@ -32,15 +32,31 @@ struct SubscriptionModelTests {
 
     // MARK: - 付費牆
 
-    @Test("付費牆顯示 StoreKit 的方案(月繳、年繳)")
+    @Test("付費牆顯示 StoreKit 的方案(年繳在前、月繳在後),預設選年繳")
     func loadsPlans() async {
         store.plans = [FakePlusStore.monthly, FakePlusStore.yearly]
         let model = makeModel()
 
         await model.loadPlans()
 
-        #expect(model.plans == [FakePlusStore.monthly, FakePlusStore.yearly])
+        #expect(model.plans == [FakePlusStore.yearly, FakePlusStore.monthly])
+        #expect(model.defaultPlan == FakePlusStore.yearly)
         #expect(model.storefront == .available)
+    }
+
+    @Test("只有月繳可用時,預設方案是月繳")
+    func defaultPlanFallsBackToMonthly() async {
+        store.plans = [FakePlusStore.monthly]
+        let model = makeModel()
+
+        await model.loadPlans()
+
+        #expect(model.defaultPlan == FakePlusStore.monthly)
+    }
+
+    @Test("商品順序:年繳在前")
+    func productOrderYearlyFirst() {
+        #expect(MemberSubscription.productIDs == ["com.raychiu.purrdr.plus.yearly", "com.raychiu.purrdr.plus.monthly"])
     }
 
     @Test("不能付款(例如螢幕使用時間限制)時不顯示商店")

@@ -181,7 +181,7 @@ struct JoinFlowPages: View {
     // MARK: 第 2 步:開通 Plus
 
     private var selectedPlan: PlusPlan? {
-        plus.plans.first { $0.id == selectedPlanID } ?? plus.plans.first
+        plus.plans.first { $0.id == selectedPlanID } ?? plus.defaultPlan
     }
 
     private var paywallPage: some View {

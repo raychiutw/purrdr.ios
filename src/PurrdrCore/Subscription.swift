@@ -58,6 +58,6 @@ public struct MemberSubscription: Equatable, Sendable {
     /// 佔用「一會員一有效訂閱」的名額:後台以此回 409 `subscription_already_active`。
     public var occupiesSubscriptionSlot: Bool { isStillBilling }
 
-    /// Purrdr Plus 的商品(App Store Connect、StoreKit 設定檔、後台 `PLUS_PRODUCT_IDS` 要一致)。
-    public static let productIDs = ["com.raychiu.purrdr.plus.monthly", "com.raychiu.purrdr.plus.yearly"]
+    /// Purrdr Plus 的商品,順序即付費牆的方案順序(年繳在前、預設選年繳;App Store Connect、StoreKit 設定檔、後台 `PLUS_PRODUCT_IDS` 要一致)。
+    public static let productIDs = ["com.raychiu.purrdr.plus.yearly", "com.raychiu.purrdr.plus.monthly"]
 }
