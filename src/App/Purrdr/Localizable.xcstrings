@@ -3831,6 +3831,17 @@
         }
       }
     },
+    "Couldn’t read that video." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這支影片。"
+          }
+        }
+      }
+    },
     "Couldn’t read the choices. These send common answers; check the terminal if you’re not sure." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5334,6 +5345,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在準備"
+          }
+        }
+      }
+    },
+    "Getting video…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在取得影片…"
           }
         }
       }
@@ -11006,6 +11028,17 @@
         }
       }
     },
+    "Shrinking video…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在壓縮影片…"
+          }
+        }
+      }
+    },
     "Sign In" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14100,6 +14133,17 @@
         }
       }
     },
+    "This video is too long to send, even after shrinking it. Trim it shorter, then add it again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支影片太長，壓縮後還是傳不了。請先剪短一點，再重新加入。"
+          }
+        }
+      }
+    },
     "This window’s host was removed from this device." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15229,6 +15273,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "直線"
+          }
+        }
+      }
+    },
+    "Video" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片"
           }
         }
       }

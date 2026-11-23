@@ -267,6 +267,9 @@ struct AttachButton: View {
     @State private var showsCamera = false
     @State private var showsFiles = false
     @State private var selection: [PhotosPickerItem] = []
+    @State private var showsVideos = false
+    @State private var videoSelection: [PhotosPickerItem] = []
+    @Environment(\.videoSource) private var videoSource
 
     var body: some View {
         Button {
@@ -279,7 +282,7 @@ struct AttachButton: View {
         .composerCircleButtonStyle()
         .frame(minWidth: 44, minHeight: 44)
         .opacity(model.attachAvailability.isDimmed ? 0.4 : 1)
-        .disabled(model.isSending || model.loadingFileName != nil)
+        .disabled(model.isSending || model.loadingFileName != nil || model.videoPreparation != nil)
         .accessibilityLabel(Text("Attach"))
         .accessibilityHint(model.attachAvailability == .offline ? Text("Attachments can be added once you’re connected.") : Text(verbatim: ""))
         .accessibilityIdentifier(identifier)
@@ -307,6 +310,20 @@ struct AttachButton: View {
                 await model.addImages(loaded)
             }
         }
+        .photosPicker(
+            isPresented: $showsVideos, selection: $videoSelection, maxSelectionCount: 1, selectionBehavior: .default,
+            matching: .videos, preferredItemEncoding: .current
+        )
+        .onChange(of: videoSelection) {
+            guard let item = videoSelection.first else { return }
+            videoSelection = []
+            Task {
+                await model.addVideo(displayName: String(localized: "Video") + ".mov") {
+                    guard let picked = try await item.loadTransferable(type: PickedVideo.self) else { throw CocoaError(.fileReadNoSuchFile) }
+                    return picked.url
+                }
+            }
+        }
         .fileImporter(isPresented: $showsFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result else { return }
             Task { for url in urls { await ComposerFiles.add(url, to: model) } }
@@ -329,13 +346,19 @@ struct AttachButton: View {
         case .camera: showsCamera = true
         case .library: showsLibrary = true
         case .files: showsFiles = true
+        case .video:
+            if videoSource == .simulated {
+                Task { await model.addVideo(displayName: "Demo.mov") { try await GeneratedVideo.make() } }
+            } else {
+                showsVideos = true
+            }
         }
     }
 }
 
 /// 「＋」升起的面板:上方最近的照片(可多選)，下方相機、所有照片、檔案、貼上。沒有相簿權限時只有按鈕。
 struct AttachPanel: View {
-    enum Choice { case camera, library, files }
+    enum Choice { case camera, library, video, files }
 
     let model: ConversationModel
     let source: RecentPhotoSource
@@ -352,6 +375,7 @@ struct AttachPanel: View {
                     HStack(alignment: .top) {
                         if ImageSources.cameraAvailable { action("Take Photo", symbol: "camera", id: "camera", .camera) }
                         action("All Photos", symbol: "photo.on.rectangle", id: "photos", .library)
+                        if model.canAttachVideos { action("Video", symbol: "video", id: "video", .video) }
                         if model.canAttachFiles { action("Files", symbol: "doc", id: "files", .files) }
                         pasteTile
                     }
@@ -575,6 +599,43 @@ struct FileUploadProgressView: View {
         .background(.bar, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("composer.fileUpload")
+    }
+}
+
+/// 影片準備中(#474):取出、壓縮的進度與取消。
+struct VideoPreparationView: View {
+    let preparation: VideoPreparation
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let fraction = preparation.fraction, preparation.phase == .shrinking {
+                ProgressView(value: fraction)
+                    .progressViewStyle(.circular)
+            } else {
+                ProgressView()
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(preparation.phase == .shrinking ? "Shrinking video…" : "Getting video…")
+                    .font(.footnote)
+                if let fraction = preparation.fraction, preparation.phase == .shrinking {
+                    Text(fraction, format: .percent.precision(.fractionLength(0)))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Cancel", action: cancel)
+                .font(.footnote.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityIdentifier("composer.videoPreparation.cancel")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composer.videoPreparation")
     }
 }
 

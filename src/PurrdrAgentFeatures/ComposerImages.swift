@@ -86,11 +86,15 @@ public struct ComposerImages: Sendable {
     public let makeName: @Sendable () -> UploadFileName
     /// 一般檔案(#286):原始檔名 → 上傳檔名。
     public let makeFileName: @Sendable (String) -> HostUploadName
+    /// 影片壓縮(#474);`nil` 時輸入列沒有「影片」。
+    public let videoCompressor: (any VideoCompressing)?
 
     public init(
         uploader: any HostUploading, store: any AttachmentStore, makeName: @escaping @Sendable () -> UploadFileName = ComposerImages.randomName,
-        makeFileName: @escaping @Sendable (String) -> HostUploadName = ComposerImages.randomFileName
+        makeFileName: @escaping @Sendable (String) -> HostUploadName = ComposerImages.randomFileName,
+        videoCompressor: (any VideoCompressing)? = nil
     ) {
+        self.videoCompressor = videoCompressor
         self.uploader = uploader
         self.store = store
         self.makeName = makeName

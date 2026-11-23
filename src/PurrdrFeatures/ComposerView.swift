@@ -106,6 +106,9 @@ struct ComposerBar: View {
             if let fileName = model.loadingFileName {
                 FileUploadProgressView(fileName: fileName)
             }
+            if let preparation = model.videoPreparation {
+                VideoPreparationView(preparation: preparation) { model.cancelVideoPreparation() }
+            }
             if let option = model.typedAnswer {
                 TypedAnswerBanner(question: model.prompt?.question, option: option) { model.cancelTypedAnswer() }
             }
@@ -537,6 +540,8 @@ extension SendNotice {
             String(localized: "This file is \(Self.byteCount(size)). Files sent to the host can be up to \(Self.byteCount(limit)).")
         case .fileUnreadable: String(localized: "Couldn’t read that file.")
         case .fileUploadFailed: String(localized: "Couldn’t upload the file to the host. Try again.")
+        case .videoTooLong: String(localized: "This video is too long to send, even after shrinking it. Trim it shorter, then add it again.")
+        case .videoUnreadable: String(localized: "Couldn’t read that video.")
         case .hostServiceUpdateRequired(let installedVersion):
             HostErrorText.message(for: HostServiceError.hostServiceUpdateRequired(.fileUpload, installedVersion: installedVersion))
         }
@@ -556,6 +561,7 @@ extension SendNotice {
         case .attachmentLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .attachOffline: "wifi.slash"
         case .fileTooLarge, .fileUnreadable: "doc"
+        case .videoTooLong, .videoUnreadable: "video"
         case .fileUploadFailed: "exclamationmark.triangle"
         case .hostServiceUpdateRequired: "arrow.down.circle"
         case .unconfirmed: "questionmark.circle"

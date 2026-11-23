@@ -427,6 +427,88 @@ public final class ConversationModel {
         saveAttachments()
     }
 
+    // MARK: 影片(#474)
+
+    /// 影片準備中(取出、壓縮)的進度;沒有時是 `nil`。
+    public private(set) var videoPreparation: VideoPreparation?
+    /// 能不能附加影片：能附加檔案、又有壓縮器。
+    public var canAttachVideos: Bool { canAttachFiles && images?.videoCompressor != nil }
+
+    @ObservationIgnored private var videoTask: Task<VideoOutcome, Never>?
+
+    private enum VideoOutcome: Sendable {
+        case ready(Data, fileExtension: String?)
+        case tooLong
+        case unreadable
+        case cancelled
+    }
+
+    /// 附加相簿影片(#474):`load` 取出影片檔(可能要從 iCloud 下載;檔案交給這裡，用完會刪)。
+    /// 沒超過上限就原樣加成附件卡;超過就由高到低壓縮，第一個放得下的畫質就是結果;壓到最小仍超過、或太長，提示後不加入。
+    /// 與檔案一樣先留在輸入列，送出才上傳。可用 `cancelVideoPreparation()` 取消。
+    public func addVideo(displayName: String, load: @escaping @Sendable () async throws -> URL) async {
+        guard let images, let compressor = images.videoCompressor, canAttachFiles, videoPreparation == nil, loadingFileName == nil else { return }
+        guard remainingImageSlots > 0 else {
+            notice = .attachmentLimit
+            return
+        }
+        videoPreparation = VideoPreparation(displayName: displayName, phase: .loading, fraction: nil)
+        let limit = HostUploadLimit.maximumFileSize
+        let task = Task { [weak self] () -> VideoOutcome in
+            let source: URL
+            do { source = try await load() } catch { return Task.isCancelled ? .cancelled : .unreadable }
+            defer { try? FileManager.default.removeItem(at: source) }
+            do {
+                let sourceSize = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                if sourceSize <= limit {
+                    return .ready(try Data(contentsOf: source, options: .mappedIfSafe), fileExtension: nil)
+                }
+                let candidates = VideoQuality.candidates(forDuration: try await compressor.duration(of: source), limit: limit)
+                self?.videoPreparation?.phase = .shrinking
+                for quality in candidates {
+                    let output = FileManager.default.temporaryDirectory.appending(path: "purrdr-video-\(UUID().uuidString).mp4")
+                    defer { try? FileManager.default.removeItem(at: output) }
+                    try await compressor.compress(source, quality: quality, to: output) { fraction in
+                        Task { @MainActor in self?.videoPreparation?.fraction = fraction }
+                    }
+                    let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? .max
+                    if size <= limit { return .ready(try Data(contentsOf: output, options: .mappedIfSafe), fileExtension: "mp4") }
+                }
+                return .tooLong
+            } catch {
+                return Task.isCancelled || error is CancellationError ? .cancelled : .unreadable
+            }
+        }
+        videoTask = task
+        let outcome = await task.value
+        videoTask = nil
+        videoPreparation = nil
+        switch outcome {
+        case .cancelled: break
+        case .tooLong: notice = .videoTooLong
+        case .unreadable: notice = .videoUnreadable
+        case .ready(let data, let fileExtension):
+            guard remainingImageSlots > 0 else {
+                notice = .attachmentLimit
+                return
+            }
+            var name = displayName
+            if let fileExtension { name = (displayName as NSString).deletingPathExtension + "." + fileExtension }
+            let uploadName = images.makeFileName(name)
+            do {
+                try images.store.save(data, as: uploadName.value)
+            } catch {
+                notice = .videoUnreadable
+                return
+            }
+            attachments.append(ComposerAttachment(kind: .file, fileName: uploadName, displayName: name, byteCount: data.count))
+            saveAttachments()
+        }
+    }
+
+    /// 取消影片準備(取出或壓縮中):不加入、不提示，暫存檔刪掉。
+    public func cancelVideoPreparation() { videoTask?.cancel() }
+
     /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
     private static func uploadNotice(for error: any Error, otherwise: SendNotice) -> SendNotice {
         guard case .hostServiceUpdateRequired(_, let installedVersion)? = error as? HostServiceError else { return otherwise }
@@ -2761,6 +2843,10 @@ public enum SendNotice: Sendable, Equatable {
     case fileUnreadable
     /// 檔案上傳到主機失敗，路徑沒有插入。
     case fileUploadFailed
+    /// 影片壓到最小仍超過上傳上限(#474),或太長壓不進去。
+    case videoTooLong
+    /// 讀不到挑選的影片。
+    case videoUnreadable
     /// HTTPS 主機的主機服務太舊、還不能上傳圖片或檔案(#288):提示更新主機服務。
     case hostServiceUpdateRequired(installedVersion: String?)
     /// 送不出 slash 面板的按鍵(#45)。

@@ -447,7 +447,7 @@ public final class HostsModel {
             haptics: haptics,
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { [weak self] in self?.name(of: route.host) },
-            images: ComposerImages(uploader: member.uploader, store: attachmentStore),
+            images: ComposerImages(uploader: member.uploader, store: attachmentStore, videoCompressor: AVVideoCompressor()),
             updates: member.list.updates,
             // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300),
             // 倒數結束時離線就排進那台主機的離線佇列(#301)。

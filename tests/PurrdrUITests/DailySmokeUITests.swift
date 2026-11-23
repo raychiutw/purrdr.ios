@@ -21,7 +21,7 @@ final class DailySmokeUITests: XCTestCase {
     /// 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機。
     @MainActor
     func testListAndChat() {
-        let app = XCUIApplication.launchUITesting()
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo"])
         let ledger = app.element("agent.row.demo/w1:p1")
 
         step("列表看到 Demo 的 Agent") {
@@ -94,6 +94,19 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("composer.shellHint").waitUntilExists(timeout: 5), "沒有 shell 模式提示")
             app.element("composer.send").tap()
             XCTAssertTrue(app.element("conversation.shell").waitUntilExists(timeout: 15), "對話紀錄沒有接上 shell 區塊")
+            app.dismissKeyboard()
+        }
+        step("附加影片(#474)") {
+            // 相簿挑選器在另一個行程;`-uiTestingSimulatedVideo` 讓「影片」直接給一支小影片。
+            app.element("composer.attach").tap()
+            XCTAssertTrue(app.element("attach.panel").waitUntilExists(timeout: 5), "沒有附加面板")
+            let video = app.element("attach.video")
+            XCTAssertTrue(video.waitUntilExists(timeout: 5), "附加面板沒有「影片」")
+            video.tap()
+            XCTAssertTrue(app.element("composer.attachment.0").waitUntilExists(timeout: 20), "挑影片後輸入列沒有附件卡")
+            XCTAssertTrue(app.element("composer.videoPreparation").waitUntilGone(timeout: 10), "影片準備中的進度沒有結束")
+            app.element("composer.attachment.remove.0").tap()
+            XCTAssertTrue(app.element("composer.attachment.0").waitUntilGone(timeout: 5), "移除後附件卡還在")
             app.dismissKeyboard()
         }
         step("標題面板與權限模式") {
