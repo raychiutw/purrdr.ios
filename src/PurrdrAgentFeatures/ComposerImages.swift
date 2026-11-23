@@ -19,11 +19,17 @@ public struct ComposerAttachment: Identifiable, Equatable, Sendable {
     public let pixelHeight: Int
     /// 已上傳到主機的絕對路徑。送出失敗(什麼都沒送出)後再送，不重傳。
     public var uploadedPath: String?
+    /// 影片的長度(秒);不是影片是 `nil`(#474)。
+    public let duration: TimeInterval?
+    /// 影片縮圖在手機副本資料夾的檔名;沒有是 `nil`。
+    public let thumbnailFileName: String?
 
     public init(
         kind: Kind = .image, fileName: HostUploadName, displayName: String? = nil, byteCount: Int = 0, pixelWidth: Int = 0, pixelHeight: Int = 0,
-        uploadedPath: String? = nil
+        uploadedPath: String? = nil, duration: TimeInterval? = nil, thumbnailFileName: String? = nil
     ) {
+        self.duration = duration
+        self.thumbnailFileName = thumbnailFileName
         self.kind = kind
         self.fileName = fileName
         self.displayName = displayName ?? fileName.value

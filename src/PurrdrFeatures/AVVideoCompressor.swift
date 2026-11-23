@@ -1,4 +1,5 @@
 import AVFoundation
+import ImageIO
 import CoreTransferable
 import Foundation
 import PurrdrAgentFeatures
@@ -14,6 +15,17 @@ public struct AVVideoCompressor: VideoCompressing {
         let duration = try await AVURLAsset(url: source).load(.duration)
         guard duration.isNumeric, duration.seconds > 0 else { throw VideoCompressionError.unreadable }
         return duration.seconds
+    }
+
+    public func thumbnail(of source: URL) async -> Data? {
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: source))
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 480, height: 480)
+        guard let image = try? await generator.image(at: .zero).image else { return nil }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.7] as CFDictionary)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 
     public func compress(

@@ -358,7 +358,7 @@ public final class ConversationModel {
     /// 移除附件。送出(上傳)中不能移除。
     public func removeAttachment(_ id: String) {
         guard !isSending else { return }
-        if let removed = attachments.first(where: { $0.id == id }), removed.kind == .file { images?.store.remove(removed.fileName.value) }
+        if let removed = attachments.first(where: { $0.id == id }), removed.kind == .file { removeStoredCopies(of: removed) }
         attachments.removeAll { $0.id == id }
         saveAttachments()
     }
@@ -442,7 +442,7 @@ public final class ConversationModel {
 
     private enum VideoOutcome: Sendable {
         /// 已經搬進手機副本。
-        case ready(fileName: HostUploadName, displayName: String, byteCount: Int)
+        case ready(fileName: HostUploadName, displayName: String, byteCount: Int, duration: TimeInterval?, thumbnailFileName: String?)
         case tooLong
         case unreadable
         case cancelled
@@ -477,7 +477,7 @@ public final class ConversationModel {
                 let sourceSize = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
                 if sourceSize <= limit {
                     let ext = source.pathExtension.lowercased()
-                    return try Self.storeVideo(source, displayName: displayName, fileExtension: ext.isEmpty ? nil : ext, images: images)
+                    return try await Self.storeVideo(source, displayName: displayName, fileExtension: ext.isEmpty ? nil : ext, images: images, compressor: compressor)
                 }
                 let candidates = VideoQuality.candidates(forDuration: try await compressor.duration(of: source), limit: limit)
                 await self?.setVideoPhase(.shrinking, token: token)
@@ -490,7 +490,7 @@ public final class ConversationModel {
                     let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? .max
                     if size <= limit {
                         if Task.isCancelled { return .cancelled }
-                        return try Self.storeVideo(output, displayName: displayName, fileExtension: "mp4", images: images)
+                        return try await Self.storeVideo(output, displayName: displayName, fileExtension: "mp4", images: images, compressor: compressor)
                     }
                 }
                 return .tooLong
@@ -502,7 +502,10 @@ public final class ConversationModel {
         let outcome = await task.value
         // 取消(或已經換成新的一次)後回來的結果:不加入，已搬進副本的刪掉。
         guard videoToken == token else {
-            if case .ready(let fileName, _, _) = outcome { images.store.remove(fileName.value) }
+            if case .ready(let fileName, _, _, _, let thumbnail) = outcome {
+                images.store.remove(fileName.value)
+                if let thumbnail { images.store.remove(thumbnail) }
+            }
             return
         }
         videoTask = nil
@@ -512,27 +515,42 @@ public final class ConversationModel {
         case .cancelled: break
         case .tooLong: notice = .videoTooLong
         case .unreadable: notice = .videoUnreadable
-        case .ready(let fileName, let name, let byteCount):
+        case .ready(let fileName, let name, let byteCount, let duration, let thumbnail):
             guard remainingImageSlots > 0 else {
                 images.store.remove(fileName.value)
+                if let thumbnail { images.store.remove(thumbnail) }
                 notice = .attachmentLimit
                 return
             }
-            attachments.append(ComposerAttachment(kind: .file, fileName: fileName, displayName: name, byteCount: byteCount))
+            attachments.append(
+                ComposerAttachment(
+                    kind: .file, fileName: fileName, displayName: name, byteCount: byteCount, duration: duration, thumbnailFileName: thumbnail))
             saveAttachments()
         }
     }
 
     /// 把影片檔搬進手機副本(背景)。`fileExtension` 是實際格式,沒有就沿用顯示名稱的。
     private nonisolated static func storeVideo(
-        _ file: URL, displayName: String, fileExtension: String?, images: ComposerImages
-    ) throws -> VideoOutcome {
+        _ file: URL, displayName: String, fileExtension: String?, images: ComposerImages, compressor: any VideoCompressing
+    ) async throws -> VideoOutcome {
         var name = displayName
         if let fileExtension { name = (displayName as NSString).deletingPathExtension + "." + fileExtension }
         let byteCount = (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         let uploadName = images.makeFileName(name)
-        try images.store.save(movingFile: file, as: uploadName.value)
-        return .ready(fileName: uploadName, displayName: name, byteCount: byteCount)
+        // 長度與縮圖在搬走檔案之前取(取不到就沒有,卡片照常顯示)。
+        let duration = try? await compressor.duration(of: file)
+        var thumbnailName: String?
+        if let thumbnail = await compressor.thumbnail(of: file) {
+            let stem = (uploadName.value as NSString).deletingPathExtension
+            if (try? images.store.save(thumbnail, as: stem + "-thumb.jpg")) != nil { thumbnailName = stem + "-thumb.jpg" }
+        }
+        do {
+            try images.store.save(movingFile: file, as: uploadName.value)
+        } catch {
+            if let thumbnailName { images.store.remove(thumbnailName) }
+            throw error
+        }
+        return .ready(fileName: uploadName, displayName: name, byteCount: byteCount, duration: duration, thumbnailFileName: thumbnailName)
     }
 
     private func setVideoPhase(_ phase: VideoPreparation.Phase, token: UUID) {
@@ -557,6 +575,12 @@ public final class ConversationModel {
     private static func uploadNotice(for error: any Error, otherwise: SendNotice) -> SendNotice {
         guard case .hostServiceUpdateRequired(_, let installedVersion)? = error as? HostServiceError else { return otherwise }
         return .hostServiceUpdateRequired(installedVersion: installedVersion)
+    }
+
+    /// 刪掉檔案附件的手機副本(影片連縮圖)。
+    private func removeStoredCopies(of attachment: ComposerAttachment) {
+        images?.store.remove(attachment.fileName.value)
+        if let thumbnail = attachment.thumbnailFileName { images?.store.remove(thumbnail) }
     }
 
     /// 送出時上傳中的附件進度;沒有在上傳時是 `nil`。
@@ -1551,7 +1575,7 @@ public final class ConversationModel {
             // 附件只在送出被接受時清(什麼都沒送出時草稿放回、圖片也留著，已上傳的不重傳)。
             if !Self.nothingSent(notice) {
                 attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
-                for sent in sentImages where sent.kind == .file { images?.store.remove(sent.fileName.value) }
+                for sent in sentImages where sent.kind == .file { removeStoredCopies(of: sent) }
                 saveAttachments()
             }
             if notice == .needsAnswer {

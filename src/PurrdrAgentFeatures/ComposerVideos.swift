@@ -35,6 +35,12 @@ public protocol VideoCompressing: Sendable {
     func compress(
         _ source: URL, quality: VideoQuality, to destination: URL, progress: @escaping @Sendable (Double) -> Void
     ) async throws
+    /// 第一格的縮圖(JPEG);取不到是 `nil`。
+    func thumbnail(of source: URL) async -> Data?
+}
+
+extension VideoCompressing {
+    public func thumbnail(of source: URL) async -> Data? { nil }
 }
 
 /// 輸入列上影片準備中的狀態(顯示進度與取消)。

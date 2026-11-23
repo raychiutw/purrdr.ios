@@ -29,6 +29,8 @@ final class FakeVideoCompressor: VideoCompressing {
         try state.withLock { if let failure = $0.failure { throw failure }; return $0.duration }
     }
 
+    func thumbnail(of source: URL) async -> Data? { Data("thumb".utf8) }
+
     func compress(_ source: URL, quality: VideoQuality, to destination: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
         let (size, holds) = state.withLock { s -> (Int, Bool) in
             s.requested.append(quality)
@@ -154,7 +156,8 @@ struct ConversationVideoTests {
             return store
         }
         await setup.model.addVideo(displayName: "Demo.mov") { try Self.source(size: 1_000) }
-        #expect(recorder?.savedOnMain.withLock { $0 } == [false])
+        let saves = recorder?.savedOnMain.withLock { $0 } ?? []
+        #expect(!saves.isEmpty && saves.allSatisfy { !$0 }, "影片與縮圖都不在主執行緒存")
     }
 
     @Test("階梯:依長度略過放不下的階;太長時一階都沒有")
@@ -314,5 +317,36 @@ struct ConversationVideoTests {
         #expect(setup.model.draft == "看這段錄影")
         #expect(setup.model.attachments.count == 1, "附件留著可以再送")
         #expect(await setup.uploader.uploads.isEmpty)
+    }
+
+    @Test("影片卡:有長度與縮圖;移除附件連縮圖一起刪")
+    func videoCardHasDurationAndThumbnail() async throws {
+        let setup = try await Self.opened(compressor: FakeVideoCompressor(duration: 42))
+        await setup.model.addVideo(displayName: "Demo.mov") { try Self.source(size: 1_000) }
+
+        let attachment = try #require(setup.model.attachments.first)
+        #expect(attachment.duration == 42)
+        let thumbnail = try #require(attachment.thumbnailFileName)
+        #expect(setup.store.url(of: thumbnail) != nil)
+
+        setup.model.removeAttachment(attachment.id)
+
+        #expect(setup.store.url(of: thumbnail) == nil)
+        #expect(setup.store.url(of: attachment.id) == nil)
+    }
+
+    @Test("送出成功後影片與縮圖的手機副本都刪掉")
+    func sendingRemovesThumbnail() async throws {
+        let setup = try await Self.opened(compressor: FakeVideoCompressor())
+        await setup.model.addVideo(displayName: "Demo.mov") { try Self.source(size: 1_000) }
+        let thumbnail = try #require(setup.model.attachments.first?.thumbnailFileName)
+        setup.model.draft = "看"
+        await setup.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.snapshot())
+        await setup.base.host.bridge.expect(ConversationImageTests.bridge, reply: ConversationSendTests.delivered)
+
+        await setup.model.send()
+
+        #expect(setup.model.attachments.isEmpty)
+        #expect(setup.store.url(of: thumbnail) == nil)
     }
 }
