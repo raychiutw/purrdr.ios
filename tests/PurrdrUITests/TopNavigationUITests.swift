@@ -54,11 +54,12 @@ final class TopNavigationUITests: XCTestCase {
         XCTAssertTrue(newChat.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天")
         XCTAssertEqual(newChat.label, "New Chat")
         XCTAssertEqual(app.buttons["toolbar.account"].firstMatch.label, "Account")
-        // 帳號鈕外框是工具列的 44pt 玻璃圓鈕(#475);XCUI 回報的 frame 只有裡面 30pt 的頭像。
-        let account = app.buttons["toolbar.account"].firstMatch.frame
-        XCTAssertGreaterThanOrEqual(account.width, 30)
-        XCTAssertEqual(account.width, account.height, accuracy: 1, "帳號頭像不是圓的")
         XCTAssertLessThan(newChat.frame.maxX, app.buttons["toolbar.account"].firstMatch.frame.minX, "兩顆右上按鈕重疊")
+        // 點擊範圍(HIG 44pt):帳號鈕是工具列的 44pt 玻璃圓鈕,XCUI 回報的 frame 只有裡面 30pt 的頭像,
+        // 所以改驗行為——點在頭像外 18pt(圓鈕範圍內)也要開得出帳號頁。
+        app.buttons["toolbar.account"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: 18, dy: 0)).tap()
+        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "點頭像外圍(44pt 範圍內)沒有開出帳號頁")
     }
 
     @MainActor
