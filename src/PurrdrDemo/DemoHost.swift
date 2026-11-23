@@ -30,6 +30,8 @@ public actor DemoHost: HostChannel {
         /// 送出後大量輸出(#130):ledger 一開始就是長對話(150 輪文字訊息);每次對它送出 prompt,回覆之後
         /// agent 立刻再一次寫出超過 64 KiB。
         case largeOutputOnPrompt
+        /// 工具步驟(#489):ledger 一開始是長對話;第一次定位對話紀錄後 `after`,agent 一次接上 20 個工具步驟。
+        case toolBurst(after: Duration)
         /// 送出後工作一段時間(#210):對話紀錄先接上使用者那一行，agent 工作 `for` 之後才接上回覆並完成。
         case workingAfterPrompt(for: Duration)
         /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
@@ -120,7 +122,9 @@ public actor DemoHost: HostChannel {
             offlineScheduled = true
         }
         state.includesAntigravity = scenario == .antigravity
-        if scenario == .largeOutputOnPrompt {
+        var startsWithLongChat = scenario == .largeOutputOnPrompt
+        if case .toolBurst = scenario { startsWithLongChat = true }
+        if startsWithLongChat {
             appended[DemoTranscripts.ledger.sessionID] = DemoTranscripts.longChat(at: Date(timeIntervalSince1970: 1_794_819_660))
         }
     }
@@ -379,7 +383,7 @@ public actor DemoHost: HostChannel {
 
     /// 大量輸出情境：第一次定位 ledger 時定下寫出的時間;時間到了，下一個對話紀錄指令之前接上大量的行。
     private func writeLargeOutputIfDue(_ command: String) {
-        guard case .largeOutput(let delay) = scenario, !largeOutputWritten else { return }
+        guard !largeOutputWritten, let delay = burstDelay else { return }
         let ledger = DemoTranscripts.ledger
         if largeOutputAt == nil,
            command == TranscriptCommand.locate(sessionID: ledger.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: ledger.cwd)) {
@@ -388,7 +392,20 @@ public actor DemoHost: HostChannel {
         }
         guard let due = largeOutputAt, now() >= due else { return }
         largeOutputWritten = true
-        appended[ledger.sessionID, default: []] += DemoTranscripts.largeOutput(at: Date())
+        appended[ledger.sessionID, default: []] += isToolBurst
+            ? DemoTranscripts.toolBurst(at: Date()) : DemoTranscripts.largeOutput(at: Date())
+    }
+
+    private var isToolBurst: Bool {
+        if case .toolBurst = scenario { true } else { false }
+    }
+
+    /// 定位 ledger 後到寫出大量內容的等待:大量輸出或工具步驟情境才有。
+    private var burstDelay: Duration? {
+        switch scenario {
+        case .largeOutput(let delay), .toolBurst(let delay): delay
+        default: nil
+        }
     }
 
     /// 「桌機正在操作」的情境下，Pane 被別人佔著，直到有人接管。
