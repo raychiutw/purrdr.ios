@@ -258,7 +258,7 @@ struct DelegationDestination: View {
             SubagentScreenHolder(model: conversation.subagentModel(for: card))
         case .workflow(let card):
             if let model = conversation.workflowModel(for: card) {
-                WorkflowScreen(model: model)
+                WorkflowScreen(model: model, conversation: conversation)
             } else {
                 unavailable
             }
@@ -366,6 +366,8 @@ struct SubagentScreen: View {
 /// 每個 agent 列可開其對話紀錄。
 struct WorkflowScreen: View {
     let model: WorkflowModel
+    /// agent 列推入的對話紀錄畫面由這裡直接給目的地(這個畫面是以 item 推入的，值導覽的目的地在 iOS 26 會停在按下的狀態不推入)。
+    let conversation: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -403,7 +405,9 @@ struct WorkflowScreen: View {
                     }
                     ForEach(phase.agents) { agent in
                         if agent.agentID != nil {
-                            NavigationLink(value: DelegationRoute.workflowAgent(model.card, agent)) {
+                            NavigationLink {
+                                DelegationDestination(route: .workflowAgent(model.card, agent), conversation: conversation)
+                            } label: {
                                 WorkflowAgentRow(agent: agent)
                             }
                             .accessibilityIdentifier("workflow.agent.\(agent.id)")
