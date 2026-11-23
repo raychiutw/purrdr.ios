@@ -111,12 +111,14 @@ struct TrafficMeterTests {
 
         meter.record(hostID: "a", direction: .sent, bytes: 1)
         meter.record(hostID: "a", direction: .sent, bytes: 1)
+        _ = meter.sinceLaunch()  // 彙總在背景;讀取會先同步彙總
         #expect(jobs.withLock { $0.map(\.delay) } == [0])
         runJobs()
         #expect(store.saveCount == 1)
 
         clock.now = clock.now.addingTimeInterval(2)
         meter.record(hostID: "a", direction: .sent, bytes: 1)  // 距上次存 2 秒:排在剩下的 3 秒後
+        _ = meter.sinceLaunch()
         #expect(jobs.withLock { $0.map(\.delay) } == [3])
         clock.now = clock.now.addingTimeInterval(3)
         runJobs()
@@ -229,6 +231,7 @@ struct TrafficMeterOffThreadSaveTests {
         let meter = TrafficMeter(store: store, scheduler: { _, work in jobs.withLock { $0.append(work) } })
         meter.record(hostID: "a", direction: .sent, bytes: 10)
         meter.record(hostID: "a", direction: .sent, bytes: 5)
+        _ = meter.sinceLaunch()
         #expect(store.saveCount == 0)
         #expect(jobs.withLock { $0.count } == 1)  // 合併成一次排程
         jobs.withLock { $0 }.forEach { $0() }

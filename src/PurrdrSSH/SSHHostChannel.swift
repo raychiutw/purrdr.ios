@@ -167,7 +167,8 @@ public actor SSHHostChannel: HostChannel {
             let user = try await credential()
             let prompt: @Sendable (URL) -> Void = { url in tailscaleCheck?(TailscaleCheckPrompt(url: url, cancel: cancel)) }
             var prompted = false
-            defer { if prompted { tailscaleCheck?(nil) } }
+            // 與 event loop 轉過來的提示走同一條佇列,維持「提示在前、清除在後」的順序。
+            defer { if prompted { SSHCallbackQueue.async { tailscaleCheck?(nil) } } }
             while true {
                 do {
                     let (connection, checked) = try await SSHConnection.connect(
@@ -314,8 +315,12 @@ final class SSHConnection: Sendable {
             // 診斷(#133):登入完成到連線結束的壽命與原因。原因由關閉的一方先記下;都沒記 = 對端關閉。
             diagnostics?(.connected(dial: dial))
             let start = ContinuousClock.now
+            // event loop 上不執行注入的程式碼(#470):這個 callback 可能在讀取途中的深 stack 上同步執行,
+            // 所以只擷取值,組字串與 os_log 都交給背景佇列。
             channel.closeFuture.whenComplete { _ in
-                diagnostics?(.dropped(dial: dial, reason: dropReason.reason ?? .closedByPeer, lifetime: ContinuousClock.now - start))
+                let raw = dropReason.rawReason
+                let lifetime = ContinuousClock.now - start
+                SSHCallbackQueue.async { diagnostics?(.dropped(dial: dial, reason: raw?.resolved ?? .closedByPeer, lifetime: lifetime)) }
             }
             return (SSHConnection(channel: channel, scheduler: scheduler, dropReason: dropReason), checked)
         } catch {
@@ -443,15 +448,40 @@ final class SSHConnection: Sendable {
     }
 }
 
+/// 在 event loop 上呼叫注入程式碼會用掉 NIO 執行緒有限的 stack(iOS 非主執行緒 512 KB,#470):
+/// PurrdrSSH 邊界注入的 closure(診斷、Tailscale check 觀察者)一律先轉到這條背景序列佇列再呼叫。
+enum SSHCallbackQueue {
+    private static let queue = DispatchQueue(label: "purrdr.ssh-callbacks", qos: .utility)
+
+    static func async(_ work: @escaping @Sendable () -> Void) { queue.async(execute: work) }
+}
+
 /// 連線結束的原因：先記下的為準(關閉的一方在關閉前記下;closeFuture 觸發時讀取)。
+/// 網路錯誤只存錯誤本身,組成描述字串(可能很吃 stack)留給背景佇列(`RawReason.resolved`)。
 final class DropReasonBox: @unchecked Sendable {
+    enum RawReason: @unchecked Sendable {
+        case reason(SSHDropReason)
+        case networkError(any Error)
+
+        var resolved: SSHDropReason {
+            switch self {
+            case .reason(let reason): reason
+            case .networkError(let error): .networkError(String(describing: error))
+            }
+        }
+    }
+
     private let lock = NSLock()
-    private var stored: SSHDropReason?
+    private var stored: RawReason?
 
-    var reason: SSHDropReason? { lock.withLock { stored } }
+    var reason: SSHDropReason? { rawReason?.resolved }
+    var rawReason: RawReason? { lock.withLock { stored } }
 
-    func record(_ reason: SSHDropReason) {
-        lock.withLock { if stored == nil { stored = reason } }
+    func record(_ reason: SSHDropReason) { store(.reason(reason)) }
+    func record(networkError error: any Error) { store(.networkError(error)) }
+
+    private func store(_ raw: RawReason) {
+        lock.withLock { if stored == nil { stored = raw } }
     }
 }
 
@@ -637,7 +667,8 @@ private final class HandshakeHandler: ChannelInboundHandler {
             if let url = TailscaleCheck.authenticationURL(inBanner: banner.message) {
                 checked = true
                 arm(in: timeouts.tailscaleCheck, failing: .tailscaleCheckTimedOut, context: context)
-                onCheck(url)
+                let onCheck = onCheck
+                SSHCallbackQueue.async { onCheck(url) }
             }
         default:
             break
@@ -647,7 +678,7 @@ private final class HandshakeHandler: ChannelInboundHandler {
 
     func errorCaught(context: ChannelHandlerContext, error: any Error) {
         fail(error as? SSHConnectionError ?? .connectionLost)
-        dropReason.record(.networkError(String(describing: error)))
+        dropReason.record(networkError: error)
         context.close(promise: nil)
     }
 

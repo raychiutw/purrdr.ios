@@ -95,11 +95,10 @@ public struct AgentListView: View {
             await model.runNotes()
         }
         // 有主機在連線時每秒更新現在時間，連線狀態行到 10 秒換成「仍在連線」(#221)。
-        .task(id: hasConnectingHosts) {
-            while hasConnectingHosts, !Task.isCancelled {
-                now = Date()
-                try? await Task.sleep(for: .seconds(1))
-            }
+        // 只在前景跑，過了門檻(「仍在連線」)就停(#492)。
+        .task(id: ConnectingClockKey(active: scenePhase == .active, needsTicks: needsConnectingTicks)) {
+            await ConnectingClock.run(
+                isActive: scenePhase == .active, needsTicks: { needsConnectingTicks }, tick: { now = $0 }, sleep: Sleeping.task)
         }
         // 預先載入前幾個聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
         .task(id: model.agentRows.prefix(Self.prefetchCount).map(\.id)) {
@@ -122,7 +121,12 @@ public struct AgentListView: View {
         return model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty
     }
 
-    private var hasConnectingHosts: Bool { !model.hostStatuses(at: now).isEmpty }
+    private var needsConnectingTicks: Bool { ConnectingClock.needsTicks(for: model.hostStatuses(at: now)) }
+
+    private struct ConnectingClockKey: Equatable {
+        var active: Bool
+        var needsTicks: Bool
+    }
 
     /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
     private var sections: [AgentSection] {
