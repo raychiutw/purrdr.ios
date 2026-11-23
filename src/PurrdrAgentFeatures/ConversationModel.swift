@@ -940,6 +940,14 @@ public final class ConversationModel {
         }
     }
 
+    /// 停在 `.missingSession` 時,這種 Agent 的解法指令(Codex 的 `codex --no-daemon`,#400);其他情況與沒有解法的種類為 `nil`。
+    public var missingSessionCommand: String? {
+        guard phase == .missingSession, let kind = currentAgent?.kind else { return nil }
+        let profile = AgentCatalog.profile(forHerdrName: kind)
+        guard !profile.session.launchArguments.isEmpty else { return nil }
+        return ([profile.id.canonicalName] + profile.session.launchArguments).joined(separator: " ")
+    }
+
     private func read(_ target: TranscriptTarget) async {
         let generation = generation
         defer { if generation == self.generation { isRefreshing = false } }

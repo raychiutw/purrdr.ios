@@ -170,6 +170,19 @@ struct HTTPSStructureOperationsTests {
         #expect(try Self.sent(service, type: "agent.start")["permission_mode"] == nil)
     }
 
+    /// #400:Codex 新聊天帶 `--no-daemon`;主機服務不收參數,不能因此讓 HTTPS 主機開不了 Codex。
+    @Test("Codex 的 --no-daemon:HTTPS 略過它照常啟動,不當成不支援")
+    func startCodexIgnoresNoDaemon() async throws {
+        let service = try await Self.start()
+        defer { Task { await service.stop() } }
+
+        try await Self.client(to: service).startAgent(name: "ledger", kind: "codex", paneID: "w1:p1", arguments: ["--no-daemon"], timeout: .seconds(60))
+
+        let sent = try Self.sent(service, type: "agent.start")
+        #expect(sent["kind"] as? String == "codex")
+        #expect(sent["permission_mode"] == nil)
+    }
+
     @Test("協定不接受的 Agent 參數：不送出，錯誤種類是 unsupported")
     func startAgentWithArbitraryArguments() async throws {
         let service = try await Self.start()

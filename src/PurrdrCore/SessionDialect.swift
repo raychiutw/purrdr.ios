@@ -30,12 +30,19 @@ public struct SessionDialect: Sendable, Equatable {
     public let resumeConversationFlag: String?
     /// 接續最近一次對話的啟動旗標(Antigravity 的 `-c`);`nil` 表示沒有。
     public let continueFlag: String?
+    /// 由 Purrdr 啟動這種 Agent 時一律帶的啟動參數(Codex 的 `--no-daemon`,#400);空表示沒有。
+    /// 也是 session 回報不了時給使用者的解法(在電腦上以同樣參數開新對話)。
+    public let launchArguments: [String]
+
+    /// herdr 的 Codex 整合與 Codex 共用 daemon 不相容(herdr#4649),`--no-daemon` 是 herdr 官方解法。
+    public static let noDaemonFlag = "--no-daemon"
 
     init(
         name: String, verification: Verification, startsNewChat: Bool = false, permissionModeFlag: String? = nil,
         resumeKind: String? = nil, titleRule: TitleRule = .sessionTitleThenTerminal,
-        resumeConversationFlag: String? = nil, continueFlag: String? = nil
+        resumeConversationFlag: String? = nil, continueFlag: String? = nil, launchArguments: [String] = []
     ) {
+        self.launchArguments = launchArguments
         self.resumeConversationFlag = resumeConversationFlag
         self.continueFlag = continueFlag
         self.name = name
@@ -88,7 +95,7 @@ extension SessionDialect {
     )
     static let codex = SessionDialect(
         name: "codex", verification: .verified(agentVersion: "Codex 0.157–0.163"), startsNewChat: true, resumeKind: "codex",
-        titleRule: .terminalTitleBeforeFolderSuffix
+        titleRule: .terminalTitleBeforeFolderSuffix, launchArguments: [noDaemonFlag]
     )
     static let grok = SessionDialect(
         name: "grok", verification: .unverified(documentedFor: "Grok 1.0.52"), startsNewChat: true, titleRule: .grokTerminalTitle

@@ -135,6 +135,35 @@ struct ConversationModelTests {
         #expect(setup.model.phase == .missingSession)
     }
 
+    /// #400:Codex 在共用 daemon 下 herdr 拿不到 session;不猜檔,說明原因與解法(用 `codex --no-daemon` 開新對話)。
+    @Test("缺少:Codex 沒有 session 時給 codex --no-daemon 的說明;有 session 或別種 agent 不給")
+    func missingSessionRemedyForCodex() async throws {
+        let setup = try Self.setup(knownSessionID: nil)
+        let noSession = Self.snapshot { $0["agent"] = "codex"; $0.removeValue(forKey: "agent_session") }
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: noSession)
+            await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-idle"))
+        }
+        await setup.model.poll()
+        #expect(setup.model.missingSessionCommand == nil)
+        setup.clock.advance(by: 81)
+        await setup.model.poll()
+        #expect(setup.model.phase == .missingSession)
+        #expect(setup.model.missingSessionCommand == "codex --no-daemon")
+
+        let claude = try Self.setup(knownSessionID: nil)
+        let claudeNoSession = Self.snapshot { $0.removeValue(forKey: "agent_session") }
+        for _ in 0..<2 {
+            await claude.host.bridge.expect(Self.bridge, reply: claudeNoSession)
+            await claude.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-idle"))
+        }
+        await claude.model.poll()
+        claude.clock.advance(by: 81)
+        await claude.model.poll()
+        #expect(claude.model.phase == .missingSession)
+        #expect(claude.model.missingSessionCommand == nil)
+    }
+
     @Test("不支援：不是 Claude Code 的 agent 不讀對話紀錄")
     func otherAgentsAreUnsupported() async throws {
         let setup = try Self.setup()

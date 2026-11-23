@@ -113,7 +113,8 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+        // 認不出 session(#400)時,工作中指示不蓋掉說明:沒有對話可顯示,使用者需要知道原因與解法。
+        if model.phase == .missingSession || model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -428,7 +429,25 @@ public struct ConversationView: View {
             ContentUnavailableView {
                 Label("Can’t Identify This Chat", systemImage: "questionmark.bubble")
             } description: {
-                Text("This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again.")
+                if let command = model.missingSessionCommand {
+                    VStack(spacing: 12) {
+                        Text("herdr can’t get this agent’s session while it shares a background service, so its messages can’t be shown. In a herdr Pane on the host, start a new chat with this command.")
+                        Text(verbatim: command)
+                            .font(.footnote.monospaced())
+                            .textSelection(.enabled)
+                            .padding(10)
+                            .background(.fill.tertiary, in: .rect(cornerRadius: 12))
+                            .accessibilityIdentifier("conversation.missingSession.command")
+                        Button("Copy", systemImage: "document.on.document") { Clipboard.copy(command) }
+                            .buttonStyle(.bordered)
+                            .tint(.primary)
+                            .controlSize(.small)
+                            .accessibilityLabel(Text("Copy \(command)"))
+                            .accessibilityIdentifier("conversation.missingSession.copy")
+                    }
+                } else {
+                    Text("This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again.")
+                }
             }
         case .unsupported:
             ContentUnavailableView {
