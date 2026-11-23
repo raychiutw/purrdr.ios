@@ -431,7 +431,7 @@ public struct ConversationView: View {
             } description: {
                 if let command = model.missingSessionCommand {
                     VStack(spacing: 12) {
-                        Text("herdr can’t get this agent’s session while it shares a background service, so its messages can’t be shown. In a herdr Pane on the host, start a new chat with this command.")
+                        Text("This chat can’t be read. In a herdr Pane on the host, paste the command below to start a new chat.")
                         Text(verbatim: command)
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)

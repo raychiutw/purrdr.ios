@@ -16181,17 +16181,6 @@
         }
       }
     },
-    "herdr can’t get this agent’s session while it shares a background service, so its messages can’t be shown. In a herdr Pane on the host, start a new chat with this command." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 使用共用的背景服務時，herdr 拿不到它的 session，所以這裡讀不到對話。請在主機的 herdr Pane 用下面的指令開新的對話。"
-          }
-        }
-      }
-    },
     "herdr is updated. Restart herdr on that computer, then try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16454,6 +16443,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false,
       "localizations" : {}
+    },
+    "This chat can’t be read. In a herdr Pane on the host, paste the command below to start a new chat." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這段對話讀不到。請在主機的 herdr Pane 貼上下面的指令，開一段新的對話。"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"
