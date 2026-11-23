@@ -43,6 +43,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case directPush
     /// 取檔放行使用者 prompt 裡 Purrdr 上傳資料夾的路徑(raychiutw/purrdr.host#73、#430);更舊的主機服務一律回 `denied`。
     case userUploadFetch
+    /// 重新命名 Tab `tab.rename`(#458、raychiutw/purrdr.host#78)。
+    case tabRename
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -67,6 +69,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .directoryBrowsing: HostServiceVersion(0, 12, 0)
         case .directPush: HostServiceVersion(0, 12, 0)
         case .userUploadFetch: HostServiceVersion(0, 13, 0)
+        case .tabRename: HostServiceVersion(0, 13, 1)
         }
     }
 

@@ -64,6 +64,7 @@
         { "$ref": "#/$defs/ClaudeUsageRemove" },
         { "$ref": "#/$defs/WorkspaceCreate" },
         { "$ref": "#/$defs/WorkspaceRename" },
+        { "$ref": "#/$defs/TabRename" },
         { "$ref": "#/$defs/WorkspaceClose" },
         { "$ref": "#/$defs/WorktreeCreate" },
         { "$ref": "#/$defs/AgentStart" },
@@ -124,6 +125,7 @@
         { "$ref": "#/$defs/ClaudeUsageRemoveResult" },
         { "$ref": "#/$defs/WorkspaceCreateResult" },
         { "$ref": "#/$defs/WorkspaceRenameResult" },
+        { "$ref": "#/$defs/TabRenameResult" },
         { "$ref": "#/$defs/WorkspaceCloseResult" },
         { "$ref": "#/$defs/WorktreeCreateResult" },
         { "$ref": "#/$defs/AgentStartResult" },
@@ -762,6 +764,28 @@
       "type": "object",
       "properties": {
         "type": { "const": "workspace.rename.result" },
+        "request_id": { "type": "string" },
+        "label": { "type": "string", "description": "herdr 實際保存的名稱(可能經正規化);沒有時省略。" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "TabRename": {
+      "description": "重新命名 tab(herdr tab.rename)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "tab.rename" },
+        "request_id": { "type": "string" },
+        "tab_id": { "type": "string" },
+        "label": { "type": "string", "description": "新名稱，不可空白。" }
+      },
+      "required": ["type", "request_id", "tab_id", "label"]
+    },
+    "TabRenameResult": {
+      "description": "tab 已重新命名。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "tab.rename.result" },
         "request_id": { "type": "string" },
         "label": { "type": "string", "description": "herdr 實際保存的名稱(可能經正規化);沒有時省略。" }
       },

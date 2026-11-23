@@ -57,6 +57,7 @@ extension HostServiceProtocol {
         case claudeUsageRemove(ClaudeUsageRemove)
         case workspaceCreate(WorkspaceCreate)
         case workspaceRename(WorkspaceRename)
+        case tabRename(TabRename)
         case workspaceClose(WorkspaceClose)
         case worktreeCreate(WorktreeCreate)
         case agentStart(AgentStart)
@@ -120,6 +121,7 @@ extension HostServiceProtocol {
             case "claude_usage.remove": self = .claudeUsageRemove(try ClaudeUsageRemove(from: decoder))
             case "workspace.create": self = .workspaceCreate(try WorkspaceCreate(from: decoder))
             case "workspace.rename": self = .workspaceRename(try WorkspaceRename(from: decoder))
+            case "tab.rename": self = .tabRename(try TabRename(from: decoder))
             case "workspace.close": self = .workspaceClose(try WorkspaceClose(from: decoder))
             case "worktree.create": self = .worktreeCreate(try WorktreeCreate(from: decoder))
             case "agent.start": self = .agentStart(try AgentStart(from: decoder))
@@ -254,6 +256,9 @@ extension HostServiceProtocol {
             case .workspaceRename(let message):
                 try container.encode("workspace.rename", forKey: .type)
                 try message.encode(to: encoder)
+            case .tabRename(let message):
+                try container.encode("tab.rename", forKey: .type)
+                try message.encode(to: encoder)
             case .workspaceClose(let message):
                 try container.encode("workspace.close", forKey: .type)
                 try message.encode(to: encoder)
@@ -314,7 +319,7 @@ extension HostServiceProtocol {
         /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
         public var isWrite: Bool {
             switch self {
-            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove, .pushUpdateMuted, .pushTest, .claudeUsageInstall, .claudeUsageRemove, .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart, .fileUploadStart, .fileUploadChunk, .devicesRevoke, .hostServiceUpdate, .hostServiceSetAutoUpdate, .queueAdd, .queueRemove, .queueReorder: return true
+            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove, .pushUpdateMuted, .pushTest, .claudeUsageInstall, .claudeUsageRemove, .workspaceCreate, .workspaceRename, .tabRename, .workspaceClose, .worktreeCreate, .agentStart, .fileUploadStart, .fileUploadChunk, .devicesRevoke, .hostServiceUpdate, .hostServiceSetAutoUpdate, .queueAdd, .queueRemove, .queueReorder: return true
             default: return false
             }
         }
@@ -361,6 +366,7 @@ extension HostServiceProtocol {
         case claudeUsageRemoveResult(ClaudeUsageRemoveResult)
         case workspaceCreateResult(WorkspaceCreateResult)
         case workspaceRenameResult(WorkspaceRenameResult)
+        case tabRenameResult(TabRenameResult)
         case workspaceCloseResult(WorkspaceCloseResult)
         case worktreeCreateResult(WorktreeCreateResult)
         case agentStartResult(AgentStartResult)
@@ -427,6 +433,7 @@ extension HostServiceProtocol {
             case "claude_usage.remove.result": self = .claudeUsageRemoveResult(try ClaudeUsageRemoveResult(from: decoder))
             case "workspace.create.result": self = .workspaceCreateResult(try WorkspaceCreateResult(from: decoder))
             case "workspace.rename.result": self = .workspaceRenameResult(try WorkspaceRenameResult(from: decoder))
+            case "tab.rename.result": self = .tabRenameResult(try TabRenameResult(from: decoder))
             case "workspace.close.result": self = .workspaceCloseResult(try WorkspaceCloseResult(from: decoder))
             case "worktree.create.result": self = .worktreeCreateResult(try WorktreeCreateResult(from: decoder))
             case "agent.start.result": self = .agentStartResult(try AgentStartResult(from: decoder))
@@ -565,6 +572,9 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .workspaceRenameResult(let message):
                 try container.encode("workspace.rename.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .tabRenameResult(let message):
+                try container.encode("tab.rename.result", forKey: .type)
                 try message.encode(to: encoder)
             case .workspaceCloseResult(let message):
                 try container.encode("workspace.close.result", forKey: .type)
@@ -1859,6 +1869,47 @@ extension HostServiceProtocol {
 extension HostServiceProtocol {
     /// 已重新命名。
     public struct WorkspaceRenameResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// herdr 實際保存的名稱(可能經正規化);沒有時省略。
+        public var label: String?
+
+        public init(requestId: String, label: String? = nil) {
+            self.requestId = requestId
+            self.label = label
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case label
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 重新命名 tab(herdr tab.rename)。
+    public struct TabRename: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var tabId: String
+        /// 新名稱，不可空白。
+        public var label: String
+
+        public init(requestId: String, tabId: String, label: String) {
+            self.requestId = requestId
+            self.tabId = tabId
+            self.label = label
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case tabId = "tab_id"
+            case label
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// tab 已重新命名。
+    public struct TabRenameResult: Codable, Sendable, Equatable {
         public var requestId: String
         /// herdr 實際保存的名稱(可能經正規化);沒有時省略。
         public var label: String?

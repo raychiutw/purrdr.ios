@@ -470,7 +470,7 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
-        case "workspace.create", "workspace.rename", "workspace.close", "worktree.create", "agent.start":
+        case "workspace.create", "workspace.rename", "tab.rename", "workspace.close", "worktree.create", "agent.start":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
             }

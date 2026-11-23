@@ -431,6 +431,7 @@ extension HostServiceProtocol.ServerMessage {
              .pushTestResult,
              .workspaceCreateResult,
              .workspaceRenameResult,
+             .tabRenameResult,
              .workspaceCloseResult,
              .worktreeCreateResult,
              .agentStartResult,
@@ -491,6 +492,7 @@ extension HostServiceProtocol.ServerMessage {
         case .transcriptDelegationResult(let message): message.requestId
         case .workspaceCreateResult(let message): message.requestId
         case .workspaceRenameResult(let message): message.requestId
+        case .tabRenameResult(let message): message.requestId
         case .workspaceCloseResult(let message): message.requestId
         case .worktreeCreateResult(let message): message.requestId
         case .agentStartResult(let message): message.requestId

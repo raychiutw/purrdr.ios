@@ -61,6 +61,52 @@ struct HTTPSStructureOperationsTests {
         #expect(sent["label"] as? String == "garden-notes")
     }
 
+    @Test("重新命名 Tab 送 tab.rename {tab_id, label}(#458)")
+    func renameTab() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.13.1"))
+        defer { Task { await service.stop() } }
+
+        try await Self.client(to: service).renameTab("w1:t1", to: "build-logs")
+
+        let sent = try Self.sent(service, type: "tab.rename")
+        #expect(sent["tab_id"] as? String == "w1:t1")
+        #expect(sent["label"] as? String == "build-logs")
+    }
+
+    @Test("重新命名 Tab:主機服務 0.13.0 之前不送出，回「需要更新主機服務」(#458)")
+    func renameTabOnOlderHostService() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.13.0"))
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.hostServiceUpdateRequired(.tabRename, installedVersion: "0.13.0")) {
+            try await Self.client(to: service).renameTab("w1:t1", to: "build-logs")
+        }
+        #expect(!service.log.messages.contains { $0.contains("tab.rename") })
+    }
+
+    @Test("重新命名 Tab:唯讀裝置被拒，錯誤種類是 readOnlyDevice(#458)")
+    func renameTabOnReadOnlyDevice() async throws {
+        let service = try await Self.start(.init(readOnlyTokens: ["token-ok"], hostServiceVersion: "0.13.1"))
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.readOnlyDevice) {
+            try await Self.client(to: service).renameTab("w1:t1", to: "build-logs")
+        }
+    }
+
+    @Test("重新命名 Tab:herdr 的錯誤碼 tab_not_found 原樣透傳(#458)")
+    func renameMissingTab() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.13.1", structureHerdrErrors: ["tab.rename": "tab_not_found"]))
+        defer { Task { await service.stop() } }
+
+        await #expect {
+            try await Self.client(to: service).renameTab("w1:t9", to: "x")
+        } throws: { error in
+            if case HerdrError.herdr(code: "tab_not_found", _) = error { return true }
+            return false
+        }
+    }
+
     @Test("關閉送 workspace.close")
     func closeWorkspace() async throws {
         let service = try await Self.start()
@@ -162,6 +208,7 @@ struct HTTPSStructureOperationsTests {
         arguments: [
             #"{"id":"1","method":"workspace.create","params":{"cwd":"/tmp","focus":false}}"#,
             #"{"id":"1","method":"workspace.rename","params":{"workspace_id":"w1","label":"a"}}"#,
+            #"{"id":"1","method":"tab.rename","params":{"tab_id":"w1:t1","label":"a"}}"#,
             #"{"id":"1","method":"workspace.close","params":{"workspace_id":"w1"}}"#,
             #"{"id":"1","method":"worktree.create","params":{"workspace_id":"w1","branch":"b"}}"#,
             #"{"id":"1","method":"agent.start","params":{"name":"a","kind":"claude","pane_id":"w1:p1","timeout_ms":1000}}"#,
