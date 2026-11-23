@@ -38,6 +38,8 @@ public struct ConversationView: View {
     /// 放在只有輸入列(聚焦時)讀的 observable 裡：寫進這個畫面的 `@State` 會讓整個對話隨每次捲動量測重畫，
     /// 送出後大量輸出時列表停在一片空白(`testSendingThenLargeOutputKeepsMessagesVisible`)。
     @State private var conversationHeight = ConversationVisibleHeight()
+    /// 避開玻璃導覽列、橫幅與輸入列後的安全區域框(全域座標),列表據此算上下 inset。
+    @State private var safeAreaFrame: CGRect = .zero
 
     public init(model: ConversationModel) {
         self.model = model
@@ -281,12 +283,21 @@ public struct ConversationView: View {
     @ViewBuilder
     private var chatList: some View {
         #if os(iOS)
-        ChatListView(
-            content: listContent, model: model, handle: listHandle, rowView: { rowView($0) },
-            smoothness: smoothnessReporter,
-            onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
-            onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) }
-        )
+        // 列表延伸到玻璃導覽列、橫幅與輸入列底下(DESIGN.md:內容從玻璃底下捲過去);避開玻璃後的安全區域框由探針量出,
+        // 交給列表當上下 inset。覆蓋物(進度條、跳到最新)掛在這個避開玻璃的容器上,所以停在輸入列上方。
+        ZStack {
+            Color.clear
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { safeAreaFrame = $0 }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            ChatListView(
+                content: listContent, model: model, handle: listHandle, rowView: { rowView($0) },
+                smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
+                onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
+                onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) }
+            )
+            .ignoresSafeArea(.container, edges: .vertical)
+        }
         // 重新載入、換 session 讀取中:舊訊息留著，頂端只放一條不遮擋的細進度條(#329)。
         .overlay(alignment: .top) {
             if model.isRefreshing {
@@ -387,7 +398,8 @@ public struct ConversationView: View {
         switch model.phase {
         case .loading:
             VStack(spacing: 20) {
-                loadingSkeleton
+                // 沒命中快取時先留白約 300 毫秒,一般讀取在這段內完成,不會看到骨架換成列表。
+                if model.showsLoadingSkeleton { loadingSkeleton }
                 // 等超過約 1.5 秒才出現，用系統的 ProgressView(HIG〈Progress indicators〉)。
                 if model.showsLoadingIndicator {
                     ProgressView().accessibilityIdentifier("conversation.loadingIndicator")

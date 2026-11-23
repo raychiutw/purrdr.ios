@@ -42,6 +42,8 @@ struct ChatListView: UIViewControllerRepresentable {
     let handle: ChatListHandle
     let rowView: (ChatListRowContent) -> AnyView
     let smoothness: (any ScrollSmoothnessReporting)?
+    /// 避開玻璃導覽列、橫幅與輸入列後的安全區域框(全域座標):列表延伸到玻璃底下,上下留白由它與列表框的差決定。
+    let safeAreaFrame: CGRect
     let onShowsJumpToLatestChanged: (Bool) -> Void
     let onVisibleHeightChanged: (Double) -> Void
 
@@ -57,11 +59,13 @@ struct ChatListView: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: ChatListViewController, context: Context) {
         controller.rowView = rowView
         controller.smoothness = smoothness
+        controller.safeAreaFrame = safeAreaFrame
         controller.onShowsJumpToLatestChanged = onShowsJumpToLatestChanged
         controller.onVisibleHeightChanged = { [handle] height in
             handle.visibleHeight = height
             onVisibleHeightChanged(height)
         }
+        controller.updateInsets()
         controller.update(content: content)
     }
 
@@ -75,6 +79,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     var model: ConversationModel?
     var rowView: (ChatListRowContent) -> AnyView = { _ in AnyView(EmptyView()) }
     var smoothness: (any ScrollSmoothnessReporting)?
+    var safeAreaFrame: CGRect = .zero
     var onShowsJumpToLatestChanged: (Bool) -> Void = { _ in }
     var onVisibleHeightChanged: (Double) -> Void = { _ in }
 
@@ -83,7 +88,13 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     private var dataSource: UICollectionViewDiffableDataSource<Int, String>!
     private var content = ChatListContent()
     private var hasAppliedContent = false
+    private var hadContent = false
     private var needsInitialScroll = false
+    private var hasMeasuredInsets = false
+    /// 拖曳、鍵盤動畫、選單開著時先留著的最新內容,安全了再套用。
+    private var pendingContent: ChatListContent?
+    private var isKeyboardAnimating = false
+    private var isMenuOpen = false
 
     private var decider = ConversationScrollDecider()
     private var flushTask: Task<Void, Never>?
@@ -126,7 +137,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         collectionView.accessibilityIdentifier = "conversation.list"
         view.addSubview(collectionView)
 
-        let registration = UICollectionView.CellRegistration<UICollectionViewCell, String> { [weak self] cell, _, id in
+        let registration = UICollectionView.CellRegistration<ChatListCell, String> { [weak self] cell, _, id in
             guard let self, let rowContent = self.content.rows[id] else { return }
             let hosted = self.rowView(rowContent)
             cell.contentConfiguration = UIHostingConfiguration { hosted }
@@ -171,6 +182,32 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
                 scheduleFlush(after: 0.05)
             }
         }
+        updateInsets()
+        scrollToInitialPositionIfPossible()
+        reportVisibleHeight()
+        reportMeasurement()
+    }
+
+    /// 列表延伸到玻璃導覽列、橫幅與輸入列底下:上下 inset 是列表框與安全區域框的差(DESIGN.md:內容從玻璃底下捲過去)。
+    func updateInsets() {
+        guard isViewLoaded, collectionView != nil, view.window != nil, safeAreaFrame != .zero else { return }
+        let listFrame = view.convert(view.bounds, to: nil)
+        let measured = ChatListInsetMath.insets(
+            listMinY: listFrame.minY, listMaxY: listFrame.maxY, safeMinY: safeAreaFrame.minY, safeMaxY: safeAreaFrame.maxY)
+        let target = UIEdgeInsets(top: measured.top, left: 0, bottom: measured.bottom, right: 0)
+        let current = collectionView.contentInset
+        guard target != current || !hasMeasuredInsets else { return }
+        let wasAtTopEdge = collectionView.contentOffset.y <= -current.top + 0.5
+        let wasMeasured = hasMeasuredInsets
+        hasMeasuredInsets = true
+        collectionView.contentInset = target
+        collectionView.verticalScrollIndicatorInsets = target
+        layout.invalidateLayout()
+        if wasAtTopEdge { collectionView.contentOffset.y = -target.top }
+        if wasMeasured, target.bottom != current.bottom {
+            decider.receive(.inputBarHeightChanged)
+            scheduleFlush(after: 0.05)
+        }
         scrollToInitialPositionIfPossible()
         reportVisibleHeight()
         reportMeasurement()
@@ -178,7 +215,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     /// 打開時直接停在最底(有尺寸之後才算數)。
     private func scrollToInitialPositionIfPossible() {
-        guard needsInitialScroll, collectionView.bounds.height > 0 else { return }
+        guard needsInitialScroll, hasMeasuredInsets, collectionView.bounds.height > 0 else { return }
         needsInitialScroll = false
         scrollToBottom(animated: false)
     }
@@ -192,15 +229,42 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     // MARK: - 內容
 
-    /// 套用新內容:順序與內容的差異交給 diffable;閱讀中時維持畫面上第一列的位置。
+    /// 收到新內容:拖曳、鍵盤動畫、選單開著時先留著最新一份,安全了再套用(spec #480)。
     func update(content newContent: ChatListContent) {
-        guard !hasAppliedContent || newContent != content else { return }
         loadViewIfNeeded()
-        let isFirstApply = !hasAppliedContent
+        if hasAppliedContent, newContent == content {
+            pendingContent = nil
+            return
+        }
+        if hasAppliedContent, shouldDeferApply {
+            pendingContent = newContent
+            return
+        }
+        pendingContent = nil
+        apply(newContent)
+    }
+
+    private var shouldDeferApply: Bool {
+        ChatListApplyGate.shouldDefer(
+            isFirstApply: !hasAppliedContent, isUserDriven: isUserDriven, isKeyboardAnimating: isKeyboardAnimating, isMenuOpen: isMenuOpen)
+    }
+
+    /// 暫存的內容在安全時套用(拖曳結束、鍵盤動畫結束)。
+    private func applyPendingContentIfSafe() {
+        guard let pendingContent, !shouldDeferApply else { return }
+        self.pendingContent = nil
+        apply(pendingContent)
+    }
+
+    /// 套用新內容:順序與內容的差異交給 diffable;閱讀中時維持畫面上第一列的位置。
+    private func apply(_ newContent: ChatListContent) {
         let previous = content
         let anchor = captureAnchor()
+        let hasContentNow = !newContent.ids.isEmpty
+        let needsInitial = ChatListInitialPosition.needsScroll(hadContent: hadContent, hasContent: hasContentNow)
         content = newContent
         hasAppliedContent = true
+        hadContent = hadContent || hasContentNow
         layout.isFollowingLatest = decider.isFollowingLatest
 
         var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
@@ -209,7 +273,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         snapshot.reconfigureItems(ChatListRowPlan.changedIDs(previous: previous.rows, current: newContent.rows))
         dataSource.apply(snapshot, animatingDifferences: false)
         collectionView.layoutIfNeeded()
-        if isFirstApply {
+        if needsInitial {
             needsInitialScroll = true
             scrollToInitialPositionIfPossible()
         }
@@ -405,12 +469,14 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         guard !decelerate else { return }
         decider.receive(.userEndedDragging(distanceFromBottom: distanceFromBottom))
+        applyPendingContentIfSafe()
         reportFollowing()
         scheduleFlush(after: 0.05)
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
         decider.receive(.userEndedDragging(distanceFromBottom: distanceFromBottom))
+        applyPendingContentIfSafe()
         reportFollowing()
         scheduleFlush(after: 0.05)
     }
@@ -439,11 +505,14 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         let duration = (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
         decider.receive(.keyboardHeightChanged)
         decider.receive(.keyboardAnimation(isRunning: true))
+        isKeyboardAnimating = true
         keyboardSettleTask?.cancel()
         keyboardSettleTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(duration + 0.05))
             guard !Task.isCancelled, let self else { return }
             self.decider.receive(.keyboardAnimation(isRunning: false))
+            self.isKeyboardAnimating = false
+            self.applyPendingContentIfSafe()
             self.scheduleFlush(after: 0)
         }
     }
@@ -454,6 +523,13 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         true
+    }
+}
+
+/// 聊天列表的 cell:列延伸到狀態列、導覽列與 home indicator 底下時,hosting 內容不依位置墊高(否則列高會隨捲動位置變);只保留左右。
+final class ChatListCell: UICollectionViewCell {
+    override var safeAreaInsets: UIEdgeInsets {
+        UIEdgeInsets(top: 0, left: super.safeAreaInsets.left, bottom: 0, right: super.safeAreaInsets.right)
     }
 }
 #endif

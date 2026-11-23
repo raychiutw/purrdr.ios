@@ -64,6 +64,11 @@ public final class ConversationModel {
     /// 載入超過這麼久才出現系統進度指示(HIG〈Loading〉:內容理想上立刻出現，等待超過一兩秒才用進度指示)。
     nonisolated public static let loadingIndicatorDelay: Duration = .seconds(1.5)
     private var loadingIndicatorArmed = false
+    /// 沒命中快取時骨架延後出現的時間:一般讀取在這段內完成,使用者只看到 push 動畫的底,不會看到骨架換成列表。
+    nonisolated public static let loadingSkeletonDelay: Duration = .milliseconds(300)
+    private var loadingSkeletonArmed = false
+    /// 還沒有任何內容、載入已超過 `loadingSkeletonDelay`:畫面才畫骨架。
+    public var showsLoadingSkeleton: Bool { loadingSkeletonArmed && phase == .loading && items.isEmpty }
     /// 還沒有任何內容、載入已超過 `loadingIndicatorDelay`:畫面在骨架下方加系統進度指示。有快取或內容先到就不會出現。
     public var showsLoadingIndicator: Bool { loadingIndicatorArmed && phase == .loading && items.isEmpty }
     public private(set) var items: [ConversationItem] = []
@@ -911,6 +916,8 @@ public final class ConversationModel {
         slash.loader = { [weak self] in await self?.slashCatalog() }
         slash.onPick = { [weak self] command in self?.pick(slash: command) }
         slash.update(draft: draft, caret: draftCaret)
+        // 記憶體層有這個聊天最近的內容:同步還原,打開時第一幀就有內容(不閃骨架)。
+        if let cached = cache.cachedConversation(chatKey: paneID), accepts(cached) { restore(cached) }
     }
 
     /// 這個 agent 的 slash 清單(#15):Claude 在主機上發現;Grok、Antigravity 用固定清單;其他沒有選單(`nil`)。
@@ -951,9 +958,17 @@ public final class ConversationModel {
     /// 列表還沒給 session(冷啟動、從推播打開)時也先顯示這個聊天上次的快取(#356):之後快照回報的 session 不同，
     /// 輪詢綁定新 session 時丟掉快取，舊內容留著到新內容讀回來(#329)。
     public func restoreFromCache() async {
-        guard items.isEmpty, let cached = await cache.load(chatKey: chatKey),
-              knownSessionID.map({ cached.matches(sessionID: $0) }) ?? (cached.parserVersion == CachedConversation.parserVersion),
-              Self.isWorthRestoring(cached) else { return }
+        guard items.isEmpty, let cached = await cache.load(chatKey: chatKey), accepts(cached) else { return }
+        restore(cached)
+    }
+
+    /// 快取符合列表給的 session(沒給時只看解析器版本)且值得還原。
+    private func accepts(_ cached: CachedConversation) -> Bool {
+        (knownSessionID.map { cached.matches(sessionID: $0) } ?? (cached.parserVersion == CachedConversation.parserVersion))
+            && Self.isWorthRestoring(cached)
+    }
+
+    private func restore(_ cached: CachedConversation) {
         boundSessionID = cached.sessionID
         file = (cached.path, TranscriptFollow(cursor: cached.cursor, isLive: false), cached.windowStart)
         recent = cached.messages
@@ -984,6 +999,7 @@ public final class ConversationModel {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
             group.addTask { await self.armLoadingIndicator(sleep: sleep) }
+            group.addTask { await self.armLoadingSkeleton(sleep: sleep) }
             if let updates {
                 group.addTask { await updates.liveUpdates.attach() }
                 group.addTask { await self.wakeOnChanges(from: updates) }
@@ -1032,6 +1048,14 @@ public final class ConversationModel {
         guard !Task.isCancelled else { return }
         let status = statuses?[session].flatMap { $0.isFresh(at: now) ? $0 : nil }
         if status != sessionStatus { sessionStatus = status }
+    }
+
+    /// 載入超過 `loadingSkeletonDelay` 還沒有內容才畫骨架。
+    private func armLoadingSkeleton(sleep: Sleep) async {
+        loadingSkeletonArmed = false
+        guard phase == .loading, items.isEmpty else { return }
+        do { try await sleep(Self.loadingSkeletonDelay) } catch { return }
+        loadingSkeletonArmed = true
     }
 
     /// 載入超過 `loadingIndicatorDelay` 還沒有內容才開啟進度指示。
