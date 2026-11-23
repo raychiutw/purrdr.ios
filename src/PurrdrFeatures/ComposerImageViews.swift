@@ -318,9 +318,9 @@ struct AttachButton: View {
             guard let item = videoSelection.first else { return }
             videoSelection = []
             Task {
-                await model.addVideo(displayName: String(localized: "Video") + ".mov") {
+                await model.addPickedVideo(displayName: String(localized: "Video") + ".mov") {
                     guard let picked = try await item.loadTransferable(type: PickedVideo.self) else { throw CocoaError(.fileReadNoSuchFile) }
-                    return picked.url
+                    return VideoSourceFile(picked.url, discarding: picked.folder)
                 }
             }
         }

@@ -437,44 +437,61 @@ public final class ConversationModel {
     public var canAttachVideos: Bool { canAttachFiles && images?.videoCompressor != nil }
 
     @ObservationIgnored private var videoTask: Task<VideoOutcome, Never>?
+    /// 目前這一次準備的識別;取消或換新一次後,舊的結果回來(挑選器不回應取消)就丟掉。
+    @ObservationIgnored private var videoToken: UUID?
 
     private enum VideoOutcome: Sendable {
-        case ready(Data, fileExtension: String?)
+        /// 已經搬進手機副本。
+        case ready(fileName: HostUploadName, displayName: String, byteCount: Int)
         case tooLong
         case unreadable
         case cancelled
     }
 
     /// 附加相簿影片(#474):`load` 取出影片檔(可能要從 iCloud 下載;檔案交給這裡，用完會刪)。
-    /// 沒超過上限就原樣加成附件卡;超過就由高到低壓縮，第一個放得下的畫質就是結果;壓到最小仍超過、或太長，提示後不加入。
-    /// 與檔案一樣先留在輸入列，送出才上傳。可用 `cancelVideoPreparation()` 取消。
     public func addVideo(displayName: String, load: @escaping @Sendable () async throws -> URL) async {
+        await addPickedVideo(displayName: displayName, load: { VideoSourceFile(try await load()) })
+    }
+
+    /// 附加相簿影片(#474):沒超過上限就原樣加成附件卡;超過就由高到低壓縮，第一個放得下的畫質就是結果;
+    /// 壓到最小仍超過、或太長，提示後不加入。與檔案一樣先留在輸入列，送出才上傳。可用 `cancelVideoPreparation()` 取消。
+    /// 取出、壓縮與搬進手機副本都在背景做(最多 25 MiB 不佔主執行緒)，副檔名依實際格式。
+    public func addPickedVideo(displayName: String, load: @escaping @Sendable () async throws -> VideoSourceFile) async {
         guard let images, let compressor = images.videoCompressor, canAttachFiles, videoPreparation == nil, loadingFileName == nil else { return }
         guard remainingImageSlots > 0 else {
             notice = .attachmentLimit
             return
         }
         videoPreparation = VideoPreparation(displayName: displayName, phase: .loading, fraction: nil)
+        let token = UUID()
+        videoToken = token
         let limit = HostUploadLimit.maximumFileSize
-        let task = Task { [weak self] () -> VideoOutcome in
-            let source: URL
-            do { source = try await load() } catch { return Task.isCancelled ? .cancelled : .unreadable }
-            defer { try? FileManager.default.removeItem(at: source) }
+        let task = Task.detached { [weak self] () -> VideoOutcome in
+            let picked: VideoSourceFile
+            do { picked = try await load() } catch { return Task.isCancelled ? .cancelled : .unreadable }
+            defer { try? FileManager.default.removeItem(at: picked.discard) }
+            // 挑選器不回應取消:回來時已經取消就整個丟掉。
+            if Task.isCancelled { return .cancelled }
+            let source = picked.url
             do {
                 let sourceSize = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
                 if sourceSize <= limit {
-                    return .ready(try Data(contentsOf: source, options: .mappedIfSafe), fileExtension: nil)
+                    let ext = source.pathExtension.lowercased()
+                    return try Self.storeVideo(source, displayName: displayName, fileExtension: ext.isEmpty ? nil : ext, images: images)
                 }
                 let candidates = VideoQuality.candidates(forDuration: try await compressor.duration(of: source), limit: limit)
-                self?.videoPreparation?.phase = .shrinking
+                await self?.setVideoPhase(.shrinking, token: token)
                 for quality in candidates {
                     let output = FileManager.default.temporaryDirectory.appending(path: "purrdr-video-\(UUID().uuidString).mp4")
                     defer { try? FileManager.default.removeItem(at: output) }
                     try await compressor.compress(source, quality: quality, to: output) { fraction in
-                        Task { @MainActor in self?.videoPreparation?.fraction = fraction }
+                        Task { @MainActor in self?.setVideoFraction(fraction, token: token) }
                     }
                     let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? .max
-                    if size <= limit { return .ready(try Data(contentsOf: output, options: .mappedIfSafe), fileExtension: "mp4") }
+                    if size <= limit {
+                        if Task.isCancelled { return .cancelled }
+                        return try Self.storeVideo(output, displayName: displayName, fileExtension: "mp4", images: images)
+                    }
                 }
                 return .tooLong
             } catch {
@@ -483,33 +500,58 @@ public final class ConversationModel {
         }
         videoTask = task
         let outcome = await task.value
+        // 取消(或已經換成新的一次)後回來的結果:不加入，已搬進副本的刪掉。
+        guard videoToken == token else {
+            if case .ready(let fileName, _, _) = outcome { images.store.remove(fileName.value) }
+            return
+        }
         videoTask = nil
+        videoToken = nil
         videoPreparation = nil
         switch outcome {
         case .cancelled: break
         case .tooLong: notice = .videoTooLong
         case .unreadable: notice = .videoUnreadable
-        case .ready(let data, let fileExtension):
+        case .ready(let fileName, let name, let byteCount):
             guard remainingImageSlots > 0 else {
+                images.store.remove(fileName.value)
                 notice = .attachmentLimit
                 return
             }
-            var name = displayName
-            if let fileExtension { name = (displayName as NSString).deletingPathExtension + "." + fileExtension }
-            let uploadName = images.makeFileName(name)
-            do {
-                try images.store.save(data, as: uploadName.value)
-            } catch {
-                notice = .videoUnreadable
-                return
-            }
-            attachments.append(ComposerAttachment(kind: .file, fileName: uploadName, displayName: name, byteCount: data.count))
+            attachments.append(ComposerAttachment(kind: .file, fileName: fileName, displayName: name, byteCount: byteCount))
             saveAttachments()
         }
     }
 
-    /// 取消影片準備(取出或壓縮中):不加入、不提示，暫存檔刪掉。
-    public func cancelVideoPreparation() { videoTask?.cancel() }
+    /// 把影片檔搬進手機副本(背景)。`fileExtension` 是實際格式,沒有就沿用顯示名稱的。
+    private nonisolated static func storeVideo(
+        _ file: URL, displayName: String, fileExtension: String?, images: ComposerImages
+    ) throws -> VideoOutcome {
+        var name = displayName
+        if let fileExtension { name = (displayName as NSString).deletingPathExtension + "." + fileExtension }
+        let byteCount = (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let uploadName = images.makeFileName(name)
+        try images.store.save(movingFile: file, as: uploadName.value)
+        return .ready(fileName: uploadName, displayName: name, byteCount: byteCount)
+    }
+
+    private func setVideoPhase(_ phase: VideoPreparation.Phase, token: UUID) {
+        guard videoToken == token else { return }
+        videoPreparation?.phase = phase
+    }
+
+    private func setVideoFraction(_ fraction: Double, token: UUID) {
+        guard videoToken == token else { return }
+        videoPreparation?.fraction = fraction
+    }
+
+    /// 取消影片準備(取出或壓縮中):立刻恢復輸入列;不加入、不提示，暫存檔刪掉。
+    public func cancelVideoPreparation() {
+        videoTask?.cancel()
+        videoTask = nil
+        videoToken = nil
+        videoPreparation = nil
+    }
 
     /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
     private static func uploadNotice(for error: any Error, otherwise: SendNotice) -> SendNotice {

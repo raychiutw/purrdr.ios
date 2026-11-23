@@ -51,3 +51,14 @@ public struct VideoPreparation: Equatable, Sendable {
     /// 0…1;`loading` 時沒有進度。
     public var fraction: Double?
 }
+
+/// 挑選器取出的影片檔(#474):`discard` 是用完要刪掉的東西(通常是放它的暫存資料夾;預設是檔案本身)。
+public struct VideoSourceFile: Sendable {
+    public let url: URL
+    public let discard: URL
+
+    public init(_ url: URL, discarding discard: URL? = nil) {
+        self.url = url
+        self.discard = discard ?? url
+    }
+}

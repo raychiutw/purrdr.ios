@@ -54,14 +54,15 @@ struct ConversationVideoTests {
     struct Setup {
         let base: ConversationSendTests.Setup
         let uploader: FakeHostUploader
-        let store: FileAttachmentStore
+        let store: any AttachmentStore
         let compressor: FakeVideoCompressor?
         var model: ConversationModel { base.model }
     }
 
-    static func opened(compressor: FakeVideoCompressor?) async throws -> Setup {
+    static func opened(compressor: FakeVideoCompressor?, wrappingStore: ((FileAttachmentStore) -> any AttachmentStore)? = nil) async throws -> Setup {
         let uploader = FakeHostUploader()
-        let store = FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-attachments-\(UUID().uuidString)"))
+        let fileStore = FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-attachments-\(UUID().uuidString)"))
+        let store: any AttachmentStore = wrappingStore?(fileStore) ?? fileStore
         let base = try await ConversationSendTests.opened { client, transcripts, drafts in
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
@@ -78,6 +79,82 @@ struct ConversationVideoTests {
         let url = FileManager.default.temporaryDirectory.appending(path: "video-\(UUID().uuidString).mov")
         try Data(count: size).write(to: url)
         return url
+    }
+
+    /// 記錄 `save(movingFile:)` 在哪個執行緒被呼叫(影片最多 25 MiB,不能在主執行緒搬)。
+    final class ThreadRecordingStore: AttachmentStore {
+        let base: FileAttachmentStore
+        let savedOnMain = Mutex<[Bool]>([])
+        init(_ base: FileAttachmentStore) { self.base = base }
+        func save(_ data: Data, as name: String) throws {
+            savedOnMain.withLock { $0.append(Thread.isMainThread) }
+            try base.save(data, as: name)
+        }
+        func save(movingFile source: URL, as name: String) throws {
+            savedOnMain.withLock { $0.append(Thread.isMainThread) }
+            try base.save(movingFile: source, as: name)
+        }
+        func url(of name: String) -> URL? { base.url(of: name) }
+        func remove(_ name: String) { base.remove(name) }
+    }
+
+    /// 暫存資料夾裡的來源影片(像挑選器那樣放在 `purrdr-picked-<UUID>/` 底下)。
+    nonisolated static func pickedSource(size: Int, name: String = "IMG_0001.mov") throws -> (file: URL, folder: URL) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "purrdr-picked-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appending(path: name)
+        try Data(count: size).write(to: file)
+        return (file, folder)
+    }
+
+    @Test("取消後挑選器才回傳影片:不加入、暫存資料夾整個刪掉,取消當下輸入列就恢復")
+    func lateLoadAfterCancelIsDiscarded() async throws {
+        let setup = try await Self.opened(compressor: FakeVideoCompressor())
+        let picked = try Self.pickedSource(size: 1_000)
+        let release = Mutex(false)
+
+        let adding = Task {
+            await setup.model.addPickedVideo(displayName: "Demo.mov") {
+                // 挑選器不回應取消:一直等到放行才回傳。
+                while !release.withLock({ $0 }) { try? await Task.sleep(for: .milliseconds(5)) }
+                return VideoSourceFile(picked.file, discarding: picked.folder)
+            }
+        }
+        for _ in 0..<400 where setup.model.videoPreparation == nil { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(setup.model.videoPreparation?.phase == .loading)
+
+        setup.model.cancelVideoPreparation()
+        #expect(setup.model.videoPreparation == nil, "取消要立刻恢復輸入列,不等挑選器")
+        release.withLock { $0 = true }
+        await adding.value
+
+        #expect(setup.model.attachments.isEmpty)
+        #expect(setup.model.notice == nil)
+        #expect(!FileManager.default.fileExists(atPath: picked.folder.path(percentEncoded: false)))
+    }
+
+    @Test("加入後連挑選器的暫存資料夾一起刪掉,副檔名依實際格式")
+    func removesPickedFolderAndKeepsActualExtension() async throws {
+        let setup = try await Self.opened(compressor: FakeVideoCompressor())
+        let picked = try Self.pickedSource(size: 1_000, name: "IMG_0002.mp4")
+
+        await setup.model.addPickedVideo(displayName: "Video.mov") { VideoSourceFile(picked.file, discarding: picked.folder) }
+
+        #expect(!FileManager.default.fileExists(atPath: picked.folder.path(percentEncoded: false)))
+        let attachment = try #require(setup.model.attachments.first)
+        #expect(attachment.displayName == "Video.mp4", "實際是 mp4 就不能叫 .mov")
+    }
+
+    @Test("搬進手機副本不在主執行緒做")
+    func storingDoesNotBlockMainThread() async throws {
+        var recorder: ThreadRecordingStore?
+        let setup = try await Self.opened(compressor: FakeVideoCompressor()) { base in
+            let store = ThreadRecordingStore(base)
+            recorder = store
+            return store
+        }
+        await setup.model.addVideo(displayName: "Demo.mov") { try Self.source(size: 1_000) }
+        #expect(recorder?.savedOnMain.withLock { $0 } == [false])
     }
 
     @Test("階梯:依長度略過放不下的階;太長時一階都沒有")

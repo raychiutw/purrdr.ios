@@ -56,6 +56,8 @@ extension VideoQuality {
 /// 相簿挑選器給的影片:搬到我們自己的暫存資料夾(系統給的檔案在回呼結束後會被刪)。
 struct PickedVideo: Transferable {
     let url: URL
+    /// 放它的暫存資料夾(用完連資料夾一起刪)。
+    let folder: URL
 
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(contentType: .movie) { movie in
@@ -65,7 +67,7 @@ struct PickedVideo: Transferable {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let copy = folder.appending(path: received.file.lastPathComponent)
             try FileManager.default.copyItem(at: received.file, to: copy)
-            return PickedVideo(url: copy)
+            return PickedVideo(url: copy, folder: folder)
         }
     }
 }

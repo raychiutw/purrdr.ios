@@ -39,12 +39,19 @@ public protocol AttachmentStore: Sendable {
     func save(_ data: Data, as name: String) throws
     /// 副本的位置;沒有這個檔案時是 `nil`。
     func url(of name: String) -> URL?
+    /// 把 `source` 檔案搬進來存成副本(不經記憶體;影片最多 25 MiB,在背景呼叫)。
+    func save(movingFile source: URL, as name: String) throws
     /// 刪掉副本(檔案附件移除或送出後;沒有這個檔案時什麼都不做)。
     func remove(_ name: String)
 }
 
 extension AttachmentStore {
     public func remove(_ name: String) {}
+
+    public func save(movingFile source: URL, as name: String) throws {
+        try save(Data(contentsOf: source, options: .mappedIfSafe), as: name)
+        try? FileManager.default.removeItem(at: source)
+    }
 }
 
 /// 存在一個資料夾裡的圖片副本。只接受 `HostUploadName` 允許的檔名。
@@ -65,6 +72,16 @@ public struct FileAttachmentStore: AttachmentStore {
         guard HostUploadName(name) != nil else { throw CocoaError(.fileWriteInvalidFileName) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: directory.appending(path: name), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
+
+    public func save(movingFile source: URL, as name: String) throws {
+        guard HostUploadName(name) != nil else { throw CocoaError(.fileWriteInvalidFileName) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let destination = directory.appending(path: name)
+        try? FileManager.default.removeItem(at: destination)
+        try FileManager.default.moveItem(at: source, to: destination)
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: destination.path(percentEncoded: false))
     }
 
     public func url(of name: String) -> URL? {
