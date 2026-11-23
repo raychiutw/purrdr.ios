@@ -119,4 +119,108 @@ struct ConversationScrollDeciderTests {
         decider.receive(.timeline(.init(cause: .agentReply, changes: [])))
         #expect(decider.flush(at: 1) == nil)
     }
+
+    // MARK: - 唯一決策者:開啟定位、套用錨點、inset 對齊、動畫落地
+
+    @Test("開啟後第一次有內容:不動畫捲到底,並跟隨最新")
+    func openedWithContentScrollsToBottomWithoutAnimation() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.userScrolled(distanceFromBottom: 400))
+        decider.receive(.openedWithContent)
+        #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
+        #expect(decider.isFollowingLatest)
+        #expect(decider.flush(at: 1) == nil)
+    }
+
+    @Test("閱讀中套用內容:維持錨點列,不捲到底")
+    func contentAppliedWhileReadingKeepsAnchorRow() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.userScrolled(distanceFromBottom: 300))
+        decider.receive(.timeline(Self.update(.agentReply)))
+        decider.receive(.contentApplied(anchorRowID: "r7"))
+        #expect(decider.flush(at: 1) == .keepVisible(rowID: "r7"))
+        #expect(decider.flush(at: 1) == nil)
+        #expect(!decider.isFollowingLatest)
+    }
+
+    @Test("跟隨最新時套用內容沒有錨點,仍由批次決定捲到底")
+    func contentAppliedWhileFollowingHasNoAnchor() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.timeline(Self.update(.agentReply)))
+        decider.receive(.contentApplied(anchorRowID: nil))
+        #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
+    }
+
+    @Test("上方 inset 改變且原本貼著頂端:對齊頂端")
+    func topInsetChangedWhileAtTopEdgePinsToTop() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.userScrolled(distanceFromBottom: 400))
+        decider.receive(.topInsetChanged(wasAtTopEdge: true))
+        #expect(decider.flush(at: 1) == .pinToTopEdge)
+        #expect(decider.flush(at: 1) == nil)
+    }
+
+    @Test("上方 inset 改變但原本不在頂端:不動")
+    func topInsetChangedAwayFromTopEdgeDoesNothing() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.userScrolled(distanceFromBottom: 400))
+        decider.receive(.topInsetChanged(wasAtTopEdge: false))
+        #expect(decider.flush(at: 1) == nil)
+    }
+
+    @Test("同一刻要捲到底時,頂端對齊併入,只輸出一個指令")
+    func scrollToBottomSubsumesTopEdgePin() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.topInsetChanged(wasAtTopEdge: true))
+        decider.receive(.timeline(Self.update(.agentReply)))
+        #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
+        #expect(decider.flush(at: 1) == nil)
+    }
+
+    @Test("動畫捲動結束時還沒到底且跟隨中:再貼一次底部")
+    func animationEndedShortOfBottomWhileFollowingResettles() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.scrollAnimationEnded(distanceFromBottom: 30))
+        #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
+    }
+
+    @Test("動畫捲動結束時已在底部或不跟隨:不動")
+    func animationEndedAtBottomOrNotFollowingDoesNothing() {
+        var atBottom = ConversationScrollDecider()
+        atBottom.receive(.scrollAnimationEnded(distanceFromBottom: 0.5))
+        #expect(atBottom.flush(at: 1) == nil)
+
+        var reading = ConversationScrollDecider()
+        reading.receive(.userScrolled(distanceFromBottom: 400))
+        reading.receive(.scrollAnimationEnded(distanceFromBottom: 400))
+        #expect(reading.flush(at: 1) == nil)
+    }
+
+    @Test("拖曳中延後頂端對齊")
+    func topEdgePinDefersWhileDragging() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.userScrolled(distanceFromBottom: 400))
+        decider.receive(.userBeganDragging)
+        decider.receive(.topInsetChanged(wasAtTopEdge: true))
+        #expect(decider.flush(at: 1) == nil)
+    }
+
+    @Test("閱讀中重新整理:維持原本可見的那一列,不跳到最新")
+    func refreshedWhileReadingKeepsVisibleRow() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.userScrolled(distanceFromBottom: 300))
+        decider.receive(.firstVisibleRowChanged(id: "r5"))
+        decider.receive(.timeline(Self.update(.refreshed, ["r1", "r2"])))
+        #expect(decider.flush(at: 1) == .keepVisible(rowID: "r5"))
+        #expect(decider.flush(at: 2) == nil)
+        #expect(!decider.isFollowingLatest)
+    }
+
+    @Test("跟隨最新時重新整理:仍貼底,不另外維持位置")
+    func refreshedWhileFollowingStaysAtBottom() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.firstVisibleRowChanged(id: "r5"))
+        decider.receive(.timeline(Self.update(.refreshed, ["r1"])))
+        #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
+    }
 }

@@ -683,7 +683,7 @@ struct QueuedPromptBubbleView: View {
         PendingBubbleRow(text: prompt.text, isProblem: prompt.problem != nil, bubbleLabel: accessibilityLabel) {
             status
         }
-        .contextMenu {
+        .listContextMenu {
             if prompt.problem == nil {
                 Button("Cancel Sending", systemImage: "xmark", role: .destructive, action: delete)
             }

@@ -655,6 +655,11 @@ public final class ConversationModel {
     public private(set) var rows: [ConversationRow] = []
     /// 時間軸每次產生變更時呼叫(聊天列表據此餵捲動決策者,#487);沒有變更不呼叫。
     @ObservationIgnored public var onTimelineUpdate: (@MainActor (ConversationTimeline.Update) -> Void)?
+    /// Agent 文字的 Markdown 解析結果:沿用時間軸的快取,同一則、文字沒變時不再解析。
+    public func markdownBlocks(for text: AgentText) -> [MarkdownBlock] {
+        timeline.markdownBlocks(for: text)
+    }
+
     /// 列展開狀態每變一次遞增,讓讀 `isExpanded` 的畫面重畫。
     private var expansionRevision = 0
 
@@ -813,7 +818,7 @@ public final class ConversationModel {
     /// 往上翻載入的舊訊息(不寫入快取)。
     private var olderMessages: [TranscriptMessage] = []
     /// 對話時間軸:列身分由它分配,新內容只以增量餵給它(#481)。
-    private var timeline = ConversationTimeline()
+    @ObservationIgnored private var timeline = ConversationTimeline()
     private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
     /// 知道 Agent 後預載 slash 清單(#469);之後每次輪詢檢查是否過期,超過 60 秒在背景重讀。

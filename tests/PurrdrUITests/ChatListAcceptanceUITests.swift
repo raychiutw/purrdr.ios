@@ -5,7 +5,10 @@ import XCTest
 /// 斷言都量 accessibility frame(列的位置與高度),不看截圖;跳動會直接表現成位置差。
 final class ChatListAcceptanceUITests: XCTestCase {
     private static let ax5 = "UICTContentSizeCategoryAccessibilityXXXL"
-    private static let messageIdentifiers = ["conversation.user", "conversation.agent"]
+    /// 列表最後一列下方的留白(`ChatListLayout.sectionInset.bottom`)。
+    private static let listTrailingSpacing: CGFloat = 12
+    /// 最後一則文字框與列底緣的差(座標四捨五入與文字行距)。
+    private static let landingTolerance: CGFloat = 4
 
     override func setUp() {
         continueAfterFailure = false
@@ -14,7 +17,8 @@ final class ChatListAcceptanceUITests: XCTestCase {
     // MARK: - 1. 閱讀中 agent 連續新增 20 個工具步驟,可見的第一則訊息不動
 
     /// 長對話往上捲讀舊訊息;`-demoToolBurst` 在開啟後 10 秒一次接上 20 個工具步驟。
-    /// 量到的第一則可見訊息(label 與頂緣)在步驟接上前後必須一致。
+    /// 位移由 app 內的除錯量測累計(`conversation.list` 的 value `drift=`):列表停下後以畫面上第一列為基準,
+    /// 累計它離可見頂端的最大位移,不靠測試端取樣。
     @MainActor
     func testReadingPositionHoldsWhenAgentAdds20ToolSteps() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoToolBurst"])
@@ -24,21 +28,16 @@ final class ChatListAcceptanceUITests: XCTestCase {
 
         for _ in 0..<2 { list.swipeDown() }
         XCTAssertTrue(jump.waitUntilExists(timeout: 5), "往上捲後沒有跳到最新鈕")
-        let anchor = firstFullyVisibleMessage(in: app)
-        XCTAssertNotNil(anchor, "畫面上找不到可當錨點的訊息")
-        guard let anchor else { return }
+        XCTAssertTrue(
+            UITestWait.until(timeout: 5) { Self.debugValue("drift", of: list).map { $0 != "none" } ?? false },
+            "列表停下後沒有記下閱讀位置的基準(量測沒有啟用?)")
 
         // 工具步驟在開啟後 10 秒接上;等過那個時間再多一點,讓列表有時間套用。
-        let element = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == %@ AND label == %@", anchor.identifier, anchor.label)).firstMatch
-        var maxDrift: CGFloat = 0
-        let deadline = Date().addingTimeInterval(16)
-        while Date() < deadline {
-            if element.exists { maxDrift = max(maxDrift, abs(element.frame.minY - anchor.minY)) }
-            Thread.sleep(forTimeInterval: 0.2)
-        }
-        XCTAssertTrue(element.exists, "閱讀中的錨點訊息消失了")
-        XCTAssertLessThanOrEqual(maxDrift, 1, "新增工具步驟時閱讀位置跳動了 \(maxDrift)pt")
+        Thread.sleep(forTimeInterval: 16)
+        let driftText = Self.debugValue("drift", of: list)
+        let drift = driftText.flatMap(Double.init)
+        XCTAssertNotNil(drift, "量測值不是數字:\(driftText ?? "nil")")
+        XCTAssertLessThanOrEqual(drift ?? .infinity, 1, "新增工具步驟時閱讀位置跳動了 \(drift ?? -1)pt")
         XCTAssertTrue(jump.exists, "往上閱讀時不該被自動拉到底(跳到最新鈕不見了)")
 
         // 確認 20 個步驟真的接上了(否則上面的比對沒有意義)。
@@ -49,31 +48,38 @@ final class ChatListAcceptanceUITests: XCTestCase {
 
     // MARK: - 2. 打開聊天不出現骨架再換列表
 
-    /// 點進聊天後,畫面從第一次看到訊息起就不再出現載入中,而且第一則訊息的位置不再變動。
+    /// 第一次開啟讓記憶體快取命中;返回後第二次開啟必須同步還原:畫面一出現就有訊息,整段過程沒有載入中,
+    /// 而且第一則訊息的位置不再變動。
     @MainActor
     func testOpeningChatNeverShowsSkeletonThenSwapsToList() {
         let app = XCUIApplication.launchUITesting()
         let row = app.element("agent.row.demo/w1:p1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
+        let message = app.element("conversation.user")
+        XCTAssertTrue(app.element("conversation.header").waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面")
+        XCTAssertTrue(message.waitUntilExists(timeout: 10), "第一次開啟後沒有出現訊息")
+
+        // 返回再開第二次(快取命中)。
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.reveal(row), "返回後沒有看到 Agent 列表")
+        row.tap()
 
         let loading = app.element("conversation.loading")
         var sawLoading = false
-        var firstMessageSeenAt: Date?
         var positions: [CGFloat] = []
-        let message = app.element("conversation.user")
+        var hadMessageWhenHeaderAppeared: Bool?
+        let header = app.element("conversation.header")
         let deadline = Date().addingTimeInterval(4)
         while Date() < deadline {
             if loading.exists { sawLoading = true }
-            if message.exists {
-                firstMessageSeenAt = firstMessageSeenAt ?? Date()
-                positions.append(message.frame.minY)
-            }
+            if hadMessageWhenHeaderAppeared == nil, header.exists { hadMessageWhenHeaderAppeared = message.exists }
+            if message.exists { positions.append(message.frame.minY) }
             Thread.sleep(forTimeInterval: 0.05)
         }
-        XCTAssertNotNil(firstMessageSeenAt, "4 秒內沒有出現訊息")
-        XCTAssertFalse(sawLoading, "打開聊天時出現了載入中畫面")
-        // 位置:轉場動畫結束後(取後半段的樣本)不再變動。
+        XCTAssertFalse(sawLoading, "第二次打開聊天時出現了載入中畫面")
+        XCTAssertEqual(hadMessageWhenHeaderAppeared, true, "第二次打開聊天時,畫面一出現還沒有訊息(沒有同步還原)")
+        // 轉場動畫結束後(取後半段的樣本)位置不再變動。
         let settled = Array(positions.suffix(max(positions.count / 2, 1)))
         let spread = (settled.max() ?? 0) - (settled.min() ?? 0)
         XCTAssertLessThanOrEqual(spread, 1, "訊息出現後位置還在變動(\(spread)pt),像是骨架換成列表")
@@ -155,30 +161,24 @@ final class ChatListAcceptanceUITests: XCTestCase {
             XCTAssertTrue(last.waitUntilExists(timeout: 5), "第 \(attempt) 次沒有停在最後一則")
             XCTAssertTrue(jump.waitUntilGone(timeout: 5), "第 \(attempt) 次到底後按鈕沒有消失")
             XCTAssertLessThanOrEqual(last.frame.maxY, composer.frame.minY + 1, "第 \(attempt) 次最後一則被輸入框蓋住")
-            let gap = composer.frame.minY - last.frame.maxY
-            XCTAssertLessThan(gap, 150, "第 \(attempt) 次最後一則與輸入框之間有 \(gap)pt 空白(停在內容外)")
+            // 最後一列的底緣應停在「列表底緣 - 下方 inset - 列表尾端留白 12」:inset 取 app 內實際量到的值。
+            let insetBottom = Self.debugValue("insetBottom", of: list).flatMap(Double.init).map { CGFloat($0) }
+            XCTAssertNotNil(insetBottom, "讀不到列表實際的下方 inset(量測沒有啟用?)")
+            let expectedMaxY = list.frame.maxY - (insetBottom ?? 0) - Self.listTrailingSpacing
+            XCTAssertEqual(last.frame.maxY, expectedMaxY, accuracy: Self.landingTolerance, "第 \(attempt) 次最後一則沒有停在底部(差 \(last.frame.maxY - expectedMaxY)pt)")
         }
     }
 
     // MARK: - 輔助
 
-    private struct Anchor {
-        let identifier: String
-        let label: String
-        let minY: CGFloat
-    }
-
-    /// 可見範圍內最上面那則完整看得到的訊息(使用者或 agent)。
+    /// 除錯量測放在 `conversation.list` 的 value(`drift=… insetTop=… insetBottom=…`),取其中一個欄位。
     @MainActor
-    private func firstFullyVisibleMessage(in app: XCUIApplication) -> Anchor? {
-        let range = app.visibleConversationRange(of: app.conversationList)
-        let candidates = Self.messageIdentifiers.flatMap { identifier in
-            app.descendants(matching: .any).matching(identifier: identifier).allElementsBoundByIndex.map { (identifier, $0) }
+    private static func debugValue(_ key: String, of list: XCUIElement) -> String? {
+        guard let value = list.value as? String else { return nil }
+        for field in value.split(separator: " ") {
+            let parts = field.split(separator: "=", maxSplits: 1)
+            if parts.count == 2, parts[0] == key { return String(parts[1]) }
         }
-        return candidates
-            .filter { _, element in element.exists && !element.label.isEmpty && element.frame.minY >= range.lowerBound && element.frame.maxY <= range.upperBound }
-            .sorted { $0.1.frame.minY < $1.1.frame.minY }
-            .first
-            .map { Anchor(identifier: $0.0, label: $0.1.label, minY: $0.1.frame.minY) }
+        return nil
     }
 }

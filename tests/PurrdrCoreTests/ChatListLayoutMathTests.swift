@@ -122,4 +122,25 @@ struct ChatListOlderPageTriggerTests {
         #expect(!wants(content: 0, dragged: false))
         #expect(!wants(content: 300, container: 0, dragged: false))
     }
+
+    @Test("捲到某一列:該列底緣停在可見底緣,不會停在內容外")
+    func offsetShowingRowBottomAlignsRowToVisibleBottom() {
+        let offset = ChatListLayoutMath.offsetShowingRowBottom(
+            rowMaxY: 1000, boundsHeight: 800, insetTop: 100, insetBottom: 150, contentHeight: 3000)
+        #expect(offset == 350)
+    }
+
+    @Test("捲到某一列:內容不足一屏時停在頂端 inset")
+    func offsetShowingRowBottomClampsToTopInset() {
+        let offset = ChatListLayoutMath.offsetShowingRowBottom(
+            rowMaxY: 200, boundsHeight: 800, insetTop: 100, insetBottom: 150, contentHeight: 300)
+        #expect(offset == -100)
+    }
+
+    @Test("捲到某一列:不超過內容底端")
+    func offsetShowingRowBottomClampsToBottomOffset() {
+        let offset = ChatListLayoutMath.offsetShowingRowBottom(
+            rowMaxY: 3100, boundsHeight: 800, insetTop: 100, insetBottom: 150, contentHeight: 3000)
+        #expect(offset == ChatListLayoutMath.bottomOffset(contentHeight: 3000, boundsHeight: 800, insetTop: 100, insetBottom: 150))
+    }
 }

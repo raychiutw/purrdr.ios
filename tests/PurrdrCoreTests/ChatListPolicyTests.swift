@@ -74,4 +74,12 @@ struct ChatListPolicyTests {
         cache.removeAll(keyPrefix: "h1/")
         #expect(cache.count == 0)
     }
+
+    @Test("內容套用批次:第一次與間隔夠久立刻套用,否則等到滿間隔")
+    func applyBatchDelay() {
+        #expect(ChatListApplyBatch.delay(now: 10, lastApplyAt: nil, interval: 0.1) == 0)
+        #expect(ChatListApplyBatch.delay(now: 10.2, lastApplyAt: 10, interval: 0.1) == 0)
+        let wait = ChatListApplyBatch.delay(now: 10.04, lastApplyAt: 10, interval: 0.1)
+        #expect(abs(wait - 0.06) < 1e-9)
+    }
 }

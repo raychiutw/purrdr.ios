@@ -30,6 +30,14 @@ public enum ChatListLayoutMath {
         max(-insetTop, contentHeight + insetBottom - boundsHeight)
     }
 
+    /// 捲到某一列時的 contentOffset.y:該列底緣停在可見底緣,不超過內容底端,內容不足一屏時停在頂端 inset。
+    public static func offsetShowingRowBottom(
+        rowMaxY: Double, boundsHeight: Double, insetTop: Double, insetBottom: Double, contentHeight: Double
+    ) -> Double {
+        let limit = bottomOffset(contentHeight: contentHeight, boundsHeight: boundsHeight, insetTop: insetTop, insetBottom: insetBottom)
+        return min(limit, max(-insetTop, rowMaxY + insetBottom - boundsHeight))
+    }
+
     /// 往上補舊訊息、內容變動後，讓錨點列維持在畫面上原本的位置時的 contentOffset.y。
     public static func offsetKeepingRow(newRowMinY: Double, distanceFromVisibleTop: Double, insetTop: Double) -> Double {
         newRowMinY - distanceFromVisibleTop - insetTop
@@ -47,5 +55,13 @@ public enum ChatListOlderPageTrigger {
         guard distanceFromTop <= containerHeight else { return false }
         if userHasDragged { return true }
         return contentHeight > 0 && containerHeight > 0 && autoLoadedPages < autoLoadLimit
+    }
+}
+
+/// 列表延伸到玻璃導覽列、橫幅與輸入列底下時,交給 `contentInset` 的上下留白(DESIGN.md:內容從玻璃底下捲過去)。
+public enum ChatListInsetMath {
+    /// 列表框與「避開玻璃控制後的安全區域框」(同一個座標系)的差;安全區域框超出列表時不出現負值。
+    public static func insets(listMinY: Double, listMaxY: Double, safeMinY: Double, safeMaxY: Double) -> (top: Double, bottom: Double) {
+        (max(0, safeMinY - listMinY), max(0, listMaxY - safeMaxY))
     }
 }

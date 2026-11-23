@@ -8,6 +8,7 @@ public enum ChatListMenuItem: Sendable, Equatable {
     case share
     case copyOutput
     case copyCommand
+    case cancelSending
 }
 
 /// 哪一種列、帶哪些事實,決定選單有哪些項目。
@@ -16,6 +17,8 @@ public enum ChatListMenuKind: Sendable, Equatable {
     case file(hasCopyableContent: Bool, hasShareableFile: Bool)
     case image
     case shell(hasCopyableOutput: Bool)
+    /// 離線佇列裡的訊息:還能取消(沒送出的問題訊息有自己的按鈕)才有選單。
+    case queuedPrompt(canCancel: Bool)
 }
 
 /// 依列種類排出選單項目;空陣列表示這一列沒有選單(留給文字選取)。
@@ -33,6 +36,8 @@ public enum ChatListMenuPlan {
             return [.copyPath]
         case .shell(let hasCopyableOutput):
             return hasCopyableOutput ? [.copyOutput, .copyCommand] : [.copyCommand]
+        case .queuedPrompt(let canCancel):
+            return canCancel ? [.cancelSending] : []
         }
     }
 }

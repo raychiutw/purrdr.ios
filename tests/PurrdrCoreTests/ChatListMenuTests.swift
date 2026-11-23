@@ -26,6 +26,12 @@ struct ChatListMenuTests {
         #expect(ChatListMenuPlan.items(for: .shell(hasCopyableOutput: false)) == [.copyCommand])
     }
 
+    @Test("離線佇列的訊息:能取消才有取消送出")
+    func queuedPromptItems() {
+        #expect(ChatListMenuPlan.items(for: .queuedPrompt(canCancel: true)) == [.cancelSending])
+        #expect(ChatListMenuPlan.items(for: .queuedPrompt(canCancel: false)).isEmpty)
+    }
+
     @Test("沒有選單的列(文字訊息等)回空,留給文字選取")
     func plainRowHasNoItems() {
         #expect(ChatListMenuPlan.items(for: .none).isEmpty)

@@ -46,6 +46,8 @@ extension EnvironmentValues {
     @Entry var rowExpansion: RowExpansion?
     /// 目前這一列的時間軸列 id(列內的可展開區塊以它加子項 id 找狀態)。
     @Entry var expansionRowID: String?
+    /// Agent 文字的 Markdown 解析結果(時間軸快取);沒有注入時(其他畫面)才自己解析。
+    @Entry var markdownBlocks: (@MainActor (AgentText) -> [MarkdownBlock])?
 }
 
 /// 對話畫面用的 sheet 內容(`sheet(item:)` 需要 Identifiable)。
