@@ -11941,6 +11941,17 @@
         }
       }
     },
+    "Take Care of Your Subscription First" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除會員前,先處理訂閱"
+          }
+        }
+      }
+    },
     "Take Over" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13006,6 +13017,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第三方模型"
+          }
+        }
+      }
+    },
+    "This Account Is Already a Member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個帳號已經是會員"
           }
         }
       }

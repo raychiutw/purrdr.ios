@@ -895,8 +895,15 @@ struct MergeConfirmView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("That sign-in method already belongs to another member. Combine the two members into one? Both methods will then sign in to the same member, and their hosts and notification devices are combined.")
-                        .listRowBackground(Color.clear)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("This Account Is Already a Member")
+                            .font(.title3.weight(.bold))
+                            .accessibilityAddTraits(.isHeader)
+                        Text("That sign-in method already belongs to another member. Combine the two members into one? Both methods will then sign in to the same member, and their hosts and notification devices are combined.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondaryText)
+                    }
+                    .listRowBackground(Color.clear)
                 }
                 Section {
                     MergeSideRow(title: "This member", side: summary.current)
@@ -1080,8 +1087,16 @@ struct DeletionSubscriptionView: View {
     var body: some View {
         List {
             Section {
-                Text(message)
-                    .accessibilityIdentifier("member.deleteSubscription.message")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Take Care of Your Subscription First")
+                        .font(.title3.weight(.bold))
+                        .accessibilityAddTraits(.isHeader)
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondaryText)
+                        .accessibilityIdentifier("member.deleteSubscription.message")
+                }
+                .listRowBackground(Color.clear)
             }
             if notice == .appStore {
                 Section {
