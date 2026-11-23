@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>主機的 Agent 設定</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div class="board" style="width:1760px;height:980px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="col">
+<div class="cap">{{t.name}} · 主機頁:這台主機的 Agent</div>
+<div class="phone grouped {{t.cls}}">
+<div class="top">
+<div class="top-l" style="top:4px"><button class="hostcap glass" aria-label="目前主機:Ray Mac Mini,點兩下更改" style="color:var(--accent)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v12H3z M8 20h8 M12 16v4"></path></svg>Ray Mac Mini<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button></div>
+<div class="top-r" style="display:flex;gap:8px"><button class="ib glass" aria-label="新增主機" style="color:var(--accent)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button><button class="ib glass" aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="gl">
+<div class="card" style="padding:14px 16px"><div style="display:flex;align-items:center;gap:8px;font-size:17px;font-weight:600"><span style="width:8px;height:8px;border-radius:4px;background:var(--accent)"></span>線上</div><div style="font-size:15px;color:var(--sec);margin-top:4px">Tailscale SSH · herdr 0.9.5</div></div>
+<div class="sh">用量</div>
+<div class="card"><div class="cell"><span class="cb"><span class="main"><span>Claude · 5 小時</span><span class="sub">已用 18% · 14:30 重設</span></span></span></div><div class="cell"><span class="cb"><span class="main"><span>Antigravity · Gemini 5 小時</span><span class="sub">已用 9% · 18:30 重設</span></span></span></div></div>
+<div class="sf">只顯示這台主機啟用的 Agent。</div>
+<div class="sh">這台主機</div>
+<div class="card">
+<button class="cell" aria-label="Agent,Claude Code、Antigravity"><span class="cb"><span class="main"><span>Agent</span><span class="sub">Claude Code、Antigravity</span></span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+<div class="cell"><span class="cb"><span class="main"><span>通知</span><span class="sub">需要 Purrdr Plus</span></span></span></div>
+<button class="cell"><span class="cb"><span class="main">登入 Shell</span><svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--sec)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></button>
+</div>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · Agent 子頁:逐一開關</div>
+<div class="phone grouped {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><span style="font-size:17px;font-weight:600">Agent</span></div>
+</div>
+<div class="gl">
+<div class="sf" style="padding-top:0;padding-bottom:10px">開啟的 Agent 才會顯示用量，也才能在這台主機新增聊天。</div>
+<div class="card">
+<sc-for list="{{agents}}" as="a" hint-placeholder-count="5">
+<div class="cell"><span class="cb"><span class="av" style="width:32px;height:32px"><span class="face {{a.kind}}" style="width:32px;height:32px;border-radius:10px;font-size:14px" aria-hidden="true">{{a.av}}</span></span><span class="main"><span>{{a.name}}</span><span class="sub">{{a.sub}}</span></span><span class="toggle {{a.on}}" role="switch" aria-checked="{{a.checked}}" aria-label="{{a.name}}"></span></span></div>
+</sc-for>
+</div>
+<div class="sf">新增主機時會自動偵測主機上的 Agent;偵測不到的也可以手動開啟。</div>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const A = (av, kind, name, sub, on) => ({ av, kind, name, sub, on: on ? 'on' : '', checked: on ? 'true' : 'false' });
+    return {
+      themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }],
+      agents: [
+        A('C', 'claude', 'Claude Code', '已偵測到', true),
+        A('A', 'shell', 'Antigravity', '已偵測到', true),
+        A('X', 'codex', 'Codex', '沒有偵測到', false),
+        A('G', 'shell', 'Grok', '沒有偵測到', false),
+        A('O', 'shell', 'OpenCode', '沒有偵測到', false)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
