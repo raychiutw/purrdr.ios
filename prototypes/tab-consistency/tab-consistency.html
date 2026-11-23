@@ -167,6 +167,12 @@ textarea#out{width:100%;min-height:210px;font:13px/1.55 ui-monospace,SFMono-Regu
 .loose .s3{font-size:calc(14px*var(--m));color:var(--sec);line-height:1.3}
 .loose .s3.w{white-space:normal}
 .loose .s3.w span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.skl{display:inline-block;background:var(--fill)}
+.retry{display:inline-flex;align-items:center;height:36px;padding:0 18px;border-radius:999px;background:var(--accent);color:var(--on);font-weight:600;font-size:calc(15px*var(--m))}
+.lift{position:absolute;left:16px;right:16px;top:214px;z-index:21;border-radius:22px;background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden;padding-bottom:0}
+.lift .row{padding-top:14px}.lift .rb{border-bottom:0}
+.menu.rowm{left:28px;right:auto;z-index:22}
+.mi .tagR{margin-left:auto}
 .loose .rc{gap:8px;min-width:58px;padding-top:2px}
 .loose .stack .rc{gap:14px;padding-top:0}
 /* 彈出選單與帳號頁 */
@@ -303,6 +309,10 @@ const IC={
  wifi:'<path d="M3 9.5a13 13 0 0 1 18 0M6 13a8.5 8.5 0 0 1 12 0M9 16.5a4 4 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".8"/>',
  cell:'<path d="M5 19V15M10 19V11M15 19V7M20 19V4"/>',
  check:'<path d="M5 12.5l4.5 4.5L19 7"/>',
+ pin:'<path d="M9 4h6l-1 6 3 3H7l3-3z"/><path d="M12 13v7"/>',
+ bell:'<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+ bellslash:'<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/><path d="M4 4l16 16"/>',
+ newwin:'<rect x="3.5" y="4.5" width="13" height="11" rx="2"/><rect x="9" y="9" width="11.5" height="10.5" rx="2"/>',
  x:'<path d="M6 6l12 12M18 6L6 18"/>'
 };
 const svg=(n,s=22,sw=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
@@ -312,10 +322,10 @@ const AG=[
  {id:'a',ws:'purrdr',tab:'purrdr.ios',n:1,title:'Agent 設定檔的領域文件',host:'Ray PC',hi:'desk',pv:'好,「值得探討」和「推測性」的差別在於有沒有證據',time:'現在',pct:64,st:'work',unread:1,av:'C',away:'離開期間 · +1 輪'},
  {id:'b',ws:'purrdr',tab:'',n:2,title:'Mattpocock-skills 全部票券單一 PR',host:'Ray Mac Mini',hi:'mini',pv:'PR #89 已經下令合併,0.14.1 即將發佈',time:'15:13',pct:43,st:'other',av:'C'},
  {id:'c',ws:'purrdr',tab:'',n:3,title:'Implement-spec 的 to-spec 與 to-tickets',host:'Ray Mac Mini',hi:'mini',pv:'0.50.0 已經發佈了。PR #418 已合併進主分支',time:'15:12',pct:70,st:'other',unread:1,av:'C',away:'離開期間 · +1 輪'},
- {id:'d',ws:'purrdr',tab:'',n:4,title:'herdr.sock SSH 公鑰設定',host:'Ray Mac Mini',hi:'mini',pv:'purrdr-ios-ea 已修好設計稿的對比問題',time:'15:12',pct:30,st:'err',unread:1,av:'C'},
- {id:'e',ws:'purrdr',tab:'',n:5,title:'purrdr',host:'Ray PC',hi:'desk',pv:'要執行 rm -rf build 嗎?',time:'15:10',pct:12,st:'need',unread:1,av:'A'},
+ {id:'d',ws:'purrdr',tab:'SSH 公鑰',n:4,title:'herdr.sock SSH 公鑰設定',host:'Ray Mac Mini',hi:'mini',pv:'purrdr-ios-ea 已修好設計稿的對比問題',time:'15:12',pct:30,st:'err',unread:1,av:'C'},
+ {id:'e',ws:'purrdr',tab:'purrdr',n:5,title:'purrdr',host:'Ray PC',hi:'desk',pv:'要執行 rm -rf build 嗎?',time:'15:10',pct:12,st:'need',unread:1,av:'A'},
  {id:'f',ws:'herdr',tab:'',n:1,title:'herdr 0.9.6 更新後連線測試',host:'Ray PC',hi:'desk',pv:'連線測試通過,等你確認要不要發版',time:'14:58',pct:22,st:'work',av:'A'},
- {id:'g',ws:'purrdr.host',tab:'',n:2,title:'主機服務 0.14 安裝腳本',host:'Ray Mac Mini',hi:'mini',pv:'install.sh 已加入 --https-port 說明',time:'14:40',pct:55,st:'err',av:'C'},
+ {id:'g',ws:'purrdr.host',tab:'host-service',n:2,title:'主機服務 0.14 安裝腳本',host:'Ray Mac Mini',hi:'mini',pv:'install.sh 已加入 --https-port 說明',time:'14:40',pct:55,st:'err',av:'C'},
  {id:'h',ws:'docs',tab:'',n:1,title:'ADR-0013 Agent 設定檔',host:'Ray Mac Mini',hi:'mini',pv:'草稿已寫好,等你看過',time:'13:21',pct:18,st:'need',av:'C'},
  {id:'i',ws:'notes',tab:'',n:1,title:'研究 iOS 27 設計語言',host:'Ray PC',hi:'desk',pv:'報告已存到 docs/research',time:'昨天',pct:80,st:'other',av:'C'}
 ];
@@ -353,17 +363,20 @@ const DECIDED=[
  '聊天 tab 只有 Spaces 一種檢視(依「主機 · Workspace」分組的列表):沒有 Agents 檢視,也沒有檢視切換控制。',
  '標題:每個 tab 左側是大標題,文字等於 tab 名稱(聊天、檔案、主機、流量)。',
  '設定整合進帳號:拿掉設定 tab,點右上角頭像進入帳號與設定;底部是 4 個 tab:聊天、檔案、主機、流量。',
- '主機選單只剩電腦圖示,與「＋」合成一個長型玻璃膠囊 [電腦圖示｜＋],頭像圓鈕在最右。各 tab 的「＋」:聊天=新增聊天、檔案=上傳(含新增資料夾)、主機=新增主機(膠囊縮成單顆 ＋、不放電腦圖示)、流量=沒有 ＋(單顆電腦圖示圓鈕)。',
+ '主機選單只剩電腦圖示,與「＋」合成一個長型玻璃膠囊 [電腦圖示｜＋],頭像圓鈕在最右。各 tab 的「＋」:聊天=新增聊天、檔案=上傳(「＋」選單只有「上傳檔案」)、主機=新增主機(膠囊縮成單顆 ＋、不放電腦圖示)、流量=沒有 ＋(單顆電腦圖示圓鈕)。',
  'D-0 整體版型:Podcast 式(大標題;往下滑標題與頭像收起,搜尋欄變成貼頂玻璃膠囊)。',
  'D-1 / D-2 頂列顏色:全部系統單色(深色白、淺色黑),綠色只留給狀態。',
- 'D-3 目前主機:電腦圖示右上角小圓點(篩選某台主機時才出現),VoiceOver 唸出主機名。',
+ 'D-3 目前主機:電腦圖示右上角小圓點(聊天 tab 篩選某台主機時才出現),VoiceOver 唸出主機名。',
+ '檔案 tab 的右側膠囊 [電腦圖示｜＋] 一樣有電腦圖示:它標示這頁看的是哪台主機,點開可換主機;但檔案 tab 永遠不畫篩選小圓點。「＋」只有「上傳檔案」,沒有新增資料夾。',
  'D-4 沒有搜尋的 tab(主機、流量)往下滑:大標題收成置中小標題(玻璃膠囊)。',
  'D-5 帳號與設定:大 sheet,右上角「X」玻璃圓鈕關閉。',
  'D-7 tab 名稱:維持「聊天」,符號為對話泡泡。',
- 'D-8 Spaces 列:A 郵件式三層的「寬鬆版」(標題 17pt Semibold,Tab 名與預覽用次要色,列高、行距、內距、區段間距加大,時間與用量環不擠;頭像垂直置中,狀態點跟著頭像右下角;Dynamic Type 放大時右欄堆到文字下方)。',
+ 'D-8 Spaces 列:A 郵件式三層的「寬鬆版」(第一行 Tab 名 17pt Semibold,未命名的 Tab 顯示「Tab 2」;第二行 session 標題 15pt 次要色,與 Tab 名相同或空白時省略;第三行預覽次要色,列高、行距、內距、區段間距加大,時間與用量環不擠;頭像垂直置中,狀態點跟著頭像右下角;Dynamic Type 放大時右欄堆到文字下方)。',
  'D-9 離開期間:第二行開頭的小標籤,不擠標題。',
  'D-10 新增聊天符號:plus(加號)。',
  'D-11 流量頁:保留卡片,寬度與邊距對齊其他頁。',
+ 'Tab 列長按選單(Spaces):玻璃 context menu,圖示在文字前,項目:釘選／取消釘選、靜音／取消靜音、在新視窗開啟(標註 iPad);套用到該 Tab 底下所有 Agent pane。',
+ '帳號頁有兩個後台異常狀態:後台載入中(會員區顯示載入占位)與連不上後台(會員區顯示「暫時連不上 Purrdr」與「再試一次」);兩種狀態下本機設定(外觀、App 鎖、撤回倒數、終端機大小、關於)都照常顯示。',
  '聊天列頭像右下角的狀態標記改回四色圓點(不用 ••• ! ✓ 符號):12px,疊在頭像右下角外緣,外圈 2px 列背景色。需要你=橘、工作中／已連線=主色綠、錯誤／失敗=紅、其他=灰;實心=未讀、空心=已讀(色環、中間透出列底色)。標題膠囊與停止列的圓點仍是 8px。'
 ];
 const SECTIONS=[
@@ -403,7 +416,7 @@ const SECTIONS=[
  {id:'D-8',key:'plan',title:'Spaces 列的版型',q:'你選了 A 郵件式三層,並要求更寬鬆、更好讀。下面把「A 原版」與「A 寬鬆版」並排,看列高、行距、內距、區塊間距的差別;現況只當對照。拉上方的字級滑桿到 AX5,看放大時是否仍成立(右欄會堆到文字下方、標題與預覽可折兩行)。',tabs:false,fixTab:'chats',legend:true,vs:[
   {v:'now',name:'現況(對照)',ref:1,hig:'—',cost:'列只有標題,沒有時間、用量、預覽;離開期間膠囊塞在標題同一行,把標題擠成「…」。',phones:[{label:'Spaces'}]},
   {v:'A',name:'A 原版(對照)',hig:'Typography:用字重、字級與顏色建立層級。第一行 Tab 名,第二行 Agent 標題(離開期間標籤在開頭),第三行預覽。',cost:'列高約 83pt、行距 3pt、區段標題上內距 14pt,偏擠;時間與用量環貼在右上。',phones:[{label:'Spaces'}]},
-  {v:'AW',name:'A 寬鬆版',rec:1,mine:1,hig:'Typography:標題 17pt Semibold 主色,Tab 名 15pt 與預覽 14pt 用次要色,層級靠字級與顏色分開。離開期間小標籤在第二行開頭,不擠標題。Lists and tables:內容之間留足空白。',cost:'列高約 101pt(原版約 83pt)、行距 5pt、區段標題上內距 26pt,一屏約少看 1 筆 Tab;換來較好閱讀。',phones:[{label:'Spaces'}]}]},
+  {v:'AW',name:'A 寬鬆版',rec:1,mine:1,hig:'Typography:第一行 Tab 名 17pt Semibold 主色(未命名顯示「Tab 2」),第二行 session 標題 15pt、第三行預覽 14pt 用次要色,層級靠字級與顏色分開;session 標題與 Tab 名相同或空白時省略第二行。離開期間小標籤在第二行開頭,不擠標題。Lists and tables:內容之間留足空白。',cost:'列高約 101pt(原版約 83pt)、行距 5pt、區段標題上內距 26pt,一屏約少看 1 筆 Tab;換來較好閱讀。',phones:[{label:'Spaces'}]}]},
  {id:'D-9',key:'away',title:'「離開期間」放哪',q:'膠囊目前塞在標題同一行,把標題擠成「…」。(需要先選 D-8 的 A、B 或 C 才看得到修法。)',tabs:false,fixTab:'chats',vs:[
   {v:'line2',name:'第二行開頭的小標籤',rec:1,hig:'Typography:行內的符號與時間會擠壓文字,主要文字不該被截斷。',cost:'第二行可用寬度少一點。'},
   {v:'right',name:'右欄、時間下方',hig:'次要資訊放右欄,與時間成組。',cost:'右欄變寬,會擠到主要文字;AX 字級時再堆到下面。'},
@@ -447,7 +460,7 @@ function ctlsHTML(c,st){
   const compose=c.compose==='pencil'?'pencil':'plus';
   const sym=t==='chats'?compose:'plus';
   const prom=c.color==='prominent'&&!white&&t==='chats';
-  const dot=(c.ind==='dot'&&c.scope==='mini')?'<i class="sdot"></i>':'';
+  const dot=(c.ind==='dot'&&c.scope==='mini'&&t!=='files')?'<i class="sdot"></i>':'';
   const host=hasHostCtl(t)?`<span class="seg1" role="button" data-act="menu" data-m="host" style="color:${gcol};cursor:pointer" aria-label="主機:${scopeName(c)}">${svg('desk',22,1.9)}${dot}</span>`:'';
   const plusLbl={chats:'新增聊天',files:'上傳',hosts:'新增主機'}[t]||'';
   const plus=hasPlus(t)?`<span class="seg1" role="button" data-act="menu" data-m="plus" style="color:${prom?'var(--on)':gcol};cursor:pointer" aria-label="${plusLbl}">${prom?`<span class="plusfill">${svg(sym,22,2.2)}</span>`:svg(sym,22,2)}</span>`:'';
@@ -471,19 +484,37 @@ function menuHTML(c,st,g){
     body=mi('desk','所有主機',{ck:c.scope!=='mini'})+mi('mini','Ray Mac Mini',{ck:c.scope==='mini'})+mi('desk','Ray PC',{ck:false})+mi('mini','Build Box　連不上',{ck:false,dis:1});
   }else{
     const compose=c.compose==='pencil'?'pencil':'plus';
-    body={chats:mi(compose,'新增聊天')+mi('chat','新增 Tab'),files:mi('doc','上傳檔案')+mi('folder','新增資料夾'),hosts:mi('plus','新增主機')+mi('search','掃描配對 QR Code')}[st.tab]||'';
+    body={chats:mi(compose,'新增聊天')+mi('chat','新增 Tab'),files:mi('doc','上傳檔案'),hosts:mi('plus','新增主機')+mi('search','掃描配對 QR Code')}[st.tab]||'';
   }
   return `<div class="menu glass" style="top:${top}px">${body}</div>`;
+}
+function rowMenuHTML(c,st){
+  if(!st.rowmenu)return '';
+  const on=st.rowmenu==='on';
+  const mi=(ic,tx,tag)=>`<div class="mi">${svg(ic,22,1.8)}<span>${tx}</span>${tag?`<span class="tagR">${tag}</span>`:''}</div>`;
+  const it=AG[0];
+  return `<div class="sdim" style="z-index:19;background:rgba(0,0,0,.28)"></div><div class="lift"><div class="loose">${rowHTML({...c,plan:'AW'},it,false)}</div></div><div class="menu glass rowm" style="top:${214+104}px">${mi('pin',on?'取消釘選':'釘選')}${mi(on?'bell':'bellslash',on?'取消靜音':'靜音')}${mi('newwin','在新視窗開啟','iPad')}<div class="msep"></div><div class="mh" style="padding-bottom:8px">套用到這個 Tab 底下所有 Agent pane</div></div>`;
 }
 function acctHTML(c,st){
   if(!st.acct)return '';
   const sheet=c.acct!=='push', m=axm();
   const head=sheet?`<div class="ah"><span style="width:44px"></span><b>帳號</b><span class="avc glass" data-act="acctClose" role="button" aria-label="關閉" style="cursor:pointer;color:var(--text)">${svg('x',20,2.2)}</span></div>`
     :`<div class="ah"><span class="back" data-act="acctClose" style="cursor:pointer"><span style="display:inline-flex;transform:rotate(180deg)">${svg('chevR',22,2.4)}</span>${TL[st.tab]}</span></div><div class="lt" style="font-size:${34*(1+(m-1)*.55)}px">帳號與設定</div>`;
-  const body=`<div class="card" style="margin-top:6px">${cell(`<span class="avc" style="width:44px;height:44px;background:var(--fill);color:var(--text)">R</span>`,'Ray Chiu','ray@example.com')}</div>
-  <div class="card">${cell('','Purrdr Plus','','使用中')}${cell('','通知','需要你、完成','2 台')}${cell('','通知裝置','','3 支')}</div>
-  <div class="card">${cell('','外觀','','自動')}<div class="cell"><span class="lead"></span><div class="cb"><div class="mn"><span class="t">App 鎖</span></div><span class="toggle"></span></div></div>${cell('','撤回倒數','','3 秒')}${cell('','終端機大小','','手機')}</div>
-  <div class="card">${cell('','關於 Purrdr','','0.50.0')}${cell('','隱私權政策','')}${cell('','顯示歡迎頁','')}</div>`;
+  const sk=(w,h=14)=>`<span class="skl" style="width:${w}px;height:${h}px;border-radius:${h/2}px"></span>`;
+  let mem;
+  if(st.acct==='loading'){
+    mem=`<div class="card mem" style="margin-top:6px"><div class="cell"><span class="lead"><span class="avc skl" style="width:44px;height:44px;border-radius:22px"></span></span><div class="cb"><div class="mn" style="gap:9px">${sk(120)}${sk(170,12)}</div></div></div></div>
+  <div class="card mem">${[96,72,84].map(w=>`<div class="cell"><span class="lead"></span><div class="cb"><div class="mn">${sk(w)}</div></div></div>`).join('')}</div>
+  <div style="font-size:calc(13px*var(--m));color:var(--sec);padding:0 36px 14px" role="status">正在載入會員資料…</div>`;
+  }else if(st.acct==='offline'){
+    mem=`<div class="card mem" style="margin-top:6px"><div class="pad" style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--sec);display:flex;padding-top:2px">${svg('wifi',24,1.8)}</span><div style="flex:1;min-width:0"><div style="font-size:calc(17px*var(--m));font-weight:600">暫時連不上 Purrdr</div><div style="font-size:calc(13px*var(--m));color:var(--sec);margin-top:3px">會員、Purrdr Plus 與通知暫時無法顯示。下面的設定不受影響。</div></div></div><div style="padding:0 16px 16px 52px"><span class="retry" role="button">再試一次</span></div></div>`;
+  }else{
+    mem=`<div class="card mem" style="margin-top:6px">${cell(`<span class="avc" style="width:44px;height:44px;background:var(--fill);color:var(--text)">R</span>`,'Ray Chiu','ray@example.com')}</div>
+  <div class="card mem">${cell('','Purrdr Plus','','使用中')}${cell('','通知','需要你、完成','2 台')}${cell('','通知裝置','','3 支')}</div>`;
+  }
+  const body=`${mem}
+  <div class="card loc">${cell('','外觀','','自動')}<div class="cell"><span class="lead"></span><div class="cb"><div class="mn"><span class="t">App 鎖</span></div><span class="toggle"></span></div></div>${cell('','撤回倒數','','3 秒')}${cell('','終端機大小','','手機')}</div>
+  <div class="card loc">${cell('','關於 Purrdr','','0.50.0')}${cell('','隱私權政策','')}${cell('','顯示歡迎頁','')}</div>`;
   return `${sheet?'<div class="sdim" data-act="acctClose"></div>':''}<div class="acct ${sheet?'sheet':'full'}">${head}<div class="ab">${body}</div></div>`;
 }
 function headerHTML(c,st,g){
@@ -521,7 +552,7 @@ function rowHTML(c,it,ax){
   const awayTag=(aw==='line2'&&away)?`<span class="tag">${away}</span>`:'';
   const name=tabDisp(it);
   if(plan==='now')return `<div class="row mid">${avatar(it)}<div class="rb" style="align-items:center"><div class="mc"><div class="l1now"><span class="a">${it.tab||it.title}</span>${away?`<span class="pillA">${away}</span>`:''}</div></div>${chev}</div></div>`;
-  if(plan==='AW')return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1${ax?' w':''}">${it.title}</div><div class="s2" style="display:flex;gap:6px;align-items:center">${awayTag}<span class="tn">${name}</span></div><div class="s3${ax?' w':''}"><span>${it.pv}</span></div></div>${rc()}${ax?'':chev}</div></div>`;
+  if(plan==='AW'){const showT=it.title&&it.title!==name;return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1${ax?' w':''}">${name}</div>${(awayTag||showT)?`<div class="s2" style="display:flex;gap:6px;align-items:center">${awayTag}${showT?`<span class="tn">${it.title}</span>`:''}</div>`:''}<div class="s3${ax?' w':''}"><span>${it.pv}</span></div></div>${rc()}${ax?'':chev}</div></div>`}
   if(plan==='A')return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1">${name}</div><div class="s2">${awayTag}${it.title}</div><div class="s3"><span>${it.pv}</span></div></div>${rc()}${ax?'':chev}</div></div>`;
   if(plan==='B')return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1">${it.tab||it.title}</div><div class="s2" style="display:flex;gap:5px;align-items:center">${awayTag}<span style="overflow:hidden;text-overflow:ellipsis">${it.pv}</span></div></div>${rc()}${ax?'':chev}</div></div>`;
   return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1">${name}</div><div class="s2">${awayTag}${it.pv}</div></div>${rc(false)}${ax?'':chev}</div></div>`;
@@ -565,7 +596,7 @@ function phoneInner(c,st){
   let top='';
   if(!g.pod&&g.search)top=`<div class="search">${searchInner(c,st)}</div>`+top;
   const warn=(c.white==='white'&&st.theme==='light')?`<div class="warnpill">淺色:白字疊在淺玻璃,看不見(約 1:1)</div>`:'';
-  return `<div class="sbar"><span>9:41</span><span class="bat"></span></div>${warn}${headerHTML(c,st,g)}<div class="scroller" data-sy="${st.sy||0}"><div class="cin" style="padding-top:${g.pad}px">${top}${body}</div></div>${tabbar(c,st)}${acctHTML(c,st)}`;
+  return `<div class="sbar"><span>9:41</span><span class="bat"></span></div>${warn}${headerHTML(c,st,g)}<div class="scroller" data-sy="${st.sy||0}"><div class="cin" style="padding-top:${g.pad}px">${top}${body}</div></div>${tabbar(c,st)}${acctHTML(c,st)}${rowMenuHTML(c,st)}`;
 }
 function phoneEl(c,st,scale,crop){
   const m=axm();
@@ -628,7 +659,7 @@ function s0HTML(g){
   return `<div class="group" id="g-${g.id}"><div class="ghead"><span class="did">${g.id}</span><h3>${g.title}</h3></div><p class="q">兩個版型並排。右上角都是 [電腦圖示｜＋] 膠囊加頭像圓鈕,底部都是 4 個 tab;差別在標題與搜尋怎麼收。</p>${tools}<div class="vrow">${cards}</div>${strips}</div>`;
 }
 function s0Extra(){
-  return `<div class="group"><div class="ghead"><span class="did">彈出層</span><h3>電腦圖示選單、＋選單、帳號頁</h3></div><p class="q">依你目前選的版型。選單是長按或點膠囊的圖示後出現的玻璃選單(圖示＋文字列);帳號頁細節見 D-5。</p><div class="five"><div class="rowp" id="s0pop"></div></div></div>
+  return `<div class="group"><div class="ghead"><span class="did">彈出層</span><h3>電腦圖示選單、＋選單、帳號頁、Tab 長按選單</h3></div><p class="q">依你目前選的版型。選單是長按或點膠囊的圖示後出現的玻璃選單(圖示＋文字列);帳號頁細節見 D-5。長按 Tab 列的選單(釘選／靜音／在新視窗開啟)套用到該 Tab 底下所有 Agent pane;「在新視窗開啟」只有 iPad。</p><div class="five"><div class="rowp" id="s0pop"></div></div></div>
   <div class="group"><div class="ghead"><span class="did">已定案</span><h3>你已經指定、不用再選的項目</h3></div><ul class="decided">${DECIDED.map((d,i)=>`<li><span class="n">${i+1}</span><span>${d}</span></li>`).join('')}</ul></div>
   <div class="overview"><div class="ghead"><span class="did">總覽</span><h3>你目前的組合,4 個 tab(未捲動)</h3></div><p class="q">下面每個決定項一改,這裡 4 個 tab 一起變。</p><div class="rowp" id="overview"></div></div>`;
 }
@@ -650,14 +681,16 @@ const PINS_UNS={
  files:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[4,'.srow'],[5,'.crumb'],[6,'.cell'],[7,'.tabbar']],
  hosts:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[5,'.sh'],[6,'.cell'],[7,'.tabbar']],
  traffic:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[5,'.chip3'],[6,'.card'],[7,'.tabbar']],
- acct:[[1,'.acct'],[2,'.acct .avc'],[3,'.acct .card']]
+ acct:[[1,'.acct'],[2,'.acct .avc'],[3,'.acct .card']],
+ 'acct-loading':[[1,'.acct'],[4,'.acct .mem'],[3,'.acct .loc']],
+ 'acct-offline':[[1,'.acct'],[5,'.acct .mem'],[3,'.acct .loc']]
 };
 const PINS_SCR={chats:[[8,'.srow'],[7,'.tabbar']],files:[[8,'.srow'],[7,'.tabbar']],hosts:[[8,'.stt'],[7,'.tabbar']],traffic:[[8,'.stt'],[7,'.tabbar']]};
 const pb=n=>`<span class="pinb">${n}</span>`;
 const SPEC_COMMON=[
  [1,'狀態列','安全區頂端 54pt;時間 16pt Semibold(左 38),電池(右 34)。'],
  [2,'標題列','top 54、高 52、左邊距 20、右邊距 16。大標題 34pt Bold、字距 −0.01em、主色。Dynamic Type 放大時標題跟著放大(約 ×1.5 封頂),列高取 max(52, 字級 × 1.2)。'],
- [3,'頂列控制','[電腦圖示｜＋]玻璃膠囊:高 44、寬 95(兩段各 46,分隔線 1×20);頭像圓鈕 44×44(字 17pt Bold);膠囊與頭像間距 8、右邊距 16;圖示 22pt、線寬 2。控制尺寸固定,不隨 Dynamic Type 放大(長按顯示 large content viewer)。主機 tab 只有 ＋、流量 tab 只有電腦圖示時是單顆 44×44 圓鈕。選了單一主機時,電腦圖示右上角有 9pt 綠點(距右 8、距上 8)。'],
+ [3,'頂列控制','[電腦圖示｜＋]玻璃膠囊:高 44、寬 95(兩段各 46,分隔線 1×20);頭像圓鈕 44×44(字 17pt Bold);膠囊與頭像間距 8、右邊距 16;圖示 22pt、線寬 2。控制尺寸固定,不隨 Dynamic Type 放大(長按顯示 large content viewer)。主機 tab 只有 ＋、流量 tab 只有電腦圖示時是單顆 44×44 圓鈕。聊天 tab 選了單一主機時,電腦圖示右上角有 9pt 綠點(距右 8、距上 8);檔案 tab 也有電腦圖示(標示這頁看哪台主機、點開換主機),但從不畫綠點。'],
  [4,'搜尋欄(聊天、檔案)','未捲動:top 110(標題列下 +4)、高 40(Dynamic Type 放大時約 ×1.45 封頂)、左右邊距 16、全圓角、系統填色、17pt 次要色。'],
  [5,'內容起點','有搜尋的 tab:搜尋欄下 +10(top 160);沒有搜尋的 tab:標題列下 +10(top 116)。'],
  [7,'tab bar','左右 20、距底 26、高 64、圓角 32 玻璃。每個 tab 高 54;圖示 24pt、標籤 11pt Medium(選取中 Bold、綠色);聊天 tab 的未讀徽章 18pt。'],
@@ -666,10 +699,12 @@ const SPEC_COMMON=[
 const SPEC_TAB={
  chats:[
   [5,'區段標題「主機 · Workspace」','高 36(第一個上內距 10,其餘 26,下內距 8)、左右 20;14pt Semibold、字距 .02em、次要色;前面 16pt 主機圖示。'],
-  [6,'列(A 寬鬆版)','高 101 = 上內距 14 + 內容 70 + 下內距 16 + 分隔線 1。頭像 48×48、圓角 14、狀態點 12pt(見 9);頭像垂直置中(相對於文字內容高度,不含下內距與分隔線;兩行、三行、折行與 AX 大字級都置中);頭像與文字間距 14、左右邊距 16。三行、行距 5:標題 17pt Semibold 主色(行高 22)、Tab 名 15pt Medium 次要色(行高 20;「離開期間」小標籤 12pt Semibold、圓角 6,放在這一行開頭)、預覽 14pt 次要色(行高 18)。右欄寬 58:時間 13pt 次要色、用量環 18pt 加 13pt 數字,上下間距 8;箭頭 14pt。分隔線 1pt,自文字起算。'],
+  [6,'列(A 寬鬆版)','高 101 = 上內距 14 + 內容 70 + 下內距 16 + 分隔線 1。頭像 48×48、圓角 14、狀態點 12pt(見 9);頭像垂直置中(相對於文字內容高度,不含下內距與分隔線;兩行、三行、折行與 AX 大字級都置中);頭像與文字間距 14、左右邊距 16。三行、行距 5:第一行 Tab 名 17pt Semibold 主色(行高 22;未命名的 Tab 顯示「Tab 2」)、第二行 session 標題 15pt Medium 次要色(行高 20;與 Tab 名相同或空白時整行省略,列高降為約 76;「離開期間」小標籤 12pt Semibold、圓角 6,放在這一行開頭,標題省略時仍保留這一行)、第三行預覽 14pt 次要色(行高 18)。右欄寬 58:時間 13pt 次要色、用量環 18pt 加 13pt 數字,上下間距 8;箭頭 14pt。分隔線 1pt,自文字起算。'],
+  ['長按','Tab 列長按選單','玻璃 context menu(寬 262、圓角 26、內距 6),列浮起在上方、背景加 28% 黑遮罩;項目高 48、圖示 22pt 在文字前:釘選／取消釘選、靜音／取消靜音、在新視窗開啟(右側標註 iPad,只在 iPad 出現)。選單底部 13pt 次要色說明:套用到這個 Tab 底下所有 Agent pane。'],
   [9,'狀態點(頭像右下角)','12×12 圓點,右、下各超出頭像邊 3pt(疊在頭像外緣);外圈 2pt 列背景色(陰影墊出)。四色:需要你=橘、工作中／已連線=主色綠、錯誤／失敗=紅、其他=灰。實心 = 未讀;空心 = 已讀(2pt 色環、中間填列底色)。標題膠囊與停止列的圓點維持 8pt。'],
   ['AX','Dynamic Type 放大(超過 ×1.4)','右欄堆到文字下方同一行;標題與預覽可折成 2 行;列高自動撐開,頭像、內距不變。']],
  files:[
+  [3,'頂列控制(檔案)','右側膠囊 [電腦圖示｜＋] 與其他 tab 同尺寸。電腦圖示標示這頁看的是哪台主機,點開選單換主機;檔案 tab 不畫篩選小圓點。「＋」選單只有「上傳檔案」一項。'],
   [5,'麵包屑','top 162、高 18、14pt 次要色、左右 16;層級間用「›」。'],
   [6,'檔案列','卡片圓角 22、左右邊距 16;列高 60(最小 52)。圖示 24pt、檔名 17pt、副標 13pt 次要色;分隔線自文字起算。']],
  hosts:[
@@ -682,20 +717,20 @@ const SPEC_TAB={
 const specRows=a=>a.map(([n,h,d])=>`<dt>${n==='AX'?'<span class="pinb" style="background:var(--muted)">字級</span>':pb(n)}</dt><dd><b>${h}</b><br>${d}</dd>`).join('');
 function finalHTML(){
   const tabHTML=TABS.map(t=>`<div class="group"><div class="ghead"><span class="did">${TL[t]}</span><h3>${TL[t]} tab:未捲動與已捲動</h3></div><div class="finrow"><div class="one"><div data-fin="${t}|0"></div><div class="cap">未捲動</div></div><div class="one"><div data-fin="${t}|120"></div><div class="cap">已捲動</div></div><dl class="spec">${specRows(SPEC_TAB[t])}</dl></div></div>`).join('');
-  const acct=`<div class="group"><div class="ghead"><span class="did">帳號</span><h3>點頭像後:帳號與設定(sheet)</h3></div><div class="finrow"><div class="one"><div data-fin="acct|0"></div><div class="cap">點頭像後</div></div><dl class="spec"><dt>${pb(1)}</dt><dd><b>Sheet</b><br>距頂 46(露出底下畫面 46pt)、頂部圓角 38、底色 grouped、有陰影,底下畫面蓋 40% 黑色遮罩。</dd><dt>${pb(2)}</dt><dd><b>X 關閉鈕</b><br>玻璃圓鈕 44×44、圖示 20pt 線寬 2.2、右邊距 16;標題「帳號」17pt Semibold 置中,與 X 同一列(上內距 12)。</dd><dt>${pb(3)}</dt><dd><b>內容</b><br>inset grouped 卡片:圓角 22、左右邊距 16、卡片間距 14、列高 52(帳號列 60)。第一層:帳號、Purrdr Plus、通知、通知裝置、外觀、App 鎖、撤回倒數、終端機大小、關於。</dd></dl></div></div>`;
+  const acct=`<div class="group"><div class="ghead"><span class="did">帳號</span><h3>點頭像後:帳號與設定(sheet)</h3></div><div class="finrow"><div class="one"><div data-fin="acct|0"></div><div class="cap">點頭像後</div></div><div class="one"><div data-fin="acct-loading|0"></div><div class="cap">後台載入中</div></div><div class="one"><div data-fin="acct-offline|0"></div><div class="cap">連不上後台</div></div><dl class="spec"><dt>${pb(1)}</dt><dd><b>Sheet</b><br>距頂 46(露出底下畫面 46pt)、頂部圓角 38、底色 grouped、有陰影,底下畫面蓋 40% 黑色遮罩。</dd><dt>${pb(2)}</dt><dd><b>X 關閉鈕</b><br>玻璃圓鈕 44×44、圖示 20pt 線寬 2.2、右邊距 16;標題「帳號」17pt Semibold 置中,與 X 同一列(上內距 12)。</dd><dt>${pb(3)}</dt><dd><b>內容</b><br>inset grouped 卡片:圓角 22、左右邊距 16、卡片間距 14、列高 52(帳號列 60)。第一層:帳號、Purrdr Plus、通知、通知裝置、外觀、App 鎖、撤回倒數、終端機大小、關於。</dd><dt>${pb(4)}</dt><dd><b>後台載入中</b><br>會員區(帳號、Purrdr Plus、通知、通知裝置)換成載入占位:灰色骨架條(填色)加 13pt 次要色「正在載入會員資料…」。本機設定(外觀、App 鎖、撤回倒數、終端機大小、關於)照常顯示、可操作。</dd><dt>${pb(5)}</dt><dd><b>連不上後台</b><br>會員區換成一張內嵌提示卡:wifi 圖示、「暫時連不上 Purrdr」17pt Semibold、說明 13pt 次要色、「再試一次」主色膠囊鈕(高 36)。不彈警告、不擋住本機設定;點「再試一次」回到載入中。</dd></dl></div></div>`;
   return `<div class="group"><div class="ghead"><span class="did">共用規格</span><h3>四個 tab 共用的頂列與 tab bar</h3></div><p class="q">單位是 pt,以 402×874 的手機為基準。數字對應各手機上的洋紅色框。除標明外,頂列與 tab bar 的尺寸固定;只有大標題與列表內容隨 Dynamic Type 放大。</p><dl class="spec" style="max-width:none">${specRows(SPEC_COMMON)}</dl></div>${tabHTML}${acct}`;
 }
 function renderFinal(){
   document.querySelectorAll('[data-fin]').forEach(c=>{
     const [k,sy]=c.dataset.fin.split('|');
-    const st=k==='acct'?{tab:'chats',acct:true}:{tab:k,sy:+sy};
+    const st=k==='acct'?{tab:'chats',acct:true}:k==='acct-loading'?{tab:'chats',acct:'loading'}:k==='acct-offline'?{tab:'chats',acct:'offline'}:{tab:k,sy:+sy};
     c.innerHTML=`<div class="pinw">${phoneEl(FINAL,{...st,view:'spaces',key:`F|${k}|${sy}`},FS)}</div>`;
   });
 }
 function placePins(){
   document.querySelectorAll('[data-fin]').forEach(c=>{
     const [k,sy]=c.dataset.fin.split('|');
-    const list=(k==='acct'||sy==='0')?PINS_UNS[k]:PINS_SCR[k];
+    const list=(k.startsWith('acct')||sy==='0')?PINS_UNS[k]:PINS_SCR[k];
     const w=c.querySelector('.pinw'); if(!w||!list)return;
     const wr=w.getBoundingClientRect(), ph=w.querySelector('.ph');
     w.querySelectorAll('.pbox').forEach(e=>e.remove());
@@ -723,7 +758,7 @@ function renderS0(){
     document.querySelector(`[data-s0s="${lay}"]`).innerHTML=[0,120].map(sy=>`<div class="rowp2"><div class="cap">${sy?'已捲動':'未捲動'}</div><div class="rowp">${TABS.map(t=>`<div class="one">${phoneEl(c,{tab:t,view:'spaces',key:`S|${lay}|${t}|${sy}`,sy},.42)}<div class="cap">${TL[t]}</div></div>`).join('')}</div></div>`).join('');
   }
   const pc={...SEL};
-  document.getElementById('s0pop').innerHTML=[['主機圖示選單','chats',{menu:'host'}],['＋ 選單(聊天)','chats',{menu:'plus'}],['＋ 選單(檔案)','files',{menu:'plus'}],['點頭像:帳號與設定','chats',{acct:true}]].map(([lb,tab,o],i)=>`<div class="one">${phoneEl(pc,{tab,view:'spaces',key:'P|'+i,...o},.5)}<div class="cap">${lb}</div></div>`).join('');
+  document.getElementById('s0pop').innerHTML=[['主機圖示選單','chats',{menu:'host'}],['＋ 選單(聊天)','chats',{menu:'plus'}],['＋ 選單(檔案)','files',{menu:'plus'}],['點頭像:帳號與設定','chats',{acct:true}],['長按 Tab 列(未釘選、未靜音)','chats',{rowmenu:'off'}],['長按 Tab 列(已釘選、已靜音)','chats',{rowmenu:'on'}]].map(([lb,tab,o],i)=>`<div class="one">${phoneEl(pc,{tab,view:'spaces',key:'P|'+i,...o},.5)}<div class="cap">${lb}</div></div>`).join('');
 }
 function refresh(){
   snapScroll();
