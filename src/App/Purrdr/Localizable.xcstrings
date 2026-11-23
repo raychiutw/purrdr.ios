@@ -11402,6 +11402,17 @@
         }
       }
     },
+    "Someone is using this on the host. Tap Take Over to use it here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上有人正在使用。點「接管」就能在這裡使用。"
+          }
+        }
+      }
+    },
     "Something went wrong. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12691,17 +12702,6 @@
         }
       }
     },
-    "The host is using this pane. Take over to use it here." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機正在操作這個 Pane。接管後就能在這裡使用。"
-          }
-        }
-      }
-    },
     "The host needs curl to send a test notification." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13186,13 +13186,13 @@
         }
       }
     },
-    "This chat can’t be read. In a herdr Pane on the host, paste the command below to start a new chat." : {
+    "This chat can’t be read. On the host, paste the command below to start a new chat." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這段對話讀不到。請在主機的 herdr Pane 貼上下面的指令，開一段新的對話。"
+            "value" : "這段對話讀不到。請在主機上貼上下面的指令，開一段新的對話。"
           }
         }
       }

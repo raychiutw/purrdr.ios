@@ -79,7 +79,7 @@ struct PaneTerminalLeaveAndResumeTests {
 
         #expect(model.status == .inUse)
         #expect(model.canTakeOver)
-        #expect(model.bannerText == "The host is using this pane. Take over to use it here.")
+        #expect(model.bannerText == "Someone is using this on the host. Tap Take Over to use it here.")
         #expect(await host.executions.map(\.command) == [Base.control(), Base.control()])
     }
 

@@ -175,7 +175,7 @@ final class PaneTerminalUITests: XCTestCase {
         let takeOver = app.buttons["terminal.takeOver"].firstMatch
         XCTAssertTrue(takeOver.waitUntilExists(timeout: 10), "被佔用時沒有「接管」")
         XCTAssertTrue(app.descendants(matching: .any)["terminal.status"].firstMatch.label.contains("In Use Elsewhere"))
-        XCTAssertTrue(app.staticTexts["The host is using this pane. Take over to use it here."].firstMatch.exists, "沒有說明主機正在操作")
+        XCTAssertTrue(app.staticTexts["Someone is using this on the host. Tap Take Over to use it here."].firstMatch.exists, "沒有說明主機正在操作")
 
         takeOver.tap()
         screen.expectValue(containing: "demo@purrdr ledger %")

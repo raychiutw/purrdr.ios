@@ -458,7 +458,7 @@ public struct ConversationView: View {
             } description: {
                 if let command = model.missingSessionCommand {
                     VStack(spacing: 12) {
-                        Text("This chat can’t be read. In a herdr Pane on the host, paste the command below to start a new chat.")
+                        Text("This chat can’t be read. On the host, paste the command below to start a new chat.")
                         Text(verbatim: command)
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)

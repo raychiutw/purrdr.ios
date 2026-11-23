@@ -82,7 +82,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
         case .connected where isViewOnly: String(localized: "This device is paired read-only. You can watch this pane but not type.")
         case .waitingForSize, .connecting, .connected: nil
         case .disconnected: String(localized: "The connection dropped. Reconnect to pick up where this pane is now.")
-        case .inUse: String(localized: "The host is using this pane. Take over to use it here.")
+        case .inUse: String(localized: "Someone is using this on the host. Tap Take Over to use it here.")
         case .takenOver: String(localized: "Another device took over this pane.")
         case .ended: String(localized: "The program in this pane has exited.")
         case .unavailable(let reason): reason
