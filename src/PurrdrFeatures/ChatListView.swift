@@ -692,5 +692,15 @@ final class ChatListCell: UICollectionViewCell {
     override var safeAreaInsets: UIEdgeInsets {
         UIEdgeInsets(top: 0, left: super.safeAreaInsets.left, bottom: 0, right: super.safeAreaInsets.right)
     }
+
+    /// 自適應只改高度:寬度固定為 layout 給的寬度(`required`),不讓長段文字以理想寬度撐出比畫面寬的列。
+    override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
+        let attributes = layoutAttributes.copy() as? UICollectionViewLayoutAttributes ?? layoutAttributes
+        let fitted = contentView.systemLayoutSizeFitting(
+            CGSize(width: layoutAttributes.size.width, height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
+        attributes.size = CGSize(width: layoutAttributes.size.width, height: fitted.height)
+        return attributes
+    }
 }
 #endif

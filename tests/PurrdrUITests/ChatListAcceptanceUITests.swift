@@ -4,7 +4,9 @@ import XCTest
 ///
 /// 斷言都量 accessibility frame(列的位置與高度),不看截圖;跳動會直接表現成位置差。
 final class ChatListAcceptanceUITests: XCTestCase {
-    private static let ax5 = "UICTContentSizeCategoryAccessibilityXXXL"
+    /// 大字級讓對話超出一個畫面。不用 AX5:AX5 時「You should know」卡與輸入列佔掉約 625pt,
+    /// 可見的訊息區只剩約 130pt,圖片列根本滑不進畫面(測的是列高穩定,不是 AX5 的版面)。
+    private static let largeText = "UICTContentSizeCategoryXXXL"
     /// 最後一則文字框與列底緣的差(座標四捨五入與文字行距)。
     private static let landingTolerance: CGFloat = 4
 
@@ -96,11 +98,11 @@ final class ChatListAcceptanceUITests: XCTestCase {
 
     // MARK: - 3. 圖片捲出再捲回,列高不變
 
-    /// AX 字級讓對話超出一個畫面;使用者送出的圖片縮圖與所在訊息捲出畫面再捲回,高度與寬度要一樣。
+    /// 大字級讓對話超出一個畫面;使用者送出的圖片縮圖與所在訊息捲出畫面再捲回,高度與寬度要一樣。
     @MainActor
     func testImageRowHeightIsStableAfterScrollingAwayAndBack() {
         let app = XCUIApplication.launchUITestingConversation(
-            paneID: "w1:p1", flags: ["-demoSentImages"], contentSize: Self.ax5)
+            paneID: "w1:p1", flags: ["-demoSentImages"], contentSize: Self.largeText)
         let list = app.conversationList
         XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
         let thumbnail = app.element("conversation.sentImage.thumbnail")
@@ -144,7 +146,8 @@ final class ChatListAcceptanceUITests: XCTestCase {
         text.typeEnglish("Stay at the bottom")
         app.element("composer.send").tap()
 
-        let summary = app.staticTexts["I read all 160 export logs; every row exported cleanly."]
+        // 單段訊息的文字合併在 conversation.agent 元素的 label 裡(「Agent:, …」),所以用 CONTAINS。
+        let summary = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs; every row exported cleanly.'")).firstMatch
         XCTAssertTrue(summary.waitUntilExists(timeout: 20), "收尾訊息沒有出現(停在底部時新訊息沒有跟上)")
         let composer = app.element("composer.text")
         XCTAssertLessThanOrEqual(summary.frame.maxY, composer.frame.minY + 1, "收尾訊息被輸入框蓋住")
@@ -168,7 +171,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
             for _ in 0..<3 { list.swipeDown(velocity: .fast) }
             XCTAssertTrue(jump.waitUntilExists(timeout: 5), "第 \(attempt) 次往上捲後沒有跳到最新")
             jump.tap()
-            let last = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Row 150 looks right.'")).firstMatch
+            let last = app.staticTexts.matching(NSPredicate(format: "identifier == 'conversation.agent' AND label CONTAINS 'Row 150 looks right.'")).firstMatch
             XCTAssertTrue(last.waitUntilExists(timeout: 5), "第 \(attempt) 次沒有停在最後一則")
             XCTAssertTrue(jump.waitUntilGone(timeout: 5), "第 \(attempt) 次到底後按鈕沒有消失")
             XCTAssertLessThanOrEqual(last.frame.maxY, composer.frame.minY + 1, "第 \(attempt) 次最後一則被輸入框蓋住")
