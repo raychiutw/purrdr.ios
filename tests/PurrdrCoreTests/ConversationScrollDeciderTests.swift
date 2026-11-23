@@ -50,6 +50,25 @@ struct ConversationScrollDeciderTests {
         #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
     }
 
+    @Test("跟隨最新時,排版把位置量到離底很遠(沒有任何內容事件):補貼一次底部(A1:開啟長對話後內容高度重新量準)")
+    func followingAndMeasuredFarFromBottomSettles() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.openedWithContent)
+        #expect(decider.flush(at: 0) == .scrollToBottom(animated: false))
+        decider.receive(.layoutMeasured(distanceFromBottom: 278))
+        #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
+    }
+
+    @Test("排版量測在底部或閱讀中時不補貼底部")
+    func measuredNearBottomOrReadingDoesNotSettle() {
+        var decider = ConversationScrollDecider()
+        decider.receive(.layoutMeasured(distanceFromBottom: 0.5))
+        #expect(decider.flush(at: 0) == nil)
+        decider.receive(.userScrolled(distanceFromBottom: 400))
+        decider.receive(.layoutMeasured(distanceFromBottom: 500))
+        #expect(decider.flush(at: 1) == nil)
+    }
+
     @Test("使用者送出時捲到底並恢復跟隨;不加動畫(#497:長對話的回音動畫捲動會讓訊息區整片空白)")
     func userSentScrollsToBottomAndResumesFollowing() {
         var decider = ConversationScrollDecider()

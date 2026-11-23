@@ -563,7 +563,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         let drift = driftTracker.baselineRowID == nil ? "none" : String(format: "%.1f", driftTracker.maxDrift)
         let inset = collectionView.adjustedContentInset
         collectionView.accessibilityValue = String(
-            format: "drift=%@ insetTop=%.1f insetBottom=%.1f rows=%d", drift, inset.top, inset.bottom, dataSource.snapshot().numberOfItems)
+            format: "drift=%@ insetTop=%.1f insetBottom=%.1f rows=%d dist=%.1f follow=%d", drift, inset.top, inset.bottom,
+            dataSource.snapshot().numberOfItems, distanceFromBottom, decider.isFollowingLatest ? 1 : 0)
     }
     #endif
 
@@ -605,6 +606,10 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
             decider.receive(.userScrolled(distanceFromBottom: distanceFromBottom))
         } else {
             decider.receive(.layoutMeasured(distanceFromBottom: distanceFromBottom))
+            // 跟隨最新卻被排版留在離底很遠的位置(A1):排一次處理補貼底部。
+            if decider.isFollowingLatest, distanceFromBottom > ConversationScrollDecider.settleTolerance {
+                scheduleFlush(after: 0.05, reason: .layout)
+            }
         }
         reportFollowing()
         reportMeasurement()

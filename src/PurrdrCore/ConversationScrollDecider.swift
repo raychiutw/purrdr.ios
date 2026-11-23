@@ -11,7 +11,7 @@ public struct ConversationScrollDecider: Sendable, Equatable {
         case userEndedDragging(distanceFromBottom: Double)
         /// 使用者造成的捲動位移;只有這類事件能改變跟隨。
         case userScrolled(distanceFromBottom: Double)
-        /// 排版或程式造成的位移,只更新量測,不改跟隨。
+        /// 排版或程式造成的位移,只更新量測,不改跟隨;跟隨最新時離底太遠會排一次補貼底部。
         case layoutMeasured(distanceFromBottom: Double)
         case keyboardHeightChanged
         case inputBarHeightChanged
@@ -95,6 +95,8 @@ public struct ConversationScrollDecider: Sendable, Equatable {
             applyUserScroll(distance)
         case .layoutMeasured(let distance):
             distanceFromBottom = distance
+            // 跟隨最新卻被排版(列高重新量準、內容尺寸改變)留在離底很遠的位置:補貼一次底部(A1)。
+            if isFollowingLatest, distance > Self.settleTolerance { hasPendingSettle = true }
         case .keyboardHeightChanged, .inputBarHeightChanged:
             hasPendingResize = true
         case .keyboardAnimation(let isRunning):
