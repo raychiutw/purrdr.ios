@@ -47,9 +47,9 @@ class Component extends DCLogic {
     const ST = { need: ['!', '需要你'], work: ['•••', '工作中'], done: ['✓', '完成'], '': ['', ''] };
     const T = (name, sub, av, kind, st) => ({ name, sub, av, kind, st, badge: ST[st][0], a11y: name + ',' + sub + (st ? ',' + ST[st][1] : '') });
     const groups = [
-      { title: 'Ray Mac Mini · purrdr.ios', tabs: [T('Tab 1', 'Claude Code · 2 個 Pane', 'C', 'claude', 'work'), T('Tab 2', 'Claude Code', 'C', 'claude', 'done')] },
-      { title: 'Ray Mac Mini · weather-app', tabs: [T('Tab 1', 'Claude Code', 'C', 'claude', 'need')] },
-      { title: 'Ray PC · notes', tabs: [T('Tab 1', 'Codex · 2 個 Pane', 'X', 'codex', 'work'), T('Tab 2', 'shell', '$', 'shell', '')] }
+      { title: 'Ray Mac Mini · purrdr.ios', tabs: [T('tests', 'Claude Code · 2 個 Pane', 'C', 'claude', 'work'), T('release', 'Claude Code', 'C', 'claude', 'done')] },
+      { title: 'Ray Mac Mini · weather-app', tabs: [T('main', 'Claude Code', 'C', 'claude', 'need')] },
+      { title: 'Ray PC · notes', tabs: [T('export', 'Codex · 2 個 Pane', 'X', 'codex', 'work'), T('2', 'shell', '$', 'shell', '')] }
     ];
     return {
       tabs, groups,

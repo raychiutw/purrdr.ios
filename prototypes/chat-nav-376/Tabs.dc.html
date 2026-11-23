@@ -23,7 +23,7 @@
 <button class="row" aria-label="{{r.a11y}}">
 <span class="av"><span class="face {{r.kind}}" aria-hidden="true">{{r.av}}</span><span class="sb {{r.st}}" aria-hidden="true">{{r.badge}}</span></span>
 <span class="rowbody">
-<span class="l1"><span class="name">{{r.title}}</span><span class="host">{{r.host}}</span><span class="time">{{r.time}}</span></span>
+<span class="l1"><span class="name">{{r.title}}<span style="color:var(--sec);font-weight:400"> · {{r.tab}}</span></span><span class="host">{{r.host}}</span><span class="time">{{r.time}}</span></span>
 <span class="l2"><span class="pv {{r.pvc}}">{{r.preview}}</span><svg width="16" height="16" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="8" fill="none" stroke="var(--track)" stroke-width="3"></circle><circle cx="11" cy="11" r="8" fill="none" stroke="{{r.ring}}" stroke-width="3" stroke-linecap="round" stroke-dasharray="{{r.dash}}" transform="rotate(-90 11 11)"></circle></svg><span class="pct">{{r.pct}}</span></span>
 </span>
 </button>
@@ -31,7 +31,7 @@
 </div>
 <sc-if value="{{s.menu}}" hint-placeholder-val="{{false}}">
 <div class="mscrim"></div>
-<div class="menu glass" style="top:108px;left:65px;right:65px">
+<div class="menu glass" style="top:108px;left:16px;width:290px">
 <sc-for list="{{hosts}}" as="h" hint-placeholder-count="4">
 <button class="mi"><span class="ck"><sc-if value="{{h.on}}" hint-placeholder-val="{{false}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="已選取"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></sc-if></span><span class="mt"><span>{{h.name}}</span><span class="ms">{{h.sub}}</span></span></button>
 </sc-for>
@@ -57,18 +57,18 @@ class Component extends DCLogic {
     const tabs = TABS.map(([name, icon], i) => ({ name, icon, on: i === 0 ? 'on' : '', cur: i === 0 ? 'page' : 'false', badge: i === 0 ? 1 : 0, label: i === 0 ? '聊天,1 個 Agent 需要你' : name }));
     const C = 50.3;
     const ST = { need: ['!', '需要你'], work: ['•••', '工作中'], done: ['✓', '完成'] };
-    const row = (av, kind, title, st, host, time, pct, preview) => {
+    const row = (av, kind, title, tab, st, host, time, pct, preview) => {
       const ring = pct >= 85 ? 'var(--u-high)' : pct >= 70 ? 'var(--u-warn)' : 'var(--u-ok)';
       const pv = st === 'need' ? '需要你:' + preview : preview;
-      return { av, kind, title, st, host, time, badge: ST[st][0], pct: pct + '%', ring, dash: (C * pct / 100).toFixed(1) + ' 60', preview: pv, pvc: st === 'need' ? 'need' : '',
-        a11y: (kind === 'claude' ? 'Claude Code' : 'Codex') + ',' + title + ',' + ST[st][1] + ',' + host + ',' + pv + ',Context ' + pct + '%,' + time };
+      return { av, kind, title, tab, st, host, time, badge: ST[st][0], pct: pct + '%', ring, dash: (C * pct / 100).toFixed(1) + ' 60', preview: pv, pvc: st === 'need' ? 'need' : '',
+        a11y: (kind === 'claude' ? 'Claude Code' : 'Codex') + ',' + title + ',Tab ' + tab + ',' + ST[st][1] + ',' + host + ',' + pv + ',Context ' + pct + '%,' + time };
     };
     const rows = [
-      row('C', 'claude', 'weather-app', 'need', 'Ray Mac Mini', '09:51', 18, '要我直接改 Info.plist 嗎?'),
-      row('C', 'claude', 'purrdr.ios', 'work', 'Ray Mac Mini', '09:50', 42, '正在跑 UI 日常組…'),
-      row('X', 'codex', 'notes', 'work', 'Ray PC', '09:40', 71, '整理 Markdown 匯出格式'),
-      row('C', 'claude', 'ledger', 'done', 'Ray Mac Mini', '昨天', 88, 'CSV 匯出已修好,測試通過'),
-      row('C', 'claude', 'trip-planner', 'done', 'Ray PC', '週三', 24, '行程頁改好了')
+      row('C', 'claude', 'weather-app', 'main', 'need', 'Ray Mac Mini', '09:51', 18, '要我直接改 Info.plist 嗎?'),
+      row('C', 'claude', 'purrdr.ios', 'tests', 'work', 'Ray Mac Mini', '09:50', 42, '正在跑 UI 日常組…'),
+      row('X', 'codex', 'notes', '1', 'work', 'Ray PC', '09:40', 71, '整理 Markdown 匯出格式'),
+      row('C', 'claude', 'ledger', 'csv-export', 'done', 'Ray Mac Mini', '昨天', 88, 'CSV 匯出已修好,測試通過'),
+      row('C', 'claude', 'trip-planner', '1', 'done', 'Ray PC', '週三', 24, '行程頁改好了')
     ];
     return {
       I, tabs, rows,
