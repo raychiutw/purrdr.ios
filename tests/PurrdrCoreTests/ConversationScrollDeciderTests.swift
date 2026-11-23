@@ -50,12 +50,12 @@ struct ConversationScrollDeciderTests {
         #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
     }
 
-    @Test("使用者送出時捲到底並恢復跟隨")
+    @Test("使用者送出時捲到底並恢復跟隨;不加動畫(#497:長對話的回音動畫捲動會讓訊息區整片空白)")
     func userSentScrollsToBottomAndResumesFollowing() {
         var decider = ConversationScrollDecider()
         decider.receive(.userScrolled(distanceFromBottom: 400))
         decider.receive(.timeline(Self.update(.userSent)))
-        #expect(decider.flush(at: 1) == .scrollToBottom(animated: true))
+        #expect(decider.flush(at: 1) == .scrollToBottom(animated: false))
         #expect(decider.isFollowingLatest)
     }
 

@@ -129,7 +129,8 @@ public struct ConversationScrollDecider: Sendable, Equatable {
         if hasPendingUserSent {
             clearPending()
             isFollowingLatest = true
-            return .scrollToBottom(animated: true)
+            // 不加動畫(#497):長對話的回音列還是估算高度(60),動畫捲動途中訊息區會整片空白;位移由 layout 在同一次排版補償。
+            return .scrollToBottom(animated: false)
         }
         if hasPendingOpen {
             clearPending()
