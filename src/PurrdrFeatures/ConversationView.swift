@@ -349,7 +349,10 @@ public struct ConversationView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             ChatListView(
-                content: listContent, model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
+                content: listContent,
+                rowEnvironment: ChatListRowEnvironment(
+                    hostTheme: hostTheme, forcesOpaqueGlass: forcesOpaqueGlass, inlineSlashNames: model.inlineSlashNames),
+                model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
                 smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
                 onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
                 onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) }
@@ -688,8 +691,9 @@ struct AgentMessageView: View {
             Task { @MainActor in open(path) }
             return .handled
         })
-        .quickLookPreview($previewFile)
-        .imageViewer(item: $viewer)
+        // 列在 UICollectionView 的 cell 裡沒有可靠的呈現者:交給對話畫面(其他畫面照舊自己呈現)。
+        .presentedQuickLook($previewFile)
+        .presentedImageViewer(item: $viewer)
     }
 
     private func open(_ path: String) {

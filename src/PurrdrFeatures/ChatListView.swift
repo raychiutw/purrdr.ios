@@ -36,8 +36,16 @@ import UIKit
 
 /// 包進 SwiftUI 的聊天列表:`UICollectionView` + 自訂 layout + diffable data source,列內容用 `UIHostingConfiguration`(ADR-0014)。
 /// 捲動完全由捲動決策者的指令驅動;畫面只提供資料與回呼。
+/// 寫進列的 hosted view 的環境值(`ConversationView.rowView` 重新注入的那幾個會變的):變了就要讓已設定的 cell 重畫。
+struct ChatListRowEnvironment: Equatable {
+    var hostTheme: HostTheme?
+    var forcesOpaqueGlass: Bool
+    var inlineSlashNames: Set<String>
+}
+
 struct ChatListView: UIViewControllerRepresentable {
     let content: ChatListContent
+    let rowEnvironment: ChatListRowEnvironment
     let model: ConversationModel
     let handle: ChatListHandle
     let rowView: (ChatListRowContent) -> AnyView
@@ -60,6 +68,7 @@ struct ChatListView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: ChatListViewController, context: Context) {
         controller.rowView = rowView
+        controller.rowEnvironment = rowEnvironment
         controller.menuEntries = menuEntries
         controller.smoothness = smoothness
         controller.safeAreaFrame = safeAreaFrame
@@ -81,6 +90,9 @@ struct ChatListView: UIViewControllerRepresentable {
 final class ChatListViewController: UIViewController, UICollectionViewDelegate, UIGestureRecognizerDelegate {
     var model: ConversationModel?
     var rowView: (ChatListRowContent) -> AnyView = { _ in AnyView(EmptyView()) }
+    /// 列的環境值;與上次套用時不同就讓所有列重畫(內容相等也一樣)。
+    var rowEnvironment = ChatListRowEnvironment(hostTheme: nil, forcesOpaqueGlass: false, inlineSlashNames: [])
+    private var appliedRowEnvironment: ChatListRowEnvironment?
     var menuEntries: (ChatListRowContent) -> [ChatListMenuEntry] = { _ in [] }
     var smoothness: (any ScrollSmoothnessReporting)?
     var safeAreaFrame: CGRect = .zero
@@ -243,7 +255,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     /// 收到新內容:拖曳、鍵盤動畫、選單開著時先留著最新一份,安全了再套用(spec #480)。
     func update(content newContent: ChatListContent) {
         loadViewIfNeeded()
-        if hasAppliedContent, newContent == content {
+        if hasAppliedContent, newContent == content, rowEnvironment == appliedRowEnvironment {
             pendingContent = nil
             return
         }
@@ -284,7 +296,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     private func applyPendingContentIfSafe() {
         guard let pendingContent, !shouldDeferApply else { return }
         self.pendingContent = nil
-        guard pendingContent != content else { return }
+        guard pendingContent != content || rowEnvironment != appliedRowEnvironment else { return }
         apply(pendingContent)
     }
 
@@ -303,7 +315,10 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         var snapshot = NSDiffableDataSourceSnapshot<Int, String>()
         snapshot.appendSections([0])
         snapshot.appendItems(newContent.ids)
-        snapshot.reconfigureItems(ChatListRowPlan.changedIDs(previous: previous.rows, current: newContent.rows))
+        let environmentChanged = appliedRowEnvironment.map { $0 != rowEnvironment } ?? false
+        appliedRowEnvironment = rowEnvironment
+        snapshot.reconfigureItems(
+            ChatListRowPlan.reconfigureIDs(previous: previous.rows, current: newContent.rows, environmentChanged: environmentChanged))
         dataSource.apply(snapshot, animatingDifferences: false)
         collectionView.layoutIfNeeded()
         if let anchor {

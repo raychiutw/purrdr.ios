@@ -48,4 +48,14 @@ struct ChatListRowPlanTests {
         let current = ["a": 1, "b": 20, "d": 4]
         #expect(ChatListRowPlan.changedIDs(previous: previous, current: current) == ["b"])
     }
+
+    @Test("環境值(主機主題、玻璃設定、slash 名稱)改變時所有留著的列都要重畫,內容沒變也一樣")
+    func environmentChangeReconfiguresEverySurvivingRow() {
+        let previous = ["a": 1, "b": 2]
+        let current = ["a": 1, "b": 2, "c": 3]
+        #expect(ChatListRowPlan.reconfigureIDs(previous: previous, current: current, environmentChanged: false) == [])
+        // 新增的 c 沒有舊的 cell 要重畫;a、b 是留著的列。
+        #expect(ChatListRowPlan.reconfigureIDs(previous: previous, current: current, environmentChanged: true) == ["a", "b"])
+        #expect(ChatListRowPlan.reconfigureIDs(previous: ["a": 1], current: ["a": 2], environmentChanged: false) == ["a"])
+    }
 }

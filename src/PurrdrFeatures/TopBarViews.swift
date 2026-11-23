@@ -211,6 +211,10 @@ private struct TopBarControls: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(verbatim: content.hostScope.accessibilityLabel))
+            // 控制項固定大小:大字級時長按顯示放大版(HIG large content viewer,DESIGN.md)。
+            .accessibilityShowsLargeContentViewer {
+                Label { Text(verbatim: content.hostScope.accessibilityLabel) } icon: { Image(systemName: "desktopcomputer") }
+            }
             .accessibilityIdentifier(content.hostIdentifier)
         }
     }
@@ -237,6 +241,7 @@ struct TopBarPlusButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(title))
+        .accessibilityShowsLargeContentViewer { Label(title, systemImage: "plus") }
         .accessibilityIdentifier(identifier)
     }
 }
@@ -268,6 +273,9 @@ struct TopBarAccountButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Account"))
+        .accessibilityShowsLargeContentViewer {
+            Label("Account", systemImage: signedInMember == nil ? "person.crop.circle" : "person.fill")
+        }
         .accessibilityIdentifier("toolbar.account")
         .task { if member.phase == .unknown { await member.restore() } }
     }

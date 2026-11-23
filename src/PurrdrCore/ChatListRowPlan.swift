@@ -32,4 +32,13 @@ public enum ChatListRowPlan {
     public static func changedIDs<Content: Equatable>(previous: [String: Content], current: [String: Content]) -> [String] {
         current.compactMap { id, content in previous[id].map { $0 != content ? id : nil } ?? nil }.sorted()
     }
+
+    /// snapshot 要重畫的列 id:環境值改變(主機主題、玻璃設定、slash 名稱寫進了列的 hosted view)時,所有前後都存在的列;
+    /// 否則只有內容有變的列(`changedIDs`)。
+    public static func reconfigureIDs<Content: Equatable>(
+        previous: [String: Content], current: [String: Content], environmentChanged: Bool
+    ) -> [String] {
+        guard environmentChanged else { return changedIDs(previous: previous, current: current) }
+        return current.keys.filter { previous[$0] != nil }.sorted()
+    }
 }

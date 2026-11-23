@@ -188,7 +188,7 @@ struct WorkflowCardView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("conversation.workflow")
 
-                NavigationLink(value: DelegationRoute.workflow(card)) {
+                DelegationRouteLink(route: .workflow(card)) {
                     Image(systemName: "chevron.forward")
                         .font(.body.weight(.semibold))
                         .frame(width: 44, height: 44)
