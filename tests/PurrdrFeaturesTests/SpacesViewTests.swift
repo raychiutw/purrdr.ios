@@ -148,6 +148,30 @@ struct SpacesViewTests {
         #expect(sections.last?.tabs.first?.target == .pane(ChatRoute(host: .demo, paneID: "w2:p1")))
     }
 
+    @Test("Tab 列的長按選單資料:釘選與靜音作用在 Tab 底下所有 Agent 的 session;在新視窗開啟開第一個 Agent 的聊天")
+    func tabMenuTargets() async throws {
+        let model = await Self.model { response in
+            // 改動：w1:t6 再加一個 shell pane(多 pane 的 Tab)。
+            Self.addShellPane(["pane_id": "w1:p7", "workspace_id": "w1", "tab_id": "w1:t6", "cwd": "/tmp"], to: &response)
+        }
+        let garden = try #require(model.agentList.spacesSections.first)
+        let multi = garden.tabs[0]
+        let single = garden.tabs[1]
+        let snapshot = try #require(model.agentList.snapshot(for: .demo))
+        let multiSessions = snapshot.agents.filter { $0.tabID == "w1:t6" }.compactMap(\.sessionID)
+        #expect(!multiSessions.isEmpty)
+        #expect(multi.chatSessionIDs == multiSessions)
+        #expect(single.chatSessionIDs.count == 1)
+        // 多 pane:沒有版面圖視窗,開第一個 Agent pane 的聊天。
+        let opening = try #require(multi.newWindowOpening)
+        #expect(!opening.isTerminal)
+        #expect(opening.paneID == multi.agent?.paneID)
+        // 只有 shell 的 Tab:開 Pane 終端機;沒有 session 可釘選。
+        let shell = try #require(model.agentList.spacesSections.last?.tabs.first)
+        #expect(shell.chatSessionIDs.isEmpty)
+        #expect(shell.newWindowOpening == SpacesTab.WindowOpening(isTerminal: true, paneID: "w2:p1", title: shell.title))
+    }
+
     @Test("herdr 沒有回報 Tab 的 Agent 自成一列(標題是 Agent 標題),不會從列表消失")
     func panesWithoutTabs() async throws {
         let model = await Self.model { response in

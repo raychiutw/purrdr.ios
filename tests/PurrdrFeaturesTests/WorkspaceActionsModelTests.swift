@@ -48,6 +48,42 @@ struct WorkspaceActionsModelTests {
         #expect(store.load().pinned.isEmpty)
     }
 
+    @Test("Tab 有多個 Agent:釘選作用在全部;有任何一個沒釘就是全部釘上,全部都釘了才全部取消")
+    func pinAppliesToEveryChatOfTab() {
+        let store = InMemoryChatPreferencesStore()
+        let model = Self.model(host: FakeHost(), store: store, now: Date(timeIntervalSince1970: 7))
+        model.togglePin(sessionID: "s1")
+
+        #expect(!model.arePinned(sessionIDs: ["s1", "s2"]))
+        model.togglePin(sessionIDs: ["s1", "s2"])
+        #expect(model.arePinned(sessionIDs: ["s1", "s2"]))
+        // 已經釘著的 s1 保持原本的釘選時間。
+        #expect(store.load().pinned["s1"] == Date(timeIntervalSince1970: 7))
+
+        model.togglePin(sessionIDs: ["s1", "s2"])
+        #expect(store.load().pinned.isEmpty)
+        // 沒有 session 的 Tab 什麼都不做、也不算釘選。
+        model.togglePin(sessionIDs: [])
+        #expect(!model.arePinned(sessionIDs: []))
+    }
+
+    @Test("Tab 有多個 Agent:靜音作用在全部,並通知靜音清單改變一次")
+    func muteAppliesToEveryChatOfTab() {
+        let store = InMemoryChatPreferencesStore()
+        let model = Self.model(host: FakeHost(), store: store)
+        var notified: [Set<String>] = []
+        model.mutedChanged = { notified.append($0) }
+        model.toggleMute(sessionID: "s1")
+
+        model.toggleMute(sessionIDs: ["s1", "s2"])
+        #expect(model.areMuted(sessionIDs: ["s1", "s2"]))
+        #expect(store.load().muted == ["s1", "s2"])
+
+        model.toggleMute(sessionIDs: ["s1", "s2"])
+        #expect(store.load().muted.isEmpty)
+        #expect(notified.count == 3)
+    }
+
     @Test("靜音存在本機;再按一次取消靜音")
     func muteStoresLocally() {
         let store = InMemoryChatPreferencesStore()

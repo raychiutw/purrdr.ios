@@ -78,6 +78,18 @@ struct WorkspaceTarget {
     }
 }
 
+/// Tab 列長按選單的釘選與靜音:這個 Tab 底下所有 Agent 的 session 與該主機的操作 model。
+struct TabChatActions {
+    var actions: WorkspaceActionsModel
+    var sessionIDs: [String]
+
+    init?(actions: WorkspaceActionsModel?, sessionIDs: [String]) {
+        guard let actions, !sessionIDs.isEmpty else { return nil }
+        self.actions = actions
+        self.sessionIDs = sessionIDs
+    }
+}
+
 /// 一個 workspace 在列表裡的身分：列的操作需要的值。
 struct WorkspaceRowContext {
     var agent: Agent
@@ -107,14 +119,34 @@ extension View {
             openInNewWindow: openInNewWindow))
     }
 
-    /// Spaces 檢視 Tab 列的 context menu(#275):第一項是版面圖，其餘同列的 workspace 動作。
+    /// Spaces 檢視 Tab 列的 context menu(#275、#491 補回釘選與靜音):最前面是「在新視窗開啟」(支援多視窗時)與釘選、靜音,
+    /// 接著版面圖，其餘同列的 workspace 動作。
     ///
+    /// Tab 可能有多個 Agent:釘選與靜音作用在底下所有 Agent 的聊天(`sessionIDs`,沒有 session 時不顯示)。
     /// 改名改的是這個 Tab;Workspace 名稱在段落標題的長按選單(`workspaceHeaderMenu`,#456)。`tab` 為 nil(沒有 Tab 的 pane)時沒有改名項目。
     func workspaceActionsMenu(
-        _ target: WorkspaceTarget, tab: TabTarget?, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation
+        _ target: WorkspaceTarget, tab: TabTarget?, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation,
+        chats: TabChatActions? = nil, openInNewWindow: (() -> Void)? = nil
     ) -> some View {
         contextMenu {
             let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
+            if let openInNewWindow {
+                Button("Open in New Window", systemImage: "macwindow.badge.plus", action: openInNewWindow)
+                    .accessibilityIdentifier("menu.openInNewWindow")
+            }
+            if let chats {
+                let pinned = chats.actions.arePinned(sessionIDs: chats.sessionIDs)
+                Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
+                    chats.actions.togglePin(sessionIDs: chats.sessionIDs)
+                }
+                .accessibilityIdentifier("menu.pin")
+                let muted = chats.actions.areMuted(sessionIDs: chats.sessionIDs)
+                Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
+                    chats.actions.toggleMute(sessionIDs: chats.sessionIDs)
+                }
+                .accessibilityIdentifier("menu.mute")
+            }
+            if openInNewWindow != nil || chats != nil { Divider() }
             buttons.showLayout()
             if let tab { buttons.renameTab(tab, showsCurrent: false) }
             buttons.newWorktree()

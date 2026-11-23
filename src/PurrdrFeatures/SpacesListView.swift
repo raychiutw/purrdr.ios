@@ -10,6 +10,8 @@ struct SpacesSectionsContent: View {
     let sections: [SpacesSection]
     let model: MergedAgentListModel
     let presentation: WorkspacePresentation
+    /// 把 Tab 開在新視窗(支援多視窗時才有)。
+    var openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
 
     var body: some View {
         ForEach(sections) { section in
@@ -19,7 +21,9 @@ struct SpacesSectionsContent: View {
                         .workspaceActionsMenu(
                             workspaceTarget(section),
                             tab: TabTarget(tabID: tab.key, snapshot: model.snapshot(for: section.host), workspaceLabel: section.workspace),
-                            host: section.host, snapshot: model.snapshot(for: section.host), presentation: presentation)
+                            host: section.host, snapshot: model.snapshot(for: section.host), presentation: presentation,
+                            chats: TabChatActions(actions: model.actions(for: section.host), sessionIDs: tab.chatSessionIDs),
+                            openInNewWindow: newWindowAction(tab, host: section.host))
                         .accessibilityIdentifier("spaces.tab.\(tab.id)")
                 }
             } header: {
@@ -29,6 +33,11 @@ struct SpacesSectionsContent: View {
                         isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation)
             }
         }
+    }
+
+    private func newWindowAction(_ tab: SpacesTab, host: HostSelection) -> (() -> Void)? {
+        guard let openInNewWindow, let opening = tab.newWindowOpening else { return nil }
+        return { openInNewWindow(opening.isTerminal ? .terminal : .chat, ChatRoute(host: host, paneID: opening.paneID), opening.title) }
     }
 
     private func workspaceTarget(_ section: SpacesSection) -> WorkspaceTarget {

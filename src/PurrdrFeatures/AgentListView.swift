@@ -38,7 +38,7 @@ public struct AgentListView: View {
     /// 沒有的話列表自己推入對話。
     private let window: TopNavigationModel?
     /// 把 Agent 對話或終端機開在新視窗(支援多視窗時才有)。
-    private let openInNewWindow: ((PaneWindow.Kind, AgentRow) -> Void)?
+    private let openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
     /// 共用頂列的動作(#499):新增聊天、新增主機與帳號鈕。
     private let topBarActions: ChatTopBarActions
     @FocusState private var searchFocused: Bool
@@ -47,7 +47,7 @@ public struct AgentListView: View {
 
     package init(
         model: MergedAgentListModel, window: TopNavigationModel? = nil,
-        openInNewWindow: ((_ kind: PaneWindow.Kind, _ row: AgentRow) -> Void)? = nil,
+        openInNewWindow: ((_ kind: PaneWindow.Kind, _ route: ChatRoute, _ title: String) -> Void)? = nil,
         topBar: ChatTopBarActions,
         prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
@@ -331,7 +331,7 @@ public struct AgentListView: View {
     @ViewBuilder
     private var listRows: some View {
         let failures = model.failures
-        SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation)
+        SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation, openInNewWindow: openInNewWindow)
         if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
            spacesSections.isEmpty {

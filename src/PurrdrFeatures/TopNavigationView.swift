@@ -190,9 +190,9 @@ public struct TopNavigationView: View {
     /// 所有主機合併的 Agent 列表(#39)。
     private var agentList: some View {
         let hosts = hosts
-        var open: ((PaneWindow.Kind, AgentRow) -> Void)?
+        var open: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
         if supportsMultipleWindows {
-            open = { kind, row in openInNewWindow(kind, row) }
+            open = { kind, route, title in openInNewWindow(kind, route, title) }
         }
 let topBar = ChatTopBarActions(
             newChat: { navigation.sheet = .newChat }, addHost: { navigation.openAddHost() },
@@ -208,9 +208,9 @@ let topBar = ChatTopBarActions(
     }
 
     /// 把列表上的 Agent 開在新視窗(context menu,HIG Windows)。任何一台主機的 Agent 都可以(每台主機各自連線,#39)。
-    private func openInNewWindow(_ kind: PaneWindow.Kind, _ row: AgentRow) {
+    private func openInNewWindow(_ kind: PaneWindow.Kind, _ route: ChatRoute, _ title: String) {
         openWindow(value: PaneWindow(
-            kind: kind, host: row.host, paneID: row.paneID, sessionID: hosts.agentList.sessionID(of: row.route), title: row.title))
+            kind: kind, host: route.host, paneID: route.paneID, sessionID: hosts.agentList.sessionID(of: route), title: title))
     }
 
     /// 版面圖卡片(選取中主機的 workspace)選了 Pane:Agent 在對話欄打開;終端機方塊在對話欄開它的 Pane 終端機。

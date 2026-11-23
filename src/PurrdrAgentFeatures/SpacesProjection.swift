@@ -58,13 +58,37 @@ public struct SpacesTab: Identifiable, Equatable, Sendable {
     public var contentTitle: String
     /// 列上時間、預覽、用量與離開期間用的代表 Agent(Tab 裡第一個 Agent,與頭像同一個);沒有 Agent 時 `nil`。
     public var agent: AgentRow?
+    /// Tab 底下所有 Agent 的 session(長按選單的釘選與靜音作用在全部);沒有 Agent 或 Agent 沒有 session 時是空的。
+    public var chatSessionIDs: [String]
 
     public var id: String { "\(host.storedValue)/\(key)" }
 
+    /// 「在新視窗開啟」要開的內容。
+    public struct WindowOpening: Equatable, Sendable {
+        public var isTerminal: Bool
+        public var paneID: String
+        public var title: String
+
+        public init(isTerminal: Bool, paneID: String, title: String) {
+            self.isTerminal = isTerminal
+            self.paneID = paneID
+            self.title = title
+        }
+    }
+
+    /// 在新視窗開啟:有 Agent 就開第一個 Agent 的聊天(多 pane 的 Tab 沒有版面圖視窗,`WindowGroup(for: PaneWindow.self)` 只能開單一 pane);
+    /// 只有終端機的單一 pane 開它的 Pane 終端機;多個終端機沒有主要 pane,不提供。
+    public var newWindowOpening: WindowOpening? {
+        if let agent { return WindowOpening(isTerminal: false, paneID: agent.paneID, title: agent.title) }
+        if case .pane(let route) = target { return WindowOpening(isTerminal: true, paneID: route.paneID, title: title) }
+        return nil
+    }
+
     public init(
         host: HostSelection, key: String, title: String, target: Target, avatar: Avatar = .terminal, tabName: String? = nil,
-        searchTerms: [String] = [], contentTitle: String? = nil, agent: AgentRow? = nil
+        searchTerms: [String] = [], contentTitle: String? = nil, agent: AgentRow? = nil, chatSessionIDs: [String] = []
     ) {
+        self.chatSessionIDs = chatSessionIDs
         self.contentTitle = contentTitle ?? title
         self.agent = agent
         self.tabName = tabName
@@ -161,7 +185,8 @@ extension AgentListProjection {
                 host: host, key: tab.id, title: tabTitle(tab.label, contents: contents, position: index + 1), target: target,
                 avatar: avatar(for: tabAgents, source: source, visible: visible), tabName: tabName(label: tab.label, position: index + 1),
                 searchTerms: tabAgents.map { AgentRowText.title(for: $0, siblings: agents) }, contentTitle: contents,
-                agent: tabAgents.first.map { representative($0, siblings: agents, source: source, visible: visible) })
+                agent: tabAgents.first.map { representative($0, siblings: agents, source: source, visible: visible) },
+                chatSessionIDs: tabAgents.compactMap(\.sessionID))
         }
         let known = Set(tabs.map(\.id))
         for pane in panes where tabID(of: pane).map({ !known.contains($0) }) ?? true {
@@ -171,7 +196,8 @@ extension AgentListProjection {
                 host: host, key: pane.id, title: title, target: .pane(ChatRoute(host: host, paneID: pane.id)),
                 avatar: avatar(for: agents.filter { $0.paneID == pane.id }, source: source, visible: visible),
                 searchTerms: agents.filter { $0.paneID == pane.id }.map { AgentRowText.title(for: $0, siblings: agents) },
-                agent: agents.first { $0.paneID == pane.id }.map { representative($0, siblings: agents, source: source, visible: visible) }))
+                agent: agents.first { $0.paneID == pane.id }.map { representative($0, siblings: agents, source: source, visible: visible) },
+                chatSessionIDs: agents.filter { $0.paneID == pane.id }.compactMap(\.sessionID)))
         }
         return rows
     }
