@@ -25,7 +25,7 @@ struct HostOverviewTests {
     }
 
     static func httpsModel(
-        paired: Bool = true, connection: FakeHostConnection = FakeHostConnection()
+        paired: Bool = true, connection: FakeHostConnection = FakeHostConnection(), sleep: @escaping Sleep = Sleeping.task
     ) -> HostsModel {
         let store = MemoryHostStore()
         store.hosts = [buildBox]
@@ -33,9 +33,24 @@ struct HostOverviewTests {
         connections.connections = [connection]
         let tokens = InMemoryDeviceTokenStore(tokens: paired ? [buildBox.id: "token"] : [:])
         let model = HostsModel(
-            store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens), makeChannel: ChannelFactory().make)
+            store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens), sleep: sleep, makeChannel: ChannelFactory().make)
         model.load()
         return model
+    }
+
+    @Test("OpenSSH 主機的連線方式畫面上叫「SSH」(#477);內部值不變")
+    func openSSHIsShownAsSSH() {
+        let store = MemoryHostStore()
+        store.hosts = [
+            HostConfiguration(
+                name: "Home", endpoint: SSHEndpoint(host: "home-mac", username: "demo"), openSSH: .password, operatingSystem: .macOS,
+                hostKeyPin: HostsModelTests.pin)
+        ]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        model.load()
+        #expect(model.overview?.connection == .openSSH)
+        #expect(model.overview?.connectionSummary.hasPrefix("SSH") == true)
+        #expect(model.overview?.connectionSummary.contains("OpenSSH") == false)
     }
 
     @Test("沒有任何主機也沒有範例主機時沒有總頁")

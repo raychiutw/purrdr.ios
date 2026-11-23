@@ -49,6 +49,21 @@ struct HostConnectionFlowTests {
         #expect(store.hosts == [saved])
     }
 
+    @Test("編輯已存的主機:儲存後保留這台主機的 Agent 設定(#477)")
+    func editingKeepsAgentSettings() async throws {
+        let store = MemoryHostStore()
+        var existing = HostConfiguration(name: "Studio", endpoint: Self.endpoint)
+        existing.enabledAgents = [.agy]
+        store.hosts = [existing]
+        let factory = ChannelFactory(await HostEditorModelTests.unverifiedHost(), await HostEditorModelTests.healthyHost())
+        let flow = HostConnectionFlow(
+            store: store, existing: existing, credentials: HostCredentials(), hostService: HostServiceAccess(), makeChannel: factory.make)
+        await flow.test(Self.sshDraft())
+        let saved = try #require(flow.save(Self.sshDraft(pin: Self.fingerprint)))
+        #expect(saved.enabledAgents == [.agy])
+        #expect(store.hosts.first?.enabledAgents == [.agy])
+    }
+
     @Test("Tailscale SSH 第一次連線不問,自動記住出示的 key(仍 pin),重測通過後儲存帶 pin")
     func tailscaleRemembersFirstKeyWithoutAsking() async throws {
         let store = MemoryHostStore()

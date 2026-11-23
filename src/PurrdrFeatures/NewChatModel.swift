@@ -142,9 +142,17 @@ public final class NewChatModel {
     /// 讀過的續接支援(整個表單只問一次)。
     private var resumeSupport: ResumeSupport?
 
-    public init(launcher: NewChatLauncher, folders: NewChatFolders) {
+    /// 新增聊天選單要列的 Agent:只有這台主機啟用的(#477,`HostAgentSettings`)。
+    public let availableAgents: [AgentID]
+
+    public init(
+        launcher: NewChatLauncher, folders: NewChatFolders,
+        agents: [AgentID] = HostAgentSettings.newChatAgents(enabled: HostAgentSettings.previouslyShownUsage)
+    ) {
         self.launcher = launcher
         self.folders = folders
+        availableAgents = agents
+        agent = agents.first ?? .claude
     }
 
     private var trimmedFolder: String { folder.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -159,7 +167,7 @@ public final class NewChatModel {
 
     /// 續接時第一則訊息可以留空;全新的聊天一定要有。
     public var canStart: Bool {
-        !trimmedFolder.isEmpty && (isResuming || !trimmedMessage.isEmpty) && !isStarting && readOnlyReason == nil
+        !availableAgents.isEmpty && !trimmedFolder.isEmpty && (isResuming || !trimmedMessage.isEmpty) && !isStarting && readOnlyReason == nil
     }
 
     /// 讀清單的條件變了(資料夾或 agent)就重讀;畫面以它當 `.task(id:)`。

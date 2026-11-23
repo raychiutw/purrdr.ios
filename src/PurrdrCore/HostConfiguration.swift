@@ -79,12 +79,19 @@ public struct HostConfiguration: Sendable, Hashable, Identifiable {
     public var connection: Connection
     /// 連線測試偵測到的作業系統。
     public var operatingSystem: HostOperatingSystem?
+    /// 這台主機啟用的 Agent(#477,`HostAgentSettings`):只有啟用的才查用量、才出現在新增聊天。
+    /// `nil` 是還沒設定過(舊版 app 存的主機);只存在這支裝置的 Keychain,不同步。
+    public var enabledAgents: Set<AgentID>?
 
-    public init(id: UUID = UUID(), name: String, connection: Connection, operatingSystem: HostOperatingSystem? = nil) {
+    public init(
+        id: UUID = UUID(), name: String, connection: Connection, operatingSystem: HostOperatingSystem? = nil,
+        enabledAgents: Set<AgentID>? = nil
+    ) {
         self.id = id
         self.name = name
         self.connection = connection
         self.operatingSystem = operatingSystem
+        self.enabledAgents = enabledAgents
     }
 
     /// SSH 主機：`openSSH` 是 OpenSSH 的登入方式，`nil` 是 Tailscale SSH。
@@ -120,7 +127,7 @@ public struct HostConfiguration: Sendable, Hashable, Identifiable {
 /// 讀取時有 `connection` 就以它為準，沒有就從攤平欄位遷移。
 extension HostConfiguration: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, name, operatingSystem, connection
+        case id, name, operatingSystem, connection, enabledAgents
         case endpoint, connectionMethod, authentication, herdr, hostKeyPin, hostService
     }
 
@@ -133,6 +140,7 @@ extension HostConfiguration: Codable {
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         operatingSystem = try container.decodeIfPresent(HostOperatingSystem.self, forKey: .operatingSystem)
+        enabledAgents = try container.decodeIfPresent([String].self, forKey: .enabledAgents).map { Set($0.map(AgentID.init(herdrName:))) }
         if container.contains(.connection) {
             let nested = try container.nestedContainer(keyedBy: ConnectionKeys.self, forKey: .connection)
             connection = try Self.connection(
@@ -167,6 +175,7 @@ extension HostConfiguration: Codable {
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encodeIfPresent(operatingSystem, forKey: .operatingSystem)
+        try container.encodeIfPresent(enabledAgents.map { $0.map(\.canonicalName).sorted() }, forKey: .enabledAgents)
         var nested = container.nestedContainer(keyedBy: ConnectionKeys.self, forKey: .connection)
         try nested.encode(connection.method, forKey: .method)
         if let settings = connection.ssh {

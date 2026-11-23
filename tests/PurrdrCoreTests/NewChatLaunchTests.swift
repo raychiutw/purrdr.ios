@@ -87,6 +87,14 @@ struct NewChatLaunchTests {
             #"{"id":"purrdr:agent.start","method":"agent.start","params":{"args":["--permission-mode","acceptEdits"],"kind":"claude","name":"tax-report-2026","pane_id":"w4:p1","timeout_ms":60000}}"# + "\n")
     }
 
+    /// #400:herdr 的 Codex 整合與 Codex 共用 daemon 不相容(herdr#4649),Purrdr 啟動的 Codex 帶 `--no-daemon` 才回報得出 session。
+    @Test("Codex 新聊天帶 --no-daemon;其他種類不帶")
+    func codexStartsWithoutDaemon() {
+        #expect(NewChatRequest(folder: "~/x", agent: .codex).agentArguments == ["--no-daemon"])
+        #expect(NewChatRequest(folder: "~/x", agent: .claude).agentArguments == [])
+        #expect(NewChatRequest(folder: "~/x", agent: .agy).agentArguments == [])
+    }
+
     /// #446:Antigravity 新聊天 `--kind agy`;恢復用啟動旗標 `--conversation <id>`、接續最近一次用 `-c`(agy 1.5.14 的 `--help`)。
     /// herdr 本身沒有 resume 參數,所以旗標放在 args、不帶主機服務的 `resume_session`。
     @Test("Antigravity:新聊天 kind 是 agy、不帶 args;恢復帶 --conversation <id>;接續帶 -c")
@@ -97,7 +105,7 @@ struct NewChatLaunchTests {
         #expect(NewChatRequest(folder: "~/x", agent: .agy, continuesLastSession: true).agentArguments == ["-c"])
         // 沒有旗標的種類不會被塞旗標。
         #expect(NewChatRequest(folder: "~/x", agent: .claude, continuesLastSession: true).agentArguments == [])
-        #expect(NewChatRequest(folder: "~/x", agent: .codex, resumeSession: "abc").agentArguments == [])
+        #expect(NewChatRequest(folder: "~/x", agent: .codex, resumeSession: "abc").agentArguments == ["--no-daemon"])
 
         let host = FakeHost()
         let (command, reply) = Self.folder("/Users/demo/ledger", resolvesTo: "/Users/demo/ledger")
@@ -112,7 +120,7 @@ struct NewChatLaunchTests {
             #"{"id":"purrdr:agent.start","method":"agent.start","params":{"args":["--conversation","00000000-0000-4000-8000-000000000000"],"kind":"agy","name":"ledger","pane_id":"w4:p1","timeout_ms":60000}}"# + "\n")
     }
 
-    @Test("權限模式只給 Claude:Codex 不帶 args,kind 用 herdr 的名稱")
+    @Test("權限模式只給 Claude:Codex 只帶 --no-daemon、不帶權限模式,kind 用 herdr 的名稱")
     func permissionModeOnlyForClaude() async throws {
         let host = FakeHost()
         let (command, reply) = Self.folder("~/notes", resolvesTo: "/Users/demo/notes")
@@ -123,7 +131,7 @@ struct NewChatLaunchTests {
         _ = try await Self.launcher(host).start(NewChatRequest(folder: "~/notes", agent: .codex, permissionMode: .bypassPermissions))
 
         #expect(await host.executions[2].stdinText ==
-            #"{"id":"purrdr:agent.start","method":"agent.start","params":{"kind":"codex","name":"notes","pane_id":"w4:p1","timeout_ms":60000}}"# + "\n")
+            #"{"id":"purrdr:agent.start","method":"agent.start","params":{"args":["--no-daemon"],"kind":"codex","name":"notes","pane_id":"w4:p1","timeout_ms":60000}}"# + "\n")
     }
 
     @Test("資料夾不存在：不建立 workspace")

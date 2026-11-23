@@ -96,4 +96,71 @@ struct HostUploadTests {
         let path = try await SSHHostUploader(channel: DemoHost()).upload(Data("# notes".utf8), named: name)
         #expect(path == "/var/folders/zz/demo/T/purrdr-uploads-501/mh1a2b3c-k9x2m4p7-notes.md")
     }
+
+    /// 記下每次讀了哪個範圍的來源(證明分塊讀、不是整份先讀進記憶體)。
+    final class RecordingSource: @unchecked Sendable {
+        private let lock = NSLock()
+        private var recorded: [Range<Int>] = []
+        let content: Data
+        init(_ content: Data) { self.content = content }
+        var ranges: [Range<Int>] { lock.withLock { recorded } }
+        var source: HostUploadSource {
+            HostUploadSource(size: content.count) { range in
+                self.lock.withLock { self.recorded.append(range) }
+                return self.content.subdata(in: range)
+            }
+        }
+    }
+
+    final class ProgressLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [Double] = []
+        func add(_ value: Double) { lock.withLock { values.append(value) } }
+        var all: [Double] { lock.withLock { values } }
+    }
+
+    @Test("SSH:分塊讀來源(每塊不超過 64 KiB,不整份讀),進度遞增到 1,送出的內容與來源相同")
+    func sshStreamsSourceInChunks() async throws {
+        let name = try #require(HostUploadName("mh1a2b3c-k9x2m4p7-video.mp4"))
+        let content = Data((0..<200_000).map { UInt8(truncatingIfNeeded: $0 &* 7) })
+        let recording = RecordingSource(content)
+        let host = FakeHost()
+        let path = "/tmp/purrdr-uploads-1000/\(name.value)"
+        await host.expect(HostUploadCommand.posix(name: name, size: content.count), reply: FakeReply(stdout: Data("\(path)\n".utf8)))
+        let log = ProgressLog()
+
+        let uploaded = try await SSHHostUploader(channel: host).upload(recording.source, named: name, progress: { log.add($0) })
+
+        #expect(uploaded == path)
+        #expect(await host.executions.first?.stdin == content)
+        #expect(recording.ranges.allSatisfy { $0.count <= SSHHostUploader.chunkSize })
+        #expect(recording.ranges.count == 4, "200,000 bytes 分成 4 塊")
+        #expect(log.all == log.all.sorted() && log.all.last == 1)
+    }
+
+    @Test("本機檔案來源:依範圍讀出對應位元組")
+    func fileSourceReadsRanges() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "upload-source-\(UUID().uuidString)")
+        let content = Data((0..<1_000).map { UInt8(truncatingIfNeeded: $0) })
+        try content.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let source = try HostUploadSource.file(at: url)
+
+        #expect(source.size == 1_000)
+        #expect(try source.read(100..<150) == content.subdata(in: 100..<150))
+        #expect(try source.read(990..<1_000) == content.subdata(in: 990..<1_000))
+    }
+
+    @Test("預設實作(測試替身、小檔案):整份讀出後走原本的上傳,進度 1")
+    func defaultImplementationUsesDataUpload() async throws {
+        let name = try #require(HostUploadName("a.mp4"))
+        let uploader = FakeHostUploader()
+        let log = ProgressLog()
+
+        _ = try await uploader.upload(.data(Data("abc".utf8)), named: name, progress: { log.add($0) })
+
+        #expect(await uploader.uploads.map(\.data) == [Data("abc".utf8)])
+        #expect(log.all.last == 1)
+    }
 }

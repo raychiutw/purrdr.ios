@@ -36,6 +36,7 @@ public struct TerminalSessionView: View {
     let hostPicker: HostPickerModel?
     @Environment(\.scenePhase) private var scenePhase
     @State private var screen = TerminalScreenHandle()
+    @State private var isOnScreen = false
     /// 主機主題的終端機配色(#23);`nil` 時用預設深色。
     @Environment(\.hostTheme) private var hostTheme
 
@@ -46,9 +47,6 @@ public struct TerminalSessionView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            if model.supportsSizeMode {
-                TerminalSizeCapsule(model: model)
-            }
             if let banner = model.bannerText {
                 TerminalBanner(text: banner, model: model)
             }
@@ -74,15 +72,53 @@ public struct TerminalSessionView: View {
         } message: {
             Text(model.notice ?? "")
         }
-        // App 進背景立刻掛斷，回前景不自動重連:不能讓鎖著的手機一直佔住 Pane(行為規格 §6.5)。
+        // 只在畫面顯示時持有 Pane 的尺寸(#357):離開畫面、進背景或鎖定立刻放開控制(電腦上的 Pane 還原成原尺寸),
+        // 回到畫面再以手機的格數重新接上。
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background { model.hangUp() }
+            switch phase {
+            case .background: BackgroundRelease.hangUp(model)
+            case .active: if isOnScreen { model.resume() }
+            default: break
+            }
         }
-        .onDisappear { model.hangUp() }
+        .onAppear {
+            isOnScreen = true
+            if scenePhase == .active { model.resume() }
+        }
+        .onDisappear {
+            isOnScreen = false
+            BackgroundRelease.hangUp(model)
+        }
         .onChange(of: model.status) { _, status in
             // 接上後終端機取得焦點，鍵盤輸入直接送往遠端。
             if status == .connected { screen.focus() }
         }
+    }
+}
+
+/// 放開控制要在 App 被系統凍結前送出:進背景時向系統要一小段執行時間,等 release 送完再還給系統。
+@MainActor
+enum BackgroundRelease {
+    private final class Token: @unchecked Sendable {
+        var identifier = UIBackgroundTaskIdentifier.invalid
+    }
+
+    static func hangUp(_ model: any TerminalSessionModel) {
+        let token = Token()
+        token.identifier = UIApplication.shared.beginBackgroundTask(withName: "terminal.release") {
+            MainActor.assumeIsolated { end(token) }
+        }
+        model.hangUp()
+        Task { @MainActor in
+            await model.released()
+            end(token)
+        }
+    }
+
+    private static func end(_ token: Token) {
+        guard token.identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(token.identifier)
+        token.identifier = .invalid
     }
 }
 
@@ -481,6 +517,8 @@ struct TerminalScreen: UIViewRepresentable {
         // 登入 Shell 的 scrollback 在本機，由模擬器自己捲。
         view.isScrollEnabled = !model.usesRemoteScroll
         view.accessibilityIdentifier = "terminal.screen"
+        // Pane 終端機:鍵盤升降不改格數(Pane 的尺寸不為鍵盤改變),只捲到游標;登入 Shell 照舊跟著容器。
+        screen.pinsAgainstKeyboard = !model.resizesWithKeyboard
         screen.textInput.onFocusChange = { [weak handle, weak view] focused in
             view?.getTerminal().setTerminalFocus(focused)
             view?.setNeedsDisplay()
@@ -514,22 +552,12 @@ struct TerminalScreen: UIViewRepresentable {
         handle.screen = screen
         // 畫面更新(含游標移動)後由 `rangeChanged` 通知，把輸入元件移到游標格子。
         view.notifyUpdateChanges = true
-        screen.onNaturalSize = { [model] columns, rows in model.viewDidResize(columns: columns, rows: rows) }
-        screen.setKeepsDesktop(model.keepsDesktopLayout)
-        model.attach { [model, weak screen, weak view] bytes in
-            // 保留電腦版面:先把視圖調成電腦 Pane 的格數,再畫 frame。
-            if model.keepsDesktopLayout, let grid = model.displaySize { screen?.applyDesktopGrid(grid) }
-            view?.feed(byteArray: ArraySlice(bytes))
-        }
+        model.attach { [weak view] bytes in view?.feed(byteArray: ArraySlice(bytes)) }
         return screen
     }
 
     func updateUIView(_ screen: TerminalScreenContainer, context: Context) {
         let view = screen.terminalView
-        screen.setKeepsDesktop(model.keepsDesktopLayout)
-        if model.keepsDesktopLayout, let grid = model.displaySize, screen.desktopGrid != grid {
-            screen.applyDesktopGrid(grid)
-        }
         if context.coordinator.appliedTheme != theme {
             Self.apply(theme, to: view)
             context.coordinator.appliedTheme = theme
@@ -568,10 +596,6 @@ struct TerminalScreen: UIViewRepresentable {
         var appliedTheme: TerminalTheme?
         private var pinchStartSize: Double = TerminalFontSize.default
         private var scrolledRows = 0
-        private var pinchRecognizer: UIPinchGestureRecognizer?
-        private var twoFingerPan: UIPanGestureRecognizer?
-        private var doubleTapRecognizer: UITapGestureRecognizer?
-        private var viewportStart: (zoom: CGFloat, origin: CGPoint) = (1, .zero)
 
         init(model: any TerminalSessionModel) {
             self.model = model
@@ -581,20 +605,6 @@ struct TerminalScreen: UIViewRepresentable {
             let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinch(_:)))
             pinch.delegate = self
             view.addGestureRecognizer(pinch)
-            pinchRecognizer = pinch
-            // 保留電腦版面(#357):兩指拖動平移、雙點兩下在「整寬放得下」與「原尺寸」之間切換;
-            // 單指仍然是遠端捲動。配合手機時這兩個手勢不作用。
-            let move = UIPanGestureRecognizer(target: self, action: #selector(movePan(_:)))
-            move.minimumNumberOfTouches = 2
-            move.maximumNumberOfTouches = 2
-            move.delegate = self
-            view.addGestureRecognizer(move)
-            twoFingerPan = move
-            let tap = UITapGestureRecognizer(target: self, action: #selector(doubleTap(_:)))
-            tap.numberOfTapsRequired = 2
-            tap.delegate = self
-            view.addGestureRecognizer(tap)
-            doubleTapRecognizer = tap
             guard model.usesRemoteScroll else { return }
             let pan = UIPanGestureRecognizer(target: self, action: #selector(pan(_:)))
             pan.maximumNumberOfTouches = 1
@@ -606,7 +616,6 @@ struct TerminalScreen: UIViewRepresentable {
 
         /// 只接手垂直滑動;水平滑動留給系統(例如返回手勢)。
         func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
-            if gesture === twoFingerPan || gesture === doubleTapRecognizer { return model.keepsDesktopLayout }
             guard let pan = gesture as? UIPanGestureRecognizer else { return true }
             let velocity = pan.velocity(in: pan.view)
             return abs(velocity.y) >= abs(velocity.x)
@@ -634,44 +643,7 @@ struct TerminalScreen: UIViewRepresentable {
             }
         }
 
-        /// 捏合與兩指拖動可以同時進行;雙點兩下不擋 SwiftTerm 自己的點擊。
-        func gestureRecognizer(_ gesture: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            let pair = [gesture, other]
-            if pair.contains(where: { $0 === doubleTapRecognizer }) { return true }
-            return pair.contains(where: { $0 === pinchRecognizer }) && pair.contains(where: { $0 === twoFingerPan })
-        }
-
-        private func container(of gesture: UIGestureRecognizer) -> TerminalScreenContainer? {
-            (gesture.view as? PurrdrTerminalView)?.superview as? TerminalScreenContainer
-        }
-
-        @objc func movePan(_ gesture: UIPanGestureRecognizer) {
-            guard let container = container(of: gesture), container.keepsDesktop else { return }
-            switch gesture.state {
-            case .began: viewportStart = (container.zoom, container.origin)
-            case .changed: container.pan(startOrigin: viewportStart.origin, translation: gesture.translation(in: container))
-            default: break
-            }
-        }
-
-        @objc func doubleTap(_ gesture: UITapGestureRecognizer) {
-            guard let container = container(of: gesture), container.keepsDesktop else { return }
-            container.doubleTap(at: gesture.location(in: container))
-        }
-
         @objc func pinch(_ gesture: UIPinchGestureRecognizer) {
-            // 保留電腦版面:捏合是縮放畫面,不改欄數(也就不改電腦的版面)。
-            if let container = container(of: gesture), container.keepsDesktop {
-                switch gesture.state {
-                case .began: viewportStart = (container.zoom, container.origin)
-                case .changed:
-                    container.pinch(startZoom: viewportStart.zoom, startOrigin: viewportStart.origin,
-                                    magnification: gesture.scale, at: gesture.location(in: container))
-                case .ended, .cancelled: container.settleViewport()
-                default: break
-                }
-                return
-            }
             switch gesture.state {
             case .began: pinchStartSize = model.fontSize
             case .changed, .ended: model.setFontSize((pinchStartSize * gesture.scale).rounded())
@@ -687,11 +659,7 @@ struct TerminalScreen: UIViewRepresentable {
         }
 
         nonisolated func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-            MainActor.assumeIsolated {
-                // 保留電腦版面且已套用電腦的格數後,視圖的格數是電腦的,手機大小由容器回報(`onNaturalSize`)。
-                if let container = source.superview as? TerminalScreenContainer, container.keepsDesktop, container.desktopGrid != nil { return }
-                model.viewDidResize(columns: newCols, rows: newRows)
-            }
+            MainActor.assumeIsolated { model.viewDidResize(columns: newCols, rows: newRows) }
         }
 
         /// 只開 http(s) 連結。
@@ -720,25 +688,24 @@ struct TerminalScreen: UIViewRepresentable {
 }
 
 /// 終端機畫面與疊在游標格子上的輸入元件、組字浮層。
-///
-/// 保留電腦版面(#357)時,終端機視圖固定成電腦 Pane 的欄列數乘格子大小,再整體縮放、平移進容器
-/// (規則在 `TerminalViewportZoom`);鍵盤與旋轉只改容器大小,不改格數。
 final class TerminalScreenContainer: UIView {
     let terminalView: PurrdrTerminalView
     let textInput = TerminalTextInputView(frame: .zero)
     let compositionOverlay = TerminalCompositionOverlay(frame: .zero)
     private var isCursorUpdateQueued = false
 
-    /// 保留電腦版面中。
-    private(set) var keepsDesktop = false
-    /// 已套用的電腦格數(收到第一個 full frame 之後才有);有了之後 SwiftTerm 回報的格數不再當手機大小。
-    private(set) var desktopGrid: TerminalGridSize?
-    /// 相對「整寬放得下」的倍率,與內容左上角在容器內的位置。
-    private(set) var zoom: CGFloat = 1
-    private(set) var origin: CGPoint = .zero
-    /// 保留模式下手機本身放得下的格數(切換成配合手機、鍵盤與旋轉時給 model)。
-    var onNaturalSize: ((Int, Int) -> Void)?
-    private var lastContainerSize: CGSize = .zero
+    /// 鍵盤升降不改終端機視圖的高度(也就不改列數),只上移到游標可見(#357)。
+    var pinsAgainstKeyboard = false {
+        didSet {
+            guard pinsAgainstKeyboard != oldValue else { return }
+            terminalView.autoresizingMask = pinsAgainstKeyboard ? [] : [.flexibleWidth, .flexibleHeight]
+            clipsToBounds = pinsAgainstKeyboard
+            setNeedsLayout()
+        }
+    }
+    private var viewport = TerminalKeyboardViewport()
+    private var keyboardVisible = false
+    private var keyboardObservers: [any NSObjectProtocol] = []
 
     init(terminalView: PurrdrTerminalView) {
         self.terminalView = terminalView
@@ -760,143 +727,40 @@ final class TerminalScreenContainer: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if keepsDesktop {
-            layoutDesktop()
-        }
+        layoutTerminalAgainstKeyboard()
         placeTextInput()
     }
 
-    // MARK: 保留電腦版面
-
-    /// 1× 的格子大小(目前字級)。
-    private var cellSize: CGSize {
-        let terminal = terminalView.getTerminal()
-        let optimal = terminalView.getOptimalFrameSize()
-        return CGSize(width: optimal.width / CGFloat(max(terminal.cols, 1)), height: optimal.height / CGFloat(max(terminal.rows, 1)))
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        keyboardObservers.forEach(NotificationCenter.default.removeObserver)
+        keyboardObservers = []
+        guard window != nil else { return }
+        let center = NotificationCenter.default
+        keyboardObservers = [
+            center.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.keyboardVisible = true }
+            },
+            center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.keyboardVisible = false }
+            },
+        ]
     }
 
-    private var rule: TerminalViewportZoom? {
-        guard let desktopGrid else { return nil }
-        let cell = cellSize
-        return TerminalViewportZoom(
-            container: bounds.size,
-            content: CGSize(width: cell.width * CGFloat(desktopGrid.columns), height: cell.height * CGFloat(desktopGrid.rows)))
-    }
-
-    /// 切換保留／配合手機。回到配合手機時還原成一般排版(SwiftTerm 依容器大小算格數)。
-    func setKeepsDesktop(_ keeps: Bool) {
-        guard keeps != keepsDesktop else { return }
-        keepsDesktop = keeps
-        if keeps {
-            terminalView.autoresizingMask = []
-            // 格數交給 model 的 displaySize 重新套用(`updateUIView`)。
-            desktopGrid = nil
-            zoom = 1
-            origin = .zero
-        } else {
-            terminalView.transform = .identity
-            terminalView.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-            terminalView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            terminalView.frame = bounds
-        }
-        setNeedsLayout()
-    }
-
-    /// 電腦 Pane 的格數(來自 full frame)。必須在餵 frame 之前套用,才畫得到正確的格子。
-    func applyDesktopGrid(_ grid: TerminalGridSize) {
-        guard keepsDesktop else { return }
-        desktopGrid = grid
-        layoutDesktop()
-        terminalView.layoutIfNeeded()
-        let terminal = terminalView.getTerminal()
-        if terminal.cols != grid.columns || terminal.rows != grid.rows {
-            terminalView.resize(cols: grid.columns, rows: grid.rows)
-        }
-    }
-
-    private func layoutDesktop() {
-        // 還沒收到電腦的格數(第一個 full frame 之前):先照容器大小排版，
-        // SwiftTerm 才會回報格數讓連線開起來;frame 沒設會是 .zero，連線與畫面都出不來。
-        guard let rule else {
-            if terminalView.frame != bounds {
-                terminalView.transform = .identity
-                terminalView.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-                terminalView.frame = bounds
-            }
-            return
-        }
-        zoom = rule.clampedZoom(zoom)
-        origin = rule.clampedOrigin(origin, zoom: zoom)
-        applyTransform(rule)
-        if bounds.size != lastContainerSize {
-            lastContainerSize = bounds.size
-            reportNaturalSize()
-            revealCaretIfTyping()
-        }
-    }
-
-    private func applyTransform(_ rule: TerminalViewportZoom) {
-        let scale = rule.scale(zoom: zoom)
-        // 多 0.25pt 避免浮點誤差讓 SwiftTerm 少算一欄或一列。
-        terminalView.bounds = CGRect(x: 0, y: 0, width: rule.content.width + 0.25, height: rule.content.height + 0.25)
-        terminalView.layer.anchorPoint = .zero
-        terminalView.layer.position = origin
-        terminalView.transform = CGAffineTransform(scaleX: scale, y: scale)
-    }
-
-    private func reportNaturalSize() {
-        let cell = cellSize
-        guard cell.width > 0, cell.height > 0, bounds.width > 0 else { return }
-        onNaturalSize?(Int(bounds.width / cell.width), Int(bounds.height / cell.height))
-    }
-
-    /// 捏合進行中(可略超出範圍)。
-    func pinch(startZoom: CGFloat, startOrigin: CGPoint, magnification: CGFloat, at anchor: CGPoint) {
-        guard keepsDesktop, let rule else { return }
-        let result = rule.pinched(zoom: startZoom, origin: startOrigin, magnification: magnification, at: anchor)
-        zoom = result.zoom
-        origin = result.origin
-        applyTransform(rule)
-        setNeedsLayout()
-    }
-
-    /// 放開:夾回範圍。
-    func settleViewport() {
-        guard keepsDesktop, let rule else { return }
-        zoom = rule.clampedZoom(zoom)
-        origin = rule.clampedOrigin(origin, zoom: zoom)
-        UIView.animate(withDuration: 0.2) { self.applyTransform(rule) }
-        placeTextInput()
-    }
-
-    func pan(startOrigin: CGPoint, translation: CGPoint) {
-        guard keepsDesktop, let rule else { return }
-        origin = rule.clampedOrigin(CGPoint(x: startOrigin.x + translation.x, y: startOrigin.y + translation.y), zoom: zoom)
-        applyTransform(rule)
-        placeTextInput()
-    }
-
-    func doubleTap(at point: CGPoint) {
-        guard keepsDesktop, let rule else { return }
-        let result = rule.doubleTap(at: point, zoom: zoom, origin: origin)
-        zoom = result.zoom
-        origin = result.origin
-        UIView.animate(withDuration: 0.2) { self.applyTransform(rule) }
-        placeTextInput()
-    }
-
-    /// 鍵盤出現(容器變矮)或游標移動時,游標被遮住就捲到可見;沒有鍵盤時不動使用者的平移。
-    private func revealCaretIfTyping() {
-        guard keepsDesktop, textInput.isFirstResponder, let rule else { return }
-        let caret = terminalView.caretFrame
-        guard caret.width > 0, caret.height > 0 else { return }
-        origin = rule.revealing(caret: caret, origin: origin, zoom: zoom)
-        applyTransform(rule)
+    /// 終端機視圖的高度維持在鍵盤升起前;游標被鍵盤擋住就整個視圖上移(容器裁切)。
+    private func layoutTerminalAgainstKeyboard() {
+        guard pinsAgainstKeyboard, bounds.width > 0, bounds.height > 0 else { return }
+        let height = viewport.terminalHeight(
+            container: .init(width: bounds.width, height: bounds.height), keyboardVisible: keyboardVisible)
+        let offset = TerminalKeyboardViewport.offset(
+            caretBottom: terminalView.caretFrame.maxY, visibleHeight: bounds.height, terminalHeight: height)
+        let frame = CGRect(x: 0, y: offset, width: bounds.width, height: height)
+        if terminalView.frame != frame { terminalView.frame = frame }
     }
 
     /// SwiftTerm 更新畫面(游標已移到新位置)後呼叫。
     func terminalDisplayDidUpdate() {
-        revealCaretIfTyping()
+        layoutTerminalAgainstKeyboard()
         placeTextInput()
     }
 
@@ -906,7 +770,6 @@ final class TerminalScreenContainer: UIView {
         isCursorUpdateQueued = true
         DispatchQueue.main.async { [weak self] in
             self?.isCursorUpdateQueued = false
-            if self?.keepsDesktop == true { self?.setNeedsLayout() }
             self?.placeTextInput()
         }
     }

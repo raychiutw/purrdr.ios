@@ -30,7 +30,7 @@ public struct PlanUsageView: View {
                 // Agent 攤開成勾選列(#313);已用／剩餘是全域偏好,在設定 tab(#393)。
                 Section {
                     Picker("Agent", selection: agentSelection) {
-                        ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
+                        ForEach(model.agents, id: \.self) { agent in
                             Text(verbatim: agent.name).tag(agent)
                         }
                     }
@@ -107,6 +107,9 @@ public struct PlanUsageView: View {
             }
         case .noData:
             noData
+        case .noAgentEnabled:
+            PlanUsageMessage(
+                systemImage: "tray", title: "No Agents are turned on", detail: "Open the Hosts tab, then Agent, to turn one on.")
         case .needsConsent, .confirming:
             PlanUsageMessage(
                 systemImage: "lock", title: model.agent == .antigravity ? "Show Antigravity plan usage on this host?" : "Show Claude plan usage on this host?",

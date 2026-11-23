@@ -163,6 +163,8 @@ public final class HostsModel {
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
     private let diagnostics: DiagnosticLog
+    /// 等待(HTTPS 偵測 Agent 的重試間隔);測試注入。
+    private let sleep: Sleep
 
     /// - Parameters:
     ///   - conversationCache: 對話快取(所有主機共用一個存放處，key 依主機分開)。
@@ -194,10 +196,11 @@ public final class HostsModel {
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
         offlineQueues: any OfflineQueueStore = InMemoryOfflineQueueStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
-        publicModelCatalog: (any PublicModelCatalogFetching)? = nil,
+        publicModelCatalog: (any PublicModelCatalogFetching)? = nil, sleep: @escaping Sleep = Sleeping.task,
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
+        self.sleep = sleep
         agentList = MergedAgentListModel(modeStore: listMode)
         self.selectionStore = selectionStore
         self.currentHostStore = currentHostStore
@@ -282,7 +285,7 @@ public final class HostsModel {
     public func planUsage(host: HostSelection? = nil, agent: PlanUsageAgent? = nil) -> PlanUsageModel {
         PlanUsageModel(
             hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection, currentHost: host ?? agentList.currentHost,
-            initialAgent: agent
+            initialAgent: agent, enabledAgents: { [weak self] in self?.enabledAgents(on: $0) ?? Set(HostAgentSettings.configurable) }
         ) { [weak self] host, agent in
             self?.planUsageSource(host, agent)
         }
@@ -291,7 +294,10 @@ public final class HostsModel {
     /// 用量區(#389):面板(單一 Agent)與主機 tab(Claude 與 Codex)共用。HTTPS 主機沒有來源,整區是「等主機服務支援」。
     /// `detectsInstallation`:主機 tab 只列主機上偵測到的 Agent(Antigravity,#465);面板的 Agent 是聊天正在跑的,不偵測。
     public func usageSection(host: HostSelection, agents: [PlanUsageAgent], detectsInstallation: Bool = false) -> UsageSectionModel {
-        UsageSectionModel(hostName: name(of: host), agents: agents, display: usageDisplay, detectsInstallation: detectsInstallation) { [weak self] agent in
+        // 只查、只列這台主機啟用的 Agent(#477)。
+        let enabled = enabledAgents(on: host)
+        let shown = agents.filter { HostAgentSettings.showsUsage(of: $0.agentID, enabled: enabled) }
+        return UsageSectionModel(hostName: name(of: host), agents: shown, display: usageDisplay, detectsInstallation: detectsInstallation) { [weak self] agent in
             self?.planUsageSource(host, agent)
         }
     }
@@ -326,13 +332,7 @@ public final class HostsModel {
 
     /// 某台主機上某個 Pane 的終端機 model(標題)。
     public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
-        let member = member(for: route.host)
-        let client = member.client
-        let paneID = route.paneID
-        // 保留電腦版面時接上的格數:herdr 一接上就把 Pane 改成 handshake 的尺寸，所以要帶 Pane 目前的格數(#357)。
-        return PaneTerminalModel(client: member.terminals, paneID: paneID, title: title, nativeSize: {
-            (try? await client.snapshot())?.nativeSize(ofPane: paneID).map { TerminalGridSize(columns: $0.columns, rows: $0.rows) }
-        })
+        PaneTerminalModel(client: member(for: route.host).terminals, paneID: route.paneID, title: title)
     }
 
     /// 「⋯」選單要不要有登入 Shell 與檔案：有任何一台支援就有(挑選鈕能選;HTTPS 主機沒有，ADR-0010)。
@@ -409,6 +409,8 @@ public final class HostsModel {
 
     /// 讀選取中 HTTPS 主機的唯讀狀態與主機服務版本(主機 tab 出現時);連不上的略過。
     public func refreshOverviewFacts() async {
+        // 主機 tab 出現時(列表多半已讀到快照),補上還沒設定過的主機的 Agent 設定(#477)。
+        for host in hosts where host.enabledAgents == nil { await initializeAgentSettings(for: host.id, isNewHost: false) }
         guard let host = selectedHost, case .https = host.connection, !unpairedHostIDs.contains(host.id),
             let connection = hostStatusConnection(for: host.id)
         else { return }
@@ -453,7 +455,9 @@ public final class HostsModel {
             haptics: haptics,
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { [weak self] in self?.name(of: route.host) },
-            images: ComposerImages(uploader: member.uploader, store: attachmentStore),
+            images: ComposerImages(
+                uploader: member.uploader, store: attachmentStore, videoCompressor: AVVideoCompressor(),
+                isOnCellular: { [meter = trafficMeter] in meter?.currentNetwork == .cellular }),
             updates: member.list.updates,
             // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300),
             // 倒數結束時離線就排進那台主機的離線佇列(#301)。
@@ -491,7 +495,9 @@ public final class HostsModel {
         var usesHostService = false
         if case .host(let id) = host { usesHostService = hosts.first { $0.id == id }?.connectionMethod.usesHostService == true }
         let folders = usesHostService ? NewChatFolders.absolutePathsOnly : NewChatFolders(channel: member.channel)
-        return NewChatModel(launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders)
+        return NewChatModel(
+            launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders,
+            agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)))
     }
 
     /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
@@ -611,6 +617,10 @@ public final class HostsModel {
         select(validSelection(selectionStore.load()))
         // 存的目前主機已不在列表上(刪除或同步移除)就維持所有主機。
         if let stored = currentHostStore.load(), agentList.hostLabel(of: stored) != nil { agentList.currentHost = stored }
+        // 舊版 app 存的主機還沒有 Agent 設定:連得上時補初始化(#477)。
+        for host in hosts where host.enabledAgents == nil {
+            Task { await initializeAgentSettings(for: host.id, isNewHost: false) }
+        }
     }
 
     /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、推播設定讀哪台;
@@ -624,6 +634,7 @@ public final class HostsModel {
 
     /// 新增或編輯主機並儲存後：重讀清單並選取它。設定改了，那台主機的連線一律關閉重建。
     public func didSave(_ host: HostConfiguration) {
+        let isNewHost = !hosts.contains { $0.id == host.id }
         changeRecorder?.hostSaved(host.id)
         hosts = (try? sortedHosts()) ?? hosts
         refreshPairing()
@@ -631,6 +642,71 @@ public final class HostsModel {
         members[.host(host.id)] = nil
         codexLaunchers[host.id] = nil
         select(.host(host.id))
+        // 新增主機:偵測有哪些 Agent 並預先打開(#477);改設定的既有主機沒設定過才補初始化。
+        Task { await initializeAgentSettingsWhenReachable(for: host.id, isNewHost: isNewHost) }
+    }
+
+    /// HTTPS 主機要等列表讀到快照才偵測得到:每秒再試,最多 10 次;其他主機只試一次。
+    package func initializeAgentSettingsWhenReachable(for id: UUID, isNewHost: Bool) async {
+        let attempts = hosts.first { $0.id == id }?.connectionMethod.usesHostService == true ? 10 : 1
+        for attempt in 0..<attempts {
+            if attempt > 0 { try? await sleep(.seconds(1)) }
+            await initializeAgentSettings(for: id, isNewHost: isNewHost)
+            if hosts.first(where: { $0.id == id })?.enabledAgents != nil { return }
+        }
+    }
+
+    // MARK: - 主機的 Agent 設定(#477)
+
+    /// 這台主機啟用的 Agent(`HostAgentSettings`):還沒設定過的主機沿用升級前的行為;範例主機全開。
+    public func enabledAgents(on host: HostSelection) -> Set<AgentID> {
+        switch host {
+        case .demo: Set(HostAgentSettings.configurable)
+        case .host(let id): HostAgentSettings.effective(hosts.first { $0.id == id }?.enabledAgents)
+        }
+    }
+
+    /// 存這台主機啟用的 Agent。只存在這支裝置:不算主機的修改(不同步),也不重建連線。
+    public func setEnabledAgents(_ agents: Set<AgentID>, for id: UUID) {
+        guard var host = hosts.first(where: { $0.id == id }), host.enabledAgents != agents else { return }
+        host.enabledAgents = agents
+        guard (try? store.save(host)) != nil else { return }
+        hosts = (try? sortedHosts()) ?? hosts
+    }
+
+    /// 主機頁「Agent」子頁的 model;沒有這台已存主機(範例主機)時是 `nil`。
+    public func agentSettings(for id: UUID) -> HostAgentSettingsModel? {
+        guard hosts.contains(where: { $0.id == id }) else { return nil }
+        return HostAgentSettingsModel(
+            enabled: enabledAgents(on: .host(id)),
+            detect: { [weak self] in try await self?.detectAgents(on: id) ?? [] },
+            save: { [weak self] in self?.setEnabledAgents($0, for: id) })
+    }
+
+    /// 主機上有哪些 Agent:SSH 看設定資料夾(唯讀);HTTPS 看 herdr 快照裡出現過的種類。連不上時丟出錯誤。
+    func detectAgents(on id: UUID) async throws -> Set<AgentID> {
+        guard let host = hosts.first(where: { $0.id == id }) else { return [] }
+        let member = member(for: .host(id))
+        if host.connectionMethod.usesHostService {
+            // 不為了偵測另外讀快照(會搶走列表自己的讀取):列表讀到之後才有,還沒有就稍後再試。
+            guard let snapshot = member.list.snapshot else { throw HostAgentDetectionError.unavailable }
+            return Set(snapshot.agents.map { AgentID(herdrName: $0.kind) })
+        }
+        return try await HostAgentDetector(files: HostFiles(channel: member.channel)).installedAgents()
+    }
+
+    /// 還沒設定過的主機補上 Agent 設定:新增的以偵測結果預先打開,既有的(舊版 app 存的)沿用目前顯示用量的 Agent 再加偵測結果。
+    /// 偵測不到(主機離線)就不寫,維持沒設定過、下次再試;設定過的不覆蓋。
+    public func initializeAgentSettings(for id: UUID, isNewHost: Bool) async {
+        guard let host = hosts.first(where: { $0.id == id }), host.enabledAgents == nil,
+            let detected = try? await detectAgents(on: id),
+            // 偵測期間使用者可能已經手動設定過。
+            hosts.first(where: { $0.id == id })?.enabledAgents == nil
+        else { return }
+        // HTTPS 只看得到「當下有在跑的 Agent」:一個都沒看到不代表沒裝,不寫入空集合(否則新增聊天選單會全空),
+        // 維持還沒設定、沿用預設,稍後再偵測。
+        if host.connectionMethod.usesHostService, detected.intersection(HostAgentSettings.configurable).isEmpty { return }
+        setEnabledAgents(isNewHost ? HostAgentSettings.initial(detected: detected) : HostAgentSettings.migrated(detected: detected), for: id)
     }
 
     /// 重新命名：只改名稱，連線與選取不變。
@@ -1370,4 +1446,9 @@ public struct HostOverview: Equatable, Sendable {
     public var hasHostSettings: Bool
     /// 已存的主機(可編輯、移除);範例主機不是。
     public var isSaved: Bool
+}
+
+/// 偵測主機上的 Agent 失敗(HTTPS 主機讀不到 herdr 快照)。
+enum HostAgentDetectionError: Error {
+    case unavailable
 }

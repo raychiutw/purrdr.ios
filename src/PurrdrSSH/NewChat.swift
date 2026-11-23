@@ -45,14 +45,15 @@ public struct NewChatRequest: Sendable, Equatable {
         self.message = message
     }
 
-    /// 交給 agent 的參數(`herdr agent start … -- <參數>`)。權限模式只給設定檔有旗標的種類(Claude Code),而且只在使用者選了的時候;
+    /// 交給 agent 的參數(`herdr agent start … -- <參數>`)。設定檔的啟動參數一律先帶(Codex 的 `--no-daemon`,#400);權限模式只給設定檔有旗標的種類(Claude Code),而且只在使用者選了的時候;
     /// 恢復對話(`--conversation <id>`)與接續最近一次(`-c`)只給設定檔有旗標的種類(Antigravity,#446)。
     public var agentArguments: [String] {
         let session = AgentCatalog.profile(for: agent).session
-        if let flag = session.permissionModeFlag, permissionMode != .agentDefault { return [flag, permissionMode.rawValue] }
-        if let flag = session.resumeConversationFlag, let resumeSession { return [flag, resumeSession] }
-        if let flag = session.continueFlag, continuesLastSession { return [flag] }
-        return []
+        var arguments = session.launchArguments
+        if let flag = session.permissionModeFlag, permissionMode != .agentDefault { arguments += [flag, permissionMode.rawValue] }
+        else if let flag = session.resumeConversationFlag, let resumeSession { arguments += [flag, resumeSession] }
+        else if let flag = session.continueFlag, continuesLastSession { arguments += [flag] }
+        return arguments
     }
 
     /// herdr 的 agent 名稱：workspace 名稱的 slug(桌機的 `herdr agent list` 看到同名,行為規格 F3.2)。

@@ -21,7 +21,7 @@ final class PaneTerminalUITests: XCTestCase {
         XCTContext.runActivity(named: name) { _ in body() }
     }
 
-    /// 同一次啟動串起終端機的基本行為:連線與狀態、往回捲、鍵盤接管、按鍵列、Ctrl 鎖定、大小膠囊(#374 瘦身;原本各自啟動)。
+    /// 同一次啟動串起終端機的基本行為:連線與狀態、往回捲、鍵盤接管、按鍵列、Ctrl 鎖定(#374 瘦身;原本各自啟動)。
     /// 順序刻意排好:先捲動(還沒打字)，再打字，之後的步驟接著前面輸入的內容往下斷言。
     @MainActor
     func testTerminalBehaviors() {
@@ -109,22 +109,6 @@ final class PaneTerminalUITests: XCTestCase {
             screen.expectValue(containing: "^C")
             XCTAssertEqual(ctrl.value as? String, "Off", "送出後 Ctrl 要放開")
         }
-
-        // 保留電腦版面(#357):預設有大小膠囊,點開 sheet 以勾選列切換;「配合這支手機」會說明電腦版面會跟著變。
-        step("大小膠囊在保留電腦版面與配合手機之間切換") {
-            let capsule = app.buttons["terminal.size"].firstMatch
-            XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有大小膠囊")
-            XCTAssertEqual(capsule.value as? String, "Keep Host Layout")
-            capsule.tap()
-            let fit = app.buttons["Fit This Phone"].firstMatch
-            XCTAssertTrue(fit.waitUntilExists(timeout: 5), "sheet 裡沒有「Fit This Phone」")
-            fit.tap()
-            let note = app.descendants(matching: .any)["terminal.size.note"].firstMatch
-            XCTAssertTrue(note.waitUntilExists(timeout: 5))
-            XCTAssertTrue(note.label.contains("layout on your computer changes"), "沒有說明會影響電腦版面:\(note.label)")
-            app.buttons["Keep Host Layout"].firstMatch.tap()
-            app.buttons["sheet.close"].firstMatch.tap()
-        }
     }
 
     /// 注音組字(#140):浮層出現在游標格子、念得出組字文字，確認前不送;放棄組字後浮層消失。
@@ -165,6 +149,24 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "放棄的注音不能送出")
     }
 
+    /// 只在畫面顯示時持有 Pane 的尺寸(#357):進背景(鎖定也是)放開控制,回到前景自動以手機的格數重新接上,不必按「重新連線」。
+    @MainActor
+    func testReturningFromBackgroundReappliesControl() {
+        let app = XCUIApplication.launchUITesting()
+        let screen = openTerminal(app)
+        screen.expectValue(containing: "demo@purrdr ledger %")
+
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10), "沒有進背景")
+        app.activate()
+
+        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
+        XCTAssertTrue(status.waitUntilExists(timeout: 10))
+        XCTAssertTrue(status.wait(timeout: 10) { $0.label.contains("Connected") }, "回到前景沒有自動接回:\(status.label)")
+        XCTAssertFalse(app.buttons["terminal.reconnect"].exists, "自己放開的，回來不該要使用者按「重新連線」")
+        screen.expectValue(containing: "demo@purrdr ledger %")
+    }
+
     @MainActor
     func testPaneInUseOffersTakeOver() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoPaneInUse"])
@@ -173,6 +175,7 @@ final class PaneTerminalUITests: XCTestCase {
         let takeOver = app.buttons["terminal.takeOver"].firstMatch
         XCTAssertTrue(takeOver.waitUntilExists(timeout: 10), "被佔用時沒有「接管」")
         XCTAssertTrue(app.descendants(matching: .any)["terminal.status"].firstMatch.label.contains("In Use Elsewhere"))
+        XCTAssertTrue(app.staticTexts["Someone is using this on the host. Tap Take Over to use it here."].firstMatch.exists, "沒有說明主機正在操作")
 
         takeOver.tap()
         screen.expectValue(containing: "demo@purrdr ledger %")

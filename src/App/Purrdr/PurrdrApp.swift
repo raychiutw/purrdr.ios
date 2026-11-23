@@ -30,6 +30,7 @@ struct PurrdrApp: App {
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
     private let recentPhotoSource: RecentPhotoSource
+    private let videoSource: VideoSource
     /// UI 測試的 `-uiTestingReduceTransparency YES`:玻璃強制不透明。
     private let forcesOpaqueGlass: Bool
     /// `-uiTesting`:處理 `purrdr://testing-…` 測試連結(不重啟換字級)。
@@ -205,6 +206,8 @@ struct PurrdrApp: App {
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
+        // `-uiTestingSimulatedVideo`:「影片」不開相簿挑選器(XCUITest 操作不了)，直接給一支小影片(#474)。
+        videoSource = uiTesting && arguments.contains("-uiTestingSimulatedVideo") ? .simulated : .system
         allowsTestingLinks = uiTesting
         usesTestingSignIn = uiTesting
             && (arguments.contains("-uiTestingSignUp") || arguments.contains("-uiTestingNoMember") || arguments.contains("-uiTestingLinkMerge")
@@ -227,7 +230,8 @@ struct PurrdrApp: App {
 
     /// `-uiTestingRecentPhotos`:「＋」面板有 6 張替身照片;沒帶(`-uiTestingPhotosDenied` 或預設)就是沒有相簿權限。UI 測試一律不碰系統相簿。
     private static func recentPhotoSource(_ arguments: [String]) -> RecentPhotoSource {
-        arguments.contains("-uiTestingRecentPhotos") ? .simulated(count: 6) : .simulatedDenied
+        arguments.contains("-uiTestingManyRecentPhotos") ? .simulated(count: 80)
+            : arguments.contains("-uiTestingRecentPhotos") ? .simulated(count: 6) : .simulatedDenied
     }
 
     /// `-uiTestingPairingScan`:掃描畫面一開就像掃到配對 QR code;`-uiTestingCameraDenied`:沒有相機權限。
@@ -453,6 +457,7 @@ struct PurrdrApp: App {
             .appLockCover(appLock)
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
             .environment(\.recentPhotoSource, recentPhotoSource)
+            .environment(\.videoSource, videoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
             .environment(\.allowsTestingLinks, allowsTestingLinks)
             .environment(\.usesTestingSignIn, usesTestingSignIn)

@@ -220,17 +220,15 @@ public struct TopNavigationView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        // 左上:Agents／Spaces 一鍵切換(只有符號,#391)。
+        // 左上:聊天 tab 的主機選單(#244),靠左、與其他 tab 同一個位置(#475):改「目前主機」,含所有主機;選某台時同時設成選取中主機。
         ToolbarItem(placement: Self.modePlacement) {
-            AgentListModeButton(list: hosts.agentList)
-        }
-        // 中間:聊天 tab 的主機選單(#244):改「目前主機」,含所有主機;選某台時同時設成選取中主機。
-        ToolbarItem(placement: .principal) {
             HostFilterMenu(list: hosts.agentList) { navigation.openAddHost() }
         }
-        // 右上:新增聊天(`square.and.pencil`),最右上角是帳號鈕。
-        ToolbarItem(placement: .primaryAction) {
-            Button("New Chat", systemImage: "square.and.pencil") { navigation.sheet = .newChat }
+        // 右上:Agents／Spaces 一鍵切換(只有符號,#391)與新增聊天(`plus`)併成一個長型玻璃膠囊(相鄰的同位置工具列項目),最右上角是帳號鈕。
+        ToolbarItemGroup(placement: .primaryAction) {
+            AgentListModeButton(list: hosts.agentList)
+            Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }
+                .tint(Color.appAccent)
                 .accessibilityIdentifier("toolbar.newChat")
         }
         AccountToolbarItem(member: member, hasPrecedingAction: true) { navigation.sheet = .member }
@@ -287,9 +285,7 @@ extension TopNavigationView {
 struct AccountButton: View {
     let member: MemberModel
     let action: () -> Void
-    /// 跟旁邊「⋯」的玻璃圓鈕看起來一樣大(實機回報 2026-11-20):工具列玻璃鈕畫出來是 44pt
-    /// (XCUI 回報的 frame 只有內容的 36pt);頭像是圖示，不隨字級放大。
-    private let size: CGFloat = 44
+    /// 工具列玻璃圓鈕畫出來是 `TopBarMetrics.circleDiameter`(44pt;XCUI 回報的 frame 只有內容的 30pt 頭像);頭像是圖示，不隨字級放大。
 
     var body: some View {
         // 名稱放在 Label 標題與無障礙表示:AX 字級時系統把這顆收進工具列的溢出選單。
@@ -297,9 +293,10 @@ struct AccountButton: View {
             Label {
                 Text("Account")
             } icon: {
+                // 44pt 的玻璃圓鈕(外框與內距由工具列提供;自己再撐 44pt 會被玻璃加寬成橢圓),頭像 30pt,與其他按鈕的符號同等大小(#475)。
                 AccountAvatar(member: signedInMember)
-                    .font(.subheadline)
-                    .frame(width: size, height: size)
+                    .font(.footnote)
+                    .frame(width: TopBarMetrics.avatarDiameter, height: TopBarMetrics.avatarDiameter)
                     .accessibilityRepresentation { Text("Account") }
             }
         }
@@ -398,16 +395,15 @@ struct HostFilterMenu: View {
                     }
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.appAccent)
                 .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondaryText)
+                    .foregroundStyle(Color.appAccent)
                     .accessibilityHidden(true)
             }
             .padding(.trailing, 4)
-            // 放在 principal 位置沒有工具列鈕的內距:自己撐到 44pt 觸控目標(HIG),不然只剩圖示的 24pt 高。
-            .frame(minHeight: 44)
+            .frame(minHeight: TopBarMetrics.controlHeight)
             .contentShape(Rectangle())
         }
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。

@@ -17,6 +17,8 @@ struct BubbleImageContext {
 
 extension EnvironmentValues {
     @Entry var bubbleImages = BubbleImageContext()
+    /// 使用者泡泡裡訊息中間要上色的 slash 指令名稱(#469);聊天畫面提供。
+    @Entry var inlineSlashNames: Set<String> = []
 }
 
 /// 泡泡圖片的排版規則(#465,設計稿第 30 組;使用者送出的與本機送出的共用):
@@ -148,19 +150,34 @@ struct AttachmentStrip: View {
     /// accessibility identifier 的前綴(展開畫面用 `composer.expanded`)。
     var identifierPrefix = "composer"
 
+    @State private var showsVideoNote = false
+
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(Array(model.attachments.enumerated()), id: \.element.id) { index, attachment in
-                    card(attachment, index: index)
+        VStack(alignment: .leading, spacing: 4) {
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(Array(model.attachments.enumerated()), id: \.element.id) { index, attachment in
+                        card(attachment, index: index)
+                    }
                 }
+                .padding(.top, 6)
+                .padding(.trailing, 6)
             }
-            .padding(.top, 6)
-            .padding(.trailing, 6)
+            .scrollIndicators(.hidden)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("\(identifierPrefix).attachments")
+            // 進階說明預設收起(HIG Disclosure controls):影片附加後才出現。
+            if model.attachments.contains(where: { $0.duration != nil }) {
+                DisclosureGroup("About videos", isExpanded: $showsVideoNote) {
+                    Text("Agents may not be able to watch videos.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.footnote)
+                .accessibilityIdentifier("\(identifierPrefix).videoNote")
+            }
         }
-        .scrollIndicators(.hidden)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("\(identifierPrefix).attachments")
     }
 
     private func card(_ attachment: ComposerAttachment, index: Int) -> some View {
@@ -213,16 +230,13 @@ struct AttachmentStrip: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
         case .file:
             HStack(spacing: 8) {
-                Image(systemName: "doc.fill")
-                    .foregroundStyle(.tint)
-                    .frame(width: 40, height: 40)
-                    .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
+                fileIcon(attachment)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: attachment.displayName)
                         .font(.footnote.weight(.semibold))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Text(verbatim: Self.size(attachment))
+                    Text(verbatim: Self.sizeAndDuration(attachment))
                         .font(.caption)
                         .foregroundStyle(.secondaryText)
                 }
@@ -231,6 +245,30 @@ struct AttachmentStrip: View {
             .frame(maxWidth: 190, minHeight: 64, alignment: .leading)
             .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12))
         }
+    }
+
+    /// 檔案圖示;影片是第一格縮圖。
+    @ViewBuilder
+    private func fileIcon(_ attachment: ComposerAttachment) -> some View {
+        if let name = attachment.thumbnailFileName, let url = model.localImage(named: name) {
+            BubbleImageCache.image(at: url)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 40, height: 40)
+                .overlay { Image(systemName: "play.fill").font(.caption).foregroundStyle(.white).shadow(radius: 2) }
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        } else {
+            Image(systemName: attachment.duration == nil ? "doc.fill" : "video.fill")
+                .foregroundStyle(.tint)
+                .frame(width: 40, height: 40)
+                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private static func sizeAndDuration(_ attachment: ComposerAttachment) -> String {
+        guard let duration = attachment.duration else { return size(attachment) }
+        let seconds = Int(duration.rounded())
+        return "\(seconds / 60):\(String(format: "%02d", seconds % 60)) · \(size(attachment))"
     }
 
     private static func size(_ attachment: ComposerAttachment) -> String {
@@ -265,6 +303,9 @@ struct AttachButton: View {
     @State private var showsCamera = false
     @State private var showsFiles = false
     @State private var selection: [PhotosPickerItem] = []
+    @State private var showsVideos = false
+    @State private var videoSelection: [PhotosPickerItem] = []
+    @Environment(\.videoSource) private var videoSource
 
     var body: some View {
         Button {
@@ -277,7 +318,7 @@ struct AttachButton: View {
         .composerCircleButtonStyle()
         .frame(minWidth: 44, minHeight: 44)
         .opacity(model.attachAvailability.isDimmed ? 0.4 : 1)
-        .disabled(model.isSending || model.loadingFileName != nil)
+        .disabled(model.isSending || model.loadingFileName != nil || model.videoPreparation != nil)
         .accessibilityLabel(Text("Attach"))
         .accessibilityHint(model.attachAvailability == .offline ? Text("Attachments can be added once you’re connected.") : Text(verbatim: ""))
         .accessibilityIdentifier(identifier)
@@ -305,6 +346,20 @@ struct AttachButton: View {
                 await model.addImages(loaded)
             }
         }
+        .photosPicker(
+            isPresented: $showsVideos, selection: $videoSelection, maxSelectionCount: 1, selectionBehavior: .default,
+            matching: .videos, preferredItemEncoding: .current
+        )
+        .onChange(of: videoSelection) {
+            guard let item = videoSelection.first else { return }
+            videoSelection = []
+            Task {
+                await model.addPickedVideo(displayName: String(localized: "Video") + ".mov") {
+                    guard let picked = try await item.loadTransferable(type: PickedVideo.self) else { throw CocoaError(.fileReadNoSuchFile) }
+                    return VideoSourceFile(picked.url, discarding: picked.folder)
+                }
+            }
+        }
         .fileImporter(isPresented: $showsFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             guard case .success(let urls) = result else { return }
             Task { for url in urls { await ComposerFiles.add(url, to: model) } }
@@ -327,20 +382,31 @@ struct AttachButton: View {
         case .camera: showsCamera = true
         case .library: showsLibrary = true
         case .files: showsFiles = true
+        case .video:
+            if videoSource == .simulated {
+                Task { await model.addVideo(displayName: "Demo.mov") { try await GeneratedVideo.make() } }
+            } else {
+                showsVideos = true
+            }
         }
     }
 }
 
 /// 「＋」升起的面板:上方最近的照片(可多選)，下方相機、所有照片、檔案、貼上。沒有相簿權限時只有按鈕。
 struct AttachPanel: View {
-    enum Choice { case camera, library, files }
+    enum Choice { case camera, library, video, files }
 
     let model: ConversationModel
     let source: RecentPhotoSource
     let choose: (Choice) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var photos: [RecentPhoto] = []
+    @State private var pager = RecentPhotoPager(columns: Self.columns, fetch: { _, _ in [] })
+    @State private var panelSize = CGSize.zero
     @State private var selection = AttachSelection()
+
+    private static let columns = 4
+    private static let spacing: CGFloat = 4
+    private var photos: [RecentPhoto] { pager.photos }
 
     var body: some View {
         // 一次只開一個 sheet(#386):關閉在左上 xmark，選檔案或拍照由呼叫端先關掉這張再開系統畫面。
@@ -350,6 +416,7 @@ struct AttachPanel: View {
                     HStack(alignment: .top) {
                         if ImageSources.cameraAvailable { action("Take Photo", symbol: "camera", id: "camera", .camera) }
                         action("All Photos", symbol: "photo.on.rectangle", id: "photos", .library)
+                        if model.canAttachVideos { action("Video", symbol: "video", id: "video", .video) }
                         if model.canAttachFiles { action("Files", symbol: "doc", id: "files", .files) }
                         pasteTile
                     }
@@ -364,7 +431,7 @@ struct AttachPanel: View {
                             }
                             .font(.footnote)
                             .foregroundStyle(.secondaryText)
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 4) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Self.spacing), count: Self.columns), spacing: Self.spacing) {
                                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                                     tile(photo, index: index)
                                 }
@@ -397,7 +464,17 @@ struct AttachPanel: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("attach.panel")
-        .task { photos = await source.recent(limit: 12) }
+        // 最近照片依 sheet 高度填滿、捲到底繼續載入(#475);量到尺寸後才讀第一頁。
+        .onGeometryChange(for: CGSize.self, of: \.size) { panelSize = $0 }
+        .task(id: panelSize == .zero) {
+            guard panelSize != .zero else { return }
+            let side = (panelSize.width - 32 - Self.spacing * CGFloat(Self.columns - 1)) / CGFloat(Self.columns)
+            let source = source
+            pager = RecentPhotoPager(columns: Self.columns) { offset, limit in await source.recent(offset: offset, limit: limit) }
+            await pager.loadFirstPage(
+                count: RecentPhotoPager.firstPageCount(
+                    availableHeight: panelSize.height, tileSide: side, spacing: Self.spacing, columns: Self.columns))
+        }
     }
 
     /// 固定的正方形格子:照片填滿並裁掉多的部分，直幅、橫幅都不會依原始比例溢出而蓋住按鈕(#386)。
@@ -420,6 +497,7 @@ struct AttachPanel: View {
         .accessibilityLabel(Text("Photo \(index + 1)"))
         .accessibilityAddTraits(number != nil ? .isSelected : [])
         .accessibilityIdentifier("attach.recent.\(index)")
+        .task { await pager.tileAppeared(at: index) }
     }
 
     /// 選取圈:未選是半透明深底加白邊與陰影(對任何照片 ≥ 3:1),已選是主色圓加編號。
@@ -573,6 +651,76 @@ struct FileUploadProgressView: View {
         .background(.bar, in: RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("composer.fileUpload")
+    }
+}
+
+/// 送出時附件上傳中(#474):百分比與取消。
+struct UploadProgressView: View {
+    let progress: UploadProgress
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView(value: progress.fraction)
+                .progressViewStyle(.circular)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Sending \(progress.displayName)…")
+                    .font(.footnote)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(progress.fraction, format: .percent.precision(.fractionLength(0)))
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Cancel", action: cancel)
+                .font(.footnote.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityIdentifier("composer.upload.cancel")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composer.upload")
+    }
+}
+
+/// 影片準備中(#474):取出、壓縮的進度與取消。
+struct VideoPreparationView: View {
+    let preparation: VideoPreparation
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let fraction = preparation.fraction, preparation.phase == .shrinking {
+                ProgressView(value: fraction)
+                    .progressViewStyle(.circular)
+            } else {
+                ProgressView()
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(preparation.phase == .shrinking ? "Shrinking video…" : "Getting video…")
+                    .font(.footnote)
+                if let fraction = preparation.fraction, preparation.phase == .shrinking {
+                    Text(fraction, format: .percent.precision(.fractionLength(0)))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Cancel", action: cancel)
+                .font(.footnote.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+                .accessibilityIdentifier("composer.videoPreparation.cancel")
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composer.videoPreparation")
     }
 }
 

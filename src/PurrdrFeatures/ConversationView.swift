@@ -20,8 +20,12 @@ public struct ConversationView: View {
     /// 初始位置不指定邊緣:`ScrollPosition(edge: .bottom)` 搭配 `scrollTargetLayout()` 與水平 padding 時，
     /// SwiftUI 會把水平位移設成 padding 的寬度(16pt),訊息貼到左邊、頂端被裁掉(#418)。開啟時的底部定位交給 `defaultScrollAnchor(.bottom)`。
     @State private var position = ScrollPosition()
-    @State private var userIsScrolling = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
+    @State private var userIsScrolling = false
+    /// 「跳到最新」是否已顯示(跟隨中延遲顯示,#476)。
+    @State private var jumpToLatestVisible = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
     @State private var userHasDragged = false
+    /// 沒拖動過時自動往前讀的頁數(#473)。
+    @State private var autoLoadedPages = 0
     /// 畫面上看得到的列(內容被重建時的錨點,#130)。
     @State private var visibleIDs: [String] = []
     /// 上次看到的列 id(`model.entriesRevision` 改變時與新的比較，#130)。
@@ -64,6 +68,7 @@ public struct ConversationView: View {
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerItem = $0 }
             ))
+            .environment(\.inlineSlashNames, model.inlineSlashNames)
             .imageViewer(item: $viewerItem)
             .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
             .environment(\.delegationContext, DelegationContext(
@@ -112,7 +117,8 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+        // 認不出 session(#400)時,工作中指示不蓋掉說明:沒有對話可顯示,使用者需要知道原因與解法。
+        if model.phase == .missingSession || model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -272,8 +278,12 @@ public struct ConversationView: View {
                 scroll.followedByOffset(metrics)
                 position.scrollTo(y: metrics.bottomScrollPositionY)
             }
-            // 距頂端 ≤ 1 個畫面高就讀上一頁。
-            if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
+            // 距頂端 ≤ 1 個畫面高就讀上一頁;內容還不夠填滿畫面時不必等使用者拖動(有頁數上限,#473)。
+            if model.older == .available,
+               metrics.wantsOlderPage(
+                   userHasDragged: userHasDragged, autoLoadedPages: autoLoadedPages, autoLoadLimit: ConversationModel.maximumEmptyWindowPages)
+            {
+                if !userHasDragged { autoLoadedPages += 1 }
                 Task { await model.loadOlder() }
             }
         }
@@ -327,11 +337,30 @@ public struct ConversationView: View {
             scroll.jumpToLatest()
             withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
         }
-        .overlay(alignment: .bottomTrailing) {
-            if scroll.showsJumpToLatest {
+        // 跳到最新(#476):顯示只看離底距離(`scroll.showsJumpToLatest`)。跟隨中新內容撐長的瞬間也會量到很遠,
+        // 延遲一下才顯示,避免閃現;閱讀中(往上捲)立刻顯示。位置在輸入列上方正中間(#476)。
+        .task(id: scroll.showsJumpToLatest) {
+            guard scroll.showsJumpToLatest else {
+                jumpToLatestVisible = false
+                return
+            }
+            if scroll.autoScrollsOnNewContent {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+            }
+            jumpToLatestVisible = true
+        }
+        .overlay(alignment: .bottom) {
+            if jumpToLatestVisible {
                 Button {
                     scroll.jumpToLatestByTap()
                     withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
+                    // 捲動沒落地(目標列還沒排出來)時,稍後仍離底很遠就再以底部位移捲一次:按了一定有反應。
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        guard !Task.isCancelled, scroll.showsJumpToLatest else { return }
+                        position.scrollTo(edge: .bottom)
+                    }
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
@@ -340,7 +369,7 @@ public struct ConversationView: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .padding()
+                .padding(.bottom, 8)
                 .accessibilityIdentifier("conversation.jumpToLatest")
             }
         }
@@ -427,7 +456,25 @@ public struct ConversationView: View {
             ContentUnavailableView {
                 Label("Can’t Identify This Chat", systemImage: "questionmark.bubble")
             } description: {
-                Text("This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again.")
+                if let command = model.missingSessionCommand {
+                    VStack(spacing: 12) {
+                        Text("This chat can’t be read. On the host, paste the command below to start a new chat.")
+                        Text(verbatim: command)
+                            .font(.footnote.monospaced())
+                            .textSelection(.enabled)
+                            .padding(10)
+                            .background(.fill.tertiary, in: .rect(cornerRadius: 12))
+                            .accessibilityIdentifier("conversation.missingSession.command")
+                        Button("Copy", systemImage: "document.on.document") { Clipboard.copy(command) }
+                            .buttonStyle(.bordered)
+                            .tint(.primary)
+                            .controlSize(.small)
+                            .accessibilityLabel(Text("Copy \(command)"))
+                            .accessibilityIdentifier("conversation.missingSession.copy")
+                    }
+                } else {
+                    Text("This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again.")
+                }
             }
         case .unsupported:
             ContentUnavailableView {
@@ -729,14 +776,16 @@ extension View {
 struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context
+    @Environment(\.inlineSlashNames) private var slashNames
 
     /// 開頭的 skill／slash 指令用主色(有主機主題時是主題 accent;#329),其餘照泡泡的文字色。
-    static func highlighted(_ text: String) -> AttributedString {
+    static func highlighted(_ text: String, known: Set<String> = []) -> AttributedString {
         var attributed = AttributedString(text)
-        if let range = SlashToken.range(in: text),
-           let start = AttributedString.Index(range.lowerBound, within: attributed),
-           let end = AttributedString.Index(range.upperBound, within: attributed) {
-            attributed[start..<end].foregroundColor = Color.commandText
+        for range in SlashToken.ranges(in: text, known: known) {
+            if let start = AttributedString.Index(range.lowerBound, within: attributed),
+               let end = AttributedString.Index(range.upperBound, within: attributed) {
+                attributed[start..<end].foregroundColor = Color.commandText
+            }
         }
         return attributed
     }
@@ -754,7 +803,7 @@ struct UserBubbleView: View {
                 }
                 ForEach(bubble.filePaths, id: \.self) { UserFileCardView(path: $0) }
                 if !bubble.displayText.isEmpty {
-                    Text(Self.highlighted(bubble.displayText))
+                    Text(Self.highlighted(bubble.displayText, known: slashNames))
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)

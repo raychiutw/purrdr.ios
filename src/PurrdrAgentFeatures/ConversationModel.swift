@@ -73,6 +73,8 @@ public final class ConversationModel {
     public private(set) var older: Older = .reachedStart
     /// 導覽列標題;永不顯示 `w1` 這類 id(R-V10)。
     public private(set) var title = ""
+    /// Tab 名稱(#476):標題膠囊顯示;每次輪詢由 snapshot 更新。
+    public private(set) var tabName = ""
     public private(set) var agentStatus: AgentStatus?
     public private(set) var metadata = TranscriptMetadata()
     /// context 百分比與待辦進度(#307),由讀到的對話紀錄推得;標題列與待辦 sheet 用。
@@ -356,7 +358,7 @@ public final class ConversationModel {
     /// 移除附件。送出(上傳)中不能移除。
     public func removeAttachment(_ id: String) {
         guard !isSending else { return }
-        if let removed = attachments.first(where: { $0.id == id }), removed.kind == .file { images?.store.remove(removed.fileName.value) }
+        if let removed = attachments.first(where: { $0.id == id }), removed.kind == .file { removeStoredCopies(of: removed) }
         attachments.removeAll { $0.id == id }
         saveAttachments()
     }
@@ -427,11 +429,187 @@ public final class ConversationModel {
         saveAttachments()
     }
 
+    // MARK: 影片(#474)
+
+    /// 影片準備中(取出、壓縮)的進度;沒有時是 `nil`。
+    public private(set) var videoPreparation: VideoPreparation?
+    /// 能不能附加影片：能附加檔案、又有壓縮器。
+    public var canAttachVideos: Bool { canAttachFiles && images?.videoCompressor != nil }
+
+    @ObservationIgnored private var videoTask: Task<VideoOutcome, Never>?
+    /// 目前這一次準備的識別;取消或換新一次後,舊的結果回來(挑選器不回應取消)就丟掉。
+    @ObservationIgnored private var videoToken: UUID?
+
+    private enum VideoOutcome: Sendable {
+        /// 已經搬進手機副本。
+        case ready(fileName: HostUploadName, displayName: String, byteCount: Int, duration: TimeInterval?, thumbnailFileName: String?)
+        case tooLong
+        case unreadable
+        case cancelled
+    }
+
+    /// 附加相簿影片(#474):`load` 取出影片檔(可能要從 iCloud 下載;檔案交給這裡，用完會刪)。
+    public func addVideo(displayName: String, load: @escaping @Sendable () async throws -> URL) async {
+        await addPickedVideo(displayName: displayName, load: { VideoSourceFile(try await load()) })
+    }
+
+    /// 附加相簿影片(#474):沒超過上限就原樣加成附件卡;超過就由高到低壓縮，第一個放得下的畫質就是結果;
+    /// 壓到最小仍超過、或太長，提示後不加入。與檔案一樣先留在輸入列，送出才上傳。可用 `cancelVideoPreparation()` 取消。
+    /// 取出、壓縮與搬進手機副本都在背景做(最多 25 MiB 不佔主執行緒)，副檔名依實際格式。
+    public func addPickedVideo(displayName: String, load: @escaping @Sendable () async throws -> VideoSourceFile) async {
+        guard let images, let compressor = images.videoCompressor, canAttachFiles, videoPreparation == nil, loadingFileName == nil else { return }
+        guard remainingImageSlots > 0 else {
+            notice = .attachmentLimit
+            return
+        }
+        videoPreparation = VideoPreparation(displayName: displayName, phase: .loading, fraction: nil)
+        let token = UUID()
+        videoToken = token
+        let limit = HostUploadLimit.maximumFileSize
+        let task = Task.detached { [weak self] () -> VideoOutcome in
+            let picked: VideoSourceFile
+            do { picked = try await load() } catch { return Task.isCancelled ? .cancelled : .unreadable }
+            defer { try? FileManager.default.removeItem(at: picked.discard) }
+            // 挑選器不回應取消:回來時已經取消就整個丟掉。
+            if Task.isCancelled { return .cancelled }
+            let source = picked.url
+            do {
+                let sourceSize = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                if sourceSize <= limit {
+                    let ext = source.pathExtension.lowercased()
+                    return try await Self.storeVideo(source, displayName: displayName, fileExtension: ext.isEmpty ? nil : ext, images: images, compressor: compressor)
+                }
+                let candidates = VideoQuality.candidates(forDuration: try await compressor.duration(of: source), limit: limit)
+                await self?.setVideoPhase(.shrinking, token: token)
+                for quality in candidates {
+                    let output = FileManager.default.temporaryDirectory.appending(path: "purrdr-video-\(UUID().uuidString).mp4")
+                    defer { try? FileManager.default.removeItem(at: output) }
+                    try await compressor.compress(source, quality: quality, to: output) { fraction in
+                        Task { @MainActor in self?.setVideoFraction(fraction, token: token) }
+                    }
+                    let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? .max
+                    if size <= limit {
+                        if Task.isCancelled { return .cancelled }
+                        return try await Self.storeVideo(output, displayName: displayName, fileExtension: "mp4", images: images, compressor: compressor)
+                    }
+                }
+                return .tooLong
+            } catch {
+                return Task.isCancelled || error is CancellationError ? .cancelled : .unreadable
+            }
+        }
+        videoTask = task
+        let outcome = await task.value
+        // 取消(或已經換成新的一次)後回來的結果:不加入，已搬進副本的刪掉。
+        guard videoToken == token else {
+            if case .ready(let fileName, _, _, _, let thumbnail) = outcome {
+                images.store.remove(fileName.value)
+                if let thumbnail { images.store.remove(thumbnail) }
+            }
+            return
+        }
+        videoTask = nil
+        videoToken = nil
+        videoPreparation = nil
+        switch outcome {
+        case .cancelled: break
+        case .tooLong: notice = .videoTooLong
+        case .unreadable: notice = .videoUnreadable
+        case .ready(let fileName, let name, let byteCount, let duration, let thumbnail):
+            guard remainingImageSlots > 0 else {
+                images.store.remove(fileName.value)
+                if let thumbnail { images.store.remove(thumbnail) }
+                notice = .attachmentLimit
+                return
+            }
+            attachments.append(
+                ComposerAttachment(
+                    kind: .file, fileName: fileName, displayName: name, byteCount: byteCount, duration: duration, thumbnailFileName: thumbnail))
+            saveAttachments()
+        }
+    }
+
+    /// 把影片檔搬進手機副本(背景)。`fileExtension` 是實際格式,沒有就沿用顯示名稱的。
+    private nonisolated static func storeVideo(
+        _ file: URL, displayName: String, fileExtension: String?, images: ComposerImages, compressor: any VideoCompressing
+    ) async throws -> VideoOutcome {
+        var name = displayName
+        if let fileExtension { name = (displayName as NSString).deletingPathExtension + "." + fileExtension }
+        let byteCount = (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let uploadName = images.makeFileName(name)
+        // 長度與縮圖在搬走檔案之前取(取不到就沒有,卡片照常顯示)。
+        let duration = try? await compressor.duration(of: file)
+        var thumbnailName: String?
+        if let thumbnail = await compressor.thumbnail(of: file) {
+            let stem = (uploadName.value as NSString).deletingPathExtension
+            if (try? images.store.save(thumbnail, as: stem + "-thumb.jpg")) != nil { thumbnailName = stem + "-thumb.jpg" }
+        }
+        do {
+            try images.store.save(movingFile: file, as: uploadName.value)
+        } catch {
+            if let thumbnailName { images.store.remove(thumbnailName) }
+            throw error
+        }
+        return .ready(fileName: uploadName, displayName: name, byteCount: byteCount, duration: duration, thumbnailFileName: thumbnailName)
+    }
+
+    private func setVideoPhase(_ phase: VideoPreparation.Phase, token: UUID) {
+        guard videoToken == token else { return }
+        videoPreparation?.phase = phase
+    }
+
+    private func setVideoFraction(_ fraction: Double, token: UUID) {
+        guard videoToken == token else { return }
+        videoPreparation?.fraction = fraction
+    }
+
+    /// 取消影片準備(取出或壓縮中):立刻恢復輸入列;不加入、不提示，暫存檔刪掉。
+    public func cancelVideoPreparation() {
+        videoTask?.cancel()
+        videoTask = nil
+        videoToken = nil
+        videoPreparation = nil
+    }
+
     /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
     private static func uploadNotice(for error: any Error, otherwise: SendNotice) -> SendNotice {
         guard case .hostServiceUpdateRequired(_, let installedVersion)? = error as? HostServiceError else { return otherwise }
         return .hostServiceUpdateRequired(installedVersion: installedVersion)
     }
+
+    /// 影片大到行動網路上傳前要先提醒的大小(10 MiB)。
+    package nonisolated static let cellularWarningBytes = 10 * 1024 * 1024
+    /// 等使用者確認的行動網路上傳提醒(這次要上傳的影片位元組數);沒有提醒時是 `nil`。
+    public private(set) var cellularUploadWarning: Int?
+    @ObservationIgnored private var cellularConfirmed = false
+
+    private var needsCellularConfirmation: Bool {
+        guard !cellularConfirmed, let images, images.isOnCellular() else { return false }
+        return attachments.contains { $0.uploadedPath == nil && $0.duration != nil && $0.byteCount >= Self.cellularWarningBytes }
+    }
+
+    /// 使用者確認用行動網路上傳:接著照常送出。
+    public func confirmCellularUpload() async {
+        cellularUploadWarning = nil
+        cellularConfirmed = true
+        defer { cellularConfirmed = false }
+        await send()
+    }
+
+    public func dismissCellularWarning() { cellularUploadWarning = nil }
+
+    /// 刪掉檔案附件的手機副本(影片連縮圖)。
+    private func removeStoredCopies(of attachment: ComposerAttachment) {
+        images?.store.remove(attachment.fileName.value)
+        if let thumbnail = attachment.thumbnailFileName { images?.store.remove(thumbnail) }
+    }
+
+    /// 送出時上傳中的附件進度;沒有在上傳時是 `nil`。
+    public private(set) var uploadProgress: UploadProgress?
+    @ObservationIgnored private var uploadTask: Task<[String], any Error>?
+
+    /// 取消送出時的上傳(使用者按取消):附件與草稿留著,不提示。SSH 主機上的暫存檔因連線提早結束而刪掉。
+    public func cancelUpload() { uploadTask?.cancel() }
 
     /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗丟出那個錯誤：整則不送(F6.5)。
     private func uploadAttachments() async throws -> [String] {
@@ -447,8 +625,13 @@ public final class ConversationModel {
             }
             let name = attachments[index].fileName
             guard let url = images.store.url(of: name.value) else { throw CocoaError(.fileReadNoSuchFile) }
-            let data = try Data(contentsOf: url)
-            let path = try await images.uploader.upload(data, named: name)
+            // 分塊讀檔上傳(影片最多 25 MiB,不整份進記憶體),回報進度。
+            let source = try HostUploadSource.file(at: url)
+            uploadProgress = UploadProgress(displayName: attachments[index].displayName, fraction: 0)
+            defer { uploadProgress = nil }
+            let path = try await images.uploader.upload(source, named: name) { [weak self] fraction in
+                Task { @MainActor in self?.uploadProgress?.fraction = fraction }
+            }
             if let current = attachments.firstIndex(where: { $0.fileName == name }) {
                 attachments[current].uploadedPath = path
             }
@@ -545,6 +728,8 @@ public final class ConversationModel {
     private var answerQuestion: String?
     /// 按鍵送達主機的時間與當時對話的最後一列(已回答卡片的錨點，#213);還在送時為 `nil`(不判定)。
     private var answerSent: AnsweredCardAnchor?
+    /// 答完後到這個時間為止，blocked 但畫面不是選單時視為過時狀態、不顯示通用鈕(#468)。
+    private var staleBlockedUntil: Date?
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 「已停止」2 秒後的收起;agent 又開始工作或有新的停止時取消(#220)。
     @ObservationIgnored private var stoppedCollapseTask: Task<Void, Never>?
@@ -586,7 +771,14 @@ public final class ConversationModel {
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
     /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
     /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
-    private var file: (path: String, follow: TranscriptFollow, windowStart: Int)?
+    private var file: (path: String, follow: TranscriptFollow, windowStart: Int)? {
+        // 對話紀錄的路徑出現或換了:清單要連同 session 內的 skill 一起重讀(#469)。
+        didSet {
+            guard let path = file?.path, path != oldValue?.path else { return }
+            slash.markStale()
+            preloadSlash()
+        }
+    }
     /// 開啟視窗與之後追蹤到的訊息(會寫入快取)。
     private var recent: [TranscriptMessage] = []
     /// `recent` 由哪幾段讀取組成(每段的 byte 起點與訊息數，依序、加總等於 `recent.count`)。修剪與寫快取都以整段為單位，
@@ -600,7 +792,17 @@ public final class ConversationModel {
     private var olderMessages: [TranscriptMessage] = []
     private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
-    private var currentAgent: Agent?
+    /// 知道 Agent 後預載 slash 清單(#469);之後每次輪詢檢查是否過期,超過 60 秒在背景重讀。
+    private var currentAgent: Agent? {
+        didSet { preloadSlash() }
+    }
+
+    /// 預載 slash 清單:要等 Agent 已知、對話紀錄路徑也找到(session 內的 skill 才讀得到)才開始,
+    /// 不為預載自己讀 snapshot 或定位。
+    private func preloadSlash() {
+        guard currentAgent != nil, file != nil else { return }
+        slash.refreshIfNeeded()
+    }
     /// 最近一次輪詢看到的 Agent 種類(畫面依種類調整說明，例如 Codex 等 session 的提示)。
     public var agentKind: String? { currentAgent?.kind }
     /// 第一則訊息送出後才有對話紀錄的 Agent(Codex):等待畫面換成對應說明。
@@ -724,6 +926,7 @@ public final class ConversationModel {
     /// 不逐段重播積壓(R-B08、F5.3 第 3 點);畫面還空著時先顯示快取。
     public func reopen() async {
         file?.follow.reopen()
+        preloadSlash()
         await restoreFromCache()
     }
 
@@ -732,7 +935,8 @@ public final class ConversationModel {
     /// 輪詢綁定新 session 時丟掉快取，舊內容留著到新內容讀回來(#329)。
     public func restoreFromCache() async {
         guard items.isEmpty, let cached = await cache.load(chatKey: chatKey),
-              knownSessionID.map({ cached.matches(sessionID: $0) }) ?? (cached.parserVersion == CachedConversation.parserVersion) else { return }
+              knownSessionID.map({ cached.matches(sessionID: $0) }) ?? (cached.parserVersion == CachedConversation.parserVersion),
+              Self.isWorthRestoring(cached) else { return }
         boundSessionID = cached.sessionID
         file = (cached.path, TranscriptFollow(cursor: cached.cursor, isLive: false), cached.windowStart)
         recent = cached.messages
@@ -753,6 +957,7 @@ public final class ConversationModel {
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
         let runID = UUID()
         currentRunID = runID
+        slash.restartRetries()
         followPace = TranscriptFollowPace(interval: pollInterval, sleep: sleep)
         let pollDue = WakeSignal(sleep: sleep)
         self.pollDue = pollDue
@@ -788,6 +993,7 @@ public final class ConversationModel {
             followPace = nil
             self.pollDue = nil
         }
+        if isCurrentRun { slash.cancelBackgroundReload() }
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
@@ -872,6 +1078,7 @@ public final class ConversationModel {
         screenThisPoll = nil
         workingScreenDue = workingScreenReads.allowsRead(isWorking: agentStatus == .working, at: clock.now())
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
+        tabName = AgentListProjection.tabPosition(of: agent.tabID, in: snapshot).map { AgentListProjection.tabName(label: $0.tab.label, position: $0.position) } ?? ""
         // 讀 Pane 畫面(提問卡、建議提示詞、面板、即時預覽、背景 agents 窗格)排在讀對話紀錄之後(#356):
         // 慢網路下對話內容先出來，不等這幾個依序的請求。沒有對話紀錄可讀的情況(不支援、還沒有 session)照舊先讀畫面。
         let agentDialect = AgentCatalog.profile(forHerdrName: agent.kind).transcript
@@ -936,6 +1143,12 @@ public final class ConversationModel {
         if boundSessionID == nil {
             phase = now.timeIntervalSince(waitingSince ?? now) > 80 ? .missingSession : .waitingForSession
         }
+    }
+
+    /// 停在 `.missingSession` 時,這種 Agent 的解法指令(Codex 的 `codex --no-daemon`,#400);其他情況與沒有解法的種類為 `nil`。
+    public var missingSessionCommand: String? {
+        guard phase == .missingSession, let kind = currentAgent?.kind else { return nil }
+        return AgentCatalog.profile(forHerdrName: kind).session.launchCommand
     }
 
     private func read(_ target: TranscriptTarget) async {
@@ -1072,11 +1285,11 @@ public final class ConversationModel {
         try await readEarlierUntilMessages(path: path, generation: generation)
     }
 
-    /// 開啟視窗內沒有任何訊息(最後幾十行都是 system、api-request-blob、file-history-snapshot 這類不產生訊息的紀錄)
+    /// 開啟視窗內沒有任何使用者／Agent 文字(最後幾十行都是 system、api-request-blob、file-history-snapshot 這類不產生訊息的紀錄)
     /// 但檔案前面有:往前一頁一頁讀到有訊息為止，不顯示「還沒有訊息」(#418)。有上限，避免超大檔案讀不完。
     private func readEarlierUntilMessages(path: String, generation: Int) async throws {
         var pages = 0
-        while items.isEmpty, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
+        while !hasReadableMessage, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
             pages += 1
             let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
             guard generation == self.generation else { return }
@@ -1088,8 +1301,21 @@ public final class ConversationModel {
         }
     }
 
+    /// 畫面上有沒有「可讀訊息」(#473):使用者訊息、Agent 文字、備註、skill、subagent、workflow、shell、檔案卡都算;
+    /// 只有摺起來的工具串(`.toolRun`)不算。
+    private var hasReadableMessage: Bool { Self.hasReadableMessage(in: items) }
+
+    private static func hasReadableMessage(in items: [ConversationItem]) -> Bool {
+        items.contains { if case .toolRun = $0 { false } else { true } }
+    }
+
+    /// 快取的訊息組出的畫面有可讀訊息(或根本沒有訊息)才值得還原:尾端只有工具步驟的快取會讓開啟時看到一片空白的步驟串(#473)。
+    private static func isWorthRestoring(_ cached: CachedConversation) -> Bool {
+        cached.messages.isEmpty || hasReadableMessage(in: Conversation.items(from: cached.messages))
+    }
+
     /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
-    static let maximumEmptyWindowPages = 25
+    package static let maximumEmptyWindowPages = 25
 
     private func append(_ chunk: TranscriptChunk) {
         let known = Set(recent.map(\.id))
@@ -1168,7 +1394,8 @@ public final class ConversationModel {
         clearSuggestion()
         banner = .offline
         updateWorkingSince()
-        if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID) {
+        if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID),
+            Self.isWorthRestoring(cached) {
             recent = cached.messages
             segments = [(cached.windowStart, cached.messages.count)]
             metadata = cached.metadata
@@ -1287,6 +1514,11 @@ public final class ConversationModel {
     /// 送了但不確定(沒有反應、無法確認)→ 回音標示失敗，可重試，**不自動重送**(§7.3)。
     public func send() async {
         guard canSend else { return }
+        // 行動網路上要傳大影片:先提醒會用掉多少流量,使用者確認才送(#474)。
+        if needsCellularConfirmation {
+            cellularUploadWarning = attachments.filter { $0.uploadedPath == nil && $0.duration != nil }.reduce(0) { $0 + $1.byteCount }
+            return
+        }
         if let typedAnswer {
             await sendTypedAnswer(typedAnswer)
             return
@@ -1340,8 +1572,16 @@ public final class ConversationModel {
         rebuildEntries()
         // 圖片先逐張上傳;任何一張失敗 → 整則不送，草稿與圖片保留(F6.5、F7)。
         let paths: [String]
+        let upload = Task { try await uploadAttachments() }
+        uploadTask = upload
+        defer { uploadTask = nil }
         do {
-            paths = try await uploadAttachments()
+            paths = try await withTaskCancellationHandler { try await upload.value } onCancel: { upload.cancel() }
+        } catch is CancellationError {
+            // 使用者取消上傳:什麼都沒送出,草稿與附件留著,不提示。
+            removeEcho(echo.id)
+            putBackInDraft(text)
+            return
         } catch {
             removeEcho(echo.id)
             putBackInDraft(text)
@@ -1361,7 +1601,7 @@ public final class ConversationModel {
             // 附件只在送出被接受時清(什麼都沒送出時草稿放回、圖片也留著，已上傳的不重傳)。
             if !Self.nothingSent(notice) {
                 attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
-                for sent in sentImages where sent.kind == .file { images?.store.remove(sent.fileName.value) }
+                for sent in sentImages where sent.kind == .file { removeStoredCopies(of: sent) }
                 saveAttachments()
             }
             if notice == .needsAnswer {
@@ -1465,6 +1705,7 @@ public final class ConversationModel {
         answerSignature = prompt.signature
         answerQuestion = prompt.question
         answerSent = nil
+        staleBlockedUntil = nil
         answerNotice = nil
         haptics.play(.selection)
         let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
@@ -1621,13 +1862,26 @@ public final class ConversationModel {
         screenThisPoll = await readScreen()
         guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
-            if blocked, prompt == nil { prompt = .unrecognized }
+            // 剛答完、herdr 的 blocked 還沒更新的期限內(`staleBlockedUntil`)不冒通用鈕(#468)。
+            let isWithinStaleWindow = staleBlockedUntil.map { clock.now() < $0 } ?? false
+            if blocked, prompt == nil, !isWithinStaleWindow { prompt = .unrecognized }
             if prompt != nil { agentStatus = .blocked }
             checkAnswerDeadline()
             return
         }
         let parsed = BlockedPromptParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
-        let next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
+        if blocked, parsed == nil, answerInFlight != nil, answerSent == nil, prompt != nil {
+            // 送出還沒返回、按鍵可能已到 Agent 而畫面重繪：維持原卡片，不換成通用鈕(#468)。
+            agentStatus = .blocked
+            return
+        }
+        var next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
+        if parsed != nil { staleBlockedUntil = nil }
+        if blocked, parsed == nil {
+            // 答完後 herdr 的 blocked 狀態可能還沒更新：畫面不是選單時不冒出通用鈕(其按鍵會真的打進 Agent)，到期限為止。
+            if let sent = answerSent, answerInFlight != nil { staleBlockedUntil = sent.sentAt.addingTimeInterval(Self.answerDeadline) }
+            if let until = staleBlockedUntil, clock.now() < until { next = nil }
+        }
         if next != nil { agentStatus = .blocked }
         update(prompt: next)
     }
@@ -1833,8 +2087,14 @@ public final class ConversationModel {
         reportedCaret = (filled.draft, filled.caret)
         draft = filled.draft
         pickedHint = command.argumentHint.map { (draft, $0) }
+        pickedSlashNames.insert(command.name)
         lastSlashInsertion = SlashInsertion(name: command.name, sequence: (lastSlashInsertion?.sequence ?? 0) + 1)
     }
+
+    /// 訊息中間要上色的指令名稱(#469):這個聊天的 slash 清單(非內建)加上從選單選用過的名稱。輸入框與使用者泡泡共用。
+    public var inlineSlashNames: Set<String> { slash.inlineNames.union(pickedSlashNames) }
+
+    private var pickedSlashNames: Set<String> = []
 
     /// 最近一次選定插入的指令(VoiceOver 念出插入了哪個指令)。
     public private(set) var lastSlashInsertion: SlashInsertion?
@@ -2541,7 +2801,7 @@ public final class ConversationModel {
     public var header: ConversationHeader {
         ConversationHeader(
             agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress,
-            permissionMode: supportsPermissionMode || screenDialect.statusLine != nil ? permissionMode : nil)
+            permissionMode: supportsPermissionMode || screenDialect.statusLine != nil ? permissionMode : nil, tabName: tabName)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
@@ -2710,6 +2970,10 @@ public enum SendNotice: Sendable, Equatable {
     case fileUnreadable
     /// 檔案上傳到主機失敗，路徑沒有插入。
     case fileUploadFailed
+    /// 影片壓到最小仍超過上傳上限(#474),或太長壓不進去。
+    case videoTooLong
+    /// 讀不到挑選的影片。
+    case videoUnreadable
     /// HTTPS 主機的主機服務太舊、還不能上傳圖片或檔案(#288):提示更新主機服務。
     case hostServiceUpdateRequired(installedVersion: String?)
     /// 送不出 slash 面板的按鍵(#45)。

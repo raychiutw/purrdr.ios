@@ -49,8 +49,14 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     func viewDidResize(columns: Int, rows: Int)
     func reconnect()
     func takeOver()
-    /// 掛斷(離開畫面、App 進背景)。不會自動重連。
+    /// 掛斷(離開畫面、App 進背景或鎖定)。Pane 終端機會放開控制，讓電腦上的 Pane 還原成原尺寸(#357)。
     func hangUp()
+    /// 回到畫面:Pane 終端機重新以手機的格數接上(只在是自己放開的時候);登入 Shell 不重連。
+    func resume()
+    /// 等放開控制送出(進背景時 App 要等它完成才能被系統凍結)。
+    func released() async
+    /// 鍵盤升降是否跟著改格數:登入 Shell 是;Pane 終端機不是(鍵盤只捲到游標，Pane 的尺寸不為鍵盤改變,#357)。
+    var resizesWithKeyboard: Bool { get }
     /// 終端機模擬器送出的鍵盤輸入。
     func type(_ data: Data)
     /// 一顆鍵(按鍵列或實體鍵盤);`modifiers` 是實體鍵盤按著的修飾鍵，與黏著修飾鍵合併。
@@ -62,29 +68,13 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     /// 實體鍵盤的 Page Up／Down 交給遠端決定(Pane 終端機);登入 Shell 在本機捲，不經 model。
     func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int)
     func setFontSize(_ size: Double)
-
-    /// 大小模式(#357):只有 Pane 終端機有;登入 Shell 一律配合手機。
-    var supportsSizeMode: Bool { get }
-    var sizeMode: TerminalSizeMode { get }
-    /// 保留電腦版面卻讀不到電腦上的格數,這次以手機的格數接上(#357)。
-    var keepDesktopFallback: Bool { get }
-    func setSizeMode(_ mode: TerminalSizeMode)
-    /// 保留電腦版面時，電腦上 Pane 目前的格數(來自 full frame);還沒收到是 `nil`。
-    var displaySize: TerminalGridSize? { get }
-    /// 畫面照電腦的格數顯示(整寬縮放)，而不是照手機的大小排版。
-    var keepsDesktopLayout: Bool { get }
 }
 
 extension TerminalSessionModel {
-    public var supportsSizeMode: Bool { false }
-    public var sizeMode: TerminalSizeMode { .fitPhone }
-    public var keepDesktopFallback: Bool { false }
-    public func setSizeMode(_ mode: TerminalSizeMode) {}
-    public var displaySize: TerminalGridSize? { nil }
-    public var keepsDesktopLayout: Bool { false }
-}
+    public func resume() {}
+    public func released() async {}
+    public var resizesWithKeyboard: Bool { true }
 
-extension TerminalSessionModel {
     /// 按鍵列與貼上是否可用。
     public var isInteractive: Bool { status == .connected }
 

@@ -113,7 +113,22 @@ public struct AgentPresentation: Equatable, Sendable {
     }
 }
 
-/// Agent 設定檔(ADR-0013)。有顯示、對話紀錄、輸入、畫面與 session 組。
+/// 這種 Agent 在主機上留下的痕跡與升級前的行為(ADR-0013):偵測「主機上有沒有裝」與主機的 Agent 設定(#477)用。
+public struct AgentFootprint: Equatable, Sendable {
+    /// 家目錄底下放這個 Agent 設定的資料夾(相對路徑);資料夾在就當作裝了。沒有就偵測不到。
+    public let configurationFolder: String?
+    /// 主機的 Agent 設定出現之前,用量區就會顯示這個 Agent(Claude Code、Codex);既有主機升級後沿用。
+    public let showedUsageBeforeSettings: Bool
+
+    public init(configurationFolder: String? = nil, showedUsageBeforeSettings: Bool = false) {
+        self.configurationFolder = configurationFolder
+        self.showedUsageBeforeSettings = showedUsageBeforeSettings
+    }
+
+    public static let none = AgentFootprint()
+}
+
+/// Agent 設定檔(ADR-0013)。有顯示、對話紀錄、輸入、畫面與 session 組,另有主機痕跡(`footprint`)。
 /// 沒有的那組是 `nil`,表示那項功能不提供。
 public struct AgentProfile: Equatable, Sendable {
     public let id: AgentID
@@ -126,11 +141,14 @@ public struct AgentProfile: Equatable, Sendable {
     public let screen: ScreenDialect
     /// session 組:新聊天、恢復、標題規則(通用設定檔不能開新聊天、不能恢復)。
     public let session: SessionDialect
+    /// 主機痕跡:偵測用的設定資料夾、升級前的用量預設。
+    public let footprint: AgentFootprint
 
     public init(
         id: AgentID, presentation: AgentPresentation, transcript: TranscriptDialect? = nil, input: InputDialect,
-        screen: ScreenDialect = .generic, session: SessionDialect = .generic
+        screen: ScreenDialect = .generic, session: SessionDialect = .generic, footprint: AgentFootprint = .none
     ) {
+        self.footprint = footprint
         self.id = id
         self.presentation = presentation
         self.transcript = transcript
@@ -145,8 +163,20 @@ public enum AgentCatalog {
     public static func profile(for id: AgentID) -> AgentProfile {
         AgentProfile(
             id: id, presentation: presentation(for: id), transcript: transcript(for: id), input: input(for: id), screen: screen(for: id),
-            session: session(for: id)
+            session: session(for: id), footprint: footprint(for: id)
         )
+    }
+
+    private static func footprint(for id: AgentID) -> AgentFootprint {
+        switch id {
+        case .claude: AgentFootprint(configurationFolder: ".claude", showedUsageBeforeSettings: true)
+        case .codex: AgentFootprint(configurationFolder: ".codex", showedUsageBeforeSettings: true)
+        case .agy: AgentFootprint(configurationFolder: ".gemini/antigravity-cli")
+        case .grok: AgentFootprint(configurationFolder: ".grok")
+        case .pi: AgentFootprint(configurationFolder: ".pi")
+        case .omp: AgentFootprint(configurationFolder: ".omp")
+        default: .none
+        }
     }
 
     /// app 能開新聊天的種類(新聊天畫面的選單順序)。

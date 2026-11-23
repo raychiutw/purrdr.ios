@@ -261,4 +261,35 @@ struct DataUsageModelTests {
         #expect(usage.refreshCount == 2)
     }
 }
+
+/// 流量圖 X 軸的標籤(#477):每天一個、不重複、略過時仍對齊長條。
+@Suite("流量圖 X 軸標籤")
+struct DataUsageAxisLabelsTests {
+    @Test("兩天:每根長條一個標籤,不重複")
+    func twoDays() {
+        #expect(DataUsageAxisLabels.labeledIndices(barCount: 2, plotWidth: 300, labelWidth: 40) == [0, 1])
+    }
+
+    @Test("寬度夠:7 天每天都標")
+    func sevenDaysFit() {
+        #expect(DataUsageAxisLabels.labeledIndices(barCount: 7, plotWidth: 320, labelWidth: 40) == Array(0..<7))
+    }
+
+    @Test("30 天放不下:從今天往回每 N 天標一次,索引不重複、最後一根一定標")
+    func thirtyDaysSkip() {
+        let indices = DataUsageAxisLabels.labeledIndices(barCount: 30, plotWidth: 320, labelWidth: 40)
+        #expect(indices.last == 29)
+        #expect(Set(indices).count == indices.count)
+        let gaps = Set(zip(indices, indices.dropFirst()).map { $1 - $0 })
+        #expect(gaps.count == 1)
+        // 相鄰標籤的間距(每根 320/30 pt)要容得下標籤寬度。
+        #expect(Double(gaps.first ?? 0) * 320 / 30 >= 40)
+    }
+
+    @Test("沒有長條、寬度未知:不標或每根都標,不當掉")
+    func degenerate() {
+        #expect(DataUsageAxisLabels.labeledIndices(barCount: 0, plotWidth: 300, labelWidth: 40).isEmpty)
+        #expect(DataUsageAxisLabels.labeledIndices(barCount: 3, plotWidth: 0, labelWidth: 40) == [0, 1, 2])
+    }
+}
 #endif

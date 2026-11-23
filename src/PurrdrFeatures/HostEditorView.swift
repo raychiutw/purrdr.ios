@@ -601,11 +601,11 @@ extension HostConfiguration.ConnectionMethod {
     /// 加入主機頁卡片的順序。
     static let editorOrder: [Self] = [.tailscaleSSH, .openSSH, .https]
 
-    /// 產品名稱，不翻譯。
+    /// 畫面上的名稱，不翻譯(OpenSSH 對一般使用者太技術，稱「SSH」,#477;內部值 `openSSH` 不變)。
     var title: String {
         switch self {
         case .tailscaleSSH: "Tailscale SSH"
-        case .openSSH: "OpenSSH"
+        case .openSSH: "SSH"
         case .https: "HTTPS"
         }
     }

@@ -133,7 +133,6 @@ public struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) { account }
-                    .sharedBackgroundVisibility(.hidden)
             }
         }
         // 使用者可能剛到系統設定加上或移除裝置密碼。

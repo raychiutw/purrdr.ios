@@ -63,6 +63,22 @@ public struct DataUsageBar: Identifiable, Equatable, Sendable {
     public var id: String { day }
 }
 
+/// 長條圖 X 軸要標哪幾天(#477):每根長條一個刻度,不產生同一天的重複標籤;
+/// 天數多、寬度不夠時整數倍略過,從最新一根(今天)往回數,所以標籤永遠對在長條正下方。
+public enum DataUsageAxisLabels {
+    /// - Parameters:
+    ///   - barCount: 長條數(舊到新)。
+    ///   - plotWidth: 繪圖區寬度。
+    ///   - labelWidth: 一個日期標籤需要的寬度(含間隔)。
+    /// - Returns: 要標籤的長條索引(舊到新)。
+    public static func labeledIndices(barCount: Int, plotWidth: Double, labelWidth: Double) -> [Int] {
+        guard barCount > 0 else { return [] }
+        let barWidth = plotWidth / Double(barCount)
+        let step = barWidth > 0 ? max(1, Int((labelWidth / barWidth).rounded(.up))) : 1
+        return (0..<barCount).filter { (barCount - 1 - $0) % step == 0 }
+    }
+}
+
 /// 主機列表的一列:期間內的用量。
 public struct DataUsageHostRow: Identifiable, Equatable, Sendable {
     /// 計量用的主機 id(`HostSelection.storedValue`)。

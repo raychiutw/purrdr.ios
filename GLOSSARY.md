@@ -13,11 +13,11 @@ _避免_:電腦(畫面與文件都不用,包含「這台電腦」「分享到電
 用詞對應(2026-11-22 使用者決定,取代 2026-11-21 的版本):繁中畫面文字說「主機」「帳號」;文件、程式與型別用「主機」「使用者名稱」(`username`),畫面上的使用者名稱欄位仍叫「帳號」(英文 account,#331)。英文畫面文字維持 Host。**主機服務**在畫面稱「主機服務」(英文 Host Service;取代舊的「Purrdr 連線助理」,因為畫面已統一稱「主機」,不必另取比較白話的名字);推播用的主機外掛仍稱「通知幫手」。**Demo 主機**在畫面稱「範例主機」(英文維持 Demo Host)。#394 把 `StringCatalogTests` 對繁中「主機」的禁令反過來(改擋「電腦」)並更新字串。
 
 **連線方式**:
-app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。
+app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼;畫面上只稱「SSH」,內部值 `openSSH` 與同步格式不變,#477)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。
 _避免_:Transport、Auth mode(例外：網路傳輸層的型別沿用 `*Transport`,如 `URLSessionHostServiceTransport`、`PaneTerminalTransport`、`BackendTransport`,指收送位元組的那一層，不是連線方式)
 
 **新增主機引導**(Add host guide):
-新增一台主機時一頁問一件事、帶使用者在主機上做好準備並填完連線設定的流程，最後測試連線。編輯已存的主機不經引導(用主機編輯頁)。畫面上 OpenSSH 稱「原生 SSH」。
+新增一台主機時一頁問一件事、帶使用者在主機上做好準備並填完連線設定的流程，最後測試連線。編輯已存的主機不經引導(用主機編輯頁)。畫面上 OpenSSH 只稱「SSH」(與 Tailscale SSH 並列時也是,#477;程式內部與註解仍可稱原生 SSH)。
 _避免_:精靈、Wizard、Onboarding(那是 app 第一次開啟的歡迎頁)
 
 **主機身分確認**:

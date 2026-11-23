@@ -19,11 +19,17 @@ public struct ComposerAttachment: Identifiable, Equatable, Sendable {
     public let pixelHeight: Int
     /// 已上傳到主機的絕對路徑。送出失敗(什麼都沒送出)後再送，不重傳。
     public var uploadedPath: String?
+    /// 影片的長度(秒);不是影片是 `nil`(#474)。
+    public let duration: TimeInterval?
+    /// 影片縮圖在手機副本資料夾的檔名;沒有是 `nil`。
+    public let thumbnailFileName: String?
 
     public init(
         kind: Kind = .image, fileName: HostUploadName, displayName: String? = nil, byteCount: Int = 0, pixelWidth: Int = 0, pixelHeight: Int = 0,
-        uploadedPath: String? = nil
+        uploadedPath: String? = nil, duration: TimeInterval? = nil, thumbnailFileName: String? = nil
     ) {
+        self.duration = duration
+        self.thumbnailFileName = thumbnailFileName
         self.kind = kind
         self.fileName = fileName
         self.displayName = displayName ?? fileName.value
@@ -39,12 +45,19 @@ public protocol AttachmentStore: Sendable {
     func save(_ data: Data, as name: String) throws
     /// 副本的位置;沒有這個檔案時是 `nil`。
     func url(of name: String) -> URL?
+    /// 把 `source` 檔案搬進來存成副本(不經記憶體;影片最多 25 MiB,在背景呼叫)。
+    func save(movingFile source: URL, as name: String) throws
     /// 刪掉副本(檔案附件移除或送出後;沒有這個檔案時什麼都不做)。
     func remove(_ name: String)
 }
 
 extension AttachmentStore {
     public func remove(_ name: String) {}
+
+    public func save(movingFile source: URL, as name: String) throws {
+        try save(Data(contentsOf: source, options: .mappedIfSafe), as: name)
+        try? FileManager.default.removeItem(at: source)
+    }
 }
 
 /// 存在一個資料夾裡的圖片副本。只接受 `HostUploadName` 允許的檔名。
@@ -67,6 +80,16 @@ public struct FileAttachmentStore: AttachmentStore {
         try data.write(to: directory.appending(path: name), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
+    public func save(movingFile source: URL, as name: String) throws {
+        guard HostUploadName(name) != nil else { throw CocoaError(.fileWriteInvalidFileName) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let destination = directory.appending(path: name)
+        try? FileManager.default.removeItem(at: destination)
+        try FileManager.default.moveItem(at: source, to: destination)
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: destination.path(percentEncoded: false))
+    }
+
     public func url(of name: String) -> URL? {
         guard HostUploadName(name) != nil else { return nil }
         let url = directory.appending(path: name)
@@ -86,11 +109,18 @@ public struct ComposerImages: Sendable {
     public let makeName: @Sendable () -> UploadFileName
     /// 一般檔案(#286):原始檔名 → 上傳檔名。
     public let makeFileName: @Sendable (String) -> HostUploadName
+    /// 影片壓縮(#474);`nil` 時輸入列沒有「影片」。
+    public let videoCompressor: (any VideoCompressing)?
+    /// 目前是不是只能用行動網路(大影片上傳前提醒用,#474)。
+    public let isOnCellular: @Sendable () -> Bool
 
     public init(
         uploader: any HostUploading, store: any AttachmentStore, makeName: @escaping @Sendable () -> UploadFileName = ComposerImages.randomName,
-        makeFileName: @escaping @Sendable (String) -> HostUploadName = ComposerImages.randomFileName
+        makeFileName: @escaping @Sendable (String) -> HostUploadName = ComposerImages.randomFileName,
+        videoCompressor: (any VideoCompressing)? = nil, isOnCellular: @escaping @Sendable () -> Bool = { false }
     ) {
+        self.isOnCellular = isOnCellular
+        self.videoCompressor = videoCompressor
         self.uploader = uploader
         self.store = store
         self.makeName = makeName

@@ -50,9 +50,6 @@ public struct DataUsageView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if account != nil {
-                    HostCapsule(model: model)
-                }
                 summaryTiles
                 chips
                 chartCard
@@ -61,6 +58,7 @@ public struct DataUsageView: View {
                 footnote
             }
             .padding(.horizontal, 16)
+            .padding(.top, account == nil ? 0 : 16)
             .padding(.bottom, 24)
             // iPad:不撐滿寬度。
             .frame(maxWidth: 640)
@@ -68,13 +66,15 @@ public struct DataUsageView: View {
         }
         .background(DataUsageColors.groupedBackground)
         .navigationTitle("Data Usage")
+        .toolbar(removing: account != nil ? .title : nil)
         #if os(iOS)
-        .navigationBarTitleDisplayMode(account == nil ? .inline : .large)
+        .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
             if let account {
                 ToolbarItem(placement: .primaryAction) { account }
-                    .sharedBackgroundVisibility(.hidden)
+                // 流量 tab:主機選單靠左,與其他 tab 同一個位置(#475)。
+                ToolbarItem(placement: TopNavigationView.modePlacement) { HostCapsule(model: model) }
             } else {
                 ToolbarItem(placement: .principal) { HostCapsule(model: model) }
             }
@@ -243,16 +243,17 @@ private struct HostCapsule: View {
                 if let option = model.hosts.first(where: { $0.id == model.host }) {
                     HostIconBadge(option.icon, diameter: 22)
                 }
-                Text(verbatim: name).font(.headline).lineLimit(1)
+                // 與其他 tab 的主機下拉一致,用 app 主色(綠,#477)。
+                Text(verbatim: name).font(.headline).foregroundStyle(Color.appAccent).lineLimit(1)
                 Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold)).foregroundStyle(.secondaryText).accessibilityHidden(true)
+                    .font(.caption.weight(.semibold)).foregroundStyle(Color.appAccent).accessibilityHidden(true)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .glassEffect(.regular.interactive(), in: Capsule())
+            .frame(minHeight: TopBarMetrics.controlHeight)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .tint(Color.appAccent)
         .accessibilityLabel(Text("Host: \(name)"))
         .accessibilityIdentifier("dataUsage.host")
     }
@@ -424,6 +425,30 @@ private struct DataUsageChart: View {
     let bars: [DataUsageBar]
     let selectedDay: String?
     let select: (String?) -> Void
+    @State private var width: CGFloat = 0
+
+    /// 要標籤的日期,取那天中午(長條的正中央)。右側 Y 軸標籤約佔 56pt,標籤寬約 44pt。
+    private var labelDates: [Date] {
+        let indices = DataUsageAxisLabels.labeledIndices(barCount: bars.count, plotWidth: Double(max(0, width - 56)), labelWidth: 44)
+        return indices.compactMap { Calendar.current.date(byAdding: .hour, value: 12, to: bars[$0].date) }
+    }
+
+    /// 每個要標的日期,置中在那根長條下方。
+    @ViewBuilder
+    private func dayLabels(proxy: ChartProxy, geometry: GeometryProxy) -> some View {
+        if let plot = proxy.plotFrame {
+            let frame = geometry[plot]
+            ForEach(labelDates, id: \.self) { date in
+                if let x = proxy.position(forX: date) {
+                    Text(date, format: .dateTime.month(.defaultDigits).day())
+                        .font(.caption2).foregroundStyle(Color.secondaryText)
+                        .fixedSize()
+                        .position(x: frame.minX + x, y: frame.maxY + 12)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+    }
 
     private struct Mark: Identifiable {
         var id: String { "\(bar.day)/\(segment.kind)" }
@@ -469,15 +494,15 @@ private struct DataUsageChart: View {
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                AxisValueLabel(format: .dateTime.month(.defaultDigits).day(), centered: true)
-                    .font(.caption2).foregroundStyle(Color.secondaryText)
-            }
-        }
+        // X 軸(#477):標籤自己畫在每根長條正下方(內建軸的刻度對不準長條、也會丟掉最後一個標籤);
+        // 天數多放不下時整數倍略過、從今天往回數(`DataUsageAxisLabels`)。
+        .chartXAxis(.hidden)
+        .padding(.bottom, 20)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         // 點一根長條:用點的位置換算成那天(不靠 chartXSelection,它在 iOS 要按住或拖曳)。
         .chartOverlay { proxy in
             GeometryReader { geometry in
+                dayLabels(proxy: proxy, geometry: geometry)
                 Rectangle().fill(.clear).contentShape(Rectangle())
                     .onTapGesture(coordinateSpace: .local) { location in
                         guard let plot = proxy.plotFrame else { return }

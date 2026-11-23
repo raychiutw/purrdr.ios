@@ -29,6 +29,7 @@ public struct FolderBrowserView: View {
     public var body: some View {
         content
             .navigationTitle(model.title)
+            .toolbar(removing: hostPicker != nil ? .title : nil)
             .navigationSubtitle(hostPicker == nil ? model.hostName : "")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -36,8 +37,8 @@ public struct FolderBrowserView: View {
             .toolbar {
                 if let hostPicker {
                     // 主機挑選鈕佔標題位置;目前在哪一層看下面的路徑麵包屑(#273)。
-                    ToolbarItem(placement: .principal) {
-                        HostPickerButton(model: hostPicker, identifier: "files.host", addHost: addHost)
+                    ToolbarItem(placement: TopNavigationView.modePlacement) {
+                        HostPickerButton(model: hostPicker, identifier: "files.host", addHost: addHost, inToolbar: true)
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -54,7 +55,6 @@ public struct FolderBrowserView: View {
                 if let account {
                     ToolbarSpacer(.fixed, placement: .primaryAction)
                     ToolbarItem(placement: .primaryAction) { account }
-                        .sharedBackgroundVisibility(.hidden)
                 }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in

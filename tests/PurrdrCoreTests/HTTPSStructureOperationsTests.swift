@@ -170,6 +170,36 @@ struct HTTPSStructureOperationsTests {
         #expect(try Self.sent(service, type: "agent.start")["permission_mode"] == nil)
     }
 
+    /// #400:Codex 新聊天帶 `--no-daemon`;主機服務不收參數,不能因此讓 HTTPS 主機開不了 Codex。
+    @Test("Codex 的 --no-daemon:HTTPS 略過它照常啟動,不當成不支援")
+    func startCodexIgnoresNoDaemon() async throws {
+        let service = try await Self.start()
+        defer { Task { await service.stop() } }
+
+        try await Self.client(to: service).startAgent(name: "ledger", kind: "codex", paneID: "w1:p1", arguments: ["--no-daemon"], timeout: .seconds(60))
+
+        let sent = try Self.sent(service, type: "agent.start")
+        #expect(sent["kind"] as? String == "codex")
+        #expect(sent["permission_mode"] == nil)
+    }
+
+    /// 只略過設定檔(Codex)啟動參數那一組,不是依名稱濾掉:別種 Agent 帶同名參數、或使用者自己多帶一個,都不能被吞掉。
+    @Test("--no-daemon 只在設定檔有這組啟動參數的種類(Codex)才略過;Claude 帶它是不支援、Codex 多帶的同名參數也不吞")
+    func noDaemonIsSkippedOnlyForProfileLaunchArguments() async throws {
+        let service = try await Self.start()
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.unsupported("agent.start")) {
+            try await Self.client(to: service).startAgent(
+                name: "ledger", kind: "claude", paneID: "w1:p1", arguments: ["--no-daemon"], timeout: .seconds(60))
+        }
+        await #expect(throws: HostServiceError.unsupported("agent.start")) {
+            try await Self.client(to: service).startAgent(
+                name: "ledger", kind: "codex", paneID: "w1:p1", arguments: ["--no-daemon", "--no-daemon"], timeout: .seconds(60))
+        }
+        #expect(!service.log.messages.contains { $0.contains("agent.start") })
+    }
+
     @Test("協定不接受的 Agent 參數：不送出，錯誤種類是 unsupported")
     func startAgentWithArbitraryArguments() async throws {
         let service = try await Self.start()

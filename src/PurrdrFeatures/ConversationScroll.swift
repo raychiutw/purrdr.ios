@@ -38,8 +38,10 @@ public struct ConversationScroll: Equatable, Sendable {
     /// 新內容、視窗或鍵盤尺寸改變、回到前景時要不要捲到底。
     public var autoScrollsOnNewContent: Bool { following }
 
-    /// 「跳到最新」按鈕:閱讀中且距底超過門檻才出現。
-    public var showsJumpToLatest: Bool { !following && distanceFromBottom > Self.threshold }
+    /// 「跳到最新」按鈕(#476):只看量到的離底距離，超過門檻就要有。不看是否跟隨、也不看使用者有沒有拖動過:
+    /// 跟隨中內容被撐長、捲到底沒有落地時，旗標說「在底部」，實際卻離底很遠，舊規則讓按鈕消失。
+    /// 跟隨中新內容剛撐長的瞬間也會量到很遠，畫面延遲一下才顯示(`ConversationView`)，不閃現。
+    public var showsJumpToLatest: Bool { distanceFromBottom > Self.threshold }
 
     /// 使用者自己捲動結束時呼叫。
     public mutating func userScrolled(distanceFromBottom: Double) {
@@ -88,9 +90,9 @@ public struct ConversationScroll: Equatable, Sendable {
     }
 
     /// 開啟、點「跳到最新」、重新載入:變跟隨並捲到底。
+    /// 不改量到的離底距離(#476):距離只由量測更新，捲動沒落地時按鈕才不會因為旗標而消失。
     public mutating func jumpToLatest() {
         following = true
-        distanceFromBottom = 0
     }
 
     /// 使用者點「跳到最新」(#401):同 `jumpToLatest()`，並在使用者再按下拖動之前，不讓慣性減速的量測把模式改回閱讀中。
@@ -248,5 +250,13 @@ public struct ConversationScrollMetrics: Equatable, Sendable {
     /// 可見範圍頂緣到內容頂緣的距離。
     public var distanceFromTop: Double {
         contentOffsetY + topInset
+    }
+
+    /// 要不要讀上一頁(#473):距頂端 ≤ 1 個畫面高時,使用者拖動過就讀;沒拖動過時只有內容還不夠填滿(量得到排版之後)
+    /// 才自動讀,而且自動讀最多 `autoLoadLimit` 頁(整份都是工具步驟時摺起來的高度很短,不能一路讀到檔案開頭)。
+    public func wantsOlderPage(userHasDragged: Bool, autoLoadedPages: Int, autoLoadLimit: Int) -> Bool {
+        guard distanceFromTop <= containerHeight else { return false }
+        if userHasDragged { return true }
+        return contentHeight > 0 && containerHeight > 0 && autoLoadedPages < autoLoadLimit
     }
 }

@@ -533,6 +533,9 @@ final class ConversationUITests: XCTestCase {
         list.swipeDown()
         list.swipeDown()
         XCTAssertTrue(jump.waitUntilExists(timeout: 5), "往上捲後應顯示")
+        // 在輸入列(含停止列)上方,不被它蓋住(#476)。
+        let composer = app.element("composer.text")
+        XCTAssertLessThanOrEqual(jump.frame.maxY, composer.frame.minY, "跳到最新壓在輸入列上")
 
         for _ in 0..<4 { list.swipeUp() }
         XCTAssertTrue(jump.waitUntilGone(timeout: 5), "自己捲回底部後應隱藏")

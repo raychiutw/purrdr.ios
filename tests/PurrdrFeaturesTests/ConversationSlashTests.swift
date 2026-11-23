@@ -52,6 +52,18 @@ struct ConversationSlashTests {
         #expect(!model.slash.isVisible)
     }
 
+    @Test("開啟聊天就預載:不用打 /,文中指令名稱已含 session 內的 skill(對話紀錄路徑找到後才開始,#472)")
+    func preloadsAfterTranscriptLocated() async throws {
+        let (host, model) = try Self.setup()
+        await host.bridge.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        await model.poll()
+
+        await model.slash.load()
+        #expect(!model.slash.isVisible)
+        #expect(model.inlineSlashNames.contains("agents-sdk"), "預載早於對話紀錄定位就讀不到 session 的 skill")
+        #expect(model.inlineSlashNames.contains("mattpocock-skills:tdd"))
+    }
+
     @Test("組字中不拿暫時文字(/ㄋ)篩選 slash 選單;組字結束後依確認的文字篩選(#138)")
     func slashMenuIgnoresComposingText() async throws {
         let (host, model) = try Self.setup()

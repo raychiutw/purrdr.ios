@@ -31,15 +31,20 @@ struct RecentPhoto: Identifiable, Equatable, Sendable {
 extension RecentPhotoSource {
     /// 最近的照片(新的在前);沒有權限(或相簿空的)回空陣列，面板只顯示四顆按鈕。
     func recent(limit: Int) async -> [RecentPhoto] {
+        await recent(offset: 0, limit: limit)
+    }
+
+    /// 分頁讀取(#475):從第 `offset` 張起最多 `limit` 張。
+    func recent(offset: Int, limit: Int) async -> [RecentPhoto] {
         switch self {
         case .simulatedDenied:
             return []
         case .simulated(let count):
-            return (0..<min(count, limit)).compactMap { index in
+            return (min(offset, count)..<min(count, offset + limit)).compactMap { index in
                 Self.simulatedImage(index, size: 120).map { RecentPhoto(id: "sim-\(index)", thumbnail: $0) }
             }
         case .system:
-            return await Self.systemRecent(limit: limit)
+            return await Self.systemRecent(offset: offset, limit: limit)
         }
     }
 
@@ -76,16 +81,16 @@ extension RecentPhotoSource {
     }
 
     #if canImport(Photos) && canImport(UIKit)
-    private static func systemRecent(limit: Int) async -> [RecentPhoto] {
+    private static func systemRecent(offset: Int, limit: Int) async -> [RecentPhoto] {
         var status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         if status == .notDetermined { status = await PHPhotoLibrary.requestAuthorization(for: .readWrite) }
         guard status == .authorized || status == .limited else { return [] }
         let options = PHFetchOptions()
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        options.fetchLimit = limit
+        // PHFetchResult 只在取用時才載入資產:取全部的結果、只讀這一頁的縮圖。
         let assets = PHAsset.fetchAssets(with: .image, options: options)
         var photos: [RecentPhoto] = []
-        for index in 0..<assets.count {
+        for index in min(offset, assets.count)..<min(assets.count, offset + limit) {
             let asset = assets.object(at: index)
             if let data = await thumbnail(of: asset) { photos.append(RecentPhoto(id: asset.localIdentifier, thumbnail: data)) }
         }
@@ -126,7 +131,7 @@ extension RecentPhotoSource {
         return result
     }
     #else
-    private static func systemRecent(limit: Int) async -> [RecentPhoto] { [] }
+    private static func systemRecent(offset: Int, limit: Int) async -> [RecentPhoto] { [] }
     private static func systemImageData(_ ids: [String]) async -> [Data] { [] }
     #endif
 }

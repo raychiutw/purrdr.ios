@@ -28,7 +28,7 @@ final class PermissionModeUITests: XCTestCase {
         app.buttons["sheet.close"].tap()
         XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5))
         XCTAssertTrue(
-            header.wait(for: NSPredicate(format: "label BEGINSWITH 'Accept Edits'"), timeout: 10), "膠囊第二行沒有顯示 Accept Edits")
+            header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "膠囊第二行沒有顯示 Accept Edits")
     }
 
     /// 模型膠囊(#350):在附加鈕與權限模式膠囊之間;點開 sheet 以勾選列選模型,選定後收起。
@@ -68,7 +68,7 @@ final class PermissionModeUITests: XCTestCase {
         let header = app.element("conversation.header")
         XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
         XCTAssertTrue(
-            header.wait(for: NSPredicate(format: "label BEGINSWITH 'Accept Edits'"), timeout: 10), "標題沒有顯示畫面狀態列的 Accept Edits")
+            header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "標題沒有顯示畫面狀態列的 Accept Edits")
 
         header.tap()
         XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")

@@ -32,14 +32,14 @@ struct AgentListModelTests {
         #expect(model.sections == [
             AgentSection(group: .working, rows: [
                 AgentRow(paneID: "w1:pA", title: "規劃天氣小工具", workspace: "garden-journal", subtitle: "garden-journal · Claude Code · demo/Projects",
-                         preview: .none, time: .now, status: .working),
+                         preview: .none, time: .now, status: .working, tabName: "Tab 2"),
                 AgentRow(paneID: "w1:pB", title: "重構食譜匯入", workspace: "garden-journal", subtitle: "garden-journal · Claude Code · Projects/recipe-box",
-                         preview: .none, time: .now, status: .working),
+                         preview: .none, time: .now, status: .working, tabName: "Tab 3"),
             ]),
             AgentSection(group: .idle, rows: [
                 // workspace 名稱就是資料夾最後一段，已經顯示在資料夾裡，不重複。
                 AgentRow(paneID: "w1:p6", title: "整理植物照片的標籤", workspace: "garden-journal", subtitle: "Claude Code · Projects/garden-journal",
-                         preview: .none, time: nil, status: .idle),
+                         preview: .none, time: nil, status: .idle, tabName: "Tab 1"),
             ]),
         ])
     }

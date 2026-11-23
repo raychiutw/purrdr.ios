@@ -209,10 +209,29 @@ public actor FakeHostConnection: HostConnection {
             continuation.yield(.frame(frame))
         }
         let transport = FakePaneTerminalTransport(onSend: { input in await self.record(input) }, onRelease: {
+            await self.waitWhileReleasesHeld()
             continuation.yield(.closed(.detached))
             continuation.finish()
         })
         return PaneTerminalConnection(events: events, transport: transport, isViewOnly: expectation.readOnly)
+    }
+
+    private var holdsPaneTerminalReleases = false
+    private var heldReleases: [CheckedContinuation<Void, Never>] = []
+
+    /// 之後的 Pane 終端機 release 先停住,直到 `releasePaneTerminalReleases()`(模擬放開控制的訊息還在路上)。
+    public func holdPaneTerminalReleases() { holdsPaneTerminalReleases = true }
+
+    public func releasePaneTerminalReleases() {
+        holdsPaneTerminalReleases = false
+        let waiting = heldReleases
+        heldReleases = []
+        waiting.forEach { $0.resume() }
+    }
+
+    private func waitWhileReleasesHeld() async {
+        guard holdsPaneTerminalReleases else { return }
+        await withCheckedContinuation { heldReleases.append($0) }
     }
 
     private func record(_ input: TerminalInput) {
@@ -292,14 +311,14 @@ public struct PaneTerminalOpening: Sendable, Equatable {
 
 private struct FakePaneTerminalTransport: PaneTerminalTransport {
     let onSend: @Sendable (TerminalInput) async -> Void
-    let onRelease: @Sendable () -> Void
+    let onRelease: @Sendable () async -> Void
 
     func send(_ input: TerminalInput) async throws {
         await onSend(input)
     }
 
     func release() async {
-        onRelease()
+        await onRelease()
     }
 }
 

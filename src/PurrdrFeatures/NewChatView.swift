@@ -16,9 +16,6 @@ public struct NewChatView: View {
     /// 開始了：新 workspace 與沒送出的第一則訊息(agent 停在啟動問題時)。
     let onStarted: (CreatedWorkspace, String?) -> Void
 
-    /// 原型只有這兩種;其他 agent 的啟動另議(設定檔的 `startableAgents` 是 app 能啟動的全部)。
-    private static let agents: [AgentID] = [.claude, .codex]
-
     public init(
         model: NewChatModel, hostPicker: HostPickerModel? = nil, onCancel: @escaping () -> Void,
         onStarted: @escaping (CreatedWorkspace, String?) -> Void
@@ -34,7 +31,7 @@ public struct NewChatView: View {
             Form {
                 Section {
                     Picker("Agent", selection: $model.agent) {
-                        ForEach(Self.agents, id: \.self) { agent in
+                        ForEach(model.availableAgents, id: \.self) { agent in
                             Text(verbatim: AgentCatalog.profile(for: agent).presentation.displayName ?? agent.canonicalName).tag(agent)
                         }
                     }
@@ -45,6 +42,11 @@ public struct NewChatView: View {
                 } header: {
                     Text("Agent")
                         .foregroundStyle(.secondaryText)
+                } footer: {
+                    if model.availableAgents.isEmpty {
+                        Text("No Agents are turned on for this host. Open the Hosts tab, then Agent, to turn one on.")
+                            .accessibilityIdentifier("newChat.noAgents")
+                    }
                 }
 
                 Section {

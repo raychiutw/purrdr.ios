@@ -76,6 +76,14 @@ struct ComposerBar: View {
         // 這裡讀 `model.isReadOnly` 而不是橫幅:離線時橫幅是「離線」,但輸入列仍然不能送。
         if !model.isReadOnly {
             composer
+                .confirmationDialog(
+                    "Use mobile data?", isPresented: cellularWarningShown, titleVisibility: .visible
+                ) {
+                    Button("Send Anyway") { Task { await model.confirmCellularUpload() } }
+                    Button("Cancel", role: .cancel) { model.dismissCellularWarning() }
+                } message: {
+                    Text("Sending this video uses about \(ByteCountFormatter.string(fromByteCount: Int64(model.cellularUploadWarning ?? 0), countStyle: .file)) of mobile data.")
+                }
                 .onChange(of: model.lastSlashInsertion) { _, insertion in
                     // 選定後念出插入了哪個指令(文中選定時輸入框其他文字不變，光看朗讀不知道插了什麼,#230)。
                     guard let insertion else { return }
@@ -105,6 +113,12 @@ struct ComposerBar: View {
             }
             if let fileName = model.loadingFileName {
                 FileUploadProgressView(fileName: fileName)
+            }
+            if let progress = model.uploadProgress {
+                UploadProgressView(progress: progress) { model.cancelUpload() }
+            }
+            if let preparation = model.videoPreparation {
+                VideoPreparationView(preparation: preparation) { model.cancelVideoPreparation() }
             }
             if let option = model.typedAnswer {
                 TypedAnswerBanner(question: model.prompt?.question, option: option) { model.cancelTypedAnswer() }
@@ -264,6 +278,7 @@ struct ComposerBar: View {
                 placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
                 slashKey: { model.slash.handle($0) },
                 tabKey: acceptSuggestion,
+                inlineSlashNames: model.inlineSlashNames,
                 onComposingChange: { model.isComposingDraft = $0 },
                 caret: model.knownDraftCaret,
                 onCaretChange: { model.updateDraftCaret($1, in: $0) },
@@ -325,6 +340,10 @@ struct ComposerBar: View {
     // MARK: - 按鈕
 
     private static let cardCornerRadius: CGFloat = 24
+
+    private var cellularWarningShown: Binding<Bool> {
+        Binding { model.cellularUploadWarning != nil } set: { if !$0 { model.dismissCellularWarning() } }
+    }
 
     private func send() {
         // 送出就收起鍵盤，看得到 Agent 的回覆;被步驟擋下放回草稿時，再點輸入框繼續打(#329)。
@@ -536,6 +555,8 @@ extension SendNotice {
             String(localized: "This file is \(Self.byteCount(size)). Files sent to the host can be up to \(Self.byteCount(limit)).")
         case .fileUnreadable: String(localized: "Couldn’t read that file.")
         case .fileUploadFailed: String(localized: "Couldn’t upload the file to the host. Try again.")
+        case .videoTooLong: String(localized: "This video is too long to send, even after shrinking it. Trim it shorter, then add it again.")
+        case .videoUnreadable: String(localized: "Couldn’t read that video.")
         case .hostServiceUpdateRequired(let installedVersion):
             HostErrorText.message(for: HostServiceError.hostServiceUpdateRequired(.fileUpload, installedVersion: installedVersion))
         }
@@ -555,6 +576,7 @@ extension SendNotice {
         case .attachmentLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .attachOffline: "wifi.slash"
         case .fileTooLarge, .fileUnreadable: "doc"
+        case .videoTooLong, .videoUnreadable: "video"
         case .fileUploadFailed: "exclamationmark.triangle"
         case .hostServiceUpdateRequired: "arrow.down.circle"
         case .unconfirmed: "questionmark.circle"
@@ -738,6 +760,8 @@ struct ComposerEditorOptions {
     var slashKey: (SlashMenuModel.Key) -> Bool
     /// slash 選單沒處理的硬體鍵盤 Tab(接受建議提示詞，#123;回傳 true 表示已處理，否則交給系統)。
     var tabKey: () -> Bool = { false }
+    /// 訊息中間要上色的 slash 指令名稱(#469);開頭的指令不論有沒有在裡面都上色。
+    var inlineSlashNames: Set<String> = []
     /// 組字狀態(有 marked text)改變時呼叫(#138)。
     var onComposingChange: (Bool) -> Void = { _ in }
     /// 程式改寫草稿時要放的游標(UTF-16 位置);`nil` 時保持與結尾的距離。
@@ -795,6 +819,7 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.onSend = options.onSend
         view.slashKey = options.slashKey
         view.tabKey = options.tabKey
+        view.inlineSlashNames = options.inlineSlashNames
         view.pasteAction = options.pasteAction
         view.onPasteImages = options.onPasteImages
         // 程式改寫草稿：組字中延後到組字結束，不打斷正在組的字(#138)。
@@ -979,26 +1004,41 @@ final class KeyHandlingTextView: UITextView {
         setNeedsLayout()
     }
 
-    /// 開頭的 skill／slash 指令用主色(`tintColor`,跟著 SwiftUI 的 tint 與主機主題;#329),其餘是主要文字色。組字中不動(改屬性會打斷組字)。
+    /// 訊息中間要上色的 slash 指令名稱(#469);變了就重畫著色。
+    var inlineSlashNames: Set<String> = [] {
+        didSet { if oldValue != inlineSlashNames { highlightSlashToken() } }
+    }
+
+    /// 開頭的 skill／slash 指令與訊息中間在清單裡的指令用主色(`tintColor`,跟著 SwiftUI 的 tint 與主機主題;#329、#469),其餘是主要文字色。組字中不動(改屬性會打斷組字)。
     func highlightSlashToken(force: Bool = false) {
         guard markedTextRange == nil else { return }
         let storage = textStorage
         let whole = NSRange(location: 0, length: storage.length)
-        let token = SlashToken.range(in: text).map { NSRange($0, in: text) }
-        var current: NSRange?
-        if storage.length > 0 {
-            var effective = NSRange()
-            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == accentTint {
-                current = effective
-            }
+        let tokens = SlashToken.ranges(in: text, known: inlineSlashNames).map { NSRange($0, in: text) }
+        var current: [NSRange] = []
+        storage.enumerateAttribute(.foregroundColor, in: whole) { value, range, _ in
+            if let color = value as? UIColor, color == accentTint { current.append(range) }
         }
-        guard force || current != token else { return }
+        guard force || Self.merged(current) != Self.merged(tokens) else { return }
         storage.beginEditing()
         storage.addAttribute(.foregroundColor, value: UIColor.label, range: whole)
-        if let token { storage.addAttribute(.foregroundColor, value: accentTint, range: token) }
+        for token in tokens { storage.addAttribute(.foregroundColor, value: accentTint, range: token) }
         storage.endEditing()
         // 接著打的字照一般顏色，不延續指令的綠色。
         typingAttributes[.foregroundColor] = UIColor.label
+    }
+
+    /// 相鄰的範圍併成一段(屬性的連續區段會合併，比較前先對齊)。
+    private static func merged(_ ranges: [NSRange]) -> [NSRange] {
+        var result: [NSRange] = []
+        for range in ranges.sorted(by: { $0.location < $1.location }) {
+            if let last = result.last, last.location + last.length >= range.location {
+                result[result.count - 1] = NSRange(location: last.location, length: max(last.length, range.location + range.length - last.location))
+            } else {
+                result.append(range)
+            }
+        }
+        return result
     }
 
     /// 繼承來的主色(跟著 SwiftUI 的 tint 與主機主題):指令著色用它。

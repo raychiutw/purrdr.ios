@@ -38,23 +38,24 @@ struct HostsTab: View {
         NavigationStack(path: $flow.path) {
             content
                 .navigationTitle("Host")
+                .toolbar(removing: hosts.overview != nil ? .title : nil)
                 #if os(iOS)
-                // 頂列中間是主機選單,不顯示大標題(設計稿 Host)。
+                // 頂列左邊是主機選單(#475,各 tab 同一個位置),不顯示大標題(設計稿 Host)。
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
                     if hosts.overview != nil {
-                        ToolbarItem(placement: .principal) {
-                            HostPickerButton(model: hosts.selectedHostPicker(), identifier: "hosts.host", addHost: openAddHost)
+                        ToolbarItem(placement: TopNavigationView.modePlacement) {
+                            HostPickerButton(model: hosts.selectedHostPicker(), identifier: "hosts.host", addHost: openAddHost, inToolbar: true)
                         }
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
+                            .tint(Color.appAccent)
                             .accessibilityIdentifier("hosts.add")
                     }
                     ToolbarSpacer(.fixed, placement: .primaryAction)
                     ToolbarItem(placement: .primaryAction) { AccountButton(member: member, action: openAccount) }
-                        .sharedBackgroundVisibility(.hidden)
                 }
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }
@@ -180,6 +181,11 @@ struct HostsTab: View {
                 if let settings = hosts.hostSettings(for: id) {
                     HostSettingsPage(
                         hosts: hosts, hostID: id, settings: settings, isReadOnly: hosts.overview?.status == .readOnly)
+                        .appPageContentWidth()
+                }
+            case .agents(let id):
+                if let model = hosts.agentSettings(for: id) {
+                    HostAgentSettingsPage(hosts: hosts, hostID: id, model: model)
                         .appPageContentWidth()
                 }
             case .pairedDevices(let id):

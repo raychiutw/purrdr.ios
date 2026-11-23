@@ -46,6 +46,32 @@ struct ConversationScrollTests {
         #expect(scroll.showsJumpToLatest)
 
         scroll.jumpToLatest()
+        scroll.layoutChanged(distanceFromBottom: 0)
+        #expect(scroll.showsJumpToLatest == false)
+        #expect(scroll.autoScrollsOnNewContent)
+    }
+
+    /// #476 重現:跟隨尾端時內容被撐長、自動捲到底沒有落地(估算高度、往前補讀、鍵盤開合後),實際已離底很遠;
+    /// 舊規則以「是否跟隨」為條件,按鈕不出現,使用者看不到回到最新的入口。顯示只看離底距離。
+    @Test("跟隨尾端但實際離底很遠:仍顯示跳到最新(#476)")
+    func showsWhenFarFromBottomEvenWhileFollowing() {
+        var scroll = ConversationScroll()
+        #expect(scroll.autoScrollsOnNewContent)
+        scroll.layoutChanged(distanceFromBottom: 600)
+        #expect(scroll.showsJumpToLatest)
+        scroll.layoutChanged(distanceFromBottom: 48)
+        #expect(scroll.showsJumpToLatest == false)
+    }
+
+    @Test("點跳到最新後:捲動沒落地(量到的距離仍遠)按鈕仍在,不因旗標而消失(#476)")
+    func tapKeepsButtonUntilMeasuredAtBottom() {
+        var scroll = ConversationScroll()
+        scroll.userScrolled(distanceFromBottom: 900)
+        scroll.jumpToLatestByTap()
+        #expect(scroll.showsJumpToLatest, "還沒量到抵達底部,不能先假設已到")
+        scroll.layoutChanged(distanceFromBottom: 900)
+        #expect(scroll.showsJumpToLatest)
+        scroll.layoutChanged(distanceFromBottom: 0)
         #expect(scroll.showsJumpToLatest == false)
         #expect(scroll.autoScrollsOnNewContent)
     }
@@ -58,6 +84,8 @@ struct ConversationScrollTests {
         // 慣性還在捲、按鈕剛點下:捲動途中的量測仍算「使用者捲動」,不能把跟隨改回去。
         scroll.userScrolled(distanceFromBottom: 700)
         #expect(scroll.autoScrollsOnNewContent)
+        // 顯示只看量到的距離(#476):還沒抵達底部時按鈕仍在,抵達後才收起。
+        scroll.userScrolled(distanceFromBottom: 0)
         #expect(scroll.showsJumpToLatest == false)
     }
 
@@ -116,12 +144,13 @@ struct ConversationScrollTests {
         #expect(scroll.showsJumpToLatest == false)
     }
 
-    @Test("新訊息跟隨：在底部時新內容撐開距離，按鈕不閃現")
+    @Test("新訊息跟隨：新內容撐開距離只是暫時(畫面延遲顯示按鈕避免閃現，#476),捲到底量到 0 就收起")
     func newContentWhileFollowingHidesJumpToLatest() {
         var scroll = ConversationScroll()
         scroll.userScrolled(distanceFromBottom: Self.measured(offsetY: 56).distanceFromBottom)
         scroll.layoutChanged(distanceFromBottom: Self.measured(offsetY: 56, contentHeight: 1244).distanceFromBottom)
         #expect(scroll.autoScrollsOnNewContent)
+        scroll.layoutChanged(distanceFromBottom: 0)
         #expect(scroll.showsJumpToLatest == false)
     }
 
@@ -411,5 +440,31 @@ struct ConversationScrollTests {
         #expect(!ConversationScroll().refillsVisibleRange(squeezed, visibleRows: 0))
         let squeezedBeyond = ConversationScrollMetrics(contentHeight: 29390, containerHeight: 6, contentOffsetY: 29653, topInset: 116, bottomInset: 752)
         #expect(!ConversationScroll().returnsToContent(squeezedBeyond, at: Date(timeIntervalSince1970: 1_000)), "停在內容之外也不捲")
+    }
+
+    // MARK: 往前讀(#473)
+
+    private func metrics(content: Double, container: Double = 600, offset: Double = 0) -> ConversationScrollMetrics {
+        ConversationScrollMetrics(contentHeight: content, containerHeight: container, contentOffsetY: offset, topInset: 0, bottomInset: 0)
+    }
+
+    @Test("內容不夠填滿畫面:沒拖動過也往前讀")
+    func underfilledContentLoadsOlderWithoutDragging() {
+        #expect(metrics(content: 300).wantsOlderPage(userHasDragged: false, autoLoadedPages: 0, autoLoadLimit: 25))
+    }
+
+    @Test("內容夠長、沒拖動過:不讀;拖動到離頂端一個畫面內才讀")
+    func longContentWaitsForDragging() {
+        #expect(!metrics(content: 5_000, offset: 4_400).wantsOlderPage(userHasDragged: false, autoLoadedPages: 0, autoLoadLimit: 25))
+        #expect(!metrics(content: 5_000, offset: 4_400).wantsOlderPage(userHasDragged: true, autoLoadedPages: 0, autoLoadLimit: 25))
+        #expect(metrics(content: 5_000, offset: 500).wantsOlderPage(userHasDragged: true, autoLoadedPages: 0, autoLoadLimit: 25))
+    }
+
+    @Test("自動補讀有頁數上限;排版還沒量到(高度 0)不觸發")
+    func autoLoadIsBoundedAndWaitsForLayout() {
+        #expect(!metrics(content: 300).wantsOlderPage(userHasDragged: false, autoLoadedPages: 25, autoLoadLimit: 25))
+        #expect(metrics(content: 300).wantsOlderPage(userHasDragged: true, autoLoadedPages: 25, autoLoadLimit: 25), "使用者拖動不受自動上限限制")
+        #expect(!metrics(content: 0).wantsOlderPage(userHasDragged: false, autoLoadedPages: 0, autoLoadLimit: 25))
+        #expect(!metrics(content: 300, container: 0).wantsOlderPage(userHasDragged: false, autoLoadedPages: 0, autoLoadLimit: 25))
     }
 }

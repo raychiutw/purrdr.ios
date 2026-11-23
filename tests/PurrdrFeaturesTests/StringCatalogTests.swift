@@ -113,13 +113,15 @@ struct StringCatalogTests {
         }
     }
 
-    /// GLOSSARY「新增主機引導」:畫面上 OpenSSH 稱「原生 SSH」,不另外叫「內建 SSH」。
-    @Test("繁體中文稱「原生 SSH」,不用「內建 SSH」")
-    func chineseCallsOpenSSHNative() throws {
+    /// GLOSSARY「新增主機引導」:畫面上 OpenSSH 只稱「SSH」(#477),不叫「原生 SSH」或「內建 SSH」。
+    @Test("繁體中文稱「SSH」,不用「原生 SSH」「內建 SSH」")
+    func chineseCallsOpenSSHJustSSH() throws {
         for entry in try Self.entries() {
             for chinese in entry.chinese {
-                #expect(!chinese.contains("內建 SSH"), "「\(entry.key)」→「\(chinese)」請改稱原生 SSH")
+                #expect(!chinese.contains("內建 SSH") && !chinese.contains("原生 SSH"), "「\(entry.key)」→「\(chinese)」請改稱 SSH")
             }
+            #expect(!entry.key.localizedCaseInsensitiveContains("built-in SSH") && !entry.key.localizedCaseInsensitiveContains("native SSH"),
+                    "「\(entry.key)」英文請改稱 SSH")
         }
     }
 
