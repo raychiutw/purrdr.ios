@@ -1,0 +1,788 @@
+<title>第一階版型原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 版面概念:上方是控制列(深淺、字級),下方依決定項分區;每區 2~5 個方案的手機並排,可操作、可選。 */
+:root{
+  --bg:#F3F5F3;--surface:#FFFFFF;--ink:#14211C;--muted:#566860;--line:#D6DED9;--stage:#E4E9E6;
+  --accent:#0B7A5C;--accent-ink:#FFFFFF;--accent-soft:#DDF0E8;--warn:#9A4A06;--warn-soft:#FBEBDA;--bad:#B42318;--bad-soft:#FCE4E1;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1311;--surface:#171D1A;--ink:#E7EEEA;--muted:#9AAAA2;--line:#2A332F;--stage:#0B0F0D;
+  --accent:#3CCF9E;--accent-ink:#04251B;--accent-soft:#12372B;--warn:#F0A35E;--warn-soft:#3A2713;--bad:#FF8A82;--bad-soft:#3E1A17;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1311;--surface:#171D1A;--ink:#E7EEEA;--muted:#9AAAA2;--line:#2A332F;--stage:#0B0F0D;
+  --accent:#3CCF9E;--accent-ink:#04251B;--accent-soft:#12372B;--warn:#F0A35E;--warn-soft:#3A2713;--bad:#FF8A82;--bad-soft:#3E1A17;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
+h1{font-size:clamp(24px,4vw,34px);line-height:1.2;margin:0 0 8px;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:22px;margin:0;text-wrap:balance}
+h3{font-size:17px;margin:0}
+p{margin:0}
+.lead{max-width:62ch;color:var(--muted);font-size:16px}
+.lead b{color:var(--ink)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* 控制列 */
+.ctl{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;margin-block:20px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:30}
+.ctl .grp{display:flex;align-items:center;gap:8px;min-width:0}
+.ctl label,.ctl .lab{font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:2px}
+.seg button{border:0;background:transparent;padding:5px 12px;border-radius:8px;cursor:pointer;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+input[type=range]{accent-color:var(--accent);width:160px}
+.axv{font-variant-numeric:tabular-nums;font-size:13px;min-width:7.5em}
+.nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.nav a{font-size:13px;border:1px solid var(--line);border-radius:999px;padding:3px 11px;color:var(--ink);text-decoration:none;background:var(--surface)}
+.nav a:hover{border-color:var(--accent)}
+
+/* 區塊 */
+section.sec{margin-top:48px}
+.sec>header{margin-bottom:14px;display:flex;flex-direction:column;gap:4px}
+.sec>header p{color:var(--muted);max-width:70ch}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;margin-top:16px}
+.ghead{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:6px}
+.did{font-weight:700;font-size:13px;background:var(--ink);color:var(--surface);border-radius:6px;padding:1px 8px;letter-spacing:.04em}
+.q{color:var(--muted);max-width:75ch;margin-bottom:12px}
+.gtools{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:12px}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pills button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:3px 12px;font-size:13px;cursor:pointer}
+.pills button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.chk{font-size:13px;display:flex;gap:6px;align-items:center;color:var(--muted)}
+.vrow{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.vcard{border:2px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%;background:var(--bg)}
+.vcard.sel{border-color:var(--accent);background:var(--accent-soft)}
+.vtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vname{font-weight:700;font-size:15px}
+.badge{font-size:12px;font-weight:700;border-radius:999px;padding:1px 9px;background:var(--accent);color:var(--accent-ink)}
+.badge.ref{background:var(--line);color:var(--muted)}
+.badge.unc{background:var(--warn-soft);color:var(--warn)}
+.pick{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;cursor:pointer;margin-left:auto;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface)}
+.vcard.sel .pick{border-color:var(--accent)}
+.pick input{accent-color:var(--accent);width:16px;height:16px;margin:0}
+.phones{display:flex;gap:14px;align-items:flex-start;background:var(--stage);padding:12px;border-radius:12px;max-width:100%;overflow-x:auto}
+.phones .one{display:flex;flex-direction:column;gap:6px;align-items:center;flex:none}
+.cap{font-size:12px;color:var(--muted);text-align:center}
+.notes{display:grid;gap:4px;font-size:13.5px;max-width:34ch;min-width:200px}
+.notes dt{font-weight:700;font-size:12px;color:var(--muted);letter-spacing:.06em;margin-top:2px}
+.notes dd{margin:0}
+.notes .unc{color:var(--warn)}
+.five{margin-top:12px;background:var(--stage);border-radius:12px;padding:12px;overflow-x:auto}
+.five .cap{margin-bottom:6px;text-align:left}
+.five .rowp{display:flex;gap:12px}
+.five .one{display:flex;flex-direction:column;gap:4px;align-items:center;flex:none}
+.mini{margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* 總覽與彙總 */
+.overview{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;margin-top:20px}
+.overview .rowp{display:flex;gap:14px;overflow-x:auto;background:var(--stage);padding:12px;border-radius:12px}
+.overview .one{display:flex;flex-direction:column;gap:4px;align-items:center;flex:none}
+table.sum{width:100%;border-collapse:collapse;font-size:14px}
+table.sum th,table.sum td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.sum th{font-size:12px;color:var(--muted);letter-spacing:.05em}
+.tblwrap{overflow-x:auto}
+textarea#out{width:100%;min-height:210px;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical}
+.btn{border:0;background:var(--accent);color:var(--accent-ink);font-weight:700;border-radius:10px;padding:8px 16px;cursor:pointer}
+.ok{font-size:13px;color:var(--muted);margin-left:10px}
+.tag-rec{color:var(--accent);font-weight:700}
+.tag-diff{color:var(--warn);font-weight:700}
+
+
+/* ---------- v2 區塊補充 ---------- */
+.rowp2{margin-bottom:10px}
+.rowp2 .rowp{display:flex;gap:12px}
+.rowp2>.cap{text-align:left;font-weight:700;margin-bottom:4px;color:var(--ink)}
+.s0row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+.decided{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.decided li{display:flex;gap:10px;align-items:flex-start}
+.decided .n{flex:none;font-weight:700;font-size:12px;background:var(--accent);color:var(--accent-ink);border-radius:6px;padding:1px 8px;margin-top:2px}
+.lbl{font-size:13px;color:var(--muted)}
+
+/* ---------- 手機畫面 ---------- */
+.pw{position:relative;flex:none;overflow:hidden;border-radius:calc(46px*var(--s));box-shadow:0 0 0 calc(5px*var(--s)) #0E0E10;margin:calc(5px*var(--s))}
+.pw.crop{height:calc(var(--ch)*var(--s));border-radius:calc(46px*var(--s)) calc(46px*var(--s)) 0 0}
+.ph{position:absolute;left:0;top:0;width:402px;height:874px;transform:scale(var(--s));transform-origin:0 0;overflow:hidden;background:var(--gbg);color:var(--text);font-family:var(--font);line-height:1.25;border-radius:46px}
+.pd{--bg:#1C1C1E;--gbg:#1C1C1E;--card:#2C2C2E;--fill:rgba(120,120,128,.32);--text:#FFFFFF;--sec:#AEAEB2;--dis:#8E8E93;--sep:rgba(84,84,88,.65);--accent:#3CCF9E;--on:#000000;--tabsel:#3CCF9E;--glass:rgba(58,58,60,.72);--glassline:rgba(255,255,255,.16);--orange:#FF9F0A;--ok:#6FAE98;--warnr:#C99A6A;--high:#C98078;--track:rgba(120,120,128,.28);--claude:#4A3A33;--claudefg:#F0B8A0;--codex:#2F3A48;--codexfg:#A9C4E8;--gray:#8E8E93;--badge:#1F3F34}
+.pl{--bg:#FFFFFF;--gbg:#F2F2F7;--card:#FFFFFF;--fill:rgba(120,120,128,.16);--text:#000000;--sec:#636366;--dis:#8E8E93;--sep:rgba(60,60,67,.29);--accent:#0B7A5C;--on:#FFFFFF;--tabsel:#075C45;--glass:rgba(255,255,255,.72);--glassline:rgba(0,0,0,.08);--orange:#FF9500;--ok:#4F8572;--warnr:#A9784A;--high:#B0645D;--track:rgba(120,120,128,.16);--claude:#F6E3DA;--claudefg:#8A4A30;--codex:#DDE7F4;--codexfg:#2F4F7A;--gray:#8E8E93;--badge:#D6EBE3}
+.ph svg{display:block;flex:none}
+.glass{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6)}
+.sbar{position:absolute;top:0;left:0;right:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:6px 34px 0 38px;font-size:16px;font-weight:600;z-index:8}
+.bat{width:26px;height:12px;border:1.5px solid var(--sec);border-radius:4px;position:relative}
+.bat::after{content:"";position:absolute;inset:1.5px 6px 1.5px 1.5px;background:var(--text);border-radius:1.5px}
+.scroller{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+.scroller::-webkit-scrollbar{display:none}
+.cin{min-height:1250px;padding-bottom:140px}
+.scrim{position:absolute;left:0;right:0;top:0;height:64px;z-index:4;pointer-events:none;background:linear-gradient(var(--gbg) 0,var(--gbg) 60%,transparent)}
+.lay-in .scrim{height:118px;background:linear-gradient(var(--gbg) 0,var(--gbg) 70%,transparent)}
+.nos-away.lay-pod .scrim{height:56px;background:var(--gbg)}
+/* 頂列:大標題列(Podcast 式)與固定列(inline) */
+.tbar{position:absolute;top:54px;left:20px;right:16px;display:flex;align-items:center;justify-content:space-between;gap:8px;z-index:5}
+.lay-pod .tbar,.lay-pod .sub{opacity:calc(1 - var(--p)*2.2);transform:translateY(calc(var(--p)*-26px))}
+.lay-pod.nos-away .tbar.nosearch,.lay-pod.nos-away .sub.nosearch{opacity:1;transform:translateY(calc(var(--sy)*-1));z-index:3}
+.ttl{font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ttl.in{font-size:22px}
+.ttl small{display:block;font-size:12px;font-weight:500;color:var(--sec);letter-spacing:0}
+.sub{position:absolute;left:20px;z-index:5;font-size:13px;color:var(--sec)}
+.stt{position:absolute;z-index:5;top:58px;left:50%;height:40px;padding:0 20px;border-radius:999px;display:flex;align-items:center;font-size:17px;font-weight:600;opacity:calc(var(--p)*1.7 - .6);transform:translateX(-50%) translateY(calc((1 - var(--p))*10px))}
+.ctls{display:flex;align-items:center;gap:8px;flex:none}
+.cap2{display:flex;align-items:center;border-radius:999px;height:44px}
+.seg1{width:46px;height:44px;display:flex;align-items:center;justify-content:center;position:relative;flex:none;border-radius:999px}
+.cap2 .div{width:1px;height:20px;background:var(--glassline);opacity:1}
+.cap2.one .seg1{width:44px}
+.plusfill{width:38px;height:38px;border-radius:19px;background:var(--accent);color:var(--on);display:flex;align-items:center;justify-content:center;margin-right:3px}
+.sdot{position:absolute;top:8px;right:8px;width:9px;height:9px;border-radius:5px;background:var(--accent);box-shadow:0 0 0 2px var(--glass)}
+.avc{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;flex:none}
+/* 搜尋 */
+.srow{position:absolute;left:16px;right:16px;z-index:5;display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--sec);font-size:calc(17px*var(--m2));top:calc(var(--st0) - var(--dst)*var(--p));height:calc(var(--sh) + 4px*var(--p))}
+.srow>.sf,.srow>.sg{position:absolute;inset:0;border-radius:999px;z-index:0}
+.sf{background:var(--fill);opacity:calc(1 - var(--p)*1.4)}
+.sg{background:var(--glass);border:1px solid var(--glassline);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);opacity:calc(var(--p)*1.6 - .2);box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.srow>*:not(.sf):not(.sg){position:relative;z-index:1}
+.stx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search{margin:4px 16px 8px;height:calc(40px*var(--m2));border-radius:999px;background:var(--fill);display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--sec);font-size:calc(17px*var(--m2))}
+/* 最終定稿標註 */
+.finrow{display:flex;flex-wrap:wrap;gap:18px 22px;align-items:flex-start}
+.pinw{position:relative}
+.pbox{position:absolute;border:2px solid #E5368B;border-radius:6px;pointer-events:none;z-index:30;background:rgba(229,54,139,.08)}
+.pin{position:absolute;left:-9px;top:-9px;min-width:18px;height:18px;border-radius:9px;background:#E5368B;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1}
+.spec{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13.5px;flex:1 1 320px;min-width:280px;max-width:640px;margin:0}
+.spec dt{margin:0}
+.spec dd{margin:0}
+.pinb{display:inline-flex;min-width:20px;height:20px;border-radius:10px;background:#E5368B;color:#fff;font-size:12px;font-weight:800;align-items:center;justify-content:center;padding:0 5px}
+.spec b{font-weight:700}
+/* A 寬鬆版 */
+.loose .sh{padding:26px 20px 8px;font-size:calc(14px*var(--m));font-weight:600;letter-spacing:.02em}
+.loose .sh:first-child{padding-top:10px}
+.loose .row{padding:14px 16px 0;gap:14px}
+.loose .av{width:48px;height:48px}
+.loose .face{width:48px;height:48px;border-radius:14px}
+.loose .rb{padding-bottom:16px;gap:10px}
+.loose .mc{gap:5px}
+.loose .n1{font-size:calc(17px*var(--m));font-weight:600;line-height:1.3}
+.loose .s2{font-size:calc(15px*var(--m));color:var(--sec);font-weight:500;line-height:1.3}
+.loose .s2 .tn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.loose .s3{font-size:calc(14px*var(--m));color:var(--sec);line-height:1.3}
+.loose .s3.w{white-space:normal}
+.loose .s3.w span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.loose .rc{gap:8px;min-width:58px;padding-top:2px}
+.loose .stack .rc{gap:14px;padding-top:0}
+/* 彈出選單與帳號頁 */
+.menu{position:absolute;right:16px;width:262px;z-index:12;border-radius:26px;padding:6px;box-shadow:0 12px 36px rgba(0,0,0,.35)}
+.mi{display:flex;align-items:center;gap:12px;height:48px;padding:0 14px;font-size:17px;border-radius:20px;color:var(--text)}
+.mi .ck{width:18px;display:flex;flex:none}
+.mi.dis{color:var(--dis)}
+.mi.hl{background:var(--fill)}
+.msep{height:1px;background:var(--sep);margin:4px 12px}
+.mh{font-size:13px;color:var(--sec);padding:8px 14px 2px}
+.sdim{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:19}
+.acct{position:absolute;left:0;right:0;bottom:0;z-index:20;background:var(--gbg);display:flex;flex-direction:column;overflow:hidden}
+.acct.sheet{top:46px;border-radius:38px 38px 0 0;box-shadow:0 -6px 30px rgba(0,0,0,.35)}
+.acct.full{top:0;padding-top:54px}
+.ah{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px 16px;font-size:17px}
+.done{border-radius:999px;padding:8px 16px;font-weight:600}
+.back{display:flex;align-items:center;gap:2px;color:var(--text);font-weight:500}
+.ab{flex:1;min-height:0;overflow:hidden;padding-top:4px}
+.lt{font-weight:700;letter-spacing:-.01em;padding:0 20px 6px;display:flex;align-items:center;gap:8px}
+/* 列與卡片 */
+.sh{display:flex;align-items:center;gap:8px;font-size:calc(15px*var(--m));color:var(--sec);padding:14px 16px 2px}
+.row{display:flex;gap:12px;padding:10px 16px 0;align-items:flex-start;cursor:default}
+.row.mid{align-items:center}
+.av{position:relative;width:44px;height:44px;flex:none}
+.face{width:44px;height:44px;border-radius:13px;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.face.claude{background:var(--claude);color:var(--claudefg)}
+.face.codex{background:var(--codex);color:var(--codexfg)}
+.sb{position:absolute;right:-4px;bottom:-4px;width:20px;height:20px;border-radius:10px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2.5px solid var(--gbg);box-sizing:content-box;margin:-2.5px}
+.sb.need{background:var(--orange);color:#000}.sb.work{background:var(--accent);color:var(--on)}.sb.done{background:var(--gray);color:#fff}
+.rb{flex:1;min-width:0;display:flex;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--sep)}
+.rb.stack{flex-direction:column}
+.mc{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.rc{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none;font-size:calc(13px*var(--m));color:var(--sec)}
+.stack .rc{flex-direction:row;align-items:center;gap:10px}
+.n1{font-size:calc(17px*var(--m));font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.n1.w{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.n1 .dim{color:var(--sec);font-weight:400}
+.s2{font-size:calc(15px*var(--m));color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s2.w{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.s3{font-size:calc(13px*var(--m));color:var(--dis);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:5px;align-items:center}
+.s3 span{overflow:hidden;text-overflow:ellipsis}
+.l1now{display:flex;gap:6px;align-items:baseline}
+.l1now .a{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(17px*var(--m));font-weight:600}
+.l1now .b{flex:0 99 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(17px*var(--m));color:var(--sec)}
+.pillA{flex:0 1 auto;font-size:calc(13px*var(--m));background:var(--fill);color:var(--text);border-radius:12px;padding:3px 9px;line-height:1.25}
+.pv2{font-size:calc(15px*var(--m));color:var(--sec);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;gap:6px}
+.hi{display:inline-flex;vertical-align:-5px;margin-right:6px}
+.tag{display:inline-block;font-size:calc(12px*var(--m));font-weight:600;background:var(--fill);color:var(--text);border-radius:6px;padding:0 6px;margin-right:6px;line-height:1.5;white-space:nowrap}
+.tagR{font-size:calc(11px*var(--m));font-weight:600;background:var(--fill);color:var(--text);border-radius:6px;padding:0 6px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:4px;background:var(--orange);flex:none}
+.ring{display:flex;align-items:center;gap:3px}
+.card{background:var(--card);border-radius:22px;margin:0 16px 14px;overflow:hidden}
+.cell{display:flex;align-items:center;gap:12px;padding:0 0 0 16px;min-height:52px}
+.cell .cb{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 16px 10px 0;border-bottom:1px solid var(--sep)}
+.cell:last-child .cb{border-bottom:0}
+.cell .mn{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.cell .t{font-size:calc(17px*var(--m))}
+.cell .u{font-size:calc(13px*var(--m));color:var(--sec)}
+.cell .val{color:var(--sec);font-size:calc(17px*var(--m))}
+.cell .lead{color:var(--sec);display:flex;max-width:none}
+.crumb{margin:2px 16px 8px;font-size:calc(14px*var(--m));color:var(--sec);display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden}
+.crumb b{color:var(--text);font-weight:600}
+.big{font-size:calc(40px*var(--m));font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.pad{padding:16px}
+.bars{display:flex;align-items:flex-end;gap:7px;height:78px;margin-top:12px}
+.bars i{flex:1;background:var(--accent);border-radius:4px 4px 2px 2px;opacity:.85}
+.bars i:last-child{opacity:1}
+.toggle{width:51px;height:31px;border-radius:16px;background:var(--accent);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:2px;left:22px;width:27px;height:27px;border-radius:14px;background:#fff}
+.chip3{display:flex;background:var(--fill);border-radius:10px;padding:2px;margin:0 16px 12px;font-size:calc(13px*var(--m));font-weight:600}
+.chip3 span{flex:1;text-align:center;padding:5px 0;border-radius:8px}
+.chip3 span.on{background:var(--card)}
+.tabbar{position:absolute;left:20px;right:20px;bottom:26px;height:64px;border-radius:32px;display:flex;align-items:center;padding:0 6px;z-index:10}
+.tab{flex:1;height:54px;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500;color:var(--text)}
+.tab.on{background:var(--fill);color:var(--tabsel);font-weight:700}
+.tbadge{position:absolute;top:-5px;right:-12px;min-width:18px;height:18px;border-radius:9px;background:#FF3B30;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.tabicon{position:relative;display:flex}
+.warnpill{position:absolute;z-index:9;left:50%;top:330px;transform:translateX(-50%);background:#B42318;color:#fff;font-size:17px;font-weight:700;border-radius:10px;padding:5px 12px;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>第一階 4 個 tab 版型與頂列</h1>
+    <p class="lead"><b>請你決定:</b>整體版型(Podcast 式或 inline)、頂列顏色、目前主機怎麼看得出來、沒有搜尋的 tab 捲動時的標題、帳號頁形式、聊天 tab 名稱、Spaces 列版型、新增符號、流量頁。手機畫面可以直接操作(滑動內容、點 tab、點電腦圖示、＋、頭像),選一個後頁底會彙總成可複製的清單。預設已選研究報告的建議。</p>
+    <p class="lead" style="margin-top:6px">畫面是 iOS 26 液態玻璃的示意,不是實機截圖;版型取自你給的 4 張 Apple Podcast 參考圖。標「未確認」的項目,研究報告沒有查證到或沒有實測,請當作假設看待。</p>
+  </header>
+
+  <div class="ctl" role="group" aria-label="預覽設定">
+    <div class="grp"><span class="lab">手機外觀</span>
+      <div class="seg"><button type="button" id="th-dark" aria-pressed="true">深色</button><button type="button" id="th-light" aria-pressed="false">淺色</button></div></div>
+    <div class="grp"><label for="ax">字級</label><span class="lab">一般</span><input id="ax" type="range" min="0" max="100" value="0"><span class="lab">AX5</span><span class="axv" id="axv">一般</span></div>
+    <div class="grp"><span class="lab">頁面外觀跟隨系統</span></div>
+  </div>
+
+  <nav class="nav" id="nav" aria-label="決定項"></nav>
+  <div id="sections"></div>
+
+  <section class="sec" id="summary">
+    <header><h2>我的選擇</h2><p>下表即時反映你選的方案,最上面是你已經指定、不用再選的項目。複製後貼回對話就能開票。</p></header>
+    <div class="group">
+      <div class="tblwrap"><table class="sum"><thead><tr><th>項目</th><th>題目</th><th>你的選擇</th><th>對照建議</th></tr></thead><tbody id="sumbody"></tbody></table></div>
+      <div style="margin:14px 0 8px;display:flex;align-items:center;flex-wrap:wrap;gap:6px"><button class="btn" id="copy" type="button">複製清單</button><span class="ok" id="copied" role="status"></span></div>
+      <textarea id="out" readonly aria-label="我的選擇清單"></textarea>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ---------------- 圖示 ---------------- */
+const IC={
+ chevD:'<path d="M6 9l6 6 6-6"/>',chevR:'<path d="M9 6l6 6-6 6"/>',plus:'<path d="M12 5v14M5 12h14"/>',
+ pencil:'<path d="M11 4H6.5A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V13"/><path d="M17.8 3.2a2 2 0 0 1 3 3L12 15l-4 1 1-4z"/>',
+ ppl:'<circle cx="9" cy="8" r="3.2"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4.5 1.7 4.5 4.5"/>',
+ split:'<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M12 5v14"/>',
+ search:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>',
+ desk:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/>',
+ mini:'<rect x="3" y="9" width="18" height="7" rx="2.5"/><path d="M7 12.5h2"/>',
+ chat:'<path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h6.5A2.5 2.5 0 0 1 15 6.5v3.5a2.5 2.5 0 0 1-2.5 2.5H9l-3 2.5v-2.5A2.5 2.5 0 0 1 3.5 10z"/><path d="M17.5 8.5h.5A2.5 2.5 0 0 1 20.5 11v3.5a2.5 2.5 0 0 1-2.5 2.5v2.5L15 17h-3"/>',
+ folder:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2.5h6.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
+ doc:'<path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5z"/><path d="M14 3.5V8h4"/>',
+ updown:'<path d="M8 20V5M8 5L4.5 8.5M8 5l3.5 3.5M16 4v15M16 19l-3.5-3.5M16 19l3.5-3.5"/>',
+ wifi:'<path d="M3 9.5a13 13 0 0 1 18 0M6 13a8.5 8.5 0 0 1 12 0M9 16.5a4 4 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".8"/>',
+ cell:'<path d="M5 19V15M10 19V11M15 19V7M20 19V4"/>',
+ check:'<path d="M5 12.5l4.5 4.5L19 7"/>',
+ x:'<path d="M6 6l12 12M18 6L6 18"/>'
+};
+const svg=(n,s=22,sw=1.8)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+
+/* ---------------- 假資料 ---------------- */
+const AG=[
+ {id:'a',ws:'purrdr',tab:'purrdr.ios',n:1,title:'Agent 設定檔的領域文件',host:'Ray PC',hi:'desk',pv:'好,「值得探討」和「推測性」的差別在於有沒有證據',time:'現在',pct:64,st:'work',av:'C',away:'離開期間 · +1 輪'},
+ {id:'b',ws:'purrdr',tab:'',n:2,title:'Mattpocock-skills 全部票券單一 PR',host:'Ray Mac Mini',hi:'mini',pv:'PR #89 已經下令合併,0.14.1 即將發佈',time:'15:13',pct:43,st:'done',av:'C'},
+ {id:'c',ws:'purrdr',tab:'',n:3,title:'Implement-spec 的 to-spec 與 to-tickets',host:'Ray Mac Mini',hi:'mini',pv:'0.50.0 已經發佈了。PR #418 已合併進主分支',time:'15:12',pct:70,st:'done',av:'C',away:'離開期間 · +1 輪'},
+ {id:'d',ws:'purrdr',tab:'',n:4,title:'herdr.sock SSH 公鑰設定',host:'Ray Mac Mini',hi:'mini',pv:'purrdr-ios-ea 已修好設計稿的對比問題',time:'15:12',pct:30,st:'done',av:'C'},
+ {id:'e',ws:'purrdr',tab:'',n:5,title:'purrdr',host:'Ray PC',hi:'desk',pv:'要執行 rm -rf build 嗎?',time:'15:10',pct:12,st:'need',av:'A'},
+ {id:'f',ws:'herdr',tab:'',n:1,title:'herdr 0.9.6 更新後連線測試',host:'Ray PC',hi:'desk',pv:'連線測試通過,等你確認要不要發版',time:'14:58',pct:22,st:'done',av:'A'},
+ {id:'g',ws:'purrdr.host',tab:'',n:2,title:'主機服務 0.14 安裝腳本',host:'Ray Mac Mini',hi:'mini',pv:'install.sh 已加入 --https-port 說明',time:'14:40',pct:55,st:'done',av:'C'},
+ {id:'h',ws:'docs',tab:'',n:1,title:'ADR-0013 Agent 設定檔',host:'Ray Mac Mini',hi:'mini',pv:'草稿已寫好,等你看過',time:'13:21',pct:18,st:'done',av:'C'},
+ {id:'i',ws:'notes',tab:'',n:1,title:'研究 iOS 27 設計語言',host:'Ray PC',hi:'desk',pv:'報告已存到 docs/research',time:'昨天',pct:80,st:'done',av:'C'}
+];
+const ST={work:'•••',need:'!',done:'✓'};
+
+/* ---------------- 全域狀態 ---------------- */
+const URLQ=new URLSearchParams(location.search);
+const GL={theme:URLQ.get('theme')==='light'?'light':'dark',ax:+(URLQ.get('ax')||0)};
+const SEL={layout:'pod',color:'mono',white:'system',ind:'dot',nos:'small',acct:'sheet',tabName:'chat',plan:'AW',away:'line2',compose:'plus',traffic:'scroll',scope:'all'};
+const TABS=['chats','files','hosts','traffic'];
+const TL={chats:'聊天',files:'檔案',hosts:'主機',traffic:'流量'};
+const hasSearch=t=>t==='chats'||t==='files';
+const hasHostCtl=t=>t!=='hosts';
+const hasPlus=t=>t!=='traffic';
+const axm=()=>1+GL.ax/100*0.9;
+const axm2=()=>1+(axm()-1)*.5;
+const PS={};   // 每支手機自己的狀態(view、menu、acct)
+const SCR={};  // 每支手機的捲動位置
+const L={tab:'chats'}; // 第 0 區塊互動手機共用的 tab
+const SCROLL_D=56;     // 捲動多少 px 完成收合
+
+/* ---------------- 方案定義 ---------------- */
+const LAY=[
+ {v:'pod',name:'Podcast 式:大標題＋捲動收成搜尋膠囊',rec:1,
+  desc:'未捲動:左側大標題、右側 [電腦圖示｜＋] 膠囊與頭像;有搜尋的 tab(聊天、檔案)搜尋欄在標題下。往下滑:標題與頭像收起,搜尋欄變成貼在頂端的玻璃膠囊,內容從它下面滑過。',
+  hig:'Toolbars(iOS):大標題幫助定位,捲動時收起;Search fields:列表搜尋可釘在頂端。與你給的參考圖一致(圖為 Apple Podcast,取其版型,不是 HIG 原文)。',
+  cost:'頂端要放標題、膠囊、頭像三樣;收起後主機選單與頭像暫時不在畫面上,要滑回頂端才按得到;沒有搜尋的 tab(主機、流量)怎麼收,見 D-4。',
+  unc:'捲動收合的動畫曲線與玻璃膠囊貼頂位置是依參考截圖推測;SwiftUI 實際做法與收合行為沒有做原型驗證。'},
+ {v:'in',name:'現況改良:inline 標題',
+  desc:'頂列固定一列:左側靠左的 inline 標題(tab 名)、右側 [電腦圖示｜＋] 膠囊與頭像;搜尋欄放在列表最上面、隨內容捲走;捲動時頂列不變、一直看得到。',
+  hig:'Toolbars:空間有限或標題顯得多餘時可用 inline 標題;最接近現況、改動最小,主機與頭像永遠可按。',
+  cost:'少了大標題的定位感,也沒有參考圖那種玻璃搜尋膠囊;搜尋捲走後要滑回頂端才能用;與系統 App 的大標題習慣不同。'}
+];
+const DECIDED=[
+ '聊天 tab 只有 Spaces 一種檢視(依「主機 · Workspace」分組的列表):沒有 Agents 檢視,也沒有檢視切換控制。',
+ '標題:每個 tab 左側是大標題,文字等於 tab 名稱(聊天、檔案、主機、流量)。',
+ '設定整合進帳號:拿掉設定 tab,點右上角頭像進入帳號與設定;底部是 4 個 tab:聊天、檔案、主機、流量。',
+ '主機選單只剩電腦圖示,與「＋」合成一個長型玻璃膠囊 [電腦圖示｜＋],頭像圓鈕在最右。各 tab 的「＋」:聊天=新增聊天、檔案=上傳(含新增資料夾)、主機=新增主機(膠囊縮成單顆 ＋、不放電腦圖示)、流量=沒有 ＋(單顆電腦圖示圓鈕)。',
+ 'D-0 整體版型:Podcast 式(大標題;往下滑標題與頭像收起,搜尋欄變成貼頂玻璃膠囊)。',
+ 'D-1 / D-2 頂列顏色:全部系統單色(深色白、淺色黑),綠色只留給狀態。',
+ 'D-3 目前主機:電腦圖示右上角小圓點(篩選某台主機時才出現),VoiceOver 唸出主機名。',
+ 'D-4 沒有搜尋的 tab(主機、流量)往下滑:大標題收成置中小標題(玻璃膠囊)。',
+ 'D-5 帳號與設定:大 sheet,右上角「X」玻璃圓鈕關閉。',
+ 'D-7 tab 名稱:維持「聊天」,符號為對話泡泡。',
+ 'D-8 Spaces 列:A 郵件式三層的「寬鬆版」(標題 17pt Semibold,Tab 名與預覽用次要色,列高、行距、內距、區段間距加大,時間與用量環不擠;Dynamic Type 放大時右欄堆到文字下方)。',
+ 'D-9 離開期間:第二行開頭的小標籤,不擠標題。',
+ 'D-10 新增聊天符號:plus(加號)。',
+ 'D-11 流量頁:保留卡片,寬度與邊距對齊其他頁。'
+];
+const SECTIONS=[
+{id:'s0',title:'整體版型(依參考圖)',blurb:'依你的 4 張參考圖與決定整理出兩個版型。每個版型可以直接上下滑動手機、點 tab、點電腦圖示、＋與頭像;下面也列出 4 個 tab 在「未捲動」與「已捲動」的對照。這一題選好後,後面所有手機都用你選的版型。',groups:[
+ {id:'D-0',key:'layout',title:'整體版型',custom:true}]},
+{id:'s1',title:'頂列顏色與「白色」',blurb:'你要的是「header 文字統一白色」。深色模式下系統單色本來就是白;問題是淺色模式與綠色的來源。',groups:[
+ {id:'D-1',key:'color',title:'頂列顏色',q:'頂列現在是 [電腦圖示｜＋] 膠囊與頭像。要全部統一成哪一種?綠色只留給狀態(例如 D-3 的小點、列上的狀態徽章)。',tabs:true,vs:[
+  {v:'mono',name:'全部系統單色',rec:1,hig:'Color 頁:Liquid Glass 上的符號預設單色,底下內容亮時變暗、暗時變亮;顏色留給主要動作與狀態。',cost:'少了綠色品牌感,新增聊天不再突出(tab bar 選取色仍是綠)。'},
+  {v:'green',name:'電腦圖示與 ＋ 綠色',hig:'與 Toolbars「Reduce the use of tinted controls」相反;Branding 建議把 accent 留給主要動作與選取中的 tab。',cost:'顏色靠繼承,各 tab 容易漂移;有 herdr 主題時會變主題色。'},
+  {v:'prominent',name:'只有聊天的「＋」那一半綠底',hig:'Toolbars:.prominent 只給 Done、Submit 這類主要動作,全頁一顆;顏色上在底,不上在字。',cost:'新增聊天算不算主要動作要你判斷;檔案與主機的 ＋ 仍是單色,不一致。'}]},
+ {id:'D-2',key:'white',title:'「白色」的實作方式',q:'同樣是看起來白,有三種做法。請切到「淺色」看差別,這是最容易踩的洞。',tabs:true,vs:[
+  {v:'system',name:'系統單色(深色白、淺色黑)',rec:1,hig:'與 HIG 預設一致,也和訊息、檔案、設定等系統 App 實測相同。',cost:'淺色模式字是黑色,不是「白色」。'},
+  {v:'white',name:'寫死白色',hig:'Color 與 Accessibility:對比至少 4.5:1。白字疊在淺色玻璃約 1:1,看不見。',cost:'App 有淺色外觀選項,淺色一定會出現,頂列整排消失。'},
+  {v:'dark',name:'全 app 強制深色',hig:'Dark Mode 頁只在沉浸式媒體建議只用深色,Purrdr 不屬於;App 已有外觀設定。',cost:'拿掉淺色與自動,等於移除一項現有設定。選了它,上方所有手機都會固定深色。'}]}
+]},
+{id:'s2',title:'目前主機與捲動標題',blurb:'電腦圖示不再有文字,所以「現在看哪台主機」和「沒有搜尋的 tab 往下滑」這兩件事要另外決定。頂列現在只有圖示,沒有文字要放大,所以不再有字級題。',groups:[
+ {id:'D-3',key:'ind',title:'目前主機怎麼看得出來',q:'選了某一台主機後,頂列只剩電腦圖示,看不出現在篩選哪台。下面三張手機都已選「Ray Mac Mini」。',tabs:false,fixTab:'chats',vs:[
+  {v:'dot',name:'圖示右上角小圓點(篩選中才出現)',rec:1,hig:'Accessibility:不能只靠顏色傳達;VoiceOver 唸「主機:Ray Mac Mini」。小點只提示「有篩選」。綠色在這裡是狀態色,符合 D-1。',cost:'看得出有篩選,看不出是哪台,要點開選單。',unc:'小點在實機的辨識度沒有實測。',phones:[{label:'聊天(已選 Ray Mac Mini)',o:{scope:'mini'}}]},
+  {v:'sub',name:'大標題下一行小字「Ray Mac Mini」',hig:'大標題下帶一行範圍說明,一眼看到是哪台。',cost:'多佔一行約 18pt;Podcast 式捲動收起時一起消失,收起後又看不出主機。inline 版型是兩行堆疊標題。',unc:'HIG 沒有找到大標題副標題的明文建議,屬我的設計提議。',phones:[{label:'聊天(已選 Ray Mac Mini)',o:{scope:'mini'}}]},
+  {v:'none',name:'不標示(照你原本的指定)',hig:'—',cost:'使用者可能忘了自己篩選了某台,以為 Agent 不見了。VoiceOver 仍會唸出主機名。',phones:[{label:'聊天(已選 Ray Mac Mini)',o:{scope:'mini'}}]}]},
+ {id:'D-4',key:'nos',title:'沒有搜尋的 tab 往下滑時的標題',q:'聊天、檔案有搜尋,收成貼頂膠囊;主機、流量沒有搜尋。大標題收起後怎麼辦?(僅 Podcast 式適用;下面都是已捲動狀態。)',tabs:false,vs:[
+  {v:'small',name:'收成置中小標題(玻璃膠囊)',rec:1,hig:'Toolbars:大標題捲動時轉成標準(置中)標題,捲回頂端再變回大標題,是 iOS 預設行為。',cost:'捲動時頂端多一個標題膠囊;頭像與電腦圖示一樣暫時收起。',phones:[{tab:'hosts',sy:120,label:'主機(已捲動)',o:{layout:'pod'}},{tab:'traffic',sy:120,label:'流量(已捲動)',o:{layout:'pod'}}]},
+  {v:'gone',name:'整個消失,只剩內容(同參考圖)',hig:'Toolbars:標題顯得多餘時可留空。',cost:'捲動後看不出自己在哪個 tab(只能看底部 tab bar);頂端是空白。',phones:[{tab:'hosts',sy:120,label:'主機(已捲動)',o:{layout:'pod'}},{tab:'traffic',sy:120,label:'流量(已捲動)',o:{layout:'pod'}}]},
+  {v:'away',name:'大標題與按鈕隨內容一起捲走',hig:'相當於不固定頂列,內容從狀態列下直接捲過。',cost:'頭像與電腦圖示在捲動中途消失,回頂端才能按;與聊天、檔案的行為不同(它們頭像收起、搜尋貼頂)。',phones:[{tab:'hosts',sy:120,label:'主機(已捲動)',o:{layout:'pod'}},{tab:'traffic',sy:120,label:'流量(已捲動)',o:{layout:'pod'}}]}]}
+]},
+{id:'s3',title:'帳號與設定頁',blurb:'設定 tab 已拿掉,點右上頭像進入。這裡示意帳號頁第一層:會員、通知、外觀、輸入、關於。',groups:[
+ {id:'D-5',key:'acct',title:'帳號與設定頁的呈現',q:'點頭像後用什麼形式打開?你已選 sheet,右上角是「X」玻璃圓鈕。手機畫面是點開後的狀態(也可以在別處的手機點頭像看)。',tabs:false,vs:[
+  {v:'sheet',name:'大 sheet,右上角「X」關閉',rec:1,mine:1,hig:'Sheets:用於範圍明確、做完就回原處的任務;帳號與設定是「看一下就走」,關閉後回到原本的 tab 與捲動位置。',cost:'設定層級深時,sheet 裡要再 push 多層。',unc:'沒有逐項對照 Sheets 頁原文,也沒有實測 Apple Podcast 的帳號鈕行為。',phones:[{acct:true,label:'點頭像後'}]},
+  {v:'push',name:'整頁 push,左上返回(對照)',hig:'階層式資訊用 push、返回鈕回上一層。',cost:'帳號不屬於任何 tab,「返回」回到哪個 tab 不直覺;在深處要切 tab 得先退出。',phones:[{acct:true,label:'點頭像後'}]}]}
+]},
+{id:'s4',title:'聊天 tab 的名稱',blurb:'聊天只有 Spaces 一種檢視(依「主機 · Workspace」分組的列表),沒有檢視切換,所以這裡只剩 tab 名稱要決定。符號只用一個(對話泡泡)。',groups:[
+ {id:'D-7',key:'tabName',title:'聊天 tab 的名稱',q:'tab 與大標題要叫什麼?列表是依「主機 · Workspace」分組的 Tab 清單。符號固定用對話泡泡。',tabs:false,fixTab:'chats',vs:[
+  {v:'chat',name:'維持「聊天」',rec:1,hig:'Tab bars:單字標籤;使用者打開的目的是找對話,名稱直接說用途。',cost:'名稱與清單的組織單位(Workspace、Tab)不同詞;Podcast 式捲動後標題收起,畫面上看不到「聊天」二字。'},
+  {v:'workspace',name:'改叫「Workspace」',hig:'Tab bars:標籤與清單的分組單位同名,看名稱就知道裡面是什麼。',cost:'標籤較長,tab bar 較擠;Workspace 是 herdr 的概念,新使用者不一定懂;詞彙依 GLOSSARY,Workspace 保留英文,要一起核對。'}]}
+]},
+{id:'s5',title:'聊天列統一',blurb:'聊天只有 Spaces:依「主機 · Workspace」分組,區段標題是「主機 · Workspace」,底下是 Tab 的列。假資料取自你的截圖:第 1 筆與第 3 筆有「離開期間 · +1 輪」,第 3 筆標題很長。',groups:[
+ {id:'D-8',key:'plan',title:'Spaces 列的版型',q:'你選了 A 郵件式三層,並要求更寬鬆、更好讀。下面把「A 原版」與「A 寬鬆版」並排,看列高、行距、內距、區塊間距的差別;現況只當對照。拉上方的字級滑桿到 AX5,看放大時是否仍成立(右欄會堆到文字下方、標題與預覽可折兩行)。',tabs:false,fixTab:'chats',vs:[
+  {v:'now',name:'現況(對照)',ref:1,hig:'—',cost:'列只有標題,沒有時間、用量、預覽;離開期間膠囊塞在標題同一行,把標題擠成「…」。',phones:[{label:'Spaces'}]},
+  {v:'A',name:'A 原版(對照)',hig:'Typography:用字重、字級與顏色建立層級。第一行 Tab 名,第二行 Agent 標題(離開期間標籤在開頭),第三行預覽。',cost:'列高約 83pt、行距 3pt、區段標題上內距 14pt,偏擠;時間與用量環貼在右上。',phones:[{label:'Spaces'}]},
+  {v:'AW',name:'A 寬鬆版',rec:1,mine:1,hig:'Typography:標題 17pt Semibold 主色,Tab 名 15pt 與預覽 14pt 用次要色,層級靠字級與顏色分開。離開期間小標籤在第二行開頭,不擠標題。Lists and tables:內容之間留足空白。',cost:'列高約 101pt(原版約 83pt)、行距 5pt、區段標題上內距 26pt,一屏約少看 1 筆 Tab;換來較好閱讀。',phones:[{label:'Spaces'}]}]},
+ {id:'D-9',key:'away',title:'「離開期間」放哪',q:'膠囊目前塞在標題同一行,把標題擠成「…」。(需要先選 D-8 的 A、B 或 C 才看得到修法。)',tabs:false,fixTab:'chats',vs:[
+  {v:'line2',name:'第二行開頭的小標籤',rec:1,hig:'Typography:行內的符號與時間會擠壓文字,主要文字不該被截斷。',cost:'第二行可用寬度少一點。'},
+  {v:'right',name:'右欄、時間下方',hig:'次要資訊放右欄,與時間成組。',cost:'右欄變寬,會擠到主要文字;AX 字級時再堆到下面。'},
+  {v:'dot',name:'只留列尾橘點 + VoiceOver 文字',hig:'Accessibility:不能只靠顏色傳達資訊。',cost:'視覺上沒有文字說明,新使用者看不懂橘點。'}],phones:[{label:'Spaces'}]}
+]},
+{id:'s6',title:'新增聊天的符號',blurb:'同一個膠囊在聊天與檔案各出現一次,看符號是否分得出「撰寫」和「新增」。',groups:[
+ {id:'D-10',key:'compose',title:'新增聊天的符號',q:'膠囊右半。你已選 plus。左邊是聊天 tab,右邊是檔案 tab(上傳,也是 ＋)。',tabs:false,crop:154,vs:[
+  {v:'plus',name:'plus(加號)',rec:1,mine:1,hig:'簡單、辨識度高,與檔案、主機的「＋」一致。',cost:'聊天、檔案、主機三個 tab 的符號相同、意思不同(新增聊天、上傳、新增主機),靠 tab 與選單文字分辨。',phones:[{tab:'chats',label:'聊天'},{tab:'files',label:'檔案'}]},
+  {v:'pencil',name:'square.and.pencil(撰寫,對照)',hig:'Icons 標準符號表:Compose 是 square.and.pencil,Add 是 plus。',cost:'DESIGN.md 原本寫這個;與其他 tab 的 ＋ 不一致。',phones:[{tab:'chats',label:'聊天'},{tab:'files',label:'檔案'}]}]}
+]},
+{id:'s7',title:'流量頁版面',blurb:'流量是四個 tab 裡唯一不是 grouped list 的頁面。',groups:[
+ {id:'D-11',key:'traffic',title:'流量頁版面',q:'上方頂列與標題由前面幾題決定,這題只決定內容區。',tabs:false,fixTab:'traffic',vs:[
+  {v:'list',name:'改成 inset grouped List',hig:'Lists and tables:列表用一致的列樣式;與其他三頁同一種容器。',cost:'圖表卡放進 List 會受列高與分隔線限制,要重做版面。'},
+  {v:'scroll',name:'保留卡片,寬度與邊距對齊其他頁',rec:1,hig:'資訊密度高的摘要與圖表適合卡片;寬度上限統一成 720pt、頂端邊距與其他頁相同。',cost:'仍是兩種容器並存,靠共用的頁面 module 維持一致。'}]}
+]},
+{id:'s8',title:'最終定稿',blurb:'採用上面全部決定(固定設定,不受上方選項影響)。四個 tab 各有「未捲動」與「已捲動」,洋紅色框與數字對應旁邊的尺寸規格。切換上方的深淺外觀看兩種配色;字級滑桿拉到 AX5 可看 Dynamic Type 放大的情形。',groups:[],final:true}
+];
+const ALLG=SECTIONS.flatMap(s=>s.groups);
+const optOf=(g,v)=>g.custom?LAY.find(x=>x.v===v):g.vs.find(x=>x.v===v);
+const gvs=g=>g.custom?LAY:g.vs;
+
+/* ---------------- 手機渲染 ---------------- */
+function tw(t,fs){let w=0;for(const ch of t)w+=/[⺀-￿]/.test(ch)?fs:fs*.56;return w}
+function tabName(c,t){return t==='chats'?(c.tabName==='workspace'?'Workspace':'聊天'):TL[t]}
+const scopeName=c=>c.scope==='mini'?'Ray Mac Mini':'所有主機';
+
+function geom(c,st){
+  const m=axm(), lt=1+(m-1)*.55, fs=34*lt, m2=axm2(), t=st.tab;
+  const pod=c.layout==='pod', search=hasSearch(t);
+  const sub=c.ind==='sub'&&c.scope==='mini'&&hasHostCtl(t);
+  const titleH=Math.round(Math.max(52,fs*1.2));
+  const ex=(pod&&sub)?18:0, sh=Math.round(40*m2);
+  const st0=54+titleH+4+ex;
+  const pad=pod?(search?st0+sh+10:54+titleH+10+ex):54+52+8;
+  return {fs,titleH,ex,sh,st0,dst:Math.max(0,st0-58),pad,pod,search,sub};
+}
+function ctlsHTML(c,st){
+  const t=st.tab, white=c.white==='white';
+  const col=white?'#FFFFFF':'var(--text)';
+  const gcol=(c.color==='green'&&!white)?'var(--accent)':col;
+  const compose=c.compose==='pencil'?'pencil':'plus';
+  const sym=t==='chats'?compose:'plus';
+  const prom=c.color==='prominent'&&!white&&t==='chats';
+  const dot=(c.ind==='dot'&&c.scope==='mini')?'<i class="sdot"></i>':'';
+  const host=hasHostCtl(t)?`<span class="seg1" role="button" data-act="menu" data-m="host" style="color:${gcol};cursor:pointer" aria-label="主機:${scopeName(c)}">${svg('desk',22,1.9)}${dot}</span>`:'';
+  const plusLbl={chats:'新增聊天',files:'上傳',hosts:'新增主機'}[t]||'';
+  const plus=hasPlus(t)?`<span class="seg1" role="button" data-act="menu" data-m="plus" style="color:${prom?'var(--on)':gcol};cursor:pointer" aria-label="${plusLbl}">${prom?`<span class="plusfill">${svg(sym,22,2.2)}</span>`:svg(sym,22,2)}</span>`:'';
+  let cap='';
+  if(host&&plus)cap=`<span class="cap2 glass">${host}<span class="div"></span>${plus}</span>`;
+  else if(host||plus)cap=`<span class="cap2 glass one">${host||plus}</span>`;
+  const av=`<span class="avc glass" role="button" data-act="acct" style="color:${col};cursor:pointer" aria-label="帳號與設定">R</span>`;
+  return `<span class="ctls">${cap}${av}</span>`;
+}
+function searchInner(c,st){
+  const t=st.tab, v=st.view;
+  const ph=t==='files'?'搜尋檔案':'搜尋 Tab、Workspace、主機';
+  return `${svg('search',Math.round(18*axm2()),2)}<span class="stx">${ph}</span>`;
+}
+function menuHTML(c,st,g){
+  if(!st.menu)return '';
+  const top=54+(g.pod?g.titleH:52)+4;
+  const mi=(ic,tx,o={})=>`<div class="mi${o.dis?' dis':''}"${o.act?` data-act="${o.act}" data-v="${o.v||''}"`:''}>${o.ck===undefined?'':`<span class="ck">${o.ck?svg('check',18,2.4):''}</span>`}${svg(ic,22,1.8)}<span>${tx}</span></div>`;
+  let body='';
+  if(st.menu==='host'){
+    body=mi('desk','所有主機',{ck:c.scope!=='mini'})+mi('mini','Ray Mac Mini',{ck:c.scope==='mini'})+mi('desk','Ray PC',{ck:false})+mi('mini','Build Box　連不上',{ck:false,dis:1});
+  }else{
+    const compose=c.compose==='pencil'?'pencil':'plus';
+    body={chats:mi(compose,'新增聊天')+mi('chat','新增 Tab'),files:mi('doc','上傳檔案')+mi('folder','新增資料夾'),hosts:mi('plus','新增主機')+mi('search','掃描配對 QR Code')}[st.tab]||'';
+  }
+  return `<div class="menu glass" style="top:${top}px">${body}</div>`;
+}
+function acctHTML(c,st){
+  if(!st.acct)return '';
+  const sheet=c.acct!=='push', m=axm();
+  const head=sheet?`<div class="ah"><span style="width:44px"></span><b>帳號</b><span class="avc glass" data-act="acctClose" role="button" aria-label="關閉" style="cursor:pointer;color:var(--text)">${svg('x',20,2.2)}</span></div>`
+    :`<div class="ah"><span class="back" data-act="acctClose" style="cursor:pointer"><span style="display:inline-flex;transform:rotate(180deg)">${svg('chevR',22,2.4)}</span>${TL[st.tab]}</span></div><div class="lt" style="font-size:${34*(1+(m-1)*.55)}px">帳號與設定</div>`;
+  const body=`<div class="card" style="margin-top:6px">${cell(`<span class="avc" style="width:44px;height:44px;background:var(--fill);color:var(--text)">R</span>`,'Ray Chiu','ray@example.com')}</div>
+  <div class="card">${cell('','Purrdr Plus','','使用中')}${cell('','通知','需要你、完成','2 台')}${cell('','通知裝置','','3 支')}</div>
+  <div class="card">${cell('','外觀','','自動')}<div class="cell"><span class="lead"></span><div class="cb"><div class="mn"><span class="t">App 鎖</span></div><span class="toggle"></span></div></div>${cell('','撤回倒數','','3 秒')}${cell('','終端機大小','','手機')}</div>
+  <div class="card">${cell('','關於 Purrdr','','0.50.0')}${cell('','隱私權政策','')}${cell('','顯示歡迎頁','')}</div>`;
+  return `${sheet?'<div class="sdim" data-act="acctClose"></div>':''}<div class="acct ${sheet?'sheet':'full'}">${head}<div class="ab">${body}</div></div>`;
+}
+function headerHTML(c,st,g){
+  const t=st.tab, name=tabName(c,t), pod=g.pod, search=g.search;
+  const ctls=ctlsHTML(c,st);
+  let h='<div class="scrim"></div>';
+  const sc=scopeName(c);
+  if(pod){
+    const ns=search?'':' nosearch';
+    h+=`<div class="tbar${ns}" style="height:${g.titleH}px"><span class="ttl" style="font-size:${g.fs}px">${name}</span>${ctls}</div>`;
+    if(g.sub)h+=`<div class="sub${ns}" style="top:${54+g.titleH-4}px">${sc}</div>`;
+    if(!search&&c.nos==='small')h+=`<div class="stt glass">${name}</div>`;
+    if(search)h+=`<div class="srow"><span class="sf"></span><span class="sg"></span>${searchInner(c,st)}</div>`;
+  }else{
+    const sub=(c.ind==='sub'&&c.scope==='mini'&&hasHostCtl(t));
+    h+=`<div class="tbar" style="height:52px"><span class="ttl in">${name}${sub?`<small>${sc}</small>`:''}</span>${ctls}</div>`;
+  }
+  return h+menuHTML(c,st,g);
+}
+/* ---- 列渲染(沿用 v1)---- */
+function ringHTML(p){
+  const col=p>=65?'var(--warnr)':'var(--ok)';
+  const c=2*Math.PI*7;
+  return `<span class="ring"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" fill="none" stroke="var(--track)" stroke-width="2.6"/><circle cx="9" cy="9" r="7" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="${(c*p/100).toFixed(1)} ${c}" transform="rotate(-90 9 9)"/></svg>${p}%</span>`
+}
+function avatar(it){return `<span class="av"><span class="face ${it.av==='A'?'codex':'claude'}">${it.av}</span><span class="sb ${it.st}">${ST[it.st]}</span></span>`}
+const tabDisp=it=>it.tab||('Tab '+it.n);
+function rowHTML(c,it,ax){
+  const plan=c.plan, aw=c.away, stack=ax?' stack':'';
+  const away=it.away||'';
+  const chev=`<span style="color:var(--dis);display:flex;align-items:center">${svg('chevR',14,2.4)}</span>`;
+  const dot=(aw==='dot'&&away)?`<span class="dot" aria-label="${away}"></span>`:'';
+  const tagR=(aw==='right'&&away)?`<span class="tagR">${away}</span>`:'';
+  const rc=(ring=true)=>`<div class="rc"><span style="display:flex;gap:6px;align-items:center">${dot}${it.time}</span>${tagR}${ring?ringHTML(it.pct):''}</div>`;
+  const awayTag=(aw==='line2'&&away)?`<span class="tag">${away}</span>`:'';
+  const name=tabDisp(it);
+  if(plan==='now')return `<div class="row mid">${avatar(it)}<div class="rb" style="align-items:center"><div class="mc"><div class="l1now"><span class="a">${it.tab||it.title}</span>${away?`<span class="pillA">${away}</span>`:''}</div></div>${chev}</div></div>`;
+  if(plan==='AW')return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1${ax?' w':''}">${it.title}</div><div class="s2" style="display:flex;gap:6px;align-items:center">${awayTag}<span class="tn">${name}</span></div><div class="s3${ax?' w':''}"><span>${it.pv}</span></div></div>${rc()}${ax?'':chev}</div></div>`;
+  if(plan==='A')return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1">${name}</div><div class="s2">${awayTag}${it.title}</div><div class="s3"><span>${it.pv}</span></div></div>${rc()}${ax?'':chev}</div></div>`;
+  if(plan==='B')return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1">${it.tab||it.title}</div><div class="s2" style="display:flex;gap:5px;align-items:center">${awayTag}<span style="overflow:hidden;text-overflow:ellipsis">${it.pv}</span></div></div>${rc()}${ax?'':chev}</div></div>`;
+  return `<div class="row">${avatar(it)}<div class="rb${stack}"><div class="mc"><div class="n1">${name}</div><div class="s2">${awayTag}${it.pv}</div></div>${rc(false)}${ax?'':chev}</div></div>`;
+}
+function chatsBody(c,st){
+  const ax=axm()>1.4;
+  const order=c.scope==='mini'?['Ray Mac Mini']:['Ray Mac Mini','Ray PC'], groups=[];
+  for(const hn of order)for(const it of AG.filter(x=>x.host===hn)){
+    let g=groups.find(x=>x.hn===hn&&x.ws===it.ws);
+    if(!g){g={hn,ws:it.ws,hk:it.hi,items:[]};groups.push(g)}
+    g.items.push(it);
+  }
+  const html=groups.map(g=>`<div class="sh">${svg(g.hk,16,1.9)}<span>${g.hn} · ${g.ws}</span></div>`+g.items.map(it=>rowHTML(c,it,ax)).join('')).join('');
+  return c.plan==='AW'?`<div class="loose">${html}</div>`:html;
+}
+function cell(lead,t,u,val,chev=true){return `<div class="cell"><span class="lead">${lead}</span><div class="cb"><div class="mn"><span class="t">${t}</span>${u?`<span class="u">${u}</span>`:''}</div>${val?`<span class="val">${val}</span>`:''}${chev?`<span style="color:var(--dis)">${svg('chevR',14,2.4)}</span>`:''}</div></div>`}
+function filesBody(){
+  const f=(n,u,fo)=>cell(svg(fo?'folder':'doc',24,1.7),n,u,null,!!fo);
+  return `<div class="crumb">${svg('mini',15,1.9)}<span>Ray Mac Mini</span><span>›</span><span>Projects</span><span>›</span><b>purrdr</b></div>
+  <div class="card">${f('src','12 項',1)}${f('tests','8 項',1)}${f('docs','31 項',1)}${f('scripts','9 項',1)}${f('vendor','4 項',1)}${f('AGENTS.md','今天 14:02 · 38 KB')}${f('GLOSSARY.md','昨天 · 12 KB')}${f('CHANGELOG.md','昨天 · 21 KB')}${f('Package.swift','11/20 · 3 KB')}${f('README.md','11/18 · 6 KB')}${f('NOTICE','11/02 · 1 KB')}</div>`;
+}
+function hostsBody(){
+  return `<div class="sh">主機</div><div class="card">${cell(svg('mini',24,1.7),'Ray Mac Mini','已連線 · 主機服務 0.13.1')}${cell(svg('desk',24,1.7),'Ray PC','已連線 · 有新版主機服務')}${cell(svg('mini',24,1.7),'Build Box','連不上')}</div>
+  <div class="sh">這台主機</div><div class="card">${cell(svg('chat',22,1.7),'Agent','Claude Code、Codex')}${cell(svg('updown',22,1.7),'通知','需要你、完成')}${cell(svg('doc',22,1.7),'主題','跟隨 herdr')}${cell(svg('cell',22,1.7),'Claude 方案用量','每 30 秒更新')}</div>
+  <div class="sh">進階</div><div class="card">${cell('','主機服務版本','','0.13.1')}${cell('','連線方式','','Tailscale SSH')}${cell('','移除這台主機','')}</div>`;
+}
+function trafficBody(c){
+  const sg=`<div class="chip3"><span class="on">這次開啟</span><span>今天</span><span>30 天</span></div>`;
+  const bars='<div class="bars" aria-hidden="true">'+[30,52,38,70,46,88,60].map(x=>`<i style="height:${x}%"></i>`).join('')+'</div>';
+  const per=`<div class="sh">各主機</div><div class="card">${cell(svg('mini',22,1.7),'Ray Mac Mini','','96 MB',false)}${cell(svg('desk',22,1.7),'Ray PC','','71 MB',false)}${cell(svg('mini',22,1.7),'Build Box','','17 MB',false)}</div>`;
+  if(c.traffic==='list')return `${sg}<div class="sh">今天</div><div class="card">${cell(svg('updown',22,1.7),'總計','',`184 MB`,false)}${cell(svg('wifi',22,1.7),'Wi-Fi','',`121 MB`,false)}${cell(svg('cell',22,1.7),'行動網路','',`63 MB`,false)}<div class="cell"><div class="cb" style="display:block;padding:12px 16px 14px 0;border:0">${bars}</div></div></div>${per}`;
+  return `${sg}<div class="card"><div class="pad"><span class="u" style="color:var(--sec);font-size:calc(13px*var(--m))">今天 · ${scopeName(c)}</span><div class="big">184 MB</div>${bars}</div></div><div class="card"><div class="pad" style="display:flex;gap:16px"><div style="flex:1"><div style="color:var(--sec);font-size:calc(13px*var(--m))">Wi-Fi</div><div style="font-size:calc(22px*var(--m));font-weight:700">121 MB</div></div><div style="flex:1"><div style="color:var(--sec);font-size:calc(13px*var(--m))">行動網路</div><div style="font-size:calc(22px*var(--m));font-weight:700">63 MB</div></div></div></div>${per}`;
+}
+function tabbar(c,st){
+  const I={chats:'chat',files:'folder',hosts:'desk',traffic:'updown'};
+  return `<div class="tabbar glass">${TABS.map(t=>`<div class="tab ${t===st.tab?'on':''}" data-act="tab" data-t="${t}"><span class="tabicon">${svg(I[t],24,1.8)}${t==='chats'?'<span class="tbadge">1</span>':''}</span><span>${tabName(c,t)}</span></div>`).join('')}</div>`;
+}
+function phoneInner(c,st){
+  const g=geom(c,st), t=st.tab;
+  let body=t==='chats'?chatsBody(c,st):t==='files'?filesBody():t==='hosts'?hostsBody():trafficBody(c);
+  let top='';
+  if(!g.pod&&g.search)top=`<div class="search">${searchInner(c,st)}</div>`+top;
+  const warn=(c.white==='white'&&st.theme==='light')?`<div class="warnpill">淺色:白字疊在淺玻璃,看不見(約 1:1)</div>`:'';
+  return `<div class="sbar"><span>9:41</span><span class="bat"></span></div>${warn}${headerHTML(c,st,g)}<div class="scroller" data-sy="${st.sy||0}"><div class="cin" style="padding-top:${g.pad}px">${top}${body}</div></div>${tabbar(c,st)}${acctHTML(c,st)}`;
+}
+function phoneEl(c,st,scale,crop){
+  const m=axm();
+  const theme=c.white==='dark'?'dark':GL.theme;
+  const cls=theme==='dark'?'pd':'pl';
+  st={...st,...(PS[st.key]||{}),theme};
+  const g=geom(c,st), sy=st.sy||0, p=Math.min(1,sy/SCROLL_D);
+  return `<div class="pw${crop?' crop':''}" style="--s:${scale};${crop?`--ch:${crop};`:''}width:${402*scale}px;height:${crop?crop*scale:874*scale}px"><div class="ph ${cls} lay-${c.layout} nos-${c.nos}" data-pkey="${st.key||''}" data-view="${st.view||'agents'}" style="--m:${m};--m2:${axm2()};--p:${p};--sy:${sy}px;--st0:${g.st0}px;--dst:${g.dst}px;--sh:${g.sh}px">${phoneInner(c,st)}</div></div>`;
+}
+
+/* ---------------- 捲動 ---------------- */
+function applyScroll(s){
+  const ph=s.closest('.ph'); if(!ph)return;
+  const y=s.scrollTop;
+  ph.style.setProperty('--sy',y+'px');
+  ph.style.setProperty('--p',Math.min(1,y/SCROLL_D));
+}
+function snapScroll(){document.querySelectorAll('[data-pkey] .scroller').forEach(s=>{const k=s.closest('[data-pkey]').dataset.pkey;if(k&&s.clientHeight>0)SCR[k]=s.scrollTop})}
+function restoreScroll(){document.querySelectorAll('[data-pkey] .scroller').forEach(s=>{const k=s.closest('[data-pkey]').dataset.pkey;const y=(k&&(k in SCR))?SCR[k]:+s.dataset.sy;s.scrollTop=y;applyScroll(s)})}
+document.addEventListener('scroll',e=>{
+  const s=e.target;
+  if(!(s&&s.classList&&s.classList.contains('scroller')))return;
+  applyScroll(s);
+  const k=s.closest('[data-pkey]').dataset.pkey||'';
+  if(k.startsWith('L|')){
+    const sl=document.getElementById('s0sl'); if(sl)sl.value=Math.round(s.scrollTop);
+    document.querySelectorAll('[data-pkey^="L|"] .scroller').forEach(o=>{if(o!==s&&Math.abs(o.scrollTop-s.scrollTop)>1)o.scrollTop=s.scrollTop});
+  }
+},true);
+function scrollInteractive(y,smooth){
+  document.querySelectorAll('[data-pkey^="L|"] .scroller').forEach(s=>s.scrollTo({top:y,behavior:smooth?'smooth':'auto'}));
+}
+
+/* ---------------- 頁面骨架與互動 ---------------- */
+const GS={};
+ALLG.forEach(g=>GS[g.id]={tab:g.fixTab||'chats',five:false});
+const SC=0.7;
+
+function slotHTML(g,v,pi){
+  const po=(v.phones||[{}])[pi]||{};
+  const c={...SEL,[g.key]:v.v,...(po.o||{})};
+  const tab=po.tab||GS[g.id].tab;
+  const key=`${g.id}|${v.v}|${pi}`;
+  return phoneEl(c,{tab,view:'spaces',key,sy:po.sy||0,menu:po.menu,acct:po.acct},(v.phones&&v.phones.length>1)?0.6:SC,g.crop);
+}
+function build(){
+  const nav=document.getElementById('nav');
+  nav.innerHTML=SECTIONS.map(s=>`<a href="#${s.id}">${s.id==='s0'?'D-0 ':''}${s.title}</a>`).join('')+'<a href="#summary">我的選擇</a>';
+  const root=document.getElementById('sections');
+  root.innerHTML=SECTIONS.map(s=>`<section class="sec" id="${s.id}"><header><h2>${s.title}</h2><p>${s.blurb}</p></header>${s.groups.map(g=>g.custom?s0HTML(g):groupHTML(g)).join('')}${s.id==='s0'?s0Extra():''}${s.final?finalHTML():''}</section>`).join('');
+}
+function s0HTML(g){
+  const tools=`<div class="gtools"><span class="lbl">看哪個 tab</span><div class="pills" data-l="tab">${TABS.map(t=>`<button type="button" data-tab="${t}" aria-pressed="${t===L.tab}">${TL[t]}</button>`).join('')}</div>
+   <span class="lbl" style="margin-left:6px">捲動</span><div class="pills" id="s0btn"><button type="button" data-y="0">未捲動</button><button type="button" data-y="140">已捲動</button></div>
+   <input id="s0sl" type="range" min="0" max="240" value="0" aria-label="捲動位置"><span class="lbl">也可以直接滑動手機</span></div>`;
+  const cards=LAY.map(v=>`<div class="vcard" data-card="${g.id}|${v.v}"><div class="vtop"><span class="vname">${v.name}</span>${v.rec?`<span class="badge">${v.mine?'你的選擇':'建議'}</span>`:''}${v.unc?'<span class="badge unc">未確認</span>':''}<label class="pick"><input type="radio" name="${g.id}" value="${v.v}"> 選這個</label></div>
+   <div class="phones"><div class="one"><div data-s0i="${v.v}"></div><div class="cap">可操作的手機</div></div></div>
+   <dl class="notes"><dt>做法</dt><dd>${v.desc}</dd><dt>HIG 依據</dt><dd>${v.hig}</dd><dt>代價</dt><dd>${v.cost}</dd>${v.unc?`<dt>未確認</dt><dd class="unc">${v.unc}</dd>`:''}</dl></div>`).join('');
+  const strips=LAY.map(v=>`<div class="five" style="margin-top:14px"><div class="cap" style="font-weight:700;color:var(--ink)">${v.name}:4 個 tab × 未捲動／已捲動</div><div data-s0s="${v.v}"></div></div>`).join('');
+  return `<div class="group" id="g-${g.id}"><div class="ghead"><span class="did">${g.id}</span><h3>${g.title}</h3></div><p class="q">兩個版型並排。右上角都是 [電腦圖示｜＋] 膠囊加頭像圓鈕,底部都是 4 個 tab;差別在標題與搜尋怎麼收。</p>${tools}<div class="vrow">${cards}</div>${strips}</div>`;
+}
+function s0Extra(){
+  return `<div class="group"><div class="ghead"><span class="did">彈出層</span><h3>電腦圖示選單、＋選單、帳號頁</h3></div><p class="q">依你目前選的版型。選單是長按或點膠囊的圖示後出現的玻璃選單(圖示＋文字列);帳號頁細節見 D-5。</p><div class="five"><div class="rowp" id="s0pop"></div></div></div>
+  <div class="group"><div class="ghead"><span class="did">已定案</span><h3>你已經指定、不用再選的項目</h3></div><ul class="decided">${DECIDED.map((d,i)=>`<li><span class="n">${i+1}</span><span>${d}</span></li>`).join('')}</ul></div>
+  <div class="overview"><div class="ghead"><span class="did">總覽</span><h3>你目前的組合,4 個 tab(未捲動)</h3></div><p class="q">下面每個決定項一改,這裡 4 個 tab 一起變。</p><div class="rowp" id="overview"></div></div>`;
+}
+function groupHTML(g){
+  const tools=g.tabs?`<div class="gtools"><span class="lbl">看哪個 tab</span><div class="pills" data-g="${g.id}">${TABS.map(t=>`<button type="button" data-tab="${t}" aria-pressed="${t===GS[g.id].tab}">${TL[t]}</button>`).join('')}</div><label class="chk"><input type="checkbox" data-five="${g.id}"> 4 個 tab 並排(目前選中的方案)</label></div>`:(g.fixTab?`<div class="gtools"><span class="lbl">此題固定看「${TL[g.fixTab]}」tab</span></div>`:'');
+  const vs=g.vs.map(v=>{
+    const pcount=(v.phones||[{}]).length;
+    const slots=Array.from({length:pcount},(_,i)=>`<div class="one"><div class="slot" data-g="${g.id}" data-v="${v.v}" data-i="${i}"></div><div class="cap">${(v.phones&&v.phones[i].label)||''}</div></div>`).join('');
+    return `<div class="vcard" data-card="${g.id}|${v.v}"><div class="vtop"><span class="vname">${v.name}</span>${v.rec?`<span class="badge">${v.mine?'你的選擇':'建議'}</span>`:''}${v.ref?'<span class="badge ref">對照</span>':''}${v.unc?'<span class="badge unc">未確認</span>':''}${v.ref?'':`<label class="pick"><input type="radio" name="${g.id}" value="${v.v}"> 選這個</label>`}</div>
+    <div class="phones">${slots}</div>
+    <dl class="notes"><dt>HIG 依據</dt><dd>${v.hig}</dd><dt>代價</dt><dd>${v.cost}</dd>${v.unc?`<dt>未確認</dt><dd class="unc">${v.unc}</dd>`:''}</dl></div>`;
+  }).join('');
+  return `<div class="group" id="g-${g.id}"><div class="ghead"><span class="did">${g.id}</span><h3>${g.title}</h3></div><p class="q">${g.q}</p>${tools}<div class="vrow">${vs}</div><div class="five" data-fivebox="${g.id}" hidden><div class="cap">目前選中的方案,4 個 tab</div><div class="rowp"></div></div></div>`;
+}
+const FINAL={layout:'pod',color:'mono',white:'system',ind:'dot',nos:'small',acct:'sheet',tabName:'chat',plan:'AW',away:'line2',compose:'plus',traffic:'scroll',scope:'all'};
+const FS=0.62;
+const PINS_UNS={
+ chats:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[4,'.srow'],[5,'.sh'],[6,'.row'],[7,'.tabbar']],
+ files:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[4,'.srow'],[5,'.crumb'],[6,'.cell'],[7,'.tabbar']],
+ hosts:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[5,'.sh'],[6,'.cell'],[7,'.tabbar']],
+ traffic:[[1,'.sbar'],[2,'.tbar .ttl'],[3,'.ctls'],[5,'.chip3'],[6,'.card'],[7,'.tabbar']],
+ acct:[[1,'.acct'],[2,'.acct .avc'],[3,'.acct .card']]
+};
+const PINS_SCR={chats:[[8,'.srow'],[7,'.tabbar']],files:[[8,'.srow'],[7,'.tabbar']],hosts:[[8,'.stt'],[7,'.tabbar']],traffic:[[8,'.stt'],[7,'.tabbar']]};
+const pb=n=>`<span class="pinb">${n}</span>`;
+const SPEC_COMMON=[
+ [1,'狀態列','安全區頂端 54pt;時間 16pt Semibold(左 38),電池(右 34)。'],
+ [2,'標題列','top 54、高 52、左邊距 20、右邊距 16。大標題 34pt Bold、字距 −0.01em、主色。Dynamic Type 放大時標題跟著放大(約 ×1.5 封頂),列高取 max(52, 字級 × 1.2)。'],
+ [3,'頂列控制','[電腦圖示｜＋]玻璃膠囊:高 44、寬 95(兩段各 46,分隔線 1×20);頭像圓鈕 44×44(字 17pt Bold);膠囊與頭像間距 8、右邊距 16;圖示 22pt、線寬 2。控制尺寸固定,不隨 Dynamic Type 放大(長按顯示 large content viewer)。主機 tab 只有 ＋、流量 tab 只有電腦圖示時是單顆 44×44 圓鈕。選了單一主機時,電腦圖示右上角有 9pt 綠點(距右 8、距上 8)。'],
+ [4,'搜尋欄(聊天、檔案)','未捲動:top 110(標題列下 +4)、高 40(Dynamic Type 放大時約 ×1.45 封頂)、左右邊距 16、全圓角、系統填色、17pt 次要色。'],
+ [5,'內容起點','有搜尋的 tab:搜尋欄下 +10(top 160);沒有搜尋的 tab:標題列下 +10(top 116)。'],
+ [7,'tab bar','左右 20、距底 26、高 64、圓角 32 玻璃。每個 tab 高 54;圖示 24pt、標籤 11pt Medium(選取中 Bold、綠色);聊天 tab 的未讀徽章 18pt。'],
+ [8,'捲動收合','捲動 56pt 內完成:標題列與頭像淡出並上移 26pt;搜尋欄上移到 top 58、高 44,換成玻璃膠囊(左右邊距 16)。沒有搜尋的 tab 改顯示置中小標題:top 58、高 40、左右內距 20、17pt Semibold 玻璃膠囊。內容從狀態列下滑過,上緣有 64pt 的漸層遮罩。']
+];
+const SPEC_TAB={
+ chats:[
+  [5,'區段標題「主機 · Workspace」','高 36(第一個上內距 10,其餘 26,下內距 8)、左右 20;14pt Semibold、字距 .02em、次要色;前面 16pt 主機圖示。'],
+  [6,'列(A 寬鬆版)','高 101 = 上內距 14 + 內容 70 + 下內距 16 + 分隔線 1。頭像 48×48、圓角 14、狀態徽章 20pt;頭像與文字間距 14、左右邊距 16。三行、行距 5:標題 17pt Semibold 主色(行高 22)、Tab 名 15pt Medium 次要色(行高 20;「離開期間」小標籤 12pt Semibold、圓角 6,放在這一行開頭)、預覽 14pt 次要色(行高 18)。右欄寬 58:時間 13pt 次要色、用量環 18pt 加 13pt 數字,上下間距 8;箭頭 14pt。分隔線 1pt,自文字起算。'],
+  ['AX','Dynamic Type 放大(超過 ×1.4)','右欄堆到文字下方同一行;標題與預覽可折成 2 行;列高自動撐開,頭像、內距不變。']],
+ files:[
+  [5,'麵包屑','top 162、高 18、14pt 次要色、左右 16;層級間用「›」。'],
+  [6,'檔案列','卡片圓角 22、左右邊距 16;列高 60(最小 52)。圖示 24pt、檔名 17pt、副標 13pt 次要色;分隔線自文字起算。']],
+ hosts:[
+  [5,'區段標題「主機」','top 116、高 35、15pt 次要色、左右 16。'],
+  [6,'主機列','卡片規格同檔案;列高 60。主機名 17pt、副標(連線狀態、主機服務版本)13pt 次要色、圖示 24pt。']],
+ traffic:[
+  [5,'期間分段','top 116、高 30、13pt Semibold、左右 16、圓角 10。'],
+  [6,'摘要卡','圓角 22、左右邊距 16、內距 16。大數字 40pt Bold(行高 44);圖表高 78;Wi-Fi 與行動網路數字 22pt Bold。內容最大寬度 720pt(iPad 置中)。各主機卡的列高 52。']]
+};
+const specRows=a=>a.map(([n,h,d])=>`<dt>${n==='AX'?'<span class="pinb" style="background:var(--muted)">字級</span>':pb(n)}</dt><dd><b>${h}</b><br>${d}</dd>`).join('');
+function finalHTML(){
+  const tabHTML=TABS.map(t=>`<div class="group"><div class="ghead"><span class="did">${TL[t]}</span><h3>${TL[t]} tab:未捲動與已捲動</h3></div><div class="finrow"><div class="one"><div data-fin="${t}|0"></div><div class="cap">未捲動</div></div><div class="one"><div data-fin="${t}|120"></div><div class="cap">已捲動</div></div><dl class="spec">${specRows(SPEC_TAB[t])}</dl></div></div>`).join('');
+  const acct=`<div class="group"><div class="ghead"><span class="did">帳號</span><h3>點頭像後:帳號與設定(sheet)</h3></div><div class="finrow"><div class="one"><div data-fin="acct|0"></div><div class="cap">點頭像後</div></div><dl class="spec"><dt>${pb(1)}</dt><dd><b>Sheet</b><br>距頂 46(露出底下畫面 46pt)、頂部圓角 38、底色 grouped、有陰影,底下畫面蓋 40% 黑色遮罩。</dd><dt>${pb(2)}</dt><dd><b>X 關閉鈕</b><br>玻璃圓鈕 44×44、圖示 20pt 線寬 2.2、右邊距 16;標題「帳號」17pt Semibold 置中,與 X 同一列(上內距 12)。</dd><dt>${pb(3)}</dt><dd><b>內容</b><br>inset grouped 卡片:圓角 22、左右邊距 16、卡片間距 14、列高 52(帳號列 60)。第一層:帳號、Purrdr Plus、通知、通知裝置、外觀、App 鎖、撤回倒數、終端機大小、關於。</dd></dl></div></div>`;
+  return `<div class="group"><div class="ghead"><span class="did">共用規格</span><h3>四個 tab 共用的頂列與 tab bar</h3></div><p class="q">單位是 pt,以 402×874 的手機為基準。數字對應各手機上的洋紅色框。除標明外,頂列與 tab bar 的尺寸固定;只有大標題與列表內容隨 Dynamic Type 放大。</p><dl class="spec" style="max-width:none">${specRows(SPEC_COMMON)}</dl></div>${tabHTML}${acct}`;
+}
+function renderFinal(){
+  document.querySelectorAll('[data-fin]').forEach(c=>{
+    const [k,sy]=c.dataset.fin.split('|');
+    const st=k==='acct'?{tab:'chats',acct:true}:{tab:k,sy:+sy};
+    c.innerHTML=`<div class="pinw">${phoneEl(FINAL,{...st,view:'spaces',key:`F|${k}|${sy}`},FS)}</div>`;
+  });
+}
+function placePins(){
+  document.querySelectorAll('[data-fin]').forEach(c=>{
+    const [k,sy]=c.dataset.fin.split('|');
+    const list=(k==='acct'||sy==='0')?PINS_UNS[k]:PINS_SCR[k];
+    const w=c.querySelector('.pinw'); if(!w||!list)return;
+    const wr=w.getBoundingClientRect(), ph=w.querySelector('.ph');
+    w.querySelectorAll('.pbox').forEach(e=>e.remove());
+    list.forEach(([n,sel])=>{
+      const el=ph.querySelector(sel); if(!el)return;
+      const b=el.getBoundingClientRect(); if(!b.width||!b.height)return;
+      const d=document.createElement('div'); d.className='pbox';
+      d.style.cssText=`left:${b.left-wr.left}px;top:${b.top-wr.top}px;width:${b.width}px;height:${b.height}px`;
+      d.innerHTML=`<span class="pin">${n}</span>`; w.appendChild(d);
+    });
+  });
+}
+function renderS0(){
+  for(const lay of ['pod','in']){
+    const c={...SEL,layout:lay};
+    document.querySelector(`[data-s0i="${lay}"]`).innerHTML=phoneEl(c,{tab:L.tab,view:'spaces',key:'L|'+lay,sy:0},.72);
+    document.querySelector(`[data-s0s="${lay}"]`).innerHTML=[0,120].map(sy=>`<div class="rowp2"><div class="cap">${sy?'已捲動':'未捲動'}</div><div class="rowp">${TABS.map(t=>`<div class="one">${phoneEl(c,{tab:t,view:'spaces',key:`S|${lay}|${t}|${sy}`,sy},.42)}<div class="cap">${TL[t]}</div></div>`).join('')}</div></div>`).join('');
+  }
+  const pc={...SEL};
+  document.getElementById('s0pop').innerHTML=[['主機圖示選單','chats',{menu:'host'}],['＋ 選單(聊天)','chats',{menu:'plus'}],['＋ 選單(檔案)','files',{menu:'plus'}],['點頭像:帳號與設定','chats',{acct:true}]].map(([lb,tab,o],i)=>`<div class="one">${phoneEl(pc,{tab,view:'spaces',key:'P|'+i,...o},.5)}<div class="cap">${lb}</div></div>`).join('');
+}
+function refresh(){
+  snapScroll();
+  const m=axm();
+  document.getElementById('axv').textContent=GL.ax===0?'一般':GL.ax>=100?'AX5(最大)':`約 ×${m.toFixed(2)}`;
+  renderS0();
+  renderFinal();
+  document.querySelectorAll('.slot').forEach(el=>{
+    const g=ALLG.find(x=>x.id===el.dataset.g), v=optOf(g,el.dataset.v);
+    el.innerHTML=slotHTML(g,v,+el.dataset.i);
+  });
+  ALLG.forEach(g=>{
+    const box=document.querySelector(`[data-fivebox="${g.id}"]`);
+    if(!box)return;
+    box.hidden=!GS[g.id].five;
+    if(GS[g.id].five){
+      const c={...SEL};
+      box.querySelector('.rowp').innerHTML=TABS.map(t=>`<div class="one">${phoneEl(c,{tab:t,view:'spaces',key:`${g.id}|five|${t}`},.4)}<div class="cap">${TL[t]}</div></div>`).join('');
+    }
+  });
+  document.getElementById('overview').innerHTML=TABS.map(t=>`<div class="one">${phoneEl({...SEL},{tab:t,view:'spaces',key:'ov|'+t},.5)}<div class="cap">${TL[t]}</div></div>`).join('');
+  document.querySelectorAll('.vcard').forEach(el=>{
+    const [gid,v]=el.dataset.card.split('|'), g=ALLG.find(x=>x.id===gid);
+    el.classList.toggle('sel',SEL[g.key]===v);
+    const r=el.querySelector('input[type=radio]'); if(r)r.checked=SEL[g.key]===v;
+  });
+  restoreScroll();
+  placePins();
+  summary();
+}
+function summary(){
+  const rows=ALLG.map(g=>{
+    const o=optOf(g,SEL[g.key]), rec=gvs(g).find(x=>x.rec);
+    return {g,o,rec,same:o.v===rec.v};
+  });
+  const fixedHTML=DECIDED.map((d,i)=>`<tr><td><b>已定案 ${i+1}</b></td><td colspan="3">${d}</td></tr>`).join('');
+  document.getElementById('sumbody').innerHTML=fixedHTML+rows.map(r=>`<tr><td><b>${r.g.id}</b></td><td>${r.g.title}</td><td>${r.o.name}${r.o.unc?' <span class="badge unc">未確認</span>':''}</td><td>${r.same?`<span class="tag-rec">${r.o.mine?'你的選擇':'採用建議'}</span>`:`<span class="tag-diff">改選</span> (建議:${r.rec.name})`}</td></tr>`).join('');
+  document.getElementById('out').value='第一階 4 個 tab 版型與頂列:我的選擇\n已定案:\n'+DECIDED.map((d,i)=>`  ${i+1}. ${d}`).join('\n')+'\n選擇:\n'+rows.map(r=>`${r.g.id} ${r.g.title}:${r.o.name}${r.same?(r.o.mine?'(你的選擇)':'(建議)'):`(不同於建議:${r.rec.name})`}${r.o.unc?' [未確認:'+r.o.unc+']':''}`).join('\n');
+}
+function setTheme(t){GL.theme=t;document.getElementById('th-dark').setAttribute('aria-pressed',t==='dark');document.getElementById('th-light').setAttribute('aria-pressed',t==='light');refresh()}
+
+document.addEventListener('click',e=>{
+  const p=e.target.closest('.pills button');
+  if(p){
+    const par=p.parentElement;
+    if(par.dataset.g){const g=par.dataset.g;GS[g].tab=p.dataset.tab;par.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===p));refresh();return}
+    if(par.dataset.l){L.tab=p.dataset.tab;par.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===p));refresh();return}
+    if(par.id==='s0btn'){scrollInteractive(+p.dataset.y,true);return}
+  }
+  const a=e.target.closest('[data-act]');
+  if(!a)return;
+  const ph=a.closest('[data-pkey]'); if(!ph)return;
+  const key=ph.dataset.pkey, o=PS[key]||(PS[key]={});
+  const act=a.dataset.act;
+  if(act==='menu'){const cur=(o.menu!==undefined)?o.menu:null;o.menu=(cur===a.dataset.m)?null:a.dataset.m}
+  else if(act==='acct'){o.acct=true;o.menu=null}
+  else if(act==='acctClose'){o.acct=false}
+  else if(act==='tab'&&key.startsWith('L|')){L.tab=a.dataset.t;document.querySelectorAll('[data-l="tab"] button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===L.tab))}
+  refresh();
+});
+document.addEventListener('change',e=>{
+  const r=e.target;
+  if(r.matches('input[type=radio]')){const g=ALLG.find(x=>x.id===r.name);SEL[g.key]=r.value;refresh()}
+  if(r.matches('[data-five]')){GS[r.dataset.five].five=r.checked;refresh()}
+});
+document.addEventListener('input',e=>{if(e.target.id==='s0sl')scrollInteractive(+e.target.value,false)});
+document.getElementById('th-dark').onclick=()=>setTheme('dark');
+document.getElementById('th-light').onclick=()=>setTheme('light');
+document.getElementById('ax').addEventListener('input',e=>{GL.ax=+e.target.value;refresh()});
+document.getElementById('copy').onclick=async()=>{
+  const ta=document.getElementById('out'),st=document.getElementById('copied');
+  try{await navigator.clipboard.writeText(ta.value);st.textContent='已複製'}catch(err){ta.focus();ta.select();st.textContent='已選取,請手動複製'}
+};
+build();
+document.getElementById('ax').value=GL.ax;
+setTheme(GL.theme);
+// 截圖用:?only=s0 只顯示一個區塊,?sel=color:green,... 預先選方案
+const only=URLQ.get('only');
+if(URLQ.get('sel'))URLQ.get('sel').split(',').forEach(p=>{const[k,v]=p.split(':');SEL[k]=v});
+if(only){document.querySelectorAll('section.sec').forEach(s=>{s.style.display=(s.id===only)?'':'none'});document.getElementById('nav').style.display='none';document.querySelector('header').style.display='none';document.querySelector('.ctl').style.position='static'}
+refresh();
+document.documentElement.dataset.h=document.documentElement.scrollHeight;
+</script>
