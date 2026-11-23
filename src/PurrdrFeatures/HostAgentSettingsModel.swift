@@ -50,8 +50,11 @@ public final class HostAgentSettingsModel {
     }
 
     /// 啟用中的 Agent 名稱(主機頁列的副標);全關是空陣列。
-    public var enabledNames: [String] {
-        HostAgentSettings.configurable.filter(enabled.contains).map(Self.name(of:))
+    public var enabledNames: [String] { Self.enabledNames(of: enabled) }
+
+    /// 啟用中的 Agent 名稱(順序同新增聊天);主機頁的列不開子頁 model 時也用這個。
+    public static func enabledNames(of enabled: Set<AgentID>) -> [String] {
+        HostAgentSettings.configurable.filter(enabled.contains).map(name(of:))
     }
 
     public func setEnabled(_ agent: AgentID, _ isEnabled: Bool) {

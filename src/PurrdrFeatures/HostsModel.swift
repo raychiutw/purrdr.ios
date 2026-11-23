@@ -163,6 +163,8 @@ public final class HostsModel {
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
     private let diagnostics: DiagnosticLog
+    /// 等待(HTTPS 偵測 Agent 的重試間隔);測試注入。
+    private let sleep: Sleep
 
     /// - Parameters:
     ///   - conversationCache: 對話快取(所有主機共用一個存放處，key 依主機分開)。
@@ -194,10 +196,11 @@ public final class HostsModel {
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
         offlineQueues: any OfflineQueueStore = InMemoryOfflineQueueStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
-        publicModelCatalog: (any PublicModelCatalogFetching)? = nil,
+        publicModelCatalog: (any PublicModelCatalogFetching)? = nil, sleep: @escaping Sleep = Sleeping.task,
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
+        self.sleep = sleep
         agentList = MergedAgentListModel(modeStore: listMode)
         self.selectionStore = selectionStore
         self.currentHostStore = currentHostStore
@@ -642,10 +645,10 @@ public final class HostsModel {
     }
 
     /// HTTPS 主機要等列表讀到快照才偵測得到:每秒再試,最多 10 次;其他主機只試一次。
-    private func initializeAgentSettingsWhenReachable(for id: UUID, isNewHost: Bool) async {
+    package func initializeAgentSettingsWhenReachable(for id: UUID, isNewHost: Bool) async {
         let attempts = hosts.first { $0.id == id }?.connectionMethod.usesHostService == true ? 10 : 1
         for attempt in 0..<attempts {
-            if attempt > 0 { try? await Sleeping.task(.seconds(1)) }
+            if attempt > 0 { try? await sleep(.seconds(1)) }
             await initializeAgentSettings(for: id, isNewHost: isNewHost)
             if hosts.first(where: { $0.id == id })?.enabledAgents != nil { return }
         }

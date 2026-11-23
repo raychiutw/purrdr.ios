@@ -158,9 +158,7 @@ struct HostOverviewView: View {
 
     /// 「Agent」列(#477):右側是啟用的 Agent,點進去逐一開關。
     private func agentsRow(_ id: UUID) -> some View {
-        let enabled = hosts.enabledAgents(on: .host(id))
-        let names = HostAgentSettings.configurable.filter(enabled.contains)
-            .map { AgentCatalog.profile(for: $0).presentation.displayName ?? $0.canonicalName }
+        let names = HostAgentSettingsModel.enabledNames(of: hosts.enabledAgents(on: .host(id)))
         return NavigationLink(value: HostRoute.agents(id)) {
             HostRowLabel(
                 title: "Agent",

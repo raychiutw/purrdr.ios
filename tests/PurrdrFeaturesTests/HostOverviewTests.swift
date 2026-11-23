@@ -25,7 +25,7 @@ struct HostOverviewTests {
     }
 
     static func httpsModel(
-        paired: Bool = true, connection: FakeHostConnection = FakeHostConnection()
+        paired: Bool = true, connection: FakeHostConnection = FakeHostConnection(), sleep: @escaping Sleep = Sleeping.task
     ) -> HostsModel {
         let store = MemoryHostStore()
         store.hosts = [buildBox]
@@ -33,7 +33,7 @@ struct HostOverviewTests {
         connections.connections = [connection]
         let tokens = InMemoryDeviceTokenStore(tokens: paired ? [buildBox.id: "token"] : [:])
         let model = HostsModel(
-            store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens), makeChannel: ChannelFactory().make)
+            store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens), sleep: sleep, makeChannel: ChannelFactory().make)
         model.load()
         return model
     }

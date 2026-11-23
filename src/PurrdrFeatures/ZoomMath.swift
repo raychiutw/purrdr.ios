@@ -1,7 +1,7 @@
 import CoreGraphics
 
-/// 全螢幕看圖(`ImageViewerZoom`)與 Pane 終端機保留電腦版面(`TerminalViewportZoom`)共用的縮放數學:
-/// 倍率的上下限、捏合進行中的橡皮筋範圍、以手指為不動點的位置換算。兩邊只差座標原點(容器中心或左上角)與邊界規則。
+/// 全螢幕看圖(`ImageViewerZoom`)的縮放數學:倍率的上下限、捏合進行中的橡皮筋範圍、以手指為不動點的位置換算。
+/// (Pane 終端機已改為顯示時持有手機尺寸、不縮放,#357;原本共用這份的 `TerminalViewportZoom` 已刪除。)
 enum ZoomMath {
     static let maximumZoom: CGFloat = 8
     /// 捏合進行中可略超出範圍的下限(放開時彈回 1×)。

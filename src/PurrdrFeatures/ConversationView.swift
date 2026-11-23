@@ -338,7 +338,7 @@ public struct ConversationView: View {
             withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
         }
         // 跳到最新(#476):顯示只看離底距離(`scroll.showsJumpToLatest`)。跟隨中新內容撐長的瞬間也會量到很遠,
-        // 延遲一下才顯示,避免閃現;閱讀中(往上捲)立刻顯示。位置在停止列(底部輸入列的一部分)上方、靠右。
+        // 延遲一下才顯示,避免閃現;閱讀中(往上捲)立刻顯示。位置在輸入列上方正中間(#476)。
         .task(id: scroll.showsJumpToLatest) {
             guard scroll.showsJumpToLatest else {
                 jumpToLatestVisible = false

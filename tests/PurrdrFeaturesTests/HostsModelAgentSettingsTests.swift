@@ -123,6 +123,34 @@ struct HostsModelAgentSettingsTests {
         #expect(model.enabledAgents(on: .host(id)) == [.claude, .codex])
     }
 
+    @Test("HTTPS 偵測重試每秒一次、最多 10 次,等待用注入的 sleep(不真的等)")
+    func httpsDetectionRetriesUseInjectedSleep() async {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Fixtures.modifiedLine("session.snapshot.ndjson") { SnapshotEdit.removeAgents(in: &$0) })
+        let sleeper = RecordingSleeper(fires: { _ in true })
+        let model = HostOverviewTests.httpsModel(connection: connection, sleep: sleeper.sleep)
+        await model.agentList.load()
+
+        await model.initializeAgentSettingsWhenReachable(for: HostOverviewTests.buildBox.id, isNewHost: true)
+
+        #expect(await sleeper.requested == Array(repeating: .seconds(1), count: 9))
+        #expect(model.hosts.first?.enabledAgents == nil)
+    }
+
+    @Test("HTTPS 偵測第一次就成功:不等待")
+    func httpsDetectionSucceedsWithoutSleeping() async {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        let sleeper = RecordingSleeper(fires: { _ in true })
+        let model = HostOverviewTests.httpsModel(connection: connection, sleep: sleeper.sleep)
+        await model.agentList.load()
+
+        await model.initializeAgentSettingsWhenReachable(for: HostOverviewTests.buildBox.id, isNewHost: true)
+
+        #expect(await sleeper.requested.isEmpty)
+        #expect(model.hosts.first?.enabledAgents == [.claude])
+    }
+
     @Test("方案用量頁的 Agent 清單只列這台主機啟用的(#477)")
     func planUsageListsOnlyEnabledAgents() {
         let host = Self.host(enabled: [.codex])

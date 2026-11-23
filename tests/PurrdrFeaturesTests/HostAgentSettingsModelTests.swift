@@ -71,6 +71,7 @@ struct HostAgentSettingsModelTests {
     func summary() {
         #expect(model(enabled: [.claude, .agy], detected: .success([])).enabledNames == ["Claude Code", "Antigravity"])
         #expect(model(enabled: [], detected: .success([])).enabledNames.isEmpty)
+        #expect(HostAgentSettingsModel.enabledNames(of: [.agy, .claude]) == ["Claude Code", "Antigravity"], "主機頁的列共用同一個來源")
     }
 }
 #endif
