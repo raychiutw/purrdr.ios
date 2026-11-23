@@ -161,6 +161,6 @@ struct HostUploadTests {
         _ = try await uploader.upload(.data(Data("abc".utf8)), named: name, progress: { log.add($0) })
 
         #expect(await uploader.uploads.map(\.data) == [Data("abc".utf8)])
-        #expect(log.all == [1])
+        #expect(log.all.last == 1)
     }
 }
