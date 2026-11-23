@@ -18,7 +18,7 @@ extension View {
 
 extension EnvironmentValues {
     /// 動畫是否啟用(app 在 UI 測試關掉動畫時由 composition root 設成 false;骨架據此不脈動)。
-    @Entry var skeletonAnimationsEnabled = true
+    @Entry public var skeletonAnimationsEnabled = true
 }
 
 private struct SkeletonStyle: ViewModifier {
