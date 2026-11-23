@@ -152,7 +152,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有看到列表")
         XCTAssertEqual(app.chatSearch.placeholderValue, "搜尋 Tab、Workspace、主機", "列表不是繁體中文")
         openSettings(in: app)
-        XCTAssertTrue(app.navigationBars["設定"].waitUntilExists(timeout: 5), "設定頁標題不是繁體中文")
+        XCTAssertTrue(app.navigationBars["帳號"].waitUntilExists(timeout: 5), "帳號與設定頁標題不是繁體中文")
         XCTAssertTrue(app.staticTexts["用量顯示"].waitUntilExists(timeout: 5), "設定沒有「用量顯示」")
         // Codex 區在上面，評分列要捲動才出現。
         let rate = app.buttons["為 Purrdr 評分"]

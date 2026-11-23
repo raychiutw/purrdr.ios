@@ -11,9 +11,11 @@ final class NewChatUITests: XCTestCase {
     private func openNewChat() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
         app.openNewChatSheet()
-        XCTAssertTrue(app.textFields["newChat.folder"].waitUntilExists(timeout: 5), "沒有開出新增對話")
-        // 新增對話是部分高度的 sheet(#425):往上拉到 large,「開始」才在畫面內。
-        app.textFields["newChat.folder"].swipeUp()
+        // 新增對話是部分高度的 sheet(#425):資料夾欄在列表下方(lazy,不在 accessibility tree),先往上拉到 large 才看得到。
+        let sheet = app.element("sheet.newChat")
+        XCTAssertTrue(sheet.waitUntilExists(timeout: 10), "沒有開出新增對話")
+        sheet.swipeUp()
+        XCTAssertTrue(app.textFields["newChat.folder"].waitUntilExists(timeout: 5), "新增對話沒有資料夾欄")
         return app
     }
 
@@ -52,6 +54,9 @@ final class NewChatUITests: XCTestCase {
         let folder = app.textFields["newChat.folder"]
         XCTAssertTrue(app.buttons["newChat.cancel"].waitUntilExists(timeout: 5), "沒有回到表單")
         XCTAssertEqual(folder.value as? String, "/Users/demo/ledger/reports")
+        // 回到表單後列表停在上方,「開始」在下面(lazy,不在 accessibility tree):先捲到看得到。
+        app.scrollIntoView(start, search: .down)
+        XCTAssertTrue(start.waitUntilExists(timeout: 5), "表單沒有「開始」")
         XCTAssertTrue(start.isEnabled)
     }
 
