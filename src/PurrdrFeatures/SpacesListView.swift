@@ -24,8 +24,8 @@ struct SpacesSectionsContent: View {
                 }
             } header: {
                 SpacesSectionHeader(section: section)
-                    .workspaceHeaderRename(
-                        workspaceTarget(section), host: section.host,
+                    .workspaceHeaderMenu(
+                        workspaceTarget(section), host: section.host, snapshot: model.snapshot(for: section.host),
                         isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation)
             }
         }

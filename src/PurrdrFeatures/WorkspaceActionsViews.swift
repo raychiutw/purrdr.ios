@@ -123,15 +123,25 @@ extension View {
         }
     }
 
-    /// Spaces 檢視段落標題的長按:重新命名 Workspace(#456)。List 的段落標題掛不上 context menu,
-    /// 所以長按直接開改名提示框(只有這一個動作),VoiceOver 以自訂動作提供。唯讀裝置不提供。
-    func workspaceHeaderRename(
-        _ target: WorkspaceTarget, host: HostSelection, isReadOnly: Bool, presentation: WorkspacePresentation
+    /// Spaces 檢視段落標題的長按選單(#456):List 的段落標題掛不上 `contextMenu`，
+    /// 所以標題本身是 `Menu`(輕點不做事、長按出選單):重新命名 Workspace…、版面圖、新 worktree、關閉。
+    /// VoiceOver 另有「重新命名 Workspace…」自訂動作。唯讀裝置的改動項目停用。
+    func workspaceHeaderMenu(
+        _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, isReadOnly: Bool, presentation: WorkspacePresentation
     ) -> some View {
-        let buttons = WorkspaceButtons(target: target, host: host, snapshot: nil, presentation: presentation)
-        return self
-            .onLongPressGesture(minimumDuration: 0.5) { if !isReadOnly { buttons.askWorkspaceName() } }
-            .accessibilityAction(named: Text("Rename Workspace…")) { if !isReadOnly { buttons.askWorkspaceName() } }
+        let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: isReadOnly)
+        return Menu {
+            buttons.renameWorkspace(showsCurrent: true)
+            buttons.showLayout()
+            buttons.newWorktree()
+            Divider()
+            buttons.close(title: "Close Workspace…", role: .destructive)
+            if isReadOnly { Text(WorkspaceActionsModel.readOnlyMessage) }
+        } label: {
+            self
+        } primaryAction: {}
+        .buttonStyle(.plain)
+        .accessibilityAction(named: Text("Rename Workspace…")) { if !isReadOnly { buttons.askWorkspaceName() } }
     }
 
     /// 呈現 workspace 操作的 sheet、確認與錯誤。`actions` 依主機取得該主機的操作;

@@ -81,6 +81,13 @@ final class SpacesUITests: XCTestCase {
 
         let header = app.element("spaces.section.demo/w1")
         header.press(forDuration: 1.2)
+        // 長按標題出現系統選單(不是直接開提示框)，再選「重新命名 Workspace…」才開。
+        XCTAssertTrue(app.buttons["menu.renameWorkspace"].waitUntilExists(timeout: 5), "標題長按沒有出現選單:\(app.debugDescription)")
+        for title in ["Show Layout", "New Worktree…", "Close Workspace…"] {
+            XCTAssertTrue(app.buttons[title].waitUntilExists(timeout: 5), "標題長按選單沒有「\(title)」")
+        }
+        XCTAssertFalse(app.alerts["Rename Workspace"].exists, "選單還沒選就開了提示框")
+        app.buttons["menu.renameWorkspace"].tap()
         let workspaceAlert = app.alerts["Rename Workspace"]
         XCTAssertTrue(workspaceAlert.waitUntilExists(timeout: 5))
         workspaceAlert.textFields.firstMatch.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6) + "Budget")
