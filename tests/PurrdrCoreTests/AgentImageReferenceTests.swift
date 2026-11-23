@@ -26,6 +26,17 @@ struct AgentImageReferenceTests {
         #expect(images.allSatisfy { $0.kind == .image })
     }
 
+    @Test("Read 圖片保留 toolUseResult 的原始尺寸(列高由資料決定,#482);MCP 圖片沒有尺寸")
+    func readImagesKeepDimensions() {
+        let cards = Self.cards(Fixtures.transcriptLines(Self.fixture))
+
+        let readSizes = cards.filter { $0.origin == .readImage }.map(\.pixelSize)
+        #expect(readSizes == [
+            ImagePixelSize(width: 16, height: 16), ImagePixelSize(width: 16, height: 16), ImagePixelSize(width: 3000, height: 2000),
+        ])
+        #expect(cards.filter { $0.origin == .toolImage }.allSatisfy { $0.pixelSize == nil })
+    }
+
     @Test("MCP 工具結果帶圖：卡片路徑是 `[Image: source: …]` 另存的檔案")
     func mcpImageBecomesCard() {
         let images = Self.cards(Fixtures.transcriptLines(Self.fixture)).filter { $0.origin == .toolImage }
