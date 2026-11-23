@@ -188,7 +188,10 @@ extension XCUIApplication {
     @MainActor
     func selectHostOnHostsTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
         let row = buttons["hosts.host.\(name)"].firstMatch
-        XCTAssertTrue(row.waitUntilExists(timeout: 10), "主機 tab 的主機清單沒有 \(name)", file: file, line: line)
+        _ = row.waitUntilExists(timeout: 10)
+        // 清單是 lazy:主機列在畫面外時不在 accessibility tree,先捲到看得到。
+        scrollIntoView(row, search: .both, timeout: 5)
+        XCTAssertTrue(row.waitUntilExists(timeout: 5), "主機 tab 的主機清單沒有 \(name)", file: file, line: line)
         row.tap()
     }
 

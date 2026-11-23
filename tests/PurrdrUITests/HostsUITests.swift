@@ -111,7 +111,9 @@ final class HostsUITests: XCTestCase {
             let save = app.buttons["hostEditor.save"]
             XCTAssertTrue(save.isEnabled, "只改名稱不必重新測試連線")
             save.tap()
-            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 5), "存檔後沒有回到總頁")
+            // 回到總頁時列表還停在剛才捲到的位置,狀態卡在最上面(lazy):先捲回上面。
+            let status = app.element("hosts.status")
+            XCTAssertTrue(app.scrollIntoView(status, search: .up, timeout: 5), "存檔後沒有回到總頁")
             XCTAssertTrue(app.staticTexts["Office Mac"].firstMatch.waitUntilExists(timeout: 5), "總頁沒有換成新名稱")
         }
 
@@ -156,8 +158,11 @@ final class HostsUITests: XCTestCase {
             app.buttons["guide.done"].tapWhenReady()
             app.openHostsTab()
             // 匯入的主機成為選取中主機:主機清單(兩台以上才顯示)裡它被勾選。
-            XCTAssertTrue(app.buttons["hosts.host.Studio Mac"].waitUntilExists(timeout: 5), "主機 tab 沒有匯入的主機")
-            XCTAssertTrue(app.buttons["hosts.host.Studio Mac"].isSelected, "匯入的主機不是選取中主機")
+            XCTAssertTrue(app.buttons["hosts.host.Studio Mac"].firstMatch.waitUntilExists(timeout: 5), "主機 tab 沒有匯入的主機")
+            // 列表列與裡面的按鈕在 accessibility tree 裡都帶這個識別碼(選取狀態只在其中一個):任何一個被勾選就算。
+            let rows = app.buttons.matching(identifier: "hosts.host.Studio Mac")
+            let selected = UITestWait.until(timeout: 10) { rows.allElementsBoundByIndex.contains { $0.isSelected } }
+            XCTAssertTrue(selected, "匯入的主機不是選取中主機")
         }
     }
 
