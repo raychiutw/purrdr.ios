@@ -64,12 +64,15 @@ final class MultiHostUITests: XCTestCase {
     func testDemoShowsCompanionHosts() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
 
+        // 往下捲後頂列收合、不渲染電腦圖示:主機範圍的斷言要在捲動前(列表還在最上面)做。
+        let hostFilter = app.buttons["toolbar.currentHost"].firstMatch
+        XCTAssertTrue(hostFilter.waitUntilExists(timeout: 20), "沒有電腦圖示")
+        XCTAssertEqual(hostFilter.label, "Showing: All Hosts")
         let studioRow = app.element("spaces.tab.DE300000-0000-4000-8000-000000000001/w2:t1")
         XCTAssertTrue(app.reveal(studioRow, timeout: 20), "沒有示範主機 Studio Mac 的列")
         let error = app.element("agentList.error.DE300000-0000-4000-8000-000000000002")
         XCTAssertTrue(app.reveal(error, timeout: 20), "沒有連不上的示範主機")
         XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
-        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: All Hosts")
     }
 
     /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，標題列帶主機名。
