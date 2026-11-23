@@ -288,7 +288,7 @@ struct AgentFileCardView: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 18))
-        .contextMenu {
+        .listContextMenu {
             Button("Details", systemImage: "info.circle") { showsDetails = true }
             Button("Copy Path", systemImage: "document.on.document") { Clipboard.copy(card.file.path) }
             if let content = display.copyableContent {

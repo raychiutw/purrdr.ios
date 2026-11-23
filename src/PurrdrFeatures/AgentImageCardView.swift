@@ -143,7 +143,7 @@ struct AgentImageCardView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12))
-        .contextMenu {
+        .listContextMenu {
             Button("Copy Path", systemImage: "document.on.document") { Clipboard.copy(card.file.path) }
         }
         .accessibilityElement(children: .contain)
