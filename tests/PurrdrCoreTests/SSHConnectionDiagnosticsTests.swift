@@ -1,5 +1,6 @@
 import Foundation
 import NIOCore
+import NIOPosix
 import PurrdrCore
 import PurrdrSSH
 import Synchronization
@@ -86,6 +87,26 @@ struct SSHConnectionDiagnosticsTests {
         try await eventually { !events.dropReasons.isEmpty }
 
         #expect(events.dropReasons == [.closedByPeer])
+        await channel.disconnect()
+        await server.stop()
+    }
+
+    @Test("注入的診斷 closure 不在 event loop 上執行(NIO 執行緒 stack 有限,#470)", .timeLimit(.minutes(1)))
+    func diagnosticsNeverRunOnEventLoop() async throws {
+        let server = try await TestSSHServer.start { command in command == "send" ? .dropConnection : .reply(stdout: "ok") }
+        let onLoop = Mutex<[SSHConnectionEvent]>([])
+        let all = Mutex<Int>(0)
+        let channel = SSHHostChannel(
+            endpoint: server.endpoint, hostKeyPin: server.fingerprint,
+            diagnostics: { event in
+                all.withLock { $0 += 1 }
+                if MultiThreadedEventLoopGroup.currentEventLoop != nil { onLoop.withLock { $0.append(event) } }
+            })
+
+        _ = try? await collect(channel.execute("send"))
+        try await eventually { all.withLock { $0 } >= 2 }  // connected + dropped
+
+        #expect(onLoop.withLock { $0 }.isEmpty, "event loop 上呼叫了注入的診斷:\(onLoop.withLock { $0 })")
         await channel.disconnect()
         await server.stop()
     }
