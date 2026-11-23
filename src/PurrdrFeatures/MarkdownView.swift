@@ -10,8 +10,9 @@ import AppKit
 struct MarkdownView: View {
     let blocks: [MarkdownBlock]
 
-    init(_ markdown: String) {
-        blocks = Markdown.parse(markdown)
+    /// 解析結果由呼叫端給(對話列表用時間軸的快取,同一則文字只解析一次)。
+    init(blocks: [MarkdownBlock]) {
+        self.blocks = blocks
     }
 
     /// 有程式碼區塊或表格(含引言裡的)。

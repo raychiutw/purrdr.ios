@@ -241,6 +241,7 @@ public struct ConversationView: View {
                     isExpanded: { [model] in model.isExpanded(rowID: $0, partID: $1) },
                     setExpanded: { [model] in model.setExpanded($0, rowID: $1, partID: $2) }
                 ))
+                .environment(\.markdownBlocks, { [model] in model.markdownBlocks(for: $0) })
                 .environment(\.hostTheme, hostTheme)
                 .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
         )
@@ -250,6 +251,9 @@ public struct ConversationView: View {
     /// 選單由列表(UIKit)呈現,開著時列表暫停捲動與套用內容。
     private func menuEntries(for rowContent: ChatListRowContent) -> [ChatListMenuEntry] {
         #if os(iOS)
+        if case .pending(let pendingItem) = rowContent {
+            return queuedPromptMenuEntries(for: pendingItem)
+        }
         guard case .entry(let row, _) = rowContent, case .item(let item) = row.entry else { return [] }
         switch item {
         case .agentFile(let card) where card.file.isImageFromAgent:
@@ -276,6 +280,14 @@ public struct ConversationView: View {
     }
 
     #if os(iOS)
+    /// 離線佇列裡的訊息(#347):還沒送出的才能取消;出問題的訊息在列內有自己的按鈕。
+    private func queuedPromptMenuEntries(for pendingItem: PendingItem) -> [ChatListMenuEntry] {
+        guard let queued = model.queuedPrompts.first(where: { "queued-\($0.id.uuidString)" == pendingItem.id }) else { return [] }
+        return ChatListMenuPlan.items(for: .queuedPrompt(canCancel: queued.problem == nil)).map { menuItem in
+            ChatListMenuEntry(item: menuItem) { model.deleteQueued(queued.id) }
+        }
+    }
+
     private func menuEntry(_ menuItem: ChatListMenuItem, card: AgentFileCard, display: AgentFileCardDisplay, shareableFile: URL? = nil) -> ChatListMenuEntry {
         switch menuItem {
         case .details:
@@ -639,13 +651,14 @@ struct AgentMessageView: View {
     let text: AgentText
     var turnHeader: AgentTurnHeader?
     @Environment(\.agentImages) private var context
+    @Environment(\.markdownBlocks) private var markdownBlocks
     /// 點了的主機路徑：開啟中或開不了時在訊息下方顯示狀態。
     @State private var openedPath: String?
     @State private var previewFile: URL?
     @State private var viewer: ImageViewerItem?
 
     var body: some View {
-        let markdown = MarkdownView(text.markdown)
+        let markdown = MarkdownView(blocks: markdownBlocks?(text) ?? Markdown.parse(text.markdown))
         VStack(alignment: .leading, spacing: 6) {
             if let turnHeader {
                 AgentTurnHeaderView(header: turnHeader, date: text.date)

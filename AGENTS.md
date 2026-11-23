@@ -148,7 +148,7 @@ App／Notification Service Extension → NotificationContent
 - **Slash 選定**(#83):選定任何 slash 項目都只把 `/名稱 ` 填進輸入框，由使用者按送出(`ConversationModel.pick(slash:)`)。刻意偏離行為規格 F9.3「不需參數、無副作用的直接送出」,因為使用者常要在指令後補說明。
 - **DI**:只用 initializer 注入;畫面 model 由 composition root 建立後傳入。
 - **Concurrency**:核心型別是 `Sendable` value type 或 actor;畫面 model 放在 main actor。
-- **主執行緒更新規則**(#492,0.49.0 被看門狗 0x8BADF00D 殺掉):週期性更新與輪詢(計時器、`.task` 迴圈、捲動量測)一律以 `scenePhase == .active` 為條件，進背景不推進、不寫狀態(例:`ConnectingClock`);列表捲動由 `ChatListViewController` 的批次排程(最多重試 3 次)與核心 `ConversationScrollDecider` 決定,不經 SwiftUI 量測狀態回寫;連續重試要有總量上限。UIKit 橋接的 `updateUIView`／`layoutSubviews` 內不同步改 SwiftUI 狀態或焦點(`endEditing`、`makeKeyAndVisible`、`becomeFirstResponder`):延後到這次更新結束後再做，同一狀態合併成一次(例:`AppLockWindowPresenter.scheduleApply`,`AppLockPresenterTests`)。
+- **主執行緒更新規則**(#492,0.49.0 被看門狗 0x8BADF00D 殺掉):週期性更新與輪詢(計時器、`.task` 迴圈、捲動量測)一律以 `scenePhase == .active` 為條件，進背景不推進、不寫狀態(例:`ConnectingClock`);列表捲動由 `ChatListViewController` 的批次排程(最多重試 3 次)與核心 `ConversationScrollDecider` 決定,不經 SwiftUI 量測狀態回寫;列表只執行決策者的指令(開啟定位、套用錨點、inset 對齊、動畫落地都是決策者的事件,唯一例外是 layout 同一次排版內的 `contentOffsetAdjustment`),回報給 SwiftUI 的狀態(跳到最新鈕、可見高度)延後到排版後、合併成一次(`ChatListViewController.scheduleStateReports`),內容套用約每 100 ms 批次;下拉重新整理後停在原位(決策者的 `.refreshed`);連續重試要有總量上限。UIKit 橋接的 `updateUIView`／`layoutSubviews` 內不同步改 SwiftUI 狀態或焦點(`endEditing`、`makeKeyAndVisible`、`becomeFirstResponder`):延後到這次更新結束後再做，同一狀態合併成一次(例:`AppLockWindowPresenter.scheduleApply`,`AppLockPresenterTests`)。
 
 ## 在地化
 

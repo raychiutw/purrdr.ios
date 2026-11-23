@@ -111,6 +111,12 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     private var lastBoundsHeight: CGFloat = 0
     private var lastBoundsWidth: CGFloat = 0
     private var lastFirstVisibleRowID: String?
+    private var reportsScheduled = false
+    private var lastApplyAt: TimeInterval?
+    private var applyTask: Task<Void, Never>?
+    #if DEBUG
+    private var driftTracker = ReadingDriftTracker()
+    #endif
 
     private var userHasDragged = false
     private var autoLoadedPages = 0
@@ -189,7 +195,6 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         }
         updateInsets()
         scrollToInitialPositionIfPossible()
-        reportVisibleHeight()
         reportMeasurement()
     }
 
@@ -208,26 +213,27 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         collectionView.contentInset = target
         collectionView.verticalScrollIndicatorInsets = target
         layout.invalidateLayout()
-        if wasAtTopEdge { collectionView.contentOffset.y = -target.top }
+        decider.receive(.topInsetChanged(wasAtTopEdge: wasAtTopEdge))
         if wasMeasured, target.bottom != current.bottom {
             decider.receive(.inputBarHeightChanged)
-            scheduleFlush(after: 0.05)
         }
+        flushNow()
         scrollToInitialPositionIfPossible()
-        reportVisibleHeight()
         reportMeasurement()
     }
 
-    /// 打開時直接停在最底(有尺寸之後才算數)。
+    /// 打開時直接停在最底:有尺寸之後才告訴捲動決策者「開啟了」,位置由它決定。
     private func scrollToInitialPositionIfPossible() {
         guard needsInitialScroll, hasMeasuredInsets, collectionView.bounds.height > 0 else { return }
         needsInitialScroll = false
-        scrollToBottom(animated: false)
+        decider.receive(.openedWithContent)
+        flushNow()
     }
 
     func detach() {
         model?.onTimelineUpdate = nil
         flushTask?.cancel()
+        applyTask?.cancel()
         keyboardSettleTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
@@ -245,8 +251,28 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
             pendingContent = newContent
             return
         }
+        let delay = hasAppliedContent
+            ? ChatListApplyBatch.delay(
+                now: ProcessInfo.processInfo.systemUptime, lastApplyAt: lastApplyAt, interval: ConversationScrollDecider.batchInterval)
+            : 0
+        if delay > 0 {
+            pendingContent = newContent
+            scheduleApply(after: delay)
+            return
+        }
         pendingContent = nil
         apply(newContent)
+    }
+
+    /// 內容約每 100 ms 才套用一次;間隔未滿時留著最新一份,滿了再套。
+    private func scheduleApply(after delay: TimeInterval) {
+        guard applyTask == nil else { return }
+        applyTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, let self else { return }
+            applyTask = nil
+            applyPendingContentIfSafe()
+        }
     }
 
     private var shouldDeferApply: Bool {
@@ -258,6 +284,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     private func applyPendingContentIfSafe() {
         guard let pendingContent, !shouldDeferApply else { return }
         self.pendingContent = nil
+        guard pendingContent != content else { return }
         apply(pendingContent)
     }
 
@@ -268,6 +295,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         let hasContentNow = !newContent.ids.isEmpty
         let needsInitial = ChatListInitialPosition.needsScroll(hadContent: hadContent, hasContent: hasContentNow)
         content = newContent
+        lastApplyAt = ProcessInfo.processInfo.systemUptime
         hasAppliedContent = true
         hadContent = hadContent || hasContentNow
         layout.isFollowingLatest = decider.isFollowingLatest
@@ -278,17 +306,17 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         snapshot.reconfigureItems(ChatListRowPlan.changedIDs(previous: previous.rows, current: newContent.rows))
         dataSource.apply(snapshot, animatingDifferences: false)
         collectionView.layoutIfNeeded()
+        if let anchor {
+            lastAnchor = (anchor, ProcessInfo.processInfo.systemUptime)
+        }
+        decider.receive(.contentApplied(anchorRowID: anchor?.id))
         if needsInitial {
             needsInitialScroll = true
             scrollToInitialPositionIfPossible()
         }
-        if let anchor {
-            restore(anchor)
-            lastAnchor = (anchor, ProcessInfo.processInfo.systemUptime)
-        }
         reportMeasurement()
         checkOlderPage()
-        scheduleFlush(after: 0)
+        flushNow()
     }
 
     /// 時間軸的變更(來自聊天 model):餵捲動決策者,內容套用後再排定處理。
@@ -297,7 +325,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         scheduleFlush(after: update.cause == .userSent ? 0.05 : ConversationScrollDecider.batchInterval)
     }
 
-    /// 「跳到最新」與下拉重新整理後。
+    /// 「跳到最新」鈕。下拉重新整理後不跳:由決策者依 `.refreshed` 維持原位。
     func jumpToLatest() {
         decider.receive(.jumpToLatest(lastRowID: content.ids.last ?? ""))
         reportFollowing()
@@ -354,6 +382,13 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         }
     }
 
+    /// 同一次更新內立刻處理(內容套用、開啟定位、inset 改變時,不能多等一個畫面):決策仍是捲動決策者的。
+    private func flushNow() {
+        flushTask?.cancel()
+        flushRetriesLeft = 3
+        runFlush()
+    }
+
     private func runFlush() {
         let command = decider.flush(at: ProcessInfo.processInfo.systemUptime)
         reportFollowing()
@@ -371,8 +406,12 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     private func perform(_ command: ConversationScrollDecider.Command) {
         switch command {
-        case .scrollToBottom(let animated), .scrollToRow(_, let animated):
+        case .scrollToBottom(let animated):
             scrollToBottom(animated: animated)
+        case .scrollToRow(let id, let animated):
+            scrollToRow(id: id, animated: animated)
+        case .pinToTopEdge:
+            setOffsetY(-collectionView.adjustedContentInset.top, animated: false)
         case .keepVisible(let rowID):
             if let lastAnchor, lastAnchor.anchor.id == rowID, ProcessInfo.processInfo.systemUptime - lastAnchor.at < 1, !isUserDriven {
                 restore(lastAnchor.anchor)
@@ -386,37 +425,105 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         let target = ChatListLayoutMath.bottomOffset(
             contentHeight: layout.collectionViewContentSize.height, boundsHeight: collectionView.bounds.height,
             insetTop: inset.top, insetBottom: inset.bottom)
+        setOffsetY(target, animated: animated)
+    }
+
+    /// 捲到指定列(底緣停在可見底緣);找不到列或它就是最後一列時等同捲到底。
+    private func scrollToRow(id: String, animated: Bool) {
+        guard id != content.ids.last, let indexPath = dataSource.indexPath(for: id) else {
+            scrollToBottom(animated: animated)
+            return
+        }
+        collectionView.layoutIfNeeded()
+        guard let frame = layout.layoutAttributesForItem(at: indexPath)?.frame else {
+            scrollToBottom(animated: animated)
+            return
+        }
+        let inset = collectionView.adjustedContentInset
+        let target = ChatListLayoutMath.offsetShowingRowBottom(
+            rowMaxY: frame.maxY, boundsHeight: collectionView.bounds.height, insetTop: inset.top, insetBottom: inset.bottom,
+            contentHeight: layout.collectionViewContentSize.height)
+        setOffsetY(target, animated: animated)
+    }
+
+    private func setOffsetY(_ target: Double, animated: Bool) {
         guard abs(target - collectionView.contentOffset.y) > 0.5 else { return }
         collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: target), animated: animated && !UIAccessibility.isReduceMotionEnabled)
     }
 
     // MARK: - 量測與回報
 
-    private var distanceFromBottom: Double {
+    /// 可見高度:列表框扣掉上下 inset(玻璃導覽列與輸入列底下的部分)。
+    private var visibleHeight: Double {
         let inset = collectionView.adjustedContentInset
-        let container = collectionView.bounds.height - inset.top - inset.bottom
-        return collectionView.contentSize.height - container - inset.top - collectionView.contentOffset.y
+        return Double(collectionView.bounds.height - inset.top - inset.bottom)
     }
 
+    private var distanceFromBottom: Double {
+        collectionView.contentSize.height - visibleHeight - collectionView.adjustedContentInset.top - collectionView.contentOffset.y
+    }
+
+    /// 量測:決策者的輸入同步更新;交給 SwiftUI 的回報延後(`scheduleStateReports`)。
     private func reportMeasurement() {
         guard collectionView != nil else { return }
-        let inset = collectionView.adjustedContentInset
-        smoothness?.report(ScrollSmoothnessSnapshot(
-            contentHeight: collectionView.contentSize.height,
-            containerHeight: collectionView.bounds.height - inset.top - inset.bottom,
-            contentOffsetY: collectionView.contentOffset.y, topInset: inset.top,
-            visibleRowCount: collectionView.indexPathsForVisibleItems.count))
         let firstVisible = topVisibleRow()?.id
         if firstVisible != lastFirstVisibleRowID {
             lastFirstVisibleRowID = firstVisible
             decider.receive(.firstVisibleRowChanged(id: firstVisible))
         }
+        #if DEBUG
+        trackReadingDrift()
+        #endif
+        scheduleStateReports()
+    }
+
+    /// 回報給 SwiftUI 的狀態(「跳到最新」鈕、可見高度、除錯量測)延後到這次更新與排版結束後,同一批只送一次(AGENTS.md 主執行緒更新規則)。
+    private func scheduleStateReports() {
+        guard !reportsScheduled else { return }
+        reportsScheduled = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            reportsScheduled = false
+            deliverStateReports()
+        }
+    }
+
+    private func deliverStateReports() {
+        guard collectionView != nil else { return }
+        let inset = collectionView.adjustedContentInset
+        smoothness?.report(ScrollSmoothnessSnapshot(
+            contentHeight: collectionView.contentSize.height, containerHeight: visibleHeight,
+            contentOffsetY: collectionView.contentOffset.y, topInset: inset.top,
+            visibleRowCount: collectionView.indexPathsForVisibleItems.count))
         let showsJump = decider.distanceFromBottom > ConversationScrollDecider.nearBottomThreshold
         if showsJump != lastReportedShowsJump {
             lastReportedShowsJump = showsJump
             onShowsJumpToLatestChanged(showsJump)
         }
+        let height = visibleHeight
+        if height != lastReportedVisibleHeight {
+            lastReportedVisibleHeight = height
+            onVisibleHeightChanged(height)
+        }
     }
+
+    #if DEBUG
+    /// 驗收用量測(UI 測試讀 `conversation.list` 的 value):閱讀中停下後基準列離可見頂端的最大位移,以及實際上下 inset。
+    private func trackReadingDrift() {
+        guard ProcessInfo.processInfo.arguments.contains("-uiTesting") else { return }
+        if isUserDriven || decider.isFollowingLatest {
+            driftTracker.clear()
+        } else if driftTracker.baselineRowID == nil {
+            if let top = topVisibleRow() { driftTracker.setBaseline(rowID: top.id, distanceFromVisibleTop: top.minY - visibleTop) }
+        } else if let rowID = driftTracker.baselineRowID, let indexPath = dataSource.indexPath(for: rowID),
+                  let frame = layout.layoutAttributesForItem(at: indexPath)?.frame {
+            driftTracker.observe(distanceFromVisibleTop: frame.minY - visibleTop)
+        }
+        let drift = driftTracker.baselineRowID == nil ? "none" : String(format: "%.1f", driftTracker.maxDrift)
+        let inset = collectionView.adjustedContentInset
+        collectionView.accessibilityValue = String(format: "drift=%@ insetTop=%.1f insetBottom=%.1f", drift, inset.top, inset.bottom)
+    }
+    #endif
 
     private func reportFollowing() {
         guard decider.isFollowingLatest != lastReportedFollowing else { return }
@@ -425,21 +532,12 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         model?.isFollowingLatest = decider.isFollowingLatest
     }
 
-    private func reportVisibleHeight() {
-        let inset = collectionView.adjustedContentInset
-        let height = Double(collectionView.bounds.height - inset.top - inset.bottom)
-        guard height != lastReportedVisibleHeight else { return }
-        lastReportedVisibleHeight = height
-        onVisibleHeightChanged(height)
-    }
-
     /// 距頂端 ≤ 1 個畫面高就讀上一頁;內容還不夠填滿畫面時不必等使用者拖動(有頁數上限,#473)。
     private func checkOlderPage() {
         guard let model, model.older == .available, !isLoadingOlder else { return }
-        let inset = collectionView.adjustedContentInset
         let wants = ChatListOlderPageTrigger.wantsOlderPage(
-            distanceFromTop: Double(collectionView.contentOffset.y + inset.top),
-            containerHeight: Double(collectionView.bounds.height - inset.top - inset.bottom),
+            distanceFromTop: visibleTop,
+            containerHeight: visibleHeight,
             contentHeight: Double(collectionView.contentSize.height),
             userHasDragged: userHasDragged, autoLoadedPages: autoLoadedPages, autoLoadLimit: ConversationModel.maximumEmptyWindowPages)
         guard wants else { return }
@@ -476,6 +574,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         decider.receive(.userEndedDragging(distanceFromBottom: distanceFromBottom))
         applyPendingContentIfSafe()
         reportFollowing()
+        reportMeasurement()
         scheduleFlush(after: 0.05)
     }
 
@@ -483,13 +582,14 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         decider.receive(.userEndedDragging(distanceFromBottom: distanceFromBottom))
         applyPendingContentIfSafe()
         reportFollowing()
+        reportMeasurement()
         scheduleFlush(after: 0.05)
     }
 
-    /// 動畫捲到底的途中列高又被量準了,落地後再貼一次底部。
+    /// 動畫捲到底的途中列高又被量準了:交給捲動決策者判斷落地後要不要再貼一次底部。
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-        guard decider.isFollowingLatest, abs(distanceFromBottom) > 1 else { return }
-        scrollToBottom(animated: false)
+        decider.receive(.scrollAnimationEnded(distanceFromBottom: distanceFromBottom))
+        flushNow()
     }
 
     // MARK: - 長按選單
@@ -501,7 +601,10 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         guard !entries.isEmpty else { return nil }
         return UIContextMenuConfiguration(identifier: id as NSString, previewProvider: nil) { [weak self] _ in
             let actions = entries.map { entry in
-                UIAction(title: entry.item.title, image: UIImage(systemName: entry.item.symbolName)) { _ in
+                UIAction(
+                    title: entry.item.presentation.title, image: UIImage(systemName: entry.item.presentation.symbolName),
+                    attributes: entry.item.presentation.isDestructive ? .destructive : []
+                ) { _ in
                     if let shareURL = entry.shareURL {
                         self?.presentShare(shareURL, from: indexPath)
                     } else {
@@ -555,7 +658,6 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         Task { [weak self] in
             await model.reload()
             self?.collectionView.refreshControl?.endRefreshing()
-            self?.jumpToLatest()
         }
     }
 
