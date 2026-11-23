@@ -28,3 +28,9 @@ Purrdr 對不同 Agent(Claude Code、Codex、Antigravity、Grok…)的差異，�
 - 新增一種 Agent:加一份設定檔、在目錄登記一行;需要主機能力時再接對照表。
 - Agent 的 TUI 與對話紀錄格式隨版本變(Claude 官方明說 JSONL 是內部格式),解析器要能部分失敗、比對失敗時安靜退回並記錄;App Store 發版才能更新解析器，herdr 則可遠端更新它的規則。
 - 重構以先加新寫法、逐批搬遷、最後刪除舊寫法進行，期間行為不變。
+
+## 更新(2026-11-23):Antigravity 權限提示不在 app 補判斷，等 herdr 修正
+
+實測(#445,PR #459)發現 herdr 0.9.5(agy 偵測規則 2026.10.05.1)認不出 Antigravity CLI 1.5.14 在 default 模式的權限提示，回報 idle／done;`ask_question` 才是 blocked。所以 agy 等權限時，手機不會提示「需要你」。
+
+曾考慮在 Antigravity 設定檔加例外、由 app 依畫面補判斷(#460),最後決定**不做**:維持「需要你以 herdr 為準」,已回報上游(herdrdev/herdr#6141)。herdr 可遠端更新偵測規則，修好後 Purrdr 不用改。在那之前，agy 的權限提示只能在聊天畫面看到。
