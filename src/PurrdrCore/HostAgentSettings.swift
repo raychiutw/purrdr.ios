@@ -8,7 +8,7 @@ public enum HostAgentSettings {
     public static let configurable: [AgentID] = AgentCatalog.startableAgents
 
     /// 升級前就會顯示用量的 Agent:Claude Code 與 Codex 一律列在用量區(Antigravity 要偵測到才列,所以靠偵測結果)。
-    public static let previouslyShownUsage: Set<AgentID> = [.claude, .codex]
+    public static let previouslyShownUsage: Set<AgentID> = Set(configurable.filter { AgentCatalog.profile(for: $0).footprint.showedUsageBeforeSettings })
 
     /// 實際生效的集合:還沒設定過的主機沿用升級前的行為。
     public static func effective(_ stored: Set<AgentID>?) -> Set<AgentID> {
@@ -35,16 +35,8 @@ public enum HostAgentSettings {
         !configurable.contains(agent) || enabled.contains(agent)
     }
 
-    /// 主機上放這個 Agent 設定的資料夾(相對於家目錄),偵測用:資料夾在就當作裝了。
+    /// 主機上放這個 Agent 設定的資料夾(相對於家目錄),偵測用:資料夾在就當作裝了。資料在 Agent 設定檔的 `footprint`。
     public static func configurationFolder(for agent: AgentID) -> String? {
-        switch agent {
-        case .claude: ".claude"
-        case .codex: ".codex"
-        case .agy: ".gemini/antigravity-cli"
-        case .grok: ".grok"
-        case .pi: ".pi"
-        case .omp: ".omp"
-        default: nil
-        }
+        AgentCatalog.profile(for: agent).footprint.configurationFolder
     }
 }

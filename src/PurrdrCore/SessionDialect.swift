@@ -33,6 +33,14 @@ public struct SessionDialect: Sendable, Equatable {
     /// 由 Purrdr 啟動這種 Agent 時一律帶的啟動參數(Codex 的 `--no-daemon`,#400);空表示沒有。
     /// 也是 session 回報不了時給使用者的解法(在電腦上以同樣參數開新對話)。
     public let launchArguments: [String]
+    /// 在電腦上啟動這種 Agent 的指令名稱(只有需要給使用者可拷貝的啟動指令時才有,Codex 的 `codex`)。
+    public let executableName: String?
+
+    /// session 回報不了時給使用者的解法:以 `launchArguments` 啟動的完整指令(`codex --no-daemon`);沒有啟動參數或指令名稱就是 `nil`。
+    public var launchCommand: String? {
+        guard let executableName, !launchArguments.isEmpty else { return nil }
+        return ([executableName] + launchArguments).joined(separator: " ")
+    }
 
     /// herdr 的 Codex 整合與 Codex 共用 daemon 不相容(herdr#4649),`--no-daemon` 是 herdr 官方解法。
     public static let noDaemonFlag = "--no-daemon"
@@ -40,9 +48,10 @@ public struct SessionDialect: Sendable, Equatable {
     init(
         name: String, verification: Verification, startsNewChat: Bool = false, permissionModeFlag: String? = nil,
         resumeKind: String? = nil, titleRule: TitleRule = .sessionTitleThenTerminal,
-        resumeConversationFlag: String? = nil, continueFlag: String? = nil, launchArguments: [String] = []
+        resumeConversationFlag: String? = nil, continueFlag: String? = nil, launchArguments: [String] = [], executableName: String? = nil
     ) {
         self.launchArguments = launchArguments
+        self.executableName = executableName
         self.resumeConversationFlag = resumeConversationFlag
         self.continueFlag = continueFlag
         self.name = name
@@ -95,7 +104,7 @@ extension SessionDialect {
     )
     static let codex = SessionDialect(
         name: "codex", verification: .verified(agentVersion: "Codex 0.157–0.163"), startsNewChat: true, resumeKind: "codex",
-        titleRule: .terminalTitleBeforeFolderSuffix, launchArguments: [noDaemonFlag]
+        titleRule: .terminalTitleBeforeFolderSuffix, launchArguments: [noDaemonFlag], executableName: "codex"
     )
     static let grok = SessionDialect(
         name: "grok", verification: .unverified(documentedFor: "Grok 1.0.52"), startsNewChat: true, titleRule: .grokTerminalTitle

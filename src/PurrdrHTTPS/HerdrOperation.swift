@@ -111,8 +111,12 @@ enum HerdrOperation {
             let params = try JSONDecoder().decode(AgentStartParams.self, from: line.params)
             // 主機服務不收任意參數：只認得 Claude Code 的權限模式。
             let permissionMode: HostServiceProtocol.ClaudePermissionMode?
-            // 設定檔的啟動參數(Codex 的 `--no-daemon`,#400)主機服務不收,也不能因它拒絕整個啟動;先略過,等主機服務支援再送。
-            switch (params.args ?? []).filter({ $0 != SessionDialect.noDaemonFlag }) {
+            // 設定檔的啟動參數(Codex 的 `--no-daemon`,#400)主機服務不收,也不能因它拒絕整個啟動;依那個種類的設定檔整組略過
+            // (只略過前綴那一組,使用者自己帶的同名參數不在其內),等主機服務支援再送。
+            let launchArguments = AgentCatalog.profile(forHerdrName: params.kind).session.launchArguments
+            var arguments = params.args ?? []
+            if !launchArguments.isEmpty, arguments.starts(with: launchArguments) { arguments.removeFirst(launchArguments.count) }
+            switch arguments {
             case []: permissionMode = nil
             case let args where args.count == 2 && args[0] == "--permission-mode":
                 guard let mode = HostServiceProtocol.ClaudePermissionMode(rawValue: args[1]) else { throw HostServiceError.unsupported(line.method) }
