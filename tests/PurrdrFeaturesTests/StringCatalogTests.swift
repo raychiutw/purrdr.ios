@@ -58,7 +58,7 @@ struct StringCatalogTests {
     @Test("catalog 存在且至少有設定頁的字串")
     func catalogExists() throws {
         let keys = Set(try Self.entries().map(\.key))
-        #expect(keys.contains("Settings"))
+        #expect(keys.contains("Appearance"))
         #expect(keys.contains("Rate Purrdr"))
     }
 
