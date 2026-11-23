@@ -17,7 +17,7 @@ app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet �
 _避免_:Transport、Auth mode(例外：網路傳輸層的型別沿用 `*Transport`,如 `URLSessionHostServiceTransport`、`PaneTerminalTransport`、`BackendTransport`,指收送位元組的那一層，不是連線方式)
 
 **新增主機引導**(Add host guide):
-新增一台主機時一頁問一件事、帶使用者在主機上做好準備並填完連線設定的流程，最後測試連線。編輯已存的主機不經引導(用主機編輯頁)。畫面上 OpenSSH 稱「原生 SSH」。
+新增一台主機時一頁問一件事、帶使用者在主機上做好準備並填完連線設定的流程，最後測試連線。編輯已存的主機不經引導(用主機編輯頁)。畫面上 OpenSSH 只稱「SSH」(與 Tailscale SSH 並列時也是,#477;程式內部與註解仍可稱原生 SSH)。
 _避免_:精靈、Wizard、Onboarding(那是 app 第一次開啟的歡迎頁)
 
 **主機身分確認**:

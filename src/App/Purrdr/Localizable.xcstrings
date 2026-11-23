@@ -2111,17 +2111,6 @@
         }
       }
     },
-    "Built-in SSH" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原生 SSH"
-          }
-        }
-      }
-    },
     "Bypass Permissions" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7266,6 +7255,17 @@
         }
       }
     },
+    "No Agents are turned on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有開啟任何 Agent"
+          }
+        }
+      }
+    },
     "No Agents are turned on for this host. Open the Hosts tab, then Agent, to turn one on." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8373,6 +8373,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在新視窗打開"
+          }
+        }
+      }
+    },
+    "Open the Hosts tab, then Agent, to turn one on." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到「主機」分頁的「Agent」開啟。"
           }
         }
       }
@@ -15640,13 +15651,13 @@
         }
       }
     },
-    "Windows uses built-in SSH" : {
+    "Windows uses SSH" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Windows 用原生 SSH"
+            "value" : "Windows 用 SSH"
           }
         }
       }

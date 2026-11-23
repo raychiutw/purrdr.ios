@@ -109,7 +109,7 @@ public struct PlanUsageView: View {
             noData
         case .noAgentEnabled:
             PlanUsageMessage(
-                systemImage: "tray", title: "No Agents are turned on", detail: "On this host’s page, turn on an Agent.")
+                systemImage: "tray", title: "No Agents are turned on", detail: "Open the Hosts tab, then Agent, to turn one on.")
         case .needsConsent, .confirming:
             PlanUsageMessage(
                 systemImage: "lock", title: model.agent == .antigravity ? "Show Antigravity plan usage on this host?" : "Show Claude plan usage on this host?",

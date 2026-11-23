@@ -243,15 +243,17 @@ private struct HostCapsule: View {
                 if let option = model.hosts.first(where: { $0.id == model.host }) {
                     HostIconBadge(option.icon, diameter: 22)
                 }
-                Text(verbatim: name).font(.headline).foregroundStyle(Color.primary).lineLimit(1)
+                // 與其他 tab 的主機下拉一致,用 app 主色(綠,#477)。
+                Text(verbatim: name).font(.headline).foregroundStyle(Color.appAccent).lineLimit(1)
                 Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold)).foregroundStyle(.secondaryText).accessibilityHidden(true)
+                    .font(.caption.weight(.semibold)).foregroundStyle(Color.appAccent).accessibilityHidden(true)
             }
             .padding(.horizontal, 12)
             .frame(minHeight: TopBarMetrics.controlHeight)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .tint(Color.appAccent)
         .accessibilityLabel(Text("Host: \(name)"))
         .accessibilityIdentifier("dataUsage.host")
     }
