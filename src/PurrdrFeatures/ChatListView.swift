@@ -508,7 +508,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     }
 
     #if DEBUG
-    /// 驗收用量測(UI 測試讀 `conversation.list` 的 value):閱讀中停下後基準列離可見頂端的最大位移,以及實際上下 inset。
+    /// 驗收用量測(UI 測試讀 `conversation.list` 的 value):閱讀中停下後基準列離可見頂端的最大位移,實際上下 inset 與列數(測試用來等內容真的接上,不靠固定秒數)。
     private func trackReadingDrift() {
         guard ProcessInfo.processInfo.arguments.contains("-uiTesting") else { return }
         if isUserDriven || decider.isFollowingLatest {
@@ -521,7 +521,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         }
         let drift = driftTracker.baselineRowID == nil ? "none" : String(format: "%.1f", driftTracker.maxDrift)
         let inset = collectionView.adjustedContentInset
-        collectionView.accessibilityValue = String(format: "drift=%@ insetTop=%.1f insetBottom=%.1f", drift, inset.top, inset.bottom)
+        collectionView.accessibilityValue = String(
+            format: "drift=%@ insetTop=%.1f insetBottom=%.1f rows=%d", drift, inset.top, inset.bottom, dataSource.snapshot().numberOfItems)
     }
     #endif
 

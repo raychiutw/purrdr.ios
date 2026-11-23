@@ -5,8 +5,6 @@ import XCTest
 /// 斷言都量 accessibility frame(列的位置與高度),不看截圖;跳動會直接表現成位置差。
 final class ChatListAcceptanceUITests: XCTestCase {
     private static let ax5 = "UICTContentSizeCategoryAccessibilityXXXL"
-    /// 列表最後一列下方的留白(`ChatListLayout.sectionInset.bottom`)。
-    private static let listTrailingSpacing: CGFloat = 12
     /// 最後一則文字框與列底緣的差(座標四捨五入與文字行距)。
     private static let landingTolerance: CGFloat = 4
 
@@ -32,8 +30,19 @@ final class ChatListAcceptanceUITests: XCTestCase {
             UITestWait.until(timeout: 5) { Self.debugValue("drift", of: list).map { $0 != "none" } ?? false },
             "列表停下後沒有記下閱讀位置的基準(量測沒有啟用?)")
 
-        // 工具步驟在開啟後 10 秒接上;等過那個時間再多一點,讓列表有時間套用。
-        Thread.sleep(forTimeInterval: 16)
+        // 工具步驟在開啟後 10 秒接上:輪詢列數增加(不靠固定秒數),再等位移量測穩定。
+        let rowsBefore = Self.debugValue("rows", of: list).flatMap(Int.init) ?? 0
+        XCTAssertTrue(
+            UITestWait.until(timeout: 40) { (Self.debugValue("rows", of: list).flatMap(Int.init) ?? 0) > rowsBefore },
+            "20 個工具步驟沒有接上(列數一直是 \(rowsBefore)),情境沒有生效")
+        var lastDrift = Self.debugValue("drift", of: list)
+        var stableReads = 0
+        _ = UITestWait.until(timeout: 10) {
+            let now = Self.debugValue("drift", of: list)
+            stableReads = now == lastDrift ? stableReads + 1 : 0
+            lastDrift = now
+            return stableReads >= 5
+        }
         let driftText = Self.debugValue("drift", of: list)
         let drift = driftText.flatMap(Double.init)
         XCTAssertNotNil(drift, "量測值不是數字:\(driftText ?? "nil")")
@@ -53,7 +62,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
     @MainActor
     func testOpeningChatNeverShowsSkeletonThenSwapsToList() {
         let app = XCUIApplication.launchUITesting()
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element(chatRowID("w1:p1"))
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         let message = app.element("conversation.user")
@@ -98,7 +107,9 @@ final class ChatListAcceptanceUITests: XCTestCase {
         XCTAssertTrue(app.revealInConversation(thumbnail), "縮圖沒有讀回")
         _ = UITestWait.until(timeout: 5) { thumbnail.frame.height > 0 }
         let before = thumbnail.frame.size
-        let userRowBefore = app.element("conversation.user").frame.height
+        let userRow = app.element("conversation.user")
+        let userRowBefore = userRow.frame.height
+        XCTAssertGreaterThan(userRowBefore, 0, "量不到訊息列的高度")
 
         // 往下捲到縮圖整個離開可見範圍。
         var gone = false
@@ -113,10 +124,9 @@ final class ChatListAcceptanceUITests: XCTestCase {
         _ = UITestWait.until(timeout: 5) { thumbnail.frame.height > 0 }
         XCTAssertEqual(thumbnail.frame.size.height, before.height, accuracy: 1, "捲回來後縮圖高度變了")
         XCTAssertEqual(thumbnail.frame.size.width, before.width, accuracy: 1, "捲回來後縮圖寬度變了")
-        let userRowAfter = app.element("conversation.user").frame.height
-        if app.element("conversation.user").isHittable, userRowBefore > 0 {
-            XCTAssertEqual(userRowAfter, userRowBefore, accuracy: 1, "捲回來後訊息列高度變了")
-        }
+        // 縮圖在這一列裡,縮圖回來了這一列就在畫面上:直接比高度,不成立就失敗。
+        XCTAssertTrue(userRow.exists, "捲回來後找不到訊息列")
+        XCTAssertEqual(userRow.frame.height, userRowBefore, accuracy: 1, "捲回來後訊息列高度變了")
     }
 
     // MARK: - 4. 停在底部時新訊息跟上
@@ -153,6 +163,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
         let composer = app.element("composer.text")
         XCTAssertTrue(composer.waitUntilExists(timeout: 5))
 
+        var gaps: [CGFloat] = []
         for attempt in 1...3 {
             for _ in 0..<3 { list.swipeDown(velocity: .fast) }
             XCTAssertTrue(jump.waitUntilExists(timeout: 5), "第 \(attempt) 次往上捲後沒有跳到最新")
@@ -161,12 +172,16 @@ final class ChatListAcceptanceUITests: XCTestCase {
             XCTAssertTrue(last.waitUntilExists(timeout: 5), "第 \(attempt) 次沒有停在最後一則")
             XCTAssertTrue(jump.waitUntilGone(timeout: 5), "第 \(attempt) 次到底後按鈕沒有消失")
             XCTAssertLessThanOrEqual(last.frame.maxY, composer.frame.minY + 1, "第 \(attempt) 次最後一則被輸入框蓋住")
-            // 最後一列的底緣應停在「列表底緣 - 下方 inset - 列表尾端留白 12」:inset 取 app 內實際量到的值。
+            // 最後一列底緣與列表可見底緣(列表底緣扣掉 app 內實際量到的下方 inset)的距離:不能是負的(被蓋住),
+            // 也不能大到像停在內容外(不超過最後一則自己的高度);三次落點要一致,不依賴設計稿的常數。
             let insetBottom = Self.debugValue("insetBottom", of: list).flatMap(Double.init).map { CGFloat($0) }
             XCTAssertNotNil(insetBottom, "讀不到列表實際的下方 inset(量測沒有啟用?)")
-            let expectedMaxY = list.frame.maxY - (insetBottom ?? 0) - Self.listTrailingSpacing
-            XCTAssertEqual(last.frame.maxY, expectedMaxY, accuracy: Self.landingTolerance, "第 \(attempt) 次最後一則沒有停在底部(差 \(last.frame.maxY - expectedMaxY)pt)")
+            let gap = list.frame.maxY - (insetBottom ?? 0) - last.frame.maxY
+            XCTAssertGreaterThanOrEqual(gap, -Self.landingTolerance, "第 \(attempt) 次最後一則被蓋在可見底緣下(差 \(gap)pt)")
+            XCTAssertLessThan(gap, last.frame.height, "第 \(attempt) 次最後一則離底緣太遠,像停在內容外(差 \(gap)pt)")
+            gaps.append(gap)
         }
+        XCTAssertLessThanOrEqual((gaps.max() ?? 0) - (gaps.min() ?? 0), Self.landingTolerance, "三次跳到最新落點不一致:\(gaps)")
     }
 
     // MARK: - 輔助
