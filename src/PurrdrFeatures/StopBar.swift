@@ -51,10 +51,7 @@ struct StopBar: View {
     private var workingStatus: some View {
         HStack(spacing: 6) {
             // 圓點是裝飾，不跟文字合成一個元素(稽核量文字對比時不把圓點算進去)。
-            Circle()
-                .fill(AgentStatus.working.tone.style)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
+            StatusDot(tone: AgentStatus.working.tone)
             HStack(spacing: 6) {
                 Text(model.livePreview == nil ? "Working…" : "Writing…")
                 if let since = model.workingSince {

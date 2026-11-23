@@ -24,11 +24,14 @@ public struct ConversationHeader: Equatable, Sendable {
     public var progress: AgentProgress
     /// 從畫面讀到的權限模式(Claude);還沒讀到或不是 Claude 是 `nil`。
     public var permissionMode: AgentPermissionMode?
+    /// Tab 名稱(#476,snapshot 的 Tab label;預設數字名稱是「Tab N」);還沒讀到 snapshot 是空字串。
+    public var tabName: String
 
     public init(
         title: String, status: Status, segments: [String], progress: AgentProgress = AgentProgress(),
-        permissionMode: AgentPermissionMode? = nil
+        permissionMode: AgentPermissionMode? = nil, tabName: String = ""
     ) {
+        self.tabName = tabName
         self.title = title
         self.status = status
         self.segments = segments
@@ -77,9 +80,12 @@ public struct ConversationHeader: Equatable, Sendable {
         return plain.map { "\($0) · \(progressText)" } + plain
     }
 
-    /// 完整內容(VoiceOver):workspace、狀態、主機。
+    /// 單行標題膠囊的名稱(#476):Tab 名稱;還沒讀到 snapshot 時退回 Workspace 名稱。
+    public var capsuleName: String { tabName.isEmpty ? title : tabName }
+
+    /// 完整內容(VoiceOver):名稱、模式、狀態、主機。
     public var accessibilityText: String {
-        ([title] + [lineAccessibilityText]).filter { !$0.isEmpty }.joined(separator: ", ")
+        ([capsuleName] + [lineAccessibilityText]).filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     /// 標題下一行(狀態、主機)的 VoiceOver 文字;標題是另一個元素，不重複念。
@@ -87,7 +93,8 @@ public struct ConversationHeader: Equatable, Sendable {
         ((permissionBadge.map { [$0.mode.displayName] } ?? []) + [status.title] + segments).joined(separator: ", ")
     }
 
-    package init(agent: Agent?, title: String, status: AgentStatus?, isOffline: Bool, hostName: String?, progress: AgentProgress = AgentProgress(), permissionMode: AgentPermissionMode? = nil) {
+    package init(agent: Agent?, title: String, status: AgentStatus?, isOffline: Bool, hostName: String?, progress: AgentProgress = AgentProgress(), permissionMode: AgentPermissionMode? = nil, tabName: String = "") {
+        self.tabName = tabName
         self.progress = progress
         self.permissionMode = permissionMode
         self.title = agent.map(AgentRowText.workspaceName) ?? title

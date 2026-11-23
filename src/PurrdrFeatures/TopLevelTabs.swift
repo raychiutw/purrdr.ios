@@ -26,7 +26,7 @@ extension View {
 }
 
 /// 頂端工具列的尺寸(#475):所有 tab 的按鈕、膠囊、主機選單與帳號頭像共用,不散在各畫面。
-/// 只有聊天畫面的兩行標題膠囊(`titleCapsuleHeight`)較高。
+/// 聊天畫面的單行標題膠囊(`titleCapsuleHeight`)也是同一個高度(#476)。
 enum TopBarMetrics {
     /// 按鈕與膠囊(含主機選單)的高度,也是 HIG 的最小觸控目標。
     static let controlHeight: CGFloat = 44
@@ -34,8 +34,8 @@ enum TopBarMetrics {
     static let circleDiameter: CGFloat = 44
     /// 圓鈕裡的頭像直徑(與其他按鈕的符號同等大小)。
     static let avatarDiameter: CGFloat = 30
-    /// 聊天畫面兩行標題膠囊的高度。
-    static let titleCapsuleHeight: CGFloat = 52
+    /// 聊天畫面單行標題膠囊的高度:與其他 tab 頂端一致。
+    static let titleCapsuleHeight: CGFloat = controlHeight
 }
 
 /// 每個 tab 頂列最右上角的帳號鈕(#246)。前面有別的右上動作時中間隔開,各自是獨立的玻璃。

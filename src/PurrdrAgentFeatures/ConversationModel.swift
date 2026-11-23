@@ -73,6 +73,8 @@ public final class ConversationModel {
     public private(set) var older: Older = .reachedStart
     /// 導覽列標題;永不顯示 `w1` 這類 id(R-V10)。
     public private(set) var title = ""
+    /// Tab 名稱(#476):標題膠囊顯示;每次輪詢由 snapshot 更新。
+    public private(set) var tabName = ""
     public private(set) var agentStatus: AgentStatus?
     public private(set) var metadata = TranscriptMetadata()
     /// context 百分比與待辦進度(#307),由讀到的對話紀錄推得;標題列與待辦 sheet 用。
@@ -974,6 +976,7 @@ public final class ConversationModel {
         screenThisPoll = nil
         workingScreenDue = workingScreenReads.allowsRead(isWorking: agentStatus == .working, at: clock.now())
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
+        tabName = AgentListProjection.tabPosition(of: agent.tabID, in: snapshot).map { AgentListProjection.tabName(label: $0.tab.label, position: $0.position) } ?? ""
         // 讀 Pane 畫面(提問卡、建議提示詞、面板、即時預覽、背景 agents 窗格)排在讀對話紀錄之後(#356):
         // 慢網路下對話內容先出來，不等這幾個依序的請求。沒有對話紀錄可讀的情況(不支援、還沒有 session)照舊先讀畫面。
         let agentDialect = AgentCatalog.profile(forHerdrName: agent.kind).transcript
@@ -2674,7 +2677,7 @@ public final class ConversationModel {
     public var header: ConversationHeader {
         ConversationHeader(
             agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress,
-            permissionMode: supportsPermissionMode || screenDialect.statusLine != nil ? permissionMode : nil)
+            permissionMode: supportsPermissionMode || screenDialect.statusLine != nil ? permissionMode : nil, tabName: tabName)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。

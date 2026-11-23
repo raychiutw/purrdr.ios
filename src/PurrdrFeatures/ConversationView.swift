@@ -20,7 +20,9 @@ public struct ConversationView: View {
     /// 初始位置不指定邊緣:`ScrollPosition(edge: .bottom)` 搭配 `scrollTargetLayout()` 與水平 padding 時，
     /// SwiftUI 會把水平位移設成 padding 的寬度(16pt),訊息貼到左邊、頂端被裁掉(#418)。開啟時的底部定位交給 `defaultScrollAnchor(.bottom)`。
     @State private var position = ScrollPosition()
-    @State private var userIsScrolling = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
+    @State private var userIsScrolling = false
+    /// 「跳到最新」是否已顯示(跟隨中延遲顯示,#476)。
+    @State private var jumpToLatestVisible = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
     @State private var userHasDragged = false
     /// 畫面上看得到的列(內容被重建時的錨點,#130)。
     @State private var visibleIDs: [String] = []
@@ -329,11 +331,30 @@ public struct ConversationView: View {
             scroll.jumpToLatest()
             withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
         }
+        // 跳到最新(#476):顯示只看離底距離(`scroll.showsJumpToLatest`)。跟隨中新內容撐長的瞬間也會量到很遠,
+        // 延遲一下才顯示,避免閃現;閱讀中(往上捲)立刻顯示。位置在停止列(底部輸入列的一部分)上方、靠右。
+        .task(id: scroll.showsJumpToLatest) {
+            guard scroll.showsJumpToLatest else {
+                jumpToLatestVisible = false
+                return
+            }
+            if scroll.autoScrollsOnNewContent {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+            }
+            jumpToLatestVisible = true
+        }
         .overlay(alignment: .bottomTrailing) {
-            if scroll.showsJumpToLatest {
+            if jumpToLatestVisible {
                 Button {
                     scroll.jumpToLatestByTap()
                     withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
+                    // 捲動沒落地(目標列還沒排出來)時,稍後仍離底很遠就再以底部位移捲一次:按了一定有反應。
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        guard !Task.isCancelled, scroll.showsJumpToLatest else { return }
+                        position.scrollTo(edge: .bottom)
+                    }
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
@@ -342,7 +363,8 @@ public struct ConversationView: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .padding()
+                .padding(.trailing, 16)
+                .padding(.bottom, 8)
                 .accessibilityIdentifier("conversation.jumpToLatest")
             }
         }

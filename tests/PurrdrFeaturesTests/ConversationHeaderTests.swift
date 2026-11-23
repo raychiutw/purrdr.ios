@@ -75,7 +75,7 @@ struct ConversationHeaderTests {
         #expect(header.title == "garden-journal")
         #expect(header.status == .online)
         #expect(header.segments == [])
-        #expect(header.accessibilityText == "garden-journal, Bypass Permissions, Online", "fixture 的對話紀錄最後的權限模式是 bypassPermissions")
+        #expect(header.accessibilityText == "Tab 1, Bypass Permissions, Online", "fixture 的對話紀錄最後的權限模式是 bypassPermissions")
     }
 
     @Test("標題列：副標是狀態與主機名;VoiceOver 念 workspace、狀態、主機")
@@ -90,7 +90,7 @@ struct ConversationHeaderTests {
 
         #expect(setup.model.header.status == .done)
         #expect(setup.model.header.segments == ["studio"])
-        #expect(setup.model.header.accessibilityText == "garden-journal, Bypass Permissions, Done, studio")
+        #expect(setup.model.header.accessibilityText == "Tab 1, Bypass Permissions, Done, studio")
     }
 
     @Test("標題列：還沒讀到 Agent 時標題退回聊天標題")

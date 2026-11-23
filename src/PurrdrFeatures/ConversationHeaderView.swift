@@ -2,120 +2,70 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 導覽列中間的標題膠囊(#380,原型 Header):兩行,高度仿原生相簿膠囊。
-/// 第一行是 workspace 名稱加 `chevron.down`(可點);第二行是權限模式(非一般才有)、狀態與主機名,主機名過長從尾端截斷。
+/// 導覽列中間的標題膠囊(#476,原型 Header):單行 44pt。
+/// 依序是 8pt 單色狀態點(需要你橘、工作中主色、其他灰)、Tab 名稱(過長以 … 截斷)、權限模式(非一般才有;
+/// 略過權限前面保留橘色盾牌)。沒有下拉箭頭與狀態文字,狀態靠點與 VoiceOver 標籤。
 /// 點開是面板(`ConversationStatusSheet`):context、模型、待辦、背景子 Agent、做完再送與權限模式選項。
 struct ConversationTitleView: View {
     let title: String
     let header: ConversationHeader
     @Bindable var model: ConversationModel
 
-    /// 膠囊最小高度:兩行字加上內距,比單行標題高(#475:52pt,其他按鈕與膠囊 44pt)。
-    private static let minimumHeight = TopBarMetrics.titleCapsuleHeight
-
     var body: some View {
-        VStack(spacing: 1) {
-            HStack(spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .accessibilityAddTraits(.isHeader)
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityHidden(true)
+        HStack(spacing: 8) {
+            if let status = header.agentStatus {
+                StatusDot(tone: status.tone)
+            } else {
+                StatusDot(tone: header.status.tone)
             }
-            ConversationHeaderLine(header: header)
+            Text(verbatim: header.capsuleName.isEmpty ? title : header.capsuleName)
+                .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if let badge = header.permissionBadge {
+                HStack(spacing: 4) {
+                    if badge.isWarning {
+                        Image(systemName: badge.mode.symbol)
+                            .foregroundStyle(Color.orange)
+                            .accessibilityHidden(true)
+                    }
+                    Text(verbatim: badge.mode.displayName)
+                        .lineLimit(1)
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
+                // 名稱先被截斷,模式一直看得到。
+                .layoutPriority(1)
+                .fixedSize(horizontal: true, vertical: false)
+            }
         }
         // 標題膠囊(#348 A1):浮在內容上的玻璃,內容從底下捲過去;減少透明度時改不透明底。
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .frame(minHeight: Self.minimumHeight)
+        .frame(minHeight: TopBarMetrics.titleCapsuleHeight)
         .floatingGlass(in: Capsule())
         // 點標題由下方升起面板(#380):一律打得開。
         .contentShape(Capsule())
         .onTapGesture { model.showsStatusSheet = true }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: header.accessibilityText))
+        .accessibilityHint(Text("Shows usage and permission mode."))
+        .accessibilityAddTraits([.isButton, .isHeader])
+        .accessibilityIdentifier("conversation.header")
         .accessibilityAction(named: Text("Show Status")) { model.showsStatusSheet = true }
     }
 }
 
-struct ConversationHeaderLine: View {
-    let header: ConversationHeader
+/// 8pt 單色狀態點。標題膠囊與停止列(`StopBar`)的工作中圓點共用這一個元件與尺寸(#476)。
+/// 點是裝飾:不進 accessibility tree(狀態由文字與 VoiceOver 標籤表達)。
+struct StatusDot: View {
+    static let diameter: CGFloat = 8
+    let tone: StatusTone
 
     var body: some View {
-        // 寬度不夠時依序試:完整 → 主機名截斷到固定寬 → 拿掉主機名 → 只剩狀態(權限模式與狀態比主機名重要)。
-        ViewThatFits(in: .horizontal) {
-            line(host: .full)
-            line(host: .truncated)
-            line(host: .none)
-            line(host: .none, compactBadge: true)
-            statusLabel
-        }
-        .font(.caption)
-        .foregroundStyle(.secondaryText)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(header.lineAccessibilityText))
-        .accessibilityHint(Text("Shows usage and permission mode."))
-        // 只是文字、不能點(#35:沒有這個 trait 時 audit 把它當成觸控目標，報 hit region 太小)。
-        .accessibilityAddTraits(.isStaticText)
-        .accessibilityIdentifier("conversation.header")
-    }
-
-    private enum HostDisplay { case full, truncated, none }
-
-    private func line(host: HostDisplay, compactBadge: Bool = false) -> some View {
-        HStack(spacing: 5) {
-            if let badge = header.permissionBadge {
-                PermissionBadgeView(badge: badge, isCompact: compactBadge)
-                separator
-            }
-            statusLabel
-            if host != .none, !header.segments.isEmpty {
-                separator
-                Text(verbatim: header.segments.joined(separator: " · "))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: host == .truncated ? 72 : nil)
-                    .fixedSize(horizontal: host == .full, vertical: false)
-            }
-        }
-        .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var separator: some View {
-        Text(verbatim: "·").fixedSize()
-    }
-
-    /// 狀態符號沿用列表那組(`AgentStatus.symbol`);連線中斷是 `wifi.slash`,不混進 Agent 狀態。
-    private var statusLabel: some View {
-        HStack(spacing: 3) {
-            if let status = header.agentStatus {
-                Image(systemName: status.symbol)
-                    .foregroundStyle(status.tone.style)
-            } else {
-                Image(systemName: "wifi.slash")
-            }
-            Text(header.status.title)
-                .lineLimit(1)
-        }
-    }
-}
-
-/// 膠囊第二行的權限模式:符號加名稱;略過權限是橙色警示(`exclamationmark.shield`),面板外也看得到。
-private struct PermissionBadgeView: View {
-    let badge: ConversationHeader.PermissionBadge
-    /// 放不下時只留符號(略過權限的橙色警示仍看得到)。
-    var isCompact = false
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: badge.mode.symbol)
-                .foregroundStyle(badge.isWarning ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondaryText))
-            if !isCompact {
-                Text(verbatim: badge.mode.displayName)
-                    .lineLimit(1)
-            }
-        }
+        Circle()
+            .fill(tone.style)
+            .frame(width: Self.diameter, height: Self.diameter)
+            .accessibilityHidden(true)
     }
 }
 

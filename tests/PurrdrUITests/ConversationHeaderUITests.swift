@@ -13,10 +13,12 @@ final class ConversationHeaderUITests: XCTestCase {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))
 
-        XCTAssertTrue(app.navigationBars.staticTexts["ledger"].firstMatch.exists, "標題不是 workspace 名稱")
         let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 5), "標題下沒有資訊行")
-        XCTAssertEqual(header.label, "Done, Demo", "資訊行應只有狀態與主機名(context、待辦在狀態 sheet，#349、#380)")
+        XCTAssertTrue(header.waitUntilExists(timeout: 5), "沒有標題膠囊")
+        // 單行膠囊(#476):名稱、狀態、主機都在 VoiceOver 標籤裡(畫面上只有點、名稱與模式)。
+        XCTAssertTrue(header.label.contains("Done"), "標籤沒有狀態:\(header.label)")
+        XCTAssertTrue(header.label.hasSuffix("Demo"), "標籤沒有主機名:\(header.label)")
+        XCTAssertLessThanOrEqual(header.frame.height, 44.5, "標題膠囊應是單行 44pt")
         XCTAssertFalse(app.element("conversation.reload").exists, "標題列不該再有重新載入")
         XCTAssertFalse(app.element("stopBar").exists, "不在工作中不該有停止列")
 
@@ -35,7 +37,7 @@ final class ConversationHeaderUITests: XCTestCase {
 
         let working = app.element("conversation.working")
         XCTAssertTrue(working.waitUntilExists(timeout: 10), "工作中沒有指示")
-        XCTAssertTrue(app.element("conversation.header").label.hasPrefix("Working"))
+        XCTAssertTrue(app.element("conversation.header").label.contains("Working"))
         XCTAssertFalse(app.element("conversation.stop").exists, "標題列不該再有停止")
         XCTAssertTrue(app.element("composer.send").exists, "送出鈕應該維持原樣")
 
@@ -82,7 +84,7 @@ final class ConversationHeaderUITests: XCTestCase {
     func testNeedsYouAgentHasNoStopBar() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
         XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10))
-        XCTAssertTrue(app.element("conversation.header").label.hasPrefix("Needs"), "應該是需要你")
+        XCTAssertTrue(app.element("conversation.header").label.contains("Needs"), "應該是需要你")
         XCTAssertFalse(app.element("stopBar").exists, "需要你不該有停止列")
     }
 }
