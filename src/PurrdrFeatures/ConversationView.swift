@@ -344,7 +344,7 @@ public struct ConversationView: View {
             }
             jumpToLatestVisible = true
         }
-        .overlay(alignment: .bottomTrailing) {
+        .overlay(alignment: .bottom) {
             if jumpToLatestVisible {
                 Button {
                     scroll.jumpToLatestByTap()
@@ -363,7 +363,6 @@ public struct ConversationView: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, 16)
                 .padding(.bottom, 8)
                 .accessibilityIdentifier("conversation.jumpToLatest")
             }
