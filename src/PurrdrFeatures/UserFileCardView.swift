@@ -70,13 +70,19 @@ struct UserFileCardDisplay {
 struct UserFileCardView: View {
     let path: String
     @Environment(\.agentImages) private var context
-    @State private var thumbnail: AgentImageDecoder.Decoded?
-    @State private var thumbnailVersion: HostFileVersion?
+    /// 解碼完成時加一,讓畫面重讀共用快取(縮圖不放在列內,#482)。
+    @State private var decodeRevision = 0
     @State private var previewFile: URL?
 
     private var display: UserFileCardDisplay {
         UserFileCardDisplay(path: path, state: context.loads?.states[path], info: context.loads?.infos[path], open: context.loads?.opens[path])
     }
+    private var thumbnail: AgentImageDecoder.Decoded? {
+        _ = decodeRevision
+        return AgentImageDecoder.cachedThumbnail(path: path, state: context.loads?.states[path], maxPixels: Self.thumbnailPixels, in: context.loads)
+    }
+    /// 縮圖長邊(px)。
+    static let thumbnailPixels = 160
 
     private var loadedVersion: HostFileVersion? { if case .loaded(_, let version) = context.loads?.states[path] { version } else { nil } }
 
@@ -160,12 +166,10 @@ struct UserFileCardView: View {
     }
 
     private func decode() async {
-        guard case .loaded(let data, let version) = context.loads?.states[path], version != thumbnailVersion else { return }
         let kind = AgentFileReference(origin: .created, path: path).kind
-        let decoded = await AgentImageDecoder.decodeThumbnail(data, kind: kind, maxPixels: 160)
+        await AgentImageDecoder.decodeIntoCache(path: path, state: context.loads?.states[path], kind: kind, maxPixels: Self.thumbnailPixels, in: context.loads)
         guard !Task.isCancelled else { return }
-        thumbnail = decoded
-        thumbnailVersion = decoded == nil ? nil : version
+        decodeRevision += 1
     }
 
     /// 下載(版本沒變只查狀態)後以 QuickLook 開。

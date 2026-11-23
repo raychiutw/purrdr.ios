@@ -27,8 +27,14 @@ public struct AgentFileReference: Sendable, Equatable, Codable {
     public var byteCount: Int?
     /// 對話紀錄記下的 MIME(例如 Read 圖片的 `image/png`);沒有時為 `nil`。
     public var mediaType: String?
+    /// 對話紀錄記下的圖片原始寬高(Claude 的 Read 圖片 `dimensions`,#482);沒有時為 `nil`。
+    public var pixelSize: ImagePixelSize?
 
-    public init(origin: Origin, path: String, snapshot: AgentFileSnapshot? = nil, byteCount: Int? = nil, mediaType: String? = nil) {
+    public init(
+        origin: Origin, path: String, snapshot: AgentFileSnapshot? = nil, byteCount: Int? = nil, mediaType: String? = nil,
+        pixelSize: ImagePixelSize? = nil
+    ) {
+        self.pixelSize = pixelSize
         self.origin = origin
         self.path = path
         self.snapshot = snapshot
@@ -69,7 +75,13 @@ extension AgentFileReference {
         guard let result = value as? [String: Any] else { return [] }
         if result["type"] as? String == "image" {
             let file = result["file"] as? [String: Any]
-            return [AgentFileReference(origin: .readImage, path: "", byteCount: file?["originalSize"] as? Int, mediaType: file?["type"] as? String)]
+            let dimensions = file?["dimensions"] as? [String: Any]
+            let pixelSize = (dimensions?["originalWidth"] as? Int).flatMap { width in
+                (dimensions?["originalHeight"] as? Int).map { ImagePixelSize(width: width, height: $0) }
+            }.flatMap { $0.isKnown ? $0 : nil }
+            return [AgentFileReference(
+                origin: .readImage, path: "", byteCount: file?["originalSize"] as? Int, mediaType: file?["type"] as? String, pixelSize: pixelSize
+            )]
         }
         return claudeToolResult(result).map { [$0] } ?? []
     }

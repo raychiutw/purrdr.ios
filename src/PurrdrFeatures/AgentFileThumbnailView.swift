@@ -10,12 +10,18 @@ struct AgentFileThumbnailView: View {
     /// 縮圖框的大小(設計稿第 30 組)。
     static let size = CGSize(width: 46, height: 56)
     @Environment(\.agentImages) private var context
-    @State private var thumbnail: AgentImageDecoder.Decoded?
-    @State private var thumbnailVersion: HostFileVersion?
+    /// 解碼完成時加一,讓畫面重讀共用快取(縮圖不放在列內,#482)。
+    @State private var decodeRevision = 0
 
     private var display: AgentFileCardDisplay { AgentFileCardDisplay(file: card.file) }
     private var state: AgentFileLoads.State? { context.loads?.states[card.file.path] }
     private var loadedVersion: HostFileVersion? { if case .loaded(_, let version) = state { version } else { nil } }
+    private var thumbnail: AgentImageDecoder.Decoded? {
+        _ = decodeRevision
+        return AgentImageDecoder.cachedThumbnail(path: card.file.path, state: state, maxPixels: Self.thumbnailPixels, in: context.loads)
+    }
+    /// 縮圖長邊(px);與圖片卡片不同,另成一個快取項目。
+    static let thumbnailPixels = 192
 
     var body: some View {
         frame
@@ -60,10 +66,10 @@ struct AgentFileThumbnailView: View {
     }
 
     private func decode() async {
-        guard case .loaded(let data, let version) = state, version != thumbnailVersion else { return }
-        let decoded = await AgentImageDecoder.decodeThumbnail(data, kind: card.file.kind, maxPixels: 192)
+        await AgentImageDecoder.decodeIntoCache(
+            path: card.file.path, state: state, kind: card.file.kind, maxPixels: Self.thumbnailPixels, in: context.loads
+        )
         guard !Task.isCancelled else { return }
-        thumbnail = decoded
-        thumbnailVersion = decoded == nil ? nil : version
+        decodeRevision += 1
     }
 }
