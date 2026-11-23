@@ -164,13 +164,25 @@ struct ConversationLayoutTests {
 
     // MARK: - 斷言
 
-    /// 逐畫面的問題:水平位移不是 0(訊息貼到左邊)、訊息區完全沒有內容(全黑)。
+    /// 訊息區連續空白的取樣數上限(#497):內容剛變(送出的回音進來)時,長對話的 LazyVStack 要一個排版週期才排出列,
+    /// 取樣可能剛好抓到 1～2 個空白畫面(約 30ms 一張);連續超過這個數量才是看得到的閃爍或停在空白。
+    static let maximumBlankRun = 3
+
+    /// 逐畫面的問題:水平位移不是 0(訊息貼到左邊)、訊息區連續空白超過 `maximumBlankRun` 個畫面。
     static func problems(_ frames: [Frame], requireContent: Bool = true) -> [String] {
         var found: [String] = []
+        var blankRun: [Frame] = []
+        func flushBlankRun() {
+            if blankRun.count > maximumBlankRun, let first = blankRun.first {
+                found.append("#\(first.index) 起連續 \(blankRun.count) 個畫面訊息區沒有任何內容(offsetY \(first.offsetY)、contentHeight \(first.contentHeight))")
+            }
+            blankRun = []
+        }
         for frame in frames where frame.offsetY != -1 || frame.offsetX != -1 {
             if abs(frame.offsetX) > 0.5 { found.append("#\(frame.index) 水平位移 \(frame.offsetX)(訊息貼到左邊)") }
-            if requireContent, frame.regionInk == 0 { found.append("#\(frame.index) 訊息區沒有任何內容") }
+            if requireContent, frame.regionInk == 0 { blankRun.append(frame) } else { flushBlankRun() }
         }
+        flushBlankRun()
         return found
     }
 

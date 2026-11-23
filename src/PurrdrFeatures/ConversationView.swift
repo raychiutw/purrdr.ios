@@ -28,6 +28,8 @@ public struct ConversationView: View {
     @State private var autoLoadedPages = 0
     /// 畫面上看得到的列(內容被重建時的錨點,#130)。
     @State private var visibleIDs: [String] = []
+    /// 最近一次量到的捲動量測(#497):列數變成 0 時用來判斷要不要捲回內容。
+    @State private var latestMetrics: ConversationScrollMetrics?
     /// 上次看到的列 id(`model.entriesRevision` 改變時與新的比較，#130)。
     @State private var entryIDs: [String] = []
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
@@ -215,6 +217,12 @@ public struct ConversationView: View {
         .onScrollTargetVisibilityChange(idType: String.self) { ids in
             visibleIDs = ids
             scroll.visibleRowsChanged(count: ids.count)
+            // 跟隨中一列都沒排出來、而且之後沒有新的量測(位移與內容高度都不再變)時，量測的回呼不會再來(#497):
+            // 長對話送出後訊息區空白到下一則內容進來。列數變成 0 時也檢查一次，同一個排版只捲一次、次數有上限。
+            if ids.isEmpty, let metrics = latestMetrics, scroll.refillsVisibleRange(metrics, visibleRows: 0) {
+                scroll.returnedToContent(metrics)
+                scrollToLastRow(proxy, isNewContent: false)
+            }
         }
         .defaultScrollAnchor(.bottom)
         // 可見範圍改變(鍵盤收放、輸入框長高)時留在底部:收起鍵盤後面板卡片的按鈕不會掉到輸入列底下(#255)。
@@ -251,6 +259,7 @@ public struct ConversationView: View {
         } action: { _, metrics in
             // 不在前景時不捲動、不寫量測狀態(#492):進背景時可見高度來回跳，會讓主執行緒一直更新而被看門狗殺掉。
             guard scenePhase == .active else { return }
+            latestMetrics = metrics
             conversationHeight.update(metrics.containerHeight)
             if userIsScrolling {
                 scroll.userScrolled(distanceFromBottom: metrics.distanceFromBottom)
@@ -337,7 +346,8 @@ public struct ConversationView: View {
             // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。
             guard new > old else { return }
             scroll.jumpToLatest()
-            withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
+            // 回音不加動畫(#497):長對話的 LazyVStack 估算高度與實際差很多，動畫捲過一段還沒排出列的距離時整個訊息區是空白的。
+            scrollToLastRow(proxy)
         }
         // 跳到最新(#476):顯示只看離底距離(`scroll.showsJumpToLatest`)。跟隨中新內容撐長的瞬間也會量到很遠,
         // 延遲一下才顯示,避免閃現;閱讀中(往上捲)立刻顯示。位置在輸入列上方正中間(#476)。
