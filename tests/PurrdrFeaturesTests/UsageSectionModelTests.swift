@@ -127,6 +127,47 @@ struct UsageSectionModelTests {
         model.disappeared()
     }
 
+    static func detected(_ found: Bool?, usage: PlanUsage? = Self.usage()) -> PlanUsageSource {
+        PlanUsageSource(cost: .free, hostWrite: nil, installed: { guard let found else { throw CancellationError() }; return found }) { usage }
+    }
+
+    @Test("主機 tab(#465):主機上沒偵測到 Antigravity 就不列它那一列,Claude 照常")
+    func antigravityHiddenWhenNotDetected() async {
+        let model = UsageSectionModel(
+            hostName: "Ray Mac Mini", agents: [.claudeCode, .antigravity], display: Self.remainingSetting(), now: { Self.now },
+            sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, detectsInstallation: true
+        ) { [.claudeCode: Self.source(Self.usage()), .antigravity: Self.detected(false)][$0] }
+        model.appeared()
+        await model.untilIdle()
+        #expect(model.entries.map(\.agent) == [.claudeCode])
+        model.disappeared()
+    }
+
+    @Test("主機 tab(#465):偵測到 Antigravity 才列它那一列;偵測失敗(主機離線)也不列")
+    func antigravityShownWhenDetected() async {
+        func entries(found: Bool?) async -> [PlanUsageAgent] {
+            let model = UsageSectionModel(
+                hostName: "Ray Mac Mini", agents: [.claudeCode, .antigravity], display: Self.remainingSetting(), now: { Self.now },
+                sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, detectsInstallation: true
+            ) { [.claudeCode: Self.source(Self.usage()), .antigravity: Self.detected(found)][$0] }
+            model.appeared()
+            await model.untilIdle()
+            defer { model.disappeared() }
+            return model.entries.map(\.agent)
+        }
+        #expect(await entries(found: true) == [.claudeCode, .antigravity])
+        #expect(await entries(found: nil) == [.claudeCode])
+    }
+
+    @Test("面板(單一 Agent)不偵測:聊天裡正在跑 Antigravity,直接列")
+    func panelSkipsDetection() async {
+        let model = model(agents: [.antigravity], sources: [.antigravity: Self.detected(false)])
+        model.appeared()
+        await model.untilIdle()
+        #expect(model.entries.map(\.agent) == [.antigravity])
+        model.disappeared()
+    }
+
     @Test("Antigravity 兩個模型群組:只列目前模型的群組,聊天的模型優先,切換後立即換(#448)")
     func antigravityShowsCurrentModelGroupOnly() async {
         func period(_ kind: PlanUsage.Period.Kind, _ group: PlanUsage.Group, used: Double) -> PlanUsage.Period {

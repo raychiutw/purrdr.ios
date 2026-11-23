@@ -6,7 +6,7 @@ import SwiftUI
 /// 由 `TopNavigationView` 依 `HostsModel` 設定;沒設定(預覽)時不顯示用量區。
 struct UsageSectionContext {
     var display: UsageDisplaySetting
-    var section: @MainActor (HostSelection, [PlanUsageAgent]) -> UsageSectionModel
+    var section: @MainActor (HostSelection, [PlanUsageAgent], Bool) -> UsageSectionModel
     var planUsage: @MainActor (HostSelection, PlanUsageAgent) -> PlanUsageModel
 }
 
@@ -20,7 +20,7 @@ extension UsageSectionContext {
     init(hosts: HostsModel) {
         self.init(
             display: hosts.usageDisplay,
-            section: { hosts.usageSection(host: $0, agents: $1) },
+            section: { hosts.usageSection(host: $0, agents: $1, detectsInstallation: $2) },
             planUsage: { hosts.planUsage(host: $0, agent: $1) })
     }
 }
@@ -159,11 +159,15 @@ struct UsageSectionContainer: View {
     @State private var model: UsageSectionModel
 
     /// - Parameter activeGroup: 聊天目前模型所屬的用量群組(面板用;主機 tab 不傳,用來源回報的)。
-    init(host: HostSelection, agents: [PlanUsageAgent], context: UsageSectionContext, scopedTitle: Bool, activeGroup: PlanUsage.Group? = nil) {
+    /// - Parameter detectsInstallation: 主機 tab 只列主機上偵測到的 Agent(Antigravity,#465)。
+    init(
+        host: HostSelection, agents: [PlanUsageAgent], context: UsageSectionContext, scopedTitle: Bool, activeGroup: PlanUsage.Group? = nil,
+        detectsInstallation: Bool = false
+    ) {
         self.host = host
         self.scopedTitle = scopedTitle
         self.activeGroup = activeGroup
-        let model = context.section(host, agents)
+        let model = context.section(host, agents, detectsInstallation)
         model.activeGroup = activeGroup
         _model = State(wrappedValue: model)
     }

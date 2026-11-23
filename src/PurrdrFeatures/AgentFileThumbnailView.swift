@@ -2,85 +2,68 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 檔案卡片的縮圖區(#427):PDF(第一頁)與圖片檔在自動載入上限(8 MiB)內自動經主機取檔並縮圖,
-/// 依「路徑 + 版本」快取(`AgentFileLoads`,版本沒變只查狀態)。點縮圖以 QuickLook 開啟;
-/// 超過 8 MiB 顯示大小與「Load」,超過 25 MiB 或缺檔、被拒、主機不支援顯示原因。內容層，不用玻璃。
+/// 檔案卡片的縮圖框(#427、#465):46×56,PDF(第一頁)與圖片檔在自動載入上限(8 MiB)內自動經主機取檔並縮圖,
+/// 依「路徑 + 版本」快取(`AgentFileLoads`,版本沒變只查狀態);沒有縮圖時顯示副檔名角標(沒有副檔名用類型圖示)。
+/// 載入、取消與錯誤說明在卡片列的副標與右側動作(`AgentFileRowDisplay`)。內容層，不用玻璃。
 struct AgentFileThumbnailView: View {
     let card: AgentFileCard
-    /// 點縮圖:下載後以 QuickLook 開啟。
-    let open: () -> Void
+    /// 縮圖框的大小(設計稿第 30 組)。
+    static let size = CGSize(width: 46, height: 56)
     @Environment(\.agentImages) private var context
     @State private var thumbnail: AgentImageDecoder.Decoded?
     @State private var thumbnailVersion: HostFileVersion?
-    @State private var decodeFailed = false
 
+    private var display: AgentFileCardDisplay { AgentFileCardDisplay(file: card.file) }
     private var state: AgentFileLoads.State? { context.loads?.states[card.file.path] }
     private var loadedVersion: HostFileVersion? { if case .loaded(_, let version) = state { version } else { nil } }
 
     var body: some View {
-        slot
-            .frame(maxWidth: .infinity, minHeight: AgentImageCardView.thumbnailHeight, maxHeight: AgentImageCardView.thumbnailHeight)
-            .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 8))
-            .task(id: card.file.path) { await load(userRequested: false) }
+        frame
+            .frame(width: Self.size.width, height: Self.size.height)
+            .accessibilityHidden(true)
+            .accessibilityIdentifier("conversation.agentFile.thumbnail")
+            .task(id: card.file.path) {
+                guard display.preview == .thumbnail, let loads = context.loads else { return }
+                await loads.load(card.file.path, scope: context.scope(), userRequested: false)
+            }
             .task(id: loadedVersion) { await decode() }
     }
 
     @ViewBuilder
-    private var slot: some View {
-        let display = AgentFileThumbnailDisplay(state: state)
+    private var frame: some View {
         if let thumbnail {
-            Button(action: open) {
-                Image(decorative: thumbnail.image, scale: 1)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: AgentImageCardView.thumbnailHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Preview of \(card.file.name)"))
-            .accessibilityHint(Text("Downloads the file from the host and shows a preview."))
-            .accessibilityIdentifier("conversation.agentFile.thumbnail")
-        } else if decodeFailed {
-            Image(systemName: AgentFileCardDisplay(file: card.file).symbol)
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-        } else if let note = display.note {
-            VStack(spacing: 8) {
-                Text(note)
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("conversation.agentFile.thumbnailNote")
-                if display.offersLoad {
-                    Button { Task { await load(userRequested: true) } } label: { HitTarget("Load") }
-                        .accessibilityLabel(Text("Load \(card.file.name)"))
-                        .accessibilityIdentifier("conversation.agentFile.load")
-                }
-                if display.offersRetry {
-                    Button { Task { await load(userRequested: false) } } label: { HitTarget("Try Again") }
-                        .accessibilityIdentifier("conversation.agentFile.thumbnailRetry")
-                }
-            }
-            .padding(.horizontal, 12)
+            Image(decorative: thumbnail.image, scale: 1)
+                .resizable()
+                .scaledToFill()
+                .frame(width: Self.size.width, height: Self.size.height)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.separator) }
         } else {
-            ProgressView()
-                .accessibilityLabel(Text("Loading preview"))
-                .accessibilityIdentifier("conversation.agentFile.thumbnailLoading")
+            let badge = AgentFileRowDisplay(file: card.file, thumbnail: nil, open: nil).badge
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.fill.quaternary)
+                .overlay {
+                    if badge.isEmpty {
+                        Image(systemName: display.symbol)
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(verbatim: badge)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondaryText)
+                            .minimumScaleFactor(0.7)
+                            .lineLimit(1)
+                            .padding(.horizontal, 2)
+                    }
+                }
         }
-    }
-
-    private func load(userRequested: Bool) async {
-        guard let loads = context.loads else { return }
-        await loads.load(card.file.path, scope: context.scope(), userRequested: userRequested)
     }
 
     private func decode() async {
         guard case .loaded(let data, let version) = state, version != thumbnailVersion else { return }
-        let decoded = await AgentImageDecoder.decodeThumbnail(data, kind: card.file.kind, maxPixels: AgentImageDecoder.thumbnailPixels)
+        let decoded = await AgentImageDecoder.decodeThumbnail(data, kind: card.file.kind, maxPixels: 192)
         guard !Task.isCancelled else { return }
         thumbnail = decoded
         thumbnailVersion = decoded == nil ? nil : version
-        decodeFailed = decoded == nil
     }
 }

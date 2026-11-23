@@ -58,7 +58,7 @@ extension AgentImageContext {
 /// 共用的全螢幕圖片檢視器(#426,GLOSSARY「圖片檢視器」),使用者送出的圖與 Agent 的圖片卡片都用它。
 /// 兩指縮放(1× 到 8×)、雙點兩下放大、放大後單指平移、1× 時往下滑關閉、左右滑看同一則訊息的其他圖片、
 /// 頁數「1 / 2」與分享(系統分享表)。縮放規則在 `ImageViewerZoom`,換頁規則在 `ImageViewerPaging`。
-/// 右上角「Done」與 Esc 關閉;VoiceOver 有放大／縮小、上一張／下一張與「Close」動作。
+/// 左上 ✕ 與 Esc 關閉;VoiceOver 有放大／縮小、上一張／下一張與「Close」動作。
 struct ImageViewer: View {
     let item: ImageViewerItem
     @Environment(\.dismiss) private var dismiss
@@ -143,41 +143,71 @@ struct ImageViewer: View {
         if reduceMotion { changes() } else { withAnimation(.smooth(duration: 0.25), changes) }
     }
 
-    /// 上方一列:分享、頁數、完成。觸控目標 44pt:frame 放在 label 裡才撐得大玻璃按鈕(#251)。
+    /// 上方一列(設計稿第 30 組):左上 ✕ 關閉(#415)、中間頁數、右上分享;底部分頁點與操作提示。
+    /// 觸控目標 44pt:frame 放在 label 裡才撐得大玻璃按鈕(#251)。
     private var controls: some View {
-        HStack {
-            if let file = shareFiles[paging.index] {
-                ShareLink(item: file) {
-                    Image(systemName: "square.and.arrow.up").frame(minWidth: 44, minHeight: 44)
+        ZStack {
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").frame(minWidth: 44, minHeight: 44)
                 }
                 .buttonStyle(.glass)
-                .accessibilityLabel(Text("Share"))
-                .accessibilityIdentifier("imageViewer.share")
-            } else {
-                Color.clear.frame(width: 44, height: 44)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityLabel(Text("Close"))
+                .accessibilityIdentifier("imageViewer.close")
+                Spacer()
+                if let file = shareFiles[paging.index] {
+                    ShareLink(item: file) {
+                        Image(systemName: "square.and.arrow.up").frame(minWidth: 44, minHeight: 44)
+                    }
+                    .buttonStyle(.glass)
+                    .accessibilityLabel(Text("Share"))
+                    .accessibilityIdentifier("imageViewer.share")
+                } else {
+                    Color.clear.frame(width: 44, height: 44)
+                }
             }
-            Spacer()
-            Button { dismiss() } label: {
-                Text("Done").frame(minWidth: 44, minHeight: 44)
+            .overlay {
+                if let label = paging.pageLabel {
+                    Text(verbatim: label)
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 44)
+                        .glassEffect(.regular, in: .capsule)
+                        .accessibilityLabel(Text("Image \(paging.index + 1) of \(paging.count)"))
+                        .accessibilityIdentifier("imageViewer.pageLabel")
+                }
             }
-            .buttonStyle(.glass)
-            .keyboardShortcut(.cancelAction)
-            .accessibilityIdentifier("imageViewer.done")
+            .padding()
+            .frame(maxHeight: .infinity, alignment: .top)
+            footer
         }
-        .overlay {
-            if let label = paging.pageLabel {
-                Text(verbatim: label)
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 34)
-                    .glassEffect(.regular, in: .capsule)
-                    .accessibilityLabel(Text("Image \(paging.index + 1) of \(paging.count)"))
-                    .accessibilityIdentifier("imageViewer.pageLabel")
-            }
-        }
-        .padding()
         .opacity(1 - min(1, dismissDrag / 200))
+    }
+
+    /// 底部:分頁點(多張才有)與操作提示。
+    private var footer: some View {
+        VStack(spacing: 14) {
+            if item.sources.count > 1 {
+                HStack(spacing: 8) {
+                    ForEach(item.sources) { source in
+                        Circle()
+                            .fill(source.id == paging.index ? Color.white : Color.white.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                .accessibilityHidden(true)
+                .accessibilityIdentifier("imageViewer.dots")
+            }
+            Text("Double-tap to zoom · swipe down to close")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.7))
+                .accessibilityIdentifier("imageViewer.hint")
+        }
+        .padding(.bottom, 24)
+        .frame(maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(false)
     }
 
     /// 分享用的檔案:寫進暫存資料夾、保留檔名(副檔名決定系統怎麼處理)。

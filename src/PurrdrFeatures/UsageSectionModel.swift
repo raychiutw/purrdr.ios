@@ -76,13 +76,17 @@ public final class UsageSectionModel {
     private var raw: [PlanUsageAgent: Raw] = [:]
     /// 最後一次讀取失敗、仍顯示先前讀到的資料的 Agent(#392:主機離線時保留最後的資料)。
     private var keptAfterFailure: Set<PlanUsageAgent> = []
+    /// 主機 tab 只列主機上偵測到的 Agent(#465):偵測到的記下來,沒偵測到或失敗的不列、下次出現再偵測。
+    public let detectsInstallation: Bool
+    private var detected: Set<PlanUsageAgent> = []
     private var queries: [PlanUsageAgent: Task<Void, Never>] = [:]
     private var automaticRefresh: Task<Void, Never>?
 
     public init(
         hostName: String, agents: [PlanUsageAgent], display: UsageDisplaySetting, now: @escaping () -> Date = Date.init,
-        sleep: @escaping Sleep = Sleeping.task, source: @escaping (PlanUsageAgent) -> PlanUsageSource?
+        sleep: @escaping Sleep = Sleeping.task, detectsInstallation: Bool = false, source: @escaping (PlanUsageAgent) -> PlanUsageSource?
     ) {
+        self.detectsInstallation = detectsInstallation
         self.hostName = hostName
         self.agents = agents
         displaySetting = display
@@ -109,7 +113,7 @@ public final class UsageSectionModel {
     public var entries: [Entry] {
         let display = displaySetting.display
         return agents.compactMap { agent in
-            guard source(agent) != nil else { return nil }
+            guard let source = source(agent), isListed(agent, source) else { return nil }
             switch raw[agent] ?? .loading {
             case .loading: return Entry(agent: agent, state: .loading, rows: [], staleMinutes: nil)
             case .noData: return Entry(agent: agent, state: .noData, rows: [], staleMinutes: nil)
@@ -121,6 +125,11 @@ public final class UsageSectionModel {
                 return Entry(agent: agent, state: .rows, rows: rows, staleMinutes: PlanUsagePresentation.staleMinutes(usage, now: now()))
             }
         }
+    }
+
+    /// 要偵測的 Agent 還沒偵測到就不列。
+    private func isListed(_ agent: PlanUsageAgent, _ source: PlanUsageSource) -> Bool {
+        !detectsInstallation || source.installed == nil || detected.contains(agent)
     }
 
     /// 畫面出現:查一次;每個來源都不耗 token 與傳輸時,畫面開著定期重整。
@@ -163,11 +172,27 @@ public final class UsageSectionModel {
     private func startQueries() {
         for agent in agents where queries[agent] == nil {
             guard let source = source(agent) else { continue }
+            if !isListed(agent, source), let installed = source.installed {
+                detect(agent, installed)
+                continue
+            }
             if let hostWrite = source.hostWrite, !hostWrite.isGranted() {
                 raw[agent] = .needsEnable
                 continue
             }
             query(agent, source)
+        }
+    }
+
+    /// 唯讀偵測主機上有沒有這個 Agent;偵測到才開始查用量,沒有或失敗就不列。
+    private func detect(_ agent: PlanUsageAgent, _ installed: @escaping @Sendable () async throws -> Bool) {
+        queries[agent] = Task { [weak self] in
+            let found = (try? await installed()) ?? false
+            guard let self, !Task.isCancelled else { return }
+            queries[agent] = nil
+            guard found else { return }
+            detected.insert(agent)
+            startQueries()
         }
     }
 

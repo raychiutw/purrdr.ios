@@ -35,6 +35,14 @@ public struct AntigravityPlanUsageHost: Sendable, ClaudeSessionStatusReading {
         self.files = .shared(files, channel: channel)
     }
 
+    /// 主機上有沒有裝 Antigravity(#465):唯讀,看 `~/.gemini/antigravity-cli` 在不在(只讀,不寫主機);Windows 沒有 Antigravity 用量,一律 `false`。
+    public func isInstalledOnHost() async throws -> Bool {
+        let read = try await files.read([Self.settingsPath])
+        if read.operatingSystem == .windows { return false }
+        if case .missingDirectory = read[Self.settingsPath] ?? .missing { return false }
+        return true
+    }
+
     /// 同意前的檢查:設定可以安全修改嗎、會以哪個使用者修改。
     public func inspect() async throws -> ClaudeUsageInspection {
         let inspection = try await write.inspect()

@@ -289,8 +289,9 @@ public final class HostsModel {
     }
 
     /// 用量區(#389):面板(單一 Agent)與主機 tab(Claude 與 Codex)共用。HTTPS 主機沒有來源,整區是「等主機服務支援」。
-    public func usageSection(host: HostSelection, agents: [PlanUsageAgent]) -> UsageSectionModel {
-        UsageSectionModel(hostName: name(of: host), agents: agents, display: usageDisplay) { [weak self] agent in
+    /// `detectsInstallation`:主機 tab 只列主機上偵測到的 Agent(Antigravity,#465);面板的 Agent 是聊天正在跑的,不偵測。
+    public func usageSection(host: HostSelection, agents: [PlanUsageAgent], detectsInstallation: Bool = false) -> UsageSectionModel {
+        UsageSectionModel(hostName: name(of: host), agents: agents, display: usageDisplay, detectsInstallation: detectsInstallation) { [weak self] agent in
             self?.planUsageSource(host, agent)
         }
     }

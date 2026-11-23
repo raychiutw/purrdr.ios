@@ -28,16 +28,47 @@ struct AgentFileCardDisplayTests {
             == "Edited file CSVExport.swift, Code, 1 lines added, 1 removed")
     }
 
-    @Test("寫入內容超過 8 行折疊，展開後全部顯示;截斷的內容有說明")
-    func longContentFolds() {
+    @Test("截斷的內容有說明;可複製的內容是全部的行")
+    func contentNotes() {
         let text = (1...12).map { "line \($0)" }.joined(separator: "\n")
         let display = AgentFileCardDisplay(file: AgentFileReference(origin: .created, path: "/tmp/a.txt", snapshot: .content(text, isTruncated: true)))
 
-        #expect(display.isFoldable)
-        #expect(display.visibleLines(expanded: false).count == 8)
-        #expect(display.visibleLines(expanded: true).count == 12)
+        #expect(display.lines.count == 12)
         #expect(display.truncationNote == "Content truncated at 20,000 characters")
         #expect(display.copyableContent == text)
+    }
+
+    @Test("緊湊單列(#465):副標依狀態是摘要、下載進度、說明;右側動作是載入、取消、重試或沒有")
+    func compactRow() {
+        let pdf = AgentFileReference(origin: .created, path: "/Users/demo/ledger/report.pdf", byteCount: 2_400_000)
+        let scan = AgentFileReference(origin: .readImage, path: "/Users/demo/ledger/scan.png", byteCount: 9_000_000)
+        let zip = AgentFileReference(origin: .created, path: "/Users/demo/ledger/export.zip", byteCount: 14_000_000)
+
+        let plain = AgentFileRowDisplay(file: pdf, thumbnail: .loading, open: nil)
+        #expect(plain.subtitle == "Created · PDF · 2.4 MB")
+        #expect(plain.action == .none)
+        #expect(plain.progress == nil)
+
+        let over = AgentFileRowDisplay(file: scan, thumbnail: .overAutomaticLimit(size: 9 * 1024 * 1024), open: nil)
+        #expect(over.subtitle == "Read · Image · 9.4 MB · Not loaded automatically")
+        #expect(over.action == .load)
+
+        let downloading = AgentFileRowDisplay(file: zip, thumbnail: nil, open: .downloading(received: 6_100_000, total: 14_000_000))
+        #expect(downloading.subtitle == "Downloading · 6.1 MB / 14 MB")
+        #expect(downloading.action == .cancel)
+        #expect(downloading.progress.map { (0.43...0.44).contains($0) } == true)
+
+        let missing = AgentFileRowDisplay(file: zip, thumbnail: nil, open: .missing)
+        #expect(missing.subtitle == "This file is no longer on the host.")
+        #expect(missing.action == .none)
+        #expect(AgentFileRowDisplay(file: zip, thumbnail: nil, open: .failed).action == .retry)
+        #expect(AgentFileRowDisplay(file: pdf, thumbnail: .failed, open: nil).action == .retry)
+    }
+
+    @Test("縮圖框的角標:副檔名大寫(最多 5 字),沒有副檔名用空字串")
+    func extensionBadge() {
+        #expect(AgentFileRowDisplay(file: AgentFileReference(origin: .created, path: "/a/export.zip"), thumbnail: nil, open: nil).badge == "ZIP")
+        #expect(AgentFileRowDisplay(file: AgentFileReference(origin: .created, path: "/a/Makefile"), thumbnail: nil, open: nil).badge == "")
     }
 
     @Test("圖片卡片(#225):標題念讀取與大小;超過 8 MiB 顯示大小並提供載入，其他原因各有說明")

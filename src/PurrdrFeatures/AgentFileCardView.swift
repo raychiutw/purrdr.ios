@@ -7,9 +7,6 @@ import UniformTypeIdentifiers
 
 /// 檔案卡片的顯示規則(#224)。
 struct AgentFileCardDisplay {
-    /// 內容超過這麼多行就折疊。
-    static let foldLimit = 8
-
     /// 內容的一行。修改摘要的行帶種類，畫面依此選顏色;符號(`+`／`-`)留在文字裡，不只靠顏色。
     struct Line: Equatable {
         enum Kind: Equatable { case plain, added, removed, context, hunkHeader }
@@ -109,12 +106,6 @@ struct AgentFileCardDisplay {
         }
     }
 
-    var isFoldable: Bool { lines.count > Self.foldLimit }
-
-    func visibleLines(expanded: Bool) -> [Line] {
-        expanded || !isFoldable ? lines : Array(lines.prefix(Self.foldLimit))
-    }
-
     var truncationNote: String? {
         switch file.snapshot {
         case .content(_, isTruncated: true): String(localized: "Content truncated at 20,000 characters")
@@ -150,6 +141,47 @@ struct AgentFileThumbnailDisplay {
 
     var offersLoad: Bool { if case .overAutomaticLimit = state { true } else { false } }
     var offersRetry: Bool { state == .failed }
+}
+
+/// 檔案卡片緊湊單列(#465,設計稿第 30 組)的顯示規則:副標、右側動作、進度與縮圖框角標。
+struct AgentFileRowDisplay {
+    enum Action: Equatable { case none, load, cancel, retry }
+
+    let file: AgentFileReference
+    /// 縮圖種類(PDF、圖片)的載入狀態;其他種類是 `nil`。
+    let thumbnail: AgentFileLoads.State?
+    let open: AgentFileLoads.OpenState?
+
+    private var card: AgentFileCardDisplay { AgentFileCardDisplay(file: file) }
+    private var openDisplay: AgentFileOpenDisplay { AgentFileOpenDisplay(state: open) }
+    private var thumbnailDisplay: AgentFileThumbnailDisplay { AgentFileThumbnailDisplay(state: card.preview == .thumbnail ? thumbnail : nil) }
+
+    /// 「動作 · 類型 · 大小」;下載中顯示進度,不能開或超過自動載入上限時顯示原因。
+    var subtitle: String {
+        if case .downloading(let received, let total) = open {
+            let done = Int64(received).formatted(.byteCount(style: .file))
+            guard total > 0 else { return String(localized: "Downloading · \(done)") }
+            return String(localized: "Downloading · \(done) / \(Int64(total).formatted(.byteCount(style: .file)))")
+        }
+        if let note = openDisplay.note { return note }
+        if let note = thumbnailDisplay.note {
+            return thumbnailDisplay.offersLoad ? "\(card.originText) · \(card.kindText) · \(note)" : note
+        }
+        return card.summary
+    }
+
+    var action: Action {
+        if openDisplay.offersCancel { return .cancel }
+        if openDisplay.offersRetry || thumbnailDisplay.offersRetry { return .retry }
+        if thumbnailDisplay.offersLoad { return .load }
+        return .none
+    }
+
+    var progress: Double? { openDisplay.progress }
+    var isDownloading: Bool { openDisplay.isDownloading }
+
+    /// 縮圖框沒有縮圖時的角標:副檔名大寫(最多 5 字);沒有副檔名是空字串(畫面改用類型圖示)。
+    var badge: String { String(file.fileExtension.uppercased().prefix(5)) }
 }
 
 /// 點開檔案(#228)的顯示規則。
@@ -189,75 +221,75 @@ struct AgentFileOpenDisplay {
     }
 }
 
-/// 檔案卡片：Agent 寫入或修改的檔案。標題列是類型圖示、檔名、路徑與「動作 · 類型 · 大小」,
-/// 下方等寬顯示對話紀錄裡的內容或修改摘要(超過 8 行折疊)。內容層，不用玻璃;長按可複製路徑或內容。
-/// 點標題列或「Open」才從主機下載到快取，以 QuickLook 預覽(#228);下載好了可分享。
+/// 檔案卡片：Agent 寫入或修改的檔案,緊湊單列(#465,設計稿第 30 組,更像 iOS 26 的附件列):
+/// 左 46×56 縮圖(PDF 首頁、圖片,或副檔名角標／類型圖示)、中間「檔名 + 動作 · 類型 · 大小」、右側「Load／Cancel」文字鈕、
+/// 下載中的進度條。內容層，不用玻璃。點整列下載到快取並以 QuickLook 預覽(#228);內容摘要、修改摘要與路徑在
+/// 長按選單的「Details」(sheet),下載好了可分享。
 struct AgentFileCardView: View {
     let card: AgentFileCard
-    @State private var expanded = false
     @Environment(\.agentImages) private var context
     @State private var previewFile: URL?
+    @State private var showsDetails = false
 
     private var display: AgentFileCardDisplay { AgentFileCardDisplay(file: card.file) }
     private var openDisplay: AgentFileOpenDisplay { AgentFileOpenDisplay(state: context.loads?.opens[card.file.path]) }
+    private var rowDisplay: AgentFileRowDisplay {
+        AgentFileRowDisplay(file: card.file, thumbnail: context.loads?.states[card.file.path], open: context.loads?.opens[card.file.path])
+    }
 
     var body: some View {
-        let visible = display.visibleLines(expanded: expanded)
-        VStack(alignment: .leading, spacing: 8) {
-            // 標題列本身可點(VoiceOver 是按鈕);保留它的 identifier 與完整標籤，所以不包成 Button。
-            AgentFileCardHeader(card: card, display: display, identifier: "conversation.agentFile.header")
+        let row = rowDisplay
+        HStack(spacing: 12) {
+            Button(action: primaryAction) {
+                HStack(spacing: 12) {
+                    AgentFileThumbnailView(card: card)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: card.file.name)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Text(verbatim: row.subtitle)
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
+                            .lineLimit(2)
+                            .accessibilityIdentifier("conversation.agentFile.subtitle")
+                        if let progress = row.progress {
+                            ProgressView(value: progress)
+                                .accessibilityLabel(Text("Downloading \(card.file.name)"))
+                                .accessibilityIdentifier("conversation.agentFile.progress")
+                        } else if row.isDownloading {
+                            ProgressView()
+                                .accessibilityLabel(Text("Downloading \(card.file.name)"))
+                                .accessibilityIdentifier("conversation.agentFile.progress")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 .contentShape(Rectangle())
-                .onTapGesture { if openDisplay.offersOpen { open() } }
-                .accessibilityAddTraits(context.loads == nil ? [] : .isButton)
-                .accessibilityHint(context.loads == nil ? Text(verbatim: "") : Text("Downloads the file from the host and shows a preview."))
-                .accessibilityAction { if openDisplay.offersOpen { open() } }
-            AgentFileCardDetails(card: card, display: display, identifier: "conversation.agentFile")
-            if display.preview == .thumbnail, context.loads != nil {
-                AgentFileThumbnailView(card: card, open: open)
             }
-            if context.loads != nil {
-                AgentFileOpenRow(card: card, display: openDisplay, open: open, cancel: { context.loads?.cancelOpen(card.file.path) })
-            }
-            if !visible.isEmpty {
-                ScrollView(.horizontal) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(visible.enumerated()), id: \.offset) { _, line in
-                            Text(verbatim: line.text.isEmpty ? " " : line.text)
-                                .foregroundStyle(Self.style(of: line.kind))
-                                .fontWeight(line.kind == .added ? .semibold : .regular)
-                                .strikethrough(line.kind == .removed)
-                        }
-                    }
-                    .font(.system(.footnote, design: .monospaced))
-                    .fixedSize()
-                    .textSelection(.enabled)
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(verbatim: display.accessibilityLabel))
+            .accessibilityHint(context.loads == nil ? Text(verbatim: "") : Text("Downloads the file from the host and shows a preview."))
+            .accessibilityIdentifier("conversation.agentFile.row")
+            if row.action != .none {
+                Button { perform(row.action) } label: {
+                    Self.actionTitle(row.action)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .scrollIndicators(.hidden)
-                .accessibilityIdentifier("conversation.agentFile.content")
-            }
-            if display.isFoldable || display.truncationNote != nil {
-                HStack {
-                    if let note = display.truncationNote {
-                        Text(note)
-                    }
-                    Spacer()
-                    if display.isFoldable {
-                        Button { expanded.toggle() } label: {
-                            (expanded ? Text("Show Less") : Text("Show All"))
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityIdentifier("conversation.agentFile.toggle")
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondaryText)
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+                .accessibilityLabel(Self.actionLabel(row.action, name: card.file.name))
+                .accessibilityIdentifier(Self.actionIdentifier(row.action))
             }
         }
-        .padding(12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12))
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 18))
         .contextMenu {
+            Button("Details", systemImage: "info.circle") { showsDetails = true }
             Button("Copy Path", systemImage: "document.on.document") { Clipboard.copy(card.file.path) }
             if let content = display.copyableContent {
                 Button("Copy Content", systemImage: "document.on.document") { Clipboard.copy(content) }
@@ -267,9 +299,62 @@ struct AgentFileCardView: View {
             }
         }
         .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text("Details")) { showsDetails = true }
         .accessibilityAction(named: Text("Copy Path")) { Clipboard.copy(card.file.path) }
         .accessibilityIdentifier("conversation.agentFile")
         .quickLookPreview($previewFile)
+        .sheet(isPresented: $showsDetails) { AgentFileDetailsSheet(card: card, display: display) }
+    }
+
+    private static func actionTitle(_ action: AgentFileRowDisplay.Action) -> Text {
+        switch action {
+        case .none: Text(verbatim: "")
+        case .load: Text("Load")
+        case .cancel: Text("Cancel")
+        case .retry: Text("Try Again")
+        }
+    }
+
+    private static func actionLabel(_ action: AgentFileRowDisplay.Action, name: String) -> Text {
+        switch action {
+        case .none: Text(verbatim: "")
+        case .load: Text("Load \(name)")
+        case .cancel: Text("Cancel downloading \(name)")
+        case .retry: Text("Try again \(name)")
+        }
+    }
+
+    private static func actionIdentifier(_ action: AgentFileRowDisplay.Action) -> String {
+        switch action {
+        case .none, .load: "conversation.agentFile.load"
+        case .cancel: "conversation.agentFile.cancel"
+        case .retry: "conversation.agentFile.retry"
+        }
+    }
+
+    private func perform(_ action: AgentFileRowDisplay.Action) {
+        guard let loads = context.loads else { return }
+        let path = card.file.path
+        switch action {
+        case .none: break
+        case .cancel: loads.cancelOpen(path)
+        case .load:
+            let scope = context.scope()
+            Task { await loads.load(path, scope: scope, userRequested: true) }
+        case .retry:
+            if openDisplay.offersRetry {
+                open()
+            } else {
+                let scope = context.scope()
+                Task { await loads.load(path, scope: scope, userRequested: false) }
+            }
+        }
+    }
+
+    /// 點整列:有主機通道就下載並以 QuickLook 開;沒有(離線唯讀)就看詳細。
+    private func primaryAction() {
+        guard context.loads != nil else { showsDetails = true; return }
+        if openDisplay.offersOpen { open() }
     }
 
     /// 下載(版本沒變只查狀態)後以 QuickLook 開。
@@ -278,6 +363,58 @@ struct AgentFileCardView: View {
         let scope = context.scope()
         Task { if let file = await loads.open(card.file.path, scope: scope) { previewFile = file } }
     }
+}
+
+/// 檔案卡片的詳細(#465):完整路徑、動作 · 類型 · 大小,以及對話紀錄裡的內容或修改摘要(原本在卡片內,緊湊單列後移到這裡)。
+struct AgentFileDetailsSheet: View {
+    let card: AgentFileCard
+    let display: AgentFileCardDisplay
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(verbatim: card.file.path)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondaryText)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("conversation.agentFile.path")
+                    Text(verbatim: display.summary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondaryText)
+                    if !display.lines.isEmpty {
+                        ScrollView(.horizontal) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(Array(display.lines.enumerated()), id: \.offset) { _, line in
+                                    Text(verbatim: line.text.isEmpty ? " " : line.text)
+                                        .foregroundStyle(Self.style(of: line.kind))
+                                        .fontWeight(line.kind == .added ? .semibold : .regular)
+                                        .strikethrough(line.kind == .removed)
+                                }
+                            }
+                            .font(.system(.footnote, design: .monospaced))
+                            .fixedSize()
+                            .textSelection(.enabled)
+                        }
+                        .scrollIndicators(.hidden)
+                        .accessibilityIdentifier("conversation.agentFile.content")
+                    }
+                    if let note = display.truncationNote {
+                        Text(note).font(.caption).foregroundStyle(.secondaryText)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationTitle(Text(verbatim: card.file.name))
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar { SheetCloseToolbar(identifier: "conversation.agentFile.details.close") }
+        }
+        .presentationDetents([.medium, .large])
+        .accessibilityIdentifier("conversation.agentFile.details")
+    }
 
     /// 新增的行主要色加粗、刪除的行次要文字色加刪除線、未變的行次要文字色;不用紅綠承載文字(#240),`+`／`-` 符號保留。
     private static func style(of kind: AgentFileCardDisplay.Line.Kind) -> AnyShapeStyle {
@@ -285,63 +422,6 @@ struct AgentFileCardView: View {
         case .plain, .added: AnyShapeStyle(.primary)
         case .removed, .context, .hunkHeader: AnyShapeStyle(.secondaryText)
         }
-    }
-}
-
-/// 檔案卡片的開啟列(#228):「Open」與「Share」,下載中是進度與「Cancel」,不能開時是原因(與「Try Again」)。
-struct AgentFileOpenRow: View {
-    let card: AgentFileCard
-    let display: AgentFileOpenDisplay
-    let open: () -> Void
-    let cancel: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if display.isDownloading {
-                Group {
-                    if let progress = display.progress {
-                        ProgressView(value: progress)
-                    } else {
-                        ProgressView()
-                    }
-                }
-                .accessibilityLabel(Text("Downloading \(card.file.name)"))
-                .accessibilityIdentifier("conversation.agentFile.progress")
-                Button("Cancel", action: cancel)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .accessibilityIdentifier("conversation.agentFile.cancel")
-            } else if let note = display.note {
-                Text(note)
-                    .foregroundStyle(.secondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("conversation.agentFile.note")
-                if display.offersRetry {
-                    Button("Try Again", action: open)
-                        .frame(minHeight: 44)
-                        .accessibilityIdentifier("conversation.agentFile.retry")
-                }
-            } else {
-                Button(action: open) {
-                    Label("Open", systemImage: "eye")
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(Text("Open \(card.file.name)"))
-                .accessibilityHint(Text("Downloads the file from the host and shows a preview."))
-                .accessibilityIdentifier("conversation.agentFile.open")
-                if let file = display.shareableFile {
-                    ShareLink(item: file) {
-                        Label("Share", systemImage: "square.and.arrow.up")
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel(Text("Share \(card.file.name)"))
-                    .accessibilityIdentifier("conversation.agentFile.share")
-                }
-                Spacer(minLength: 0)
-            }
-        }
-        .font(.footnote)
     }
 }
 

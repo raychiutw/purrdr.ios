@@ -27,7 +27,7 @@ struct HostOverviewView: View {
             Group {
                 HostStatusRow(overview: overview, retry: retry, pair: pair, update: { if let hostID { openRoute(.edit(hostID)) } })
                 if overview.showsUsage, let usage {
-                    UsageSectionContainer(host: overview.host, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false)
+                    UsageSectionContainer(host: overview.host, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false, detectsInstallation: true)
                         .id(overview.host)
                 }
                 if overview.showsHostService, let hostID, let models = statusCache.models(for: hostID, hosts: hosts) {

@@ -264,5 +264,17 @@ struct AntigravityPlanUsageHostTests {
 
         #expect(try statusLine()?["command"] as? String == "/usr/bin/true")
     }
+
+    @Test("偵測(#465):有 ~/.gemini/antigravity-cli 才算裝了 Antigravity;唯讀,不寫主機")
+    func detectsInstalledAntigravity() async throws {
+        let before = try DirectorySnapshot(of: host.home)
+        #expect(try await usage.isInstalledOnHost() == false)
+
+        try setUpAgyHome()
+        let withAgy = try DirectorySnapshot(of: host.home)
+        #expect(try await usage.isInstalledOnHost())
+        #expect(try DirectorySnapshot(of: host.home) == withAgy, "偵測不該改動主機")
+        _ = before
+    }
 }
 #endif

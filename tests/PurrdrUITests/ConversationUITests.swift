@@ -166,7 +166,7 @@ final class ConversationUITests: XCTestCase {
         dismissNote(in: app)
 
         // 檔案卡片:標題念出動作、檔名、類型與路徑。
-        let header = "conversation.agentFile.header"
+        let header = "conversation.agentFile.row"
         for prefix in ["Created file draft.csv", "Created file history.csv"] {
             XCTAssertTrue(app.revealInConversation(app.element(header, labelPrefix: prefix)), "沒有 \(prefix) 的卡片")
         }
@@ -177,22 +177,19 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(edited.label.contains("1 lines added, 1 removed"), "\(edited.label)")
         XCTAssertFalse(edited.label.contains("Path:"), "路徑是進階資訊，收合時標題不念：\(edited.label)")
 
-        // #330:路徑預設收起，點「Details」揭露控制才看到。
-        let pathText = app.staticTexts["/Users/demo/ledger/Sources/Ledger/CSVExport.swift"]
-        XCTAssertFalse(pathText.exists, "路徑不該預設顯示")
-        let disclosure = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.disclosure").element(boundBy: 0)
-        XCTAssertTrue(app.revealInConversation(disclosure), "沒有「Details」揭露控制")
-        XCTAssertGreaterThanOrEqual(disclosure.frame.height, 43.9)
-        disclosure.tap()
-        XCTAssertTrue(app.element("conversation.agentFile.path").waitUntilExists(timeout: 3), "展開後沒有路徑")
-
-        let toggle = app.element("conversation.agentFile.toggle")
-        XCTAssertTrue(app.revealInConversation(toggle), "新建的測試檔超過 8 行，應該可以展開")
-        XCTAssertGreaterThanOrEqual(toggle.frame.height, 44)
-        toggle.tap()
+        // #465:卡片是緊湊單列,路徑與內容(修改摘要)在長按選單的「Details」sheet。
+        XCTAssertFalse(app.staticTexts["/Users/demo/ledger/Sources/Ledger/CSVExport.swift"].exists, "路徑不該顯示在卡片上")
+        XCTAssertFalse(app.element("conversation.agentFile.content").exists, "內容不該顯示在卡片上")
+        created.press(forDuration: 1.0)
+        let details = app.buttons["Details"].firstMatch
+        XCTAssertTrue(details.waitUntilExists(timeout: 5), "長按沒有「Details」")
+        details.tap()
+        XCTAssertTrue(app.element("conversation.agentFile.path").waitUntilExists(timeout: 5), "詳細沒有路徑")
+        XCTAssertTrue(app.element("conversation.agentFile.content").waitUntilExists(timeout: 5), "詳細沒有內容")
         let lastLine = app.staticTexts[#"    #expect(CSVExport.columns.first == "date")"#]
-        XCTAssertTrue(app.revealInConversation(lastLine), "展開後沒有看到後面的行")
-        XCTAssertEqual(toggle.label, "Show Less")
+        XCTAssertTrue(lastLine.waitUntilExists(timeout: 5), "詳細沒有完整內容(含最後一行)")
+        app.element("conversation.agentFile.details.close").tap()
+        XCTAssertTrue(app.element("conversation.agentFile.details").waitUntilGone(timeout: 5))
 
         // 圖片卡片:小圖自動載入縮圖，點開全螢幕;超過 8 MiB 的掃描檔等點擊。
         let previewHeader = app.element("conversation.agentImage.header", labelPrefix: "Read file export-preview.png, Image")
@@ -203,7 +200,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["docs/export-preview.png"].exists)
         thumbnail.tap()
         XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 5), "沒有全螢幕檢視")
-        XCTAssertGreaterThanOrEqual(app.element("imageViewer.done").frame.height, 44)
+        XCTAssertGreaterThanOrEqual(app.element("imageViewer.close").frame.height, 44)
 
         // #330:雙點兩下放大、再雙點兩下縮回;1× 下滑關閉。
         let image = app.element("imageViewer.image")
@@ -220,8 +217,8 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertTrue(app.revealInConversation(thumbnail))
         thumbnail.tap()
-        XCTAssertTrue(app.element("imageViewer.done").waitUntilExists(timeout: 5))
-        app.element("imageViewer.done").tap()
+        XCTAssertTrue(app.element("imageViewer.close").waitUntilExists(timeout: 5))
+        app.element("imageViewer.close").tap()
         XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5))
 
         let imageDisclosure = app.element("conversation.agentImage.disclosure")
@@ -237,25 +234,21 @@ final class ConversationUITests: XCTestCase {
         let scan = app.element("conversation.agentImage.thumbnail", labelPrefix: "Image statement-scan.png")
         XCTAssertTrue(scan.waitUntilExists(timeout: 15), "點了之後掃描檔沒有載入")
 
-        // 點開檔案:「Open」下載後以 QuickLook 預覽，關閉後可以分享。
-        let open = app.buttons["Open CSVQuotingTests.swift"].firstMatch
-        XCTAssertTrue(app.revealInConversation(open), "新建的測試檔沒有「Open」")
-        XCTAssertGreaterThanOrEqual(open.frame.height, 44)
-        open.tap()
+        // 點開檔案:點整列下載後以 QuickLook 預覽,關閉後長按選單可以分享。
+        XCTAssertTrue(app.revealInConversation(created), "新建的測試檔沒有卡片")
+        XCTAssertGreaterThanOrEqual(created.frame.height, 44)
+        created.tap()
         let preview = quickLookBar(named: "CSVQuotingTests", in: app)
         XCTAssertTrue(preview.waitUntilExists(timeout: 15), "沒有出現 QuickLook 預覽")
         closeQuickLook(preview)
         XCTAssertTrue(preview.waitUntilGone(timeout: 5))
-        let share = app.buttons["Share CSVQuotingTests.swift"].firstMatch
-        XCTAssertTrue(app.revealInConversation(share), "下載好之後沒有「Share」")
-        XCTAssertGreaterThanOrEqual(share.frame.height, 44)
 
-        // 檔案縮圖(#427):PDF 卡片自動顯示第一頁縮圖，點縮圖以 QuickLook 開。
-        let pdfThumbnail = app.element("conversation.agentFile.thumbnail", labelPrefix: "Preview of export-report.pdf")
-        XCTAssertTrue(app.revealInConversation(pdfThumbnail), "PDF 卡片沒有自動顯示縮圖")
-        pdfThumbnail.tap()
+        // 檔案縮圖(#427、#465):PDF 卡片左側自動載入第一頁縮圖,點整列以 QuickLook 開。
+        let pdfRow = app.element("conversation.agentFile.row", labelPrefix: "Created file export-report.pdf")
+        XCTAssertTrue(app.revealInConversation(pdfRow), "沒有 PDF 卡片")
+        pdfRow.tap()
         let pdfBar = quickLookBar(named: "export-report", in: app)
-        XCTAssertTrue(pdfBar.waitUntilExists(timeout: 15), "點縮圖沒有出現 QuickLook 預覽")
+        XCTAssertTrue(pdfBar.waitUntilExists(timeout: 15), "點整列沒有出現 QuickLook 預覽")
         closeQuickLook(pdfBar)
         XCTAssertTrue(pdfBar.waitUntilGone(timeout: 5))
 
@@ -272,8 +265,14 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.revealInConversation(pathImage), "訊息中的圖片路徑不是連結")
         pathImage.tap()
         XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
-        app.element("imageViewer.done").tap()
+        app.element("imageViewer.close").tap()
         XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5))
+
+        // 下載好的檔案:長按選單可以分享(放最後,免得還要收起選單)。
+        XCTAssertTrue(app.revealInConversation(created))
+        created.press(forDuration: 1.0)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Share")).firstMatch.waitUntilExists(timeout: 5), "下載好之後長按沒有「Share」")
+
     }
 
     // MARK: - 輸入列與鍵盤(F6)

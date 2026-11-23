@@ -2199,6 +2199,17 @@
         }
       }
     },
+    "Cancel downloading %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消下載 %@"
+          }
+        }
+      }
+    },
     "Can’t Add This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4612,6 +4623,17 @@
         }
       }
     },
+    "Double-tap to zoom · swipe down to close" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點兩下放大 · 往下滑關閉"
+          }
+        }
+      }
+    },
     "Down Arrow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4641,6 +4663,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在下載 %@"
+          }
+        }
+      }
+    },
+    "Downloading · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載中 · %@"
+          }
+        }
+      }
+    },
+    "Downloading · %@ / %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載中 · %@ / %@"
           }
         }
       }
@@ -6650,17 +6694,6 @@
         }
       }
     },
-    "Loading preview" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在載入預覽"
-          }
-        }
-      }
-    },
     "Locked" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8234,17 +8267,6 @@
         }
       }
     },
-    "Open %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟 %@"
-          }
-        }
-      }
-    },
     "Open Settings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9022,17 +9044,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Port"
-          }
-        }
-      }
-    },
-    "Preview of %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 的預覽"
           }
         }
       }
@@ -10738,17 +10749,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享"
-          }
-        }
-      }
-    },
-    "Share %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享 %@"
           }
         }
       }
@@ -14448,6 +14448,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用範例對話試用 Purrdr,不會連到任何主機。"
+          }
+        }
+      }
+    },
+    "Try again %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重試 %@"
           }
         }
       }

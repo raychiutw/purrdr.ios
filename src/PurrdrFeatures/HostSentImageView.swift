@@ -9,6 +9,8 @@ struct HostSentImageView: View {
     let path: String
     /// 這是同一則訊息的第幾張(VoiceOver 念「Image N」)。
     let index: Int
+    /// 單張依比例、多張方塊格子(#465)。
+    var layout = BubbleImageLayout(count: 1)
     /// 點縮圖:交給泡泡打開圖片檢視器(同一則訊息的圖片一起放進去,#426)。
     let open: () -> Void
     @Environment(\.agentImages) private var context
@@ -34,15 +36,15 @@ struct HostSentImageView: View {
     @ViewBuilder
     private var content: some View {
         if let thumbnail {
-            let size = BubbleImagesView.fitted(CGSize(width: thumbnail.image.width, height: thumbnail.image.height))
+            let size = layout.size(forImage: CGSize(width: thumbnail.image.width, height: thumbnail.image.height))
             Button(action: open) {
                 Image(decorative: thumbnail.image, scale: 1)
                     .resizable()
                     .scaledToFill()
                     .frame(width: size.width, height: size.height)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .clipShape(RoundedRectangle(cornerRadius: BubbleImageLayout.cornerRadius))
             }
-            .buttonStyle(.pressableThumbnail(cornerRadius: 14))
+            .buttonStyle(.pressableThumbnail(cornerRadius: BubbleImageLayout.cornerRadius))
             .accessibilityLabel(Text("Image \(index + 1)"))
             .accessibilityHint(Text("Opens the image full screen."))
             .accessibilityIdentifier("conversation.sentImage.thumbnail")
@@ -64,8 +66,9 @@ struct HostSentImageView: View {
             .accessibilityElement(children: .contain)
         } else if isLoading {
             ProgressView()
-                .frame(width: BubbleImagesView.longEdge, height: BubbleImagesView.longEdge * 2 / 3)
-                .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 14))
+                .frame(width: layout.isGrid ? BubbleImageLayout.tile : BubbleImageLayout.longEdge,
+                       height: layout.isGrid ? BubbleImageLayout.tile : BubbleImageLayout.longEdge * 2 / 3)
+                .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: BubbleImageLayout.cornerRadius))
                 .accessibilityLabel(Text("Loading image"))
                 .accessibilityIdentifier("conversation.sentImage.loading")
         } else {

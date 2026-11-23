@@ -19,7 +19,30 @@ extension EnvironmentValues {
     @Entry var bubbleImages = BubbleImageContext()
 }
 
-/// 泡泡裡的圖片：長邊 220pt、依比例;點開全螢幕。手機上沒有副本(例如別台裝置送的)時顯示「Image」標籤(圖在主機上)。
+/// 泡泡圖片的排版規則(#465,設計稿第 30 組;使用者送出的與本機送出的共用):
+/// 單張依原圖比例(長邊 220pt);兩張以上排成兩欄 124pt 的方塊格子(iOS 訊息 app 習慣)。
+struct BubbleImageLayout: Equatable {
+    let count: Int
+
+    static let longEdge: CGFloat = 220
+    static let tile: CGFloat = 124
+    static let gridColumns = 2
+    static let gridSpacing: CGFloat = 4
+    static let cornerRadius: CGFloat = 16
+
+    var isGrid: Bool { count > 1 }
+
+    /// 一張圖的顯示大小:格子是方塊;單張長邊 220pt、依比例;尺寸未知是 220pt 方塊。
+    func size(forImage size: CGSize) -> CGSize {
+        if isGrid { return CGSize(width: Self.tile, height: Self.tile) }
+        guard size.width > 0, size.height > 0 else { return CGSize(width: Self.longEdge, height: Self.longEdge) }
+        let scale = Self.longEdge / max(size.width, size.height)
+        return CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+    }
+}
+
+/// 泡泡裡的圖片：單張依原圖比例(長邊 220pt)、多張排成 124pt 方塊格子(#465);點開全螢幕。
+/// 手機上沒有副本(例如別台裝置送的)時經主機讀回縮圖,讀不到顯示「Image」標籤(圖在主機上)。
 struct BubbleImagesView: View {
     /// 每張圖的副本位置;`nil` 表示只有主機上有。
     let images: [URL?]
@@ -28,33 +51,47 @@ struct BubbleImagesView: View {
     @Environment(\.bubbleImages) private var context
     @Environment(\.agentImages) private var agentImages
 
-    static let longEdge: CGFloat = 220
+    private var layout: BubbleImageLayout { BubbleImageLayout(count: images.count) }
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 6) {
-            ForEach(Array(images.enumerated()), id: \.offset) { index, url in
-                if let url, let size = BubbleImageCache.size(of: url) {
-                    Button {
-                        open(tapped: index)
-                    } label: {
-                        BubbleImageCache.image(at: url)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: Self.fitted(size).width, height: Self.fitted(size).height)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                    .buttonStyle(.pressableThumbnail(cornerRadius: 14))
-                    .accessibilityLabel(Text("Image \(index + 1)"))
-                    .accessibilityHint(Text("Opens the image full screen."))
-                    .accessibilityIdentifier("conversation.image")
-                } else if index < hostPaths.count, let path = hostPaths[index] {
-                    HostSentImageView(path: path, index: index) { open(tapped: index) }
-                } else {
-                    Label("Image", systemImage: "photo")
-                        .font(.caption)
-                        .foregroundStyle(.secondaryText)
-                        .accessibilityLabel(Text("Image on the host"))
+        if layout.isGrid {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.fixed(BubbleImageLayout.tile), spacing: BubbleImageLayout.gridSpacing), count: BubbleImageLayout.gridColumns),
+                alignment: .trailing, spacing: BubbleImageLayout.gridSpacing
+            ) { tiles }
+                .frame(width: BubbleImageLayout.tile * CGFloat(BubbleImageLayout.gridColumns) + BubbleImageLayout.gridSpacing)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("conversation.imageGrid")
+        } else {
+            VStack(alignment: .trailing, spacing: 6) { tiles }
+        }
+    }
+
+    @ViewBuilder
+    private var tiles: some View {
+        ForEach(Array(images.enumerated()), id: \.offset) { index, url in
+            if let url, let size = BubbleImageCache.size(of: url) {
+                let fitted = layout.size(forImage: size)
+                Button {
+                    open(tapped: index)
+                } label: {
+                    BubbleImageCache.image(at: url)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: fitted.width, height: fitted.height)
+                        .clipShape(RoundedRectangle(cornerRadius: BubbleImageLayout.cornerRadius))
                 }
+                .buttonStyle(.pressableThumbnail(cornerRadius: BubbleImageLayout.cornerRadius))
+                .accessibilityLabel(Text("Image \(index + 1)"))
+                .accessibilityHint(Text("Opens the image full screen."))
+                .accessibilityIdentifier("conversation.image")
+            } else if index < hostPaths.count, let path = hostPaths[index] {
+                HostSentImageView(path: path, index: index, layout: layout) { open(tapped: index) }
+            } else {
+                Label("Image", systemImage: "photo")
+                    .font(.caption)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityLabel(Text("Image on the host"))
             }
         }
     }
@@ -79,13 +116,6 @@ struct BubbleImagesView: View {
             }
         }
         context.show(ImageViewerItem(sources: sources, startIndex: plan.startIndex))
-    }
-
-    /// 長邊 220pt,依比例。
-    static func fitted(_ size: CGSize) -> CGSize {
-        guard size.width > 0, size.height > 0 else { return CGSize(width: longEdge, height: longEdge) }
-        let scale = longEdge / max(size.width, size.height)
-        return CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
     }
 }
 

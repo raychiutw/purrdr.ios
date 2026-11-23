@@ -19,14 +19,18 @@ public struct PlanUsageSource: Sendable {
     public var cost: PlanUsageQueryCost
     /// 要先經同意修改主機設定才讀得到(Claude);`nil` 時不需要。
     public var hostWrite: PlanUsageHostWrite?
+    /// 主機上有沒有裝這個 Agent(唯讀偵測,#465);`nil` 表示一律當作有。主機 tab 的用量區只列偵測到的。
+    public var installed: (@Sendable () async throws -> Bool)?
     /// 查一次;Agent 還沒回報過時是 `nil`。
     public var read: @Sendable () async throws -> PlanUsage?
 
     public init(
-        cost: PlanUsageQueryCost, hostWrite: PlanUsageHostWrite? = nil, read: @escaping @Sendable () async throws -> PlanUsage?
+        cost: PlanUsageQueryCost, hostWrite: PlanUsageHostWrite? = nil, installed: (@Sendable () async throws -> Bool)? = nil,
+        read: @escaping @Sendable () async throws -> PlanUsage?
     ) {
         self.cost = cost
         self.hostWrite = hostWrite
+        self.installed = installed
         self.read = read
     }
 }
@@ -97,7 +101,7 @@ extension PlanUsageSource {
                 try await host.restore()
                 consent.revoke(feature, host: hostID)
             })
-        return PlanUsageSource(cost: cost, hostWrite: hostWrite) { try await host.readPlanUsage() }
+        return PlanUsageSource(cost: cost, hostWrite: hostWrite, installed: { try await host.isInstalledOnHost() }) { try await host.readPlanUsage() }
     }
 
     /// Codex:執行一次 `codex app-server` 查詢(不寫主機、不需同意)。

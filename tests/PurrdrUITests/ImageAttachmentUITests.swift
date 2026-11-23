@@ -88,7 +88,7 @@ final class ImageAttachmentUITests: XCTestCase {
 
         let viewer = app.element("imageViewer")
         XCTAssertTrue(viewer.waitUntilExists(timeout: 5), "點泡泡圖片沒有圖片檢視器")
-        app.element("imageViewer.done").tap()
+        app.element("imageViewer.close").tap()
         XCTAssertTrue(viewer.waitUntilGone(timeout: 5), "按 Done 沒有關閉圖片檢視器")
     }
 
