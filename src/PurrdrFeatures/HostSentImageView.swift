@@ -14,17 +14,32 @@ struct HostSentImageView: View {
     /// 點縮圖:交給泡泡打開圖片檢視器(同一則訊息的圖片一起放進去,#426)。
     let open: () -> Void
     @Environment(\.agentImages) private var context
-    @State private var thumbnail: AgentImageDecoder.Decoded?
-    @State private var thumbnailVersion: HostFileVersion?
+    /// 解碼完成時加一,讓畫面重讀快取(縮圖與尺寸在 `AgentFileLoads.thumbnails`,不放在列內)。
+    @State private var decodeRevision = 0
+    @State private var decodeFailed = false
 
     private var state: AgentFileLoads.State? { context.loads?.states[path] }
     private var display: AgentImageCardDisplay { AgentImageCardDisplay(state: state) }
     private var loadedVersion: HostFileVersion? { if case .loaded(_, let version) = state { version } else { nil } }
+    private var thumbnail: AgentImageDecoder.Decoded? {
+        _ = decodeRevision
+        return AgentImageDecoder.cachedThumbnail(path: path, state: state, maxPixels: AgentImageDecoder.thumbnailPixels, in: context.loads)
+    }
+    /// 還在載入或等解碼(被淘汰後重新解碼)時用佔位,不退回一行字。
     private var isLoading: Bool {
         switch state {
         case nil, .loading: true
+        case .loaded: !decodeFailed
         default: false
         }
+    }
+    /// 佔位的大小:尺寸已知(解碼過或對話紀錄帶的)就用最終高度,否則固定比例。
+    private var placeholderSize: CGSize {
+        if layout.isGrid { return CGSize(width: BubbleImageLayout.tile, height: BubbleImageLayout.tile) }
+        if let known = context.loads?.thumbnails.size(forPath: path, version: loadedVersion) {
+            return layout.size(forImage: CGSize(width: known.width, height: known.height))
+        }
+        return CGSize(width: BubbleImageLayout.longEdge, height: BubbleImageLayout.longEdge * 2 / 3)
     }
 
     var body: some View {
@@ -66,8 +81,7 @@ struct HostSentImageView: View {
             .accessibilityElement(children: .contain)
         } else if isLoading {
             ProgressView()
-                .frame(width: layout.isGrid ? BubbleImageLayout.tile : BubbleImageLayout.longEdge,
-                       height: layout.isGrid ? BubbleImageLayout.tile : BubbleImageLayout.longEdge * 2 / 3)
+                .frame(width: placeholderSize.width, height: placeholderSize.height)
                 .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: BubbleImageLayout.cornerRadius))
                 .accessibilityLabel(Text("Loading image"))
                 .accessibilityIdentifier("conversation.sentImage.loading")
@@ -85,10 +99,11 @@ struct HostSentImageView: View {
     }
 
     private func decodeThumbnail() async {
-        guard case .loaded(let data, let version) = state, version != thumbnailVersion else { return }
-        let decoded = await AgentImageDecoder.decode(data, maxPixels: AgentImageDecoder.thumbnailPixels)
+        let isDecoded = await AgentImageDecoder.decodeIntoCache(
+            path: path, state: state, kind: .image, maxPixels: AgentImageDecoder.thumbnailPixels, in: context.loads
+        )
         guard !Task.isCancelled else { return }
-        thumbnail = decoded
-        thumbnailVersion = decoded == nil ? nil : version
+        decodeFailed = !isDecoded
+        decodeRevision += 1
     }
 }
