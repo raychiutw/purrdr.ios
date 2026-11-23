@@ -30,7 +30,7 @@ struct ConversationTimelineTests {
         #expect(timeline.items.last?.id == identityBefore)
         #expect(timeline.items.count == 2)
         #expect(update.changes.count == 1)
-        guard case .updated(let updatedItem, let position) = update.changes[0], case .toolRun(let run) = updatedItem else {
+        guard case .updated(let updatedRow, let position) = update.changes[0], case .toolRun(let run)? = updatedRow.item else {
             Issue.record("預期原地更新工具串")
             return
         }

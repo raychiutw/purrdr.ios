@@ -811,8 +811,6 @@ public final class ConversationModel {
     public var transcriptStartsAfterFirstMessage: Bool { screenDialect.transcriptStartsAfterFirstMessage }
     /// Agent 所在的 workspace(更多選單的「顯示版面」用,#381)。
     public var workspaceID: String? { currentAgent?.workspaceID }
-    /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
-    private var consumedUserIDs = Set<String>()
     private var lastPolledStatus: AgentStatus?
     /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
     @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
@@ -1603,6 +1601,7 @@ public final class ConversationModel {
         if let index = echoes.firstIndex(where: { $0.id == echo.id }) {
             echoes[index].imagePaths = paths
             echoes[index].filePaths = zip(sentImages, paths).filter { $0.0.kind == .file }.map(\.1)
+            rebuildEntries()
         }
         let prompt = UploadedImages.prompt(text: text, paths: paths)
         switch await freshTarget() {
@@ -2042,29 +2041,28 @@ public final class ConversationModel {
     }
 
     private var userMessageIDs: Set<String> {
-        Set(userTurns.map(\.id))
-    }
-
-    /// 使用者送出的內容：泡泡，以及 shell 區塊(以 `!指令` 比對回音,F6.4)。
-    private var userTurns: [UserBubble] {
-        items.compactMap { item -> UserBubble? in
+        Set(items.compactMap { item -> String? in
             switch item {
-            case .user(let bubble): bubble
-            case .shell(let run): UserBubble(id: run.id, text: "!" + run.command, date: run.date, imageCount: 0)
+            case .user(let bubble): bubble.id
+            case .shell(let run): run.id
             default: nil
             }
-        }
+        })
     }
 
-    /// 以對話紀錄確認回音;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
+    /// 回音有變(送出、改狀態、移除)時同步給時間軸,由它確認回音並算出列。
     private func rebuildEntries() {
-        let bubbles = userTurns
-        let remaining = EchoMatching.confirm(echoes, against: bubbles, consumed: &consumedUserIDs)
-        if remaining.count < echoes.count {
-            echoes = remaining
+        _ = timeline.setEchoes(echoes)
+        refreshEntries()
+    }
+
+    /// 取回時間軸確認後的回音與列;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
+    private func refreshEntries() {
+        if timeline.pendingEchoes.count < echoes.count {
+            echoes = timeline.pendingEchoes
             notice = nil
         }
-        let merged = EchoTimeline.merge(items: items, echoes: echoes)
+        let merged = timeline.rows.map(\.entry)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
         updateAwaySummary()
@@ -2904,11 +2902,12 @@ public final class ConversationModel {
     private func applyTimeline(_ update: ConversationTimeline.Update) {
         guard !update.changes.isEmpty else { return }
         items = timeline.items
-        rebuildEntries()
+        refreshEntries()
         for change in update.changes {
             switch change {
-            case .inserted(.workflow(let card), _), .updated(.workflow(let card), _): workflowModels[card.id]?.update(card: card)
-            default: break
+            case .inserted(let row, _), .updated(let row, _), .prepended(let row, _):
+                if case .workflow(let card)? = row.item { workflowModels[card.id]?.update(card: card) }
+            case .removed: break
             }
         }
     }
