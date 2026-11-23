@@ -162,4 +162,26 @@ struct PaneTerminalLeaveAndResumeTests {
 
         #expect(await connection.paneTerminalInputs.isEmpty)
     }
+
+    /// 放開後馬上接回:舊連線的 release 還在路上時,新連線不能先開(否則 release 可能晚到、把新接上的控制放掉)。
+    @Test("放開後立刻接回:等舊連線的 release 送完才開新連線")
+    func resumeWaitsForPreviousRelease() async {
+        let connection = FakeHostConnection()
+        await connection.expectPaneTerminal(replaying: "01-handshake-echo-release.stdout.ndjson")
+        await connection.expectPaneTerminal(replaying: "01-handshake-echo-release.stdout.ndjson")
+        let model = PaneTerminalModel(client: PaneTerminalClient(connection: connection), paneID: "w1:p1", title: "t",
+                                      resizeDebounce: .zero, sleep: { _ in })
+        model.viewDidResize(columns: 40, rows: 12)
+        await Base.eventually { model.status == .connected }
+        await connection.holdPaneTerminalReleases()
+
+        model.hangUp()
+        model.resume()
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(await connection.paneTerminalOpenings.count == 1, "舊連線的 release 還沒送完,不該先開新連線")
+
+        await connection.releasePaneTerminalReleases()
+        await Base.eventually { model.status == .connected }
+        #expect(await connection.paneTerminalOpenings.count == 2)
+    }
 }

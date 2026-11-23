@@ -189,7 +189,11 @@ public final class PaneTerminalModel: TerminalSessionModel {
         self.outbox = outbox
         let client = client
         let paneID = paneID
+        // 放開後馬上接回:舊連線的 release 要先送完,否則可能晚到、把新接上的控制放掉。
+        let previousRelease = releaseTask
+        releaseTask = nil
         connectTask = Task { [weak self] in
+            await previousRelease?.value
             let connection: PaneTerminalConnection
             do {
                 connection = try await client.control(
