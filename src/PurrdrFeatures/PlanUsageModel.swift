@@ -203,6 +203,8 @@ public final class PlanUsageModel {
         case noData
         /// 這種連線方式(HTTPS)不支援方案用量。
         case unsupportedConnection
+        /// 這台主機一個 Agent 都沒啟用(主機的 Agent 設定,#477)。
+        case noAgentEnabled
         /// 查詢失敗(例如連不上主機)。
         case failed(PlanUsageFailure)
         /// 要先同意修改主機設定(Claude)。
@@ -241,6 +243,7 @@ public final class PlanUsageModel {
     public let hosts: [HostOption]
 
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
+    private let enabledAgents: (HostSelection) -> Set<AgentID>
     private let store: any PlanUsageSelectionStore
     private let defaults: UserDefaults
     private let now: () -> Date
@@ -259,10 +262,12 @@ public final class PlanUsageModel {
         now: @escaping () -> Date = Date.init,
         sleep: @escaping Sleep = Sleeping.task,
         defaults: UserDefaults = .standard,
+        enabledAgents: @escaping (HostSelection) -> Set<AgentID> = { _ in Set(HostAgentSettings.configurable) },
         source: @escaping (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     ) {
         self.hosts = hosts
         self.source = source
+        self.enabledAgents = enabledAgents
         self.store = store
         self.defaults = defaults
         display = Display.stored(in: defaults)
@@ -273,6 +278,19 @@ public final class PlanUsageModel {
         // 目前主機有值就優先(#334);所有主機時用上次在這裡選的。
         host = currentHost.flatMap { current in hosts.contains { $0.id == current } ? current : nil } ?? remembered ?? fallback
         agent = initialAgent ?? savedSelection?.agent ?? .claudeCode
+        if initialAgent == nil { reconcileAgent() }
+    }
+
+    /// 目前這台主機啟用的 Agent(依主機的 Agent 設定,#477);可以選的就這些。
+    public var agents: [PlanUsageAgent] {
+        let enabled = enabledAgents(host)
+        return PlanUsageAgent.allCases.filter { HostAgentSettings.showsUsage(of: $0.agentID, enabled: enabled) }
+    }
+
+    /// 目前選的 Agent 這台主機沒啟用時,改選第一個啟用的(都沒有就維持原樣,畫面說明沒有可看的 Agent)。
+    private func reconcileAgent() {
+        let available = agents
+        if !available.contains(agent), let first = available.first { agent = first }
     }
 
     /// 要顯示的用量週期(已過重置時間的不顯示)。
@@ -463,6 +481,7 @@ public final class PlanUsageModel {
     public func select(host: HostSelection) {
         guard host != self.host else { return }
         self.host = host
+        reconcileAgent()
         store.save(PlanUsageSelection(host: host, agent: agent))
         restart()
     }
@@ -479,6 +498,10 @@ public final class PlanUsageModel {
         stop()
         message = nil
         wrapperUpdateAvailable = false
+        guard !agents.isEmpty else {
+            state = .noAgentEnabled
+            return
+        }
         state = .loading
         startQuery()
         guard source(host, agent)?.cost.refreshesAutomatically == true else { return }

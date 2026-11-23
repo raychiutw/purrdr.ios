@@ -282,7 +282,7 @@ public final class HostsModel {
     public func planUsage(host: HostSelection? = nil, agent: PlanUsageAgent? = nil) -> PlanUsageModel {
         PlanUsageModel(
             hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection, currentHost: host ?? agentList.currentHost,
-            initialAgent: agent
+            initialAgent: agent, enabledAgents: { [weak self] in self?.enabledAgents(on: $0) ?? Set(HostAgentSettings.configurable) }
         ) { [weak self] host, agent in
             self?.planUsageSource(host, agent)
         }

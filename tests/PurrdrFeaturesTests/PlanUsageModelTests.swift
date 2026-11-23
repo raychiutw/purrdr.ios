@@ -46,12 +46,13 @@ struct PlanUsageModelTests {
     func model(
         hosts: [HostOption] = Self.bothHosts, store: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
         channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer, sleep: @escaping Sleep = StepSleeper().sleep,
-        unsupported: Set<HostSelection> = []
+        unsupported: Set<HostSelection> = [], enabledAgents: @escaping (HostSelection) -> Set<AgentID> = { _ in Set(HostAgentSettings.configurable) }
     ) -> PlanUsageModel {
         let channel = channel ?? host
         let consent = consent
         return PlanUsageModel(
-            hosts: hosts, fallback: Self.mac, store: store, now: { Self.now }, sleep: sleep, defaults: Self.remainingDefaults()
+            hosts: hosts, fallback: Self.mac, store: store, now: { Self.now }, sleep: sleep, defaults: Self.remainingDefaults(),
+            enabledAgents: enabledAgents
         ) { selection, _ in
             guard !unsupported.contains(selection) else { return nil }
             return .claude(channel: channel, cost: cost, hostID: selection.storedValue, consent: consent)
@@ -104,6 +105,42 @@ struct PlanUsageModelTests {
 
         let linuxDeleted = model(hosts: [HostOption(id: Self.mac, name: "Mac")], store: store)
         #expect(linuxDeleted.host == Self.mac)
+    }
+
+    // MARK: 只列這台主機啟用的 Agent(#477)
+
+    @Test("Agent 清單只有這台主機啟用的")
+    func listsOnlyEnabledAgents() {
+        let model = model(enabledAgents: { $0 == Self.mac ? [.claude] : [.codex, .agy] })
+        #expect(model.agents == [.claudeCode])
+        model.select(host: Self.linux)
+        #expect(model.agents == [.codex, .antigravity])
+    }
+
+    @Test("上次選的 Agent 這台主機沒啟用:改選第一個啟用的")
+    func savedAgentNotEnabledFallsBack() {
+        let store = InMemoryPlanUsageSelectionStore()
+        store.save(PlanUsageSelection(host: Self.mac, agent: .codex))
+        let model = model(store: store, enabledAgents: { _ in [.claude] })
+        #expect(model.agent == .claudeCode)
+    }
+
+    @Test("換到沒啟用目前 Agent 的主機:Agent 跟著換")
+    func switchingHostReselectsAgent() {
+        let model = model(enabledAgents: { $0 == Self.mac ? [.claude, .codex] : [.agy] })
+        model.select(agent: .codex)
+        model.select(host: Self.linux)
+        #expect(model.agent == .antigravity)
+    }
+
+    @Test("這台主機一個 Agent 都沒啟用:不查詢,說明沒有可看的 Agent")
+    func noAgentEnabled() async {
+        let model = model(enabledAgents: { _ in [] })
+        model.appeared()
+        await model.untilIdle()
+        #expect(model.agents.isEmpty)
+        #expect(model.state == .noAgentEnabled)
+        #expect(host.commands.isEmpty)
     }
 
     @Test("連線方式不支援(HTTPS 主機):直接說明，不連線")

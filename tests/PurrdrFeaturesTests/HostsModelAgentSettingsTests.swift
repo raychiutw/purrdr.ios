@@ -123,6 +123,15 @@ struct HostsModelAgentSettingsTests {
         #expect(model.enabledAgents(on: .host(id)) == [.claude, .codex])
     }
 
+    @Test("方案用量頁的 Agent 清單只列這台主機啟用的(#477)")
+    func planUsageListsOnlyEnabledAgents() {
+        let host = Self.host(enabled: [.codex])
+        let (model, _) = Self.model(host)
+        let usage = model.planUsage(host: .host(host.id))
+        #expect(usage.agents == [.codex])
+        #expect(usage.agent == .codex)
+    }
+
     @Test("新增聊天只列這台主機啟用的 Agent")
     func newChatListsOnlyEnabled() {
         let host = Self.host(enabled: [.codex, .agy])
