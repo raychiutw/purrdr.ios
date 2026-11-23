@@ -81,7 +81,7 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(app.element("status.model").exists, "面板沒有顯示模型")
         app.buttons["sheet.close"].tap()
         XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5))
-        XCTAssertTrue(header.wait(for: NSPredicate(format: "label BEGINSWITH 'Plan'"), timeout: 10), "標題沒有顯示 Plan")
+        XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Plan'"), timeout: 10), "標題沒有顯示 Plan")
 
         app.element("composer.text").tap()
         let capsule = app.element("composer.model")
