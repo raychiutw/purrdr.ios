@@ -65,7 +65,7 @@ final class AgentListUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
 
-        let search = app.searchFields.firstMatch
+        let search = app.chatSearch
         XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
         search.tap()
         search.typeEnglish("weather")
@@ -78,24 +78,36 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
     }
 
-    /// 聊天列表頂部(#391):沒有大標題;導覽列左上是 Agents／Spaces 一鍵切換符號,中間是主機選單,系統搜尋欄在導覽列下方、列表在頂端時預設顯示;
-    /// 列表上沒有滑動提示與註記卡。
+    /// 聊天列表頂部(#499):共用頂列。左側大標題,右側 [電腦圖示｜＋] 與頭像(由左到右),搜尋欄在標題列下方;
+    /// 往下滑時標題列收起、搜尋欄仍可用並貼近頂端,回到頂端標題列回來。
     @MainActor
-    func testChatListTopHasModeButtonAndSystemSearch() {
-        let app = XCUIApplication.launchUITesting()
+    func testChatListTopBarCollapsesOnScroll() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
-        XCTAssertFalse(app.staticTexts["agentList.title"].exists, "不該有大標題")
-        let control = app.listModeControl
-        XCTAssertTrue(control.exists)
-        let bar = app.navigationBars.firstMatch.frame
-        XCTAssertTrue(bar.insetBy(dx: -1, dy: -1).contains(control.frame), "切換鈕不在導覽列內:\(control.frame) 導覽列 \(bar)")
+        let title = app.staticTexts["topBar.title"]
+        XCTAssertTrue(title.waitUntilExists(timeout: 5), "沒有大標題")
         let host = app.buttons["toolbar.currentHost"].firstMatch
-        XCTAssertLessThan(control.frame.minX, host.frame.minX, "切換鈕不在主機選單左邊")
-        let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.exists, "列表在頂端時沒有顯示系統搜尋欄")
-        XCTAssertGreaterThan(search.frame.minY, bar.minY, "搜尋欄不在導覽列下方")
-        XCTAssertFalse(app.descendants(matching: .any)["agentList.swipeHint"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["youShouldKnow.listRow"].exists)
+        let newChat = app.buttons["toolbar.newChat"].firstMatch
+        let account = app.buttons["toolbar.account"].firstMatch
+        XCTAssertTrue(host.exists && newChat.exists && account.exists, "頂列缺控制項")
+        XCTAssertLessThan(title.frame.minX, host.frame.minX, "標題不在電腦圖示左邊")
+        XCTAssertLessThan(host.frame.minX, newChat.frame.minX, "電腦圖示不在＋左邊")
+        XCTAssertLessThan(newChat.frame.minX, account.frame.minX, "＋不在頭像左邊")
+        let search = app.chatSearch
+        XCTAssertTrue(search.exists, "沒有搜尋欄")
+        XCTAssertGreaterThan(search.frame.minY, title.frame.maxY - 1, "搜尋欄不在標題下方")
+        let topY = search.frame.minY
+
+        let list = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+        XCTAssertTrue(title.waitUntilGone(timeout: 5), "往下滑後標題列沒有收起")
+        XCTAssertTrue(search.waitUntilExists(timeout: 5), "往下滑後搜尋欄不見了")
+        XCTAssertLessThan(search.frame.minY, topY, "搜尋欄沒有上移貼頂")
+
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)))
+        XCTAssertTrue(title.waitUntilExists(timeout: 5), "回到頂端後標題列沒有回來")
     }
 
     /// AX 字級下 5 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。

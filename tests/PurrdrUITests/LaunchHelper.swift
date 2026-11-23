@@ -63,6 +63,9 @@ extension XCUIApplication {
     /// 聊天 tab 左上角的 Agents／Spaces 一鍵切換鈕(#391:只有符號;label 是「View: Agents」或「View: Spaces」)。
     var listModeControl: XCUIElement { buttons["agentList.mode"].firstMatch }
 
+    /// 聊天 tab 共用頂列的搜尋欄(#499:自己畫的文字欄位,往下滑收成貼頂玻璃膠囊)。
+    var chatSearch: XCUIElement { textFields["agentList.search"].firstMatch }
+
     /// 目前的檢視名稱(「Agents」或「Spaces」)。
     var listModeName: String {
         listModeControl.label.replacingOccurrences(of: "View: ", with: "")

@@ -2837,6 +2837,17 @@
         }
       }
     },
+    "Clear text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除文字"
+          }
+        }
+      }
+    },
     "Close" : {
       "extractionState" : "manual",
       "localizations" : {

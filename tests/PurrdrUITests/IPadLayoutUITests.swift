@@ -52,11 +52,15 @@ final class IPadLayoutUITests: XCTestCase {
     /// 取列頂端中央 2pt 處(列的內距，沒有文字)的像素。
     @MainActor
     private func rowBackgroundColor(_ row: XCUIElement, in app: XCUIApplication) throws -> (red: Int, green: Int, blue: Int) {
-        let screenshot = app.screenshot().image
-        let cgImage = try XCTUnwrap(screenshot.cgImage)
-        let scale = CGFloat(cgImage.width) / app.windows.firstMatch.frame.width
-        let pixelX = Int(row.frame.midX * scale)
-        let pixelY = Int((row.frame.minY + 2) * scale)
+        // 模擬器橫向時 `app.screenshot()` 的內容不是正的:改取整個螢幕的原始截圖(直向、介面順時針轉 90°),
+        // 介面座標 (x, y) 對到影像 ((視窗高 - y) × scale, x × scale)。直向時座標直接對應。
+        let cgImage = try XCTUnwrap(XCUIScreen.main.screenshot().image.cgImage)
+        let window = app.windows.firstMatch.frame
+        let rotated = window.width > window.height && cgImage.height > cgImage.width
+        let scale = CGFloat(cgImage.width) / (rotated ? window.height : window.width)
+        let pointY = row.frame.minY + 3
+        let pixelX = rotated ? Int((window.height - pointY) * scale) : Int(row.frame.midX * scale)
+        let pixelY = rotated ? Int(row.frame.midX * scale) : Int(pointY * scale)
         var pixel = [UInt8](repeating: 0, count: 4)
         let context = try XCTUnwrap(CGContext(
             data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,

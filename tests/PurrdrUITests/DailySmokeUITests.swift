@@ -29,7 +29,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(ledger.label.contains("ledger"), "列沒有 workspace 名稱:\(ledger.label)")
         }
         step("搜尋篩選列表") {
-            let search = app.searchFields.firstMatch
+            let search = app.chatSearch
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
@@ -43,7 +43,7 @@ final class DailySmokeUITests: XCTestCase {
         step("Spaces 檢視:一鍵切換、搜尋 workspace 與長按選單") {
             app.switchListMode(to: "Spaces")
             XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")), "Spaces 沒有 workspace 段落")
-            let search = app.searchFields.firstMatch
+            let search = app.chatSearch
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")

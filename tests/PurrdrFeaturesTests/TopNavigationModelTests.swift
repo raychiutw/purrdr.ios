@@ -23,24 +23,6 @@ struct TopNavigationModelTests {
         #expect(TopNavigationModel().tab == .chats)
     }
 
-    @Test("右上動作依 tab:聊天新增聊天、檔案上傳、主機新增主機、流量與設定不放")
-    func trailingActionDependsOnTab() {
-        #expect(TopLevelTab.chats.trailingAction == .newChat)
-        #expect(TopLevelTab.files.trailingAction == .upload)
-        #expect(TopLevelTab.hosts.trailingAction == .addHost)
-        #expect(TopLevelTab.traffic.trailingAction == nil)
-        #expect(TopLevelTab.settings.trailingAction == nil)
-    }
-
-    @Test("只有聊天與主機 tab 有主機選單;聊天含所有主機,其餘只改選取中主機")
-    func hostMenuScopeDependsOnTab() {
-        #expect(TopLevelTab.chats.hostMenu == .currentHost)
-        #expect(TopLevelTab.files.hostMenu == .selectedHost)
-        #expect(TopLevelTab.hosts.hostMenu == .selectedHost)
-        #expect(TopLevelTab.traffic.hostMenu == nil)
-        #expect(TopLevelTab.settings.hostMenu == nil)
-    }
-
     @Test("新增主機…:切到主機 tab 並直接進新增主機引導")
     func addHostSelectsHostsTab() {
         let model = TopNavigationModel()

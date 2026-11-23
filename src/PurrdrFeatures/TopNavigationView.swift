@@ -173,7 +173,6 @@ public struct TopNavigationView: View {
         } content: {
             // 所有主機合併的 Agent 列表(#39)。換選取中主機不重建列表，只改排序與主機名標示。
             agentList
-                .toolbar { toolbar }
                 #if os(iOS)
                 // 窄視窗不顯示回到側欄的返回鈕:頂層導覽是 tab bar;workspace 篩選只在側欄看得到時套用。
                 .navigationBarBackButtonHidden(sizeClass == .compact)
@@ -194,7 +193,10 @@ public struct TopNavigationView: View {
         if supportsMultipleWindows {
             open = { kind, row in openInNewWindow(kind, row) }
         }
-        return AgentListView(model: hosts.agentList, window: navigation, openInNewWindow: open) { route, sessionID in
+        let topBar = ChatTopBarActions(
+            newChat: { navigation.sheet = .newChat }, addHost: { navigation.openAddHost() },
+            account: AnyView(TopBarAccountButton(member: member) { navigation.sheet = .member }))
+        return AgentListView(model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar) { route, sessionID in
             hosts.conversation(route, sessionID: sessionID)
         } terminal: { route, title in
             hosts.terminal(route, title: title)
@@ -216,22 +218,6 @@ public struct TopNavigationView: View {
             // 終端機方塊：在對話欄開它的 Pane 終端機(#40;對話欄依 pane 是否為 Agent 決定)。
             navigation.selectedChat = ChatRoute(host: hosts.selection, paneID: paneID)
         }
-    }
-
-    @ToolbarContentBuilder
-    private var toolbar: some ToolbarContent {
-        // 左上:聊天 tab 的主機選單(#244),靠左、與其他 tab 同一個位置(#475):改「目前主機」,含所有主機;選某台時同時設成選取中主機。
-        ToolbarItem(placement: Self.modePlacement) {
-            HostFilterMenu(list: hosts.agentList) { navigation.openAddHost() }
-        }
-        // 右上:Agents／Spaces 一鍵切換(只有符號,#391)與新增聊天(`plus`)併成一個長型玻璃膠囊(相鄰的同位置工具列項目),最右上角是帳號鈕。
-        ToolbarItemGroup(placement: .primaryAction) {
-            AgentListModeButton(list: hosts.agentList)
-            Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }
-                .tint(Color.appAccent)
-                .accessibilityIdentifier("toolbar.newChat")
-        }
-        AccountToolbarItem(member: member, hasPrecedingAction: true) { navigation.sheet = .member }
     }
 
     /// 5 個 tab。每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
@@ -358,56 +344,28 @@ private struct NewChatForm: View {
     }
 }
 
-/// 左上角的主機篩選(#244):所有主機或某一台，選單帶主機圖示;選某一台時同時設成選取中主機。
-struct HostFilterMenu: View {
+/// 電腦圖示的選單內容(#244、#499):所有主機或某一台,改「目前主機」;選某一台時同時設成選取中主機。最下面是「新增主機…」。
+struct CurrentHostMenu: View {
     @Bindable var list: MergedAgentListModel
     /// 選單最下面的「新增主機…」。
     var addHost: (() -> Void)?
 
     var body: some View {
-        let current = list.currentHost.flatMap { list.hostLabel(of: $0) }
-        Menu {
-            Picker(selection: $list.currentHost) {
-                Label("All Hosts", systemImage: "square.grid.2x2")
-                    .tag(HostSelection?.none)
-                ForEach(list.hostFilterOptions) { option in
-                    HostMenuLabel(option.name, icon: option.icon)
-                        .tag(HostSelection?.some(option.id))
-                }
-            } label: {
-                Text("Hosts")
-            }
-            .accessibilityIdentifier("currentHost.picker")
-            if let addHost {
-                Divider()
-                Button("Add Host…", systemImage: "plus", action: addHost)
-                    .accessibilityIdentifier("hostMenu.addHost")
+        Picker(selection: $list.currentHost) {
+            Label("All Hosts", systemImage: "square.grid.2x2")
+                .tag(HostSelection?.none)
+            ForEach(list.hostFilterOptions) { option in
+                HostMenuLabel(option.name, icon: option.icon)
+                    .tag(HostSelection?.some(option.id))
             }
         } label: {
-            // 工具列的 Label 只畫圖示，自己排「主機圖示＋名稱＋▾」(原型 purrdr-screens.html);膠囊由工具列玻璃提供。
-            HStack(spacing: 6) {
-                HostIconBadge(current?.icon ?? .default, diameter: 24)
-                Group {
-                    if let current {
-                        Text(verbatim: current.name)
-                    } else {
-                        Text("All Hosts")
-                    }
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.appAccent)
-                .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.appAccent)
-                    .accessibilityHidden(true)
-            }
-            .padding(.trailing, 4)
-            .frame(minHeight: TopBarMetrics.controlHeight)
-            .contentShape(Rectangle())
+            Text("Hosts")
         }
-        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
-        .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))
-        .accessibilityIdentifier("toolbar.currentHost")
+        .accessibilityIdentifier("currentHost.picker")
+        if let addHost {
+            Divider()
+            Button("Add Host…", systemImage: "plus", action: addHost)
+                .accessibilityIdentifier("hostMenu.addHost")
+        }
     }
 }

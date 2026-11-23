@@ -41,12 +41,10 @@ final class AccessibilityAuditContext {
     lazy var navigationBars: [CGRect] = app.navigationBars.allElementsBoundByIndex.map(\.frame)
         .filter { !$0.isEmpty && $0.height < window.height / 2 }
 
-    /// 畫面底部蓋在內容上的玻璃層：搜尋欄(Agent 列表)、輸入列(對話)、終端機按鍵列、新增主機引導的底部玻璃面板(使用者同意，2026-11-21)。
+    /// 畫面底部蓋在內容上的玻璃層：輸入列(對話)、終端機按鍵列、新增主機引導的底部玻璃面板(使用者同意，2026-11-21)。
     lazy var bottomBars: [CGRect] = {
-        // 搜尋欄：元素只有文字欄位本身，外面的玻璃膠囊與 scroll edge effect 再往上約 24pt,一路到視窗底。
-        var frames = app.searchFields.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }.map { field in
-            CGRect(x: window.minX, y: field.minY - 24, width: window.width, height: window.maxY - field.minY + 24)
-        }
+        // 聊天的搜尋欄在頂列(#499),不再是底部玻璃。
+        var frames: [CGRect] = []
         // 新增主機引導的底部玻璃面板(`guide.panel`):表單內容捲到面板下時同樣是被玻璃模糊的那一塊(使用者同意列入，2026-11-21)。
         let guidePanel = app.descendants(matching: .any)["guide.panel"].firstMatch
         if guidePanel.exists, !guidePanel.frame.isEmpty {

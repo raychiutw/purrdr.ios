@@ -173,29 +173,6 @@ public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable 
     case chats, files, hosts, traffic, settings
 
     public var id: String { rawValue }
-
-    /// 右上角(帳號鈕左邊)的動作:聊天新增聊天、檔案上傳、主機新增主機;流量與設定不放。
-    public enum TrailingAction: Sendable { case newChat, upload, addHost }
-
-    public var trailingAction: TrailingAction? {
-        switch self {
-        case .chats: .newChat
-        case .files: .upload
-        case .hosts: .addHost
-        case .traffic, .settings: nil
-        }
-    }
-
-    /// 頂列中間的主機選單改哪個值:聊天 tab 改「目前主機」(含所有主機),檔案與主機 tab 只改「選取中主機」;流量與設定沒有。
-    public enum HostMenuScope: Sendable { case currentHost, selectedHost }
-
-    public var hostMenu: HostMenuScope? {
-        switch self {
-        case .chats: .currentHost
-        case .files, .hosts: .selectedHost
-        case .traffic, .settings: nil
-        }
-    }
 }
 
 /// 以 sheet 開啟的畫面(不是 tab)。

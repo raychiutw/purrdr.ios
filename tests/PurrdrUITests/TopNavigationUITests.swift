@@ -68,7 +68,7 @@ final class TopNavigationUITests: XCTestCase {
     func testTopBarsAlignAcrossTabs() {
         let app = XCUIApplication.launchUITesting()
         let tabs: [(name: String, open: () -> Void, hostMenu: String)] = [
-            ("聊天", {}, "toolbar.currentHost"),
+            // 聊天 tab 已換成共用頂列(#499),其他 tab 套用後(#500)再把聊天加回來。
             ("檔案", { app.openTab(.files) }, "files.host"),
             ("主機", { app.openHostsTab() }, "hosts.host"),
             ("流量", { app.openTab(.traffic) }, "dataUsage.host"),

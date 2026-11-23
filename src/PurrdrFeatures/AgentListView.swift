@@ -2,6 +2,19 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
+/// 聊天 tab 頂列的動作(#499):由 `TopNavigationView` 提供,列表本身不知道有哪些 sheet。
+package struct ChatTopBarActions {
+    var newChat: () -> Void
+    var addHost: () -> Void
+    var account: AnyView
+
+    package init(newChat: @escaping () -> Void, addHost: @escaping () -> Void, account: AnyView) {
+        self.newChat = newChat
+        self.addHost = addHost
+        self.account = account
+    }
+}
+
 /// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「已釘選／需要你／工作中／閒置」分 section,標題帶數量。
 ///
 /// 所有主機的 Agent 合併在同一個列表(#39):非選取中主機的列在副標開頭標示主機名;某台主機連不上時保留它最後的列，
@@ -24,13 +37,16 @@ public struct AgentListView: View {
     private let window: TopNavigationModel?
     /// 把 Agent 對話或終端機開在新視窗(支援多視窗時才有)。
     private let openInNewWindow: ((PaneWindow.Kind, AgentRow) -> Void)?
+    /// 共用頂列的動作(#499):新增聊天、新增主機與帳號鈕。
+    private let topBarActions: ChatTopBarActions
     @FocusState private var searchFocused: Bool
     /// 主機連線狀態行用的現在時間(有主機在連線時每秒更新，換成「仍在連線」)。
     @State private var now = Date()
 
-    public init(
+    package init(
         model: MergedAgentListModel, window: TopNavigationModel? = nil,
         openInNewWindow: ((_ kind: PaneWindow.Kind, _ row: AgentRow) -> Void)? = nil,
+        topBar: ChatTopBarActions,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
     ) {
@@ -39,6 +55,7 @@ public struct AgentListView: View {
         self.makeTerminal = terminal
         self.window = window
         self.openInNewWindow = openInNewWindow
+        self.topBarActions = topBar
     }
 
     /// 即時更新在前景時執行;主機新增、刪除或編輯後重來。
@@ -73,13 +90,11 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 沒有大標題(#268):導覽列左上是 Agents／Spaces 一鍵切換、中間主機選單、右上新增聊天與帳號(#391)。
-        // 標題仍設定，給返回鈕與 VoiceOver 用(導覽列中間由主機選單佔用)。
-        // 系統搜尋欄(#391):列表在頂端時預設顯示、往上捲才收起;範圍是目前主機(所有主機就搜全部)。
-        // Agents 檢視比對 Agent、資料夾與主機,Spaces 檢視比對 workspace 與 Tab 名稱。
-        .agentListSearch(text: $model.query, focused: $searchFocused)
-        .navigationTitle(model.mode.title)
-        .toolbar(removing: .title)
+        // 共用頂列(#499):左側大標題「聊天」,右側 [電腦圖示｜＋] 膠囊與頭像;往下滑時收合,搜尋欄貼頂。
+        // 搜尋範圍是目前主機(所有主機就搜全部):Agents 檢視比對 Agent、資料夾與主機,Spaces 檢視比對 workspace 與 Tab 名稱。
+        // 導覽列隱藏(頂列自己畫);標題仍設定,給返回鈕用。
+        .topBar(topBarContent)
+        .navigationTitle("Chats")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -103,6 +118,19 @@ public struct AgentListView: View {
             // 同一份列表開在好幾個視窗時，每台主機的即時更新各只跑一份(`AgentListModel.liveUpdates`,#31)。
             await model.run()
         }
+    }
+
+    private var topBarContent: TopBarContent {
+        let filtered = model.currentHost.flatMap { model.hostLabel(of: $0) }
+        return TopBarContent(
+            tab: .chats, title: "Chats",
+            hostScope: TopBarHostScope(filteredHostName: filtered?.name),
+            hostMenu: AnyView(CurrentHostMenu(list: model, addHost: topBarActions.addHost)),
+            plus: AnyView(TopBarPlusButton(title: "New Chat", identifier: "toolbar.newChat", action: topBarActions.newChat)),
+            account: topBarActions.account,
+            // 暫時:Agents／Spaces 切換留在頂列,等 #501 移除 Agents 檢視時一起拿掉。
+            accessory: AnyView(AgentListModeButton(list: model)),
+            search: TopBarContent.Search(text: $model.query, focus: $searchFocused))
     }
 
     /// 搜尋了但沒有任何符合(顯示「找不到」,連線錯誤區塊先收起,免得疊在說明上)。
@@ -236,7 +264,6 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
-        .contentMargins(.top, 0, for: .scrollContent)
         .accessibilityIdentifier("agentList.loading")
     }
 
@@ -282,7 +309,6 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
-        .contentMargins(.top, 0, for: .scrollContent)
         // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
         .id(model.mode)
         // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。

@@ -229,20 +229,3 @@ struct AgentListModeButton: View {
         .accessibilityIdentifier("agentList.mode")
     }
 }
-
-extension View {
-    /// 聊天列表的系統搜尋欄(#391):放在導覽列下方的抽屜(iOS 26 的 `.automatic` 會移到底部工具列,與 tab bar 擠在一起)。
-    /// 抽屜用 `.always`:導覽列是 inline 標題(中間是主機選單),`.automatic` 會在列表頂端時也收著、要下拉才出現;
-    /// 代價是捲動時不會收起(偏離設計稿「捲動才收起」)。
-    @ViewBuilder
-    func agentListSearch(text: Binding<String>, focused: FocusState<Bool>.Binding) -> some View {
-        #if os(iOS)
-        searchable(text: text, placement: .navigationBarDrawer(displayMode: .always), prompt: Text("Search"))
-            .searchFocused(focused)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-        #else
-        searchable(text: text, prompt: Text("Search"))
-        #endif
-    }
-}
