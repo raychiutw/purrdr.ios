@@ -99,7 +99,7 @@ struct SubagentCardView: View {
                 .accessibilityHint(card.result == nil ? Text("") : Text(expanded ? "Hides the result" : "Shows the result"))
                 .accessibilityIdentifier("conversation.subagent")
 
-                NavigationLink(value: DelegationRoute.subagent(card)) {
+                DelegationRouteLink(route: .subagent(card)) {
                     Image(systemName: "chevron.forward")
                         .font(.body.weight(.semibold))
                         .frame(width: 44, height: 44)

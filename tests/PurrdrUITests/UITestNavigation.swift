@@ -283,6 +283,10 @@ extension XCUIApplication {
         return false
     }
 
+    /// 對話列表(`UICollectionView`,ADR-0014);原本的 `ScrollView` 查詢改指到它。
+    @MainActor
+    var conversationList: XCUIElement { collectionViews["conversation.list"] }
+
     /// 等鍵盤收起(自己按「完成」或 return 之後)。
     @MainActor
     func waitForKeyboardToHide(timeout: TimeInterval = 3) -> Bool {
@@ -296,7 +300,7 @@ extension XCUIApplication {
     @MainActor
     @discardableResult
     func revealInConversation(_ target: XCUIElement, timeout: TimeInterval = 10) -> Bool {
-        let list = scrollViews.firstMatch
+        let list = conversationList
         guard list.waitUntilExists(timeout: timeout) else { return false }
         _ = target.waitUntilExists(timeout: 3)
         for attempt in 0..<16 {

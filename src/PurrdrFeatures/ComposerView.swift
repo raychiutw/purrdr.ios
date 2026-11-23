@@ -12,8 +12,7 @@ public enum ComposerSettings {
 final class ConversationVisibleHeight {
     /// 沒有訊息列表(載入中、空白)時是 `nil`。
     private(set) var value: Double?
-    /// 輸入列上方元素的顯示方式改了幾次：對話跟隨中時據此捲回最新一列(收起鍵盤時註記卡片一下子長回來，
-    /// 又碰上大量輸出重建列表時，LazyVStack 會停在內容之外、一列都不畫)。
+    /// 輸入列上方元素的顯示方式改了幾次：列表據此通知捲動決策者(跟隨最新時會貼回底部)。
     private(set) var arrangementRevision = 0
 
     func arrangementChanged() { arrangementRevision += 1 }

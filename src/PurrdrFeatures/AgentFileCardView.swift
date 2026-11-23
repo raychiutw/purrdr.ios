@@ -302,8 +302,8 @@ struct AgentFileCardView: View {
         .accessibilityAction(named: Text("Details")) { showsDetails = true }
         .accessibilityAction(named: Text("Copy Path")) { Clipboard.copy(card.file.path) }
         .accessibilityIdentifier("conversation.agentFile")
-        .quickLookPreview($previewFile)
-        .sheet(isPresented: $showsDetails) { AgentFileDetailsSheet(card: card, display: display) }
+        .presentedQuickLook($previewFile)
+        .presentedSheet(isPresented: $showsDetails) { AgentFileDetailsSheet(card: card, display: display) }
     }
 
     private static func actionTitle(_ action: AgentFileRowDisplay.Action) -> Text {

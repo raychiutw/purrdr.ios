@@ -646,6 +646,23 @@ public final class ConversationModel {
     public private(set) var entries: [ConversationEntry] = []
     /// 列表結構(列的 id 與順序)每變一次遞增。畫面觀察它，不必每次 body 都配置整個 id 陣列(#130)。
     public private(set) var entriesRevision = 0
+    /// 時間軸目前的列(身分穩定,回音確認後仍沿用回音的 id);聊天列表用它的 id 當 diffable 的 identifier(#487)。
+    public private(set) var rows: [ConversationRow] = []
+    /// 時間軸每次產生變更時呼叫(聊天列表據此餵捲動決策者,#487);沒有變更不呼叫。
+    @ObservationIgnored public var onTimelineUpdate: (@MainActor (ConversationTimeline.Update) -> Void)?
+    /// 列展開狀態每變一次遞增,讓讀 `isExpanded` 的畫面重畫。
+    private var expansionRevision = 0
+
+    /// 列是否展開(工具串)。狀態存在時間軸,跟著列走。
+    public func isExpanded(rowID: String) -> Bool {
+        _ = expansionRevision
+        return timeline.isExpanded(rowID: rowID)
+    }
+
+    public func setExpanded(_ expanded: Bool, rowID: String) {
+        timeline.setExpanded(expanded, rowID: rowID)
+        expansionRevision &+= 1
+    }
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
     public private(set) var notice: SendNotice?
     public var isStopping: Bool { stopPhase == .stopping }
@@ -2052,8 +2069,9 @@ public final class ConversationModel {
 
     /// 回音有變(送出、改狀態、移除)時同步給時間軸,由它確認回音並算出列。
     private func rebuildEntries() {
-        _ = timeline.setEchoes(echoes)
+        let update = timeline.setEchoes(echoes)
         refreshEntries()
+        if !update.changes.isEmpty { onTimelineUpdate?(update) }
     }
 
     /// 取回時間軸確認後的回音與列;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
@@ -2062,6 +2080,7 @@ public final class ConversationModel {
             echoes = timeline.pendingEchoes
             notice = nil
         }
+        if rows != timeline.rows { rows = timeline.rows }
         let merged = timeline.rows.map(\.entry)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
@@ -2903,6 +2922,7 @@ public final class ConversationModel {
         guard !update.changes.isEmpty else { return }
         items = timeline.items
         refreshEntries()
+        onTimelineUpdate?(update)
         for change in update.changes {
             switch change {
             case .inserted(let row, _), .updated(let row, _), .prepended(let row, _):

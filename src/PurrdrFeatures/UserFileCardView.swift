@@ -136,7 +136,7 @@ struct UserFileCardView: View {
             }
         }
         .frame(maxWidth: 300, alignment: .trailing)
-        .quickLookPreview($previewFile)
+        .presentedQuickLook($previewFile)
         .task(id: path) { await refresh() }
         .task(id: loadedVersion) { await decode() }
     }

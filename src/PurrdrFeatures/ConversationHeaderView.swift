@@ -99,7 +99,7 @@ struct WorkingIndicatorView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("conversation.livePreview")
         } else {
-            // 捲動跟隨的目標列(`ConversationFollowTarget.workingRowID`)要在;沒有預覽時不佔空間。
+            // 工作中那一列(`ChatListRowPlan.workingID`)要在;沒有預覽時不佔空間。
             Color.clear.frame(height: 1).accessibilityHidden(true)
         }
     }

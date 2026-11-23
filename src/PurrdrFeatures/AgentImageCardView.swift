@@ -154,7 +154,7 @@ struct AgentImageCardView: View {
             await load(userRequested: false)
         }
         .task(id: loadedVersion) { await decodeThumbnail() }
-        .imageViewer(item: $viewer)
+        .presentedImageViewer(item: $viewer)
     }
 
     @ViewBuilder
