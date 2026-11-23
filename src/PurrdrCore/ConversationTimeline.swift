@@ -44,8 +44,9 @@ public struct ConversationTimeline: Sendable {
     /// 還沒被對話紀錄確認的回音。
     public private(set) var pendingEchoes: [PromptEcho] = []
     /// Markdown 實際解析的次數(測試用:同一段文字只解析一次)。
-    public private(set) var markdownParseCount = 0
+    package private(set) var markdownParseCount = 0
 
+    /// 畫面列的建構輸入(不是讀取與快取的真相:那在 `ConversationModel` 的 `recent`／`olderMessages`;這裡依 id 去重自保)。
     private var messages: [TranscriptMessage] = []
     private var knownMessageIDs: Set<String> = []
     private var builder = Conversation.Builder()

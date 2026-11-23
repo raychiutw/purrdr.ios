@@ -299,8 +299,8 @@ public struct AgentListView: View {
         .appGroupedList()
         #endif
         // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。
-        .onAppear { model.rememberRowCount() }
-        .onChange(of: sections.reduce(0) { $0 + $1.tabs.count }) { model.rememberRowCount() }
+        .onAppear { model.rememberRowCount(of: sections) }
+        .onChange(of: MergedAgentListModel.rowCount(of: sections)) { model.rememberRowCount(of: sections) }
         // 預先載入畫面上前幾列聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
         .task(id: prefetchRoutes) { await prefetchConversations?(prefetchRoutes) }
         .overlay {

@@ -79,13 +79,7 @@ public struct FolderBrowserView: View {
             // 第一次列這個資料夾:同形狀的列骨架,列數取上次的數量(#496)。
             List {
                 Section {
-                    VStack(spacing: 0) {
-                        ForEach(0..<model.loadingRowCount, id: \.self) { index in
-                            FolderEntryRow(entry: .skeletonPlaceholder(index), open: {})
-                                .padding(.vertical, 10)
-                        }
-                    }
-                    .skeleton(identifier: "files.loading")
+                    FolderSkeletonRows(count: model.loadingRowCount, identifier: "files.loading")
                 } header: { breadcrumbBar }
             }
             .appGroupedList()
@@ -266,5 +260,22 @@ extension FolderEntry {
     /// 列表骨架的佔位項目(`redacted` 畫成灰條)。
     static func skeletonPlaceholder(_ index: Int) -> FolderEntry {
         FolderEntry(name: "Folder name placeholder", kind: .folder, size: 1024, modified: nil)
+    }
+}
+
+/// 資料夾列骨架(#496):檔案頁與新增聊天的資料夾挑選共用,整區一個「載入中」。
+struct FolderSkeletonRows: View {
+    let count: Int
+    let identifier: String
+    var label: LocalizedStringKey = "Loading…"
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<count, id: \.self) { index in
+                FolderEntryRow(entry: .skeletonPlaceholder(index), open: {})
+                    .padding(.vertical, 10)
+            }
+        }
+        .skeleton(identifier: identifier, label: label)
     }
 }

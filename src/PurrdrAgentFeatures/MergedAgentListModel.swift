@@ -160,8 +160,14 @@ public final class MergedAgentListModel {
     public var loadingRowCount: Int { SkeletonLoading.rowCount(lastCount: skeletonRowCounts.load(.agentList)) }
 
     /// 列表有列時記住列數,下次冷啟動的骨架照這個數量。
-    public func rememberRowCount() {
-        let count = spacesSections.reduce(0) { $0 + $1.tabs.count }
+    public func rememberRowCount() { rememberRowCount(of: spacesSections) }
+
+    /// 列的總數(骨架列數與「列數變了」的判斷共用)。
+    public static func rowCount(of sections: [SpacesSection]) -> Int { sections.reduce(0) { $0 + $1.tabs.count } }
+
+    /// 用畫面已算好的段落記列數,不必再投影一次。
+    public func rememberRowCount(of sections: [SpacesSection]) {
+        let count = Self.rowCount(of: sections)
         if count > 0, skeletonRowCounts.load(.agentList) != count { skeletonRowCounts.save(count, for: .agentList) }
     }
 

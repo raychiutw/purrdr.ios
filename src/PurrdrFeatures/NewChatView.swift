@@ -295,13 +295,7 @@ struct FolderPickerView: View {
             // 讀資料夾清單:同檔案頁的資料夾列骨架(#496)。
             List {
                 Section {
-                    VStack(spacing: 0) {
-                        ForEach(0..<SkeletonLoading.defaultRowCount, id: \.self) { index in
-                            FolderEntryRow(entry: .skeletonPlaceholder(index), open: {})
-                                .padding(.vertical, 10)
-                        }
-                    }
-                    .skeleton(identifier: "folderPicker.loading", label: "Loading folders…")
+                    FolderSkeletonRows(count: SkeletonLoading.defaultRowCount, identifier: "folderPicker.loading", label: "Loading folders…")
                 }
             }
             .appSheetList()

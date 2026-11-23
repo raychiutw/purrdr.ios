@@ -231,17 +231,6 @@
         }
       }
     },
-    "%@ · You: %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · 你:%2$@"
-          }
-        }
-      }
-    },
     "%@, %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7112,17 +7101,6 @@
         }
       }
     },
-    "Muted" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已靜音"
-          }
-        }
-      }
-    },
     "Name" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8373,17 +8351,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打開終端機"
-          }
-        }
-      }
-    },
-    "Open Terminal in New Window" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在新視窗打開終端機"
           }
         }
       }
@@ -14342,17 +14309,6 @@
         }
       }
     },
-    "Todos %lld of %lld done" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待辦已完成 %1$lld／%2$lld"
-          }
-        }
-      }
-    },
     "Todos %lld/%lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14855,17 +14811,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消釘選"
-          }
-        }
-      }
-    },
-    "Unread" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未讀"
           }
         }
       }
@@ -15702,17 +15647,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作中…"
-          }
-        }
-      }
-    },
-    "Workspace" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workspace"
           }
         }
       }

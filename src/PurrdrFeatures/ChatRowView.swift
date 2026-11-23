@@ -137,7 +137,7 @@ extension ChatRowContent {
     static func placeholder(_ index: Int) -> ChatRowContent {
         ChatRowContent(tab: SpacesTab(
             host: .demo, key: "placeholder-\(index)", title: "Agent name placeholder",
-            target: .pane(ChatRoute(host: .demo, paneID: "placeholder-\(index)")), avatar: .agent(kind: "claude", status: .idle),
+            target: .pane(ChatRoute(host: .demo, paneID: "placeholder-\(index)")), avatar: .agent(kind: AgentID.claude.canonicalName, status: .idle),
             tabName: "Tab name",
             agent: AgentRow(
                 paneID: "placeholder-\(index)", title: "Agent name placeholder", subtitle: "",

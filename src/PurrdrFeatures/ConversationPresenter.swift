@@ -128,7 +128,8 @@ private struct ListContextMenu<MenuItems: View>: ViewModifier {
 }
 
 extension View {
-    /// 長按選單:在對話列表裡由列表(UIKit)提供,才能知道選單何時開著(#488);其他畫面維持 SwiftUI `contextMenu`。
+    /// 長按選單:在對話列表裡由列表(UIKit)提供,才能知道選單何時開著(#488);其他畫面(同一批卡片也出現在 Subagent 等畫面)維持 SwiftUI `contextMenu`。
+    /// 因此有兩份選單定義:UIKit 側的項目規則集中在 `ChatListMenuPlan`(核心、可測),SwiftUI 側的按鈕由卡片自己畫;兩邊的項目要一起改。
     func listContextMenu<MenuItems: View>(@ViewBuilder items: @escaping () -> MenuItems) -> some View {
         modifier(ListContextMenu(items: items))
     }

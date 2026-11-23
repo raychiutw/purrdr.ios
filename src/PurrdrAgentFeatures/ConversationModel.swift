@@ -810,6 +810,9 @@ public final class ConversationModel {
             preloadSlash()
         }
     }
+    /// 兩份訊息清單各有單一職責(不是兩個真相):`recent`／`olderMessages` 是**讀取與快取的真相**(分段、修剪、寫快取、重整都以它們為準),
+    /// `timeline`(`ConversationTimeline`)的 `messages` 只是**畫面列的建構輸入**,由這裡以增量(`append`／`prepend`)或整份(`rebuild()`)餵進去;
+    /// 時間軸自己再依 id 去重(它的 `knownMessageIDs`),所以餵重複的訊息不會讓列重複。要改訊息內容或順序一律改這裡,再交給時間軸。
     /// 開啟視窗與之後追蹤到的訊息(會寫入快取)。
     private var recent: [TranscriptMessage] = []
     /// `recent` 由哪幾段讀取組成(每段的 byte 起點與訊息數，依序、加總等於 `recent.count`)。修剪與寫快取都以整段為單位，
