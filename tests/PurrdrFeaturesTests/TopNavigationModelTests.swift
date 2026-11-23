@@ -6,20 +6,21 @@ import Testing
 @MainActor
 @Suite("iPhone 頂層導覽")
 struct TopNavigationModelTests {
-    @Test("深層連結 purrdr://settings 選設定 tab")
-    func settingsDeepLinkOpensSettings() throws {
+    @Test("深層連結 purrdr://settings 開帳號與設定 sheet,不換 tab(#503)")
+    func settingsDeepLinkOpensAccountSheet() throws {
         let model = TopNavigationModel()
+        model.tab = .files
 
         let handled = model.open(try #require(URL(string: "purrdr://settings")))
 
         #expect(handled)
-        #expect(model.tab == .settings)
-        #expect(model.sheet == nil)
+        #expect(model.sheet == .member)
+        #expect(model.tab == .files)
     }
 
-    @Test("頂層有 5 個 tab:聊天、檔案、主機、流量、設定,預設停在聊天")
-    func fiveTabsStartOnChats() {
-        #expect(TopLevelTab.allCases == [.chats, .files, .hosts, .traffic, .settings])
+    @Test("頂層有 4 個 tab:聊天、檔案、主機、流量(設定併進帳號,#503),預設停在聊天")
+    func fourTabsStartOnChats() {
+        #expect(TopLevelTab.allCases == [.chats, .files, .hosts, .traffic])
         #expect(TopNavigationModel().tab == .chats)
     }
 
@@ -78,7 +79,7 @@ struct TopNavigationModelTests {
     @Test("主機分享連結(掃 QR code 或點連結)選主機 tab,並帶著要匯入的連結")
     func hostLinkOpensHostsForImport() throws {
         let model = TopNavigationModel()
-        model.tab = .settings
+        model.tab = .files
         let link = HostShareLink.url(for: HostConfiguration(name: "Box", endpoint: SSHEndpoint(host: "box", username: "ops")))
 
         let handled = model.open(link)
@@ -91,7 +92,7 @@ struct TopNavigationModelTests {
     @Test("點主機服務通知(#293):選主機 tab,帶著要開編輯頁的主機")
     func hostServiceNotificationOpensHostEditor() {
         let model = TopNavigationModel()
-        model.tab = .settings
+        model.tab = .files
         let hostID = UUID()
 
         model.openHostEditor(hostID)

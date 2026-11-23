@@ -64,7 +64,8 @@ final class SettingsUITests: XCTestCase {
             cleanup.buttons["Automatic"].tap()
             cleanup.terminate()
         }
-        let sheet = app.element("sheet.settings")
+        let sheet = app.element("account.signedOut")
+        app.scrollIntoView(app.buttons["Automatic"], search: .down)
         XCTAssertTrue(app.buttons["Automatic"].waitUntilExists(timeout: 5))
         let system = luminance(of: sheet)
 
@@ -191,7 +192,7 @@ final class SettingsUITests: XCTestCase {
 
     @MainActor
     private func openSettings(in app: XCUIApplication) {
-        app.openSettingsTab()
+        app.openSettingsSheet()
     }
 
     /// 元素截圖的平均亮度(0 黑～1 白)。

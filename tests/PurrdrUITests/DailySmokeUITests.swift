@@ -200,12 +200,13 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
             XCTAssertFalse(app.buttons["hosts.add"].exists, "流量 tab 右上不放動作")
         }
-        step("設定 tab 沒有關閉鈕,只有帳號鈕") {
-            app.openSettingsTab()
-            XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
-            XCTAssertFalse(app.buttons["sheet.close"].exists, "設定 tab 不是 sheet,不該有關閉鈕")
-            XCTAssertTrue(app.buttons["Used"].firstMatch.exists, "設定 tab 沒有用量顯示的「已用」(#389)")
-            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "設定 tab 沒有帳號鈕")
+        step("設定併在帳號 sheet,只有四個 tab,右上 X 關閉(#503)") {
+            XCTAssertFalse(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Settings")).firstMatch.exists, "不該再有設定 tab")
+            app.openSettingsSheet()
+            let used = app.buttons["Used"].firstMatch
+            XCTAssertTrue(app.scrollIntoView(used, search: .down) || used.exists, "帳號與設定沒有用量顯示的「已用」(#389)")
+            app.closeAccountSheet()
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "關閉後沒有回到 tab")
         }
         step("新增聊天") {
             app.openNewChatSheet()

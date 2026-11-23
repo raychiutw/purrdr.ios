@@ -85,13 +85,12 @@ extension XCUIApplication {
     }
 }
 
-/// 頂層 tab(#390;名稱是 tab bar 按鈕的英文標籤)。
+/// 頂層 tab(#390、#503:設定併進帳號 sheet,只有四個;名稱是 tab bar 按鈕的英文標籤)。
 enum AppTab: String {
     case chats = "Chats"
     case files = "Files"
     case hosts = "Hosts"
     case traffic = "Traffic"
-    case settings = "Settings"
 
     /// 繁體中文介面的 tab 標籤。
     var traditionalChinese: String {
@@ -100,7 +99,6 @@ enum AppTab: String {
         case .files: "檔案"
         case .hosts: "主機"
         case .traffic: "流量"
-        case .settings: "設定"
         }
     }
 }
@@ -119,11 +117,31 @@ extension XCUIApplication {
         if !button.isSelected { button.tap() }
     }
 
-    /// 設定 tab(#390:不再是「⋯」選單的 sheet)。
+    /// 設定(#503:併在帳號與設定 sheet 的第一層):點帳號鈕開 sheet。沒登入時第一層是「登入或加入」選擇頁(`account.signedOut`),
+    /// 登入後是帳號頁(`sheet.account`);兩種都帶著設定的段落。
     @MainActor
-    func openSettingsTab(file: StaticString = #filePath, line: UInt = #line) {
-        openTab(.settings, file: file, line: line)
-        XCTAssertTrue(element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定", file: file, line: line)
+    func openSettingsSheet(file: StaticString = #filePath, line: UInt = #line) {
+        openAccount(file: file, line: line)
+        waitForAccountSheet(file: file, line: line)
+    }
+
+    /// 等帳號與設定 sheet 出現(`sheet.account` 或沒登入的 `account.signedOut`)。
+    @MainActor
+    func waitForAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(
+            UITestWait.until(timeout: 10) { self.element("sheet.account").exists || self.element("account.signedOut").exists },
+            "沒有開出帳號與設定", file: file, line: line)
+    }
+
+    /// 以右上角「X」關閉帳號與設定 sheet(#503)並等它消失。
+    @MainActor
+    func closeAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
+        let close = buttons["member.close"].exists ? buttons["member.close"] : buttons["member.signIn.cancel"]
+        XCTAssertTrue(close.waitUntilExists(timeout: 5), "帳號與設定沒有右上角 X", file: file, line: line)
+        close.tap()
+        XCTAssertTrue(
+            UITestWait.until(timeout: 5) { !self.element("sheet.account").exists && !self.element("account.signedOut").exists },
+            "按 X 後帳號與設定沒有關閉", file: file, line: line)
     }
 
     /// 主機 tab(單台主機總頁;右上的新增主機鈕一直都在)。

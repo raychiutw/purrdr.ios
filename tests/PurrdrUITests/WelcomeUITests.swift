@@ -59,7 +59,7 @@ final class WelcomeUITests: XCTestCase {
     func testSettingsReopensWelcome() {
         let app = XCUIApplication.launchUITesting()
         app.open(URL(string: "purrdr://settings")!)
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.settings"].waitUntilExists(timeout: 10))
+        app.waitForAccountSheet()
 
         let row = app.buttons["settings.welcome"]
         for _ in 0..<6 where !row.isHittable {

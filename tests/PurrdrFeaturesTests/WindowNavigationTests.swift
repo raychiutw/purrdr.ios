@@ -69,7 +69,9 @@ struct WindowNavigationTests {
         first.perform(.settings, visibleAgents: visible)
 
         #expect(first.selectedChat == route("w2:p1"))
-        #expect(first.tab == .settings)
+        #expect(first.sheet == .member)
+        #expect(first.tab == .chats)
+        #expect(second.sheet == nil)
         #expect(second.selectedChat == nil)
         #expect(second.tab == .chats)
     }

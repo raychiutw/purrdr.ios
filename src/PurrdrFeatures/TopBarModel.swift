@@ -27,14 +27,13 @@ public struct TopBarSpec: Equatable, Sendable {
 }
 
 extension TopLevelTab {
-    /// 這個 tab 的頂列規格(設計稿最終定稿);設定併進帳號,沒有頂列。
+    /// 這個 tab 的頂列規格(設計稿最終定稿);
     public var topBar: TopBarSpec? {
         switch self {
         case .chats: TopBarSpec(plus: .newChat, hasHostScope: true, hasSearch: true)
         case .files: TopBarSpec(plus: .upload, hasHostScope: true, hasSearch: true)
         case .hosts: TopBarSpec(plus: .addHost, hasHostScope: false, hasSearch: false)
         case .traffic: TopBarSpec(plus: nil, hasHostScope: true, hasSearch: false)
-        case .settings: nil
         }
     }
 }

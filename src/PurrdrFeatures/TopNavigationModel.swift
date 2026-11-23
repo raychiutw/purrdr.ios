@@ -5,7 +5,7 @@ import PurrdrCore
 
 /// 一個視窗的導覽狀態(#37 故事 21、#31):Agent 列表之上以 sheet 開啟的畫面、三欄的選取、鍵盤快捷鍵。
 ///
-/// 頂層是 5 個 tab(聊天、檔案、主機、流量、設定,#376);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
+/// 頂層是 4 個 tab(聊天、檔案、主機、流量,#376;設定併進帳號 sheet,#503);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
 @MainActor
 @Observable
@@ -89,7 +89,7 @@ public final class TopNavigationModel {
         sheet = .welcome
     }
 
-    /// 從設定頁再看一次歡迎頁(換掉設定 sheet,同一時間只開一個)。
+    /// 從帳號與設定再看一次歡迎頁(換掉帳號 sheet,同一時間只開一個)。
     public func showWelcome() {
         sheet = .welcome
     }
@@ -136,8 +136,8 @@ public final class TopNavigationModel {
         case .openTerminal: if let selectedChat { openedTerminal = selectedChat }
         case .newChat: sheet = .newChat
         case .settings:
-            sheet = nil
-            tab = .settings
+            // 設定併進帳號 sheet(#503)。
+            sheet = .member
         }
     }
 
@@ -157,8 +157,8 @@ public final class TopNavigationModel {
         guard url.scheme?.lowercased() == Self.urlScheme else { return false }
         switch url.host()?.lowercased() {
         case "settings":
-            sheet = nil
-            tab = .settings
+            // 設定併進帳號 sheet(#503):開帳號與設定,不換 tab。
+            sheet = .member
         case "plus":
             // 付費牆(#246):未加入會員也能從連結看方案。
             sheet = .plus
@@ -187,9 +187,9 @@ public final class TopNavigationModel {
     public static let urlScheme = "purrdr"
 }
 
-/// 頂層 tab(#376):聊天、檔案、主機、流量、設定。
+/// 頂層 tab(#376、#503):聊天、檔案、主機、流量。
 public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable {
-    case chats, files, hosts, traffic, settings
+    case chats, files, hosts, traffic
 
     public var id: String { rawValue }
 }
@@ -197,7 +197,7 @@ public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable 
 /// 以 sheet 開啟的畫面(不是 tab)。
 public enum TopLevelSheet: String, Identifiable, Sendable {
     case newChat
-    /// 帳號頁(#246;右上角帳號鈕):會員、Purrdr Plus 開通步驟、登入方式、刪除會員。
+    /// 帳號與設定頁(#246、#503;右上角帳號鈕):會員、Purrdr Plus 開通步驟、設定(外觀、App 鎖…)、登入方式、刪除會員。
     case member
     /// Purrdr Plus 的付費牆與訂閱摘要(#28)。
     case plus

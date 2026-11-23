@@ -204,7 +204,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             let app = XCUIApplication.uiTesting(contentSize: size)
             app.launch()
             app.open(URL(string: "purrdr://settings")!)
-            XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10))
+            app.waitForAccountSheet()
             try audit(app, "設定", contentSize: size)
             app.terminate()
         }

@@ -4,14 +4,13 @@ import Testing
 
 @Suite("共用頂列的邏輯(#499)")
 struct TopBarModelTests {
-    @Test("右側動作依 tab 決定:聊天新增聊天、檔案上傳、主機新增主機;流量沒有;設定沒有頂列")
+    @Test("右側動作依 tab 決定:聊天新增聊天、檔案上傳、主機新增主機;流量沒有")
     func plusDependsOnTab() {
         #expect(TopLevelTab.chats.topBar?.plus == .newChat)
         #expect(TopLevelTab.files.topBar?.plus == .upload)
         #expect(TopLevelTab.hosts.topBar?.plus == .addHost)
         #expect(TopLevelTab.traffic.topBar != nil)
         #expect(TopLevelTab.traffic.topBar?.plus == nil)
-        #expect(TopLevelTab.settings.topBar == nil)
     }
 
     @Test("控制項形狀:聊天與檔案是膠囊(電腦圖示｜＋),主機只有＋,流量只有電腦圖示(#500)")

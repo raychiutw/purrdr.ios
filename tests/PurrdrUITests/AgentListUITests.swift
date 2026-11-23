@@ -92,12 +92,12 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(title.waitUntilExists(timeout: 5), "回到頂端後標題列沒有回來")
     }
 
-    /// AX 字級下 5 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。
+    /// AX 字級下 4 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。
     @MainActor
     func testTabBarAndAccountReachableAtAccessibilitySize() {
         let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
         XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 15))
-        for tab in [AppTab.chats, .files, .hosts, .traffic, .settings] {
+        for tab in [AppTab.chats, .files, .hosts, .traffic] {
             XCTAssertTrue(
                 app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 5),
                 "tab bar 沒有 \(tab.rawValue)")

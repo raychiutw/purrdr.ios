@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 一個視窗的頂層導覽(#37 故事 21、#31)。
 ///
-/// 底部 5 個 tab:聊天、檔案、主機、流量、設定(#376);帳號、新增聊天、付費牆與歡迎頁以 sheet 開啟。
+/// 底部 4 個 tab:聊天、檔案、主機、流量(#376;設定併進帳號 sheet,#503);帳號與設定、新增聊天、付費牆與歡迎頁以 sheet 開啟。
 /// 聊天 tab 是三欄 `NavigationSplitView`:主機與 workspace → Agent 列表 → 對話。依可用寬度排版(size class,不看裝置):
 /// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)收合成一疊，從 Agent 列表開始，點列推入對話(對話與終端機隱藏 tab bar)。
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
@@ -62,9 +62,10 @@ public struct TopNavigationView: View {
             .sheet(item: $navigation.sheet) { sheet in
                 switch sheet {
                 case .member:
-                    // 帳號頁(#246)自帶 NavigationStack 與「完成」。
+                    // 帳號與設定頁(#246、#503)自帶 NavigationStack 與右上角 X;設定併在第一層。
                     MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync,
-                        hosts: hosts)
+                        hosts: hosts,
+                        settings: AccountSettings(model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock))
                         // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
                         .task { await hosts.checkHostServiceVersions() }
                 case .plus:
@@ -223,7 +224,7 @@ let topBar = ChatTopBarActions(
         }
     }
 
-    /// 5 個 tab。每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
+    /// 4 個 tab。每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
     private var tabs: some View {
         TabView(selection: $navigation.tab) {
             Tab("Chats", systemImage: "bubble.left.and.bubble.right.fill", value: TopLevelTab.chats) {
@@ -249,13 +250,6 @@ let topBar = ChatTopBarActions(
                 TrafficTab(hosts: hosts, member: member, openAccount: { navigation.sheet = .member })
                     .tint(ProminentFillStyle())
             }
-            Tab("Settings", systemImage: "gearshape.fill", value: TopLevelTab.settings) {
-                SettingsView(
-                    model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock,
-                    account: AnyView(AccountButton(member: member) { navigation.sheet = .member })
-                )
-                .tint(ProminentFillStyle())
-            }
         }
         // tab bar 選取態的顏色(DESIGN.md「深色層次與新色票」);內容各自把 tint 還原成主色。
         .tint(AccessibleColors.tabSelection.color)
@@ -268,37 +262,6 @@ extension TopNavigationView {
     #else
     static let modePlacement = ToolbarItemPlacement.navigation
     #endif
-}
-
-/// 聊天列表右上角的帳號鈕(#246):會員的頭像字，未加入會員顯示「?」。
-struct AccountButton: View {
-    let member: MemberModel
-    let action: () -> Void
-    /// 工具列玻璃圓鈕畫出來是 `TopBarMetrics.circleDiameter`(44pt;XCUI 回報的 frame 只有內容的 30pt 頭像);頭像是圖示，不隨字級放大。
-
-    var body: some View {
-        // 名稱放在 Label 標題與無障礙表示:AX 字級時系統把這顆收進工具列的溢出選單。
-        Button(action: action) {
-            Label {
-                Text("Account")
-            } icon: {
-                // 44pt 的玻璃圓鈕(外框與內距由工具列提供;自己再撐 44pt 會被玻璃加寬成橢圓),頭像 30pt,與其他按鈕的符號同等大小(#475)。
-                AccountAvatar(member: signedInMember)
-                    .font(.footnote)
-                    .frame(width: TopBarMetrics.avatarDiameter, height: TopBarMetrics.avatarDiameter)
-                    .accessibilityRepresentation { Text("Account") }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("Account"))
-        .accessibilityIdentifier("toolbar.account")
-        .task { if member.phase == .unknown { await member.restore() } }
-    }
-
-    private var signedInMember: Member? {
-        if case .signedIn(let member) = member.phase { return member }
-        return nil
-    }
 }
 
 /// 新增對話的 sheet:主機挑選鈕在 sheet 開啟時建立一次;換主機就在那台主機重建表單(#245)。

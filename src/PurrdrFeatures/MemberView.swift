@@ -17,14 +17,17 @@ public struct MemberView: View {
     let hostSync: HostSyncModel?
     /// 還沒配對的 HTTPS 主機在通知列開配對(#295;與主機頁同一個編輯器)。
     let hosts: HostsModel?
+    /// 設定(#503):外觀、App 鎖等併在第一層;`nil` 時不顯示。
+    let settings: AccountSettings?
     /// 沒登入時的流程(#408):選擇、登入、加入。
     @State private var entry = AccountEntryFlow()
     @Environment(\.dismiss) private var dismiss
 
-    public init(
+    init(
         model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
-        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil
+        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil, settings: AccountSettings? = nil
     ) {
+        self.settings = settings
         self.model = model
         self.plus = plus
         self.pushes = pushes
@@ -36,13 +39,14 @@ public struct MemberView: View {
     public var body: some View {
         NavigationStack {
             MemberContent(
-                model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts, entry: $entry
+                model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts,
+                settings: settings, entry: $entry
             )
             .toolbar {
                 if entry.shownScreen(phase: model.phase, hasPlus: plus != nil) != nil {
                     AccountEntryToolbar(entry: $entry, onClose: { dismiss() })
                 } else {
-                    SheetCloseToolbar(identifier: "member.close")
+                    TrailingCloseToolbar(identifier: "member.close")
                 }
             }
         }
@@ -57,12 +61,14 @@ public struct MemberContent: View {
     let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
     let hosts: HostsModel?
+    let settings: AccountSettings?
     @Binding var entry: AccountEntryFlow
 
-    public init(
+    init(
         model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
-        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil, entry: Binding<AccountEntryFlow>
+        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil, settings: AccountSettings? = nil, entry: Binding<AccountEntryFlow>
     ) {
+        self.settings = settings
         self.model = model
         self.plus = plus
         self.pushes = pushes
@@ -122,7 +128,7 @@ public struct MemberContent: View {
                     model: model, entry: $entry, plus: plus, pushes: pushes, hostSync: hostSync, hostCount: hosts?.hosts.count ?? 0,
                     signedInMember: signedInMember)
             } else {
-                AccountEntryPages(model: model, entry: $entry)
+                AccountEntryPages(model: model, entry: $entry, settings: settings)
             }
         } else if model.phase == .unknown {
             if model.isWorking {
@@ -138,7 +144,7 @@ public struct MemberContent: View {
                 }
             }
         } else {
-            AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts)
+            AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts, settings: settings)
         }
     }
 
@@ -306,6 +312,7 @@ struct AccountView: View {
     let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
     let hosts: HostsModel?
+    let settings: AccountSettings?
     @State private var confirmingDeletion = false
     @State private var confirmingSignOut = false
     /// 刪除會員前先處理訂閱的頁面(#412):有仍會扣款的訂閱才出現。
@@ -410,6 +417,8 @@ struct AccountView: View {
                     .id(PlusFeature.devices)
                 }
             }
+
+            if let settings { SettingsSections(settings) }
 
             if let member = signedInMember {
                 Section {
@@ -1054,14 +1063,17 @@ struct AccountEntryToolbar: ToolbarContent {
     let onClose: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
-            switch entry.leadingAction {
-            case .back:
+        switch entry.leadingAction {
+        case .back:
+            ToolbarItem(placement: .cancellationAction) {
                 Button { entry.back() } label: { Image(systemName: "chevron.backward") }
                     .accessibilityLabel(Text("Back"))
                     .accessibilityIdentifier("member.entry.back")
-            case .close:
-                Button(action: onClose) { Image(systemName: "xmark") }
+            }
+        case .close:
+            // 帳號與設定 sheet 的關閉在右上角「X」(#503)。
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .close, action: onClose)
                     .accessibilityLabel(entry.screen == .join ? Text("Close. Continue in Account Later") : Text("Close"))
                     .accessibilityIdentifier("member.signIn.cancel")
             }

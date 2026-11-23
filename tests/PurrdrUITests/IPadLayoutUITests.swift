@@ -130,7 +130,7 @@ final class IPadLayoutUITests: XCTestCase {
 
         app.typeKey(",", modifierFlags: .command)
 
-        XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 5), "Command-, 沒有開 App 設定")
+        app.waitForAccountSheet()
     }
 
     /// 硬體鍵盤:Esc 關掉釘住的版面圖卡片(選單列「Close Layout」,只在卡片開著時有)。

@@ -18,9 +18,9 @@ final class ChatOpenBackUITests: XCTestCase {
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(app.reveal(ledger))
 
-        // 有需要你的 workspace 時，主機與設定 sheet 的「完成」旁也不放數字徽章(#322)。
-        // 導覽入口(主機、設定 tab)旁不放數字徽章(#322);聊天 tab 的 badge 是「需要你」數(#390)。
-        for tab in [AppTab.hosts, .settings] {
+        // 有需要你的 workspace 時，主機與帳號 sheet 的「完成」旁也不放數字徽章(#322)。
+        // 導覽入口(主機、流量 tab)旁不放數字徽章(#322);聊天 tab 的 badge 是「需要你」數(#390)。
+        for tab in [AppTab.hosts, .traffic] {
             app.openTab(tab)
             XCTAssertFalse(app.descendants(matching: .any)["attention.badge"].firstMatch.exists, "\(tab.rawValue) 旁有數字徽章")
         }

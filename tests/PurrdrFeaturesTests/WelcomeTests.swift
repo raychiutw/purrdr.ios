@@ -35,13 +35,13 @@ struct WelcomeTests {
         #expect(relaunched.sheet == nil)
     }
 
-    @Test("已經看過(UI 測試預設):啟動時不出現;設定頁可以再打開")
+    @Test("已經看過(UI 測試預設):啟動時不出現;帳號與設定可以再打開")
     func seenStoreSkipsButSettingsReopens() {
         let navigation = TopNavigationModel()
         navigation.launched(welcome: WelcomeModel(store: InMemoryWelcomeStore(hasSeen: true)))
         #expect(navigation.sheet == nil)
 
-        navigation.tab = .settings
+        navigation.sheet = .member
         navigation.showWelcome()
         #expect(navigation.sheet == .welcome)
     }

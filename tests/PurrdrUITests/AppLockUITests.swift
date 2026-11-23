@@ -70,7 +70,7 @@ final class AppLockUITests: XCTestCase {
 
     @MainActor
     private func openSettings(in app: XCUIApplication) {
-        app.openSettingsTab()
+        app.openSettingsSheet()
     }
 
 }

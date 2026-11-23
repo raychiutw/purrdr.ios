@@ -1,7 +1,7 @@
 import XCTest
 
 /// iPhone 頂層導覽(#376、#390):底部 5 個 tab(聊天、檔案、主機、流量、設定),新增聊天在聊天 tab 右上以 sheet 開啟;
-/// 設定支援深層連結 `purrdr://settings`(選設定 tab)。
+/// 設定支援深層連結 `purrdr://settings`(開帳號與設定 sheet,#503)。
 final class TopNavigationUITests: XCTestCase {
     private let settingsLink = URL(string: "purrdr://settings")!
 
@@ -10,14 +10,16 @@ final class TopNavigationUITests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsTabShowsSettingsAndChatsTabReturnsToList() {
+    func testAccountSheetHoldsSettingsAndClosesWithXBackToSameTab() {
         let app = XCUIApplication.launchUITesting()
+        app.openTab(.files)
 
-        app.openSettingsTab()
-        XCTAssertFalse(app.buttons["sheet.close"].exists, "設定是 tab,不該有關閉鈕")
+        app.openSettingsSheet()
+        XCTAssertTrue(app.element("settings.version").exists || app.scrollIntoView(app.element("settings.version"), search: .down), "帳號與設定第一層沒有設定內容")
+        XCTAssertFalse(app.buttons["sheet.done"].exists, "帳號與設定不該有完成鈕")
 
-        app.openTab(.chats)
-        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch), "沒有回到 Agent 列表")
+        app.closeAccountSheet()
+        XCTAssertTrue(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Files")).firstMatch.isSelected, "關閉後沒有回到原本的 tab")
     }
 
     @MainActor
@@ -103,14 +105,15 @@ final class TopNavigationUITests: XCTestCase {
     }
 
     @MainActor
-    func testTabBarListsFiveTabsAndNoMoreMenu() {
+    func testTabBarListsFourTabsAndNoSettingsTab() {
         let app = XCUIApplication.launchUITesting()
 
-        for tab in [AppTab.chats, .files, .hosts, .traffic, .settings] {
+        for tab in [AppTab.chats, .files, .hosts, .traffic] {
             XCTAssertTrue(
                 app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 10),
                 "tab bar 沒有 \(tab.rawValue)")
         }
+        XCTAssertFalse(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Settings")).firstMatch.exists, "不該再有設定 tab")
         XCTAssertFalse(app.buttons["toolbar.more"].exists, "不該再有「⋯」選單")
     }
 
@@ -121,7 +124,7 @@ final class TopNavigationUITests: XCTestCase {
 
         app.open(settingsLink)
 
-        XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
+        app.waitForAccountSheet()
     }
 
     @MainActor
@@ -133,6 +136,6 @@ final class TopNavigationUITests: XCTestCase {
 
         app.open(settingsLink)
 
-        XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
+        app.waitForAccountSheet()
     }
 }
