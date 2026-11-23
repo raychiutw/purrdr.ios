@@ -68,4 +68,55 @@ struct ConversationNeedsYouFallbackTests {
 
         #expect(await A.keyRequests(setup) == [A.keys(["1"])])
     }
+
+    /// 答完後 herdr 的 blocked 還沒更新、畫面又讀不到(離線):期限內不能因為「沒有提示」就冒出通用鈕。
+    @Test("答完後狀態還是 blocked、之後讀不到畫面(離線)：期限內不顯示通用鈕")
+    func staleBlockedThenOfflineDoesNotShowGenericButtons() async throws {
+        let setup = try A.setup()
+        await A.expectPoll(setup, screen: "claude-ask-question")
+        await setup.model.poll()
+        await setup.host.bridge.expect(A.bridge, reply: PromptReplies.keysAccepted)
+        await setup.model.answer(.option(try #require(setup.model.prompt?.options.first)))
+        await A.expectPoll(setup, status: "blocked", screen: "claude-idle")
+        await setup.model.poll()
+
+        await A.expectPoll(setup, status: "blocked", screen: nil)  // 畫面讀不到
+        await setup.model.poll()
+
+        #expect(setup.model.prompt?.kind != .unrecognized, "離線時答完的題目冒出通用鈕:\(String(describing: setup.model.prompt?.kind))")
+    }
+
+    /// 守門:送出中畫面上真的出現下一題(不同的選單)時要換成新題目,不能卡在舊卡。
+    @Test("送出進行中、畫面出現新題目：換成新題目")
+    func newQuestionDuringSendReplacesCard() async throws {
+        let setup = try A.setup()
+        await A.expectPoll(setup, screen: "claude-ask-question")
+        await setup.model.poll()
+        let original = try #require(setup.model.prompt)
+        await setup.host.bridge.expect(A.bridge, reply: PromptReplies.silent)
+        let option = try #require(original.options.first)
+        let sending = Task { await setup.model.answer(.option(option)) }
+        try await waitUntil { await A.keyRequests(setup).count == 1 }
+
+        await A.expectPoll(setup, status: "blocked", screen: "claude-ask-review")
+        await setup.model.poll()
+
+        #expect(setup.model.prompt?.question != original.question)
+        #expect(setup.model.prompt?.kind != .unrecognized)
+        sending.cancel()
+    }
+
+    /// 守門:沒在回答時,真的讀不懂的提示(畫面讀得到但不是選單、或讀不到畫面)仍給通用鈕。
+    @Test("沒在回答時的未知提示仍顯示通用鈕(讀得到畫面與讀不到畫面)")
+    func unknownPromptWithoutAnswerStillShowsGenericButtons() async throws {
+        let readable = try A.setup()
+        await A.expectPoll(readable, screen: "claude-idle")
+        await readable.model.poll()
+        #expect(readable.model.prompt?.kind == .unrecognized)
+
+        let unreadable = try A.setup()
+        await A.expectPoll(unreadable, status: "blocked", screen: nil)
+        await unreadable.model.poll()
+        #expect(unreadable.model.prompt?.kind == .unrecognized)
+    }
 }

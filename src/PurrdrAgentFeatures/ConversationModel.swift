@@ -1784,7 +1784,9 @@ public final class ConversationModel {
         screenThisPoll = await readScreen()
         guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
-            if blocked, prompt == nil { prompt = .unrecognized }
+            // 剛答完、herdr 的 blocked 還沒更新的期限內(`staleBlockedUntil`)不冒通用鈕(#468)。
+            let isWithinStaleWindow = staleBlockedUntil.map { clock.now() < $0 } ?? false
+            if blocked, prompt == nil, !isWithinStaleWindow { prompt = .unrecognized }
             if prompt != nil { agentStatus = .blocked }
             checkAnswerDeadline()
             return
