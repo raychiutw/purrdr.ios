@@ -309,6 +309,8 @@ private struct TopBarSearchField: View {
                 .accessibilityLabel(Text("Clear text"))
             }
         }
+        // 搜尋欄高度最多放大 1.45 倍(`searchScaleCap`):圖示與文字也封頂,不然放大鏡會比膠囊還大。
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .padding(.horizontal, 12)
         .frame(height: layout.searchHeight(progress: progress))
         .background {

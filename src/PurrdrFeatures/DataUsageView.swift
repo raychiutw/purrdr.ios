@@ -96,16 +96,24 @@ public struct DataUsageView: View {
             SummaryTile(title: "This Launch", summary: model.sinceLaunch, identifier: "dataUsage.sinceLaunch")
             SummaryTile(title: "Today", summary: model.today, identifier: "dataUsage.today")
         }
+        // 兩張卡一樣高(大字級下文字折行數不同時,以較高的那張為準)。
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - 膠囊
 
     private var chips: some View {
-        HStack(spacing: 8) {
-            ChipButton(title: model.period.title, hint: "Period", identifier: "dataUsage.period") { optionsSheet = .period }
-            ChipButton(title: model.category.title, hint: "Category", identifier: "dataUsage.category") { optionsSheet = .category }
-            Spacer(minLength: 0)
+        // 膠囊文字不折行;大字級一行放不下時改成直向排列。
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { chipButtons; Spacer(minLength: 0) }
+            VStack(alignment: .leading, spacing: 8) { chipButtons }
         }
+    }
+
+    @ViewBuilder
+    private var chipButtons: some View {
+        ChipButton(title: model.period.title, hint: "Period", identifier: "dataUsage.period") { optionsSheet = .period }
+        ChipButton(title: model.category.title, hint: "Category", identifier: "dataUsage.category") { optionsSheet = .category }
     }
 
     // MARK: - 長條圖
@@ -251,7 +259,7 @@ private struct SummaryTile: View {
             Text("Cellular \(DataUsageFormat.bytes(summary.cellular))")
                 .font(.caption).foregroundStyle(.secondaryText).monospacedDigit()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .combine)
@@ -269,7 +277,7 @@ private struct ChipButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Text(title).font(.subheadline)
+                Text(title).font(.subheadline).lineLimit(1).fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold)).foregroundStyle(.secondaryText).accessibilityHidden(true)
             }

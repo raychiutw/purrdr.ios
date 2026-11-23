@@ -194,7 +194,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 ## 通用規則
 
-- 文字一律用 text style,支援到 AX5 不截斷(例外：鍵盤出現時讓位成一行的 You should know 註記與建議提示詞，見上方「鍵盤出現時的讓位」);觸控目標 ≥ 44×44 pt。
+- 文字一律用 text style,支援到 AX5 不截斷(例外：鍵盤出現時讓位成一行的 You should know 註記與建議提示詞，見上方「鍵盤出現時的讓位」;另有 Spaces 的段落標題(上限 accessibility1)與頂列搜尋欄內容(上限 xxxLarge,高度本來就有 1.45 倍上限)封頂放大,避免放大鏡圖示比膠囊大、標題折成好幾行);觸控目標 ≥ 44×44 pt。
 - **按壓回饋**(#234):可點的列表列與卡片按下時一律有灰色回饋，不用主色。List 裡的列用系統按鈕樣式(系統畫整列灰底，例如 Spaces 的 Tab 列)，文字與圖示明確指定顏色以免被 tint 染色;勾選列(`.inline` `Picker`)是系統元件,不另加按壓樣式;不能用系統樣式的地方用共用的 `PressableButtonStyle`(`PressFeedback`):沒有底色的列(slash 選單、建議提示詞、收合的註記列、側欄主機列)在內容底下畫 `.fill.tertiary`;自己有不透明底的卡片(方案卡片、Google 鈕)把 `.fill.tertiary` 疊在上面;圖片縮圖疊 15% 黑。圓角跟元素本身一致。新增可點的列或卡片不要用沒有按壓態的 `.buttonStyle(.plain)`。
 - app 快捷鍵只用 Command;終端機聚焦時 Control 組合鍵與 Esc 送往遠端(組字中除外：實體鍵盤的所有按鍵交給輸入法)。
 - 完整的逐畫面檢核清單在 `docs/research/apple-hig-drover-chat.md` 第 20 節，實作每個畫面時逐項檢查。

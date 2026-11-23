@@ -90,6 +90,8 @@ private struct SpacesSectionHeader: View {
         }
         // 固定的次要文字色(系統 section header 的灰色對比不到 4.5:1,audit「nearly passed」);不轉大寫。
         .font(.subheadline)
+        // 段落標題是分組用的次要文字:放大到 accessibility1 為止(與頭像同上限),AX5 不會折成好幾行。
+        .dynamicTypeSize(...AgentStatusAvatar.largestTypeSize)
         .foregroundStyle(Color.secondaryText)
         .textCase(nil)
         // 整列寬都能長按(標題的長按選單,#456)。
