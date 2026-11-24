@@ -533,34 +533,18 @@ public struct ConversationView: View {
     }
 
     /// 非干擾式標示：不在進入畫面時跳 alert,也不只用自動消失的 toast(HIG 20.5)。
-    /// 頂列下方唯一的一條浮動橫幅(#348):斷線、對話紀錄問題、唯讀與主機服務版本都在這裡，輸入列與卡片不再重複。
+    /// 頂列下方唯一的一條浮動橫幅(#348):對話紀錄問題、唯讀與主機服務版本都在這裡，輸入列與卡片不再重複。
     @ViewBuilder
     private var banner: some View {
         if let kind = model.statusSummary.banner {
-            let isOffline = if case .offline = kind { true } else { false }
             HStack {
                 Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        kind.text
-                        // 斷線前在工作：停止列已收起，說明為什麼不能停(#220)。
-                        if kind == .offline(needsReconnectToStop: true) {
-                            Text("You can stop the agent after reconnecting.")
-                        }
-                    }
+                    kind.text
                 } icon: {
                     Image(systemName: kind.symbol)
                 }
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
-                Spacer(minLength: 8)
-                if isOffline {
-                    // 中斷標示留在畫面上直到重新連上;也可以手動立刻重試(輪詢本身仍會每幾秒重試)。
-                    Button { Task { await model.poll() } } label: {
-                        HitTarget("Try Again")
-                    }
-                    .font(.footnote)
-                    .accessibilityIdentifier("conversation.retry")
-                }
             }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -576,7 +560,6 @@ public struct ConversationView: View {
 extension ConversationStatusSummary.Banner {
     var text: Text {
         switch self {
-        case .offline: Text("Offline — showing the last loaded conversation.")
         case .transcript(let banner): Text(banner.text)
         case .readOnly: Text("This device is paired read-only, so it can’t send anything to this host.")
         case .hostServiceUpdateRequired(let message): Text(verbatim: message)
@@ -585,7 +568,6 @@ extension ConversationStatusSummary.Banner {
 
     var symbol: String {
         switch self {
-        case .offline: "wifi.slash"
         case .transcript(let banner): banner.symbol
         case .readOnly: "lock"
         case .hostServiceUpdateRequired: "arrow.down.circle"

@@ -14,14 +14,14 @@ struct ConversationStatusSummaryTests {
 
     static func summary(
         agentStatus: AgentStatus? = .idle, isOffline: Bool = false, banner: ConversationModel.Banner? = nil, isReadOnly: Bool = false,
-        hostServiceUpdateMessage: String? = nil, stopNeedsReconnect: Bool = false, workingSince: Date? = nil,
+        hostServiceUpdateMessage: String? = nil, workingSince: Date? = nil,
         stopPhase: StopPhase? = nil, isWritingLive: Bool = false, progress: AgentProgress = AgentProgress(), agentsPane: AgentsPane? = nil,
         hasSendWhenDone: Bool = false
     ) -> ConversationStatusSummary {
         ConversationStatusSummary(
             header: ConversationHeader(agent: nil, title: "ledger", status: agentStatus, isOffline: isOffline, hostName: "studio", progress: progress),
             banner: banner, isOffline: isOffline, isReadOnly: isReadOnly,
-            hostServiceUpdateMessage: hostServiceUpdateMessage, stopNeedsReconnect: stopNeedsReconnect, workingSince: workingSince,
+            hostServiceUpdateMessage: hostServiceUpdateMessage, workingSince: workingSince,
             stopPhase: stopPhase, isWritingLive: isWritingLive, progress: progress,
             agentsPane: agentsPane, hasSendWhenDone: hasSendWhenDone)
     }
@@ -121,7 +121,7 @@ struct ConversationStatusSummaryTests {
 
     @Test("離線：沒有離線橫幅(背景自動重連)，頂列狀態是離線;斷線前在工作也不帶說明")
     func offlineHasNoBanner() {
-        let summary = Self.summary(isOffline: true, banner: .offline, stopNeedsReconnect: true)
+        let summary = Self.summary(isOffline: true, banner: .offline)
 
         #expect(summary.header.status == .offline)
         #expect(summary.banner == nil)
