@@ -41,6 +41,9 @@ struct ComposerBar: View {
     var conversationHeight: ConversationVisibleHeight
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
     @State private var isFocused = false
+    /// 輸入列形態(#512):只看草稿需要的行數、換行與附件，不看聚焦;收回要有遲滯，所以記著目前的形態。
+    @State private var form = ComposerForm.collapsed
+    @State private var lineMeasure = ComposerLineMeasure.empty
     /// 鍵盤上方可用高度(輸入框量到後回報;變了要重新量輸入框高度)。
     @State private var availableHeight: CGFloat?
     @State private var isDropTargeted = false
@@ -177,6 +180,11 @@ struct ComposerBar: View {
             if option != nil { isFocused = true }
         }
         .onDisappear { model.cancelTypedAnswer() }
+        .onChange(of: formInput, initial: true) { _, input in
+            let next = ComposerForm.resolve(
+                measure: input.measure, hasNewline: input.hasNewline, hasAttachments: input.hasAttachments, current: form)
+            if next != form { form = next }
+        }
         .onChange(of: arrangementInput, initial: true) { _, input in
             let next = ComposerKeyboardLayout.arrangement(
                 keyboardShown: input.keyboardShown, conversationHeight: input.conversationHeight, current: arrangement,
@@ -237,8 +245,22 @@ struct ComposerBar: View {
         }
     }
 
-    private var form: ComposerForm {
-        ComposerForm.resolve(isFocused: isFocused, draft: model.draft, hasAttachments: !model.attachments.isEmpty)
+    private struct FormInput: Equatable {
+        var measure: ComposerLineMeasure
+        var hasNewline: Bool
+        var hasAttachments: Bool
+    }
+
+    private var formInput: FormInput {
+        FormInput(
+            measure: lineMeasure, hasNewline: ComposerForm.draftHasNewline(model.draft),
+            hasAttachments: !model.attachments.isEmpty)
+    }
+
+    /// 「+」在收合的一列裡佔位的話，輸入框比展開時窄;量測以收合時的寬度為準。
+    private var measureWidthReduction: CGFloat {
+        guard form == .expanded else { return 0 }
+        return ComposerCardLayout.collapsedWidthReduction(hasAttach: model.canAttachImages && model.typedAnswer == nil)
     }
 
     /// 點一行的註記：收起鍵盤，註記與建議提示詞完整顯示(鍵盤收起時規則不會自己換回完整卡片)。
@@ -283,7 +305,10 @@ struct ComposerBar: View {
                 onCaretChange: { model.updateDraftCaret($1, in: $0) },
                 pasteAction: { [model] in ComposerPasteHandler.action(for: model) },
                 onPasteImages: { [model] in ComposerPasteHandler.attachPasteboardImages(to: model) },
-                onSend: send
+                onSend: send,
+                isCollapsedLayout: form == .collapsed,
+                measureWidthReduction: measureWidthReduction,
+                onLineMeasure: { if lineMeasure != $0 { lineMeasure = $0 } }
             )
         )
         .overlay(alignment: .topLeading) {
@@ -771,6 +796,12 @@ struct ComposerEditorOptions {
     var pasteAction: () -> ComposerPaste.Action
     var onPasteImages: () -> Void
     var onSend: () -> Void
+    /// 輸入列目前是收合的一列：沒內容時與有一行內容時都只佔一行高(#512)。
+    var isCollapsedLayout = false
+    /// 目前輸入框比「收合時的寬度」多出的寬度:量行數一律以收合時的寬度為準，形態切換不會讓量測結果跟著變(#512)。
+    var measureWidthReduction: CGFloat = 0
+    /// 內容需要的行數變了(含組字中的字);在排版之後回報。
+    var onLineMeasure: (ComposerLineMeasure) -> Void = { _ in }
 }
 
 #if canImport(UIKit)
@@ -821,6 +852,9 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.inlineSlashNames = options.inlineSlashNames
         view.pasteAction = options.pasteAction
         view.onPasteImages = options.onPasteImages
+        view.onLineMeasure = options.onLineMeasure
+        view.isCollapsedLayout = options.isCollapsedLayout
+        view.measureWidthReduction = options.measureWidthReduction
         // 程式改寫草稿：組字中延後到組字結束，不打斷正在組的字(#138)。
         if view.text != text,
            let applied = context.coordinator.overwrite.request(text, current: view.text, isComposing: view.markedTextRange != nil) {
@@ -939,10 +973,44 @@ final class KeyHandlingTextView: UITextView {
     /// 鍵盤上方可用高度：視窗安全區域內、鍵盤以上;iPad 分割畫面依當下視窗。
     private(set) var availableHeight: CGFloat?
     var onAvailableHeightChange: ((CGFloat?) -> Void)?
+    var onLineMeasure: ((ComposerLineMeasure) -> Void)?
+    private var reportedMeasure: ComposerLineMeasure?
+
+    /// 輸入列收合時沒有內容與一行內容都只佔一行高;展開才有兩行的底(#187、#512)。
+    var isCollapsedLayout = false {
+        didSet { if oldValue != isCollapsedLayout { invalidateIntrinsicContentSize(); setNeedsLayout() } }
+    }
+
+    /// 量行數時要從寬度扣掉的值(展開時比收合時寬出的部分)。
+    var measureWidthReduction: CGFloat = 0 {
+        didSet { if oldValue != measureWidthReduction { contentDidChange() } }
+    }
+
+    /// 內容以「收合時的寬度」排版需要幾行(組字中的字也算);單行時一併回報填滿的比例(遲滯用)。
+    func lineMeasure() -> ComposerLineMeasure {
+        let width = bounds.width - measureWidthReduction - textContainerInset.left - textContainerInset.right
+            - 2 * textContainer.lineFragmentPadding
+        guard !text.isEmpty, width > 1 else { return .empty }
+        let font = font ?? .preferredFont(forTextStyle: .body)
+        let rect = (text as NSString).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font], context: nil)
+        let lines = max(1, Int((rect.height / font.lineHeight).rounded()))
+        return ComposerLineMeasure(lines: lines, fill: lines == 1 ? min(1, Double(rect.width / width)) : 1)
+    }
+
+    private func reportLineMeasure() {
+        let measure = lineMeasure()
+        guard measure != reportedMeasure else { return }
+        reportedMeasure = measure
+        // 在排版中:等這次更新結束再寫 SwiftUI 狀態。
+        let report = onLineMeasure
+        DispatchQueue.main.async { report?(measure) }
+    }
 
     /// 依目前字級與可用高度，內容高 `contentHeight` 時輸入框的高度與是否內捲(#137)。
     func sizing(contentHeight: CGFloat) -> ComposerHeight {
-        ComposerSizing.height(metrics(contentHeight: contentHeight), isEmpty: text.isEmpty, availableHeight: availableHeight.map(Double.init))
+        ComposerSizing.height(metrics(contentHeight: contentHeight), isEmpty: text.isEmpty || isCollapsedLayout, availableHeight: availableHeight.map(Double.init))
     }
 
     /// 目前字級與內距下，內容高 `contentHeight` 的量測。
@@ -1063,6 +1131,7 @@ final class KeyHandlingTextView: UITextView {
         needsCaretFollow = false
         measuredSize = bounds.size
         let contentHeight = sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
+        reportLineMeasure()
         let scrolls = sizing(contentHeight: contentHeight).scrolls || contentHeight > bounds.height + 0.5
         if isScrollEnabled != scrolls { isScrollEnabled = scrolls }
         if scrolls { scrollCaretIntoView(contentHeight: contentHeight) }

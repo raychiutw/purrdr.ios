@@ -59,6 +59,12 @@ struct ComposerCardLayout: Layout {
         return max(0, width - 2 * Self.sideInset - controls)
     }
 
+    /// 收合的輸入框比展開的窄多少(輸入框以收合時的寬度量行數，#512)。
+    static func collapsedWidthReduction(hasAttach: Bool) -> CGFloat {
+        let controls = (hasAttach ? control + gap : 0) + control + gap
+        return 2 * sideInset + controls - 2 * editorInset
+    }
+
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let attach = subview(.attach, in: subviews)
         let editor = subview(.editor, in: subviews)
