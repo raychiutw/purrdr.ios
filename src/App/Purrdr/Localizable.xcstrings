@@ -626,17 +626,6 @@
         }
       }
     },
-    "%lld other Agents need you" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "另外 %lld 個 Agent 需要你"
-          }
-        }
-      }
-    },
     "%lld panes" : {
       "extractionState" : "manual",
       "localizations" : {

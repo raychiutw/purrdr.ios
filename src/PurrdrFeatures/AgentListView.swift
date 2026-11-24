@@ -162,7 +162,6 @@ public struct AgentListView: View {
                 makeTerminal: makeTerminal.map { make in
                     { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
                 },
-                otherNeedsYou: model.needsYouCount(excluding: route),
                 layoutSnapshot: { [model] in model.snapshot(for: route.host) },
                 openLayoutTarget: { [model] target in
                     switch target {
@@ -372,23 +371,6 @@ public struct AgentListView: View {
     }
 }
 
-/// 對話返回鈕旁的小數字:其他「需要你」的 Agent 數。
-struct OtherNeedsYouCount: View {
-    let count: Int
-
-    var body: some View {
-        Text(count, format: .number)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .frame(minWidth: 22, minHeight: 22)
-            .background(.red, in: Capsule())
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text("\(count) other Agents need you"))
-            .accessibilityIdentifier("conversation.otherNeedsYou")
-    }
-}
-
 /// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
 ///
 /// `window` 有值時(split view 的對話欄)，終端機推入與否也記在視窗的導覽狀態(Command-Shift-T 也能打開);
@@ -402,8 +384,6 @@ struct ConversationScreen: View {
     @State private var terminal: PaneTerminalModel?
     /// 推入中的變更頁(#310)。
     @State private var changes: ChangesModel?
-    /// 其他「需要你」的 Agent 數(返回鈕旁的數字,#390);0 不顯示。
-    let otherNeedsYou: Int
     /// 更多選單的「顯示版面」(#381):讀聊天所在主機的 snapshot(開啟當下，不即時更新);沒有時不顯示這一項。
     let layoutSnapshot: (@MainActor () -> HostSnapshot?)?
     /// 版面圖選了 Pane 之後的動作(開那個 Pane)。
@@ -422,10 +402,9 @@ struct ConversationScreen: View {
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
-        window: TopNavigationModel? = nil, route: ChatRoute? = nil, otherNeedsYou: Int = 0,
+        window: TopNavigationModel? = nil, route: ChatRoute? = nil,
         layoutSnapshot: (@MainActor () -> HostSnapshot?)? = nil, openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)? = nil
     ) {
-        self.otherNeedsYou = otherNeedsYou
         self.layoutSnapshot = layoutSnapshot
         self.openLayoutTarget = openLayoutTarget
         _model = State(wrappedValue: model())
@@ -438,14 +417,6 @@ struct ConversationScreen: View {
         ConversationView(model: model)
             .hidesTabBarWhenCompact()
             .toolbar {
-                #if os(iOS)
-                if otherNeedsYou > 0 {
-                    // 返回鈕旁:其他需要你的 Agent 數(HIG:重要資訊的 badge);VoiceOver 念「另外 N 個 Agent 需要你」。
-                    ToolbarItem(placement: .topBarLeading) {
-                        OtherNeedsYouCount(count: otherNeedsYou)
-                    }
-                }
-                #endif
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItemGroup(placement: .primaryAction) {
                     if let usageSummary {
