@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>現況 0.51 iPad</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.win{width:1180px;height:820px;box-sizing:border-box;border-radius:24px;overflow:hidden;position:relative;background:#fff;font-family:-apple-system,"SF Pro Text","PingFang TC",system-ui,sans-serif;color:#000;display:flex;font-size:15px}
+.dots{position:absolute;left:22px;top:22px;display:flex;gap:8px;z-index:9}
+.dots span{width:12px;height:12px;border-radius:6px;display:block}
+.glassbg{background:rgba(246,246,250,.82);backdrop-filter:blur(30px);box-shadow:0 0 0 .5px rgba(0,0,0,.08),0 4px 20px rgba(0,0,0,.10)}
+.tabbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:4px;border-radius:24px;z-index:8}
+.tab{border:0;background:none;font-family:inherit;font-size:14px;padding:8px 16px;border-radius:20px;color:#000;min-height:38px;display:flex;align-items:center;gap:6px}
+.tab.on{background:#fff;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.10)}
+.side{position:absolute;left:8px;top:8px;bottom:8px;width:230px;border-radius:22px;padding:64px 10px 10px;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;z-index:2}
+.sec{font-size:13px;color:#636366;margin:12px 10px 4px;font-weight:600}
+.srow{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:0;background:none;font-family:inherit;font-size:15px;text-align:left;color:#000;min-height:40px}
+.srow.on{background:rgba(0,0,0,.07);font-weight:600}
+.col{margin-left:246px;width:340px;flex:none;border-right:1px solid #E5E5EA;display:flex;flex-direction:column;padding-top:60px}
+.det{flex:1;display:flex;flex-direction:column;min-width:0;padding-top:60px;position:relative}
+.bar{display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;min-height:52px}
+.big{font-size:34px;font-weight:700;margin-right:auto}
+.cap{display:flex;align-items:center;height:44px;border-radius:22px;padding:0 6px}
+.cap button{width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0}
+.vr{width:1px;height:22px;background:rgba(0,0,0,.15)}
+.av44{width:44px;height:44px;border-radius:22px;border:0;font-weight:700;font-size:17px;font-family:inherit;color:#000}
+.search{margin:6px 16px 8px;height:40px;border-radius:20px;background:#EFEFF0;display:flex;align-items:center;gap:8px;padding:0 14px;color:#636366}
+.gh{font-size:13px;color:#636366;margin:16px 16px 4px;display:flex;align-items:center;gap:6px}
+.row{display:flex;gap:12px;padding:12px 16px;align-items:center;position:relative}
+.row.on{background:#E5E5EA}
+.ava{width:44px;height:44px;border-radius:12px;background:#F6E3D9;color:#A0471C;font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;position:relative;flex:none}
+.sd{position:absolute;right:-4px;bottom:-4px;width:12px;height:12px;border-radius:6px;box-shadow:0 0 0 2px #fff}
+.l1{font-size:17px;font-weight:600}
+.l2{font-size:15px}
+.l3{font-size:14px;color:#636366;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt{margin-left:auto;text-align:right;font-size:13px;color:#636366;flex:none;align-self:flex-start}
+.titlecap{margin:0 auto;height:48px;border-radius:24px;padding:0 18px;display:flex;flex-direction:column;justify-content:center;align-items:center}
+.bub{max-width:76%;padding:10px 14px;border-radius:18px;line-height:1.45}
+.me{align-self:flex-end;background:#E9E9EB}
+.ai{align-self:flex-start;background:#F4F4F6}
+.comp{margin:10px 16px 16px;border-radius:26px;padding:6px;display:flex;align-items:center;gap:8px;color:#636366}
+.rb{width:40px;height:40px;border-radius:20px;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0}
+.send{background:#0B7A5C}
+code{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.mark{position:absolute;width:26px;height:26px;border-radius:13px;background:#D6336C;color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:10;box-shadow:0 0 0 3px #fff}
+</style>
+</helmet>
+<div class="win">
+  <div class="dots" aria-hidden="true"><span style="background:#FF5F57"></span><span style="background:#FEBC2E"></span><span style="background:#28C840"></span></div>
+  <nav class="tabbar glassbg" aria-label="tab bar">
+    <button class="tab on">聊天</button><button class="tab">檔案</button><button class="tab">主機</button><button class="tab">流量</button>
+  </nav>
+  <div class="mark" style="left:600px;top:14px">1</div>
+  <nav class="side glassbg" aria-label="側欄">
+    <div class="sec">主機</div>
+    <button class="srow on">Studio Mac<span style="margin-left:auto">✓</span></button>
+    <button class="srow">Build Box</button>
+    <button class="srow">範例主機</button>
+    <div class="sec">Workspaces</div>
+    <button class="srow on">所有 Workspace</button>
+    <button class="srow">ledger<span style="margin-left:auto;color:#636366">▥</span></button>
+    <button class="srow">weather-app<span style="margin-left:auto;color:#636366">▥</span></button>
+    <button class="srow">notes<span style="margin-left:auto;color:#636366">▥</span></button>
+  </nav>
+  <div class="mark" style="left:20px;top:110px">2</div>
+  <section class="col" aria-label="聊天列表">
+    <div class="bar"><div class="big">聊天</div>
+      <div class="cap glassbg"><button aria-label="顯示：Studio Mac"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#000" stroke-width="1.7" aria-hidden="true"><rect x="2.5" y="4" width="17" height="11" rx="1.5"/><path d="M7.5 18.5h7"/></svg></button><span class="vr"></span><button aria-label="新增聊天"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#000" stroke-width="1.9" aria-hidden="true"><path d="M11 4v14M4 11h14"/></svg></button></div>
+      <button class="av44 glassbg" aria-label="帳號">R</button>
+    </div>
+    <div class="mark" style="left:560px;top:66px">3</div>
+    <div class="search">搜尋 Tab、Workspace、主機</div>
+    <div class="gh">Studio Mac · ledger</div>
+    <div class="row on"><div class="ava">C<span class="sd" style="background:#fff;box-shadow:0 0 0 2px #E5E5EA,inset 0 0 0 2px #0B7A5C"></span></div><div style="min-width:0;flex:1"><div class="l1">Tab 1</div><div class="l2">CSV 匯出加引號</div><div class="l3">已改成 ISO 8601 日期…</div></div><div class="rt">15:12<br>42%</div></div>
+    <div class="gh">Studio Mac · weather-app</div>
+    <div class="row"><div class="ava">C<span class="sd" style="background:#FF9500"></span></div><div style="min-width:0;flex:1"><div class="l1">Tab 1</div><div class="l2">接上氣象 API</div><div class="l3">要我把 API key 存到 .env 嗎？</div></div><div class="rt">15:09<br>18%</div></div>
+    <div class="gh">Build Box · notes</div>
+    <div class="row"><div class="ava" style="background:#E4E4E8;color:#3A3A3C">X<span class="sd" style="background:#0B7A5C"></span></div><div style="min-width:0;flex:1"><div class="l1">Tab 2</div><div class="l2">整理標籤索引</div><div class="l3">正在讀 tags/index.md…</div></div><div class="rt">現在<br>55%</div></div>
+  </section>
+  <section class="det" aria-label="對話">
+    <div class="titlecap glassbg"><div style="font-weight:600">ledger ⌄</div><div style="font-size:12px;color:#636366">閒置 · Studio Mac</div></div>
+    <div class="mark" style="left:770px;top:66px">4</div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px;padding:16px 24px;overflow:hidden">
+      <div class="bub me">幫 CSV 匯出加上欄位引號，逗號不要把欄位切開</div>
+      <div class="bub ai">改好了：<code>CSVExport.swift</code> 會把含逗號、引號或換行的欄位包進雙引號，並新增 3 個測試，全部通過。</div>
+      <div class="bub me">順便把日期改成 2026-11-24 這種格式</div>
+      <div class="bub ai">已改成 ISO 8601 日期，匯出預覽在 <code>docs/export-preview.png</code>。</div>
+    </div>
+    <div class="comp glassbg"><button class="rb" aria-label="加入"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#000" stroke-width="1.8" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button><span>傳訊息給 ledger</span><button class="rb send" aria-label="送出" style="margin-left:auto"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><path d="M8 13V3M3 8l5-5 5 5"/></svg></button></div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":820}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

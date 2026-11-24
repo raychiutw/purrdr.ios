@@ -1,0 +1,25 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-24T10:00:00Z"},
+  "title": "Purrdr iPad 設計稿",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1180, "h": 820, "title": "現況(0.51):頂部 tab + 聊天 tab 內再三欄"},
+    "VariantA.dc.html": {"x": 1260, "y": 0, "w": 1180, "h": 820, "title": "A 側欄整合：tab 與 Workspace 同一個側欄"},
+    "VariantB.dc.html": {"x": 0, "y": 1140, "w": 1180, "h": 820, "title": "B 照 iPhone：頂部 tab + 兩欄 + Inspector"},
+    "VariantC.dc.html": {"x": 1260, "y": 1140, "w": 1180, "h": 820, "title": "C 工作台：聊天與終端機並排"},
+    "Windowed.dc.html": {"x": 0, "y": 2280, "w": 1366, "h": 1024, "title": "視窗化：中寬、窄、Pane 視窗與選單列"}
+  },
+  "order": ["Main.dc.html", "VariantA.dc.html", "VariantB.dc.html", "VariantC.dc.html", "Windowed.dc.html"],
+  "notes": {
+    "t1": {"x": 0, "y": -300, "text": "Purrdr iPad：依 iPadOS 27 HIG 重新看平板畫面(以 0.51 的四個 tab 為準)", "kind": "title1", "maxW": 2440},
+    "n27": {"x": 2520, "y": 0, "w": 720, "size": "m", "fill": "purple", "text": "照 iPadOS 27 修正的地方(一手來源見 docs/research/ipados26-design-language.md 的【27】)\n· 側欄延伸到視窗邊緣，不再內縮浮動(A、C)。\n· 側欄圖示恢復顏色，用 app 主色(A、C)。\n· 玻璃更霧化、邊緣加深(系統自動套用，不用改程式)。\n· 頭像貼滿玻璃圓鈕(contentMarginsRemoved)，釘在視窗右上(topBarPinnedTrailing，iPadOS 26 退回 topBarTrailing)。\n· 不在前景的視窗自動調暗圖示與文字；自訂元件用 appearsActive 跟著調暗(視窗化畫板的 Pane 視窗)。\n· 選單列預設不顯示圖示，只有代表物件的項目(例如主機)保留。\n· 頂列下方是一致的霧化帶(uniform toolbar)，不自畫色塊。\n· 現況畫板維持 0.51 原樣，當對照。"},
+    "n0": {"x": 0, "y": 860, "w": 1180, "size": "m", "fill": "gray", "text": "現況問題(0.51 整合分支)\n1. 導覽疊兩層：頂部 tab bar 下面，聊天 tab 裡又是一套「主機與 Workspace」側欄，再加列表與對話三欄。\n2. 主機選了兩次：側欄有「主機」清單，列表頂列又有電腦圖示(目前主機)，兩個值容易對不上。\n3. 寬螢幕上 Podcast 式大標題「聊天」只佔中間窄欄，頂列膠囊與頭像擠在 340pt 的欄裡。\n4. 標題膠囊面板(用量、context、模型、權限模式)在寬螢幕仍是彈出面板，右側空間沒用到。"},
+    "nA": {"x": 1260, "y": 860, "w": 1180, "size": "m", "fill": "green", "text": "A：TabView .sidebarAdaptable。\n· 同一個側欄：上面是四個 tab(聊天、檔案、主機、流量)，聊天下面展開「主機 · Workspace」(TabSection)，點了篩選 Spaces。收起側欄就變回頂部 tab bar。\n· 主機只剩一個入口：Workspace 段已標主機，列表頂列的電腦圖示保留(目前主機)。\n· 內容兩欄：Spaces 列表(共用頂列)＋對話。"},
+    "nB": {"x": 0, "y": 2000, "w": 1180, "size": "m", "fill": "blue", "text": "B：跟 iPhone 結構完全一樣。\n· 頂部 tab bar 四個 tab，沒有第三層側欄；聊天 tab 是兩欄：Spaces 列表＋對話。\n· 主機只看電腦圖示(目前主機)，Workspace 照 iPhone 用段落分組。\n· 對話右側加 Inspector：把標題膠囊面板的內容(用量、context、模型、權限模式、待辦)常駐；窄視窗自動變回面板 sheet。"},
+    "nC": {"x": 1260, "y": 2000, "w": 1180, "size": "m", "fill": "orange", "text": "C：工作台(適合外接鍵盤、大螢幕)。\n· 側欄直接放 Spaces 的 Tab 列(主機 · Workspace 分組)，少一欄。\n· 內容區把對話與 Pane 終端機並排，可切「只看對話／並排／只看終端機」。\n· 其他 tab 在側欄上方。風險：跟 iPhone 差最多、終端機要同時開連線。"},
+    "nW": {"x": 1446, "y": 2280, "w": 900, "size": "m", "fill": "gray", "text": "視窗化(iPadOS 26 視窗可自由調整大小)\n· 依可用寬度，不看裝置：寬 → 兩欄(＋Inspector)；中 → 兩欄；窄 → 一疊，跟 iPhone 一樣用底部 tab bar、對話隱藏 tab bar。\n· 視窗控制鈕在左上，頂列內容往右讓。\n· 選單列「Agent」選單列出所有指令與快捷鍵(標「新」的是提議)。"}
+  },
+  "designSystems": []
+}
