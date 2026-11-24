@@ -105,6 +105,9 @@ public final class MergedAgentListModel {
             if let currentHost { selectHost?(currentHost) }
         }
     }
+    /// 跨聊天「需要你」通知的輸出(返回鈕小點等);由 `run()` 驅動。
+    public let needsYou = NeedsYouNotifications()
+
     /// 目前主機改變時通知(主機清單接上，存到本機)。
     public var currentHostDidChange: (@MainActor (HostSelection?) -> Void)?
     /// 目前主機是某台主機時，把它設成選取中主機(主機清單接上)。
@@ -360,6 +363,8 @@ public final class MergedAgentListModel {
     public func run() async {
         let lists = sources.map(\.list)
         await withTaskGroup(of: Void.self) { group in
+            // 跨聊天「需要你」通知(#529):每個視窗都跑,apply 是冪等的。
+            group.addTask { await self.needsYou.run(observing: self) }
             for list in lists { group.addTask { await list.liveUpdates.attach() } }
         }
     }

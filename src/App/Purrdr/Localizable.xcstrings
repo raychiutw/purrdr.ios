@@ -2045,6 +2045,17 @@
         }
       }
     },
+    "Back, %lld other chats need you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回，另外 %lld 個聊天需要你"
+          }
+        }
+      }
+    },
     "Background Agents" : {
       "extractionState" : "manual",
       "localizations" : {

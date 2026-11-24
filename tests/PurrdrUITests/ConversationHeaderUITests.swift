@@ -28,6 +28,17 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10), "下拉重新整理後沒有重讀對話")
     }
 
+    /// 其他聊天需要你(#529):開 ledger(w1:p1)時,Demo 的 weather-app(w2:p1)正等著,返回鈕疊小點、VoiceOver 念出數量。
+    @MainActor
+    func testBackButtonShowsDotWhenOtherChatNeedsYou() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
+        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))
+
+        let back = app.element("conversation.back")
+        XCTAssertTrue(back.waitUntilExists(timeout: 10), "其他聊天需要你時返回鈕沒有小點")
+        XCTAssertTrue(back.label.contains("1"), "標籤沒有帶數量:\(back.label)")
+    }
+
     /// 工作中(#220):輸入卡片最上面有停止列，送出鈕照舊。
     /// 點停止送 Esc:停止中按鈕念「Stopping…」且停用，停下後顯示「Stopped」,約 2 秒後停止列收起、工作中指示消失。
     @MainActor

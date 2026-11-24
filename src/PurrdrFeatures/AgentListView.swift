@@ -1,6 +1,9 @@
 import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// 聊天 tab 頂列的動作(#499):由 `TopNavigationView` 提供,列表本身不知道有哪些 sheet。
 package struct ChatTopBarActions {
@@ -163,6 +166,7 @@ public struct AgentListView: View {
                 makeTerminal: makeTerminal.map { make in
                     { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
                 },
+                needsYou: model.needsYou,
                 layoutSnapshot: { [model] in model.snapshot(for: route.host) },
                 openLayoutTarget: { [model] target in
                     switch target {
@@ -380,6 +384,10 @@ struct ConversationScreen: View {
     @State private var terminal: PaneTerminalModel?
     /// 推入中的變更頁(#310)。
     @State private var changes: ChangesModel?
+    /// 跨聊天「需要你」通知(#529):其他聊天需要你時,窄視窗的返回鈕疊一顆小點。
+    let needsYou: NeedsYouNotifications?
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var sizeClass
     /// 更多選單的「顯示版面」(#381):讀聊天所在主機的 snapshot(開啟當下，不即時更新);沒有時不顯示這一項。
     let layoutSnapshot: (@MainActor () -> HostSnapshot?)?
     /// 版面圖選了 Pane 之後的動作(開那個 Pane)。
@@ -398,9 +406,10 @@ struct ConversationScreen: View {
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
-        window: TopNavigationModel? = nil, route: ChatRoute? = nil,
+        window: TopNavigationModel? = nil, route: ChatRoute? = nil, needsYou: NeedsYouNotifications? = nil,
         layoutSnapshot: (@MainActor () -> HostSnapshot?)? = nil, openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)? = nil
     ) {
+        self.needsYou = needsYou
         self.layoutSnapshot = layoutSnapshot
         self.openLayoutTarget = openLayoutTarget
         _model = State(wrappedValue: model())
@@ -412,6 +421,9 @@ struct ConversationScreen: View {
     var body: some View {
         ConversationView(model: model)
             .hidesTabBarWhenCompact()
+            #if os(iOS)
+            .modifier(OtherNeedsYouBackButton(count: sizeClass == .compact ? needsYou?.others.count ?? 0 : 0, dismiss: { dismiss() }))
+            #endif
             .toolbar {
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -658,3 +670,48 @@ private struct SelectionFillModifier: ViewModifier {
             .listRowBackground(isSelected ? Rectangle().fill(.neutralSelection) : nil)
     }
 }
+
+#if os(iOS)
+/// 其他聊天需要你時(#529),窄視窗的返回鈕右上疊一顆 10pt 系統橙小點;沒有需要你的聊天就是系統原本的返回鈕。
+/// 小點疊在鈕上、不改鈕的寬度。換成自己的返回鈕時補回邊緣滑動返回。
+private struct OtherNeedsYouBackButton: ViewModifier {
+    let count: Int
+    let dismiss: () -> Void
+
+    func body(content: Content) -> some View {
+        if count > 0 {
+            content
+                .navigationBarBackButtonHidden(true)
+                .background(SwipeBackEnabler())
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: dismiss) {
+                            Image(systemName: "chevron.backward")
+                                .overlay(alignment: .topTrailing) {
+                                    Circle().fill(.orange).frame(width: 10, height: 10).offset(x: 8, y: -8)
+                                }
+                        }
+                        .accessibilityLabel(Text("Back, \(count) other chats need you"))
+                        .accessibilityIdentifier("conversation.back")
+                    }
+                }
+        } else {
+            content
+        }
+    }
+}
+
+/// 隱藏系統返回鈕後，navigation controller 預設會關掉邊緣滑動返回;這裡打開它。
+private struct SwipeBackEnabler: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+    func updateUIViewController(_ controller: Controller, context: Context) {}
+
+    final class Controller: UIViewController {
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            navigationController?.interactivePopGestureRecognizer?.delegate = nil
+            navigationController?.interactivePopGestureRecognizer?.isEnabled = true
+        }
+    }
+}
+#endif
