@@ -30,6 +30,15 @@ public struct AgentProgress: Sendable, Equatable {
     /// 讀到超過 200k 的 token 數就確定是 1M 視窗；之後壓縮降回 200k 以下也維持。
     private var sawOneMillionWindow = false
 
+    /// 這次解析時讀到的 context token 數(沒讀到是 `nil`)。
+    public var contextTokens: Int? { tokens }
+
+    /// context 視窗上限(token 數):紀錄帶的上限優先,否則依模型與是否看過超過 200k 判斷;還沒有 token 數也沒有上限時是 `nil`。
+    public var contextLimit: Int? {
+        guard tokens != nil || window != nil else { return nil }
+        return window ?? (sawOneMillionWindow ? Self.oneMillionWindow : Self.contextWindow(forModel: model))
+    }
+
     public var todoDone: Int { todos.filter { $0.status == .completed }.count }
     public var todoTotal: Int { todos.count }
 
@@ -61,8 +70,7 @@ public struct AgentProgress: Sendable, Equatable {
         dialect.updateProgress(&self, object: object, line: line)
         if let tokens {
             if tokens > Self.standardWindow { sawOneMillionWindow = true }
-            let limit = window ?? (sawOneMillionWindow ? Self.oneMillionWindow : Self.contextWindow(forModel: model))
-            contextPercent = min(100, max(0, Int((Double(tokens) * 100 / Double(limit)).rounded())))
+            contextPercent = min(100, max(0, Int((Double(tokens) * 100 / Double(contextLimit ?? Self.standardWindow)).rounded())))
         }
     }
 

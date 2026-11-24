@@ -86,4 +86,19 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertTrue(app.element("conversation.header").label.contains("Needs"), "應該是需要你")
         XCTAssertFalse(app.element("stopBar").exists, "需要你不該有停止列")
     }
+
+    /// 用量環(#513):點開用量 sheet(Context 與方案用量區塊),X 關閉。
+    @MainActor
+    func testUsageRingOpensUsageSheet() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
+        let ring = app.buttons["conversation.usage"].firstMatch
+        XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
+
+        ring.tap()
+
+        XCTAssertTrue(app.element("usage.sheet").waitUntilExists(timeout: 5), "點用量環沒有開出用量 sheet")
+        XCTAssertTrue(app.element("usage.sheet.refresh").exists, "沒有重新整理")
+        app.buttons["usage.sheet.close"].tap()
+        XCTAssertTrue(app.element("usage.sheet").waitUntilGone(timeout: 5), "X 之後用量 sheet 還在")
+    }
 }

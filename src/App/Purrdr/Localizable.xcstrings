@@ -127,6 +127,17 @@
         }
       }
     },
+    "%@ of %@ tokens" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@／%2$@ Token"
+          }
+        }
+      }
+    },
     "%@ per %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3259,6 +3270,17 @@
         }
       }
     },
+    "Context" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context"
+          }
+        }
+      }
+    },
     "Context %lld%%" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4289,6 +4311,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前使用中"
+          }
+        }
+      }
+    },
+    "Current Session" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前工作階段"
           }
         }
       }
@@ -6716,6 +6749,17 @@
         }
       }
     },
+    "Loading plan usage…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在讀取用量⋯"
+          }
+        }
+      }
+    },
     "Loading…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9026,6 +9070,17 @@
         }
       }
     },
+    "Plan usage isn’t available for this agent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Agent 沒有方案用量。"
+          }
+        }
+      }
+    },
     "Plan usage isn’t available for this connection method" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9825,6 +9880,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "兌換代碼"
+          }
+        }
+      }
+    },
+    "Refresh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新整理"
           }
         }
       }
@@ -11134,6 +11200,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示用量與權限模式。"
+          }
+        }
+      }
+    },
+    "Shows usage details." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟用量詳情。"
           }
         }
       }
@@ -13120,6 +13197,17 @@
         }
       }
     },
+    "This Chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個聊天"
+          }
+        }
+      }
+    },
     "This Device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13259,6 +13347,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上的對話已變更，沒有送出任何內容。"
+          }
+        }
+      }
+    },
+    "This chat hasn’t reported context yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個聊天還沒有回報 Context。"
           }
         }
       }
@@ -15079,6 +15178,17 @@
         }
       }
     },
+    "Updated %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新時間:%@"
+          }
+        }
+      }
+    },
     "Updated to %@." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15134,6 +15244,17 @@
         }
       }
     },
+    "Usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量"
+          }
+        }
+      }
+    },
     "Usage Capture" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15152,6 +15273,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用量顯示"
+          }
+        }
+      }
+    },
+    "Usage: %@ %lld%%" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量:%1$@ %2$lld%%"
+          }
+        }
+      }
+    },
+    "Usage: %@ %lld%% left" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量:%1$@ 剩餘 %2$lld%%"
           }
         }
       }
@@ -15460,6 +15603,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "7 天"
+          }
+        }
+      }
+    },
+    "Weekly Limit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每週"
           }
         }
       }

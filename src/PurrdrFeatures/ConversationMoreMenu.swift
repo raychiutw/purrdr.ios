@@ -34,6 +34,7 @@ struct ConversationMoreMenu: View {
             }
         } label: {
             Label("More", systemImage: "ellipsis")
+                .labelStyle(.iconOnly)
         }
         .frame(minWidth: 44, minHeight: 44)    // 觸控範圍 ≥ 44pt
         .accessibilityIdentifier("conversation.more")
