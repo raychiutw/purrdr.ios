@@ -5,13 +5,11 @@ import SwiftUI
 /// 一個視窗的頂層導覽(#37 故事 21、#31)。
 ///
 /// 底部 4 個 tab:聊天、檔案、主機、流量(#376;設定併進帳號 sheet,#503);帳號與設定、新增聊天、付費牆與歡迎頁以 sheet 開啟。
-/// 聊天 tab 是三欄 `NavigationSplitView`:主機與 workspace → Agent 列表 → 對話。依可用寬度排版(size class,不看裝置):
-/// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)收合成一疊，從 Agent 列表開始，點列推入對話(對話與終端機隱藏 tab bar)。
+/// 聊天 tab 依可用寬度排版(size class,不看裝置):寬視窗是三欄 `NavigationSplitView`(主機與 workspace → Agent 列表 → 對話);
+/// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)是 `NavigationStack`,從 Agent 列表開始，點列推入對話(對話與終端機隱藏 tab bar)。
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
 public struct TopNavigationView: View {
     @State private var navigation = TopNavigationModel()
-    /// 窄視窗收合時顯示哪一欄：從 Agent 列表開始。
-    @State private var compactColumn = NavigationSplitViewColumn.content
     /// 預設不隱藏側欄(HIG Sidebars);使用者可以邊緣滑動收起。
     @State private var columns = NavigationSplitViewVisibility.all
     let hosts: HostsModel
@@ -54,7 +52,7 @@ public struct TopNavigationView: View {
             .environment(\.usageSections, UsageSectionContext(hosts: hosts))
             .onChange(of: hosts.selection) { navigation.hostChanged() }
             .onChange(of: sizeClass, initial: true) { _, sizeClass in
-                if sizeClass == .compact { navigation.workspaceFilter = nil }
+                navigation.layoutChanged(isCompact: sizeClass == .compact)
             }
             // 選單列與快捷鍵作用在有焦點的視窗(`PurrdrCommands`)。
             .focusedSceneValue(\.windowCommands, windowCommands)
@@ -166,18 +164,43 @@ public struct TopNavigationView: View {
             closeLayoutCard: { card.close() })
     }
 
-    /// 三欄(窄視窗收合成一疊)。
+    /// 聊天 tab:窄視窗是一般 `NavigationStack`(列表為根、聊天推入,轉場與主機 tab 的子頁一樣順),
+    /// 寬視窗是三欄。選取的聊天(`navigation.selectedChat`)兩種排版共用,縮放視窗時不丟失。
+    @ViewBuilder
+    private var chatsRoot: some View {
+        if sizeClass == .compact {
+            compactStack
+        } else {
+            splitView
+        }
+    }
+
+    /// 窄視窗:Agent 列表為根,選到的聊天(對話或 Pane 終端機)推入;返回時選取清成 `nil`。
+    private var compactStack: some View {
+        @Bindable var navigation = navigation
+        return NavigationStack {
+            agentList
+                .overlay(alignment: .topLeading) {
+                    LayoutCardOverlay(
+                        card: navigation.layoutCard, snapshot: hosts.agentList.snapshot(for: hosts.selection), onChoose: openLayoutTarget)
+                }
+                .navigationDestination(item: $navigation.selectedChat) { route in
+                    WindowDetailContent(hosts: hosts, navigation: navigation, route: route)
+                        .appNavigationBackground()
+                        // 換一個聊天(鍵盤切換、版面圖選 Pane)就整個重建(對話 model、推入的終端機)。
+                        .id(route)
+                }
+        }
+    }
+
+    /// 三欄(寬視窗)。
     private var splitView: some View {
         let navigation = navigation
-        return NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $compactColumn) {
+        return NavigationSplitView(columnVisibility: $columns) {
             WindowSidebar(hosts: hosts, navigation: navigation)
         } content: {
             // 所有主機合併的 Agent 列表(#39)。換選取中主機不重建列表，只改排序與主機名標示。
             agentList
-                #if os(iOS)
-                // 窄視窗不顯示回到側欄的返回鈕:頂層導覽是 tab bar;workspace 篩選只在側欄看得到時套用。
-                .navigationBarBackButtonHidden(sizeClass == .compact)
-                #endif
                 .overlay(alignment: .topLeading) {
                     LayoutCardOverlay(
                         card: navigation.layoutCard, snapshot: hosts.agentList.snapshot(for: hosts.selection), onChoose: openLayoutTarget)
@@ -229,7 +252,7 @@ let topBar = ChatTopBarActions(
         TabView(selection: $navigation.tab) {
             Tab("Chats", systemImage: "bubble.left.and.bubble.right.fill", value: TopLevelTab.chats) {
                 // 選取中主機的主題(#23)只套在聊天 tab 的側欄、列表、對話與終端機。
-                splitView
+                chatsRoot
                     .selectedHostTheme(hosts)
                     .tint(ProminentFillStyle())
             }
