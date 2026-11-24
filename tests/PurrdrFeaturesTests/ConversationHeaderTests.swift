@@ -131,12 +131,9 @@ struct ConversationHeaderTests {
         #expect(setup.model.agentStatus != .working)
         #expect(!setup.model.canStop)
         #expect(!setup.model.canForceQuit)
-        // 斷線前在工作：離線橫幅說明重新連上後才能停止;連上後拿掉。
-        #expect(setup.model.stopNeedsReconnect)
 
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
-        #expect(!setup.model.stopNeedsReconnect)
         #expect(setup.model.canStop)
     }
 
@@ -152,7 +149,6 @@ struct ConversationHeaderTests {
         await setup.model.poll()
 
         #expect(setup.model.isOffline)
-        #expect(!setup.model.stopNeedsReconnect)
     }
 
     /// #371:對照 `ConversationUITests` 刪掉的斷網 UI 測試(「需要你」的 agent、沒有對話紀錄的 Codex):
@@ -192,7 +188,6 @@ struct ConversationHeaderTests {
 
         #expect(setup.model.isOffline)
         #expect(setup.model.banner == .offline)
-        #expect(setup.model.stopNeedsReconnect)
     }
 
     // MARK: - 重新載入與停止

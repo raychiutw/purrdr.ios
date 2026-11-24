@@ -181,8 +181,8 @@ extension MergedAgentListModel {
 /// 頂部橫幅要畫的內容(#530)。
 public struct NeedsYouBannerContent: Equatable, Sendable {
     public var route: ChatRoute
-    /// Agent 種類(herdr 原文;頭像用)。
-    public var kind: String
+    /// Agent 種類(頭像用)。
+    public var kind: AgentID
     public var workspace: String
     /// 目前需要你的聊天總數(含它)。
     public var total: Int
@@ -207,7 +207,8 @@ extension MergedAgentListModel {
             .first { $0.paneID == banner.chat.paneID }
         let text = source.list.previews[banner.chat.paneID]?.text.trimmingCharacters(in: .whitespacesAndNewlines)
         return NeedsYouBannerContent(
-            route: banner.chat, kind: row?.kind ?? agent.kind, workspace: row?.workspace ?? banner.chat.paneID,
+            route: banner.chat, kind: AgentID(herdrName: row?.kind ?? agent.kind),
+            workspace: row?.workspace ?? String(localized: "Chat"),
             total: banner.total, message: text?.isEmpty == false ? text : nil)
     }
 }

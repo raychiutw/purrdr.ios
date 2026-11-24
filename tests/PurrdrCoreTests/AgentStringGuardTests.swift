@@ -6,6 +6,11 @@ import Testing
 ///
 /// herdr 回報的 `agent` 字串只在 `AgentID(herdrName:)` 轉成種類;之後一律比對 `AgentID` 或問 `AgentCatalog` 的設定檔。
 /// 這個測試掃 `src/` 全部原始碼:出現「拿 Agent 名稱字面值做比較」(`== "claude"`、`case "codex"`…)就失敗,
+/// 另外掃「寫在 Swift 字串裡的 shell 腳本」的 `claude)`／`pi|codex)` 這類 case 分支(#549):
+/// 腳本是主機端的協定,種類字串無法在腳本裡問 `AgentCatalog`,所以逐一列在 `allowedShellCases` 並說明理由。
+/// **續接參數**(`SSHResumeRequests` 的 `--resume <id>`／`resume <id>`)是 Agent CLI 自己的語法,
+/// 以 `AgentID` 的 `switch` 分派、不比對字串,所以不在掃描範圍;它是已知的寫死處,與主機服務(Rust)的做法一致,
+/// 要新增能續接的 Agent 時在那裡加 case(`resumeKind` 設定檔欄位已限制哪些種類能走到)。
 /// 白名單只有設定檔本身(`AgentProfile.swift`,別名表與設定檔都在那裡)與 schema 產生的協定型別。
 @Suite("Agent 字串比對守門")
 struct AgentStringGuardTests {
@@ -15,6 +20,17 @@ struct AgentStringGuardTests {
     /// 字面值剛好是 Agent 名稱、但不是 Agent 種類的少數地方(連同理由)。新增前先確認真的不是 Agent 種類。
     static let allowedLines: [(file: String, literal: String, reason: String)] = [
         ("WindowsErrorText.swift", "amp", "XML 實體 `&amp;`,不是 amp 這個 Agent"),
+    ]
+
+    /// 寫在 Swift 字串裡的 shell 腳本中,以 Agent 種類分流的 case 分支(連同理由)。新增前先確認腳本真的需要分流。
+    static let allowedShellCases: [(file: String, literal: String, reason: String)] = [
+        ("TranscriptCommand.swift", "claude", "對話紀錄腳本依種類分流找檔;種類值由呼叫端以參數傳入"),
+        ("TranscriptCommand.swift", "codex", "同上"),
+        ("TranscriptCommand.swift", "grok", "同上"),
+        ("TranscriptCommand.swift", "agy", "同上"),
+        ("TranscriptCommand.swift", "pi", "同上"),
+        ("SSHSessionHistory.swift", "claude", "session 清單腳本依種類找資料夾(參數是 `resumeKind` 的正式名稱)"),
+        ("SSHSessionHistory.swift", "codex", "同上"),
     ]
 
     /// 要擋的名稱:herdr 的正式名稱、別名與舊版誤用拼法。
@@ -71,6 +87,54 @@ struct AgentStringGuardTests {
             }
         }
         #expect(problems.isEmpty, "\(problems)")
+    }
+
+    /// 找出 shell `case` 分支(`claude)`、`pi|pipath|codex)`)裡的 Agent 名稱。
+    static func shellCaseViolations(inSource source: String) -> [(line: Int, literal: String)] {
+        let alternatives = names.map(NSRegularExpression.escapedPattern(for:)).joined(separator: "|")
+        guard let pattern = try? NSRegularExpression(pattern: "^\\s*((?:[A-Za-z0-9_-]+\\|)*(?:[A-Za-z0-9_-]+))\\)\\s*(?:;;.*|[^\\s].*)?$"),
+              let name = try? NSRegularExpression(pattern: "^(?:\(alternatives))$") else { return [] }
+        var found: [(line: Int, literal: String)] = []
+        for (index, text) in source.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let line = String(text)
+            guard let match = pattern.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                  let range = Range(match.range(at: 1), in: line) else { continue }
+            for part in line[range].split(separator: "|") where name.firstMatch(in: String(part), range: NSRange(location: 0, length: part.utf16.count)) != nil {
+                found.append((index + 1, String(part)))
+            }
+        }
+        return found
+    }
+
+    @Test("字串裡的 shell 腳本沒有未登記的 Agent 種類分支")
+    func noUnlistedShellCases() throws {
+        var problems: [String] = []
+        for file in Self.sourceFiles where !Self.allowedFiles.contains(file.lastPathComponent) {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            for hit in Self.shellCaseViolations(inSource: source) {
+                if Self.allowedShellCases.contains(where: { $0.file == file.lastPathComponent && $0.literal == hit.literal }) { continue }
+                problems.append("\(file.lastPathComponent):\(hit.line) shell case \"\(hit.literal)\"(請改用參數傳入,或登記進 allowedShellCases 並寫理由)")
+            }
+        }
+        #expect(problems.isEmpty, "\(problems)")
+    }
+
+    @Test("shell case 掃描器抓得到單一與多個種類,不誤判其他分支")
+    func shellScannerRecognizesPatterns() {
+        let source = """
+        case $t in
+        claude)
+        @X@
+        ;;
+        pi|pipath|codex)
+        echo
+        ;;
+        whole)
+        *)
+        esac
+        """
+        let hits = Self.shellCaseViolations(inSource: source).map { "\($0.line):\($0.literal)" }
+        #expect(hits == ["2:claude", "5:pi", "5:codex"], "\(hits)")
     }
 
     @Test("掃描器抓得到各種比對寫法，不誤判註解與一般字串")

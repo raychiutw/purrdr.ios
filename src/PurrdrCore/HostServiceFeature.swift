@@ -49,9 +49,6 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case tabCreate
     /// 關閉 Tab `tab.close`(raychiutw/purrdr.host#91,0.15.0;最後一個 Tab 會連 Workspace 一起關,仍回成功)。
     case tabClose
-    /// `agent.start.result` 的 `launch_pending`(raychiutw/purrdr.host#92,0.15.0):主機服務等過 agent 就緒才回。
-    /// 更舊的主機服務不帶這個欄位,app 一律當就緒;不擋送出,只供畫面判斷。
-    case agentStartLaunchState
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -79,7 +76,6 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .tabRename: HostServiceVersion(0, 13, 1)
         case .tabCreate: HostServiceVersion(0, 15, 0)
         case .tabClose: HostServiceVersion(0, 15, 0)
-        case .agentStartLaunchState: HostServiceVersion(0, 15, 0)
         }
     }
 

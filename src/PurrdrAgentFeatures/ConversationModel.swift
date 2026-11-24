@@ -696,8 +696,6 @@ public final class ConversationModel {
     public var confirmsForceQuit = false
     /// 工作中膠囊的子 Agent 數被點了(#349、#515):聊天畫面據此開背景子 Agent sheet 後歸零。
     public var showsBackgroundAgentsSheet = false
-    /// 斷線前 agent 在工作：離線橫幅說明重新連上後才能停止(#220)。
-    public private(set) var stopNeedsReconnect = false
     /// 停止中最多等多久，之後當成仍在工作。
     public nonisolated static let stopTimeout: Duration = .seconds(10)
 
@@ -1126,7 +1124,6 @@ public final class ConversationModel {
             }
         }
         isOffline = false
-        stopNeedsReconnect = false
         if banner == .offline { banner = nil }
         // 重連後的 Agent 列表交給離線佇列比對、補送(#301;主機更新來源讀到的也會交給它)。
         offlineQueue?.receive(snapshot)
@@ -1565,7 +1562,6 @@ public final class ConversationModel {
         isOffline = true
         isRefreshing = false
         // 斷線前的狀態已過時：不能留著 working 讓停止鈕可按(#220)。
-        if agentStatus == .working { stopNeedsReconnect = true }
         agentStatus = nil
         // 看不到主機畫面，建議可能已過時;恢復連線後重讀(#123)。
         clearSuggestion()
