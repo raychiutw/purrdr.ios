@@ -101,44 +101,58 @@ private struct InspectorModelPage: View {
     }
 }
 
-/// 把 Inspector 掛在對話上(只在有視窗導覽的 split view 對話欄):寬視窗用 `window.isInspectorShown`(存本機偏好),
-/// 窄視窗(系統自動變 sheet)用這個畫面自己的暫時狀態——不讓「偏好是開」在窄視窗每開一個聊天就跳出 sheet。
+/// 把 Inspector 掛在對話上(只在有視窗導覽的 split view 對話欄)。
+///
+/// 對話欄夠寬(≥ `columnMinimumWidth`,橫式 iPad 或寬視窗)用系統 `.inspector` 右側欄,開關是 `window.isInspectorShown`(存本機偏好);
+/// 不夠寬(直式、縮小的視窗、size class 為 compact)改成 sheet,開關是這個畫面自己的暫時狀態——偏好是「顯示」時
+/// 不會在窄視窗每開一個聊天就跳出 sheet,也不會把對話擠成一條。
 struct ConversationInspectorModifier: ViewModifier {
+    /// 側欄加對話至少要這麼寬才放得下(對話欄本身約 420pt 以上才好讀)。
+    static let columnMinimumWidth: CGFloat = 720
+
     let window: TopNavigationModel?
     let model: ConversationModel
     let usageSection: UsageSectionModel?
     let display: PlanUsageModel.Display
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var isSheetShown = false
+    @State private var availableWidth: CGFloat = 0
 
-    private var isCompact: Bool { horizontalSizeClass == .compact }
+    private var usesColumn: Bool { horizontalSizeClass != .compact && availableWidth >= Self.columnMinimumWidth }
 
-    private var isPresented: Binding<Bool> {
-        Binding(
-            get: { isCompact ? isSheetShown : window?.isInspectorShown ?? false },
-            set: { shown in
-                if isCompact { isSheetShown = shown } else { window?.isInspectorShown = shown }
-            })
+    private var isShown: Bool { usesColumn ? window?.isInspectorShown ?? false : isSheetShown }
+
+    private func toggle() {
+        if usesColumn { window?.toggleInspector() } else { isSheetShown.toggle() }
+    }
+
+    private var columnBinding: Binding<Bool> {
+        Binding(get: { usesColumn && window?.isInspectorShown == true }, set: { window?.isInspectorShown = $0 })
+    }
+
+    private var sheetBinding: Binding<Bool> {
+        Binding(get: { !usesColumn && isSheetShown }, set: { isSheetShown = $0 })
     }
 
     func body(content: Content) -> some View {
         if window != nil {
             content
-                .inspector(isPresented: isPresented) {
-                    ConversationInspectorView(
-                        model: model, usageSection: usageSection, display: display,
-                        close: isCompact ? { isSheetShown = false } : nil)
-                    .inspectorColumnWidth(min: 300, ideal: 340, max: 420)
+                .inspector(isPresented: columnBinding) {
+                    ConversationInspectorView(model: model, usageSection: usageSection, display: display)
+                        .inspectorColumnWidth(min: 300, ideal: 340, max: 420)
                 }
+                .sheet(isPresented: sheetBinding) {
+                    ConversationInspectorView(
+                        model: model, usageSection: usageSection, display: display, close: { isSheetShown = false })
+                    .presentationDetents([.medium, .large])
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
-                        Button(
-                            isPresented.wrappedValue ? "Hide Inspector" : "Show Inspector",
-                            systemImage: "sidebar.trailing"
-                        ) { isPresented.wrappedValue.toggle() }
-                        .labelStyle(.iconOnly)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .accessibilityIdentifier("conversation.inspectorToggle")
+                        Button(isShown ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing", action: toggle)
+                            .labelStyle(.iconOnly)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .accessibilityIdentifier("conversation.inspectorToggle")
                     }
                 }
         } else {
