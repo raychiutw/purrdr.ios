@@ -222,10 +222,14 @@ public actor NewChatLauncher {
             workspace = CreatedWorkspace(workspaceID: tab.workspaceID, rootPaneID: tab.rootPaneID)
             name = Self.agentName(forTab: tab, label: request.tabLabel, folder: request.folder)
         }
-        var ready = try await startAgent(request, name: name, in: workspace)
+        let outcome = try await startAgent(request, name: name, in: workspace)
+        // agent 已經啟動(不論是否就緒):不再是「建了卻沒啟動」的殘留,重試不該關掉或重建它。
         pending = nil
+        var ready = outcome == .ready
         // HTTPS 主機服務已在主機端等過 agent 就緒(`launch_pending` 是等完的結果),不再輪詢 `agent.get`(那是 herdr 0.9.5 socket 的做法)。
-        if !ready, agentStartedPending, try await client.hostServiceVersion() == nil { ready = try await waitUntilInteractive(workspace.rootPaneID) }
+        if outcome == .launchPending, try await client.hostServiceVersion() == nil {
+            ready = try await waitUntilInteractive(workspace.rootPaneID)
+        }
         let message = request.message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard ready, !message.isEmpty else { return NewChatStarted(workspace: workspace, sentMessage: false) }
         // 不等 agent 開始工作：送出後聊天畫面自己跟上(送不到時丟錯誤，不重送，§7.3)。
@@ -258,36 +262,48 @@ public actor NewChatLauncher {
         return "\(base)-\(suffix)"
     }
 
-    /// 上一次 `startAgent` 是不是以 `launch_pending` 結束(才值得輪詢;`agent_not_ready` 的錯誤不輪詢)。
-    private var agentStartedPending = false
+    /// `startAgent` 的結果。
+    private enum StartOutcome: Equatable {
+        /// 已就緒。
+        case ready
+        /// `launch_pending`:agent 還在啟動(才值得輪詢)。
+        case launchPending
+        /// `agent_not_ready`:停在啟動問題,不輪詢。
+        case notReady
+    }
 
     /// `agent.start` 回 `launch_pending` 後,每 500ms 以 `agent.get` 輪詢最多約 20 秒(herdr 0.9.5 的 socket 一律立刻回 pending)。
-    /// 就緒回 `true`;`blocked`(停在資料夾信任等)或逾時回 `false`(不送、不丟錯誤);輪詢中的錯誤照常丟出。
+    /// 就緒回 `true`;`blocked`(停在資料夾信任等)、逾時或輪詢出錯回 `false`——agent 已經啟動,
+    /// 輪詢失敗不是啟動失敗,訊息留給聊天輸入框。取消照常丟出。
     private func waitUntilInteractive(_ paneID: String) async throws -> Bool {
         for _ in 0..<Self.pollAttempts {
-            try await sleep(Self.pollInterval)
-            let state = try await client.agentLaunchState(target: paneID)
-            if state.isReady { return true }
-            if state.isBlocked { return false }
+            do {
+                try await sleep(Self.pollInterval)
+                let state = try await client.agentLaunchState(target: paneID)
+                if state.isReady { return true }
+                if state.isBlocked { return false }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                return false
+            }
         }
         return false
     }
 
-    /// 啟動 agent;回傳它是否已就緒(停在啟動問題時是 `false`)。
-    private func startAgent(_ request: NewChatRequest, name: String, in workspace: CreatedWorkspace) async throws -> Bool {
+    /// 啟動 agent;回傳啟動結果(停在啟動問題時不是 `.ready`)。
+    private func startAgent(_ request: NewChatRequest, name: String, in workspace: CreatedWorkspace) async throws -> StartOutcome {
         var retries = 0
-        agentStartedPending = false
         while true {
             do {
                 // launch_pending:agent 還在啟動(例如停在資料夾信任問題),視同還沒就緒。
                 let ready = try await client.startAgent(
                     name: name, kind: request.agent.canonicalName, paneID: workspace.rootPaneID,
                     arguments: request.agentArguments, resumeSession: Self.hostServiceResumeSession(for: request), timeout: Self.agentTimeout)
-                agentStartedPending = !ready
-                return ready
+                return ready ? .ready : .launchPending
             } catch HerdrError.herdr(code: "agent_not_ready", _) {
                 // agent 已經起來，但停在啟動問題(例如資料夾信任):在聊天裡回答。
-                return false
+                return .notReady
             } catch HerdrError.herdr(code: "agent_pane_busy", let message) {
                 guard retries < Self.busyRetries else { throw HerdrError.herdr(code: "agent_pane_busy", message: message) }
                 retries += 1
