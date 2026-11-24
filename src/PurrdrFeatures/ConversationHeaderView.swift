@@ -2,51 +2,77 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 導覽列中間的標題膠囊(#476,原型 Header):單行 44pt。
-/// 依序是 8pt 單色狀態點(需要你橘、工作中主色、其他灰)、Tab 名稱(過長以 … 截斷)、權限模式(非一般才有;
-/// 略過權限前面保留橘色盾牌)。沒有下拉箭頭與狀態文字,狀態靠點與 VoiceOver 標籤。
-/// 標題不可點(#515;功能在「⋯」選單)。
+/// 導覽列中間的兩行標題膠囊(#514,原型 Main)。
+/// 第一行 Tab 名稱(過長以 … 截斷);第二行「電腦圖示 主機名稱 · 8pt 狀態點 狀態文字」,權限模式不是一般時尾端加符號與短名
+/// (略過權限保留橘色盾牌)。標題不可點、沒有下拉箭頭(功能在右側「⋯」選單);大字級時兩行各自截斷,不擠掉兩側的鈕。
 struct ConversationTitleView: View {
     let title: String
     let header: ConversationHeader
-    @Bindable var model: ConversationModel
 
     var body: some View {
-        HStack(spacing: 8) {
-            if let status = header.agentStatus {
-                StatusDot(tone: status.tone)
-            } else {
-                StatusDot(tone: header.status.tone)
-            }
+        VStack(spacing: 1) {
             Text(verbatim: header.capsuleName.isEmpty ? title : header.capsuleName)
                 .font(.headline)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if let badge = header.permissionBadge {
-                HStack(spacing: 4) {
-                    if badge.isWarning {
-                        Image(systemName: badge.mode.symbol)
-                            .foregroundStyle(Color.orange)
-                            .accessibilityHidden(true)
-                    }
-                    Text(verbatim: badge.mode.displayName)
-                        .lineLimit(1)
-                }
-                .font(.subheadline)
-                .foregroundStyle(.secondaryText)
-                // 名稱先被截斷,模式一直看得到。
-                .layoutPriority(1)
-                .fixedSize(horizontal: true, vertical: false)
-            }
+            secondLine
         }
         // 標題膠囊(#348 A1):浮在內容上的玻璃,內容從底下捲過去;減少透明度時改不透明底。
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .frame(minHeight: TopBarMetrics.titleCapsuleHeight)
         .floatingGlass(in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: header.accessibilityText))
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("conversation.header")
+    }
+
+    /// 第二行的省略順序:放不下時先收掉權限模式的短名(留符號)、再收主機名稱(VoiceOver 仍念),不用 … 截斷。
+    /// 中間的標題欄在手機上只有約 120pt 寬(左右還有返回、未讀徽章與 [用量環｜⋯])。
+    private var secondLine: some View {
+        ViewThatFits(in: .horizontal) {
+            line(showHost: true, badge: .named)
+            line(showHost: true, badge: .symbolOnly)
+            line(showHost: false, badge: .named)
+            line(showHost: false, badge: .symbolOnly)
+            line(showHost: false, badge: .hidden)
+                .lineLimit(1)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondaryText)
+    }
+
+    private enum BadgeStyle { case named, symbolOnly, hidden }
+
+    private func line(showHost: Bool, badge style: BadgeStyle) -> some View {
+        let line = header.secondLine
+        return HStack(spacing: 4) {
+            if showHost, !line.hostNames.isEmpty {
+                Image(systemName: "desktopcomputer")
+                    .accessibilityHidden(true)
+                Text(verbatim: line.hostNames.joined(separator: ", "))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            StatusDot(tone: header.status.tone)
+            Text(verbatim: line.statusTitle)
+                .lineLimit(1)
+                .fixedSize()
+            if let badge = line.badge, style != .hidden {
+                HStack(spacing: 3) {
+                    if badge.isWarning || style == .symbolOnly {
+                        Image(systemName: badge.mode.symbol)
+                            .foregroundStyle(badge.isWarning ? Color.orange : Color.secondary)
+                            .accessibilityHidden(true)
+                    }
+                    if style == .named {
+                        Text(verbatim: badge.mode.displayName)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
+            }
+        }
     }
 }
 

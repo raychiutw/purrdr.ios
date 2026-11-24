@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrCore
 
-/// 對話標題列(#270,原型 purrdr-screens 定案版):標題是 workspace 名稱，下一行是狀態(字與點)與主機名。
+/// 對話標題列(#270、#514):兩行——第一行 Tab 名稱，第二行主機名稱、狀態與(非一般的)權限模式。
 /// 只依輸入推導，不記任何狀態。
 ///
 /// 畫面寬度不夠時從後面整段拿掉，不截斷;VoiceOver 念 `accessibilityText`(workspace、狀態、主機)。
@@ -83,14 +83,36 @@ public struct ConversationHeader: Equatable, Sendable {
     /// 單行標題膠囊的名稱(#476):Tab 名稱;還沒讀到 snapshot 時退回 Workspace 名稱。
     public var capsuleName: String { tabName.isEmpty ? title : tabName }
 
-    /// 完整內容(VoiceOver):名稱、模式、狀態、主機。
+    /// 兩行標題的第二行(#514):電腦圖示＋主機名稱 · 狀態,權限模式不是一般時尾端加符號與短名。
+    /// 標題不可點;這裡只描述內容,圖示與狀態點由畫面畫。
+    public struct SecondLine: Equatable, Sendable {
+        /// 每台主機各一個名稱;沒有主機名稱時為空(不畫電腦圖示)。
+        public var hostNames: [String]
+        public var statusTitle: String
+        public var badge: PermissionBadge?
+
+        /// 純文字(測試與除錯):「Studio Mac · Working · Plan」。
+        public var text: String {
+            var parts: [String] = []
+            if !hostNames.isEmpty { parts.append(hostNames.joined(separator: ", ")) }
+            parts.append(statusTitle)
+            if let badge { parts.append(badge.mode.displayName) }
+            return parts.joined(separator: " · ")
+        }
+    }
+
+    public var secondLine: SecondLine {
+        SecondLine(hostNames: segments.filter { !$0.isEmpty }, statusTitle: status.title, badge: permissionBadge)
+    }
+
+    /// 完整內容(VoiceOver):Tab 名稱、主機、狀態、權限模式。
     public var accessibilityText: String {
         ([capsuleName] + [lineAccessibilityText]).filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
-    /// 標題下一行(狀態、主機)的 VoiceOver 文字;標題是另一個元素，不重複念。
+    /// 標題第二行(主機、狀態、權限模式)的 VoiceOver 文字;第一行是另一個元素，不重複念。
     public var lineAccessibilityText: String {
-        ((permissionBadge.map { [$0.mode.displayName] } ?? []) + [status.title] + segments).joined(separator: ", ")
+        (segments + [status.title] + (permissionBadge.map { [$0.mode.displayName] } ?? [])).joined(separator: ", ")
     }
 
     package init(agent: Agent?, title: String, status: AgentStatus?, isOffline: Bool, hostName: String?, progress: AgentProgress = AgentProgress(), permissionMode: AgentPermissionMode? = nil, tabName: String = "") {
