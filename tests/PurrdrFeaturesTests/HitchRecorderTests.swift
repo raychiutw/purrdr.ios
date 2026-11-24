@@ -209,7 +209,7 @@ struct HitchRecorderTests {
         #expect(HitchLogSettings.isEnabled(defaults))
         let recorder = HitchRecorder(sink: RecordingHitchSink(), defaults: defaults, system: { .sample })
         var changes: [Bool] = []
-        recorder.onRunningChanged = { changes.append($0) }
+        recorder.observeRunning { changes.append($0) }
 
         recorder.setVisible(true)
         #expect(!recorder.isRunning)
@@ -225,6 +225,32 @@ struct HitchRecorderTests {
         recorder.setVisible(false)
         #expect(!recorder.isRunning)
         #expect(changes == [true, false, true, false, true, false])
+    }
+
+    @Test("兩個聊天畫面重疊(換頁轉場)時,新的先出現、舊的才消失,記錄不會中斷")
+    func overlappingScreensKeepRunning() {
+        let recorder = HitchRecorder(
+            sink: RecordingHitchSink(), defaults: UserDefaults(suiteName: "hitch-\(UUID().uuidString)")!, system: { .sample })
+        let old = ObjectIdentifier(recorder)
+        let new = ObjectIdentifier(RecordingHitchSink())
+        recorder.setSceneActive(true)
+        recorder.setVisible(true, owner: old)
+        recorder.setVisible(true, owner: new)
+        recorder.setVisible(false, owner: old)
+        #expect(recorder.isRunning)
+        recorder.setVisible(false, owner: new)
+        #expect(!recorder.isRunning)
+    }
+
+    @Test("畫面回報的更新率上限與字級寫進事件的系統狀態")
+    func displayInfoOverlaysSystemState() throws {
+        var harness = HitchHarness()
+        harness.recorder.setDisplay(maxFramesPerSecond: 60, textSize: "AX5")
+        harness.feed([Self.frame120, 0.050, Self.frame120])
+        harness.recorder.flush()
+        let event = try #require(harness.hitches.first)
+        #expect(event.system.maxFramesPerSecond == 60)
+        #expect(event.system.textSize == "AX5")
     }
 
     // MARK: - 儲存

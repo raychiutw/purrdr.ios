@@ -6,8 +6,17 @@ import Foundation
 /// 儲存自己在背景佇列寫檔。連續卡幀合併成一個事件;每次捲動手勢結束記一筆摘要。
 @MainActor
 public final class HitchRecorder {
-    /// 運作狀態變了(橋接層據此啟停 `CADisplayLink`)。
-    public var onRunningChanged: (Bool) -> Void = { _ in }
+    /// 預設的「畫面」識別(只有一個畫面時不必指定)。
+    public static let defaultOwner = ObjectIdentifier(HitchRecorder.self)
+
+    /// 運作狀態變了(橋接層據此啟停 `CADisplayLink`)。每個聊天畫面各登記一個(以畫面識別區分)。
+    public func observeRunning(owner: ObjectIdentifier = HitchRecorder.defaultOwner, _ handler: @escaping @MainActor (Bool) -> Void) {
+        runningObservers[owner] = handler
+    }
+
+    public func removeRunningObserver(owner: ObjectIdentifier = HitchRecorder.defaultOwner) {
+        runningObservers[owner] = nil
+    }
 
     /// 設定頁的「記錄捲動卡頓」開關(預設開啟;存進 `UserDefaults`);關閉時立刻停止並丟掉還沒寫出的緩衝。
     public var isEnabled: Bool {
@@ -50,7 +59,10 @@ public final class HitchRecorder {
     private let system: @MainActor () -> HitchSystemState
     private let wallClock: @Sendable () -> Date
     private var buffer: HitchRingBuffer<HitchEntry>
-    private var isVisible = false
+    private var runningObservers: [ObjectIdentifier: @MainActor (Bool) -> Void] = [:]
+    /// 目前可見的聊天列表(可能同時有兩個:換頁轉場、iPad 多視窗);任一個可見就運作。
+    private var visibleOwners: Set<ObjectIdentifier> = []
+    private var display: (maxFramesPerSecond: Int, textSize: String)?
     private var isSceneActive = false
     private var olderLoading = false
     private var agentWorking = false
@@ -74,10 +86,14 @@ public final class HitchRecorder {
 
     // MARK: - 運作條件
 
-    public func setVisible(_ visible: Bool) {
-        guard isVisible != visible else { return }
-        isVisible = visible
+    public func setVisible(_ visible: Bool, owner: ObjectIdentifier = HitchRecorder.defaultOwner) {
+        if visible { visibleOwners.insert(owner) } else { visibleOwners.remove(owner) }
         updateRunning()
+    }
+
+    /// 目前畫面的更新率上限與字級類別(由畫面回報,寫進事件的系統狀態)。
+    public func setDisplay(maxFramesPerSecond: Int, textSize: String) {
+        display = (maxFramesPerSecond, textSize)
     }
 
     public func setSceneActive(_ active: Bool) {
@@ -87,7 +103,7 @@ public final class HitchRecorder {
     }
 
     private func updateRunning() {
-        let shouldRun = isEnabled && isVisible && isSceneActive
+        let shouldRun = isEnabled && !visibleOwners.isEmpty && isSceneActive
         guard shouldRun != isRunning else { return }
         isRunning = shouldRun
         if shouldRun {
@@ -101,7 +117,7 @@ public final class HitchRecorder {
             session = nil
             buffer.removeAll()
         }
-        onRunningChanged(shouldRun)
+        for handler in runningObservers.values { handler(shouldRun) }
     }
 
     // MARK: - 列表回報
@@ -194,7 +210,7 @@ public final class HitchRecorder {
 
     public func exportFile() async -> URL? {
         flush()
-        return await sink.exportFile(meta: .meta(system(), at: wallClock()))
+        return await sink.exportFile(meta: .meta(currentSystem(), at: wallClock()))
     }
 
     public func clear() async {
@@ -202,6 +218,15 @@ public final class HitchRecorder {
         openEvent = nil
         session = nil
         await sink.clear()
+    }
+
+    private func currentSystem() -> HitchSystemState {
+        var state = system()
+        if let display {
+            state.maxFramesPerSecond = display.maxFramesPerSecond
+            state.textSize = display.textSize
+        }
+        return state
     }
 
     // MARK: - 收尾
@@ -221,7 +246,7 @@ public final class HitchRecorder {
             milliseconds: HitchLogEncoder.round1(event.milliseconds), frames: event.frames, droppedFrames: event.droppedFrames,
             scroll: event.start.scroll, offsetY: HitchLogEncoder.round1(event.start.offsetY),
             velocityY: HitchLogEncoder.round1(event.start.velocityY), visibleCells: event.start.visibleCells,
-            activity: activity, olderLoading: event.start.olderLoading, agentWorking: event.start.agentWorking, system: system())))
+            activity: activity, olderLoading: event.start.olderLoading, agentWorking: event.start.agentWorking, system: currentSystem())))
     }
 
     private func finishScrollSession() {
@@ -233,6 +258,6 @@ public final class HitchRecorder {
             averageIntervalMilliseconds: HitchLogEncoder.round1(finished.seconds / Double(finished.frames) * 1000),
             maxIntervalMilliseconds: HitchLogEncoder.round1(finished.maxInterval * 1000), hitchEvents: finished.hitchEvents,
             hitchMilliseconds: HitchLogEncoder.round1(finished.hitchSeconds * 1000),
-            hitchTimeRatio: finished.hitchSeconds / finished.seconds, agentWorking: agentWorking, system: system())))
+            hitchTimeRatio: finished.hitchSeconds / finished.seconds, agentWorking: agentWorking, system: currentSystem())))
     }
 }

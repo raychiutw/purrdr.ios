@@ -114,6 +114,24 @@ public struct HitchEvent: Equatable, Sendable {
     public var olderLoading: Bool
     public var agentWorking: Bool
     public var system: HitchSystemState
+
+    public init(
+        timestamp: Date, milliseconds: Double, frames: Int, droppedFrames: Int, scroll: HitchScrollState, offsetY: Double,
+        velocityY: Double, visibleCells: Int, activity: HitchActivity, olderLoading: Bool, agentWorking: Bool, system: HitchSystemState
+    ) {
+        self.timestamp = timestamp
+        self.milliseconds = milliseconds
+        self.frames = frames
+        self.droppedFrames = droppedFrames
+        self.scroll = scroll
+        self.offsetY = offsetY
+        self.velocityY = velocityY
+        self.visibleCells = visibleCells
+        self.activity = activity
+        self.olderLoading = olderLoading
+        self.agentWorking = agentWorking
+        self.system = system
+    }
 }
 
 /// 一次捲動手勢(拖曳到減速結束)的摘要。
