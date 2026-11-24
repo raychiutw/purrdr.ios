@@ -8234,17 +8234,6 @@
         }
       }
     },
-    "Offline" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "離線"
-          }
-        }
-      }
-    },
     "Offline — showing the last loaded conversation." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10012,6 +10001,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新連線"
+          }
+        }
+      }
+    },
+    "Reconnecting…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新連線中…"
           }
         }
       }
@@ -16113,17 +16113,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一則訊息最多附加 10 個項目。"
-          }
-        }
-      }
-    },
-    "You can stop the agent after reconnecting." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新連上後才能停止。"
           }
         }
       }
