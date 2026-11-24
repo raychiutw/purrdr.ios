@@ -58,7 +58,7 @@ public struct TopNavigationView: View {
             // 「需要你」通知跟著合併列表的快照(整個 app 只有這一個接線點;背景不推進,#492)。
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
-                await hosts.agentList.needsYou.run(observing: hosts.agentList)
+                await hosts.agentList.needsYou.runShared(observing: hosts.agentList)
             }
             // 選單列與快捷鍵作用在有焦點的視窗(`PurrdrCommands`)。
             .focusedSceneValue(\.windowCommands, windowCommands)
