@@ -41,7 +41,16 @@ public struct SSHHostConnection: HostConnection {
 
     /// 開一個 bridge、寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。
     /// 經一次性指令的入口(`runOnce`):期限到丟 `HerdrError.deadlineExceeded`(§7.2)。
-    public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
+    public func herdrRequest(_ original: Data, deadline: Duration) async throws -> Data {
+        // 續接(#535):`sessions.list` 與 `agent.start` 的 `resume_session` 是主機服務的訊息,在這裡換成主機上的做法。
+        let request: Data
+        switch try SSHResumeRequest(original) {
+        case .passthrough: request = original
+        case .rewritten(let rewritten): request = rewritten
+        case .sessionsList(let requestID, let cwd, let kind):
+            let sessions = try await SSHSessionHistory(channel: channel, sleep: sleep).sessions(cwd: cwd, kind: kind, deadline: deadline)
+            return try SSHResumeRequest.sessionsListResponse(requestID: requestID, sessions: sessions)
+        }
         do {
             return try await channel.runOnce(HerdrCommand.bridge(herdr), deadline: deadline, sleep: sleep) { session in
                 try await session.write(request)

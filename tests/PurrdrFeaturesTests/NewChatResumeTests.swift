@@ -62,18 +62,18 @@ struct NewChatResumeTests {
         #expect(await connection.unmetExpectations.isEmpty)
     }
 
-    @Test("SSH 主機(沒有主機服務):清單不可用並說明,不送 sessions.list,說明不提 SSH 這類技術名詞")
-    func sshNeedsHostService() async {
+    @Test("SSH 主機(沒有主機服務,#535):照樣讀清單,不提主機服務")
+    func sshListsSessions() async throws {
         let connection = FakeHostConnection()
+        await connection.expect("sessions.list", reply: Self.sessionsReply)
         let model = Self.model(connection)
         model.folder = "/Users/demo/ledger"
 
         await model.refreshSessions()
 
-        guard case .unavailable(let reason) = model.sessions else { Issue.record("sessions: \(model.sessions)"); return }
-        #expect(reason.contains("host service"))
-        #expect(!reason.contains("SSH"))
-        #expect(await connection.requests.isEmpty)
+        guard case .loaded(let sessions) = model.sessions else { Issue.record("sessions: \(model.sessions)"); return }
+        #expect(sessions.count == 2)
+        #expect(await connection.unmetExpectations.isEmpty)
     }
 
     @Test("主機服務版本太舊:附依已安裝版本的更新指令,不送 sessions.list")

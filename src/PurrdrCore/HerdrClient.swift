@@ -175,7 +175,7 @@ public struct HerdrClient: Sendable {
 
     /// 在 pane 的 shell 啟動 agent(`agent.start`)。`arguments` 是交給 agent 的參數(CLI 的 `--` 之後)。
     /// 我方期限 = herdr 的等待 + 60 秒：絕不比 herdr 先放棄，否則重試會在同一個 pane 再啟動一個 agent。
-    /// `resumeSession`(#309)是要續接的 session id;只有主機服務(HTTPS)認得，herdr 本身沒有這個參數。
+    /// `resumeSession`(#309)是要續接的 session id;herdr 本身沒有這個參數:HTTPS 主機服務直接收，SSH 連線層換成 `args` 的 `--resume <id>`／`resume <id>`(#535)。
     ///
     /// 回傳 agent 是否已就緒(可以收 prompt)。herdr 0.9.5 在資料夾還沒被信任等情況下會立刻回成功、
     /// 但 agent 帶 `launch_pending: true`;這時送 `agent.prompt` 會得到 `agent_not_ready`
@@ -202,8 +202,8 @@ public struct HerdrClient: Sendable {
             interactiveReady: result.agent?.interactiveReady)
     }
 
-    /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。只有主機服務(HTTPS)提供;
-    /// 其他主機丟 herdr 的未知 method 錯誤，呼叫端先以主機服務版本判斷。
+    /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。主機服務(HTTPS)的 `sessions.list`;
+    /// SSH 由連線層以腳本列出(#535);版本太舊的主機服務丟未知 method 錯誤，呼叫端先以主機服務版本判斷。
     public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
         let result = try await request(method: "sessions.list", params: SessionsListParams(cwd: cwd, agentKind: agent), as: SessionsListResult.self)
         return result.sessions.map { entry in

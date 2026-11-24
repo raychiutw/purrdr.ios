@@ -10456,17 +10456,6 @@
         }
       }
     },
-    "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "續接過去的聊天需要主機上有主機服務，這台主機沒有。"
-          }
-        }
-      }
-    },
     "Retry" : {
       "extractionState" : "manual",
       "localizations" : {

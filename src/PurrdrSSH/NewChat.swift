@@ -109,8 +109,6 @@ public struct NewChatRequest: Sendable, Equatable {
 /// 這台主機能不能續接過去的 session(#309)。
 public enum ResumeSupport: Sendable, Equatable {
     case available
-    /// SSH 主機:列出與續接都要主機服務。
-    case needsHostService
     /// 主機服務版本不足(`installed` 是它回報的版本)。
     case updateRequired(installed: String?)
 }
@@ -168,10 +166,11 @@ public actor NewChatLauncher {
         (try? await client.isReadOnlyDevice()) == true
     }
 
-    /// 這台主機能不能續接(#309):沒有主機服務(SSH)或版本不足都不能,畫面據此說明。
-    /// 連不上主機時丟錯誤(不是「需要主機服務」),呼叫端說明並讓使用者重試。
+    /// 這台主機能不能續接(#309、#535):SSH 主機(沒有主機服務)由連線層以腳本列出並續接,所以一律可以;
+    /// 主機服務版本不足才不能,畫面據此說明並附更新指令。
+    /// 連不上主機時丟錯誤,呼叫端說明並讓使用者重試。
     public func resumeSupport() async throws -> ResumeSupport {
-        guard let version = try await client.hostServiceVersion() else { return .needsHostService }
+        guard let version = try await client.hostServiceVersion() else { return .available }
         return HostServiceFeature.sessionResume.isAvailable(onHostServiceVersion: version) ? .available : .updateRequired(installed: version)
     }
 
@@ -296,7 +295,7 @@ public actor NewChatLauncher {
         }
     }
 
-    /// 主機服務的 `resume_session` 只給主機服務能恢復的種類(Claude Code、Codex);旗標式恢復(Antigravity)已經放在 args。
+    /// `resume_session` 只給能恢復的種類(Claude Code、Codex);主機服務(HTTPS)直接收這個欄位,SSH 連線層換成 `args` 的續接參數(#535)。旗標式恢復(Antigravity)已經放在 args。
     private static func hostServiceResumeSession(for request: NewChatRequest) -> String? {
         AgentCatalog.profile(for: request.agent).session.resumeKind == nil ? nil : request.resumeSession
     }
