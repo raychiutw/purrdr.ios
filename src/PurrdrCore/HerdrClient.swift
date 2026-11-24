@@ -180,8 +180,9 @@ public struct HerdrClient: Sendable {
     /// 回傳 agent 是否已就緒(可以收 prompt)。herdr 0.9.5 在資料夾還沒被信任等情況下會立刻回成功、
     /// 但 agent 帶 `launch_pending: true`;這時送 `agent.prompt` 會得到 `agent_not_ready`
     /// 「agent w2:p1 is not an active named agent」,所以呼叫端要先以 `agentLaunchState(target:)` 輪詢到就緒才送第一則訊息。
-    /// HTTPS 主機服務的 `agent.start.result` 不帶 `launch_pending`(一律當就緒),等主機端等到就緒才回(purrdr.host#92);
-    /// 在那之前 `agent.prompt` 回 `agent_not_ready` 時呼叫端不送、訊息留給輸入框。
+    /// HTTPS 主機服務(0.15.0 起,purrdr.host#92)在主機端輪詢到就緒、停在 blocked 或逾時才回,`launch_pending` 是最終結果
+    /// (true 就是未就緒,呼叫端不送第一則訊息、不再輪詢);更舊的主機服務沒有這個欄位,一律當就緒,
+    /// `agent.prompt` 回 `agent_not_ready` 時呼叫端不送、訊息留給輸入框。
     @discardableResult
     public func startAgent(
         name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration
