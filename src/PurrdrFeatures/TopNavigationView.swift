@@ -87,7 +87,10 @@ public struct TopNavigationView: View {
                         navigation.sheet = nil
                     }
                 case .newChat:
-                    NewChatSheet(hosts: hosts, picker: hosts.newChatHostPicker()) {
+                    NewChatSheet(
+                        hosts: hosts, picker: hosts.newChatHostPicker(preferring: navigation.newChatPreselection?.host),
+                        preselection: navigation.newChatPreselection
+                    ) {
                         navigation.sheet = nil
                     } onStarted: { workspace, host, unsentMessage in
                         // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
@@ -212,7 +215,10 @@ public struct TopNavigationView: View {
             open = { kind, route, title in openInNewWindow(kind, route, title) }
         }
         let topBar = ChatTopBarActions(
-            newChat: { navigation.sheet = .newChat }, addHost: { navigation.openAddHost() },
+            newChat: { navigation.sheet = .newChat },
+            newChatInWorkspace: { navigation.startNewChat(inWorkspace: $1, on: $0) },
+            canNewChatInWorkspace: { hosts.supportsNewChatInWorkspace($0) },
+            addHost: { navigation.openAddHost() },
             account: AccountButtonPlacement.showsInTopBar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
         return AgentListView(
             model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
@@ -266,22 +272,26 @@ public struct TopNavigationView: View {
 private struct NewChatSheet: View {
     let hosts: HostsModel
     @State private var picker: HostPickerModel
+    let preselection: NewChatPreselection?
     let onCancel: () -> Void
     let onStarted: (CreatedWorkspace, HostSelection, String?) -> Void
 
     init(
-        hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, onCancel: @escaping () -> Void,
+        hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, preselection: NewChatPreselection?, onCancel: @escaping () -> Void,
         onStarted: @escaping (CreatedWorkspace, HostSelection, String?) -> Void
     ) {
         self.hosts = hosts
         _picker = State(wrappedValue: picker())
+        self.preselection = preselection
         self.onCancel = onCancel
         self.onStarted = onStarted
     }
 
     var body: some View {
         let host = picker.selection
-        NewChatForm(model: hosts.newChat(on: host), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
+        // 預選只在主機沒被改掉時有效。
+        let preselected = preselection.flatMap { $0.host == host ? $0.workspaceID : nil }
+        NewChatForm(model: hosts.newChat(on: host, preselectingWorkspace: preselected), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
             .id(host)
     }
 }

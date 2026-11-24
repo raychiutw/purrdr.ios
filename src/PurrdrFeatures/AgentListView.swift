@@ -5,12 +5,21 @@ import SwiftUI
 /// 聊天 tab 頂列的動作(#499):由 `TopNavigationView` 提供,列表本身不知道有哪些 sheet。
 package struct ChatTopBarActions {
     var newChat: () -> Void
+    /// Workspace 標題選單的「在此新增聊天」(#537):參數是主機與 Workspace id。
+    var newChatInWorkspace: (HostSelection, String) -> Void
+    /// 這台主機有沒有「在此新增聊天」(HTTPS 主機服務還沒有 tab.create)。
+    var canNewChatInWorkspace: (HostSelection) -> Bool
     var addHost: () -> Void
     /// 寬視窗時頭像在對話欄工具列(`AccountButtonPlacement`),列表頂列沒有。
     var account: AnyView?
 
-    package init(newChat: @escaping () -> Void, addHost: @escaping () -> Void, account: AnyView?) {
+    package init(
+        newChat: @escaping () -> Void, newChatInWorkspace: @escaping (HostSelection, String) -> Void,
+        canNewChatInWorkspace: @escaping (HostSelection) -> Bool, addHost: @escaping () -> Void, account: AnyView?
+    ) {
         self.newChat = newChat
+        self.newChatInWorkspace = newChatInWorkspace
+        self.canNewChatInWorkspace = canNewChatInWorkspace
         self.addHost = addHost
         self.account = account
     }
@@ -329,7 +338,9 @@ public struct AgentListView: View {
     @ViewBuilder
     private func listRows(_ sections: [SpacesSection]) -> some View {
         let failures = model.failures
-        SpacesSectionsContent(sections: sections, model: model, presentation: presentation, openInNewWindow: openInNewWindow)
+        SpacesSectionsContent(
+            sections: sections, model: model, presentation: presentation, openInNewWindow: openInNewWindow,
+            newChatInWorkspace: topBarActions.newChatInWorkspace, canNewChatInWorkspace: topBarActions.canNewChatInWorkspace)
         if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
            sections.isEmpty {
