@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>打字中貼著鍵盤</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.ph{width:390px;height:844px;position:relative;overflow:hidden;background:#000;color:#fff;font-family:-apple-system,"SF Pro Text","PingFang TC",system-ui,sans-serif;font-size:16px;border-radius:44px}
+.glass{background:rgba(44,44,46,.82);backdrop-filter:blur(24px);box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 6px 20px rgba(0,0,0,.4)}
+.top{position:absolute;left:0;right:0;top:0;padding:54px 16px 10px;display:flex;align-items:center;gap:8px;z-index:3;background:linear-gradient(#000 70%,rgba(0,0,0,0))}
+.c44{width:44px;height:44px;border-radius:22px;border:0;display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.tt{flex:1;min-width:0;height:48px;border-radius:24px;display:flex;flex-direction:column;justify-content:center;padding:0 16px}
+.pair{display:flex;align-items:center;height:44px;border-radius:22px;padding:0 4px;flex:none}
+.pair button{width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0}
+.body{position:absolute;left:20px;right:20px;top:118px;line-height:1.5}
+.comp{position:absolute;left:12px;right:12px;bottom:344px;border-radius:26px;padding:6px;display:flex;align-items:center;gap:6px;z-index:3}
+.rb{width:40px;height:40px;border-radius:20px;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.send{background:#3CCF9E}
+.kb{position:absolute;left:0;right:0;bottom:0;height:336px;background:#2B2B2D;border-radius:30px 30px 44px 44px;padding:10px 4px;box-sizing:border-box}
+.cand{display:flex;gap:22px;padding:4px 14px 10px;font-size:20px;color:#fff}
+.keys{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:5px;padding:0 4px}
+.k{height:42px;border-radius:8px;background:#5A5A5E;display:flex;align-items:center;justify-content:center;font-size:18px}
+.lab{position:absolute;right:16px;bottom:400px;background:#F2F2F7;color:#1C1C1E;font-size:12px;font-weight:600;padding:4px 10px;border-radius:10px;z-index:4}
+</style>
+</helmet>
+<div class="ph">
+  <div class="top">
+    <button class="c44 glass" aria-label="返回"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="2.2" aria-hidden="true"><path d="M12.5 4L6.5 10l6 6"/></svg></button>
+    <div class="tt glass"><div style="font-weight:600">purrdr.ios</div><div style="font-size:12px;color:#AEAEB2">Studio Mac · 工作中 · 略過權限</div></div>
+    <div class="pair glass"><button aria-label="用量"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="3"/><circle cx="12" cy="12" r="9" fill="none" stroke="#FF453A" stroke-width="3" stroke-dasharray="52.6 56.5" transform="rotate(-90 12 12)" stroke-linecap="round"/></svg></button><button aria-label="更多"><svg width="22" height="22" viewBox="0 0 22 22" fill="#fff" aria-hidden="true"><circle cx="5" cy="11" r="1.8"/><circle cx="11" cy="11" r="1.8"/><circle cx="17" cy="11" r="1.8"/></svg></button></div>
+  </div>
+  <div class="body">PR #507 已合併，0.51.0 的 TestFlight 上傳正在跑。我在背景等它完成，結果出來就確認 GitHub Release。<br><br>目前沒有卡住的地方。</div>
+  <div class="lab">8pt</div>
+  <div class="comp glass">
+    <button class="rb" aria-label="加入"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
+    <span style="flex:1;font-size:17px">好，順便<span style="border-bottom:2px solid #3CCF9E">ㄕ ㄕ ㄕ</span><span style="display:inline-block;width:2px;height:20px;background:#3CCF9E;vertical-align:middle"></span></span>
+    <button class="rb send" aria-label="送出"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#000" stroke-width="2.2" aria-hidden="true"><path d="M9 15V3M4 8l5-5 5 5"/></svg></button>
+  </div>
+  <div class="kb" aria-hidden="true">
+    <div class="cand"><span style="background:#4A4A4E;border-radius:8px;padding:0 6px">事實上</span><span>手術室</span><span>碩士生</span><span>神射手</span></div>
+    <div class="keys">
+      <span class="k">ㄅ</span><span class="k">ㄉ</span><span class="k">ˇ</span><span class="k">ˋ</span><span class="k">ㄓ</span><span class="k">ˊ</span><span class="k">˙</span><span class="k">ㄚ</span><span class="k">ㄞ</span><span class="k">ㄢ</span><span class="k">ㄦ</span>
+      <span class="k">ㄆ</span><span class="k">ㄊ</span><span class="k">ㄍ</span><span class="k">ㄐ</span><span class="k">ㄔ</span><span class="k">ㄗ</span><span class="k">ㄧ</span><span class="k">ㄛ</span><span class="k">ㄟ</span><span class="k">ㄣ</span><span class="k"></span>
+      <span class="k">ㄇ</span><span class="k">ㄋ</span><span class="k">ㄎ</span><span class="k">ㄑ</span><span class="k">ㄕ</span><span class="k">ㄘ</span><span class="k">ㄨ</span><span class="k">ㄜ</span><span class="k">ㄠ</span><span class="k">ㄤ</span><span class="k"></span>
+      <span class="k">ㄈ</span><span class="k">ㄌ</span><span class="k">ㄏ</span><span class="k">ㄒ</span><span class="k">ㄖ</span><span class="k">ㄙ</span><span class="k">ㄩ</span><span class="k">ㄝ</span><span class="k">ㄡ</span><span class="k">ㄥ</span><span class="k">⌫</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

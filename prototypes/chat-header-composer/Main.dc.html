@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>聊天新頂列</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.ph{width:390px;height:844px;position:relative;overflow:hidden;background:#000;color:#fff;font-family:-apple-system,"SF Pro Text","PingFang TC",system-ui,sans-serif;font-size:16px;border-radius:44px}
+.glass{background:rgba(44,44,46,.78);backdrop-filter:blur(24px);box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 6px 20px rgba(0,0,0,.4)}
+.top{position:absolute;left:0;right:0;top:0;padding:54px 16px 10px;display:flex;align-items:center;gap:8px;z-index:3;background:linear-gradient(#000 70%,rgba(0,0,0,0))}
+.c44{width:44px;height:44px;border-radius:22px;border:0;display:flex;align-items:center;justify-content:center;padding:0;flex:none}
+.tt{flex:1;min-width:0;height:48px;border-radius:24px;display:flex;flex-direction:column;justify-content:center;padding:0 16px}
+.t1{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{font-size:12px;color:#AEAEB2;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.pair{display:flex;align-items:center;height:44px;border-radius:22px;padding:0 4px;flex:none}
+.pair button{width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0;color:#fff}
+.body{position:absolute;left:0;right:0;top:120px;bottom:100px;padding:0 20px;display:flex;flex-direction:column;gap:14px;overflow:hidden;line-height:1.5}
+.me{align-self:flex-end;max-width:78%;background:#2C2C2E;border-radius:20px;padding:10px 14px}
+.step{display:flex;align-items:center;gap:8px;color:#AEAEB2;font-size:15px}
+.comp{position:absolute;left:16px;right:16px;bottom:30px;border-radius:26px;padding:6px;display:flex;align-items:center;gap:6px;z-index:3}
+.rb{width:40px;height:40px;border-radius:20px;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0;color:#fff;flex:none}
+.send{background:#3CCF9E}
+</style>
+</helmet>
+<div class="ph">
+  <div class="top">
+    <button class="c44 glass" aria-label="返回"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="2.2" aria-hidden="true"><path d="M12.5 4L6.5 10l6 6"/></svg></button>
+    <div class="tt glass">
+      <div class="t1">purrdr.ios</div>
+      <div class="t2"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="#AEAEB2" stroke-width="1.3" aria-hidden="true"><rect x="1.5" y="2.5" width="11" height="7" rx="1"/><path d="M5 12h4"/></svg>Studio Mac · 工作中 · <svg width="12" height="13" viewBox="0 0 12 14" fill="none" stroke="#FF9F0A" stroke-width="1.4" aria-hidden="true"><path d="M6 1l4.5 2v3.5C10.5 9.5 8.5 12 6 13 3.5 12 1.5 9.5 1.5 6.5V3z"/><path d="M6 4.5v3M6 9.5v.3"/></svg>略過權限</div>
+    </div>
+    <div class="pair glass">
+      <button aria-label="用量：每週 93%"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="3"/><circle cx="12" cy="12" r="9" fill="none" stroke="#FF453A" stroke-width="3" stroke-dasharray="52.6 56.5" transform="rotate(-90 12 12)" stroke-linecap="round"/></svg></button>
+      <button aria-label="更多"><svg width="22" height="22" viewBox="0 0 22 22" fill="#fff" aria-hidden="true"><circle cx="5" cy="11" r="1.8"/><circle cx="11" cy="11" r="1.8"/><circle cx="17" cy="11" r="1.8"/></svg></button>
+    </div>
+  </div>
+  <div class="body">
+    <div class="me">PR 合併了嗎？TestFlight 上傳好了跟我說</div>
+    <div>PR #507 已合併，0.51.0 的 TestFlight 上傳正在跑。我在背景等它完成，結果出來就確認 GitHub Release、通知相關 session、取消排程。</div>
+    <div>目前沒有卡住的地方。</div>
+    <div class="step"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#AEAEB2" stroke-width="1.8" aria-hidden="true"><path d="M3 8.5l3 3 7-7"/></svg>1 個步驟<span style="margin-left:auto">›</span></div>
+    <div>進度檢查：</div>
+    <div style="color:#D1D1D6">· 已完成：所有票與修正，PR #507 已合併<br>· 進行中：TestFlight 上傳</div>
+  </div>
+  <div class="comp glass">
+    <button class="rb" aria-label="加入"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
+    <span style="flex:1;color:#8E8E93">傳訊息給 purrdr.ios</span>
+    <button class="rb send" aria-label="送出"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#000" stroke-width="2.2" aria-hidden="true"><path d="M9 15V3M4 8l5-5 5 5"/></svg></button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
