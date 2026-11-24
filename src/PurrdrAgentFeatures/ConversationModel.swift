@@ -109,6 +109,15 @@ public final class ConversationModel {
         if let percent = sessionStatus?.contextPercent { result.contextPercent = Int(percent.rounded()) }
         return result
     }
+    /// context 的已用 token 數與視窗上限(用量 sheet 的「已用／總 token」);讀不到上限時是 `nil`。
+    /// status line 有上限時以它為準;已用數沒有時由百分比推回。
+    public var contextTokenCounts: (used: Int, limit: Int)? {
+        guard let limit = sessionStatus?.contextWindowSize ?? progress.contextLimit, limit > 0 else { return nil }
+        if let percent = sessionStatus?.contextPercent { return (Int((Double(limit) * percent / 100).rounded()), limit) }
+        guard let used = progress.contextTokens else { return nil }
+        return (used, limit)
+    }
+
     /// Claude 的背景 agents 窗格(F10「背景 agents 列」),從 pane 畫面解析;沒有窗格是 `nil`。
     public private(set) var agentsPane: AgentsPane?
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。

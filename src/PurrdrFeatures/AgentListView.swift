@@ -410,6 +410,12 @@ struct ConversationScreen: View {
     let openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)?
     @State private var showsLayout = false
     @State private var pendingLayoutTarget: PaneOpenTarget?
+    /// 用量環與用量 sheet(#513):這個聊天的 Agent 在這台主機的方案用量(沒有來源時是 `nil`)。
+    @Environment(\.usageSections) private var usageContext
+    @Environment(\.usageHost) private var usageHost
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var usageSection: UsageSectionModel?
+    @State private var showsUsage = false
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
@@ -437,13 +443,21 @@ struct ConversationScreen: View {
                     }
                 }
                 #endif
-                // 右上角只有一顆「更多」(#381):Pane 終端機、Git 變更、顯示版面。
+                // 右上角一顆玻璃膠囊 [用量環｜⋯](#513):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItem(placement: .primaryAction) {
-                    ConversationMoreMenu(
-                        model: model, canOpenTerminal: makeTerminal != nil, canShowLayout: layoutSnapshot != nil,
-                        openTerminal: openTerminal, openChanges: { changes = model.makeChanges() },
-                        showLayout: { showsLayout = true })
+                    ConversationTrailingCapsule(summary: usageSummary, showUsage: { showsUsage = true }) {
+                        ConversationMoreMenu(
+                            model: model, canOpenTerminal: makeTerminal != nil, canShowLayout: layoutSnapshot != nil,
+                            openTerminal: openTerminal, openChanges: { changes = model.makeChanges() },
+                            showLayout: { showsLayout = true })
+                    }
                 }
+                .sharedBackgroundVisibility(.hidden)    // 膠囊自己是玻璃,不讓工具列再疊一層
+            }
+            .task(id: UsageLifecycleKey(active: scenePhase == .active, agentKind: model.agentKind)) { startUsage() }
+            .onChange(of: model.modelName) { _, name in usageSection?.activeGroup = name.flatMap(PlanUsage.Group.init(modelName:)) }
+            .sheet(isPresented: $showsUsage) {
+                ConversationUsageSheet(model: model, section: usageSection, display: usageContext?.display.display ?? .used)
             }
             .task(id: model.canOpenChanges) { await model.refreshGitMenu() }
             .sheet(isPresented: $showsLayout) {
@@ -484,6 +498,34 @@ struct ConversationScreen: View {
                 if let terminal { PaneTerminalView(model: terminal).hidesTabBarWhenCompact() }
             }
             #endif
+    }
+
+    private struct UsageLifecycleKey: Hashable {
+        var active: Bool
+        var agentKind: String?
+    }
+
+    /// 頂列用量環的內容:context 與這台主機的方案用量取最高的一項。
+    private var usageSummary: UsageSummary? {
+        UsageSummary.make(
+            contextUsed: model.displayProgress.contextPercent,
+            planRows: usageSection?.entries.filter { $0.state == .rows }.flatMap(\.rows) ?? [],
+            display: usageContext?.display.display ?? .used)
+    }
+
+    /// 聊天在畫面上才查方案用量,離開或進背景就停(沒有來源的 Agent 種類不查)。
+    private func startUsage() {
+        guard scenePhase == .active else {
+            usageSection?.disappeared()
+            return
+        }
+        if usageSection == nil, let usageContext, let usageHost, let agent = PlanUsageAgent(agentKind: model.agentKind) {
+            let section = usageContext.section(usageHost, [agent], false)
+            section.activeGroup = model.modelName.flatMap(PlanUsage.Group.init(modelName:))
+            // 這台主機沒有啟用這個 Agent 的用量(#477):當作沒有來源。
+            if !section.agents.isEmpty { usageSection = section }
+        }
+        usageSection?.appeared()
     }
 
     private func openTerminal() {
