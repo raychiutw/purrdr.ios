@@ -112,6 +112,12 @@ public final class TopNavigationModel {
         case .settings:
             // 設定併進帳號 sheet(#503)。
             sheet = .member
+        case .showChats, .showFiles, .showHosts, .showTraffic:
+            if let tab = command.tab { self.tab = tab }
+        case .toggleInspector: toggleInspector()
+        case .openInNewWindow:
+            // 開視窗要 `openWindow`(畫面的環境值),由 `TopNavigationView` 的 `WindowCommands` 處理。
+            break
         }
     }
 
