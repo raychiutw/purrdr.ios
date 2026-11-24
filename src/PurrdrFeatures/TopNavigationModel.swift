@@ -127,6 +127,12 @@ public final class TopNavigationModel {
         layoutCard.close()
     }
 
+    /// 視窗寬窄改變(iPad 縮放視窗、旋轉):窄視窗沒有側欄,workspace 篩選清掉。
+    /// 選取的聊天與推入的終端機兩種排版共用(窄是推入、寬是對話欄),切換不丟失。
+    public func layoutChanged(isCompact: Bool) {
+        if isCompact { workspaceFilter = nil }
+    }
+
     /// 執行鍵盤快捷鍵。`visibleAgents` 是列表目前看得到的 Agent,依畫面順序。
     public func perform(_ command: KeyboardCommand, visibleAgents: [ChatRoute]) {
         switch command {
