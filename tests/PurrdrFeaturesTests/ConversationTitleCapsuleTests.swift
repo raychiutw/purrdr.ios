@@ -37,11 +37,46 @@ struct ConversationTitleCapsuleTests {
         #expect(badge(.bypassPermissions)?.isWarning == true)
     }
 
-    @Test("無障礙標籤:Tab 名稱、模式、狀態、主機,不靠顏色")
+    @Test("無障礙標籤:Tab 名稱、主機、狀態、權限模式,不靠顏色")
     func accessibility() {
         let header = ConversationHeader(
             title: "ledger", status: .needsYou, segments: ["studio"], permissionMode: .plan, tabName: "整理帳本")
-        #expect(header.accessibilityText == "整理帳本, Plan, Needs You, studio")
+        #expect(header.accessibilityText == "整理帳本, studio, Needs You, Plan")
+    }
+
+    @Test("無障礙標籤:一般模式與沒有主機時不念多餘的字")
+    func accessibilityOmitsAbsentParts() {
+        #expect(ConversationHeader(title: "ledger", status: .working, segments: ["studio"], permissionMode: .normal, tabName: "整理帳本").accessibilityText
+            == "整理帳本, studio, Working")
+        #expect(ConversationHeader(title: "ledger", status: .offline, segments: []).accessibilityText == "ledger, Offline")
+    }
+
+    @Test("第二行:主機名稱、狀態文字;一般模式與讀不到模式時沒有尾標")
+    func secondLine() {
+        let header = ConversationHeader(title: "ledger", status: .working, segments: ["Studio Mac"], permissionMode: .normal)
+        #expect(header.secondLine.hostNames == ["Studio Mac"])
+        #expect(header.secondLine.statusTitle == "Working")
+        #expect(header.secondLine.badge == nil)
+        #expect(header.secondLine.text == "Studio Mac · Working")
+        #expect(ConversationHeader(title: "t", status: .done, segments: ["a"]).secondLine.badge == nil)
+    }
+
+    @Test("第二行尾標:非一般模式才有,帶符號與短名;略過權限是警示")
+    func secondLineBadge() {
+        let plan = ConversationHeader(title: "t", status: .working, segments: ["Studio Mac"], permissionMode: .plan).secondLine
+        #expect(plan.badge == .init(mode: .plan, isWarning: false))
+        #expect(plan.text == "Studio Mac · Working · Plan")
+        let bypass = ConversationHeader(title: "t", status: .needsYou, segments: ["Studio Mac"], permissionMode: .bypassPermissions).secondLine
+        #expect(bypass.badge == .init(mode: .bypassPermissions, isWarning: true))
+        #expect(bypass.text == "Studio Mac · Needs You · Bypass Permissions")
+    }
+
+    @Test("第二行:沒有主機名稱時只有狀態;多台主機每台都標")
+    func secondLineHosts() {
+        #expect(ConversationHeader(title: "t", status: .offline, segments: []).secondLine.text == "Offline")
+        let many = ConversationHeader(title: "t", status: .online, segments: ["Studio Mac", "Build Box"]).secondLine
+        #expect(many.hostNames == ["Studio Mac", "Build Box"])
+        #expect(many.text == "Studio Mac, Build Box · Online")
     }
 
     @Test("長名稱不改變 model 內容(截斷是畫面的事),模式文字仍完整")

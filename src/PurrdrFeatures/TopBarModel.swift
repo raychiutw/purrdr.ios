@@ -120,15 +120,15 @@ public struct TopBarScroll: Equatable, Sendable {
 }
 
 /// 頂列的尺寸與字級(#475、#499):所有 tab 的標題、按鈕、膠囊、頭像共用,不散在各畫面。數字出自設計稿最終定稿(單位 pt,402 寬為基準)。
-/// 聊天畫面的單行標題膠囊(`titleCapsuleHeight`)也是同一個高度(#476)。
+/// 聊天畫面的兩行標題膠囊(`titleCapsuleHeight`,#514)比一般控制項高 4pt(設計稿 48pt)。
 public enum TopBarMetrics {
     // MARK: 按鈕與膠囊
     /// 按鈕與膠囊的高度,也是 HIG 的最小觸控目標。
     public static let controlHeight: CGFloat = 44
     /// 圓形按鈕的直徑。
     public static let circleDiameter: CGFloat = 44
-    /// 聊天畫面單行標題膠囊的高度:與其他 tab 頂端一致。
-    public static let titleCapsuleHeight: CGFloat = controlHeight
+    /// 聊天畫面兩行標題膠囊的最小高度(設計稿 Main 48pt;大字級時隨內容增高)。
+    public static let titleCapsuleHeight: CGFloat = 48
     /// 長型膠囊 [電腦圖示｜＋] 的寬度(兩段各 46,中間分隔線)。
     public static let pillWidth: CGFloat = 95
     public static let pillSegmentWidth: CGFloat = 46
