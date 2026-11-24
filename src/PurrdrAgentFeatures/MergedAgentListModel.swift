@@ -105,7 +105,7 @@ public final class MergedAgentListModel {
             if let currentHost { selectHost?(currentHost) }
         }
     }
-    /// 跨聊天「需要你」通知的輸出(返回鈕小點等);由 #530、#531 的畫面以 `needsYou.run(observing:)` 驅動(這張不接,見 PROGRESS)。
+    /// 跨聊天「需要你」通知的輸出(返回鈕小點等);由 `TopNavigationView` 的 `.task` 以 `needsYou.run(observing:)` 驅動(整個 app 唯一的接線點,#530);列表段落(#531)只讀輸出。
     public let needsYou = NeedsYouNotifications()
 
     /// 目前主機改變時通知(主機清單接上，存到本機)。
