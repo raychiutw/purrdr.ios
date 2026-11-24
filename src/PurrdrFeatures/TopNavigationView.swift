@@ -156,9 +156,33 @@ public struct TopNavigationView: View {
     private var windowCommands: WindowCommands {
         let navigation = navigation
         let hosts = hosts
-        return WindowCommands { command in
+        let opening = selectedWindowOpening
+        let openWindow = openWindow
+        let hasConversation = navigation.selectedChat.map { hosts.agentList.terminalTitle(of: $0) == nil } ?? false
+        let context = KeyboardCommandContext(
+            hasSelectedChat: opening != nil, hasSelectedConversation: hasConversation, tab: navigation.tab,
+            isWideWindow: sizeClass != .compact, isInspectorShown: navigation.isInspectorShown,
+            supportsMultipleWindows: supportsMultipleWindows)
+        return WindowCommands(perform: { command in
+            if command == .openInNewWindow {
+                if let route = navigation.selectedChat, let opening {
+                    openWindow(value: PaneWindow(
+                        kind: opening.isTerminal ? .terminal : .chat, host: route.host, paneID: route.paneID,
+                        sessionID: hosts.agentList.sessionID(of: route), title: opening.title))
+                }
+                return
+            }
             navigation.perform(command, visibleAgents: navigation.visibleAgents(hosts.agentList.spacesSections))
+        }, context: context)
+    }
+
+    /// 目前選取的聊天在 Spaces 列表上的「在新視窗開啟」內容(「在新視窗開啟」選單項目用);沒選或列表上找不到是 `nil`。
+    private var selectedWindowOpening: SpacesTab.WindowOpening? {
+        guard let route = navigation.selectedChat else { return nil }
+        for tab in hosts.agentList.spacesSections.flatMap(\.tabs) where tab.host == route.host {
+            if let opening = tab.newWindowOpening, opening.paneID == route.paneID { return opening }
         }
+        return nil
     }
 
     /// 聊天 tab:窄視窗是一般 `NavigationStack`(列表為根、聊天推入,轉場與主機 tab 的子頁一樣順),
