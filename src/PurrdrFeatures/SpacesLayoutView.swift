@@ -21,7 +21,7 @@ struct SpacesLayoutSheet: View {
                 #endif
                 .toolbar { SheetCloseToolbar() }
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
     }
 
     @ViewBuilder

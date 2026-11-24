@@ -327,7 +327,7 @@ struct AttachButton: View {
                 next = choice
                 showsPanel = false
             }
-            .presentationDetents([.medium, .large])
+            .appSheet(detents: [.medium, .large])
             .presentationDragIndicator(.visible)
         }
         .photosPicker(

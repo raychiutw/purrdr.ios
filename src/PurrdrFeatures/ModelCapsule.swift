@@ -52,6 +52,7 @@ struct ModelCapsule: View {
         .accessibilityIdentifier("composer.model")
         .sheet(isPresented: $isPresented, onDismiss: { Task { await model.finishChoosingModel() } }) {
             ModelSheet(model: model)
+                .appSheetBackground()
         }
     }
 }
@@ -72,7 +73,7 @@ struct ModelSheet: View {
                 .toolbar { SheetCloseToolbar(identifier: "model.close") }
                 .modelEffortDestination(model)
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .presentationDragIndicator(.visible)
     }
 }
