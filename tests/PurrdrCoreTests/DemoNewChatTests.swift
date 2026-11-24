@@ -30,6 +30,34 @@ struct DemoNewChatTests {
         }
     }
 
+    @Test("既有 Workspace 新增 Tab(#537):Demo 建出新 Tab 與 agent,快照多一個 Tab 與一個 Agent;agent 還在啟動所以第一則訊息留給輸入框")
+    func newTabInExistingWorkspace() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let launcher = NewChatLauncher(client: client, folders: NewChatFolders(channel: host))
+        let before = try await client.snapshot()
+
+        let started = try await launcher.start(NewChatRequest(
+            folder: "/Users/demo/ledger", tabLabel: "Draft", agent: .claude, message: "hi", target: .existingWorkspace(id: "w1")))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w1", rootPaneID: "w1:p2"), sentMessage: false))
+        let after = try await client.snapshot()
+        #expect(after.tabs.count == before.tabs.count + 1)
+        #expect(after.tabs.first { $0.id == "w1:t2" }?.label == "Draft")
+        #expect(after.agents.contains { $0.paneID == "w1:p2" })
+        #expect(after.agents.count == before.agents.count + 1)
+    }
+
+    @Test("既有 Workspace 不存在:Demo 回 workspace_not_found")
+    func newTabInMissingWorkspace() async throws {
+        let host = DemoHost()
+        let launcher = NewChatLauncher(client: HerdrClient(channel: host), folders: NewChatFolders(channel: host))
+
+        await #expect(throws: HerdrError.self) {
+            try await launcher.start(NewChatRequest(folder: "/x", agent: .claude, target: .existingWorkspace(id: "w99")))
+        }
+    }
+
     @Test("開始：資料夾解析得到，但 workspace.create 回 demo_unsupported")
     func startIsRejected() async throws {
         let host = DemoHost()

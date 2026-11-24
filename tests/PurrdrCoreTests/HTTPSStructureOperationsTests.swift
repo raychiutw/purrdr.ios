@@ -118,6 +118,17 @@ struct HTTPSStructureOperationsTests {
         #expect(!service.log.messages.contains { $0.contains("tab.close") })
     }
 
+    @Test("新增 Tab:主機服務還沒有 tab.create(purrdr.host#90),不送出、丟 unsupported(#537)")
+    func createTabIsReservedButUnsupported() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: Self.currentVersion))
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.unsupported("tab.create")) {
+            try await Self.client(to: service).createTab(in: "w1", label: nil)
+        }
+        #expect(!service.log.messages.contains { $0.contains("tab.create") })
+    }
+
     @Test("關閉送 workspace.close")
     func closeWorkspace() async throws {
         let service = try await Self.start()
