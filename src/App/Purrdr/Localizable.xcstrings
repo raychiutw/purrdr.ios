@@ -1414,17 +1414,6 @@
         }
       }
     },
-    "All Workspaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所有 Workspace"
-          }
-        }
-      }
-    },
     "Allow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2877,17 +2866,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉檔案選擇器"
-          }
-        }
-      }
-    },
-    "Close Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "關閉版面"
           }
         }
       }
@@ -15878,17 +15856,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workspace 名稱"
-          }
-        }
-      }
-    },
-    "Workspaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workspace"
           }
         }
       }

@@ -5,7 +5,7 @@ extension XCUIApplication {
     /// 目標列出現就停;回傳列是否出現。
     @MainActor
     func slowlyReveal(_ row: XCUIElement, maxDrags: Int = 40) -> Bool {
-        let list = collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch
+        let list = collectionViews.firstMatch
         guard list.waitUntilExists(timeout: 10) else { return false }
         for _ in 0..<maxDrags where !row.exists {
             list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
@@ -105,12 +105,6 @@ final class AccessibilityAuditContext {
         guard region.exists else { return nil }
         return (region.frame, region.descendants(matching: .any).allElementsBoundByIndex.map(\.frame))
     }
-
-    /// iPad 的側欄(系統 Liquid Glass 側欄，浮在內容上)。
-    lazy var sidebar: CGRect? = {
-        let list = app.collectionViews["sidebar"]
-        return list.exists ? list.frame : nil
-    }()
 
     /// 半透明填色的內容卡片(需要你、subagent、workflow)。
     lazy var cards: [CGRect] = ["prompt.card", "conversation.subagent", "conversation.workflow"].flatMap { identifier in
@@ -284,19 +278,10 @@ enum AccessibilityAuditExclusions {
         },
         Rule(
             types: [.dynamicType, .textClipped],
-            reason: "對應不到元素、說明是一般的「this element」而不是 SwiftUI 節點:UIKit 繪製的系統元件(iPad split view 的側欄切換鈕、"
+            reason: "對應不到元素、說明是一般的「this element」而不是 SwiftUI 節點:UIKit 繪製的系統元件(iPad split view 的欄位切換鈕、"
                 + "視窗控制等)。app 的文字都是 SwiftUI,會以「SwiftUI.AccessibilityNode」回報"
         ) { issue, _ in
             issue.element == nil && !issue.detailedDescription.contains("SwiftUI")
-        },
-        Rule(
-            types: .contrast,
-            reason: "iPad 側欄的文字(主機、workspace、標題):系統 Liquid Glass 側欄浮在內容上，audit 透過玻璃取樣，同一份程式碼"
-                + "五輪裡三輪通過、兩輪失敗(.tdd-logs/35-ipad-4.log、35-ipad-final.log);截圖確認是系統主要色／次要色文字配淺色玻璃，"
-                + "文字顏色全是系統語意色"
-        ) { issue, context in
-            guard let element = issue.element, element.elementType == .staticText, let sidebar = context.sidebar else { return false }
-            return sidebar.contains(CGPoint(x: element.frame.midX, y: element.frame.midY))
         },
         Rule(
             types: .textClipped,

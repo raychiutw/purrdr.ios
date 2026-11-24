@@ -5,7 +5,7 @@ import SwiftUI
 /// Spaces 版面圖的 sheet(行為規格 F4,iPhone 版):每個 tab 一張分頁圖，點 pane 方塊開聊天或終端機。
 ///
 /// 點方塊只記下目標並關 sheet;由列表在 sheet 關閉後才開(不能在關 sheet 的同一刻 push)。
-/// iPad 有指標停留時改用浮動卡片(`LayoutCard`,#31);iPhone 與 context menu 的「Show Layout」仍是這個 sheet。
+/// 版面圖入口:Spaces 的 Tab 列長按「Show Layout」與對話「⋯」的「Show Layout」(iPhone、iPad 一樣,#518)。
 struct SpacesLayoutSheet: View {
     let workspaceLabel: String
     let layout: SpacesLayout?
