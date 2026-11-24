@@ -14,6 +14,8 @@ enum HerdrMethod: String {
     case workspaceClose = "workspace.close"
     /// 預留(#534):主機服務還沒有 `tab.close`(purrdr.host#91),protocol 補上前一律 `unsupported`、不送出。
     case tabClose = "tab.close"
+    /// 預留(#537):主機服務還沒有 `tab.create`(purrdr.host#90),protocol 補上前一律 `unsupported`、不送出。
+    case tabCreate = "tab.create"
     case worktreeCreate = "worktree.create"
     case agentStart = "agent.start"
     case paneRead = "pane.read"
@@ -99,6 +101,9 @@ enum HerdrOperation {
             }
         case .tabClose:
             // purrdr.host#91 補上 schema 並同步後,改成送 `tabClose` 訊息(門檻另登記 HostServiceFeature)。
+            throw HostServiceError.unsupported(line.method)
+        case .tabCreate:
+            // purrdr.host#90 補上 schema 並同步後,改成送 `tabCreate` 訊息、組回 `tab_created`(門檻另登記 HostServiceFeature)。
             throw HostServiceError.unsupported(line.method)
         case .workspaceClose:
             let params = try JSONDecoder().decode(WorkspaceIDParams.self, from: line.params)

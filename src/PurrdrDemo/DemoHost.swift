@@ -757,6 +757,20 @@ enum DemoSnapshot {
         var statuses: [String: String] = [:]
         /// Antigravity 情境:快照多一個 w4(garden)。
         var includesAntigravity = false
+        /// 在既有 Workspace 新增的 Tab(#537)。
+        var createdTabs: [CreatedTab] = []
+
+        /// `tab.create` 建出的 Tab:有一個 root pane,`agent.start` 之後才有 agent。
+        struct CreatedTab {
+            var workspaceID: String
+            var tabID: String
+            var paneID: String
+            var number: Int
+            var label: String
+            var cwd: String
+            /// `agent.start` 啟動的種類;還沒啟動為 `nil`。
+            var agentKind: String?
+        }
     }
 
     /// 依 socket API 的請求產生一行回應(`{id,result}` 或 `{id,error}`)。
@@ -812,7 +826,32 @@ enum DemoSnapshot {
                 state.closed.insert(workspaceID)
             }
             return (result(id: id, ["type": "ok"]), false)
-        case "workspace.create", "worktree.create", "tab.create", "pane.split":
+        case "tab.create":
+            // 在既有 Workspace 新增 Tab(#537);Workspace 不存在回 workspace_not_found(與 herdr 相同)。
+            let workspaceID = params["workspace_id"] as? String ?? ""
+            let workspaces = snapshot(applying: state)["workspaces"] as? [[String: Any]] ?? []
+            guard workspaces.contains(where: { $0["workspace_id"] as? String == workspaceID }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"workspace_not_found","message":\#(quoted("workspace \(workspaceID) not found"))}}"#), false)
+            }
+            let number = 2 + state.createdTabs.filter { $0.workspaceID == workspaceID }.count
+            let panes = (snapshot(applying: state)["panes"] as? [[String: Any]] ?? []).filter { $0["workspace_id"] as? String == workspaceID }
+            let cwd = panes.first?["cwd"] as? String ?? "/Users/demo"
+            let tab = State.CreatedTab(
+                workspaceID: workspaceID, tabID: "\(workspaceID):t\(number)", paneID: "\(workspaceID):p\(panes.count + 1)", number: number,
+                label: (params["label"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "\(number)", cwd: cwd, agentKind: nil)
+            state.createdTabs.append(tab)
+            return (result(id: id, ["type": "tab_created", "tab": tabEntry(tab), "root_pane": paneEntry(tab)]), false)
+        case "agent.start":
+            // 只有 `tab.create` 建出的 pane 能啟動 agent;agent 還在啟動(launch_pending),所以第一則訊息不會送出。
+            let paneID = params["pane_id"] as? String ?? ""
+            guard let index = state.createdTabs.firstIndex(where: { $0.paneID == paneID }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
+            }
+            let kind = params["kind"] as? String ?? "claude"
+            state.createdTabs[index].agentKind = kind
+            let agent: [String: Any] = ["pane_id": paneID, "workspace_id": state.createdTabs[index].workspaceID, "kind": kind, "status": "idle", "launch_pending": true]
+            return (result(id: id, ["type": "agent_started", "agent": agent, "argv": [kind]]), false)
+        case "workspace.create", "worktree.create", "pane.split":
             return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
         case "pane.report_metadata":
             return (line(#"{"id":\#(quoted(id)),"result":{"type":"ok"}}"#), false)
@@ -850,11 +889,44 @@ enum DemoSnapshot {
 
     private static let workspaceIDs: Set<String> = ["w1", "w2", "w3", "w4"]
 
+    private static func tabEntry(_ tab: State.CreatedTab) -> [String: Any] {
+        [
+            "tab_id": tab.tabID, "workspace_id": tab.workspaceID, "number": tab.number, "label": tab.label, "focused": false,
+            "pane_count": 1, "agent_status": tab.agentKind == nil ? "unknown" : "idle",
+        ]
+    }
+
+    private static func paneEntry(_ tab: State.CreatedTab) -> [String: Any] {
+        var pane: [String: Any] = [
+            "pane_id": tab.paneID, "terminal_id": "term_demo_\(tab.paneID)", "workspace_id": tab.workspaceID, "tab_id": tab.tabID,
+            "focused": false, "cwd": tab.cwd, "foreground_cwd": tab.cwd, "agent_status": tab.agentKind == nil ? "unknown" : "idle",
+            "scroll": ["offset_from_bottom": 0, "max_offset_from_bottom": 0, "viewport_rows": 32], "revision": 1,
+        ]
+        if let kind = tab.agentKind { pane["agent"] = kind }
+        return pane
+    }
+
     /// 範例 snapshot 套上這次啟動中的改動：關掉的 workspace 連同 tab、pane、版面、Agent 一起拿掉;改過的名稱換掉。
     private static func snapshot(applying state: State) -> [String: Any] {
         guard var snapshot = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] else { return [:] }
         if state.includesAntigravity {
             for (key, entries) in DemoAntigravity.snapshotEntries { snapshot[key] = (snapshot[key] as? [[String: Any]] ?? []) + entries }
+        }
+        for tab in state.createdTabs {
+            snapshot["tabs"] = (snapshot["tabs"] as? [[String: Any]] ?? []) + [tabEntry(tab)]
+            snapshot["panes"] = (snapshot["panes"] as? [[String: Any]] ?? []) + [paneEntry(tab)]
+            snapshot["layouts"] = (snapshot["layouts"] as? [[String: Any]] ?? []) + [[
+                "workspace_id": tab.workspaceID, "tab_id": tab.tabID, "zoomed": false, "area": ["x": 0, "y": 0, "width": 160, "height": 40],
+                "focused_pane_id": tab.paneID,
+                "panes": [["pane_id": tab.paneID, "focused": true, "rect": ["x": 0, "y": 0, "width": 160, "height": 40]]], "splits": [],
+            ]]
+            if let kind = tab.agentKind {
+                snapshot["agents"] = (snapshot["agents"] as? [[String: Any]] ?? []) + [[
+                    "terminal_id": "term_demo_\(tab.paneID)", "agent": kind, "agent_status": "idle", "workspace_id": tab.workspaceID,
+                    "tab_id": tab.tabID, "pane_id": tab.paneID, "focused": false, "state_change_seq": 6, "cwd": tab.cwd,
+                    "foreground_cwd": tab.cwd, "revision": 1,
+                ]]
+            }
         }
         for key in ["workspaces", "tabs", "panes", "layouts", "agents"] {
             snapshot[key] = (snapshot[key] as? [[String: Any]])?.filter { !state.closed.contains($0["workspace_id"] as? String ?? "") }

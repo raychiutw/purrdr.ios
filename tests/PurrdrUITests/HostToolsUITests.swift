@@ -142,7 +142,7 @@ final class HostToolsUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["newChat.host"].firstMatch.label.contains("Demo"), "沒有換到 Demo")
         // 新增對話是部分高度的 sheet(#425):資料夾欄在下方(lazy,不在 accessibility tree),拉到 large 才看得到。
-        app.element("sheet.newChat").swipeUp()
+        for _ in 0..<4 where !app.textFields["newChat.folder"].exists { app.element("sheet.newChat").swipeUp() }
         XCTAssertTrue(app.textFields["newChat.folder"].firstMatch.waitUntilExists(timeout: 5), "換主機後表單不見了")
     }
 }
