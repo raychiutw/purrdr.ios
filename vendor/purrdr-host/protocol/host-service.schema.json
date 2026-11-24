@@ -65,6 +65,8 @@
         { "$ref": "#/$defs/WorkspaceCreate" },
         { "$ref": "#/$defs/WorkspaceRename" },
         { "$ref": "#/$defs/TabRename" },
+        { "$ref": "#/$defs/TabCreate" },
+        { "$ref": "#/$defs/TabClose" },
         { "$ref": "#/$defs/WorkspaceClose" },
         { "$ref": "#/$defs/WorktreeCreate" },
         { "$ref": "#/$defs/AgentStart" },
@@ -126,6 +128,8 @@
         { "$ref": "#/$defs/WorkspaceCreateResult" },
         { "$ref": "#/$defs/WorkspaceRenameResult" },
         { "$ref": "#/$defs/TabRenameResult" },
+        { "$ref": "#/$defs/TabCreateResult" },
+        { "$ref": "#/$defs/TabCloseResult" },
         { "$ref": "#/$defs/WorkspaceCloseResult" },
         { "$ref": "#/$defs/WorktreeCreateResult" },
         { "$ref": "#/$defs/AgentStartResult" },
@@ -791,6 +795,49 @@
       },
       "required": ["type", "request_id"]
     },
+    "TabCreate": {
+      "description": "在既有 workspace 新增 tab(herdr tab.create,不搶桌機焦點)。新增聊天 = tab.create 後對 root pane 送 agent.start。workspace 不存在時以 herdr_error 回報(herdr_code workspace_not_found)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "tab.create" },
+        "request_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "label": { "type": "string", "description": "tab 名稱,不可空白;省略時由 herdr 以序號命名。" }
+      },
+      "required": ["type", "request_id", "workspace_id"]
+    },
+    "TabCreateResult": {
+      "description": "tab 已建立;聊天開在 root_pane_id。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "tab.create.result" },
+        "request_id": { "type": "string" },
+        "tab_id": { "type": "string" },
+        "root_pane_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "tab_id", "root_pane_id"]
+    },
+    "TabClose": {
+      "description": "關閉 tab(herdr tab.close):裡面的 pane 與程序都會停止。關掉 workspace 的最後一個 tab 時,herdr 連 workspace 一起關(實測 herdr 0.9.5:仍回成功、不回錯誤);若那是 herdr 唯一的 workspace,herdr 會另開一個空的新 workspace(新的 workspace_id)。app 要關最後一個 tab 前應先提示使用者「會一併關閉這個 Workspace」。tab 不存在時以 herdr_error 回報(herdr_code tab_not_found)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "tab.close" },
+        "request_id": { "type": "string" },
+        "tab_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "tab_id"]
+    },
+    "TabCloseResult": {
+      "description": "tab 已關閉。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "tab.close.result" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
     "WorkspaceClose": {
       "description": "關閉 workspace(herdr workspace.close):裡面的 tab、pane 與程序都會停止。不連同 worktree 群組一起關，同 repo 的 worktree workspace 還開著時以 herdr_error 回報(herdr_code workspace_group_close_required)。",
       "type": "object",
@@ -856,13 +903,14 @@
       "enum": ["manual", "acceptEdits", "plan", "auto", "bypassPermissions"]
     },
     "AgentStartResult": {
-      "description": "Agent 已在 pane 啟動。",
+      "description": "Agent 已在 pane 啟動。herdr 0.9.5 的 agent.start 一律立刻回成功(agent 帶 launch_pending:true,連已信任資料夾也是),不等 Agent 就緒;所以主機服務在 herdr 回成功後輪詢 herdr 的 agent.get,等到 launch_pending 消失(Agent 已就緒)、停在 blocked(例如資料夾尚未被 Claude 信任,要有人在桌機回答)或超過 timeout_ms(省略時 30 秒),再回報最終的 launch_pending。讀不到 Agent 狀態時保守回 true。launch_pending 為 true 時 app 不要立刻送 agent.prompt(會得到 herdr_error:agent_not_ready 或 agent_blocked),應把第一則訊息留在輸入框。agent.prompt 在 Agent 尚未就緒時回 herdr_error(herdr_code agent_not_ready:Agent 還在啟動,herdr 訊息 \"is not an active named agent\";agent_blocked:Agent 在等互動輸入,例如信任資料夾)。",
       "type": "object",
       "properties": {
         "type": { "const": "agent.start.result" },
-        "request_id": { "type": "string" }
+        "request_id": { "type": "string" },
+        "launch_pending": { "type": "boolean", "description": "Agent 是否仍未就緒(見上):false = 已就緒可送 agent.prompt;true = 仍在啟動、停在 blocked 或等待逾時。" }
       },
-      "required": ["type", "request_id"]
+      "required": ["type", "request_id", "launch_pending"]
     },
     "SessionsList": {
       "description": "列出工作資料夾過去的 Claude／Codex session(raychiutw/purrdr.host#32),給續接用。Claude 讀 <設定目錄>/projects/<cwd 轉成的資料夾名>/*.jsonl;Codex 讀 sessions/ 下 session_meta 的 cwd 等於這個資料夾的 rollout。只回 id、最後修改時間與第一則使用者訊息的摘要，依修改時間新到舊，最多 50 筆。",
