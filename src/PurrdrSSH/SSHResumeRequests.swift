@@ -48,7 +48,7 @@ enum SSHResumeRequest: Equatable {
         switch envelope.method {
         case "sessions.list":
             guard let list = try? JSONDecoder().decode(ListRequest.self, from: request).params else { throw Self.invalid("sessions.list needs cwd and agent_kind") }
-            guard ["claude", "codex"].contains(list.agentKind) else { throw Self.invalid("sessions.list supports claude and codex") }
+            guard [AgentID.claude, .codex].contains(AgentID(herdrName: list.agentKind)) else { throw Self.invalid("sessions.list supports claude and codex") }
             self = .sessionsList(requestID: envelope.id, cwd: list.cwd, kind: list.agentKind)
         case "agent.start":
             guard var object = try? JSONSerialization.jsonObject(with: request) as? [String: Any],
@@ -57,9 +57,9 @@ enum SSHResumeRequest: Equatable {
                 return
             }
             let resumeArguments: [String]
-            switch params["kind"] as? String {
-            case "claude": resumeArguments = ["--resume", session]
-            case "codex": resumeArguments = ["resume", session]
+            switch (params["kind"] as? String).map(AgentID.init(herdrName:)) {
+            case .claude: resumeArguments = ["--resume", session]
+            case .codex: resumeArguments = ["resume", session]
             default: throw Self.invalid("resume_session needs a claude or codex agent")
             }
             guard Self.isSafeID(session) else { throw Self.invalid("resume_session needs a session id (letters, digits and -)") }
