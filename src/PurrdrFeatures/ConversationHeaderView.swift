@@ -18,7 +18,7 @@ struct ConversationTitleView: View {
             secondLine
         }
         // 標題膠囊(#348 A1):浮在內容上的玻璃,內容從底下捲過去;減少透明度時改不透明底。
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .frame(minHeight: TopBarMetrics.titleCapsuleHeight)
         .floatingGlass(in: Capsule())
         .accessibilityElement(children: .ignore)
@@ -27,40 +27,52 @@ struct ConversationTitleView: View {
         .accessibilityIdentifier("conversation.header")
     }
 
+    /// 第二行的省略順序:放不下時先收掉權限模式的短名(留符號)、再收主機名稱(VoiceOver 仍念),不用 … 截斷。
+    /// 中間的標題欄在手機上只有約 120pt 寬(左右還有返回、未讀徽章與 [用量環｜⋯])。
     private var secondLine: some View {
+        ViewThatFits(in: .horizontal) {
+            line(showHost: true, badge: .named)
+            line(showHost: true, badge: .symbolOnly)
+            line(showHost: false, badge: .named)
+            line(showHost: false, badge: .symbolOnly)
+            line(showHost: false, badge: .hidden)
+                .lineLimit(1)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondaryText)
+    }
+
+    private enum BadgeStyle { case named, symbolOnly, hidden }
+
+    private func line(showHost: Bool, badge style: BadgeStyle) -> some View {
         let line = header.secondLine
         return HStack(spacing: 4) {
-            if !line.hostNames.isEmpty {
+            if showHost, !line.hostNames.isEmpty {
                 Image(systemName: "desktopcomputer")
                     .accessibilityHidden(true)
                 Text(verbatim: line.hostNames.joined(separator: ", "))
                     .lineLimit(1)
-                    .truncationMode(.tail)
-                Text(verbatim: "·")
-                    .accessibilityHidden(true)
+                    .fixedSize()
             }
-            // 狀態與模式比主機名稱晚被截斷:名稱先縮。
             StatusDot(tone: header.status.tone)
             Text(verbatim: line.statusTitle)
                 .lineLimit(1)
-                .layoutPriority(1)
-            if let badge = line.badge {
-                Text(verbatim: "·")
-                    .accessibilityHidden(true)
+                .fixedSize()
+            if let badge = line.badge, style != .hidden {
                 HStack(spacing: 3) {
-                    if badge.isWarning {
+                    if badge.isWarning || style == .symbolOnly {
                         Image(systemName: badge.mode.symbol)
-                            .foregroundStyle(Color.orange)
+                            .foregroundStyle(badge.isWarning ? Color.orange : Color.secondary)
                             .accessibilityHidden(true)
                     }
-                    Text(verbatim: badge.mode.displayName)
-                        .lineLimit(1)
+                    if style == .named {
+                        Text(verbatim: badge.mode.displayName)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
                 }
-                .layoutPriority(1)
             }
         }
-        .font(.caption)
-        .foregroundStyle(.secondaryText)
     }
 }
 
