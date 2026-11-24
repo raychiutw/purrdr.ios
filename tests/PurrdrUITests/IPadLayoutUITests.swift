@@ -98,7 +98,7 @@ final class IPadLayoutUITests: XCTestCase {
         XCTAssertFalse(app.element("layoutCard").exists, "不該再有浮動的版面圖卡片")
 
         agentBlock.tap()
-        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10), "版面圖選的 Agent 沒有開在對話欄")
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "版面圖選的 Agent 沒有開在對話欄")
         XCTAssertTrue(tab.exists, "對話推走了列表")
     }
 
