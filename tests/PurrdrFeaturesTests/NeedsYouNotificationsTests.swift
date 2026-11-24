@@ -156,6 +156,59 @@ struct NeedsYouNotificationsTests {
         #expect(model.others.count == 1)
     }
 
+    // MARK: 多視窗(#539)
+
+    @Test("Pane 視窗:別的視窗開著的聊天變成需要你也會觸發;自己視窗的聊天不算")
+    func paneWindowIgnoresOnlyItsOwnChat() {
+        let model = Self.model()
+        let main = Self.route("w1:p1")
+        let own = Self.route("w2:p1")
+        model.apply(Self.input(current: [main, own]))
+
+        model.apply(Self.input(["w1:p1", "w2:p1"], current: [main, own]))
+
+        #expect(model.banner == nil, "主視窗的規則不變:任何視窗開著的都不算")
+        #expect(model.paneBanner(excluding: own) == .init(chat: main, total: 1))
+        #expect(model.paneBanner(excluding: main) == .init(chat: own, total: 1))
+    }
+
+    @Test("Pane 視窗:多個時總數不含自己的聊天,橫幅是最新的")
+    func paneWindowTotalExcludesOwn() {
+        let model = Self.model()
+        model.apply(Self.input())
+        model.apply(Self.input(["w2:p1"]))
+        model.apply(Self.input(["w2:p1", "w3:p1"]))
+
+        #expect(model.paneBanner(excluding: Self.route("w9:p1")) == .init(chat: Self.route("w3:p1"), total: 2))
+        #expect(model.paneBanner(excluding: Self.route("w3:p1")) == .init(chat: Self.route("w2:p1"), total: 1))
+    }
+
+    @Test("收起狀態跨視窗共用:任一視窗收起後另一個也不再顯示同一則")
+    func dismissIsSharedAcrossWindows() {
+        let model = Self.model()
+        let main = Self.route("w1:p1")
+        model.apply(Self.input(current: [main]))
+        model.apply(Self.input(["w2:p1", "w1:p1"], current: [main]))
+        #expect(model.banner?.chat == Self.route("w2:p1"))
+        #expect(model.paneBanner(excluding: Self.route("w9:p1")) == .init(chat: main, total: 2), "沒有自己聊天的視窗看到最新的(主視窗開著的)")
+
+        model.dismiss()
+
+        #expect(model.banner == nil)
+        #expect(model.paneBanner(excluding: Self.route("w9:p1")) == nil)
+        model.apply(Self.input(["w2:p1", "w1:p1"], current: [main]))
+        #expect(model.paneBanner(excluding: Self.route("w9:p1")) == nil)
+    }
+
+    @Test("Pane 視窗:第一份快照已需要你、靜音的不觸發")
+    func paneWindowIgnoresBaselineAndMuted() {
+        let model = Self.model()
+        model.apply(Self.input(["w2:p1"]))
+        model.apply(Self.input(["w2:p1", "w3:p1"], muted: ["w3:p1"]))
+
+        #expect(model.paneBanner(excluding: Self.route("w9:p1")) == nil)
+    }
+
     // MARK: 輸入取自合併列表
 
     @Test("輸入取自所有主機:不受主機篩選,目前開著的聊天帶進來")
