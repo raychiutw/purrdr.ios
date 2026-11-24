@@ -190,7 +190,6 @@ public struct NewChatView: View {
             Picker("Workspace", selection: $model.placement) {
                 Label("New Workspace", systemImage: "plus")
                     .tag(NewChatModel.Placement.newWorkspace)
-                    .accessibilityIdentifier("newChat.placement.new")
                 ForEach(model.workspaces) { workspace in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(verbatim: workspace.name)
@@ -204,8 +203,6 @@ public struct NewChatView: View {
                         }
                     }
                     .tag(NewChatModel.Placement.existing(workspace.id))
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("newChat.placement.\(workspace.id)")
                 }
             }
             .pickerStyle(.inline)

@@ -60,6 +60,41 @@ final class NewChatUITests: XCTestCase {
         XCTAssertTrue(start.isEnabled)
     }
 
+    /// 既有 Workspace(#537):第一個欄位選 ledger 後資料夾欄消失(沿用它的資料夾)、Workspace 名稱欄消失;
+    /// 填第一則訊息開始 → Demo 在 ledger 新增 Tab 並啟動 agent,sheet 關閉,新 Tab 的 Agent 出現在列表。
+    @MainActor
+    func testStartInExistingWorkspaceAddsATab() {
+        let app = XCUIApplication.launchUITesting()
+        app.openNewChatSheet()
+        let sheet = app.element("sheet.newChat")
+        XCTAssertTrue(sheet.waitUntilExists(timeout: 10), "沒有開出新增對話")
+        // 選項是勾選列(#313 同做法),以標籤找:Workspace 名稱加資料夾。
+        let ledger = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'ledger'")).firstMatch
+        XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "沒有列出既有的 Workspace ledger")
+        XCTAssertTrue(app.buttons["New Workspace"].exists, "沒有「新的 Workspace」")
+        ledger.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["newChat.placement.footer"].firstMatch.waitUntilExists(timeout: 5), "選了既有 Workspace 沒有說明")
+        sheet.swipeUp()
+        XCTAssertFalse(app.textFields["newChat.folder"].exists, "選了既有 Workspace 不需要資料夾")
+        XCTAssertFalse(app.textFields["newChat.workspaceName"].exists, "既有 Workspace 沒有 Workspace 名稱欄")
+        let tabName = app.textFields["newChat.tabName"]
+        app.scrollIntoView(tabName, search: .down)
+        XCTAssertTrue(tabName.waitForExistence(timeout: 5), "既有 Workspace 沒有 Tab 名稱欄")
+
+        let message = app.textViews["newChat.message"].exists ? app.textViews["newChat.message"] : app.textFields["newChat.message"]
+        message.tap()
+        message.typeEnglish("Add a second tab")
+        let start = app.buttons["newChat.start"]
+        app.scrollIntoView(start, search: .down)
+        XCTAssertTrue(start.isEnabled)
+        start.tap()
+
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 15), "開始後 sheet 沒有關閉")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.reveal(app.descendants(matching: .any)[chatRowID("w1:p2")].firstMatch), "新 Tab 的 Agent 沒有出現在列表")
+    }
+
     /// 表單只有 Agent(攤開的勾選列,#313)、資料夾、選填的 Workspace／Tab 名稱(#532)、第一則訊息與「開始」,沒有權限欄位;資料夾與訊息都填才能開始。
     /// Demo 主機拒絕開始，錯誤顯示在表單裡、sheet 不關。
     @MainActor
