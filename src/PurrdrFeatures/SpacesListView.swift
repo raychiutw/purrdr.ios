@@ -44,12 +44,11 @@ struct SpacesSectionsContent: View {
         }
     }
 
-    /// 最上面的「需要你」段落(#531):淡橙底，點了開那個聊天;最新轉變的一列尾端標「剛剛」。這些列同時留在原本的段落。
+    /// 最上面的「需要你」段落(#531):點了開那個聊天(顏色只上在標題的符號,不上整列底色,DESIGN.md);最新轉變的一列尾端標「剛剛」。這些列同時留在原本的段落。
     private func needsYouSection(_ needsYou: NeedsYouSection) -> some View {
         Section {
             ForEach(needsYou.rows) { row in
                 tabRow(row.tab, host: row.tab.host, justNow: row.isJustNow)
-                    .listRowBackground(Color.orange.opacity(0.14))
                     .accessibilityIdentifier("needsYou.tab.\(row.tab.id)")
             }
         } header: {
@@ -106,13 +105,13 @@ struct SpacesSectionsContent: View {
     }
 }
 
-/// 「需要你」段落標題(#531):橙色小點與「N 個聊天需要你」(標為 header,VoiceOver 念得到)。
+/// 「需要你」段落標題(#531):橙色 `!` 符號與「N 個聊天需要你」(標為 header,VoiceOver 念得到)。
 private struct NeedsYouSectionHeader: View {
     let count: Int
 
     var body: some View {
         HStack(spacing: 6) {
-            Circle().fill(Color.orange).frame(width: 8, height: 8).accessibilityHidden(true)
+            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Color.orange).accessibilityHidden(true)
             Text(verbatim: NeedsYouSection.title(count: count))
                 .fixedSize(horizontal: false, vertical: true)
         }
