@@ -6,9 +6,10 @@ import SwiftUI
 package struct ChatTopBarActions {
     var newChat: () -> Void
     var addHost: () -> Void
-    var account: AnyView
+    /// 寬視窗時頭像在對話欄工具列(`AccountButtonPlacement`),列表頂列沒有。
+    var account: AnyView?
 
-    package init(newChat: @escaping () -> Void, addHost: @escaping () -> Void, account: AnyView) {
+    package init(newChat: @escaping () -> Void, addHost: @escaping () -> Void, account: AnyView?) {
         self.newChat = newChat
         self.addHost = addHost
         self.account = account

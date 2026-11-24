@@ -8,11 +8,14 @@ import SwiftUI
 struct WindowDetail: View {
     let hosts: HostsModel
     let navigation: TopNavigationModel
+    /// 寬視窗時帳號頭像掛在這一欄的工具列右側(最右邊那欄,視窗右上角;#520);`nil` 時由列表頂列放。
+    var account: AnyView?
 
     var body: some View {
         NavigationStack {
             WindowDetailContent(hosts: hosts, navigation: navigation, route: navigation.selectedChat)
                 .appNavigationBackground()
+                .accountToolbarItem(account)
         }
         // 換一個聊天就整個重建(對話 model、推入的終端機)。
         .id(navigation.selectedChat)
@@ -158,5 +161,38 @@ public struct PurrdrCommands: Commands {
         Button(command.title) { window?.perform(command) }
             .keyboardShortcut(command.shortcut)
             .disabled(window == nil)
+    }
+}
+
+// MARK: - 帳號頭像(寬視窗,#520)
+
+/// 最右邊那欄工具列 trailing 的帳號頭像。iOS 27 起用釘住的 trailing(空間不夠也不收進溢出選單),iOS 26 退回一般 trailing。
+/// 頭像自己就是玻璃圓鈕(同共用頂列),所以工具列不再疊一層底(`sharedBackgroundVisibility(.hidden)`);iOS 27 另外拿掉工具列項目的內容邊距,
+/// 讓圓鈕貼滿。
+struct AccountToolbarItem: ToolbarContent {
+    let account: AnyView
+
+    var body: some ToolbarContent {
+        #if os(iOS)
+        if #available(iOS 27, *) {
+            ToolbarItem(placement: .topBarPinnedTrailing) { account }
+                .sharedBackgroundVisibility(.hidden)
+                .contentMarginsRemoved()
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { account }
+                .sharedBackgroundVisibility(.hidden)
+        }
+        #else
+        ToolbarItem(placement: .automatic) { account }
+        #endif
+    }
+}
+
+extension View {
+    /// 放上帳號頭像;`nil` 時不加(窄視窗,頭像在列表頂列)。
+    func accountToolbarItem(_ account: AnyView?) -> some View {
+        toolbar {
+            if let account { AccountToolbarItem(account: account) }
+        }
     }
 }
