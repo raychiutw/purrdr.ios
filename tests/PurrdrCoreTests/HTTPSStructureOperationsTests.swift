@@ -184,7 +184,7 @@ struct HTTPSStructureOperationsTests {
         let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
 
         let started = try await launcher.start(NewChatRequest(
-            folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi", target: .existingWorkspace("w1")))
+            folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi", target: .existingWorkspace(id: "w1")))
 
         let types = service.log.messages.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
             .compactMap { $0["type"] as? String }
@@ -387,7 +387,7 @@ struct HTTPSStructureOperationsTests {
         #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w1", rootPaneID: "w1:p1"), sentMessage: true))
     }
 
-    @Test("新增聊天(HTTPS):主機服務的 agent.start 結果不帶 launch_pending;prompt 回 agent_not_ready 時不送、不丟錯誤(purrdr.host#92 之前的行為)")
+    @Test("新增聊天(HTTPS):舊版主機服務(沒有 launch_pending)prompt 回 agent_not_ready 時不送、不丟錯誤")
     func newChatPromptNotReadyKeepsMessage() async throws {
         let service = try await Self.start(.init(promptHerdrError: "agent_not_ready", hostServiceVersion: Self.currentVersion))
         defer { Task { await service.stop() } }
