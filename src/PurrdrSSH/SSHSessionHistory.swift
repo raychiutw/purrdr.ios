@@ -75,7 +75,7 @@ public enum SessionHistoryCommand {
           epoch = substr($0, 1, i - 1)
           path = substr($0, i + 1)
           id = ""; summary = ""; bytes = 0; ok = 0
-          if (kind == "claude") {
+          if (kind == "\#(AgentID.claude.canonicalName)") {
             n = split(path, parts, "/")
             id = parts[n]
             id = substr(id, 1, length(id) - 6)
@@ -85,7 +85,7 @@ public enum SessionHistoryCommand {
           while ((getline line < path) > 0) {
             bytes += length(line) + 1
             if (bytes > 1048576) break
-            if (kind == "codex" && !ok) {
+            if (kind == "\#(AgentID.codex.canonicalName)" && !ok) {
               if (index(line, Q "type" Q ":" Q "session_meta" Q)) {
                 p = after(line, Q "payload" Q ":{" Q "id" Q ":" Q)
                 if (!p) p = after(line, Q "id" Q ":" Q)
@@ -96,7 +96,7 @@ public enum SessionHistoryCommand {
               }
               continue
             }
-            t = typed(kind == "claude" ? claude_text(line) : codex_text(line))
+            t = typed(kind == "\#(AgentID.claude.canonicalName)" ? claude_text(line) : codex_text(line))
             if (t != "") { summary = substr(t, 1, 480); break }
           }
           close(path)

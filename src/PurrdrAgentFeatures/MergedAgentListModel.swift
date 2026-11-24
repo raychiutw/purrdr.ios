@@ -105,6 +105,9 @@ public final class MergedAgentListModel {
             if let currentHost { selectHost?(currentHost) }
         }
     }
+    /// 跨聊天「需要你」通知的輸出(返回鈕小點等);由 #530、#531 的畫面以 `needsYou.run(observing:)` 驅動(這張不接,見 PROGRESS)。
+    public let needsYou = NeedsYouNotifications()
+
     /// 目前主機改變時通知(主機清單接上，存到本機)。
     public var currentHostDidChange: (@MainActor (HostSelection?) -> Void)?
     /// 目前主機是某台主機時，把它設成選取中主機(主機清單接上)。
