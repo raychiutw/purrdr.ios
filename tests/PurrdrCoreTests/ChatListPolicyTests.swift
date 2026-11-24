@@ -26,6 +26,13 @@ struct ChatListPolicyTests {
         #expect(!ChatListApplyGate.shouldDefer(isFirstApply: true, isUserDriven: true, isKeyboardAnimating: true, isMenuOpen: true))
     }
 
+    @Test("畫面離開中(返回列表的轉場)延後套用內容;第一次套用不延後")
+    func applyIsDeferredWhileLeaving() {
+        #expect(ChatListApplyGate.shouldDefer(isFirstApply: false, isUserDriven: false, isKeyboardAnimating: false, isMenuOpen: false, isLeaving: true))
+        #expect(!ChatListApplyGate.shouldDefer(isFirstApply: true, isUserDriven: false, isKeyboardAnimating: false, isMenuOpen: false, isLeaving: true))
+        #expect(!ChatListApplyGate.shouldDefer(isFirstApply: false, isUserDriven: false, isKeyboardAnimating: false, isMenuOpen: false, isLeaving: false))
+    }
+
     // MARK: - inset
 
     @Test("列表延伸到安全區域外:上下 inset 是列表與安全區域框的差")

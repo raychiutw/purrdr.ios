@@ -28,6 +28,21 @@ extension ChatListRowContent {
     }
 }
 
+extension ChatListRowContent {
+    /// 同一種列的高度大致相近:沒量過的列用同種列的平均高度當估計(`ChatListHeightCache`)。
+    var kind: String {
+        switch self {
+        case .older: "older"
+        case .away: "away"
+        case .entry: "entry"
+        case .pending: "pending"
+        case .notice: "notice"
+        case .prompt: "prompt"
+        case .working: "working"
+        }
+    }
+}
+
 /// 聊天列表由上而下的列與各列內容。
 struct ChatListContent: Equatable {
     var ids: [String] = []
@@ -108,7 +123,7 @@ struct ChatListView: UIViewControllerRepresentable {
 }
 
 @MainActor
-final class ChatListViewController: UIViewController, UICollectionViewDelegate, UIGestureRecognizerDelegate {
+final class ChatListViewController: UIViewController, UICollectionViewDelegateFlowLayout, UIGestureRecognizerDelegate {
     var model: ConversationModel?
     var rowView: (ChatListRowContent) -> AnyView = { _ in AnyView(EmptyView()) }
     /// 列的環境值;與上次套用時不同就讓所有列重畫(內容相等也一樣)。
@@ -125,6 +140,9 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     private var contentSizeObservation: NSKeyValueObservation?
 
     private let layout = ChatListLayout()
+    let sizingProbe = ChatListSizingProbe()
+    /// 量過的列高(cell 自適應時寫入、排版估計時讀出)。
+    private let heightStore = ChatListHeightStore()
     private var collectionView: UICollectionView!
     private var dataSource: UICollectionViewDiffableDataSource<Int, String>!
     private var content = ChatListContent()
@@ -167,6 +185,9 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     private var lastAnchor: (anchor: Anchor, at: TimeInterval)?
 
+    /// 目前是不是「跟隨最新」(測試與診斷用)。
+    var isFollowingLatest: Bool { decider.isFollowingLatest }
+
     private var isUserDriven: Bool { collectionView.isDragging || collectionView.isDecelerating }
 
     // MARK: - 生命週期
@@ -184,6 +205,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         collectionView.keyboardDismissMode = .onDrag
         collectionView.accessibilityIdentifier = "conversation.list"
         view.addSubview(collectionView)
+        layout.probe = sizingProbe
         if let hitchRecorder {
             hitchMonitor = ChatHitchMonitor(
                 recorder: hitchRecorder, scrollView: collectionView, visibleCells: { [weak self] in self?.collectionView.visibleCells.count ?? 0 })
@@ -193,6 +215,10 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
             guard let self, let rowContent = self.content.rows[id] else { return }
             let hosted = self.rowView(rowContent)
             cell.fitTimer = self.hitchMonitor?.fitTimer
+            cell.probe = self.sizingProbe
+            cell.heightStore = self.heightStore
+            cell.rowID = id
+            cell.rowKind = rowContent.kind
             cell.contentConfiguration = UIHostingConfiguration { hosted }
                 .margins(.all, 0)
                 .margins(.horizontal, 16)
@@ -205,7 +231,10 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
         contentSizeObservation = collectionView.observe(\.contentSize, options: [.old, .new]) { [weak self] _, change in
             guard let old = change.oldValue, let new = change.newValue, abs(new.height - old.height) > 0.5 else { return }
-            MainActor.assumeIsolated { self?.hitchMonitor?.note(.contentSizeChange(points: Double(new.height - old.height))) }
+            MainActor.assumeIsolated {
+                self?.hitchMonitor?.note(.contentSizeChange(points: Double(new.height - old.height)))
+                self?.contentSizeChangedWhileFollowing()
+            }
         }
 
         let refresh = UIRefreshControl()
@@ -221,12 +250,29 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         NotificationCenter.default.addObserver(
             self, selector: #selector(keyboardWillChangeFrame(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: ChatListViewController, _) in
+            controller.configureHeightCache()
             controller.collectionView.collectionViewLayout.invalidateLayout()
         }
     }
 
+    /// 列表正在離開畫面(`viewWillDisappear` 到再出現之間):新內容先留著,不在轉場裡做版面計算。
+    private var isLeaving = false
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        resumeAfterLeaving()
+    }
+
+    private func resumeAfterLeaving() {
+        guard isLeaving else { return }
+        isLeaving = false
+        model?.setLeaving(false)
+        applyPendingContentIfSafe()
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        resumeAfterLeaving()
         hitchRecorder?.setSceneActive(flushPolicy.isSceneActive)
         updateHitchWorkingFlag()
         hitchMonitor?.appear()
@@ -234,6 +280,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        isLeaving = true
+        model?.setLeaving(true)
         hitchMonitor?.disappear()
     }
 
@@ -247,6 +295,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         if bounds.width != lastBoundsWidth {
             lastBoundsWidth = bounds.width
             layout.updateWidth(bounds.width)
+            configureHeightCache()
         }
         if bounds.height != lastBoundsHeight {
             let isFirstLayout = lastBoundsHeight == 0
@@ -260,6 +309,27 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         updateInsets()
         scrollToInitialPositionIfPossible()
         reportMeasurement()
+    }
+
+    /// 內容高度變了(列被量到實際高度、內容併入)而位移沒變時 `scrollViewDidScroll` 不會來:
+    /// 跟隨最新卻離底部變遠,補一次排程貼底(`.layout` 不補重試額度,不會無限重試)。
+    private func contentSizeChangedWhileFollowing() {
+        guard hasAppliedContent, !isUserDriven, decider.isFollowingLatest, collectionView != nil else { return }
+        decider.receive(.layoutMeasured(distanceFromBottom: distanceFromBottom))
+        if distanceFromBottom > ConversationScrollDecider.settleTolerance { scheduleFlush(after: 0.05, reason: .layout) }
+    }
+
+    private func configureHeightCache() {
+        let category = collectionView.traitCollection.preferredContentSizeCategory
+        let defaultHeight = UIFontMetrics(forTextStyle: .body).scaledValue(for: 60, compatibleWith: collectionView.traitCollection)
+        heightStore.configure(width: Double(layout.estimatedItemSize.width), category: category.rawValue, defaultHeight: Double(defaultHeight))
+    }
+
+    /// 排版用的估計高度:量過的列用量到的高度,沒量過的用同種列的平均(寬度固定為 layout 的列寬)。
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+        let width = layout.estimatedItemSize.width
+        guard let id = dataSource.itemIdentifier(for: indexPath) else { return CGSize(width: width, height: 60) }
+        return CGSize(width: width, height: CGFloat(heightStore.estimate(for: id, kind: content.rows[id]?.kind ?? "entry")))
     }
 
     /// 列表延伸到玻璃導覽列、橫幅與輸入列底下:上下 inset 是列表框與安全區域框的差(DESIGN.md:內容從玻璃底下捲過去)。
@@ -346,7 +416,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     private var shouldDeferApply: Bool {
         ChatListApplyGate.shouldDefer(
-            isFirstApply: !hasAppliedContent, isUserDriven: isUserDriven, isKeyboardAnimating: isKeyboardAnimating, isMenuOpen: isMenuOpen)
+            isFirstApply: !hasAppliedContent, isUserDriven: isUserDriven, isKeyboardAnimating: isKeyboardAnimating, isMenuOpen: isMenuOpen,
+            isLeaving: isLeaving)
     }
 
     /// 暫存的內容在安全時套用(拖曳結束、鍵盤動畫結束)。
@@ -376,6 +447,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         appliedRowEnvironment = rowEnvironment
         let reconfigureIDs = ChatListRowPlan.reconfigureIDs(previous: previous.rows, current: newContent.rows, environmentChanged: environmentChanged)
         snapshot.reconfigureItems(reconfigureIDs)
+        heightStore.invalidate(reconfigureIDs)
+        heightStore.prune(keeping: Set(newContent.ids))
         hitchMonitor?.note(.batchApply)
         hitchMonitor?.note(.reconfigure(count: reconfigureIDs.count))
         dataSource.apply(snapshot, animatingDifferences: false)
@@ -440,6 +513,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
             newRowMinY: frame.minY, distanceFromVisibleTop: anchor.distanceFromVisibleTop, insetTop: collectionView.adjustedContentInset.top)
         if abs(target - collectionView.contentOffset.y) > 0.5 {
             hitchMonitor?.note(.offsetCorrection(points: target - collectionView.contentOffset.y))
+            sizingProbe.noteProgrammaticOffset(points: target - collectionView.contentOffset.y)
             collectionView.contentOffset.y = target
         }
     }
@@ -502,37 +576,62 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         }
     }
 
-    private func scrollToBottom(animated: Bool) {
-        collectionView.layoutIfNeeded()
+    private func bottomTarget() -> Double {
         let inset = collectionView.adjustedContentInset
-        let target = ChatListLayoutMath.bottomOffset(
+        return ChatListLayoutMath.bottomOffset(
             contentHeight: layout.collectionViewContentSize.height, boundsHeight: collectionView.bounds.height,
             insetTop: inset.top, insetBottom: inset.bottom)
-        setOffsetY(target, animated: animated)
+    }
+
+    private func scrollToBottom(animated: Bool) {
+        collectionView.layoutIfNeeded()
+        settleOffset(animated: animated) { [self] in bottomTarget() }
     }
 
     /// 捲到指定列(底緣停在可見底緣);找不到列或它就是最後一列時等同捲到底。
     private func scrollToRow(id: String, animated: Bool) {
-        guard id != content.ids.last, let indexPath = dataSource.indexPath(for: id) else {
+        guard id != content.ids.last, dataSource.indexPath(for: id) != nil else {
             scrollToBottom(animated: animated)
             return
         }
         collectionView.layoutIfNeeded()
-        guard let frame = layout.layoutAttributesForItem(at: indexPath)?.frame else {
-            scrollToBottom(animated: animated)
+        settleOffset(animated: animated) { [self] in
+            guard let indexPath = dataSource.indexPath(for: id), let frame = layout.layoutAttributesForItem(at: indexPath)?.frame else {
+                return bottomTarget()
+            }
+            let inset = collectionView.adjustedContentInset
+            return ChatListLayoutMath.offsetShowingRowBottom(
+                rowMaxY: frame.maxY, boundsHeight: collectionView.bounds.height, insetTop: inset.top, insetBottom: inset.bottom,
+                contentHeight: layout.collectionViewContentSize.height)
+        }
+    }
+
+    /// 捲到 `target()` 算出的位置。距離不遠且要動畫才用動畫;否則直接跳,並在同一輪排版內重算對準
+    /// (目的地的列這時才被量到實際高度,估計的內容高度會變,一次跳不準)。
+    private func settleOffset(animated: Bool, target: () -> Double) {
+        var goal = target()
+        let animates = ChatListLayoutMath.animatesJump(
+            wanted: animated && !UIAccessibility.isReduceMotionEnabled, distance: goal - Double(collectionView.contentOffset.y),
+            visibleHeight: visibleHeight)
+        guard !animates else {
+            setOffsetY(goal, animated: true)
             return
         }
-        let inset = collectionView.adjustedContentInset
-        let target = ChatListLayoutMath.offsetShowingRowBottom(
-            rowMaxY: frame.maxY, boundsHeight: collectionView.bounds.height, insetTop: inset.top, insetBottom: inset.bottom,
-            contentHeight: layout.collectionViewContentSize.height)
-        setOffsetY(target, animated: animated)
+        for _ in 0..<ChatListLayoutMath.maximumSettlePasses {
+            setOffsetY(goal, animated: false)
+            collectionView.layoutIfNeeded()
+            let next = target()
+            if abs(next - goal) <= 0.5 { return }
+            goal = next
+        }
+        setOffsetY(goal, animated: false)
     }
 
     private func setOffsetY(_ target: Double, animated: Bool) {
         guard abs(target - collectionView.contentOffset.y) > 0.5 else { return }
         hitchMonitor?.note(.offsetCorrection(points: target - collectionView.contentOffset.y))
-        collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: target), animated: animated && !UIAccessibility.isReduceMotionEnabled)
+        sizingProbe.noteProgrammaticOffset(points: target - collectionView.contentOffset.y)
+        collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: target), animated: animated)
     }
 
     // MARK: - 量測與回報
@@ -778,10 +877,33 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     }
 }
 
+/// 量過的列高,cell 與 controller 共用(都在主執行緒)。
+@MainActor
+final class ChatListHeightStore {
+    private var cache = ChatListHeightCache()
+
+    func configure(width: Double, category: String, defaultHeight: Double) {
+        if cache.defaultHeight != defaultHeight {
+            cache = ChatListHeightCache(defaultHeight: defaultHeight)
+        }
+        cache.configure(width: width, category: category)
+    }
+
+    func record(id: String, kind: String, height: Double) { cache.record(id: id, kind: kind, height: height) }
+    func knownHeight(for id: String) -> Double? { cache.knownHeight(for: id) }
+    func estimate(for id: String, kind: String) -> Double { cache.estimate(for: id, kind: kind) }
+    func invalidate(_ ids: some Sequence<String>) { cache.invalidate(ids) }
+    func prune(keeping ids: Set<String>) { cache.prune(keeping: ids) }
+}
+
 /// 聊天列表的 cell:列延伸到狀態列、導覽列與 home indicator 底下時,hosting 內容不依位置墊高(否則列高會隨捲動位置變);只保留左右。
 final class ChatListCell: UICollectionViewCell {
     /// 卡頓記錄器的自適應計時(記錄器沒運作時 `isActive` 為 false,不計時)。
     var fitTimer: HitchFitTimer?
+    var probe: ChatListSizingProbe?
+    var heightStore: ChatListHeightStore?
+    var rowID: String?
+    var rowKind = "entry"
 
     override var safeAreaInsets: UIEdgeInsets {
         UIEdgeInsets(top: 0, left: super.safeAreaInsets.left, bottom: 0, right: super.safeAreaInsets.right)
@@ -790,13 +912,26 @@ final class ChatListCell: UICollectionViewCell {
     /// 自適應只改高度:寬度固定為 layout 給的寬度(`required`),不讓長段文字以理想寬度撐出比畫面寬的列。
     override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
         let attributes = layoutAttributes.copy() as? UICollectionViewLayoutAttributes ?? layoutAttributes
+        // 還沒顯示在列表上的 cell(排版為了估計高度先配置的):這一列量過、內容沒變就直接用,不再重量(一次約 3~10 ms)。
+        // 已顯示的 cell 一律重量:展開、圖片載入等內部變化要量得到。
+        if let rowID, let known = heightStore?.knownHeight(for: rowID), (superview as? UICollectionView)?.indexPath(for: self) == nil {
+            attributes.size = CGSize(width: layoutAttributes.size.width, height: CGFloat(known))
+            probe?.noteCacheHit()
+            return attributes
+        }
         let timer = fitTimer?.isActive == true ? fitTimer : nil
-        let started = timer == nil ? 0 : DispatchTime.now().uptimeNanoseconds
-        defer { timer?.record(startNanoseconds: started) }
+        let started = DispatchTime.now().uptimeNanoseconds
+        defer {
+            timer?.record(startNanoseconds: started)
+        }
         let fitted = contentView.systemLayoutSizeFitting(
             CGSize(width: layoutAttributes.size.width, height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
         attributes.size = CGSize(width: layoutAttributes.size.width, height: fitted.height)
+        if let rowID { heightStore?.record(id: rowID, kind: rowKind, height: Double(fitted.height)) }
+        probe?.noteFit(
+            milliseconds: Double(DispatchTime.now().uptimeNanoseconds &- started) / 1_000_000,
+            heightChanged: abs(fitted.height - layoutAttributes.size.height) > 0.5)
         return attributes
     }
 }

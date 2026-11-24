@@ -38,6 +38,18 @@ public enum ChatListLayoutMath {
         return min(limit, max(-insetTop, rowMaxY + insetBottom - boundsHeight))
     }
 
+    /// 程式捲動最多動畫跨過幾個畫面高;更遠就直接跳到目的地。
+    /// 動畫途中 UIKit 要為經過的每一列配置 cell 並自適應高度(沒量過的列一列幾 ms 到幾十 ms),長對話在 XXXL 字級會一次卡住上百 ms。
+    public static let maximumAnimatedScreens = 3.0
+
+    /// 這次程式捲動要不要用動畫:決策者想要動畫、而且距離不遠才用。
+    public static func animatesJump(wanted: Bool, distance: Double, visibleHeight: Double) -> Bool {
+        wanted && abs(distance) <= maximumAnimatedScreens * max(visibleHeight, 1)
+    }
+
+    /// 直接跳(沒有動畫)到估計的底部後,目的地的列才被量到實際高度、內容高度跟著變:最多在同一輪排版內再對準幾次。
+    public static let maximumSettlePasses = 4
+
     /// 往上補舊訊息、內容變動後，讓錨點列維持在畫面上原本的位置時的 contentOffset.y。
     public static func offsetKeepingRow(newRowMinY: Double, distanceFromVisibleTop: Double, insetTop: Double) -> Double {
         newRowMinY - distanceFromVisibleTop - insetTop

@@ -8,12 +8,16 @@ public enum ChatListInitialPosition {
     }
 }
 
-/// 套用新內容的時機:拖曳、鍵盤動畫、選單開著時先留著,安全了再套用(spec #480)。
+/// 套用新內容的時機:拖曳、鍵盤動畫、選單開著、畫面正在離開時先留著,安全了再套用(spec #480)。
 public enum ChatListApplyGate {
     /// 第一次套用一律立刻做(此時畫面上還沒有東西可以被打斷)。
-    public static func shouldDefer(isFirstApply: Bool, isUserDriven: Bool, isKeyboardAnimating: Bool, isMenuOpen: Bool) -> Bool {
+    /// `isLeaving`:列表正在離開畫面(返回列表的轉場、推入子頁)。畫面已經在移走,套用只會把版面計算塞進轉場裡
+    /// (轉場期間的卡頓與動畫尾段凍結),所以留到回來(`viewWillAppear`)再套用;離開後這個畫面就會被釋放,內容不再需要。
+    public static func shouldDefer(
+        isFirstApply: Bool, isUserDriven: Bool, isKeyboardAnimating: Bool, isMenuOpen: Bool, isLeaving: Bool = false
+    ) -> Bool {
         guard !isFirstApply else { return false }
-        return isUserDriven || isKeyboardAnimating || isMenuOpen
+        return isUserDriven || isKeyboardAnimating || isMenuOpen || isLeaving
     }
 }
 

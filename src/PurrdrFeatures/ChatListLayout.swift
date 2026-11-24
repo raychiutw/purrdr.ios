@@ -2,11 +2,56 @@
 import PurrdrCore
 import UIKit
 
+/// 聊天列表自適應高度與位移補償的累計數字(診斷與測試用;只加數字,不做 I/O)。
+@MainActor
+final class ChatListSizingProbe {
+    struct Counts: Equatable {
+        /// 列自適應(`preferredLayoutAttributesFitting`)的次數與總毫秒、單次最長毫秒。
+        var fits = 0
+        var fitMilliseconds = 0.0
+        var longestFitMilliseconds = 0.0
+        /// 自適應結果與原本(估計)高度不同的次數:每一次都會讓 layout 重算並補償位移。
+        var heightChanges = 0
+        /// layout 在列高改變時補的 contentOffset:次數與位移絕對值總和。
+        var layoutAdjustments = 0
+        var layoutAdjustmentPoints = 0.0
+        /// 程式設定的 contentOffset(捲到底、錨點還原):次數與位移絕對值總和。
+        var programmaticOffsets = 0
+        var programmaticOffsetPoints = 0.0
+        /// 自適應直接用了已知高度(沒有量)的次數。
+        var cacheHits = 0
+    }
+
+    private(set) var counts = Counts()
+
+    func reset() { counts = Counts() }
+
+    func noteFit(milliseconds: Double, heightChanged: Bool) {
+        counts.fits += 1
+        counts.fitMilliseconds += milliseconds
+        counts.longestFitMilliseconds = max(counts.longestFitMilliseconds, milliseconds)
+        if heightChanged { counts.heightChanges += 1 }
+    }
+
+    func noteCacheHit() { counts.cacheHits += 1 }
+
+    func noteLayoutAdjustment(points: Double) {
+        counts.layoutAdjustments += 1
+        counts.layoutAdjustmentPoints += abs(points)
+    }
+
+    func noteProgrammaticOffset(points: Double) {
+        counts.programmaticOffsets += 1
+        counts.programmaticOffsetPoints += abs(points)
+    }
+}
+
 /// 聊天列表的單欄 layout(ADR-0014):全寬自適應高度的列，內容比畫面矮時貼著底部。
 /// 列高在量到實際高度(preferred attributes)的同一次排版內補 contentOffset,位移的算法在 `ChatListLayoutMath`。
 final class ChatListLayout: UICollectionViewFlowLayout {
     /// 跟隨最新時任何一列變高都保持底部不動;閱讀中只補可見範圍上方的變化。
     var isFollowingLatest = true
+    var probe: ChatListSizingProbe?
 
     override init() {
         super.init()
@@ -78,6 +123,7 @@ final class ChatListLayout: UICollectionViewFlowLayout {
             visibleHeight: visibleHeight,
             isFollowingLatest: isFollowingLatest)
         if adjustment != 0 {
+            probe?.noteLayoutAdjustment(points: adjustment)
             context.contentOffsetAdjustment.y += CGFloat(adjustment)
         }
         return context
