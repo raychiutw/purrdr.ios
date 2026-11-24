@@ -6639,6 +6639,17 @@
         }
       }
     },
+    "Leave these empty to use the folder’s name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空就用資料夾的名稱。"
+          }
+        }
+      }
+    },
     "Left Arrow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7234,6 +7245,17 @@
       }
     },
     "Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱"
+          }
+        }
+      }
+    },
+    "Names" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8615,6 +8637,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟終端機。"
+          }
+        }
+      }
+    },
+    "Optional" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選填"
           }
         }
       }
@@ -12036,6 +12069,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tab %lld"
+          }
+        }
+      }
+    },
+    "Tab Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 名稱"
           }
         }
       }
@@ -15944,6 +15988,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作中…"
+          }
+        }
+      }
+    },
+    "Workspace Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workspace 名稱"
           }
         }
       }
