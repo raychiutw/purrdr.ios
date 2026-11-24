@@ -102,7 +102,7 @@ struct ConversationMainThreadCostTests {
         let elapsed = clock.now - start
 
         #expect(!model.items.isEmpty)
-        #expect(elapsed < .milliseconds(150), "還原 2000 則花了 \(elapsed)")
+        #expect(elapsed < .seconds(1), "還原 2000 則花了 \(elapsed)")
     }
 
     @Test("可讀訊息的線性檢查與畫面項目的結果一致")

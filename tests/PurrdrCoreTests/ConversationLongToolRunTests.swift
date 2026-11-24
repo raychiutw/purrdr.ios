@@ -37,8 +37,9 @@ struct ConversationLongToolRunTests {
         let small = Self.messages(1_000)
         let large = Self.messages(4_000)
         let clock = ContinuousClock()
-        let smallTime = clock.measure { _ = Conversation.items(from: small) }
-        let largeTime = clock.measure { _ = Conversation.items(from: large) }
+        // 取三次最快的,避免整套測試並行時被其他測試的負載拉高。
+        let smallTime = (0..<3).map { _ in clock.measure { _ = Conversation.items(from: small) } }.min()!
+        let largeTime = (0..<3).map { _ in clock.measure { _ = Conversation.items(from: large) } }.min()!
         let ratio = (largeTime / smallTime)
         // 線性約 4 倍,平方約 16 倍。
         #expect(ratio < 9, "4 倍長度花了 \(ratio) 倍時間(\(smallTime) → \(largeTime))")
