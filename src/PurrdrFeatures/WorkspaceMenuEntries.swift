@@ -16,5 +16,17 @@ enum WorkspaceMenuLevel {
     case tab(hasNewWindow: Bool, hasChats: Bool, hasTab: Bool)
     case workspace
 
-    var entries: [WorkspaceMenuEntry] { [] }
+    var entries: [WorkspaceMenuEntry] {
+        switch self {
+        case .tab(let hasNewWindow, let hasChats, let hasTab):
+            var result: [WorkspaceMenuEntry] = []
+            if hasNewWindow { result.append(.openInNewWindow) }
+            if hasChats { result += [.pin, .mute] }
+            result.append(.showLayout)
+            if hasTab { result += [.renameTab, .closeTab] }
+            return result
+        case .workspace:
+            return [.renameWorkspace, .showLayout, .newWorktree, .closeWorkspace]
+        }
+    }
 }

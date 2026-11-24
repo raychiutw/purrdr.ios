@@ -135,30 +135,12 @@ extension View {
     ) -> some View {
         contextMenu {
             let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
-            if let openInNewWindow {
-                Button("Open in New Window", systemImage: "macwindow.badge.plus", action: openInNewWindow)
-                    .accessibilityIdentifier("menu.openInNewWindow")
+            let level = WorkspaceMenuLevel.tab(hasNewWindow: openInNewWindow != nil, hasChats: chats != nil, hasTab: tab != nil)
+            // 項目由 `WorkspaceMenuLevel` 一處決定(#536);「版面圖」前的分隔線只在前面有新視窗或釘選靜音時出現。
+            ForEach(level.entries, id: \.self) { entry in
+                if entry == .showLayout, openInNewWindow != nil || chats != nil { Divider() }
+                buttons.view(for: entry, tab: tab, chats: chats, openInNewWindow: openInNewWindow)
             }
-            if let chats {
-                let pinned = chats.actions.arePinned(sessionIDs: chats.sessionIDs)
-                Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
-                    chats.actions.togglePin(sessionIDs: chats.sessionIDs)
-                }
-                .accessibilityIdentifier("menu.pin")
-                let muted = chats.actions.areMuted(sessionIDs: chats.sessionIDs)
-                Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
-                    chats.actions.toggleMute(sessionIDs: chats.sessionIDs)
-                }
-                .accessibilityIdentifier("menu.mute")
-            }
-            if openInNewWindow != nil || chats != nil { Divider() }
-            buttons.showLayout()
-            if let tab { buttons.renameTab(tab, showsCurrent: false) }
-            buttons.newWorktree()
-            // Tab 層級項目到此為止,下面是 Workspace 層級(#536 會把兩組拆開)。
-            if let tab { buttons.closeTab(tab) }
-            Divider()
-            buttons.close(title: "Close Workspace…", role: .destructive)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if let tab {
@@ -176,16 +158,15 @@ extension View {
     ) -> some View {
         let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: isReadOnly)
         return Menu {
-            buttons.renameWorkspace(showsCurrent: true)
-            buttons.showLayout()
-            buttons.newWorktree()
-            Divider()
-            buttons.close(title: "Close Workspace…", role: .destructive)
+            ForEach(WorkspaceMenuLevel.workspace.entries, id: \.self) { entry in
+                if entry == .closeWorkspace { Divider() }
+                buttons.view(for: entry, tab: nil, chats: nil, openInNewWindow: nil)
+            }
             if isReadOnly { Text(WorkspaceActionsModel.readOnlyMessage) }
         } label: {
             self
         } primaryAction: {}
-        .buttonStyle(.plain)
+        .buttonStyle(HeaderPressStyle())
         .accessibilityAction(named: Text("Rename Workspace…")) { if !isReadOnly { buttons.askWorkspaceName() } }
     }
 
@@ -208,6 +189,40 @@ private struct WorkspaceButtons {
     let presentation: WorkspacePresentation
     /// 唯讀裝置：改到主機的操作(改名、建立 worktree、關閉)停用。
     var isReadOnly = false
+
+    /// 依選單項目(`WorkspaceMenuEntry`)給對應的按鈕。
+    @ViewBuilder
+    func view(for entry: WorkspaceMenuEntry, tab: TabTarget?, chats: TabChatActions?, openInNewWindow: (() -> Void)?) -> some View {
+        switch entry {
+        case .openInNewWindow:
+            if let openInNewWindow {
+                Button("Open in New Window", systemImage: "macwindow.badge.plus", action: openInNewWindow)
+                    .accessibilityIdentifier("menu.openInNewWindow")
+            }
+        case .pin:
+            if let chats {
+                let pinned = chats.actions.arePinned(sessionIDs: chats.sessionIDs)
+                Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
+                    chats.actions.togglePin(sessionIDs: chats.sessionIDs)
+                }
+                .accessibilityIdentifier("menu.pin")
+            }
+        case .mute:
+            if let chats {
+                let muted = chats.actions.areMuted(sessionIDs: chats.sessionIDs)
+                Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
+                    chats.actions.toggleMute(sessionIDs: chats.sessionIDs)
+                }
+                .accessibilityIdentifier("menu.mute")
+            }
+        case .showLayout: showLayout()
+        case .renameTab: if let tab { renameTab(tab, showsCurrent: false) }
+        case .closeTab: if let tab { closeTab(tab) }
+        case .renameWorkspace: renameWorkspace(showsCurrent: true)
+        case .newWorktree: newWorktree()
+        case .closeWorkspace: close(title: "Close Workspace…", role: .destructive)
+        }
+    }
 
     /// context menu 的「重新命名 Workspace…」;`showsCurrent` 時副標顯示目前名稱(#456)。
     func renameWorkspace(showsCurrent: Bool) -> some View {
@@ -279,6 +294,15 @@ private struct WorkspaceButtons {
             presentation.sheet = .worktree(workspaceID: target.workspaceID, label: target.label)
         }
         .disabled(isReadOnly)
+    }
+}
+
+/// Workspace 段落標題(`Menu`)的按下反饋(#536):按住時淡灰底高亮,按下的瞬間輕觸覺。
+private struct HeaderPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Color.primary.opacity(0.12) : Color.clear)
+            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in pressed }
     }
 }
 
