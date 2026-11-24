@@ -107,26 +107,124 @@ struct HTTPSStructureOperationsTests {
         }
     }
 
-    @Test("關閉 Tab:主機服務還沒有 tab.close(purrdr.host#91),不送出、丟 unsupported")
-    func closeTabIsReservedButUnsupported() async throws {
-        let service = try await Self.start(.init(hostServiceVersion: Self.currentVersion))
+    // MARK: - tab.create／tab.close／launch_pending(主機服務 0.15.0)
+
+    @Test("關閉 Tab 送 tab.close {tab_id};最後一個 Tab 連 Workspace 一起關也是成功")
+    func closeTab() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.15.0"))
         defer { Task { await service.stop() } }
 
-        await #expect(throws: HostServiceError.unsupported("tab.close")) {
+        try await Self.client(to: service).closeTab("w1:t1")
+
+        #expect(try Self.sent(service, type: "tab.close")["tab_id"] as? String == "w1:t1")
+    }
+
+    @Test("關閉 Tab:主機服務 0.14.0 不送出，回「需要更新主機服務」")
+    func closeTabOnOlderHostService() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.14.0"))
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.hostServiceUpdateRequired(.tabClose, installedVersion: "0.14.0")) {
             try await Self.client(to: service).closeTab("w1:t1")
         }
         #expect(!service.log.messages.contains { $0.contains("tab.close") })
     }
 
-    @Test("新增 Tab:主機服務還沒有 tab.create(purrdr.host#90),不送出、丟 unsupported(#537)")
-    func createTabIsReservedButUnsupported() async throws {
-        let service = try await Self.start(.init(hostServiceVersion: Self.currentVersion))
+    @Test("關閉 Tab:唯讀裝置被拒，錯誤種類是 readOnlyDevice")
+    func closeTabOnReadOnlyDevice() async throws {
+        let service = try await Self.start(.init(readOnlyTokens: ["token-ok"], hostServiceVersion: "0.15.0"))
         defer { Task { await service.stop() } }
 
-        await #expect(throws: HostServiceError.unsupported("tab.create")) {
+        await #expect(throws: HostServiceError.readOnlyDevice) {
+            try await Self.client(to: service).closeTab("w1:t1")
+        }
+    }
+
+    @Test("關閉 Tab:herdr 的錯誤碼 tab_not_found 原樣透傳")
+    func closeMissingTab() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.15.0", structureHerdrErrors: ["tab.close": "tab_not_found"]))
+        defer { Task { await service.stop() } }
+
+        await #expect {
+            try await Self.client(to: service).closeTab("w1:t9")
+        } throws: { error in
+            if case HerdrError.herdr(code: "tab_not_found", _) = error { return true }
+            return false
+        }
+    }
+
+    @Test("新增 Tab 送 tab.create {workspace_id, label},回傳新 Tab 與 root pane")
+    func createTab() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.15.0"))
+        defer { Task { await service.stop() } }
+
+        let created = try await Self.client(to: service).createTab(in: "w1", label: "garden-notes")
+
+        let sent = try Self.sent(service, type: "tab.create")
+        #expect(sent["workspace_id"] as? String == "w1")
+        #expect(sent["label"] as? String == "garden-notes")
+        #expect(created == CreatedTab(workspaceID: "w1", tabID: "w1:t2", rootPaneID: "w1:p2"))
+    }
+
+    @Test("新增 Tab:主機服務 0.14.0 不送出，回「需要更新主機服務」")
+    func createTabOnOlderHostService() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.14.0"))
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.hostServiceUpdateRequired(.tabCreate, installedVersion: "0.14.0")) {
             try await Self.client(to: service).createTab(in: "w1", label: nil)
         }
         #expect(!service.log.messages.contains { $0.contains("tab.create") })
+    }
+
+    @Test("新增聊天到既有 Workspace(HTTPS 0.15.0):tab.create → agent.start → agent.prompt")
+    func newChatInExistingWorkspace() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.15.0"))
+        defer { Task { await service.stop() } }
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+
+        let started = try await launcher.start(NewChatRequest(
+            folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi", target: .existingWorkspace("w1")))
+
+        let types = service.log.messages.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+            .compactMap { $0["type"] as? String }
+        #expect(types.filter { $0 != "hello" } == ["tab.create", "agent.start", "agent.prompt"])
+        #expect(try Self.sent(service, type: "agent.prompt")["pane_id"] as? String == "w1:p2")
+        #expect(started.sentMessage)
+    }
+
+    @Test("agent.start 回 launch_pending:true:不送第一則訊息、不輪詢 agent.get、不丟錯誤")
+    func newChatLaunchPendingKeepsMessage() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.15.0", agentLaunchPending: true))
+        defer { Task { await service.stop() } }
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+
+        let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w1", rootPaneID: "w1:p1"), sentMessage: false))
+        #expect(!service.log.messages.contains { $0.contains("agent.get") || $0.contains("agent.prompt") })
+    }
+
+    @Test("agent.start 回 launch_pending:false:就緒,送第一則訊息")
+    func newChatLaunchReadySendsMessage() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.15.0", agentLaunchPending: false))
+        defer { Task { await service.stop() } }
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+
+        let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
+
+        #expect(started.sentMessage)
+    }
+
+    @Test("舊版主機服務(0.7.0)的 agent.start.result 沒有 launch_pending:維持當就緒,送第一則訊息")
+    func newChatOldHostServiceWithoutLaunchPending() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: "0.7.0"))
+        defer { Task { await service.stop() } }
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+
+        let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
+
+        #expect(started.sentMessage)
     }
 
     @Test("關閉送 workspace.close")
