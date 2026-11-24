@@ -9,6 +9,11 @@ struct FloatingGlass<S: InsettableShape>: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
+        inner(content).dimsWhenWindowInactive()
+    }
+
+    @ViewBuilder
+    private func inner(_ content: Content) -> some View {
         if reduceTransparency || forcesOpaque {
             content
                 .background(AppSurface.page, in: shape)

@@ -176,6 +176,11 @@ public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable 
     case chats, files, hosts, traffic
 
     public var id: String { rawValue }
+
+    /// `TabView` 的選取一律要是可見的 tab(iOS 27 SDK 起選到不可見的 tab 可能 crash,#519):不在可見清單時退回第一個可見的,都沒有就是聊天。
+    public static func visibleSelection(_ tab: TopLevelTab, visible: [TopLevelTab]) -> TopLevelTab {
+        visible.contains(tab) ? tab : (visible.first ?? .chats)
+    }
 }
 
 /// 以 sheet 開啟的畫面(不是 tab)。

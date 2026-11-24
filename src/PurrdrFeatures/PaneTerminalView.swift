@@ -39,6 +39,7 @@ public struct TerminalSessionView: View {
     @State private var isOnScreen = false
     /// 主機主題的終端機配色(#23);`nil` 時用預設深色。
     @Environment(\.hostTheme) private var hostTheme
+    @Environment(\.paneWindowTitle) private var paneWindowTitle
 
     public init(model: any TerminalSessionModel, hostPicker: HostPickerModel? = nil) {
         self.model = model
@@ -56,6 +57,7 @@ public struct TerminalSessionView: View {
         }
         .background(hostTheme?.terminal.map { SwiftUI.Color($0.background) } ?? SwiftUI.Color.black)
         .environment(\.colorScheme, .dark)
+        .navigationTitle(paneWindowTitle ?? model.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
