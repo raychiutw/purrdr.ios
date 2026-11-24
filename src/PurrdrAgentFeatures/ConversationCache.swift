@@ -47,6 +47,8 @@ public struct CachedConversation: Sendable, Equatable, Codable {
     public static let parserVersion = 3
     /// 每個聊天最多保留的訊息數。
     public static let maxMessages = 500
+    /// 尾端一長串工具步驟、可讀訊息在更前面時，快取往前多留到可讀訊息為止的上限(#508)。
+    public static let maxMessagesWithReadable = 2_000
 
     public var sessionID: String
     public var parserVersion: Int
@@ -59,10 +61,10 @@ public struct CachedConversation: Sendable, Equatable, Codable {
     public var windowStart: Int
 
     public init(sessionID: String, messages: [TranscriptMessage], metadata: TranscriptMetadata, path: String, cursor: Int, windowStart: Int,
-                parserVersion: Int = CachedConversation.parserVersion) {
+                parserVersion: Int = CachedConversation.parserVersion, limit: Int = CachedConversation.maxMessages) {
         self.sessionID = sessionID
         self.parserVersion = parserVersion
-        self.messages = Array(messages.suffix(Self.maxMessages))
+        self.messages = Array(messages.suffix(limit))
         self.metadata = metadata
         self.path = path
         self.cursor = cursor

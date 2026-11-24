@@ -2826,6 +2826,17 @@
         }
       }
     },
+    "Clear Records" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除記錄"
+          }
+        }
+      }
+    },
     "Clear text" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7750,6 +7761,17 @@
         }
       }
     },
+    "Nothing recorded yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前還沒有記錄。"
+          }
+        }
+      }
+    },
     "Nothing to Restore" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9785,6 +9807,17 @@
         }
       }
     },
+    "Record Scroll Stutters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記錄捲動卡頓"
+          }
+        }
+      }
+    },
     "Redeem Code" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10423,6 +10456,17 @@
         }
       }
     },
+    "Scrolling Records" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捲動記錄"
+          }
+        }
+      }
+    },
     "Search" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10815,6 +10859,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享公鑰"
+          }
+        }
+      }
+    },
+    "Share Stutter Records" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享卡頓記錄"
           }
         }
       }
@@ -15460,6 +15515,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要 Agent 做什麼?"
+          }
+        }
+      }
+    },
+    "When scrolling a chat feels rough, this iPhone notes down numbers. They never include your conversations. You can share them with the developer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天捲動不順時，這支手機會記下一些數字，不含你的對話內容。你可以分享給開發者。"
           }
         }
       }

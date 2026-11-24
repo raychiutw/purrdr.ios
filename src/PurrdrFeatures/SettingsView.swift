@@ -114,6 +114,10 @@ struct SettingsSections: View {
                     .foregroundStyle(.secondaryText)
             }
 
+            if model.hasHitchRecorder {
+                HitchLogSection(model: model)
+            }
+
             Section {
                 LabeledContent("Version", value: model.appVersionText)
                     .accessibilityIdentifier("settings.version")
@@ -130,6 +134,60 @@ struct SettingsSections: View {
         .task { appLock?.refreshAvailability() }
     }
 }
+
+/// 「記錄捲動卡頓」:聊天捲動不順時只在這支手機記下數字,使用者可分享給開發者。
+struct HitchLogSection: View {
+    @Bindable var model: SettingsModel
+    @State private var exported: ExportedHitchLog?
+
+    var body: some View {
+        Section {
+            Toggle("Record Scroll Stutters", isOn: $model.recordsHitches)
+                .accessibilityIdentifier("settings.hitchLog")
+            Button("Share Stutter Records", systemImage: "square.and.arrow.up") {
+                Task { exported = await model.exportHitchLog().map(ExportedHitchLog.init) }
+            }
+            .accessibilityIdentifier("settings.hitchLog.share")
+            Button("Clear Records", systemImage: "trash", role: .destructive) {
+                Task { await model.clearHitchLog() }
+            }
+            .accessibilityIdentifier("settings.hitchLog.clear")
+        } header: {
+            Text("Scrolling Records")
+                .foregroundStyle(.secondaryText)
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("When scrolling a chat feels rough, this iPhone notes down numbers. They never include your conversations. You can share them with the developer.")
+                if model.hitchLogIsEmpty {
+                    Text("Nothing recorded yet.")
+                        .accessibilityIdentifier("settings.hitchLog.empty")
+                }
+            }
+            .foregroundStyle(.secondaryText)
+        }
+        #if os(iOS)
+        .sheet(item: $exported) { file in HitchLogShareSheet(url: file.url) }
+        #endif
+    }
+}
+
+struct ExportedHitchLog: Identifiable {
+    let url: URL
+    var id: URL { url }
+}
+
+#if os(iOS)
+/// 系統分享選單(分享記錄檔)。
+struct HitchLogShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+#endif
 
 /// 平台服務的系統實作。
 @MainActor

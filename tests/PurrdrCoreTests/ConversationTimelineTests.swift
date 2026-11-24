@@ -109,4 +109,19 @@ struct ConversationTimelineTests {
         #expect(update.cause == .refreshed)
         #expect(timeline.items.map(\.id) == identitiesBefore)
     }
+
+    @Test("#508 補讀頁與目前視窗重疊、追蹤重播同一批:列不重複")
+    func overlappingPagesAndReplayDoNotDuplicate() {
+        var timeline = ConversationTimeline()
+        _ = timeline.append([Self.userMessage("u1", "hi"), Self.agentText("a1", "ok"), Self.toolStep("t1")])
+        let before = timeline.items.map(\.id)
+
+        _ = timeline.prependOlder([Self.userMessage("u0", "old"), Self.userMessage("u1", "hi"), Self.agentText("a1", "ok")])
+        _ = timeline.append([Self.agentText("a1", "ok"), Self.toolStep("t1")])
+        _ = timeline.reset(Array(repeating: [Self.userMessage("u0", "old"), Self.userMessage("u1", "hi")], count: 2).flatMap { $0 })
+
+        let ids = timeline.items.map(\.id)
+        #expect(Set(ids).count == ids.count)
+        #expect(ids.count == 2, "\(before) -> \(ids)")
+    }
 }

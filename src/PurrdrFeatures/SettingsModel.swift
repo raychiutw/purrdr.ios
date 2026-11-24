@@ -93,6 +93,14 @@ public final class SettingsModel {
         }
     }
 
+    /// 記錄捲動卡頓(診斷;預設開、只記數字不含對話內容、只存在這支手機,由使用者自己分享)。沒有記錄器時(例如測試)為 false。
+    public var recordsHitches: Bool {
+        didSet { hitchRecorder?.isEnabled = recordsHitches }
+    }
+
+    /// 分享按鈕按下後沒有記錄可分享(畫面顯示一行說明)。
+    public private(set) var hitchLogIsEmpty = false
+
     /// 用量區與 context 讀的全 app 共用設定(#389);設定 tab 改了(`planUsageDisplay`)同步過去。
     public let usageDisplay: UsageDisplaySetting
 
@@ -101,11 +109,15 @@ public final class SettingsModel {
     private let defaults: UserDefaults
     private let platform: any PlatformServices
     private let links: SettingsLinks
+    private let hitchRecorder: HitchRecorder?
 
     public init(
         app: AppInfo, hostCount: @escaping @MainActor () -> Int, defaults: UserDefaults,
-        platform: any PlatformServices, links: SettingsLinks, usageDisplay: UsageDisplaySetting = UsageDisplaySetting()
+        platform: any PlatformServices, links: SettingsLinks, usageDisplay: UsageDisplaySetting = UsageDisplaySetting(),
+        hitchRecorder: HitchRecorder? = nil
     ) {
+        self.hitchRecorder = hitchRecorder
+        recordsHitches = hitchRecorder?.isEnabled ?? false
         self.usageDisplay = usageDisplay
         self.app = app
         self.hostCount = hostCount
@@ -138,6 +150,22 @@ public final class SettingsModel {
             "Device: \(app.device)",
             "Hosts: \(hostCount())",
         ].joined(separator: "\n")
+    }
+
+    // MARK: - 卡頓記錄
+
+    public var hasHitchRecorder: Bool { hitchRecorder != nil }
+
+    /// 準備可分享的記錄檔;還沒有任何記錄時回 nil。
+    public func exportHitchLog() async -> URL? {
+        let url = await hitchRecorder?.exportFile()
+        hitchLogIsEmpty = url == nil
+        return url
+    }
+
+    public func clearHitchLog() async {
+        await hitchRecorder?.clear()
+        hitchLogIsEmpty = false
     }
 
     // MARK: - 連結

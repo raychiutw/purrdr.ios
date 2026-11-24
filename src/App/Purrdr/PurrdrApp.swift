@@ -29,6 +29,10 @@ struct PurrdrApp: App {
     private let welcome: WelcomeModel
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
+    /// 捲動卡頓記錄器(只記數字,存在這支手機;設定頁可關閉、分享、清除)。
+    private let hitchRecorder: HitchRecorder
+    /// MetricKit 每日摘要(只在真實啟動訂閱;UI 測試不接)。
+    private let hitchMetrics: HitchMetricKitSubscriber?
     private let recentPhotoSource: RecentPhotoSource
     private let videoSource: VideoSource
     /// UI 測試的 `-uiTestingReduceTransparency YES`:玻璃強制不透明。
@@ -199,7 +203,19 @@ struct PurrdrApp: App {
             store: uiTesting ? InMemoryHostSyncStore(partition: partition) : UserDefaultsHostSyncStore(partition: partition))
         self.hostSync = hostSync
         localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
-        settings = Self.makeSettings(hosts: hosts)
+        let hitchStore = uiTesting
+            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch"))
+            : HitchLogFile.applicationSupport()
+        let hitchRecorder = HitchRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
+        self.hitchRecorder = hitchRecorder
+        if uiTesting {
+            hitchMetrics = nil
+        } else {
+            let subscriber = HitchMetricKitSubscriber(recorder: hitchRecorder)
+            subscriber.start()
+            hitchMetrics = subscriber
+        }
+        settings = Self.makeSettings(hosts: hosts, hitchRecorder: hitchRecorder)
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
@@ -252,7 +268,7 @@ struct PurrdrApp: App {
     }
 
     /// 設定頁。偏好存在 `UserDefaults.standard`(輸入列的 `@AppStorage` 讀同一個 key)。
-    private static func makeSettings(hosts: HostsModel) -> SettingsModel {
+    private static func makeSettings(hosts: HostsModel, hitchRecorder: HitchRecorder) -> SettingsModel {
         let info = Bundle.main.infoDictionary ?? [:]
         let system = ProcessInfo.processInfo.operatingSystemVersion
         let app = AppInfo(
@@ -265,7 +281,8 @@ struct PurrdrApp: App {
         return SettingsModel(
             // 主機數只算已存的主機，不含 Demo。
             app: app, hostCount: { hosts.hosts.count }, defaults: .standard,
-            platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks, usageDisplay: hosts.usageDisplay
+            platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks, usageDisplay: hosts.usageDisplay,
+            hitchRecorder: hitchRecorder
         )
     }
 
@@ -470,6 +487,7 @@ struct PurrdrApp: App {
             .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
             .appLockCover(appLock)
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
+            .environment(\.hitchRecorder, hitchRecorder)
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.videoSource, videoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)

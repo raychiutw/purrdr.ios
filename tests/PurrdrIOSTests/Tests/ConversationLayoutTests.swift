@@ -38,7 +38,9 @@ struct ConversationLayoutTests {
     }
 
     /// 開啟一個聊天:視窗先回 `window` 行。
-    func open(window lines: [String], size: CGSize = CGSize(width: 390, height: 844)) async throws -> Mounted {
+    func open(
+        window lines: [String], size: CGSize = CGSize(width: 390, height: 844), hitchRecorder: HitchRecorder? = nil
+    ) async throws -> Mounted {
         let connection = FakeHostConnection()
         await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
         let total = Self.bytes(lines)
@@ -58,7 +60,10 @@ struct ConversationLayoutTests {
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,
             knownSessionID: Self.sessionID, cache: InMemoryConversationCache())
         let window = UIWindow(frame: CGRect(origin: .zero, size: size))
-        window.rootViewController = UIHostingController(rootView: NavigationStack { ConversationView(model: model) })
+        let content = NavigationStack { ConversationView(model: model) }.environment(\.hitchRecorder, hitchRecorder)
+        // 這個 package 測試沒有 window scene(scenePhase 不是 active):要記錄器運作時明說 app 在前景。
+        window.rootViewController = UIHostingController(
+            rootView: hitchRecorder == nil ? AnyView(content) : AnyView(content.environment(\.scenePhase, .active)))
         window.makeKeyAndVisible()
         let chat = Task { await model.run(sleep: RecordingSleeper().sleep) }
         return Mounted(window: window, model: model, connection: connection, chat: chat, cursor: total)

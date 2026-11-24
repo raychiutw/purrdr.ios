@@ -142,4 +142,54 @@ struct ConversationReadableMessageTests {
 
         #expect(W.hasReadableMessage(model.items))
     }
+
+    // MARK: - #508:開啟工作中的聊天,尾端大量工具步驟
+
+    nonisolated static let longToolTail: [String] = Fixtures.transcriptLines() + (0..<500).flatMap { W.toolPair($0) }
+
+    @Test("#508 尾端一千行都是工具步驟:補讀往返次數要少(逐頁 200 行會讀 6 次,每次往返都是使用者等待)")
+    func backfillNeedsFewRoundTrips() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await Self.answering(connection, lines: Self.longToolTail)
+        let model = Self.model(connection)
+        let chat = try await Self.open(model, connection)
+        defer { chat.cancel() }
+
+        #expect(W.hasReadableMessage(model.items))
+        let requests = await Self.windowRequests(connection)
+        #expect(requests <= 4, "window 請求 \(requests) 次")
+    }
+
+    @Test("#508 補讀出的可讀訊息寫進快取:第二次開啟立刻有內容,不必再補讀")
+    func backfilledMessagesArePersistedForNextOpen() async throws {
+        let cache = InMemoryConversationCache()
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await Self.answering(connection, lines: Self.longToolTail)
+        let first = Self.model(connection, cache: cache)
+        let chat = try await Self.open(first, connection)
+        chat.cancel()
+        #expect(W.hasReadableMessage(first.items))
+
+        let second = Self.model(FakeHostConnection(), cache: cache)
+        await second.restoreFromCache()
+
+        #expect(W.hasReadableMessage(second.items), "第二次開啟快取沒有可讀訊息")
+    }
+
+    @Test("#508 開啟補讀不當成往上翻:時間軸原因是整份取代(跟隨最新時維持在底部,不跳位置)")
+    func backfillDoesNotReportOlderLoaded() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await Self.answering(connection, lines: Self.longToolTail)
+        let model = Self.model(connection)
+        var causes: [ConversationTimeline.Cause] = []
+        model.onTimelineUpdate = { causes.append($0.cause) }
+        let chat = try await Self.open(model, connection)
+        defer { chat.cancel() }
+
+        #expect(W.hasReadableMessage(model.items))
+        #expect(!causes.contains(.olderLoaded), "causes \(causes)")
+    }
 }

@@ -73,10 +73,13 @@ struct ChatListView: UIViewControllerRepresentable {
     let safeAreaFrame: CGRect
     let onShowsJumpToLatestChanged: (Bool) -> Void
     let onVisibleHeightChanged: (Double) -> Void
+    /// 捲動卡頓記錄器(沒注入時不記錄)。
+    var hitchRecorder: HitchRecorder?
 
     func makeUIViewController(context: Context) -> ChatListViewController {
         let controller = ChatListViewController()
         controller.model = model
+        controller.hitchRecorder = hitchRecorder
         handle.jumpToLatestAction = { [weak controller] in controller?.jumpToLatest() }
         handle.inputBarArrangedAction = { [weak controller] in controller?.inputBarArranged() }
         model.onTimelineUpdate = { [weak controller] update in controller?.receive(update) }
@@ -116,6 +119,10 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     var safeAreaFrame: CGRect = .zero
     var onShowsJumpToLatestChanged: (Bool) -> Void = { _ in }
     var onVisibleHeightChanged: (Double) -> Void = { _ in }
+    /// 捲動卡頓記錄器(診斷用,只記數字;列表可見且 app 在前景時才量測)。
+    var hitchRecorder: HitchRecorder?
+    private var hitchMonitor: ChatHitchMonitor?
+    private var contentSizeObservation: NSKeyValueObservation?
 
     private let layout = ChatListLayout()
     private var collectionView: UICollectionView!
@@ -177,10 +184,15 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         collectionView.keyboardDismissMode = .onDrag
         collectionView.accessibilityIdentifier = "conversation.list"
         view.addSubview(collectionView)
+        if let hitchRecorder {
+            hitchMonitor = ChatHitchMonitor(
+                recorder: hitchRecorder, scrollView: collectionView, visibleCells: { [weak self] in self?.collectionView.visibleCells.count ?? 0 })
+        }
 
         let registration = UICollectionView.CellRegistration<ChatListCell, String> { [weak self] cell, _, id in
             guard let self, let rowContent = self.content.rows[id] else { return }
             let hosted = self.rowView(rowContent)
+            cell.fitTimer = self.hitchMonitor?.fitTimer
             cell.contentConfiguration = UIHostingConfiguration { hosted }
                 .margins(.all, 0)
                 .margins(.horizontal, 16)
@@ -189,6 +201,11 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         }
         dataSource = UICollectionViewDiffableDataSource<Int, String>(collectionView: collectionView) { collectionView, indexPath, id in
             collectionView.dequeueConfiguredReusableCell(using: registration, for: indexPath, item: id)
+        }
+
+        contentSizeObservation = collectionView.observe(\.contentSize, options: [.old, .new]) { [weak self] _, change in
+            guard let old = change.oldValue, let new = change.newValue, abs(new.height - old.height) > 0.5 else { return }
+            MainActor.assumeIsolated { self?.hitchMonitor?.note(.contentSizeChange(points: Double(new.height - old.height))) }
         }
 
         let refresh = UIRefreshControl()
@@ -206,6 +223,22 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: ChatListViewController, _) in
             controller.collectionView.collectionViewLayout.invalidateLayout()
         }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        hitchRecorder?.setSceneActive(flushPolicy.isSceneActive)
+        updateHitchWorkingFlag()
+        hitchMonitor?.appear()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        hitchMonitor?.disappear()
+    }
+
+    private func updateHitchWorkingFlag() {
+        hitchRecorder?.setAgentWorking(model?.agentStatus == .working)
     }
 
     override func viewDidLayoutSubviews() {
@@ -262,6 +295,9 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
     }
 
     func detach() {
+        hitchMonitor?.teardown()
+        hitchMonitor = nil
+        contentSizeObservation = nil
         model?.onTimelineUpdate = nil
         flushTask?.cancel()
         applyTask?.cancel()
@@ -278,6 +314,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
             pendingContent = nil
             return
         }
+        hitchMonitor?.note(.contentUpdate)
+        updateHitchWorkingFlag()
         if hasAppliedContent, shouldDeferApply {
             pendingContent = newContent
             return
@@ -336,8 +374,10 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         snapshot.appendItems(newContent.ids)
         let environmentChanged = appliedRowEnvironment.map { $0 != rowEnvironment } ?? false
         appliedRowEnvironment = rowEnvironment
-        snapshot.reconfigureItems(
-            ChatListRowPlan.reconfigureIDs(previous: previous.rows, current: newContent.rows, environmentChanged: environmentChanged))
+        let reconfigureIDs = ChatListRowPlan.reconfigureIDs(previous: previous.rows, current: newContent.rows, environmentChanged: environmentChanged)
+        snapshot.reconfigureItems(reconfigureIDs)
+        hitchMonitor?.note(.batchApply)
+        hitchMonitor?.note(.reconfigure(count: reconfigureIDs.count))
         dataSource.apply(snapshot, animatingDifferences: false)
         collectionView.layoutIfNeeded()
         if let anchor {
@@ -399,6 +439,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         let target = ChatListLayoutMath.offsetKeepingRow(
             newRowMinY: frame.minY, distanceFromVisibleTop: anchor.distanceFromVisibleTop, insetTop: collectionView.adjustedContentInset.top)
         if abs(target - collectionView.contentOffset.y) > 0.5 {
+            hitchMonitor?.note(.offsetCorrection(points: target - collectionView.contentOffset.y))
             collectionView.contentOffset.y = target
         }
     }
@@ -425,6 +466,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     /// app 前景狀態改變(由 SwiftUI 的 scenePhase 傳來):進背景停止排程,回前景補一次處理。
     func setSceneActive(_ isActive: Bool) {
+        hitchRecorder?.setSceneActive(isActive)
         guard flushPolicy.isSceneActive != isActive else { return }
         flushPolicy.isSceneActive = isActive
         if isActive { scheduleFlush(after: 0.05) } else { flushTask?.cancel() }
@@ -489,6 +531,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     private func setOffsetY(_ target: Double, animated: Bool) {
         guard abs(target - collectionView.contentOffset.y) > 0.5 else { return }
+        hitchMonitor?.note(.offsetCorrection(points: target - collectionView.contentOffset.y))
         collectionView.setContentOffset(CGPoint(x: collectionView.contentOffset.x, y: target), animated: animated && !UIAccessibility.isReduceMotionEnabled)
     }
 
@@ -586,9 +629,11 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         guard wants else { return }
         if !userHasDragged { autoLoadedPages += 1 }
         isLoadingOlder = true
+        hitchRecorder?.setOlderLoading(true)
         Task { [weak self] in
             await model.loadOlder()
             self?.isLoadingOlder = false
+            self?.hitchRecorder?.setOlderLoading(false)
             self?.checkOlderPage()
         }
     }
@@ -735,6 +780,9 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
 /// 聊天列表的 cell:列延伸到狀態列、導覽列與 home indicator 底下時,hosting 內容不依位置墊高(否則列高會隨捲動位置變);只保留左右。
 final class ChatListCell: UICollectionViewCell {
+    /// 卡頓記錄器的自適應計時(記錄器沒運作時 `isActive` 為 false,不計時)。
+    var fitTimer: HitchFitTimer?
+
     override var safeAreaInsets: UIEdgeInsets {
         UIEdgeInsets(top: 0, left: super.safeAreaInsets.left, bottom: 0, right: super.safeAreaInsets.right)
     }
@@ -742,6 +790,9 @@ final class ChatListCell: UICollectionViewCell {
     /// 自適應只改高度:寬度固定為 layout 給的寬度(`required`),不讓長段文字以理想寬度撐出比畫面寬的列。
     override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
         let attributes = layoutAttributes.copy() as? UICollectionViewLayoutAttributes ?? layoutAttributes
+        let timer = fitTimer?.isActive == true ? fitTimer : nil
+        let started = timer == nil ? 0 : DispatchTime.now().uptimeNanoseconds
+        defer { timer?.record(startNanoseconds: started) }
         let fitted = contentView.systemLayoutSizeFitting(
             CGSize(width: layoutAttributes.size.width, height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
