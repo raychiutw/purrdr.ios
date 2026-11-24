@@ -26,11 +26,12 @@ public enum NewChatTarget: Sendable, Equatable {
 /// 主機上目前開著的 Workspace(新增聊天「既有的 Workspace」的選項,#537)。
 public struct ExistingWorkspace: Sendable, Equatable, Identifiable {
     public var id: String
-    public var name: String
+    /// herdr 的 Workspace 名稱;沒有時是 `nil`(畫面不露內部 id,改顯示白話文字)。
+    public var name: String?
     /// herdr 回報的工作目錄(第一個 Tab 的 pane);不知道時為 `nil`。
     public var folder: String?
 
-    public init(id: String, name: String, folder: String?) {
+    public init(id: String, name: String?, folder: String?) {
         self.id = id
         self.name = name
         self.folder = folder
@@ -189,7 +190,9 @@ public actor NewChatLauncher {
             let firstTab = snapshot.tabs.filter { $0.workspaceID == workspace.id }.min { $0.number < $1.number }
             let panes = snapshot.panes.filter { $0.workspaceID == workspace.id }
             let pane = panes.first { $0.tabID == firstTab?.id && $0.cwd != nil } ?? panes.first { $0.cwd != nil }
-            let name = workspace.label.flatMap { $0.isEmpty ? nil : $0 } ?? workspace.id
+            // 沒有名稱時退回工作目錄的最後一段;兩者都沒有就是 `nil`,不回報內部 id。
+            let name = workspace.label.flatMap { $0.isEmpty ? nil : $0 }
+                ?? pane?.cwd.flatMap { HostPathSyntax.lastComponent($0).map(String.init) }.flatMap { $0.isEmpty ? nil : $0 }
             return ExistingWorkspace(id: workspace.id, name: name, folder: pane?.cwd)
         }
     }

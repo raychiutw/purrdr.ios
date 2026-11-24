@@ -4744,6 +4744,17 @@
         }
       }
     },
+    "Double-tap and hold to show Workspace actions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按兩下並按住,顯示 Workspace 動作"
+          }
+        }
+      }
+    },
     "Double-tap to change." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15185,6 +15196,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚未實測。在選取中的主機加入一個小型 Codex 啟動器，讓每個 Codex 聊天都能正確顯示。關閉時會移除 Purrdr 加入的所有東西。"
+          }
+        }
+      }
+    },
+    "Untitled Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名的 Workspace"
           }
         }
       }

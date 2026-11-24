@@ -192,7 +192,7 @@ public struct NewChatView: View {
                     .tag(NewChatModel.Placement.newWorkspace)
                 ForEach(model.workspaces) { workspace in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: workspace.name)
+                        Text(verbatim: workspace.name ?? String(localized: "Untitled Workspace"))
                             .lineLimit(1)
                         if let folder = workspace.folder {
                             Text(verbatim: folder)

@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
-import PurrdrFeatures
+@testable import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
@@ -9,6 +9,12 @@ import Testing
 @MainActor
 @Suite("Workspace 操作")
 struct WorkspaceActionsModelTests {
+    @Test("Workspace 標題觸覺:長按到選單出現才給,短按放開不給(#547)")
+    func headerHapticFiresOnlyWhenMenuAppears() {
+        #expect(!WorkspaceHeaderHaptic.menuAppeared(afterPressLasting: 0.1))
+        #expect(WorkspaceHeaderHaptic.menuAppeared(afterPressLasting: 0.6))
+    }
+
     static let bridge = HerdrCommand.bridge()
 
     /// 記錄「重讀列表」被呼叫幾次。
