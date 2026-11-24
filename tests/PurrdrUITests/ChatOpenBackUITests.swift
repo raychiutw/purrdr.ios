@@ -31,4 +31,23 @@ final class ChatOpenBackUITests: XCTestCase {
 
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)), "回到列表後沒有看到那一列")
     }
+
+    /// 窄視窗是一般 NavigationStack:左緣滑動返回列表,再開同一個聊天仍進得去(選取在返回時清掉)。
+    @MainActor
+    func testEdgeSwipeBackReturnsToListAndChatReopens() {
+        let app = XCUIApplication.launchUITesting()
+        let ledger = row("w1:p1", in: app)
+        XCTAssertTrue(app.reveal(ledger))
+
+        ledger.tap()
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).waitForExistence(timeout: 5))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)))
+
+        let again = row("w1:p1", in: app)
+        XCTAssertTrue(app.reveal(again), "左緣滑動後沒有回到列表")
+        XCTAssertTrue(again.waitUntilHittable(timeout: 5))
+        again.tap()
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).waitForExistence(timeout: 5), "再次開啟聊天沒有推入")
+    }
 }
