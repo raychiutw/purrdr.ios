@@ -28,6 +28,7 @@ public struct TopNavigationView: View {
     /// App 鎖(#284);推播開啟的導航等解鎖後才執行。`nil` 時沒有 App 鎖。
     let appLock: AppLock?
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     @Environment(\.allowsTestingLinks) private var allowsTestingLinks
@@ -163,8 +164,17 @@ public struct TopNavigationView: View {
             agentList
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
-            WindowDetail(hosts: hosts, navigation: navigation)
+            WindowDetail(
+                hosts: hosts, navigation: navigation,
+                account: AccountButtonPlacement.showsInDetailToolbar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
         }
+    }
+
+    /// 寬視窗(regular 水平 size class):聊天分兩欄,帳號頭像在最右邊那欄(#520);窄視窗收成一疊,在列表頂列。依可用寬度,不看裝置。
+    private var isWideWindow: Bool { horizontalSizeClass == .regular }
+
+    private var accountButton: AnyView {
+        AnyView(TopBarAccountButton(member: member) { navigation.sheet = .member })
     }
 
     /// 所有主機合併的 Agent 列表(#39)。
@@ -174,9 +184,9 @@ public struct TopNavigationView: View {
         if supportsMultipleWindows {
             open = { kind, route, title in openInNewWindow(kind, route, title) }
         }
-let topBar = ChatTopBarActions(
+        let topBar = ChatTopBarActions(
             newChat: { navigation.sheet = .newChat }, addHost: { navigation.openAddHost() },
-            account: AnyView(TopBarAccountButton(member: member) { navigation.sheet = .member }))
+            account: AccountButtonPlacement.showsInTopBar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
         return AgentListView(
             model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
             prefetchConversations: { await hosts.prefetchConversations($0) }

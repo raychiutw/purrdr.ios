@@ -29,8 +29,8 @@ struct TopBarContent {
     var hostIdentifier = "toolbar.currentHost"
     /// 「＋」那一段:按鈕或選單(只有符號,尺寸由共用頂列給)。
     var plus: AnyView?
-    /// 最右側的頭像圓鈕。
-    var account: AnyView
+    /// 最右側的頭像圓鈕。`nil`:這一欄不放(寬視窗的聊天列表,頭像在對話欄工具列,#520)。
+    var account: AnyView?
     /// 有搜尋的 tab 才有:搜尋字串與焦點。
     var search: Search?
 
@@ -187,7 +187,7 @@ private struct TopBarControls: View {
             case .none:
                 EmptyView()
             }
-            content.account
+            if let account = content.account { account }
         }
         // 控制項尺寸固定:長按用 large content viewer 看放大版。
         .dynamicTypeSize(.large)
