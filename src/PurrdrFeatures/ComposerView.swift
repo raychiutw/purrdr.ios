@@ -26,7 +26,7 @@ final class ConversationVisibleHeight {
 /// 輸入列(行為規格 F6.1;HIG 20.6;兩態 #382)。
 ///
 /// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`(建議卡與輸入卡片同一個容器)。
-/// - 兩態(`ComposerForm`):收合(沒聚焦、沒文字、沒附件)是一列 +、輸入、送出;聚焦或有內容展開成兩列，
+/// - 兩態(`ComposerForm`,#512):收合(一行放得下、沒有換行、沒有附件;聚焦不影響)是一列 +、輸入、送出;需要第二行、有換行或有附件才展開成兩列，
 ///   上方輸入、下方 +、模型膠囊、送出(`ComposerCardLayout`:同一個輸入框換位置，不重建、不失去焦點)。
 /// - 輸入框最多 5 行(`ComposerSizing`,且不超過鍵盤上方可用高度的 40%),超過在框內捲動。沒有收鍵盤鈕與展開鈕:
 ///   收鍵盤靠對話往下拖曳與點空白處(`ConversationView`)。

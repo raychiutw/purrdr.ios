@@ -314,6 +314,14 @@ extension XCUIElement {
 }
 
 extension XCUIApplication {
+    /// 輸入列要「需要第二行、有換行或有附件」才展開(#512):點輸入框後打一個換行，露出模型膠囊。
+    @MainActor
+    func expandComposer() {
+        let text = element("composer.text")
+        text.tap()
+        text.typeEnglish("\n")
+    }
+
     /// 不重啟換字級(#373):以測試連結 `purrdr://testing-content-size` 把字級類別套到視窗(只在 `-uiTesting` 生效)。
     /// `nil` 回到系統字級。換完等畫面停下。
     @MainActor

@@ -63,11 +63,11 @@ final class DailySmokeUITests: XCTestCase {
             ledger.tap()
             let text = app.element("composer.text")
             XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
-            // 輸入列兩態(#382):收合一列沒有模型膠囊,聚焦展開後有。
+            // 輸入列兩態(#512):聚焦與打一句短話都維持一列、沒有模型膠囊;換行才展開。
             XCTAssertFalse(app.element("composer.model").exists, "收合時不該有模型膠囊")
             text.tap()
-            XCTAssertTrue(app.element("composer.model").waitUntilExists(timeout: 5), "聚焦後輸入列沒有展開")
             text.typeEnglish("Add a header row too?")
+            XCTAssertFalse(app.element("composer.model").exists, "聚焦與一行內的字不該展開輸入列")
             app.element("composer.send").tap()
             app.dismissKeyboard()
             let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
@@ -122,8 +122,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "面板沒有關閉")
         }
         step("模型選擇 sheet 與投入程度子頁(#384)") {
-            let text = app.element("composer.text")
-            text.tap()
+            app.expandComposer()
             let capsule = app.element("composer.model")
             XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
             capsule.tap()
