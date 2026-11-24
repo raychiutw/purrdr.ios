@@ -15,6 +15,14 @@ public enum ClaudePermissionMode: String, CaseIterable, Sendable {
     case bypassPermissions
 }
 
+/// 新聊天放在哪裡(#537)。
+public enum NewChatTarget: Sendable, Equatable {
+    /// 在 `folder` 建立新的 Workspace(預設)。
+    case newWorkspace
+    /// 在既有 Workspace 裡新增一個 Tab;資料夾沿用它的工作目錄(`NewChatRequest.folder` 是畫面顯示的那一個)。
+    case existingWorkspace(id: String)
+}
+
 /// 新增對話的內容。
 public struct NewChatRequest: Sendable, Equatable {
     /// 使用者給的資料夾(可以是 `~/…`);開始前在主機上解析成絕對路徑。
@@ -33,11 +41,14 @@ public struct NewChatRequest: Sendable, Equatable {
     public var resumeSession: String?
     /// 接續最近一次對話(Antigravity 的 `-c`,#446);沒有這個旗標的種類忽略。
     public var continuesLastSession: Bool
+    /// 放在新的還是既有的 Workspace(#537)。
+    public var target: NewChatTarget
 
     public init(
         folder: String, label: String? = nil, tabLabel: String? = nil, agent: AgentID, permissionMode: ClaudePermissionMode = .agentDefault, message: String = "",
-        resumeSession: String? = nil, continuesLastSession: Bool = false
+        resumeSession: String? = nil, continuesLastSession: Bool = false, target: NewChatTarget = .newWorkspace
     ) {
+        self.target = target
         self.resumeSession = resumeSession
         self.continuesLastSession = continuesLastSession
         self.folder = folder
