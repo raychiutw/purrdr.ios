@@ -12,14 +12,16 @@ struct NeedsYouBannerView: View {
 
     var body: some View {
         if let context {
-            NeedsYouBannerContentView(merged: context.merged, open: context.open)
+            NeedsYouBannerContentView(merged: context.merged, windowChat: context.windowChat, open: context.open)
         }
     }
 }
 
-/// 橫幅所需的資料來源與「開啟聊天」動作,由聊天 tab 的根畫面放進環境(沒有放的地方,例如 Pane 獨立視窗,不顯示橫幅)。
+/// 橫幅所需的資料來源與「開啟聊天」動作,由聊天 tab 的根畫面放進環境(Pane 獨立視窗放自己的,#539)。
 struct NeedsYouBannerContext {
     let merged: MergedAgentListModel
+    /// Pane 獨立視窗自己的聊天(#539):不算在橫幅裡。主視窗是 `nil`(用主視窗的規則)。
+    var windowChat: ChatRoute?
     let open: @MainActor (ChatRoute) -> Void
 }
 
@@ -29,10 +31,11 @@ extension EnvironmentValues {
 
 private struct NeedsYouBannerContentView: View {
     let merged: MergedAgentListModel
+    let windowChat: ChatRoute?
     let open: @MainActor (ChatRoute) -> Void
 
     var body: some View {
-        if let content = merged.needsYouBanner {
+        if let content = windowChat.map({ merged.needsYouBanner(forWindow: $0) }) ?? merged.needsYouBanner {
             NeedsYouBannerCard(
                 content: content,
                 open: { open(content.route) },

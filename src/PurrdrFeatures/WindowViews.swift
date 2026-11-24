@@ -90,6 +90,7 @@ private struct PaneWindowContent: View {
     let window: PaneWindow
     let route: ChatRoute
     let hosts: HostsModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         switch window.kind {
@@ -98,11 +99,25 @@ private struct PaneWindowContent: View {
                 model: hosts.conversation(route, sessionID: window.sessionID),
                 makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) })
             .environment(\.usageHost, route.host)
+            // 「需要你」橫幅(#539):自己的聊天不算;點了在主視窗開那個聊天並帶到前面,沒有主視窗就開新的 Pane 視窗。
+            .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, windowChat: route, open: openFromBanner))
             // 新視窗開著的聊天也記開啟時間、不算未讀(#41;每個視窗各算一次)。
             .onAppear { hosts.agentList.chatAppeared(route) }
             .onDisappear { hosts.agentList.chatDisappeared(route) }
         case .terminal:
             PaneTerminalScreen(model: hosts.terminal(route, title: window.title))
+        }
+    }
+
+    private func openFromBanner(_ target: ChatRoute) {
+        let registry = MainWindowRegistry.shared
+        if registry.hasMainWindow {
+            hosts.agentList.openedChat = target
+            registry.bringToFront()
+        } else {
+            openWindow(value: PaneWindow(
+                kind: .chat, host: target.host, paneID: target.paneID, sessionID: nil,
+                title: hosts.agentList.needsYouBanner(forWindow: route)?.workspace ?? target.paneID))
         }
     }
 }
