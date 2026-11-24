@@ -165,6 +165,14 @@ public struct HerdrClient: Sendable {
         return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
     }
 
+    /// 在既有 workspace 新增 tab(`tab.create`,#537;herdr 0.9.5 實測:不帶 `cwd` 沿用 workspace 的工作目錄,
+    /// workspace 不存在回 `workspace_not_found`)。`focus:false`:不搶桌機的焦點。`label` 為 `nil` 時由 herdr 命名。
+    public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
+        let result = try await request(
+            method: "tab.create", params: TabCreateParams(workspaceID: workspaceID, label: label), as: TabCreatedResult.self, deadline: .seconds(60))
+        return CreatedTab(workspaceID: workspaceID, tabID: result.tab.tabID, rootPaneID: result.rootPane.paneID)
+    }
+
     /// 在 pane 的 shell 啟動 agent(`agent.start`)。`arguments` 是交給 agent 的參數(CLI 的 `--` 之後)。
     /// 我方期限 = herdr 的等待 + 60 秒：絕不比 herdr 先放棄，否則重試會在同一個 pane 再啟動一個 agent。
     /// `resumeSession`(#309)是要續接的 session id;只有主機服務(HTTPS)認得，herdr 本身沒有這個參數。
@@ -389,6 +397,39 @@ private struct TabIDParams: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case tabID = "tab_id"
+    }
+}
+
+private struct TabCreateParams: Encodable {
+    var workspaceID: String
+    var label: String?
+    var focus = false
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceID = "workspace_id"
+        case label, focus
+    }
+}
+
+private struct TabCreatedResult: Decodable {
+    var tab: Tab
+    var rootPane: RootPane
+
+    struct Tab: Decodable {
+        var tabID: String
+
+        enum CodingKeys: String, CodingKey { case tabID = "tab_id" }
+    }
+
+    struct RootPane: Decodable {
+        var paneID: String
+
+        enum CodingKeys: String, CodingKey { case paneID = "pane_id" }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case tab
+        case rootPane = "root_pane"
     }
 }
 

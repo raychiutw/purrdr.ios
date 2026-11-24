@@ -128,8 +128,13 @@ public actor NewChatLauncher {
     private let client: HerdrClient
     private let folders: NewChatFolders
     private let sleep: Sleep
-    /// 上次建立、但 agent 還沒成功啟動的 workspace(與它的資料夾)。
-    private var pending: (folder: String, workspace: CreatedWorkspace)?
+    /// 上次建立、但 agent 還沒成功啟動的 workspace(與它的資料夾),或在既有 workspace 新建的 tab(#537)。
+    private enum Pending {
+        case workspace(folder: String, CreatedWorkspace)
+        case tab(CreatedTab)
+    }
+
+    private var pending: Pending?
 
     public init(
         client: HerdrClient, folders: NewChatFolders,
@@ -161,19 +166,32 @@ public actor NewChatLauncher {
 
     /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)與第一則訊息送了沒有。
     public func start(_ request: NewChatRequest) async throws -> NewChatStarted {
-        let folder = try await folders.resolve(request.folder)
         let workspace: CreatedWorkspace
-        if let pending, pending.folder == folder {
-            workspace = pending.workspace
-        } else {
-            if let pending {
-                self.pending = nil
-                try? await client.closeWorkspace(pending.workspace.workspaceID)
+        let name: String
+        switch request.target {
+        case .newWorkspace:
+            let folder = try await folders.resolve(request.folder)
+            if case .workspace(let pendingFolder, let created)? = pending, pendingFolder == folder {
+                workspace = created
+            } else {
+                await discardPending()
+                workspace = try await client.createWorkspace(cwd: folder, label: request.label, tabLabel: request.tabLabel)
+                pending = .workspace(folder: folder, workspace)
             }
-            workspace = try await client.createWorkspace(cwd: folder, label: request.label, tabLabel: request.tabLabel)
-            pending = (folder, workspace)
+            name = NewChatRequest.agentName(for: request.label ?? Self.lastComponent(of: folder))
+        case .existingWorkspace(let id):
+            // 工作目錄沿用 Workspace 的(herdr 回報的 cwd),不必在主機上解析。
+            let tab: CreatedTab
+            if case .tab(let created)? = pending, created.workspaceID == id {
+                tab = created
+            } else {
+                await discardPending()
+                tab = try await client.createTab(in: id, label: request.tabLabel)
+                pending = .tab(tab)
+            }
+            workspace = CreatedWorkspace(workspaceID: tab.workspaceID, rootPaneID: tab.rootPaneID)
+            name = Self.agentName(forTab: tab, label: request.tabLabel, folder: request.folder)
         }
-        let name = NewChatRequest.agentName(for: request.label ?? Self.lastComponent(of: folder))
         let ready = try await startAgent(request, name: name, in: workspace)
         pending = nil
         let message = request.message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -186,6 +204,26 @@ public actor NewChatLauncher {
             return NewChatStarted(workspace: workspace, sentMessage: false)
         }
         return NewChatStarted(workspace: workspace, sentMessage: true)
+    }
+
+    /// 盡力關掉上次建立、但 agent 沒成功啟動的東西(不留孤兒):新 Workspace 用 `workspace.close`,新 Tab 用 `tab.close`。
+    /// 只會關掉自己建立的,絕不碰使用者原本就有的 Workspace。
+    private func discardPending() async {
+        guard let previous = pending else { return }
+        pending = nil
+        switch previous {
+        case .workspace(_, let workspace): try? await client.closeWorkspace(workspace.workspaceID)
+        case .tab(let tab): try? await client.closeTab(tab.tabID)
+        }
+    }
+
+    /// 既有 Workspace 的新 Tab:agent 名稱在 herdr 的活著的 agent 裡要唯一([a-z][a-z0-9_-]{0,31}),
+    /// 所以 Workspace 裡原本的 agent 可能已經用了資料夾名,這裡加上 Tab 編號(`t3`)。
+    private static func agentName(forTab tab: CreatedTab, label: String?, folder: String) -> String {
+        var base = String(NewChatRequest.agentName(for: label ?? lastComponent(of: folder)).prefix(27))
+        while base.hasSuffix("-") { base.removeLast() }
+        let suffix = tab.tabID.split(separator: ":").last.map(String.init) ?? "tab"
+        return "\(base)-\(suffix)"
     }
 
     /// 啟動 agent;回傳它是否已就緒(停在啟動問題時是 `false`)。
