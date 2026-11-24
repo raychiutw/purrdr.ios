@@ -335,8 +335,18 @@ actor HostServiceSession {
         await socket.close()
     }
 
+    /// 0.15.0 之前的主機服務,`agent.start.result` 沒有 `launch_pending`(schema 現在必填):補成 `false`(一律當就緒,與 0.14 以前的行為一致)。
+    private static func withLaunchPending(_ data: Data) -> Data {
+        guard data.range(of: Data("agent.start.result".utf8)) != nil,
+              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              object["type"] as? String == "agent.start.result", object["launch_pending"] == nil
+        else { return data }
+        object["launch_pending"] = false
+        return (try? JSONSerialization.data(withJSONObject: object)) ?? data
+    }
+
     private func deliver(_ text: String) {
-        let data = Data(text.utf8)
+        let data = Self.withLaunchPending(Data(text.utf8))
         guard let message = try? JSONDecoder().decode(HostServiceProtocol.ServerMessage.self, from: data) else {
             // 讀不懂的回應：有請求識別碼就讓那個請求失敗，其他略過(之後版本的訊息)。
             if let requestID = (try? JSONDecoder().decode(RequestIDOnly.self, from: data))?.requestId {
@@ -432,6 +442,8 @@ extension HostServiceProtocol.ServerMessage {
              .workspaceCreateResult,
              .workspaceRenameResult,
              .tabRenameResult,
+             .tabCreateResult,
+             .tabCloseResult,
              .workspaceCloseResult,
              .worktreeCreateResult,
              .agentStartResult,
@@ -493,6 +505,8 @@ extension HostServiceProtocol.ServerMessage {
         case .workspaceCreateResult(let message): message.requestId
         case .workspaceRenameResult(let message): message.requestId
         case .tabRenameResult(let message): message.requestId
+        case .tabCreateResult(let message): message.requestId
+        case .tabCloseResult(let message): message.requestId
         case .workspaceCloseResult(let message): message.requestId
         case .worktreeCreateResult(let message): message.requestId
         case .agentStartResult(let message): message.requestId

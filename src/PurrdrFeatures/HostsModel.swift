@@ -432,7 +432,12 @@ public final class HostsModel {
     }
 
     /// 這台主機能不能在既有 Workspace 新增聊天(Workspace 標題選單的「在此新增聊天」)。
-    public func supportsNewChatInWorkspace(_ host: HostSelection) -> Bool { !usesHostService(host) }
+    /// 也是新增聊天能不能選既有 Workspace 的條件。HTTPS 主機要主機服務 0.15.0 起(`tab.create`);
+    /// 已知版本不足時不提供,還不知道版本(還沒連上)時先提供,送出時版本不足會說明要更新主機服務。
+    public func supportsNewChatInWorkspace(_ host: HostSelection) -> Bool {
+        guard usesHostService(host), case .host(let id) = host, let installed = hostServiceVersions[id] else { return true }
+        return HostServiceFeature.tabCreate.isAvailable(onHostServiceVersion: installed)
+    }
 
     /// 已啟用的範例主機(#394)加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
     private func hostOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostOption] {
@@ -503,8 +508,8 @@ public final class HostsModel {
         let model = NewChatModel(
             launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders,
             agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)),
-            // HTTPS 主機服務還沒有 tab.create(purrdr.host#90):先不提供既有 Workspace。
-            supportsExistingWorkspaces: !usesHostService)
+            // HTTPS 主機服務要 0.15.0 起才有 tab.create。
+            supportsExistingWorkspaces: supportsNewChatInWorkspace(host))
         if let workspaceID { model.preselectWorkspace(workspaceID) }
         return model
     }

@@ -224,7 +224,8 @@ public actor NewChatLauncher {
         }
         var ready = try await startAgent(request, name: name, in: workspace)
         pending = nil
-        if !ready, agentStartedPending { ready = try await waitUntilInteractive(workspace.rootPaneID) }
+        // HTTPS 主機服務已在主機端等過 agent 就緒(`launch_pending` 是等完的結果),不再輪詢 `agent.get`(那是 herdr 0.9.5 socket 的做法)。
+        if !ready, agentStartedPending, try await client.hostServiceVersion() == nil { ready = try await waitUntilInteractive(workspace.rootPaneID) }
         let message = request.message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard ready, !message.isEmpty else { return NewChatStarted(workspace: workspace, sentMessage: false) }
         // 不等 agent 開始工作：送出後聊天畫面自己跟上(送不到時丟錯誤，不重送，§7.3)。

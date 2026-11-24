@@ -27,7 +27,7 @@ enum WorkspaceMenuLevel {
             if hasTab { result += [.renameTab, .closeTab] }
             return result
         case .workspace(let canStartChat):
-            // 「在此新增聊天」(#537)只在這台主機支援時出現(HTTPS 主機服務還沒有 tab.create)。
+            // 「在此新增聊天」(#537)只在這台主機支援時出現(HTTPS 主機服務要 0.15.0 起才有 tab.create)。
             return (canStartChat ? [.newChatHere] : []) + [.renameWorkspace, .showLayout, .newWorktree, .closeWorkspace]
         }
     }

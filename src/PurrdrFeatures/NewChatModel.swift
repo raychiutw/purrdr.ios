@@ -149,7 +149,7 @@ public final class NewChatModel {
 
     /// 這台主機目前開著的 Workspace(`loadWorkspaces()` 讀到的)。
     public private(set) var workspaces: [ExistingWorkspace] = []
-    /// 這台主機能不能在既有 Workspace 新增 Tab(HTTPS 主機服務還沒有 `tab.create`,purrdr.host#90)。
+    /// 這台主機能不能在既有 Workspace 新增 Tab(HTTPS 主機服務要 0.15.0 起才有 `tab.create`;`HostsModel.supportsNewChatInWorkspace` 判斷)。
     private let supportsExistingWorkspaces: Bool
     public private(set) var sessions: SessionsState = .idle
 

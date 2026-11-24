@@ -597,6 +597,48 @@ enum HerdrResponseLine {
         }
     }
 
+    /// `tab.create` 成功:`HerdrClient` 讀 tab id 與 root pane id。
+    static func tabCreated(id: String?, tabID: String, rootPaneID: String) throws -> Data {
+        try encode(Envelope(id: id, result: TabCreated(type: "tab_created", tab: .init(tabID: tabID), rootPane: .init(paneID: rootPaneID))))
+    }
+
+    private struct TabCreated: Encodable {
+        var type: String
+        var tab: Tab
+        var rootPane: Created.RootPane
+
+        struct Tab: Encodable {
+            var tabID: String
+
+            enum CodingKeys: String, CodingKey {
+                case tabID = "tab_id"
+            }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case type, tab
+            case rootPane = "root_pane"
+        }
+    }
+
+    /// `agent.start` 成功:`HerdrClient.startAgent` 只讀 `agent.launch_pending`(true 是還沒就緒,呼叫端不送第一則訊息)。
+    static func agentStarted(id: String?, launchPending: Bool) throws -> Data {
+        try encode(Envelope(id: id, result: AgentStarted(type: "agent_started", agent: .init(launchPending: launchPending))))
+    }
+
+    private struct AgentStarted: Encodable {
+        var type: String
+        var agent: Agent
+
+        struct Agent: Encodable {
+            var launchPending: Bool
+
+            enum CodingKeys: String, CodingKey {
+                case launchPending = "launch_pending"
+            }
+        }
+    }
+
     /// `agent.prompt` 成功;`delivery` 照主機回報(沒有就省略)。
     static func prompted(id: String?, delivery: String?) throws -> Data {
         try encode(Envelope(id: id, result: Prompted(type: "agent_prompted", delivery: delivery)))
