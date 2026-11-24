@@ -78,18 +78,18 @@ final class NeedsYouBannerUITests: XCTestCase {
         XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "沒有進到橫幅指的最新聊天(橫幅仍在)")
     }
 
-    /// 與對話的狀態橫幅(`conversation.banner`)並存時上下排列、不互相蓋住。
-    /// Demo 的情境旗標互斥,這個情境下 ledger 沒有狀態橫幅,所以只在兩者同時存在時比對位置,否則略過。
+    /// 與對話的狀態橫幅(`conversation.banner`)並存時上下排列、不互相蓋住,狀態橫幅在上(#546)。
+    /// 情境旗標 `-demoNeedsYouWithStatusBanner`:notes 變成需要你的同時,ledger 的對話紀錄讀不到,聊天頂部出現狀態橫幅。
     @MainActor
-    func testBannerDoesNotOverlapStatusBanner() throws {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouLater"])
+    func testBannerDoesNotOverlapStatusBanner() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouWithStatusBanner"])
         openLedger(app)
 
         let banner = app.element("needsYou.banner")
-        XCTAssertTrue(banner.waitUntilExists(timeout: 20), "沒有橫幅")
-        let status = app.descendants(matching: .any)["conversation.banner"].firstMatch
-        try XCTSkipUnless(status.exists, "這個情境沒有對話狀態橫幅,無法驗證並存")
-        XCTAssertLessThanOrEqual(status.frame.maxY, banner.frame.minY + 1, "「需要你」橫幅蓋住了狀態橫幅")
+        XCTAssertTrue(banner.waitUntilExists(timeout: 20), "沒有「需要你」橫幅")
+        let status = app.element("conversation.banner")
+        XCTAssertTrue(status.waitUntilExists(timeout: 20), "沒有對話狀態橫幅,無法驗證並存")
+        XCTAssertLessThanOrEqual(status.frame.maxY, banner.frame.minY + 1, "「需要你」橫幅蓋住了狀態橫幅(狀態橫幅應在上)")
     }
 
     /// 返回列表後:段落標題標為 header 且念出數量,轉變的那列念出「剛剛」(VoiceOver 讀的是 label)。
