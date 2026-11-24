@@ -1245,6 +1245,44 @@ public final class ConversationModel {
         if generation == self.generation, boundSessionID == target.sessionKey { await saveCache() }
     }
 
+    // MARK: - 離開中(返回列表的轉場)
+
+    /// 畫面正在離開(返回列表的轉場、推入子頁):追蹤到的新內容先不套用。
+    @ObservationIgnored private var isLeaving = false
+    @ObservationIgnored private var leavingWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+
+    /// 畫面開始離開或回來時呼叫(聊天列表的 `viewWillDisappear`／`viewWillAppear`)。
+    /// 離開中每則追加都讓整個聊天畫面重算與重排,全塞進返回動畫(開頭停滯、尾段凍結),而這個畫面馬上就釋放;
+    /// 所以暫停套用,回來(取消返回、從子頁回來)再接上。
+    package func setLeaving(_ leaving: Bool) {
+        guard isLeaving != leaving else { return }
+        isLeaving = leaving
+        if !leaving { resumeLeavingWaiters() }
+    }
+
+    private func resumeLeavingWaiters() {
+        let waiters = leavingWaiters
+        leavingWaiters = [:]
+        for waiter in waiters.values { waiter.resume() }
+    }
+
+    /// 離開中就等到回來或被取消。
+    private func waitWhileLeaving() async {
+        guard isLeaving else { return }
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                if isLeaving, !Task.isCancelled {
+                    leavingWaiters[id] = continuation
+                } else {
+                    continuation.resume()
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in self.leavingWaiters.removeValue(forKey: id)?.resume() }
+        }
+    }
+
     /// 已追上主機且在 `run()` 裡：開始追蹤目前的對話紀錄，之後的新內容由追蹤送來(#165)。
     private func startFollowingUpdates() {
         guard let followPace, let file, file.follow.isLive, following?.path != file.path else { return }
@@ -1271,6 +1309,9 @@ public final class ConversationModel {
                 await transcripts.followTranscript(path: path, from: cursor, pace: pace),
                 isCurrent: { generation == self.generation && file?.path == path },
                 appended: { chunk in
+                    // 畫面離開中先不套用(返回轉場期間不做整份重算);被取消就不套了。
+                    await waitWhileLeaving()
+                    guard !Task.isCancelled else { return }
                     file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
                     await append(chunk)
                 },
