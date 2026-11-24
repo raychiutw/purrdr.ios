@@ -64,7 +64,7 @@ struct ModelSheet: View {
 
     var body: some View {
         NavigationStack {
-            ModelListPage(model: model)
+            ModelContentView(model: model)
                 .navigationTitle("Choose Model")
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -82,7 +82,8 @@ struct ModelSheet: View {
     }
 }
 
-private struct ModelListPage: View {
+/// 模型清單內容(#515):可單獨嵌入——不含 NavigationStack 與關閉鈕(sheet 與 #517 的 inspector 共用)。
+struct ModelContentView: View {
     let model: ConversationModel
     @Environment(\.dismiss) private var dismiss
 

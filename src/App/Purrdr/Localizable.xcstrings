@@ -615,6 +615,17 @@
         }
       }
     },
+    "%lld of %lld done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成 %1$lld／%2$lld"
+          }
+        }
+      }
+    },
     "%lld other Agents need you" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -633,6 +644,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個 Pane"
+          }
+        }
+      }
+    },
+    "%lld queued" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排了 %lld 則"
           }
         }
       }
@@ -7035,6 +7057,17 @@
         }
       }
     },
+    "Model & Effort" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型與思考深度"
+          }
+        }
+      }
+    },
     "Modified" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7801,17 +7834,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有可恢復的購買項目"
-          }
-        }
-      }
-    },
-    "Nothing to show yet." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前沒有內容。"
           }
         }
       }
@@ -9730,6 +9752,17 @@
         }
       }
     },
+    "Read-only device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀裝置"
+          }
+        }
+      }
+    },
     "Read-only devices can’t change this" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11050,17 +11083,6 @@
         }
       }
     },
-    "Show Status" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示狀態"
-          }
-        }
-      }
-    },
     "Show Welcome" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11167,17 +11189,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示這個 Tab 的版面。"
-          }
-        }
-      }
-    },
-    "Shows usage and permission mode." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示用量與權限模式。"
           }
         }
       }
@@ -14441,17 +14452,6 @@
         }
       }
     },
-    "Todos %lld/%lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待辦 %1$lld/%2$lld"
-          }
-        }
-      }
-    },
     "Too large to open here (%@). Open it on the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15229,6 +15229,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用量"
+          }
+        }
+      }
+    },
+    "Usage & Context" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量與 Context"
           }
         }
       }

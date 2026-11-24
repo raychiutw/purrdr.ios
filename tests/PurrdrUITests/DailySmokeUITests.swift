@@ -106,26 +106,25 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("composer.attachment.0").waitUntilGone(timeout: 5), "移除後附件卡還在")
             app.dismissKeyboard()
         }
-        step("標題面板與權限模式") {
+        step("用量環與「⋯」→ 權限模式") {
             let header = app.element("conversation.header")
             XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
-            header.tap()
-            XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
-            // 面板上方是這個 Agent 的用量區(#389):範例主機還沒啟用用量顯示,有「啟用用量顯示」。
-            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "面板沒有用量區的「啟用用量顯示」")
-            XCTAssertTrue(app.element("progress.context").exists, "面板沒有 context 一列")
+            app.buttons["conversation.usage"].firstMatch.tap()
+            XCTAssertTrue(app.element("usage.sheet").waitUntilExists(timeout: 5), "點用量環沒有開出用量 sheet")
+            XCTAssertTrue(app.element("usage.sheet.context").waitUntilExists(timeout: 5), "用量 sheet 沒有 Context 卡片")
+            app.buttons["usage.sheet.close"].tap()
+            XCTAssertTrue(app.element("usage.sheet").waitUntilGone(timeout: 5), "用量 sheet 沒有關閉")
+            app.conversationMoreItem("menu.permissionMode").tap()
+            XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "「⋯」→ 權限模式沒有開出 sheet")
             let accept = app.buttons["Accept Edits"].firstMatch
-            XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits")
+            XCTAssertTrue(accept.waitUntilExists(timeout: 10), "sheet 裡沒有 Accept Edits")
             accept.tap()
-            XCTAssertTrue(accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Accept Edits")
-            app.buttons["sheet.close"].tap()
-            XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "面板沒有關閉")
+            XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
+            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "標題沒有顯示 Accept Edits")
         }
         step("模型選擇 sheet 與投入程度子頁(#384)") {
-            app.expandComposer()
-            let capsule = app.element("composer.model")
-            XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
-            capsule.tap()
+            // 輸入列收合時沒有模型膠囊:從「⋯」→ 模型與思考深度開同一張 sheet(#515)。
+            app.conversationMoreItem("menu.model").tap()
             XCTAssertTrue(app.element("model.picker").waitUntilExists(timeout: 15), "sheet 裡沒有模型勾選列")
             let effortRow = app.element("model.effort")
             XCTAssertTrue(effortRow.waitUntilExists(timeout: 10), "sheet 裡沒有投入程度列")

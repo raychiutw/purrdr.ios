@@ -411,6 +411,9 @@ struct ConversationScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var usageSection: UsageSectionModel?
     @State private var showsUsage = false
+    /// 「⋯」選單開的 sheet(#515):權限模式、做完再送、待辦、背景子 Agent;模型與思考深度另用 `isChoosingModel`(同輸入框的模型膠囊)。
+    @State private var menuSheet: ConversationMenuSheetKind?
+    @State private var isChoosingModel = false
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
@@ -444,15 +447,24 @@ struct ConversationScreen: View {
                         UsageRingButton(summary: usageSummary) { showsUsage = true }
                     }
                     ConversationMoreMenu(
-                        model: model, canOpenTerminal: makeTerminal != nil, canShowLayout: layoutSnapshot != nil,
-                        openTerminal: openTerminal, openChanges: { changes = model.makeChanges() },
-                        showLayout: { showsLayout = true })
+                        model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
+                        canShowLayout: layoutSnapshot != nil, select: selectMenuItem)
                 }
             }
             .task(id: UsageLifecycleKey(active: scenePhase == .active, agentKind: model.agentKind)) { startUsage() }
             .onChange(of: model.modelName) { _, name in usageSection?.activeGroup = name.flatMap(PlanUsage.Group.init(modelName:)) }
             .sheet(isPresented: $showsUsage) {
                 ConversationUsageSheet(model: model, section: usageSection, display: usageContext?.display.display ?? .used)
+            }
+            .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model) }
+            .sheet(isPresented: $isChoosingModel, onDismiss: { Task { await model.finishChoosingModel() } }) {
+                ModelSheet(model: model)
+            }
+            // 工作中膠囊的子 Agent 數被點了:開背景子 Agent sheet。
+            .onChange(of: model.showsBackgroundAgentsSheet) { _, shown in
+                guard shown else { return }
+                model.showsBackgroundAgentsSheet = false
+                menuSheet = .backgroundAgents
             }
             .task(id: model.canOpenChanges) { await model.refreshGitMenu() }
             .sheet(isPresented: $showsLayout) {
@@ -521,6 +533,23 @@ struct ConversationScreen: View {
             if !section.agents.isEmpty { usageSection = section }
         }
         usageSection?.appeared()
+    }
+
+    /// 點「⋯」選單的項目:開各自的 sheet 或畫面。
+    private func selectMenuItem(_ item: ConversationMoreMenuPlan.Item) {
+        switch item {
+        case .usage: showsUsage = true
+        case .permissionMode: menuSheet = .permissionMode
+        case .model:
+            isChoosingModel = true
+            Task { await model.beginChoosingModel() }
+        case .sendWhenDone: menuSheet = .sendWhenDone
+        case .todos: menuSheet = .todos
+        case .backgroundAgents: menuSheet = .backgroundAgents
+        case .terminal: openTerminal()
+        case .gitChanges: changes = model.makeChanges()
+        case .layout: showsLayout = true
+        }
     }
 
     private func openTerminal() {

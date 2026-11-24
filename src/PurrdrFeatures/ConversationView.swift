@@ -62,9 +62,6 @@ public struct ConversationView: View {
             .safeAreaBar(edge: .top) { banner }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .forceQuitConfirmation(model: model)
-            .sheet(isPresented: $model.showsStatusSheet) {
-                ConversationStatusSheet(title: displayTitle, model: model)
-            }
             .secretCheckSheet(model.secretCheck)
             .slashPanelSheet(model: model)
             .environment(\.bubbleImages, BubbleImageContext(
