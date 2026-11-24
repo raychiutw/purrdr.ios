@@ -354,6 +354,17 @@
         }
       }
     },
+    "%lld chats need you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個聊天需要你"
+          }
+        }
+      }
+    },
     "%lld comments" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -827,6 +838,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個 agent 工作中"
+          }
+        }
+      }
+    },
+    "1 chat needs you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個聊天需要你"
           }
         }
       }
@@ -6437,6 +6459,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跳到最新"
+          }
+        }
+      }
+    },
+    "Just now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剛剛"
           }
         }
       }

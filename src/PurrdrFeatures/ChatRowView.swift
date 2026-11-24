@@ -9,6 +9,8 @@ import SwiftUI
 /// 列的上下內距由使用端的 `listRowInsets`(`ChatRowView.rowInsets`)給,頭像才能對齊文字內容、不含內距。
 struct ChatRowView: View {
     let content: ChatRowContent
+    /// 「需要你」段落裡最新轉變那一列尾端的「剛剛」(#531);其他列 `nil`。
+    var justNowText: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .subheadline) private var tabNameSize: CGFloat = 15
     @ScaledMetric(relativeTo: .subheadline) private var previewSize: CGFloat = 14
@@ -95,9 +97,17 @@ struct ChatRowView: View {
     /// 右欄:時間,下方是用量環與百分比(對 VoiceOver 隱藏,念在列的句子裡)。
     @ViewBuilder
     private var trailingColumn: some View {
-        if content.time != nil || content.contextPercent != nil {
+        if content.time != nil || content.contextPercent != nil || justNowText != nil {
             let layout = isStacked ? AnyLayout(HStackLayout(spacing: 10)) : AnyLayout(VStackLayout(alignment: .trailing, spacing: 8))
             layout {
+                if let justNowText {
+                    Text(verbatim: justNowText)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.primary)
+                        .padding(.horizontal, 8)
+                        .background(Color.orange.opacity(0.3), in: Capsule())
+                        .accessibilityIdentifier("chatRow.justNow")
+                }
                 if let time = content.time {
                     Text(time.text())
                         .font(.footnote)
@@ -112,7 +122,7 @@ struct ChatRowView: View {
     }
 
     /// VoiceOver 句子:Tab 名稱、session 標題、種類、狀態、離開期間、預覽、時間、用量。狀態圓點不另成元素,由這句念出。
-    static func accessibilityText(_ tab: SpacesTab) -> String {
+    static func accessibilityText(_ tab: SpacesTab, justNow: Bool = false) -> String {
         let first = tab.tabName ?? tab.contentTitle
         var parts: [String?] = [first, first == tab.contentTitle ? nil : tab.contentTitle]
         switch tab.avatar {
@@ -128,6 +138,7 @@ struct ChatRowView: View {
                 agent.progress?.contextPercent.map { String(localized: "Context \($0)%") },
             ]
         }
+        if justNow { parts.append(NeedsYouSection.justNowText) }
         return parts.compactMap { $0 }.joined(separator: ", ")
     }
 }
