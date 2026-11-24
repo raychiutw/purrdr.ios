@@ -70,6 +70,25 @@ struct NewChatLaunchTests {
         #expect(executions.allSatisfy { !$0.stdinText.contains("bypassPermissions") && !$0.stdinText.contains("permission-mode") })
     }
 
+    @Test("填了 tab 名稱:workspace 建好後對新 tab 送 tab.rename,之後才啟動 agent;沒填時不送")
+    func tabLabelRenamesNewTab() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("/Users/demo/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: FakeReply(
+            stdout: Data(#"{"id":"purrdr:tab.rename","result":{"type":"ok"}}"#.utf8) + [0x0A], trigger: .afterStdinLine))
+        await host.expect(Self.bridge, reply: Self.agentStarted())
+
+        _ = try await Self.launcher(host).start(
+            NewChatRequest(folder: "/Users/demo/ledger", label: "Tax", tabLabel: "Draft", agent: .claude))
+
+        let executions = await host.executions
+        #expect(executions.map(\.command) == [command, Self.bridge, Self.bridge, Self.bridge])
+        #expect(executions[1].stdinText == Self.createLine(cwd: "/Users/demo/ledger", label: "Tax"))
+        #expect(executions[2].stdinText == #"{"id":"purrdr:tab.rename","method":"tab.rename","params":{"label":"Draft","tab_id":"w4:t1"}}"# + "\n")
+    }
+
     @Test("選了權限模式：Claude 在 args 帶 --permission-mode;名稱用自訂名稱的 slug,label 照原樣")
     func explicitPermissionModeForClaude() async throws {
         let host = FakeHost()
