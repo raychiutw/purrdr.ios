@@ -55,16 +55,13 @@ public struct ConversationView: View {
             .toolbar {
                 // 標題是 workspace 名稱，副標是狀態與主機名(#270);右邊只有終端機鈕，重新載入改成下拉。
                 ToolbarItem(placement: .principal) {
-                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header, model: model)
+                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header)
                 }
                 .sharedBackgroundVisibility(.hidden)    // 標題自己是玻璃膠囊，不讓工具列再疊一層(glass on glass)
             }
             .safeAreaBar(edge: .top) { banner }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .forceQuitConfirmation(model: model)
-            .sheet(isPresented: $model.showsStatusSheet) {
-                ConversationStatusSheet(title: displayTitle, model: model)
-            }
             .secretCheckSheet(model.secretCheck)
             .slashPanelSheet(model: model)
             .environment(\.bubbleImages, BubbleImageContext(

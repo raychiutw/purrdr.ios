@@ -222,7 +222,6 @@ struct WindowDetailContent: View {
             ConversationScreen(
                 model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
                 makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route,
-                otherNeedsYou: hosts.agentList.needsYouCount(excluding: route),
                 layoutSnapshot: { hosts.agentList.snapshot(for: route.host) },
                 openLayoutTarget: { target in
                     switch target {

@@ -28,6 +28,18 @@ struct AgentProgressTests {
         #expect(progress.contextLevel == .normal)
     }
 
+    @Test("context 的已用 token 數與上限(用量 sheet 的「21 萬／100 萬」)")
+    func contextTokenCounts() {
+        let standard = AgentProgress.latest(in: [Self.claudeAssistant(input: 10, cacheRead: 100_000, cacheCreation: 40_000)], dialect: .claude)
+        #expect(standard.contextTokens == 140_010)
+        #expect(standard.contextLimit == 200_000)
+        let million = AgentProgress.latest(in: [Self.claudeAssistant(model: "claude-opus-4-7[1m]", input: 100_000)], dialect: .claude)
+        #expect(million.contextTokens == 100_000)
+        #expect(million.contextLimit == 1_000_000)
+        #expect(AgentProgress().contextTokens == nil)
+        #expect(AgentProgress().contextLimit == nil)
+    }
+
     static func sidechain(_ line: String) -> String {
         line.replacingOccurrences(of: #""type":"assistant""#, with: #""isSidechain":true,"type":"assistant""#)
     }

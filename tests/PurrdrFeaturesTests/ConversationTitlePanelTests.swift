@@ -64,7 +64,7 @@ struct ConversationTitlePanelTests {
     @Test("標題第二行的 VoiceOver 文字帶權限模式")
     func headerAccessibilityIncludesMode() {
         let header = ConversationHeader(title: "ledger", status: .working, segments: ["studio"], permissionMode: .plan)
-        #expect(header.lineAccessibilityText == "Plan, Working, studio")
+        #expect(header.lineAccessibilityText == "studio, Working, Plan")
     }
 
     @Test("連線中斷是離線狀態,不混進 Agent 狀態")
