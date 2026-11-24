@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>需要你通知 互動原型</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.wrap{width:390px;font-family:-apple-system,"SF Pro Text","PingFang TC",system-ui,sans-serif;color:#1C1C1E}
+.ctl{height:196px;box-sizing:border-box;padding:4px 2px 12px;display:flex;flex-direction:column;gap:8px}
+.sw{display:flex;gap:4px}
+.sw button{flex:1;height:36px;border-radius:10px;border:1px solid #C7C7CC;background:#fff;font-family:inherit;font-size:14px;color:#1C1C1E}
+.sw button.on{background:#1C1C1E;color:#fff;border-color:#1C1C1E;font-weight:600}
+.desc{font-size:13px;line-height:1.45;color:#3A3A3C;white-space:pre-line;min-height:56px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.acts button{height:32px;border-radius:16px;border:0;background:#E5E5EA;font-family:inherit;font-size:13px;padding:0 12px;color:#1C1C1E}
+.acts button.go{background:#FF9F0A;color:#000;font-weight:600}
+.ph{width:390px;height:844px;position:relative;overflow:hidden;background:#000;color:#fff;font-size:16px;border-radius:44px}
+.glass{background:rgba(44,44,46,.78);backdrop-filter:blur(24px);box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 6px 20px rgba(0,0,0,.4)}
+.top{position:absolute;left:0;right:0;top:0;padding:54px 16px 10px;display:flex;align-items:center;gap:8px;z-index:3;background:linear-gradient(#000 70%,rgba(0,0,0,0))}
+.c44{width:44px;height:44px;border-radius:22px;border:0;display:flex;align-items:center;justify-content:center;padding:0;flex:none;position:relative;color:#fff}
+.dot{position:absolute;top:3px;right:3px;width:10px;height:10px;border-radius:5px;background:#FF9F0A;box-shadow:0 0 0 2px #2C2C2E}
+.tt{flex:1;min-width:0;height:48px;border-radius:24px;display:flex;flex-direction:column;justify-content:center;padding:0 16px}
+.t1{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{font-size:12px;color:#AEAEB2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair{display:flex;align-items:center;height:44px;border-radius:22px;padding:0 4px;flex:none;position:relative}
+.pair button{width:44px;height:44px;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0;color:#fff;position:relative}
+.body{position:absolute;left:0;right:0;top:120px;bottom:100px;padding:0 20px;display:flex;flex-direction:column;gap:14px;overflow:hidden;line-height:1.5}
+.me{align-self:flex-end;max-width:78%;background:#2C2C2E;border-radius:20px;padding:10px 14px}
+.ask{border-radius:18px;background:#1C1C1E;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.ask .opt{height:44px;border-radius:22px;border:0;background:#2C2C2E;color:#fff;font-family:inherit;font-size:15px}
+.comp{position:absolute;left:16px;right:16px;bottom:30px;border-radius:26px;padding:6px;display:flex;align-items:center;gap:6px;z-index:3}
+.rb{width:40px;height:40px;border-radius:20px;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0;color:#fff;flex:none}
+.send{background:#3CCF9E}
+.bar{position:absolute;left:16px;right:16px;bottom:92px;border-radius:22px;padding:6px 6px 6px 14px;display:flex;align-items:center;gap:8px;z-index:3;min-height:44px}
+.bar .tx{flex:1;min-width:0;font-size:14px;line-height:1.3}
+.bar .tx b{font-weight:600}
+.bar .tx span{display:block;color:#AEAEB2;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{height:34px;border-radius:17px;border:0;background:#FF9F0A;color:#000;font-family:inherit;font-weight:600;font-size:14px;padding:0 14px;flex:none}
+.x{width:34px;height:34px;border-radius:17px;border:0;background:none;color:#AEAEB2;font-size:18px;flex:none}
+.ban{position:absolute;left:12px;right:12px;top:112px;border-radius:24px;padding:6px 6px 6px 4px;display:flex;gap:4px;align-items:center;z-index:6}
+.banmain{flex:1;min-width:0;display:flex;gap:12px;align-items:center;border:0;background:none;font-family:inherit;color:#fff;text-align:left;padding:6px 8px;min-height:48px}
+.av{width:36px;height:36px;border-radius:10px;background:#F6E3D9;color:#A0471C;font-weight:700;display:flex;align-items:center;justify-content:center;position:relative;flex:none}
+.sd{position:absolute;right:-4px;bottom:-4px;width:12px;height:12px;border-radius:6px;background:#FF9F0A;box-shadow:0 0 0 2px #1C1C1E}
+.dim{position:absolute;inset:0;border:0;padding:0;background:rgba(0,0,0,.35);z-index:4}
+.menu{position:absolute;right:12px;top:108px;width:300px;border-radius:24px;background:rgba(50,50,52,.94);backdrop-filter:blur(30px);box-shadow:0 0 0 .5px rgba(255,255,255,.12),0 20px 50px rgba(0,0,0,.6);z-index:5;overflow:hidden}
+.menu.left{left:12px;right:auto;top:108px}
+.mh{font-size:13px;color:#AEAEB2;padding:10px 16px 2px}
+.it{display:flex;align-items:center;gap:12px;padding:10px 16px;border:0;background:none;color:#fff;font-family:inherit;font-size:16px;text-align:left;width:100%;min-height:44px}
+.it .sub{display:block;font-size:13px;color:#AEAEB2;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px}
+.sep{height:8px;background:rgba(0,0,0,.28)}
+.hr{height:.5px;background:rgba(255,255,255,.12);margin-left:16px}
+.list{position:absolute;inset:0;background:#000;padding:54px 0 0}
+.lbar{display:flex;align-items:center;padding:0 16px 0 20px;min-height:52px}
+.big{font-size:34px;font-weight:700;margin-right:auto}
+.gh{font-size:13px;color:#8E8E93;margin:18px 20px 4px}
+.row{display:flex;gap:12px;padding:12px 20px;align-items:center;border:0;background:none;color:#fff;font-family:inherit;text-align:left;width:100%}
+.row .l1{font-size:17px;font-weight:600}
+.row .l3{font-size:14px;color:#AEAEB2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabbar{position:absolute;left:16px;right:16px;bottom:24px;height:62px;border-radius:31px;display:flex;align-items:center;justify-content:space-around;font-size:11px;color:#AEAEB2}
+.tabbar .on{color:#3CCF9E}
+.tabbar button{border:0;background:none;font-family:inherit;font-size:11px;color:#AEAEB2;min-width:64px;height:52px;position:relative}
+.tabbar button.on{color:#3CCF9E;font-weight:600}
+.tb{position:absolute;top:4px;left:50%;margin-left:8px;min-width:18px;height:18px;border-radius:9px;background:#FF9F0A;color:#000;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;box-sizing:border-box}
+.nyh{display:flex;align-items:center;gap:6px;font-size:13px;color:#FF9F0A;font-weight:600;margin:14px 20px 6px}
+.nyc{margin:0 12px;border-radius:18px;background:rgba(255,159,10,.12);overflow:hidden}
+.nyc .row{padding:12px 14px}
+.new{font-size:12px;color:#FF9F0A;font-weight:600;flex:none;align-self:flex-start}
+.blank{position:absolute;left:0;right:0;top:54px;padding:0 20px}
+</style>
+</helmet>
+<div class="wrap">
+  <div class="ctl">
+    <div class="sw" role="group" aria-label="切換方案">
+      <sc-for list="{{ variants }}" as="m" hint-placeholder-count="5"><button class="{{ m.cls }}" onClick="{{ m.pick }}">{{ m.label }}</button></sc-for>
+    </div>
+    <div class="desc">{{ desc }}</div>
+    <div class="acts">
+      <button class="go" onClick="{{ arrive }}">模擬：另一個聊天需要你</button>
+      <sc-if value="{{ isN5 }}" hint-placeholder-val="{{ false }}"><button onClick="{{ longPress }}">長按返回鈕</button></sc-if>
+      <button onClick="{{ reset }}">重來</button>
+    </div>
+  </div>
+
+  <div class="ph">
+    <sc-if value="{{ showChat }}" hint-placeholder-val="{{ true }}">
+      <div class="top">
+        <button class="c44 glass" aria-label="{{ backLabel }}" onClick="{{ back }}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="2.2" aria-hidden="true"><path d="M12.5 4L6.5 10l6 6"/></svg>
+          <sc-if value="{{ backDot }}" hint-placeholder-val="{{ false }}"><span class="dot" aria-hidden="true"></span></sc-if>
+        </button>
+        <div class="tt glass"><div class="t1">{{ title }}</div><div class="t2">{{ subtitle }}</div></div>
+        <div class="pair glass">
+          <button aria-label="用量"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="3"/><circle cx="12" cy="12" r="9" fill="none" stroke="#3CCF9E" stroke-width="3" stroke-dasharray="20 56.5" transform="rotate(-90 12 12)" stroke-linecap="round"/></svg></button>
+          <button aria-label="{{ moreLabel }}" onClick="{{ openMenu }}"><svg width="22" height="22" viewBox="0 0 22 22" fill="#fff" aria-hidden="true"><circle cx="5" cy="11" r="1.8"/><circle cx="11" cy="11" r="1.8"/><circle cx="17" cy="11" r="1.8"/></svg>
+            <sc-if value="{{ moreDot }}" hint-placeholder-val="{{ false }}"><span class="dot" aria-hidden="true"></span></sc-if>
+          </button>
+        </div>
+      </div>
+      <div class="body">
+        <sc-if value="{{ inOther }}" hint-placeholder-val="{{ false }}">
+          <div class="me">{{ otherMe }}</div>
+          <div class="ask"><div>{{ otherQ }}</div><button class="opt">是</button><button class="opt">不要</button></div>
+        </sc-if>
+        <sc-if value="{{ inHome }}" hint-placeholder-val="{{ true }}">
+          <div class="me">PR 合併了嗎？TestFlight 上傳好了跟我說</div>
+          <div>PR #507 已合併，0.51.0 的 TestFlight 上傳正在跑。我在背景等它完成，結果出來就確認 GitHub Release、通知相關 session、取消排程。</div>
+          <div>目前沒有卡住的地方。</div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ showBar }}" hint-placeholder-val="{{ false }}">
+        <div class="bar glass" role="status">
+          <div class="tx"><b>{{ barTitle }}</b><span>{{ barQ }}</span></div>
+          <button class="pill" onClick="{{ openFirst }}">前往</button>
+          <button class="x" aria-label="先不要" onClick="{{ dismiss }}">✕</button>
+        </div>
+      </sc-if>
+      <div class="comp glass">
+        <button class="rb" aria-label="加入"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="2" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
+        <span style="flex:1;color:#8E8E93">{{ placeholder }}</span>
+        <button class="rb send" aria-label="送出"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#000" stroke-width="2.2" aria-hidden="true"><path d="M9 15V3M4 8l5-5 5 5"/></svg></button>
+      </div>
+      <sc-if value="{{ showBanner }}" hint-placeholder-val="{{ false }}">
+        <div class="ban glass" role="status"><button class="banmain" aria-label="{{ banAria }}" onClick="{{ openFirst }}"><div class="av">{{ banK }}<span class="sd"></span></div><div style="min-width:0;flex:1"><div style="font-weight:600;font-size:15px">{{ banTitle }}</div><div style="font-size:13px;color:#AEAEB2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ barQ }}</div></div></button><button class="x" aria-label="先不要" onClick="{{ dismissBan }}">✕</button></div>
+      </sc-if>
+      <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+        <button class="dim" aria-label="關閉" onClick="{{ close }}"></button>
+        <div class="menu" aria-label="更多選單">
+          <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}">
+            <div class="mh">{{ pendingHeader }}</div>
+            <sc-for list="{{ pendingRows }}" as="p" hint-placeholder-count="2">
+              <button class="it" onClick="{{ p.open }}"><div class="av" style="width:30px;height:30px;font-size:13px">{{ p.k }}<span class="sd"></span></div><span>{{ p.ws }}<span class="sub">{{ p.q }}</span></span></button>
+            </sc-for>
+            <div class="sep"></div>
+          </sc-if>
+          <button class="it"><span>用量與 Context<span class="sub">每週 34% · Context 21%</span></span></button>
+          <div class="hr"></div>
+          <button class="it"><span>權限模式<span class="sub">一般</span></span></button>
+          <div class="hr"></div>
+          <button class="it"><span>模型與思考深度<span class="sub">Sonnet 5.5 · 中</span></span></button>
+          <div class="sep"></div>
+          <button class="it">終端機</button>
+          <div class="hr"></div>
+          <button class="it">Git 變更</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ switchOpen }}" hint-placeholder-val="{{ false }}">
+        <button class="dim" aria-label="關閉" onClick="{{ close }}"></button>
+        <div class="menu left" aria-label="返回選單">
+          <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}">
+            <div class="mh">需要你</div>
+            <sc-for list="{{ pendingRows }}" as="p" hint-placeholder-count="2">
+              <button class="it" onClick="{{ p.open }}"><div class="av" style="width:30px;height:30px;font-size:13px">{{ p.k }}<span class="sd"></span></div><span>{{ p.ws }}<span class="sub">{{ p.q }}</span></span></button>
+            </sc-for>
+            <div class="sep"></div>
+          </sc-if>
+          <button class="it" onClick="{{ back }}">所有聊天</button>
+        </div>
+      </sc-if>
+    </sc-if>
+
+    <sc-if value="{{ showList }}" hint-placeholder-val="{{ false }}">
+      <div class="list">
+        <div class="lbar"><div class="big">聊天</div></div>
+        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}">
+          <div class="nyh"><svg width="14" height="14" viewBox="0 0 14 14" fill="#FF9F0A" aria-hidden="true"><circle cx="7" cy="7" r="6"/></svg>{{ listHeader }}</div>
+          <div class="nyc">
+          <sc-for list="{{ pendingRows }}" as="p" hint-placeholder-count="2">
+            <button class="row" onClick="{{ p.open }}"><div class="av" style="width:44px;height:44px;border-radius:12px;font-size:18px">{{ p.k }}<span class="sd"></span></div><div style="min-width:0;flex:1"><div class="l1">{{ p.ws }}</div><div class="l3">{{ p.q }}</div></div><sc-if value="{{ p.isNew }}" hint-placeholder-val="{{ false }}"><span class="new">剛剛</span></sc-if></button>
+          </sc-for>
+          </div>
+        </sc-if>
+        <div class="gh">Studio Mac · purrdr.ios</div>
+        <button class="row" onClick="{{ home }}"><div class="av" style="width:44px;height:44px;border-radius:12px;font-size:18px">C<span class="sd" style="background:#3CCF9E"></span></div><div style="min-width:0;flex:1"><div class="l1">Tab 1</div><div class="l3">PR #507 已合併，TestFlight 上傳正在跑</div></div></button>
+      </div>
+    </sc-if>
+    <sc-if value="{{ showOtherTab }}" hint-placeholder-val="{{ false }}">
+      <div class="list"><div class="lbar"><div class="big">{{ tabName }}</div></div><div style="padding:8px 20px;color:#8E8E93;font-size:15px">(這個 tab 的內容照舊)</div></div>
+    </sc-if>
+    <sc-if value="{{ showTabs }}" hint-placeholder-val="{{ false }}">
+      <nav class="tabbar glass" aria-label="tab bar">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4"><button class="{{ t.cls }}" aria-label="{{ t.aria }}" onClick="{{ t.pick }}">{{ t.name }}<sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}"><span class="tb" aria-hidden="true">{{ t.count }}</span></sc-if></button></sc-for>
+      </nav>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1040}}'>
+class Component extends DCLogic {
+constructor(p){ super(p); this.state = { v: 'N4', pending: [], screen: 'chat', current: null, bar: null, banner: null }; this.queue = [
+  { k: 'C', ws: 'weather-app', host: 'Studio Mac', q: '要我把 API key 存到 .env 嗎？', me: '接上氣象 API' },
+  { k: 'X', ws: 'notes', host: 'Build Box', q: '要覆蓋 tags/index.md 嗎？', me: '整理標籤索引' },
+  { k: 'C', ws: 'ledger', host: 'Studio Mac', q: '要執行 swift test 嗎？', me: '幫 CSV 匯出加引號' }
+]; }
+renderVals() {
+  const s = this.state;
+  const n = s.pending.length;
+  const first = s.bar || s.banner || s.pending[0];
+  const descs = {
+    N1: 'N1 返回鈕小橙點：別的聊天需要你時，返回鈕右上角出現一個橙點(不佔寬度)。\n點返回回到列表，「需要你」排在最上面。最安靜，但新的一則進來時不容易注意到。',
+    N2: 'N2 「⋯」小橙點＋選單：「⋯」上出現橙點；打開選單，最上面列出需要你的聊天，點了直接過去。\n不打擾，但要多點一次才知道是誰。',
+    N3: 'N3 輸入框上方提示列＋返回鈕小點(建議)：新的一則進來時，輸入框上方浮出一條提示「weather-app 需要你」與「前往」，按 ✕ 收起；\n收起後返回鈕留一個小點。手指就在輸入框旁邊，點「前往」直接到那個聊天。',
+    N4: 'N4 頂部橫幅＋返回鈕小點：新的一則進來時，頂列下方掉下一張玻璃橫幅。點橫幅直接跳到那個聊天；\n不會自己消失(HIG：避免計時自動消失)，按 ✕ 或往上滑收起，收起後返回鈕留一個小點。又有一則進來時橫幅換成最新的，寫「等 2 個」。',
+    N5: 'N5 返回鈕小點＋長按返回鈕：返回鈕上的小點提示有人需要你；長按返回鈕(iOS 慣例的返回選單)\n列出需要你的聊天，直接跳過去。最不佔畫面，但長按不容易被發現。'
+  };
+  const listNote = '\n聊天列表(各方案共用)：「需要你」放在最上面並加橙色底，最新的一則標「剛剛」；底部「聊天」tab 顯示數字，在其他 tab 也看得到。';
+  Object.keys(descs).forEach((k) => { descs[k] += listNote; });
+  const _unused = {
+  };
+  const inOther = !!s.current;
+  const hasDot = ['N1','N3','N4','N5'].indexOf(s.v) >= 0 && n > 0;
+  const showChat = s.screen !== 'list';
+  return {
+    variants: ['N1','N2','N3','N4','N5'].map((k) => ({ label: k, cls: k === s.v ? 'on' : '', pick: () => this.setState({ v: k, pending: [], screen: 'chat', current: null, bar: null, banner: null }) })),
+    desc: descs[s.v],
+    isN5: s.v === 'N5',
+    showChat, showList: s.screen === 'list',
+    inOther, inHome: !inOther,
+    title: inOther ? s.current.ws : 'purrdr.ios',
+    subtitle: inOther ? s.current.host + ' · 需要你' : 'Studio Mac · 工作中',
+    otherMe: inOther ? s.current.me : '', otherQ: inOther ? s.current.q : '',
+    placeholder: '傳訊息給 ' + (inOther ? s.current.ws : 'purrdr.ios'),
+    backDot: hasDot,
+    backLabel: hasDot ? '返回，另外 ' + n + ' 個聊天需要你' : '返回',
+    moreDot: s.v === 'N2' && n > 0,
+    moreLabel: s.v === 'N2' && n > 0 ? '更多，另外 ' + n + ' 個聊天需要你' : '更多',
+    showBar: s.v === 'N3' && !!s.bar && s.screen === 'chat',
+    showBanner: s.v === 'N4' && !!s.banner && s.screen === 'chat',
+    barTitle: first ? first.ws : '', barQ: first ? first.q : '',
+    banK: first ? first.k : '',
+    banTitle: first ? (n > 1 ? first.ws + ' 等 ' + n + ' 個需要你' : first.ws + ' 需要你') : '',
+    banAria: first ? '前往 ' + first.ws + '，' + first.q : '',
+    dismissBan: () => this.setState({ banner: null }),
+    menuOpen: s.screen === 'menu',
+    switchOpen: s.screen === 'switch',
+    hasPending: n > 0 && (s.screen !== 'menu' || s.v === 'N2'),
+    pendingHeader: '另外 ' + n + ' 個聊天需要你',
+    pendingRows: s.pending.slice().reverse().map((p, i) => ({ k: p.k, ws: p.ws, q: p.q, isNew: i === 0 && p === s.latest, open: () => this.openChat(p) })),
+    listHeader: n + ' 個聊天需要你',
+    showOtherTab: s.screen === 'tab',
+    showTabs: s.screen === 'list' || s.screen === 'tab',
+    tabName: s.tab,
+    tabs: ['聊天','檔案','主機','流量'].map((name) => { const on = (s.screen === 'list' && name === '聊天') || (s.screen === 'tab' && s.tab === name); const badge = name === '聊天' && n > 0; return { name, cls: on ? 'on' : '', badge, count: n, aria: badge ? name + '，' + n + ' 個需要你' : name, pick: () => this.setState(name === '聊天' ? { screen: 'list' } : { screen: 'tab', tab: name }) }; }),
+    arrive: () => this.arrive(),
+    longPress: () => this.setState({ screen: 'switch' }),
+    back: () => this.setState({ screen: 'list', bar: null, banner: null }),
+    home: () => this.setState({ screen: 'chat', current: null }),
+    openMenu: () => this.setState({ screen: 'menu' }),
+    close: () => this.setState({ screen: 'chat' }),
+    dismiss: () => this.setState({ bar: null }),
+    openFirst: () => { if (first) this.openChat(first); },
+    reset: () => this.setState({ pending: [], screen: 'chat', current: null, bar: null, banner: null })
+  };
+}
+arrive() {
+  const s = this.state;
+  const next = this.queue.find((q) => s.pending.indexOf(q) < 0 && s.current !== q);
+  if (!next) return;
+  const upd = { pending: s.pending.concat([next]), latest: next };
+  if (s.v === 'N3') upd.bar = next;
+  if (s.v === 'N4') {
+    upd.banner = next;
+  }
+  this.setState(upd);
+}
+openChat(p) {
+  clearTimeout(this.t);
+  this.setState({ current: p, pending: this.state.pending.filter((x) => x !== p), screen: 'chat', bar: null, banner: null });
+}
+}
+</script>
+</body>
+</html>
