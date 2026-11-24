@@ -28,8 +28,16 @@ struct ComposerCardLayout: Layout {
 
     /// 觸控目標(「+」與送出)。
     static let control: CGFloat = 44
+    /// 展開時按鈕列的間隙。
     static let gap: CGFloat = 4
     static let sideInset: CGFloat = 6
+    /// 收合時按鈕貼近卡片邊緣、與輸入框之間不留間隙(輸入框自己有 8pt 的文字內距),把寬度讓給輸入框(#512)。
+    static let collapsedSideInset: CGFloat = 4
+    static let collapsedGap: CGFloat = 0
+    /// 卡片離容器左右邊緣;比內容的 16pt 各寬 4pt,輸入框更寬(#512)。
+    static let horizontalMargin: CGFloat = 12
+    /// 內容(訊息、卡片)的左右邊距。
+    static let contentMargin: CGFloat = 16
     static let editorInset: CGFloat = 4
 
     private func subview(_ role: ComposerCardRole, in subviews: Subviews) -> LayoutSubview? {
@@ -55,14 +63,27 @@ struct ComposerCardLayout: Layout {
     private static var expandedChrome: CGFloat { editorInset + control + sideInset }
 
     private func collapsedEditorWidth(_ width: CGFloat, _ subviews: Subviews) -> CGFloat {
-        let controls = (subview(.attach, in: subviews) == nil ? 0 : Self.control + Self.gap) + Self.control + Self.gap
-        return max(0, width - 2 * Self.sideInset - controls)
+        max(0, Self.editorWidth(cardWidth: width, hasAttach: subview(.attach, in: subviews) != nil, form: .collapsed))
+    }
+
+    /// 卡片寬度:容器扣掉左右各 `horizontalMargin`。
+    static func cardWidth(containerWidth: CGFloat) -> CGFloat { containerWidth - 2 * horizontalMargin }
+
+    /// 輸入框本體的寬度(收合:扣掉按鈕;展開:整寬扣兩側內距)。
+    static func editorWidth(cardWidth: CGFloat, hasAttach: Bool, form: ComposerForm) -> CGFloat {
+        switch form {
+        case .collapsed:
+            let controls = (hasAttach ? control + collapsedGap : 0) + control + collapsedGap
+            return cardWidth - 2 * collapsedSideInset - controls
+        case .expanded:
+            return cardWidth - 2 * editorInset
+        }
     }
 
     /// 收合的輸入框比展開的窄多少(輸入框以收合時的寬度量行數，#512)。
     static func collapsedWidthReduction(hasAttach: Bool) -> CGFloat {
-        let controls = (hasAttach ? control + gap : 0) + control + gap
-        return 2 * sideInset + controls - 2 * editorInset
+        // 同一張卡片寬度下，收合的輸入框比展開的窄多少。
+        editorWidth(cardWidth: 1000, hasAttach: hasAttach, form: .expanded) - editorWidth(cardWidth: 1000, hasAttach: hasAttach, form: .collapsed)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
@@ -73,14 +94,14 @@ struct ComposerCardLayout: Layout {
         let controlSize = ProposedViewSize(width: Self.control, height: Self.control)
         switch form {
         case .collapsed:
-            var x = bounds.minX + Self.sideInset
+            var x = bounds.minX + Self.collapsedSideInset
             if let attach {
                 attach.place(at: CGPoint(x: x, y: bounds.midY), anchor: .leading, proposal: controlSize)
-                x += Self.control + Self.gap
+                x += Self.control + Self.collapsedGap
             }
             let editorWidth = collapsedEditorWidth(bounds.width, subviews)
             editor?.place(at: CGPoint(x: x, y: bounds.midY), anchor: .leading, proposal: ProposedViewSize(width: editorWidth, height: bounds.height))
-            send?.place(at: CGPoint(x: bounds.maxX - Self.sideInset, y: bounds.midY), anchor: .trailing, proposal: controlSize)
+            send?.place(at: CGPoint(x: bounds.maxX - Self.collapsedSideInset, y: bounds.midY), anchor: .trailing, proposal: controlSize)
         case .expanded:
             let editorHeight = max(0, bounds.height - Self.expandedChrome)
             editor?.place(

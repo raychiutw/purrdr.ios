@@ -169,7 +169,9 @@ struct ComposerBar: View {
                     if case .needsYou = model.topAccessory {
                         NeedsYouCard(model: model)
                     }
+                    // 卡片比內容各寬 4pt(離邊緣 12pt),輸入框更寬(#512)。
                     card
+                        .padding(.horizontal, ComposerCardLayout.horizontalMargin - ComposerCardLayout.contentMargin)
                 }
             }
         }
