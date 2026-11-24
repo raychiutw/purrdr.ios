@@ -386,6 +386,7 @@ struct PurrdrApp: App {
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
         if arguments.contains("-demoSentImages") { return .sentImages }
         if arguments.contains("-demoAntigravity") { return .antigravity }
+        if arguments.contains("-demoNeedsYouWithStatusBanner") { return .needsYouWithStatusBanner(after: .seconds(3)) }
         if arguments.contains("-demoNeedsYouLater") { return .needsYouLater(after: .seconds(3)) }
         if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(1), hangs: false) }
         if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(1), hangs: true) }

@@ -64,6 +64,8 @@ public struct PaneWindowView: View {
         self.hosts = hosts
     }
 
+    @Environment(\.scenePhase) private var scenePhase
+
     public var body: some View {
         NavigationStack {
             Group {
@@ -83,6 +85,11 @@ public struct PaneWindowView: View {
         }
         // 跟主視窗一樣套用選取中主機的主題(#23)。
         .selectedHostTheme(hosts)
+        // 只剩 Pane 視窗時「需要你」橫幅也要更新(#546):與主視窗共用同一個訂閱(`runShared`),不重複訂閱;背景不推進(#492)。
+        .task(id: scenePhase == .active) {
+            guard scenePhase == .active, window.kind == .chat else { return }
+            await hosts.agentList.needsYou.runShared(observing: hosts.agentList)
+        }
     }
 }
 
@@ -111,13 +118,14 @@ private struct PaneWindowContent: View {
 
     private func openFromBanner(_ target: ChatRoute) {
         let registry = MainWindowRegistry.shared
-        if registry.hasMainWindow {
-            hosts.agentList.openedChat = target
+        switch PaneBannerOpenPlan.make(
+            target: target, hasMainWindow: registry.hasMainWindow,
+            workspaceTitle: hosts.agentList.needsYouBanner(forWindow: route)?.workspace) {
+        case .mainWindow(let chat):
+            hosts.agentList.openedChat = chat
             registry.bringToFront()
-        } else {
-            openWindow(value: PaneWindow(
-                kind: .chat, host: target.host, paneID: target.paneID, sessionID: nil,
-                title: hosts.agentList.needsYouBanner(forWindow: route)?.workspace ?? target.paneID))
+        case .newPaneWindow(let window):
+            openWindow(value: window)
         }
     }
 }

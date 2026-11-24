@@ -126,3 +126,15 @@ private struct NeedsYouBannerCard: View {
         AccessibilityNotification.Announcement(titleText).post()
     }
 }
+
+/// 點橫幅的去向(#546):有主視窗就在主視窗開;沒有就開新的 Pane 視窗。
+package enum PaneBannerOpenPlan: Equatable {
+    case mainWindow(ChatRoute)
+    case newPaneWindow(PaneWindow)
+
+    package static func make(target: ChatRoute, hasMainWindow: Bool, workspaceTitle: String?) -> PaneBannerOpenPlan {
+        guard !hasMainWindow else { return .mainWindow(target) }
+        return .newPaneWindow(PaneWindow(
+            kind: .chat, host: target.host, paneID: target.paneID, sessionID: nil, title: workspaceTitle ?? target.paneID))
+    }
+}

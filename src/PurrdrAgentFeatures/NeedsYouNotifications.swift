@@ -153,6 +153,29 @@ public final class NeedsYouNotifications {
             .sorted { ($0.since, $0.order) > ($1.since, $1.order) }
     }
 
+    /// 共用訂閱的使用者數(#546):主視窗與每個 Pane 視窗各算一個。
+    package private(set) var activeRunnerCount = 0
+    @ObservationIgnored private var sharedTask: Task<Void, Never>?
+
+    /// 給多個視窗共用的接線(#546):第一個視窗掛上時才開始訂閱,之後的視窗只算人數、不重複訂閱;
+    /// 全部視窗結束(或進背景)才停止。所以只剩 Pane 視窗時橫幅仍會更新。呼叫端所在的 task 被取消時返回。
+    public func runShared(observing merged: MergedAgentListModel) async {
+        activeRunnerCount += 1
+        if sharedTask == nil {
+            sharedTask = Task { [self] in await run(observing: merged) }
+        }
+        defer {
+            activeRunnerCount -= 1
+            if activeRunnerCount == 0 {
+                sharedTask?.cancel()
+                sharedTask = nil
+            }
+        }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(3600))
+        }
+    }
+
     /// 跟著合併列表的快照、目前聊天與靜音變化，直到所在的 task 被取消。
     public func run(observing merged: MergedAgentListModel) async {
         for await input in Observations({ merged.needsYouInput }) {

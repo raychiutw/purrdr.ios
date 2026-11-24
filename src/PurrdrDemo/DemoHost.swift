@@ -45,6 +45,9 @@ public actor DemoHost: HostChannel {
         /// 跨聊天「需要你」(#530):第一次定位對話紀錄(開啟某個聊天)後 `after`,`w3:p1`(notes)從工作中變成需要你。
         /// `w2:p1`(weather-app)一開始就需要你,所以不觸發橫幅(給「打開聊天時已經需要你的不跳橫幅」)。
         case needsYouLater(after: Duration)
+        /// 「需要你」橫幅與對話狀態橫幅並存(#546):同 `needsYouLater`,而且 notes 變成需要你的同時,ledger 的對話紀錄變成讀不到(權限),
+        /// 聊天頂部出現狀態橫幅(`conversation.banner`)。給「兩條橫幅上下排列、不互相蓋住」。
+        case needsYouWithStatusBanner(after: Duration)
         /// Antigravity 情境(#446):列表多一個 Antigravity Agent「garden」(w4:p1),畫面狀態列是 accept-edits · Gemini 4 Neon · medium。
         case antigravity
     }
@@ -168,6 +171,10 @@ public actor DemoHost: HostChannel {
         writeLargeOutputIfDue(command)
         writeDueReplies()
         if let stdout = DemoTranscripts.respond(to: command, appended: appended, sessions: transcripts) {
+            // 狀態橫幅情境:notes 變成需要你之後,對話紀錄讀不到(exit 5),對話頂部出現狀態橫幅。
+            if needsYouLaterFired, case .needsYouWithStatusBanner = scenario {
+                return DemoFinishedSession(events: [.exit(code: TranscriptReadError.ExitCode.fileUnreadable)])
+            }
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
         if let path = HostFolderCommand.parseList(command) {
@@ -300,12 +307,20 @@ public actor DemoHost: HostChannel {
     // MARK: - 跨聊天「需要你」情境
 
     static let needsYouLaterPane = "w3:p1"
+
+    /// 兩個「需要你」情境共用的延遲。
+    private var needsYouLaterDelay: Duration? {
+        switch scenario {
+        case .needsYouLater(let delay), .needsYouWithStatusBanner(let delay): delay
+        default: nil
+        }
+    }
     private var needsYouLaterScheduled = false
     private var needsYouLaterFired = false
 
     /// 第一次定位對話紀錄(打開了某個聊天)時排定:`delay` 之後 notes 變成需要你,並像 herdr 一樣對訂閱送狀態事件。
     private func scheduleNeedsYouLaterIfDue() {
-        guard case .needsYouLater(let delay) = scenario, !needsYouLaterScheduled else { return }
+        guard let delay = needsYouLaterDelay, !needsYouLaterScheduled else { return }
         needsYouLaterScheduled = true
         let sleep = self.sleep
         Task { [weak self] in
