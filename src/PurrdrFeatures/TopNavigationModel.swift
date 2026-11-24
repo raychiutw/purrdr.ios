@@ -39,7 +39,21 @@ public final class TopNavigationModel {
     /// 測試連結指定的外觀(`light`／`dark`);`nil` 跟隨系統。
     public private(set) var testingAppearance: String?
 
-    public init() {}
+    /// 對話右側的 Inspector 是否打開(#521):寬視窗是右側欄、窄視窗由系統變成 sheet;偏好存在這支裝置,下一個視窗與下次啟動沿用。
+    public var isInspectorShown: Bool {
+        didSet { if isInspectorShown != oldValue { inspectorStore.save(isInspectorShown) } }
+    }
+    @ObservationIgnored private let inspectorStore: any InspectorVisibilityStore
+
+    public init(inspectorStore: any InspectorVisibilityStore = InMemoryInspectorVisibilityStore()) {
+        self.inspectorStore = inspectorStore
+        isInspectorShown = inspectorStore.load()
+    }
+
+    /// 顯示／隱藏 Inspector(對話頂列的鈕;選單列的快捷鍵之後也接這裡)。
+    public func toggleInspector() {
+        isInspectorShown.toggle()
+    }
 
     /// 列表看得到的 Agent,依 Spaces 的畫面順序(段落、Tab)。鍵盤切換 Agent 用:只含單一 Pane 的 Agent Tab
     /// (終端機與多個 Pane 的 Tab 要先開版面圖選 Pane,沒有單一對話可選)。列表合併了所有主機(#39),所以含所有主機的 Agent。

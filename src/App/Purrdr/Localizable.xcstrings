@@ -5569,6 +5569,17 @@
         }
       }
     },
+    "Hide Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏檢閱器"
+          }
+        }
+      }
+    },
     "Hide Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6162,6 +6173,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已插入 /%@"
+          }
+        }
+      }
+    },
+    "Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢閱器"
           }
         }
       }
@@ -11046,6 +11068,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要在這台主機顯示 Claude 的方案用量嗎？"
+          }
+        }
+      }
+    },
+    "Show Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示檢閱器"
           }
         }
       }

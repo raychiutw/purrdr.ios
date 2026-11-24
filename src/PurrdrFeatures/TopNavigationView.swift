@@ -9,7 +9,7 @@ import SwiftUI
 /// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)收合成一疊，從 Agent 列表開始，點列推入對話(對話與終端機隱藏 tab bar)。
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
 public struct TopNavigationView: View {
-    @State private var navigation = TopNavigationModel()
+    @State private var navigation: TopNavigationModel
     /// 窄視窗收合時顯示哪一欄：從 Agent 列表開始。
     @State private var compactColumn = NavigationSplitViewColumn.sidebar
     /// 兩欄預設都顯示。
@@ -35,8 +35,9 @@ public struct TopNavigationView: View {
     public init(
         hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
         hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil,
-        appLock: AppLock? = nil
+        appLock: AppLock? = nil, inspectorStore: any InspectorVisibilityStore = UserDefaultsInspectorVisibilityStore()
     ) {
+        _navigation = State(initialValue: TopNavigationModel(inspectorStore: inspectorStore))
         self.welcome = welcome
         self.appLock = appLock
         self.hostSync = hostSync

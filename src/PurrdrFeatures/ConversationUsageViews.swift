@@ -83,11 +83,21 @@ struct UsageContentView: View {
     let model: ConversationModel
     let section: UsageSectionModel?
     let display: PlanUsageModel.Display
+    /// `false`:不自己捲動也不鋪底(放進 Inspector 的 List 裡,#521)。
+    var scrolls = true
 
     private var hostName: String { section?.hostName ?? "" }
 
     var body: some View {
-        ScrollView {
+        if scrolls {
+            ScrollView { cards.appPageContentWidth() }
+                .background(AppSurface.groupedPage)
+        } else {
+            cards
+        }
+    }
+
+    private var cards: some View {
             VStack(alignment: .leading, spacing: 10) {
                 sectionTitle("This Chat")
                 contextCard
@@ -102,11 +112,8 @@ struct UsageContentView: View {
                         .accessibilityIdentifier("usage.sheet.updated")
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, scrolls ? 16 : 0)
             .padding(.vertical, 8)
-            .appPageContentWidth()
-        }
-        .background(AppSurface.groupedPage)
     }
 
     private func sectionTitle(_ title: LocalizedStringKey) -> some View {
