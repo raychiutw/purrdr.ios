@@ -197,6 +197,7 @@ public enum Conversation {
     /// - sidechain 訊息預設隱藏。
     public static func items(from messages: [TranscriptMessage], showSidechain: Bool = false) -> [ConversationItem] {
         var builder = Builder()
+        builder.defersSummaries = true
         for message in messages where showSidechain || !message.isSidechain {
             builder.add(message)
         }
@@ -360,10 +361,10 @@ public enum Conversation {
 
         @discardableResult
         mutating func append(_ step: ToolStep) -> (item: Int, step: Int) {
-            if let openRun, case .toolRun(var run) = items[openRun] {
+            if let openRun, var run = takeToolRun(at: openRun) {
                 run.steps.append(step)
-                run.summary = Conversation.summary(of: run.steps)
                 items[openRun] = .toolRun(run)
+                refreshSummary(at: openRun)
                 return (openRun, run.steps.count - 1)
             }
             items.append(.toolRun(ToolRun(id: step.id, expansionID: step.id, steps: [step], summary: Conversation.summary(of: [step]))))
@@ -378,13 +379,48 @@ public enum Conversation {
             } else {
                 location = callsWithoutID.isEmpty ? nil : callsWithoutID.removeFirst()
             }
-            guard let location, case .toolRun(var run) = items[location.item],
-                  case .call(var call) = run.steps[location.step].kind else { return }
-            call.result = result
-            call.isError = isError
-            run.steps[location.step].kind = .call(call)
-            run.summary = Conversation.summary(of: run.steps)
+            guard let location, var run = takeToolRun(at: location.item) else { return }
+            if case .call(var call) = run.steps[location.step].kind {
+                call.result = result
+                call.isError = isError
+                run.steps[location.step].kind = .call(call)
+            }
             items[location.item] = .toolRun(run)
+            refreshSummary(at: location.item)
+        }
+
+        /// 暫放在被取出的工具串位置上的佔位項目。
+        private static let placeholder = ConversationItem.note(SystemNote(id: "", text: ""))
+
+        /// 取出位置上的工具串並以佔位項目換下它:原地修改時 `steps` 不會因為還有第二份參照而整份複製
+        /// (長工具串每加一步或配一個結果都複製一次是 O(n²),#510)。呼叫端改完要放回同一個位置。
+        private mutating func takeToolRun(at index: Int) -> ToolRun? {
+            guard case .toolRun(let run) = items[index] else { return nil }
+            items[index] = Self.placeholder
+            return run
+        }
+
+        /// 工具串變動後的摘要:整批建立時(`defersSummaries`)先記下,由 `settleSummaries()` 或 `finish()` 一次算,
+        /// 否則每個步驟都重算整串的摘要(#510)。
+        private mutating func refreshSummary(at index: Int) {
+            if defersSummaries {
+                dirtySummaries.insert(index)
+            } else if case .toolRun(var run) = items[index] {
+                items[index] = Self.placeholder
+                run.summary = Conversation.summary(of: run.steps)
+                items[index] = .toolRun(run)
+            }
+        }
+
+        /// 整批建立時延後摘要;建立完呼叫 `settleSummaries()`。
+        var defersSummaries = false
+        private var dirtySummaries = Set<Int>()
+
+        /// 算完延後的摘要並回到每步更新的模式(之後逐則追加時摘要立即正確)。
+        mutating func settleSummaries() {
+            defersSummaries = false
+            for index in dirtySummaries { refreshSummary(at: index) }
+            dirtySummaries = []
         }
 
         mutating func close() { openRun = nil }
