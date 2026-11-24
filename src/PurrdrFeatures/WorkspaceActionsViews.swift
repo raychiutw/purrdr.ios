@@ -25,6 +25,15 @@ final class WorkspacePresentation {
         var sessionIDs: [String]
     }
 
+    struct CloseTabRequest {
+        var tabID: String
+        var label: String
+        var workspaceLabel: String
+        /// 是 Workspace 最後一個 Tab:herdr 會連 Workspace 一起關(實測),確認文字要說清楚。
+        var isLastInWorkspace: Bool
+        var sessionIDs: [String]
+    }
+
     var sheet: Sheet?
     /// 重新命名提示框(#456):Workspace 與 Tab 共用,系統帶輸入框的 alert。
     var renameRequest: RenameRequest?
@@ -33,6 +42,8 @@ final class WorkspacePresentation {
     /// 上一次送出失敗的原因(重新呈現的提示框顯示)。
     var renameFailure: String?
     var closeRequest: CloseRequest?
+    /// 關閉 Tab 的確認(#534)。
+    var closeTabRequest: CloseTabRequest?
     /// 操作的是哪台主機(多主機合併列表，#39)。列設定 sheet 或確認時一併設定。
     var host: HostSelection = .demo
     /// 版面圖裡點選的 Pane:先記下、關 sheet 之後才開(不能在關 sheet 的同一刻 push,行為規格 F4)。
@@ -56,12 +67,18 @@ struct TabTarget {
     var tabID: String
     var label: String
     var workspaceLabel: String
+    /// 這個 Tab 底下所有 Agent 的 session(關閉時一併清掉本機偏好)。
+    var sessionIDs: [String]
+    /// 是所屬 Workspace 唯一的 Tab。
+    var isLastInWorkspace: Bool
 
     init?(tabID: String?, snapshot: HostSnapshot?, workspaceLabel: String) {
-        guard let tabID, let tab = snapshot?.tabs.first(where: { $0.id == tabID }) else { return nil }
+        guard let tabID, let snapshot, let tab = snapshot.tabs.first(where: { $0.id == tabID }) else { return nil }
         self.tabID = tabID
         label = tab.label ?? String(tab.number)
         self.workspaceLabel = workspaceLabel
+        sessionIDs = snapshot.agents.filter { $0.tabID == tabID }.compactMap(\.sessionID)
+        isLastInWorkspace = !snapshot.tabs.contains { $0.workspaceID == tab.workspaceID && $0.id != tabID }
     }
 }
 
@@ -138,8 +155,16 @@ extension View {
             buttons.showLayout()
             if let tab { buttons.renameTab(tab, showsCurrent: false) }
             buttons.newWorktree()
+            // Tab 層級項目到此為止,下面是 Workspace 層級(#536 會把兩組拆開)。
+            if let tab { buttons.closeTab(tab) }
             Divider()
             buttons.close(title: "Close Workspace…", role: .destructive)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if let tab {
+                WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
+                    .closeTab(tab)
+            }
         }
     }
 
@@ -212,6 +237,18 @@ private struct WorkspaceButtons {
         .disabled(isReadOnly)
     }
 
+    /// 「關閉 Tab…」(#534):選單與左滑共用,先經確認。
+    func closeTab(_ tab: TabTarget) -> some View {
+        Button("Close Tab…", systemImage: "xmark", role: .destructive) {
+            presentation.host = host
+            presentation.closeTabRequest = .init(
+                tabID: tab.tabID, label: tab.label, workspaceLabel: tab.workspaceLabel,
+                isLastInWorkspace: tab.isLastInWorkspace, sessionIDs: tab.sessionIDs)
+        }
+        .accessibilityIdentifier("menu.closeTab")
+        .disabled(isReadOnly)
+    }
+
     func askWorkspaceName() {
         presentation.host = host
         presentation.renameFailure = nil
@@ -276,6 +313,21 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
                 Text("Everything running in this workspace will stop, including its agents. Chat history stays on the host.")
+            }
+            .confirmationDialog(
+                closeTabTitle, isPresented: closeTabDialogShown, titleVisibility: .visible, presenting: presentation.closeTabRequest
+            ) { request in
+                Button(request.isLastInWorkspace ? "Close Tab and Workspace" : "Close Tab", role: .destructive) {
+                    Task { await actions?.closeTab(tabID: request.tabID, sessionIDs: request.sessionIDs) }
+                }
+                .accessibilityIdentifier("closeTab.confirm")
+                Button("Cancel", role: .cancel) {}
+            } message: { request in
+                if request.isLastInWorkspace {
+                    Text("This is the last tab in “\(request.workspaceLabel)”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host.")
+                } else {
+                    Text("Everything running in this tab will stop, including its agents. Chat history stays on the host.")
+                }
             }
             .alert("Couldn’t Finish", isPresented: errorShown, presenting: actions?.actionError) { _ in
                 Button("OK", role: .cancel) {}
@@ -349,6 +401,14 @@ private struct WorkspaceActionsPresenter: ViewModifier {
 
     private var closeTitle: Text {
         Text("Close “\(presentation.closeRequest?.label ?? "")”?")
+    }
+
+    private var closeTabTitle: Text {
+        Text("Close tab “\(presentation.closeTabRequest?.label ?? "")”?")
+    }
+
+    private var closeTabDialogShown: Binding<Bool> {
+        Binding { presentation.closeTabRequest != nil } set: { if !$0 { presentation.closeTabRequest = nil } }
     }
 
     private var closeDialogShown: Binding<Bool> {
