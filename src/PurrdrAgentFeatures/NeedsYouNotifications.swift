@@ -31,6 +31,10 @@ public final class NeedsYouNotifications {
     public struct Banner: Equatable, Sendable {
         public var chat: ChatRoute
         public var total: Int
+        public init(chat: ChatRoute, total: Int) {
+            self.chat = chat
+            self.total = total
+        }
     }
 
     /// 一台主機的輸入:哪些聊天需要你(與它的 session,看靜音)。
