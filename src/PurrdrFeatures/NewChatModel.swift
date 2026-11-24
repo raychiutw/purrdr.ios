@@ -138,6 +138,19 @@ public final class NewChatModel {
     }
 
     public var choice: Choice = .new
+
+    /// 放在哪裡(#537):新的 Workspace(預設)或既有的。
+    public enum Placement: Hashable, Sendable {
+        case newWorkspace
+        case existing(String)
+    }
+
+    public var placement: Placement = .newWorkspace
+    public private(set) var workspaces: [ExistingWorkspace] = []
+    public var canChooseExistingWorkspace: Bool { false }
+    public var selectedWorkspace: ExistingWorkspace? { nil }
+    public func loadWorkspaces() async {}
+    public func selectWorkspace(_ id: String) {}
     public private(set) var sessions: SessionsState = .idle
 
     private let launcher: NewChatLauncher
@@ -150,7 +163,8 @@ public final class NewChatModel {
 
     public init(
         launcher: NewChatLauncher, folders: NewChatFolders,
-        agents: [AgentID] = HostAgentSettings.newChatAgents(enabled: HostAgentSettings.previouslyShownUsage)
+        agents: [AgentID] = HostAgentSettings.newChatAgents(enabled: HostAgentSettings.previouslyShownUsage),
+        supportsExistingWorkspaces: Bool = true
     ) {
         self.launcher = launcher
         self.folders = folders

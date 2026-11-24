@@ -23,6 +23,20 @@ public enum NewChatTarget: Sendable, Equatable {
     case existingWorkspace(id: String)
 }
 
+/// 主機上目前開著的 Workspace(新增聊天「既有的 Workspace」的選項,#537)。
+public struct ExistingWorkspace: Sendable, Equatable, Identifiable {
+    public var id: String
+    public var name: String
+    /// herdr 回報的工作目錄(第一個 Tab 的 pane);不知道時為 `nil`。
+    public var folder: String?
+
+    public init(id: String, name: String, folder: String?) {
+        self.id = id
+        self.name = name
+        self.folder = folder
+    }
+}
+
 /// 新增對話的內容。
 public struct NewChatRequest: Sendable, Equatable {
     /// 使用者給的資料夾(可以是 `~/…`);開始前在主機上解析成絕對路徑。
@@ -162,6 +176,11 @@ public actor NewChatLauncher {
         guard let kind = AgentCatalog.profile(for: agent).session.resumeKind else { return [] }
         let resolved = try await folders.resolve(folder)
         return try await client.listSessions(cwd: resolved, agent: kind)
+    }
+
+    /// 主機上目前開著的 Workspace(依主機順序)。
+    public func existingWorkspaces() async throws -> [ExistingWorkspace] {
+        []
     }
 
     /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)與第一則訊息送了沒有。
