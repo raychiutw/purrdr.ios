@@ -755,8 +755,12 @@ final class TerminalScreenContainer: UIView {
         guard pinsAgainstKeyboard, bounds.width > 0, bounds.height > 0 else { return }
         let height = viewport.terminalHeight(
             container: .init(width: bounds.width, height: bounds.height), keyboardVisible: keyboardVisible)
+        // 上移量取整到列高(#471):列高 = 終端機視圖高度 / 列數,頂列不被切半
+        let rows = terminalView.getTerminal().rows
+        let rowHeight = rows > 0 ? Double(height) / Double(rows) : nil
         let offset = TerminalKeyboardViewport.offset(
-            caretBottom: terminalView.caretFrame.maxY, visibleHeight: bounds.height, terminalHeight: height)
+            caretBottom: terminalView.caretFrame.maxY, visibleHeight: bounds.height, terminalHeight: height,
+            rowHeight: rowHeight)
         let frame = CGRect(x: 0, y: offset, width: bounds.width, height: height)
         if terminalView.frame != frame { terminalView.frame = frame }
     }

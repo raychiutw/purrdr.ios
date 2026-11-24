@@ -51,8 +51,19 @@ public struct TerminalKeyboardViewport: Equatable, Sendable {
     }
 
     /// 終端機視圖相對容器上緣的位移(≤ 0):游標底緣被鍵盤擋住時往上移到剛好看到,最多移到終端機底。
-    public static func offset(caretBottom: Double, visibleHeight: Double, terminalHeight: Double) -> Double {
+    ///
+    /// 帶 `rowHeight` 時上移量向上取整到列高的倍數(#471),頂列不會被切半;
+    /// 取整只會多移不到一列,游標列仍完整可見,且仍不超過終端機底。
+    public static func offset(
+        caretBottom: Double, visibleHeight: Double, terminalHeight: Double, rowHeight: Double? = nil
+    ) -> Double {
         guard terminalHeight > visibleHeight, caretBottom > visibleHeight else { return 0 }
-        return -min(caretBottom - visibleHeight, terminalHeight - visibleHeight)
+        let limit = terminalHeight - visibleHeight
+        var shift = caretBottom - visibleHeight
+        if let rowHeight, rowHeight > 0 {
+            // 容許浮點誤差,避免剛好整除時多移一列
+            shift = (shift / rowHeight - 1e-9).rounded(.up) * rowHeight
+        }
+        return -min(shift, limit)
     }
 }
