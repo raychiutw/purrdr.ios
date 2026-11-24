@@ -14,11 +14,10 @@ final class MultiHostUITests: XCTestCase {
     @MainActor
     func testUnreachableHostKeepsOtherHostsRows() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost"])
-        app.switchListMode(to: "Agents")
 
-        let row = app.element("agent.row.\(Self.studio)/w2:p1")
+        let row = app.element("spaces.tab.\(Self.studio)/w2:t1")
         XCTAssertTrue(row.waitUntilExists(timeout: 15), "連不上的主機擋住了其他台的列")
-        XCTAssertTrue(row.label.contains("Studio Mac"), "列沒有標示主機名:\(row.label)")
+        XCTAssertTrue(app.element("spaces.section.\(Self.studio)/w2").label.contains("Studio Mac"), "段落標題沒有標示主機名")
         let error = app.element("agentList.error.\(Self.buildBox)")
         XCTAssertTrue(app.scrollIntoView(error, search: .down, timeout: 15), "沒有「主機名：原因」")
         XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
@@ -33,24 +32,21 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertTrue(app.scrollIntoView(error, search: .down, timeout: 5), "選回所有主機後錯誤行沒回來")
     }
 
-    /// 左上角的主機篩選是「主機圖示＋名稱＋▾」的膠囊(原型 purrdr-screens.html),不是只有圖示的圓鈕;換主機後寬度跟著名稱變。
+    /// 共用頂列的主機範圍是只有圖示的鈕(#499),在新增聊天左邊、沒有蓋到它。
     @MainActor
-    func testHostFilterShowsIconNameAndChevron() {
+    func testHostScopeButtonSitsLeftOfNewChat() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
         let filter = app.buttons["toolbar.currentHost"].firstMatch
         XCTAssertTrue(filter.waitUntilExists(timeout: 15))
-        // 只有圖示的工具列鈕是 36～44pt 寬;帶「All Hosts」與 ▾ 才會超過 100pt。
-        XCTAssertGreaterThan(filter.frame.width, 100, "主機篩選只有圖示，沒有名稱與 ▾:\(filter.frame)")
-        XCTAssertGreaterThanOrEqual(filter.frame.height, 36, "主機篩選太矮:\(filter.frame)")
+        XCTAssertGreaterThanOrEqual(filter.frame.height, 36, "主機範圍鈕太矮:\(filter.frame)")
         let newChat = app.buttons["toolbar.newChat"].firstMatch
-        XCTAssertLessThan(filter.frame.maxX, newChat.frame.minX, "主機篩選蓋到新增聊天")
+        XCTAssertLessThan(filter.frame.maxX, newChat.frame.minX, "主機範圍鈕蓋到新增聊天")
     }
 
     /// 主機篩選(#244):Spaces 檢視只留篩選那台主機的 workspace 段落(#275);篩選選單帶各主機，第一項是所有主機。
     @MainActor
     func testHostFilterLimitsSpaces() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
-        app.switchListMode(to: "Spaces")
         let demoHeader = app.element("spaces.section.demo/w1")
         let studioHeader = app.element("spaces.section.DE300000-0000-4000-8000-000000000001/w1")
         XCTAssertTrue(demoHeader.waitUntilExists(timeout: 20))
@@ -68,12 +64,15 @@ final class MultiHostUITests: XCTestCase {
     func testDemoShowsCompanionHosts() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
 
-        let studioRow = app.element("agent.row.DE300000-0000-4000-8000-000000000001/w2:p1")
+        // 往下捲後頂列收合、不渲染電腦圖示:主機範圍的斷言要在捲動前(列表還在最上面)做。
+        let hostFilter = app.buttons["toolbar.currentHost"].firstMatch
+        XCTAssertTrue(hostFilter.waitUntilExists(timeout: 20), "沒有電腦圖示")
+        XCTAssertEqual(hostFilter.label, "Showing: All Hosts")
+        let studioRow = app.element("spaces.tab.DE300000-0000-4000-8000-000000000001/w2:t1")
         XCTAssertTrue(app.reveal(studioRow, timeout: 20), "沒有示範主機 Studio Mac 的列")
         let error = app.element("agentList.error.DE300000-0000-4000-8000-000000000002")
         XCTAssertTrue(app.reveal(error, timeout: 20), "沒有連不上的示範主機")
         XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
-        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: All Hosts")
     }
 
     /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，標題列帶主機名。
@@ -82,8 +81,8 @@ final class MultiHostUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-selectDemo"])
 
         // 「需要你」的 w2:p1 在最上面(列表是 lazy,畫面外的列不在 accessibility tree)。
-        let demoRow = app.element("agent.row.demo/w2:p1")
-        let studioRow = app.element("agent.row.\(Self.studio)/w2:p1")
+        let demoRow = app.element("spaces.tab.demo/w2:t1")
+        let studioRow = app.element("spaces.tab.\(Self.studio)/w2:t1")
         XCTAssertTrue(demoRow.waitUntilExists(timeout: 15))
         XCTAssertTrue(app.scrollIntoView(studioRow, search: .down, timeout: 15), "另一台主機同一個 pane 沒有自己的列")
 

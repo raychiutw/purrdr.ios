@@ -1,7 +1,7 @@
 import XCTest
 
 /// iPhone 頂層導覽(#376、#390):底部 5 個 tab(聊天、檔案、主機、流量、設定),新增聊天在聊天 tab 右上以 sheet 開啟;
-/// 設定支援深層連結 `purrdr://settings`(選設定 tab)。
+/// 設定支援深層連結 `purrdr://settings`(開帳號與設定 sheet,#503)。
 final class TopNavigationUITests: XCTestCase {
     private let settingsLink = URL(string: "purrdr://settings")!
 
@@ -10,14 +10,16 @@ final class TopNavigationUITests: XCTestCase {
     }
 
     @MainActor
-    func testSettingsTabShowsSettingsAndChatsTabReturnsToList() {
+    func testAccountSheetHoldsSettingsAndClosesWithXBackToSameTab() {
         let app = XCUIApplication.launchUITesting()
+        app.openTab(.files)
 
-        app.openSettingsTab()
-        XCTAssertFalse(app.buttons["sheet.close"].exists, "設定是 tab,不該有關閉鈕")
+        app.openSettingsSheet()
+        XCTAssertTrue(app.element("settings.version").exists || app.scrollIntoView(app.element("settings.version"), search: .down), "帳號與設定第一層沒有設定內容")
+        XCTAssertFalse(app.buttons["sheet.done"].exists, "帳號與設定不該有完成鈕")
 
-        app.openTab(.chats)
-        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch), "沒有回到 Agent 列表")
+        app.closeAccountSheet()
+        XCTAssertTrue(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Files")).firstMatch.isSelected, "關閉後沒有回到原本的 tab")
     }
 
     @MainActor
@@ -42,7 +44,7 @@ final class TopNavigationUITests: XCTestCase {
 
         cancel.tap()
         XCTAssertTrue(cancel.waitUntilGone(timeout: 5), "sheet 沒有關閉")
-        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch), "沒有回到 Agent 列表")
+        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch), "沒有回到 Agent 列表")
     }
 
     /// icon-only 按鈕都要有 accessibility label(HIG 檢核清單 20.2);每顆 ≥ 44pt。
@@ -62,51 +64,56 @@ final class TopNavigationUITests: XCTestCase {
         XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "點頭像外圍(44pt 範圍內)沒有開出帳號頁")
     }
 
-    /// 各 tab 頂端的版面規則(#475):主機選單在每個 tab 同一個水平位置、各 tab 頂端的主機選單與帳號鈕高度一致。
-    /// 只比各 tab 之間的相對關係(容差內相等),不寫死像素。
+    /// 各 tab 頂端的版面規則(#475、#500):大標題的水平與垂直位置、帳號鈕的高度與位置在每個 tab 一致;
+    /// 右側控制項(膠囊或單顆圓鈕)的右緣都貼著帳號鈕左邊。只比各 tab 之間的相對關係(容差內相等),不寫死像素。
     @MainActor
     func testTopBarsAlignAcrossTabs() {
         let app = XCUIApplication.launchUITesting()
-        let tabs: [(name: String, open: () -> Void, hostMenu: String)] = [
-            ("聊天", {}, "toolbar.currentHost"),
-            ("檔案", { app.openTab(.files) }, "files.host"),
-            ("主機", { app.openHostsTab() }, "hosts.host"),
-            ("流量", { app.openTab(.traffic) }, "dataUsage.host"),
+        let tabs: [(name: String, open: () -> Void, title: String, control: String)] = [
+            ("聊天", { app.openTab(.chats) }, "Chats", "toolbar.newChat"),
+            ("檔案", { app.openTab(.files) }, "Files", "files.upload"),
+            ("主機", { app.openHostsTab() }, "Hosts", "hosts.add"),
+            ("流量", { app.openTab(.traffic) }, "Traffic", "dataUsage.host"),
         ]
-        var hostFrames: [(name: String, frame: CGRect)] = []
+        var titleFrames: [(name: String, frame: CGRect)] = []
         var accountFrames: [(name: String, frame: CGRect)] = []
         for tab in tabs {
             tab.open()
-            let host = app.descendants(matching: .any)[tab.hostMenu].firstMatch
-            XCTAssertTrue(host.waitUntilExists(timeout: 10), "\(tab.name) tab 沒有主機選單(\(tab.hostMenu))")
+            let title = app.staticTexts["topBar.title"].firstMatch
+            XCTAssertTrue(title.waitUntilExists(timeout: 10), "\(tab.name) tab 沒有大標題")
+            XCTAssertEqual(title.label, tab.title, "\(tab.name) tab 的大標題不是 tab 名稱")
             let account = app.buttons["toolbar.account"].firstMatch
             XCTAssertTrue(account.waitUntilExists(timeout: 5), "\(tab.name) tab 沒有帳號鈕")
-            hostFrames.append((tab.name, host.frame))
+            let control = app.descendants(matching: .any)[tab.control].firstMatch
+            XCTAssertTrue(control.waitUntilExists(timeout: 5), "\(tab.name) tab 沒有右側控制項(\(tab.control))")
+            XCTAssertLessThan(control.frame.maxX, account.frame.minX, "\(tab.name) tab 的右側控制項和帳號鈕重疊")
+            titleFrames.append((tab.name, title.frame))
             accountFrames.append((tab.name, account.frame))
-            print("TOPBAR \(tab.name) host=\(host.frame) account=\(account.frame)")
+            print("TOPBAR \(tab.name) title=\(title.frame) account=\(account.frame) control=\(control.frame)")
         }
-        let reference = hostFrames[0]
-        for entry in hostFrames.dropFirst() {
-            XCTAssertEqual(entry.frame.minX, reference.frame.minX, accuracy: 2, "\(entry.name) tab 的主機選單水平位置和\(reference.name)不同")
-            XCTAssertEqual(entry.frame.height, reference.frame.height, accuracy: 2, "\(entry.name) tab 的主機選單高度和\(reference.name)不同")
-            XCTAssertEqual(entry.frame.midY, reference.frame.midY, accuracy: 2, "\(entry.name) tab 的主機選單垂直位置和\(reference.name)不同")
+        let titleReference = titleFrames[0]
+        for entry in titleFrames.dropFirst() {
+            XCTAssertEqual(entry.frame.minX, titleReference.frame.minX, accuracy: 2, "\(entry.name) tab 的大標題水平位置和\(titleReference.name)不同")
+            XCTAssertEqual(entry.frame.midY, titleReference.frame.midY, accuracy: 2, "\(entry.name) tab 的大標題垂直位置和\(titleReference.name)不同")
         }
         let accountReference = accountFrames[0]
         for entry in accountFrames.dropFirst() {
+            XCTAssertEqual(entry.frame.minX, accountReference.frame.minX, accuracy: 2, "\(entry.name) tab 的帳號鈕水平位置和\(accountReference.name)不同")
             XCTAssertEqual(entry.frame.height, accountReference.frame.height, accuracy: 2, "\(entry.name) tab 的帳號鈕高度和\(accountReference.name)不同")
             XCTAssertEqual(entry.frame.midY, accountReference.frame.midY, accuracy: 2, "\(entry.name) tab 的帳號鈕垂直位置和\(accountReference.name)不同")
         }
     }
 
     @MainActor
-    func testTabBarListsFiveTabsAndNoMoreMenu() {
+    func testTabBarListsFourTabsAndNoSettingsTab() {
         let app = XCUIApplication.launchUITesting()
 
-        for tab in [AppTab.chats, .files, .hosts, .traffic, .settings] {
+        for tab in [AppTab.chats, .files, .hosts, .traffic] {
             XCTAssertTrue(
                 app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 10),
                 "tab bar 沒有 \(tab.rawValue)")
         }
+        XCTAssertFalse(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Settings")).firstMatch.exists, "不該再有設定 tab")
         XCTAssertFalse(app.buttons["toolbar.more"].exists, "不該再有「⋯」選單")
     }
 
@@ -117,7 +124,7 @@ final class TopNavigationUITests: XCTestCase {
 
         app.open(settingsLink)
 
-        XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
+        app.waitForAccountSheet()
     }
 
     @MainActor
@@ -129,6 +136,6 @@ final class TopNavigationUITests: XCTestCase {
 
         app.open(settingsLink)
 
-        XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
+        app.waitForAccountSheet()
     }
 }

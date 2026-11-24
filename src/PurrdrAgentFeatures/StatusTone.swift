@@ -28,6 +28,29 @@ extension AgentStatus {
     }
 }
 
+/// 聊天列頭像右下角的狀態圓點(#502):四色(`StatusTone`)加實心／空心。
+/// 實心＝未讀或正在進行(需要你、工作中、未讀的回覆),空心＝已讀(閒置)。顏色之外的形狀差異只有這一個;
+/// 狀態文字由列的 VoiceOver 句子念。
+public struct AvatarStatusDot: Equatable, Sendable {
+    public var tone: StatusTone
+    public var isFilled: Bool
+
+    public init(tone: StatusTone, isFilled: Bool) {
+        self.tone = tone
+        self.isFilled = isFilled
+    }
+}
+
+extension AgentStatus {
+    /// 列上的狀態圓點。要用已折算未讀的顯示狀態(`ChatUnread.State.displayStatus`):未讀的回覆是 `done`(實心)、已讀是 `idle`(空心)。
+    public var statusDot: AvatarStatusDot {
+        switch self {
+        case .blocked, .working, .done: AvatarStatusDot(tone: tone, isFilled: true)
+        case .idle, .unknown: AvatarStatusDot(tone: tone, isFilled: false)
+        }
+    }
+}
+
 /// 狀態字用的中性文字色。
 public enum StatusTextEmphasis: Equatable, Sendable {
     /// 主要文字色。

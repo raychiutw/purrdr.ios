@@ -80,55 +80,57 @@ struct ConversationLayoutTests {
 
     // MARK: - 取樣
 
-    /// 一個畫面的量測:訊息區每一列像素是否有內容(與該列背景色不同)。
+    /// 一個畫面的量測:訊息區(視窗座標 120...700pt)被「有內容的列」蓋住的高度。
+    ///
+    /// 不用像素取樣:這個 package 測試的 UIWindow 沒有 window scene,`drawHierarchy` 與 `layer.render` 都畫不出 UICollectionView
+    /// 裡 SwiftUI 託管的列(實測整片都是空白,舊的像素量法恆量到固定的 40pt 而不受捲動位置影響,#497 的偵測因此是恆真)。
+    /// 改量結構:可見的列(cell 裡真的掛了託管內容)的 frame 轉到視窗座標後蓋住訊息區多少 pt;捲到內容外或列沒排出來就是 0。
     struct Frame {
         var index: Int
-        var inkRows: [Bool]
         var offsetY: CGFloat
         var offsetX: CGFloat
-        /// 訊息區(120...700pt)有內容的列數(以 pt 計)。
+        /// 訊息區被有內容的列蓋住的高度(pt)。
         var regionInk: Int
         var contentHeight: CGFloat
-        var leftInk: CGFloat    // 最左邊有內容的 x(pt)
+        /// 可見列比列表寬多出的寬度(pt);0 = 沒有列超出列表寬度。
+        var widthOverflow: CGFloat
         var image: UIImage?
     }
 
+    static let region = 120.0...700.0
+
     static func capture(_ window: UIWindow, index: Int, keepImage: Bool) -> Frame {
-        let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
-        let image = renderer.image { context in window.layer.render(in: context.cgContext) }
-        let scale = 1.0
-        _ = scale
-        let cg = image.cgImage!
-        let width = cg.width, height = cg.height
-        var pixels = [UInt8](repeating: 0, count: width * height * 4)
-        let ctx = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
-                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
-        let pointScale = CGFloat(width) / window.bounds.width
-        let background = (pixels[0], pixels[1], pixels[2])
-        _ = background
-        var ink = [Bool](repeating: false, count: height)
-        _ = ink
-        var leftmost = CGFloat(width)
-        // 取中間一欄(x=40..width-40)的像素與該列最左的像素比,判斷有沒有內容。
-        for y in 0..<height {
-            let base = (y * width + width / 2) * 4
-            let ref = (Int(pixels[base]), Int(pixels[base + 1]), Int(pixels[base + 2]))
-            for x in stride(from: 0, to: width, by: 2) {
-                let o = (y * width + x) * 4
-                let diff = abs(Int(pixels[o]) - ref.0) + abs(Int(pixels[o + 1]) - ref.1) + abs(Int(pixels[o + 2]) - ref.2)
-                if diff > 60 {
-                    ink[y] = true
-                    if y >= Int(200 * pointScale), y < Int(650 * pointScale) { leftmost = min(leftmost, CGFloat(x)) }
-                    break
+        window.layoutIfNeeded()
+        var covered = 0.0
+        var overflow: CGFloat = 0
+        if let collection = findCollectionView(window) {
+            overflow = collection.visibleCells.map { max(0, $0.frame.width - collection.bounds.width) }.max() ?? 0
+            let intervals = collection.visibleCells
+                .filter { !$0.contentView.subviews.isEmpty }
+                .compactMap { cell -> ClosedRange<Double>? in
+                    let frame = cell.convert(cell.bounds, to: window)
+                    let low = max(frame.minY, region.lowerBound), high = min(frame.maxY, region.upperBound)
+                    return high > low ? low...high : nil
                 }
+                .sorted { $0.lowerBound < $1.lowerBound }
+            var end = -Double.infinity
+            for interval in intervals {
+                let start = max(interval.lowerBound, end)
+                if interval.upperBound > start { covered += interval.upperBound - start }
+                end = max(end, interval.upperBound)
             }
         }
+        let image = keepImage ? UIGraphicsImageRenderer(bounds: window.bounds).image { window.layer.render(in: $0.cgContext) } : nil
         let scroll = findScrollView(window)
         return Frame(
-            index: index, inkRows: ink, offsetY: scroll?.contentOffset.y ?? -1, offsetX: scroll?.contentOffset.x ?? -1,
-            regionInk: ink[Int(120 * pointScale)..<Int(700 * pointScale)].filter { $0 }.count / Int(pointScale), contentHeight: scroll?.contentSize.height ?? -1,
-            leftInk: leftmost / pointScale, image: keepImage ? image : nil)
+            index: index, offsetY: scroll?.contentOffset.y ?? -1, offsetX: scroll?.contentOffset.x ?? -1,
+            regionInk: Int(covered), contentHeight: scroll?.contentSize.height ?? -1, widthOverflow: overflow, image: image)
+    }
+
+    static func findCollectionView(_ view: UIView) -> UICollectionView? {
+        if let collection = view as? UICollectionView, collection.bounds.height > 300 { return collection }
+        for subview in view.subviews { if let found = findCollectionView(subview) { return found } }
+        return nil
     }
 
     static func findScrollView(_ view: UIView) -> UIScrollView? {
@@ -164,13 +166,36 @@ struct ConversationLayoutTests {
 
     // MARK: - 斷言
 
-    /// 逐畫面的問題:水平位移不是 0(訊息貼到左邊)、訊息區完全沒有內容(全黑)。
+    /// 訊息區連續空白的取樣數上限(#497):0 = 任何一個取樣畫面都不得整片空白。
+    /// 依據:換成 UICollectionView 後(送出的回音不加動畫捲動、列高由 layout 在同一次排版補償)實測 80 輪長對話的送出與回覆,
+    /// 每個取樣畫面(30ms 一張)訊息區都有內容,不再需要舊 LazyVStack 時代「1～2 張瞬間空白」的容差;
+    /// 放寬容差會讓整片空白的回歸(例如捲到內容外)混過去。真的需要放寬時要在這裡寫新的量測依據。
+    static let maximumBlankRun = 0
+
+    /// 逐畫面的問題:水平位移不是 0(訊息貼到左邊)、訊息區連續空白超過 `maximumBlankRun` 個畫面。
     static func problems(_ frames: [Frame], requireContent: Bool = true) -> [String] {
         var found: [String] = []
-        for frame in frames where frame.offsetY != -1 || frame.offsetX != -1 {
-            if abs(frame.offsetX) > 0.5 { found.append("#\(frame.index) 水平位移 \(frame.offsetX)(訊息貼到左邊)") }
-            if requireContent, frame.regionInk == 0 { found.append("#\(frame.index) 訊息區沒有任何內容") }
+        // 找不到訊息列表的捲動視圖時下面的逐畫面檢查全部略過,測試會恆真(#480 換成 UICollectionView 後確認仍量得到)。
+        if !frames.contains(where: { $0.offsetY != -1 || $0.offsetX != -1 }) {
+            found.append("所有畫面都找不到訊息列表的捲動視圖")
         }
+        var blankRun: [Frame] = []
+        func flushBlankRun() {
+            if blankRun.count > maximumBlankRun, let first = blankRun.first {
+                found.append("#\(first.index) 起連續 \(blankRun.count) 個畫面訊息區沒有任何內容(offsetY \(first.offsetY)、contentHeight \(first.contentHeight))")
+            }
+            blankRun = []
+        }
+        // 第一次有內容之前是載入中(對話紀錄還在讀),不算空白;有過內容之後任何一個畫面空白都算。
+        var seenContent = false
+        for frame in frames where frame.offsetY != -1 || frame.offsetX != -1 {
+            if frame.widthOverflow > 0.5 { found.append("#\(frame.index) 有列比列表寬 \(frame.widthOverflow)pt(長段文字以理想寬度撐出畫面外)") }
+            if abs(frame.offsetX) > 0.5 { found.append("#\(frame.index) 水平位移 \(frame.offsetX)(訊息貼到左邊)") }
+            if frame.regionInk > 0 { seenContent = true }
+            if requireContent, seenContent, frame.regionInk == 0 { blankRun.append(frame) } else { flushBlankRun() }
+        }
+        if requireContent, !seenContent, !frames.isEmpty { found.append("整段取樣都沒有內容") }
+        flushBlankRun()
         return found
     }
 
@@ -193,6 +218,21 @@ struct ConversationLayoutTests {
         await push(Self.textLine(1, Self.longText), to: &mounted)
         let frames = await sample(mounted.window, frames: 60, interval: .milliseconds(30), keepImages: true)
         Self.dump(frames, name: "append")
+        let problems = Self.problems(frames)
+        #expect(problems.isEmpty, "\(problems.prefix(5)) 共 \(problems.count) 個畫面")
+    }
+
+    /// 有空白的長英文段落(理想寬度遠大於畫面):列寬必須固定為列表寬,文字換行而不是撐出畫面外。
+    static let longEnglish = String(repeating: "The export keeps dates first and quotes notes that contain commas, so spreadsheets open them cleanly. ", count: 3)
+
+    @Test("長英文段落:列寬固定為列表寬,不被理想寬度撐出畫面外")
+    func longParagraphsStayWithinListWidth() async throws {
+        var mounted = try await open(window: Array(Self.lines[0...12]))
+        defer { mounted.chat.cancel(); mounted.window.isHidden = true }
+        try await waitForFollow(mounted)
+        _ = await sample(mounted.window, frames: 10, interval: .milliseconds(30))
+        await push(Self.textLine(2, Self.longEnglish), to: &mounted)
+        let frames = await sample(mounted.window, frames: 40, interval: .milliseconds(30))
         let problems = Self.problems(frames)
         #expect(problems.isEmpty, "\(problems.prefix(5)) 共 \(problems.count) 個畫面")
     }

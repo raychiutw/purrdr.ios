@@ -56,7 +56,8 @@ final class HostsUITests: XCTestCase {
         // 總頁(#392):頂列是主機選單,沒有清單頁;上面是連線狀態,下面是這台主機的入口。
         step("總頁只有這台主機") {
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
-            XCTAssertTrue(app.buttons["hosts.host"].label.contains("Studio Mac"), "頂列主機選單不是選取中主機")
+            XCTAssertTrue(app.element("hosts.status").exists, "沒有連線狀態")
+            XCTAssertFalse(app.buttons["toolbar.currentHost"].exists, "主機 tab 頂列不放電腦圖示")
             for id in ["hosts.tool.notifications.locked", "hosts.share", "hosts.settings", "hosts.edit", "hosts.delete"] {
                 XCTAssertTrue(app.overviewRow(id).exists, "總頁沒有 \(id)")
             }
@@ -110,8 +111,10 @@ final class HostsUITests: XCTestCase {
             let save = app.buttons["hostEditor.save"]
             XCTAssertTrue(save.isEnabled, "只改名稱不必重新測試連線")
             save.tap()
-            XCTAssertTrue(app.buttons["hosts.host"].waitUntilExists(timeout: 5))
-            XCTAssertTrue(app.buttons["hosts.host"].firstMatch.label.contains("Office Mac"), "主機選單沒有換成新名稱")
+            // 回到總頁時列表還停在剛才捲到的位置,狀態卡在最上面(lazy):先捲回上面。
+            let status = app.element("hosts.status")
+            XCTAssertTrue(app.scrollIntoView(status, search: .up, timeout: 5), "存檔後沒有回到總頁")
+            XCTAssertTrue(app.staticTexts["Office Mac"].firstMatch.waitUntilExists(timeout: 5), "總頁沒有換成新名稱")
         }
 
         // 分享:在同一個 NavigationStack push,顯示 QR code 與分享連結。
@@ -154,8 +157,12 @@ final class HostsUITests: XCTestCase {
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
             app.openHostsTab()
-            XCTAssertTrue(app.buttons["hosts.host"].waitUntilExists(timeout: 5))
-            XCTAssertTrue(app.buttons["hosts.host"].firstMatch.label.contains("Studio Mac"), "主機 tab 沒有匯入的主機")
+            // 匯入的主機成為選取中主機:主機清單(兩台以上才顯示)裡它被勾選。
+            XCTAssertTrue(app.buttons["hosts.host.Studio Mac"].firstMatch.waitUntilExists(timeout: 5), "主機 tab 沒有匯入的主機")
+            // 列表列與裡面的按鈕在 accessibility tree 裡都帶這個識別碼(選取狀態只在其中一個):任何一個被勾選就算。
+            let rows = app.buttons.matching(identifier: "hosts.host.Studio Mac")
+            let selected = UITestWait.until(timeout: 10) { rows.allElementsBoundByIndex.contains { $0.isSelected } }
+            XCTAssertTrue(selected, "匯入的主機不是選取中主機")
         }
     }
 

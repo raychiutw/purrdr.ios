@@ -365,6 +365,20 @@ enum DemoTranscripts {
         return lines
     }
 
+    /// 工具步驟(`-demoToolBurst`,#489):agent 連續做 20 個 Read,每個步驟一行呼叫、一行結果。
+    static func toolBurst(at date: Date) -> [String] {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let timestamp = formatter.string(from: date)
+        return (1...20).flatMap { number in
+            let id = "toolu_demo_burst_\(number)"
+            return [
+                assistantTool("d3m0-burst-\(number)-c", timestamp, id: id, name: "Read", input: ["file_path": "/Users/demo/ledger/logs/export-\(number).log"]),
+                toolResult("d3m0-burst-\(number)-r", timestamp, id: id, text: "2026-11-16 09:01:00 export row \(number) ok\n"),
+            ]
+        }
+    }
+
     /// 長對話(`-demoLargeOutputOnPrompt`):150 輪你來我往的文字訊息，畫面上有很多高的列。
     static func longChat(at date: Date) -> [String] {
         let formatter = ISO8601DateFormatter()

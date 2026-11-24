@@ -316,6 +316,15 @@ public final class TrafficMeter: Sendable {
         }
     }
 
+    /// 同 `flush()`,但在背景佇列寫(app 進背景時用,#498):呼叫端(主執行緒)不等檔案寫入。
+    /// 呼叫端要自己用 background task 撐到寫完(`completion` 在寫完後於背景佇列呼叫)。
+    public func flushInBackground(completion: @escaping @Sendable () -> Void = {}) {
+        scheduler(0) { [self] in
+            flush()
+            completion()
+        }
+    }
+
     /// 重設統計:清掉所有歷史與這次開啟。
     public func reset() {
         _ = aggregate()

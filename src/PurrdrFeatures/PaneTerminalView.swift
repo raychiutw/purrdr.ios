@@ -110,7 +110,8 @@ enum BackgroundRelease {
         }
         model.hangUp()
         Task { @MainActor in
-            await model.released()
+            // 只留必要的收尾時間(#498):送不出去不撐到 background task 到期。
+            await BackgroundReleaseWait.wait(for: { await model.released() })
             end(token)
         }
     }
@@ -134,7 +135,7 @@ struct TerminalTitle: View {
         if let hostPicker {
             // 主機挑選鈕是自己的按鈕;狀態另成一個元素，念出主機與狀態。
             VStack(spacing: 2) {
-                HostPickerButton(model: hostPicker, identifier: "loginShell.host")
+                SheetHostPicker(model: hostPicker, identifier: "loginShell.host")
                 statusRow
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(Text(verbatim: "\(title), \(statusText)"))

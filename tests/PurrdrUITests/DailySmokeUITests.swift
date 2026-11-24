@@ -22,28 +22,27 @@ final class DailySmokeUITests: XCTestCase {
     @MainActor
     func testListAndChat() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo"])
-        let ledger = app.element("agent.row.demo/w1:p1")
+        let ledger = app.element("spaces.tab.demo/w1:t1")
 
         step("列表看到 Demo 的 Agent") {
             XCTAssertTrue(app.reveal(ledger), "沒有看到 Demo 主機的 Agent")
-            XCTAssertTrue(ledger.label.contains("ledger"), "列沒有 workspace 名稱:\(ledger.label)")
+            XCTAssertTrue(ledger.label.contains("Done"), "列沒有狀態文字:\(ledger.label)")
+            XCTAssertTrue(app.element("spaces.section.demo/w1").exists, "沒有 workspace 段落標題")
         }
         step("搜尋篩選列表") {
-            let search = app.searchFields.firstMatch
+            let search = app.chatSearch
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
-            XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 5))
+            XCTAssertTrue(app.element("spaces.tab.demo/w2:t1").waitUntilExists(timeout: 5))
             XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "不符合的列仍在")
             search.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 7) + "\n")
             XCTAssertTrue(ledger.waitUntilExists(timeout: 5), "清掉搜尋後列表沒有回來")
-            // 搜尋啟用時導覽列換成搜尋欄:取消後才看得到左上角的切換鈕。
             app.cancelSearchIfActive()
         }
-        step("Spaces 檢視:一鍵切換、搜尋 workspace 與長按選單") {
-            app.switchListMode(to: "Spaces")
+        step("Spaces:搜尋 workspace、沒有檢視切換") {
             XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")), "Spaces 沒有 workspace 段落")
-            let search = app.searchFields.firstMatch
+            let search = app.chatSearch
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
@@ -56,10 +55,8 @@ final class DailySmokeUITests: XCTestCase {
             clear.tap()
             XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 5), "清掉搜尋後 Spaces 沒有回來")
             app.cancelSearchIfActive()
-            app.listModeControl.press(forDuration: 1.0)
-            XCTAssertTrue(app.buttons["Agents"].firstMatch.waitUntilExists(timeout: 5), "長按切換鈕沒有出現選單")
-            app.buttons["Agents"].firstMatch.tap()
-            XCTAssertTrue(app.listModeControl.waitForLabel("View: Agents", timeout: 5), "從選單選 Agents 沒有切換")
+            // 聊天只有 Spaces(#501):沒有 Agents／Spaces 切換。
+            XCTAssertFalse(app.buttons["agentList.mode"].exists, "聊天不該有檢視切換鈕")
         }
         step("打開聊天並送出") {
             XCTAssertTrue(app.reveal(ledger))
@@ -203,12 +200,13 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
             XCTAssertFalse(app.buttons["hosts.add"].exists, "流量 tab 右上不放動作")
         }
-        step("設定 tab 沒有關閉鈕,只有帳號鈕") {
-            app.openSettingsTab()
-            XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
-            XCTAssertFalse(app.buttons["sheet.close"].exists, "設定 tab 不是 sheet,不該有關閉鈕")
-            XCTAssertTrue(app.buttons["Used"].firstMatch.exists, "設定 tab 沒有用量顯示的「已用」(#389)")
-            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "設定 tab 沒有帳號鈕")
+        step("設定併在帳號 sheet,只有四個 tab,右上 X 關閉(#503)") {
+            XCTAssertFalse(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Settings")).firstMatch.exists, "不該再有設定 tab")
+            app.openSettingsSheet()
+            let used = app.buttons["Used"].firstMatch
+            XCTAssertTrue(app.scrollIntoView(used, search: .down) || used.exists, "帳號與設定沒有用量顯示的「已用」(#389)")
+            app.closeAccountSheet()
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "關閉後沒有回到 tab")
         }
         step("新增聊天") {
             app.openNewChatSheet()
@@ -307,6 +305,10 @@ final class DailySmokeUITests: XCTestCase {
         }
         step("帳號頁與通知裝置") {
             back(app)
+            // 返回後頁面仍捲在下面,頂列已收合(標題列與頭像淡出、不能點):捲回頂端才點得到帳號鈕。
+            let account = app.buttons["toolbar.account"].firstMatch
+            for _ in 0..<5 where !account.isHittable { app.element("sheet.hosts").swipeDown() }
+            XCTAssertTrue(account.isHittable, "回到主機總頁後頂列沒有展開")
             app.openAccountSheet()
             let card = app.element("account.plusCard.status")
             XCTAssertTrue(card.waitUntilExists(timeout: 10), "帳號頁沒有 Plus 卡")
@@ -347,7 +349,7 @@ final class DailySmokeUITests: XCTestCase {
             codex.switches.firstMatch.tap()
             XCTAssertTrue(codex.wait(for: NSPredicate(format: "value == '0'"), timeout: 5), "Codex 開關沒有關掉")
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有回到主機總頁")
+            XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有回到主機總頁\n\(app.debugDescription)")
             XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "Claude 用量被一起關掉了")
             XCTAssertFalse(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 2), "關掉 Codex 後用量區還列著它")
         }
@@ -374,7 +376,7 @@ final class DailySmokeUITests: XCTestCase {
         }
         step("試用 Demo") {
             app.buttons["agentList.tryDemo"].tapWhenReady()
-            XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有列出 Demo 的 Agent")
+            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有列出 Demo 的 Agent")
         }
         step("移除範例主機回到空狀態") {
             app.openTab(.hosts)
@@ -388,7 +390,7 @@ final class DailySmokeUITests: XCTestCase {
             app.openTab(.hosts)
             app.buttons["hosts.add"].tapWhenReady()
             app.buttons["guide.tryDemo"].tapWhenReady()
-            XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有列出範例主機的 Agent")
+            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有列出範例主機的 Agent")
         }
     }
 
@@ -399,23 +401,23 @@ final class DailySmokeUITests: XCTestCase {
         step("歡迎頁試用 Demo") {
             XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10), "沒有歡迎頁")
             app.buttons["welcome.demo"].tap()
-            XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有回到列表")
+            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有回到列表")
         }
     }
 }
 
 
 extension XCUIApplication {
-    /// 搜尋啟用時導覽列換成搜尋欄與取消:取消後才看得到左上角的切換鈕(已經收起就不動)。
+    /// 搜尋啟用時導覽列換成搜尋欄與取消:取消後才看得到頂列(已經收起就不動)。
     @MainActor
     func cancelSearchIfActive() {
-        guard !listModeControl.isHittable else { return }
+        guard !chatListReady.isHittable else { return }
         let cancel = navigationBars.buttons.matching(NSPredicate(format: "label IN {'Cancel', 'Close', 'Dismiss'}")).firstMatch
         if cancel.waitUntilExists(timeout: 5) {
             cancel.tap()
         } else {
             print("SEARCH-CANCEL-MISSING", navigationBars.firstMatch.debugDescription)
         }
-        _ = listModeControl.waitUntilExists(timeout: 5)
+        _ = chatListReady.waitUntilExists(timeout: 5)
     }
 }

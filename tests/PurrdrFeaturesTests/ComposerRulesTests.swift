@@ -229,15 +229,21 @@ struct ComposerRulesTests {
         PromptEcho(id: id, text: text, date: Date(timeIntervalSince1970: 0), knownUserIDs: known)
     }
 
+    /// 以 `EchoMatching.matches` 的結果算出還沒確認的回音(正式程式只用 `matches`)。
+    static func confirm(_ echoes: [PromptEcho], against bubbles: [UserBubble], consumed: inout Set<String>) -> [PromptEcho] {
+        let confirmedIDs = Set(EchoMatching.matches(echoes, against: bubbles, consumed: &consumed).map(\.echoID))
+        return echoes.filter { !confirmedIDs.contains($0.id) }
+    }
+
     @Test("回音只能被送出之後才出現的使用者行確認(送出前已存在的同文字訊息不算)")
     func echoIsConfirmedOnlyByNewerLines() {
         var consumed = Set<String>()
         let echoes = [Self.echo("e1", "again", known: ["u1"])]
 
-        let stillOld = EchoMatching.confirm(echoes, against: [Self.bubble("u1", "again")], consumed: &consumed)
+        let stillOld = Self.confirm(echoes, against: [Self.bubble("u1", "again")], consumed: &consumed)
         #expect(stillOld.map(\.id) == ["e1"])
 
-        let confirmed = EchoMatching.confirm(echoes, against: [Self.bubble("u1", "again"), Self.bubble("u2", "again")], consumed: &consumed)
+        let confirmed = Self.confirm(echoes, against: [Self.bubble("u1", "again"), Self.bubble("u2", "again")], consumed: &consumed)
         #expect(confirmed.isEmpty)
     }
 
@@ -246,11 +252,11 @@ struct ComposerRulesTests {
         var consumed = Set<String>()
         let echoes = [Self.echo("e1", "ok"), Self.echo("e2", "ok")]
 
-        let afterOne = EchoMatching.confirm(echoes, against: [Self.bubble("u1", "ok")], consumed: &consumed)
+        let afterOne = Self.confirm(echoes, against: [Self.bubble("u1", "ok")], consumed: &consumed)
         #expect(afterOne.map(\.id) == ["e2"])
-        let again = EchoMatching.confirm(afterOne, against: [Self.bubble("u1", "ok")], consumed: &consumed)
+        let again = Self.confirm(afterOne, against: [Self.bubble("u1", "ok")], consumed: &consumed)
         #expect(again.map(\.id) == ["e2"])
-        let afterTwo = EchoMatching.confirm(again, against: [Self.bubble("u1", "ok"), Self.bubble("u2", "ok")], consumed: &consumed)
+        let afterTwo = Self.confirm(again, against: [Self.bubble("u1", "ok"), Self.bubble("u2", "ok")], consumed: &consumed)
         #expect(afterTwo.isEmpty)
     }
 
@@ -262,7 +268,7 @@ struct ComposerRulesTests {
             Self.echo("e2", "!ls -la"),
             Self.echo("e3", "看這張"),
         ]
-        let remaining = EchoMatching.confirm(echoes, against: [
+        let remaining = Self.confirm(echoes, against: [
             Self.bubble("u1", "第一段\n\n第二段"),
             Self.bubble("u2", "! ls -la"),
             Self.bubble("u3", "看這張", images: 1),

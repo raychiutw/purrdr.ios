@@ -61,6 +61,34 @@ public final class WorkspaceActionsModel {
         store.save(preferences)
     }
 
+    /// 一個 Tab 底下所有 Agent 一起釘選(Spaces 的 Tab 列,可能有多個 Agent):空的不算釘選;
+    /// 有任何一個沒釘就全部釘上(已釘的保留原時間),全部都釘了才全部取消。
+    public func arePinned(sessionIDs: [String]) -> Bool { !sessionIDs.isEmpty && sessionIDs.allSatisfy(isPinned(sessionID:)) }
+
+    public func togglePin(sessionIDs: [String]) {
+        guard !sessionIDs.isEmpty else { return }
+        if arePinned(sessionIDs: sessionIDs) {
+            for id in sessionIDs { preferences.pinned[id] = nil }
+        } else {
+            for id in sessionIDs where preferences.pinned[id] == nil { preferences.pinned[id] = now() }
+        }
+        store.save(preferences)
+    }
+
+    public func areMuted(sessionIDs: [String]) -> Bool { !sessionIDs.isEmpty && sessionIDs.allSatisfy(isMuted(sessionID:)) }
+
+    /// 規則同 `togglePin(sessionIDs:)`;靜音清單只通知一次。
+    public func toggleMute(sessionIDs: [String]) {
+        guard !sessionIDs.isEmpty else { return }
+        if areMuted(sessionIDs: sessionIDs) {
+            preferences.muted.subtract(sessionIDs)
+        } else {
+            preferences.muted.formUnion(sessionIDs)
+        }
+        store.save(preferences)
+        mutedChanged?(preferences.muted)
+    }
+
     /// 記下開啟這個 session 聊天的時間(進入與離開對話時各一次;行為規格 F2.6)。之前的回覆都算讀過。
     /// - Parameter seen: 開著時看到的最後一則回覆的時間(主機時間)。主機時鐘比手機快時，回覆時間會在手機的「現在」之後;
     ///   取兩者較晚的，開過的聊天才不會一直是未讀。

@@ -19,7 +19,7 @@ final class WelcomeUITests: XCTestCase {
         app.buttons["welcome.demo"].tap()
 
         XCTAssertTrue(sheet.waitUntilGone(timeout: 5))
-        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch))
+        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch))
     }
 
     /// 準備事項的主機包含 Windows(#26 已支援),英文與繁中都是(#35)。
@@ -40,7 +40,7 @@ final class WelcomeUITests: XCTestCase {
     func testWithoutFirstLaunchFlagNoWelcome() {
         let app = XCUIApplication.launchUITesting()
 
-        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch))
+        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch))
         XCTAssertFalse(app.descendants(matching: .any)["sheet.welcome"].exists)
     }
 
@@ -59,7 +59,7 @@ final class WelcomeUITests: XCTestCase {
     func testSettingsReopensWelcome() {
         let app = XCUIApplication.launchUITesting()
         app.open(URL(string: "purrdr://settings")!)
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.settings"].waitUntilExists(timeout: 10))
+        app.waitForAccountSheet()
 
         let row = app.buttons["settings.welcome"]
         for _ in 0..<6 where !row.isHittable {

@@ -10,7 +10,7 @@ final class ShellCommandUITests: XCTestCase {
     @MainActor
     func testShellCommandShowsHintAndBlock() {
         let app = XCUIApplication.launchUITesting()
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
 

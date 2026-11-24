@@ -39,7 +39,8 @@ extension XCUIApplication {
         guard list.waitUntilExists(timeout: timeout) else { return false }
         // 列表載入中：先等一下;畫面上的列都建好之後還是沒有，才往下捲。
         if !row.waitUntilExists(timeout: min(timeout, 4)) {
-            for _ in 0..<8 where !row.exists {
+            // AX 字級時每列很高,列表比預設字級長好幾倍:多拖幾次才到得了最後一段。
+            for _ in 0..<24 where !row.exists {
                 drag(list)
             }
             guard row.waitUntilExists(timeout: max(timeout - 4, 1)) else { return false }
@@ -59,23 +60,19 @@ extension XCUIApplication {
     }
 }
 
+/// 聊天列(Spaces 的 Tab 列,#501 起聊天只有 Spaces)的識別碼。Demo 主機每個 workspace 只有一個 Tab:`w1:p1` 在 `w1:t1`。
+/// 同一個 Tab 有多個 Pane 的(Demo 的 `w3`)是版面圖列:點開後在版面圖選 Pane(`layout.block.<paneID>`)。
+func chatRowID(_ paneID: String, host: String = "demo") -> String {
+    let workspace = paneID.split(separator: ":").first.map(String.init) ?? paneID
+    return "spaces.tab.\(host)/\(workspace):t1"
+}
+
 extension XCUIApplication {
-    /// 聊天 tab 左上角的 Agents／Spaces 一鍵切換鈕(#391:只有符號;label 是「View: Agents」或「View: Spaces」)。
-    var listModeControl: XCUIElement { buttons["agentList.mode"].firstMatch }
+    /// 聊天 tab 共用頂列的搜尋欄(#499:自己畫的文字欄位,往下滑收成貼頂玻璃膠囊)。
+    var chatSearch: XCUIElement { textFields["agentList.search"].firstMatch }
 
-    /// 目前的檢視名稱(「Agents」或「Spaces」)。
-    var listModeName: String {
-        listModeControl.label.replacingOccurrences(of: "View: ", with: "")
-    }
-
-    /// 切到指定檢視:已經是那個檢視就不動,否則點一下切換鈕。
-    @MainActor
-    func switchListMode(to mode: String, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(listModeControl.waitUntilExists(timeout: 15), "沒有 Agents／Spaces 切換", file: file, line: line)
-        guard listModeName != mode else { return }
-        listModeControl.tap()
-        XCTAssertTrue(listModeControl.waitForLabel("View: \(mode)", timeout: 5), "點了切換沒有變成 \(mode)", file: file, line: line)
-    }
+    /// 聊天列表已經出現(取代舊的 Agents／Spaces 切換鈕:用來等列表載入完成;頂列的新增聊天鈕一直都在)。
+    var chatListReady: XCUIElement { buttons["toolbar.newChat"].firstMatch }
 
     /// 左上角的主機篩選選了某一項(#244)。
     @MainActor
@@ -89,13 +86,12 @@ extension XCUIApplication {
     }
 }
 
-/// 頂層 tab(#390;名稱是 tab bar 按鈕的英文標籤)。
+/// 頂層 tab(#390、#503:設定併進帳號 sheet,只有四個;名稱是 tab bar 按鈕的英文標籤)。
 enum AppTab: String {
     case chats = "Chats"
     case files = "Files"
     case hosts = "Hosts"
     case traffic = "Traffic"
-    case settings = "Settings"
 
     /// 繁體中文介面的 tab 標籤。
     var traditionalChinese: String {
@@ -104,7 +100,6 @@ enum AppTab: String {
         case .files: "檔案"
         case .hosts: "主機"
         case .traffic: "流量"
-        case .settings: "設定"
         }
     }
 }
@@ -123,17 +118,38 @@ extension XCUIApplication {
         if !button.isSelected { button.tap() }
     }
 
-    /// 設定 tab(#390:不再是「⋯」選單的 sheet)。
+    /// 設定(#503:併在帳號與設定 sheet 的第一層):點帳號鈕開 sheet。沒登入時第一層是「登入或加入」選擇頁(`account.signedOut`),
+    /// 登入後是帳號頁(`sheet.account`);兩種都帶著設定的段落。
     @MainActor
-    func openSettingsTab(file: StaticString = #filePath, line: UInt = #line) {
-        openTab(.settings, file: file, line: line)
-        XCTAssertTrue(element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定", file: file, line: line)
+    func openSettingsSheet(file: StaticString = #filePath, line: UInt = #line) {
+        openAccount(file: file, line: line)
+        waitForAccountSheet(file: file, line: line)
+    }
+
+    /// 等帳號與設定 sheet 出現(`sheet.account` 或沒登入的 `account.signedOut`)。
+    @MainActor
+    func waitForAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(
+            UITestWait.until(timeout: 10) { self.element("sheet.account").exists || self.element("account.signedOut").exists },
+            "沒有開出帳號與設定", file: file, line: line)
+    }
+
+    /// 以右上角「X」關閉帳號與設定 sheet(#503)並等它消失。
+    @MainActor
+    func closeAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
+        let close = buttons["member.close"].exists ? buttons["member.close"] : buttons["member.signIn.cancel"]
+        XCTAssertTrue(close.waitUntilExists(timeout: 5), "帳號與設定沒有右上角 X", file: file, line: line)
+        close.tap()
+        XCTAssertTrue(
+            UITestWait.until(timeout: 5) { !self.element("sheet.account").exists && !self.element("account.signedOut").exists },
+            "按 X 後帳號與設定沒有關閉", file: file, line: line)
     }
 
     /// 主機 tab(單台主機總頁;右上的新增主機鈕一直都在)。
     @MainActor
     func openHostsTab(file: StaticString = #filePath, line: UInt = #line) {
         openTab(.hosts, file: file, line: line)
+        scrollToTopBar(containing: "hosts.add")
         XCTAssertTrue(buttons["hosts.add"].waitUntilExists(timeout: 10), "沒有開出主機 tab", file: file, line: line)
     }
 
@@ -169,15 +185,15 @@ extension XCUIApplication {
         return row
     }
 
-    /// 主機 tab 頂列的主機選單選了某一台(#392;名稱是選單項目的標籤)。
+    /// 主機 tab 的主機清單(#500)選了某一台(多台主機才有清單;名稱是列的標籤)。
     @MainActor
     func selectHostOnHostsTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let picker = buttons["hosts.host"].firstMatch
-        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "主機 tab 沒有主機選單", file: file, line: line)
-        picker.tap()
-        let item = buttons[name].firstMatch
-        XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機選單沒有 \(name)", file: file, line: line)
-        item.tap()
+        let row = buttons["hosts.host.\(name)"].firstMatch
+        _ = row.waitUntilExists(timeout: 10)
+        // 清單是 lazy:主機列在畫面外時不在 accessibility tree,先捲到看得到。
+        scrollIntoView(row, search: .both, timeout: 5)
+        XCTAssertTrue(row.waitUntilExists(timeout: 5), "主機 tab 的主機清單沒有 \(name)", file: file, line: line)
+        row.tap()
     }
 
     /// 開已存主機(`-seedHost` 的 Studio Mac,啟動時就是選取中主機)的「這台主機的設定」頁(#392):
@@ -216,12 +232,25 @@ extension XCUIApplication {
         return item
     }
 
+    /// 往下捲過的頁面頂列會收合(收合後只剩小標題、不渲染右側的按鈕):要點頂列按鈕前先把頁面捲回最上面。
+    /// 按鈕已經在畫面上就不動;捲不回來不在這裡失敗(後面的斷言會說明找不到什麼)。
+    @MainActor
+    func scrollToTopBar(containing identifier: String) {
+        guard !buttons[identifier].firstMatch.waitUntilExists(timeout: 1),
+              !buttons["OverflowBarButtonItem"].firstMatch.exists else { return }
+        for _ in 0..<10 where !buttons[identifier].firstMatch.exists {
+            windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+                .press(forDuration: 0.05, thenDragTo: windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
+        }
+    }
+
     /// 點工具列右側的項目。AX 字級時系統把右側的項目收進工具列的溢出選單(More):
     /// 選單項目沒有 identifier,以 VoiceOver 也會念的名稱找(名稱不對就是 a11y 問題)。
     @MainActor
     func tapToolbarItem(_ identifier: String, overflowLabel: String, file: StaticString = #filePath, line: UInt = #line) {
         let item = buttons[identifier].firstMatch
         let overflow = buttons["OverflowBarButtonItem"].firstMatch
+        scrollToTopBar(containing: identifier)
         XCTAssertTrue(UITestWait.until(timeout: 15) { item.exists || overflow.exists }, "工具列沒有 \(identifier) 也沒有溢出選單", file: file, line: line)
         if item.exists {
             item.tap()

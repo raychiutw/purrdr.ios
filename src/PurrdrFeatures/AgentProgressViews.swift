@@ -17,43 +17,27 @@ extension AgentProgress.ContextLevel {
 /// 列表右欄時間下方的 context 小圓環與百分比(#307)。數字與顏色並用，不只靠顏色。
 struct ContextMeter: View {
     let percent: Int
+    /// 設計稿(#502):環 18pt、數字 13pt;環隨字級放大。
+    @ScaledMetric(relativeTo: .footnote) private var ringSize: CGFloat = 18
 
     private var level: AgentProgress.ContextLevel { AgentProgress(contextPercent: percent).contextLevel }
 
     var body: some View {
         HStack(spacing: 4) {
             ZStack {
-                Circle().stroke(.quaternary, lineWidth: 2.5)
+                Circle().stroke(.quaternary, lineWidth: 2.6)
                 Circle()
                     .trim(from: 0, to: CGFloat(min(max(percent, 0), 100)) / 100)
-                    .stroke(level.tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .stroke(level.tint, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
-            .frame(width: 13, height: 13)
+            .frame(width: ringSize, height: ringSize)
             Text(verbatim: "\(percent)%")
-                .font(.caption.monospacedDigit())
+                .font(.footnote.monospacedDigit())
                 .foregroundStyle(.secondaryText)
         }
         .accessibilityHidden(true)
         .accessibilityIdentifier("agent.row.context")
-    }
-}
-
-/// 第二行尾的「☑ 3/7」(對 VoiceOver 隱藏，念在整列句子裡)。
-struct TodoCount: View {
-    let done: Int
-    let total: Int
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "checkmark.square")
-            Text(verbatim: "\(done)/\(total)").monospacedDigit()
-        }
-        .font(.footnote)
-        .foregroundStyle(.secondaryText)
-        .fixedSize()
-        .accessibilityHidden(true)
-        .accessibilityIdentifier("agent.row.todos")
     }
 }
 
@@ -218,19 +202,15 @@ private struct BackgroundAgentsPage: View {
     let pane: AgentsPane
 
     var body: some View {
+        // 每秒只重畫經過時間那一行(`AgentsBarRow` 自己的 TimelineView),不再整頁重建(#498)。
         List {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                let since = model.agentsPaneReadAt.map { max(0, context.date.timeIntervalSince($0)) } ?? 0
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(pane.rows) { row in
-                        if let card = model.subagentCard(forTask: row.task), model.canOpen(card) {
-                            NavigationLink(value: DelegationRoute.subagent(card)) {
-                                AgentsBarRow(row: row, since: since)
-                            }
-                        } else {
-                            AgentsBarRow(row: row, since: since)
-                        }
+            ForEach(pane.rows) { row in
+                if let card = model.subagentCard(forTask: row.task), model.canOpen(card) {
+                    NavigationLink(value: DelegationRoute.subagent(card)) {
+                        AgentsBarRow(row: row, readAt: model.agentsPaneReadAt)
                     }
+                } else {
+                    AgentsBarRow(row: row, readAt: model.agentsPaneReadAt)
                 }
             }
         }

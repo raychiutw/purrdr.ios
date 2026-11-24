@@ -231,17 +231,6 @@
         }
       }
     },
-    "%@ · You: %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · 你:%2$@"
-          }
-        }
-      }
-    },
     "%@, %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2833,6 +2822,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機上 Claude Code 的設定損壞了，Purrdr 沒有更動。請在那台主機修正後再試一次。"
+          }
+        }
+      }
+    },
+    "Clear text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除文字"
           }
         }
       }
@@ -6705,6 +6705,17 @@
         }
       }
     },
+    "Loading…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "載入中…"
+          }
+        }
+      }
+    },
     "Locked" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7090,17 +7101,6 @@
         }
       }
     },
-    "Muted" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已靜音"
-          }
-        }
-      }
-    },
     "Name" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7387,6 +7387,17 @@
         }
       }
     },
+    "No Results" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有結果"
+          }
+        }
+      }
+    },
     "No Subscription Needed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7504,17 +7515,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有訂閱"
-          }
-        }
-      }
-    },
-    "No workspace on your hosts is running an agent. Spaces also shows their terminals." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機上沒有 workspace 在跑 agent。Spaces 也會列出它們的終端機。"
           }
         }
       }
@@ -8351,17 +8351,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打開終端機"
-          }
-        }
-      }
-    },
-    "Open Terminal in New Window" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在新視窗打開終端機"
           }
         }
       }
@@ -10445,6 +10434,17 @@
         }
       }
     },
+    "Search Tabs, Workspaces, Hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋 Tab、Workspace、主機"
+          }
+        }
+      }
+    },
     "See Purrdr Plus" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10742,17 +10742,6 @@
         }
       }
     },
-    "Settings" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定"
-          }
-        }
-      }
-    },
     "Settings for This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10958,17 +10947,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示較少"
-          }
-        }
-      }
-    },
-    "Show Spaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示 Spaces"
           }
         }
       }
@@ -11468,17 +11446,6 @@
         }
       }
     },
-    "Spaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spaces"
-          }
-        }
-      }
-    },
     "Start Free Trial" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11805,28 +11772,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支援"
-          }
-        }
-      }
-    },
-    "Switches to Agents." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切換到 Agents 檢視。"
-          }
-        }
-      }
-    },
-    "Switches to Spaces." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切換到 Spaces 檢視。"
           }
         }
       }
@@ -14364,17 +14309,6 @@
         }
       }
     },
-    "Todos %lld of %lld done" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待辦已完成 %1$lld／%2$lld"
-          }
-        }
-      }
-    },
     "Todos %lld/%lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14877,17 +14811,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消釘選"
-          }
-        }
-      }
-    },
-    "Unread" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未讀"
           }
         }
       }
@@ -15398,39 +15321,6 @@
         }
       }
     },
-    "View" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢視"
-          }
-        }
-      }
-    },
-    "View: Agents" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢視:Agents"
-          }
-        }
-      }
-    },
-    "View: Spaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢視:Spaces"
-          }
-        }
-      }
-    },
     "Waiting for Approval" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15757,17 +15647,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作中…"
-          }
-        }
-      }
-    },
-    "Workspace" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workspace"
           }
         }
       }

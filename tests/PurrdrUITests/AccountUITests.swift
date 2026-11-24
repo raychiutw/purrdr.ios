@@ -85,7 +85,8 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(newChat.exists)
 
         XCTAssertGreaterThan(account.frame.minX, newChat.frame.maxX - 1, "帳號鈕不在新增聊天右邊")
-        let rightmost = app.navigationBars.firstMatch.buttons.allElementsBoundByIndex.map(\.frame.maxX).max() ?? 0
+        let host = app.buttons["toolbar.currentHost"]
+        let rightmost = [account, newChat, host].map(\.frame.maxX).max() ?? 0
         XCTAssertEqual(account.frame.maxX, rightmost, accuracy: 1, "帳號鈕不是最右邊")
     }
 

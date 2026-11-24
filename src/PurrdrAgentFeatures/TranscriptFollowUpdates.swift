@@ -10,7 +10,7 @@ enum TranscriptFollowUpdates {
     static func apply(
         _ events: AsyncThrowingStream<TranscriptFollowEvent, any Error>,
         isCurrent: () -> Bool,
-        appended: (TranscriptChunk) -> Void,
+        appended: (TranscriptChunk) async -> Void,
         replaced: (_ size: Int) async throws -> Void,
         afterEach: () async -> Void = {}
     ) async throws -> Bool {
@@ -19,7 +19,7 @@ enum TranscriptFollowUpdates {
             let isReplaced: Bool
             switch event {
             case .appended(let chunk):
-                appended(chunk)
+                await appended(chunk)
                 isReplaced = false
             case .replaced(let size):
                 try await replaced(size)

@@ -64,7 +64,8 @@ final class SettingsUITests: XCTestCase {
             cleanup.buttons["Automatic"].tap()
             cleanup.terminate()
         }
-        let sheet = app.element("sheet.settings")
+        let sheet = app.element("account.signedOut")
+        app.scrollIntoView(app.buttons["Automatic"], search: .down)
         XCTAssertTrue(app.buttons["Automatic"].waitUntilExists(timeout: 5))
         let system = luminance(of: sheet)
 
@@ -147,12 +148,11 @@ final class SettingsUITests: XCTestCase {
     func testTraditionalChineseInterface() {
         let app = XCUIApplication.launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
 
-        // 列表沒有導覽列標題(#268):看 Agents／Spaces 切換。
-        XCTAssertTrue(app.listModeControl.waitUntilExists(timeout: 10), "沒有看到列表")
-        XCTAssertEqual(app.searchFields.firstMatch.placeholderValue, "搜尋", "列表不是繁體中文")
-        XCTAssertEqual(app.listModeControl.label, "檢視:Agents", "切換鈕沒有念出目前檢視")
+        // 聊天頂列:新增聊天鈕在,搜尋欄提示是繁體中文(#501)。
+        XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有看到列表")
+        XCTAssertEqual(app.chatSearch.placeholderValue, "搜尋 Tab、Workspace、主機", "列表不是繁體中文")
         openSettings(in: app)
-        XCTAssertTrue(app.navigationBars["設定"].waitUntilExists(timeout: 5), "設定頁標題不是繁體中文")
+        XCTAssertTrue(app.navigationBars["帳號"].waitUntilExists(timeout: 5), "帳號與設定頁標題不是繁體中文")
         XCTAssertTrue(app.staticTexts["用量顯示"].waitUntilExists(timeout: 5), "設定沒有「用量顯示」")
         // Codex 區在上面，評分列要捲動才出現。
         let rate = app.buttons["為 Purrdr 評分"]
@@ -192,7 +192,7 @@ final class SettingsUITests: XCTestCase {
 
     @MainActor
     private func openSettings(in app: XCUIApplication) {
-        app.openSettingsTab()
+        app.openSettingsSheet()
     }
 
     /// 元素截圖的平均亮度(0 黑～1 白)。

@@ -165,6 +165,8 @@ public final class HostsModel {
     private let diagnostics: DiagnosticLog
     /// 等待(HTTPS 偵測 Agent 的重試間隔);測試注入。
     private let sleep: Sleep
+    /// 各清單骨架的列數(上次的數量,#496)。
+    private let skeletonRowCounts: any SkeletonRowCountStore
 
     /// - Parameters:
     ///   - conversationCache: 對話快取(所有主機共用一個存放處，key 依主機分開)。
@@ -193,7 +195,7 @@ public final class HostsModel {
         hostServiceUpdates: HostServiceUpdates = HostServiceUpdates(store: InMemoryHostServiceUpdateStore()),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
-        listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
+        skeletonRowCounts: any SkeletonRowCountStore = InMemorySkeletonRowCountStore(),
         offlineQueues: any OfflineQueueStore = InMemoryOfflineQueueStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
         publicModelCatalog: (any PublicModelCatalogFetching)? = nil, sleep: @escaping Sleep = Sleeping.task,
@@ -201,7 +203,8 @@ public final class HostsModel {
     ) {
         self.store = store
         self.sleep = sleep
-        agentList = MergedAgentListModel(modeStore: listMode)
+        self.skeletonRowCounts = skeletonRowCounts
+        agentList = MergedAgentListModel(skeletonRowCounts: skeletonRowCounts)
         self.selectionStore = selectionStore
         self.currentHostStore = currentHostStore
         self.planUsageSelection = planUsageSelection
@@ -443,7 +446,7 @@ public final class HostsModel {
     public func folderBrowser(on host: HostSelection) -> FolderBrowserModel {
         let member = member(for: host)
         let folders = HostFolders(channel: member.channel, deflate: SystemDeflate(), gzipAvailability: member.gzipAvailability)
-        return FolderBrowserModel(folders: folders, hostName: name(of: host))
+        return FolderBrowserModel(folders: folders, hostName: name(of: host), skeletonRowCounts: skeletonRowCounts)
     }
 
     /// 某台主機上某個 Agent 的對話 model(列表看到的 session)。非選取中主機的聊天在標題列帶主機名(#44)。
@@ -515,6 +518,13 @@ public final class HostsModel {
     /// 某台主機的對話快取(key 加上主機身分)。
     public func conversationCache(for selection: HostSelection) -> any ConversationCache {
         HostScopedConversationCache(base: conversationCache, scope: selection.storedValue)
+    }
+
+    /// 把這些聊天的快取讀進記憶體層(Agent 列表顯示時呼叫),打開時同步還原。
+    public func prefetchConversations(_ routes: [ChatRoute]) async {
+        for route in routes where !Task.isCancelled {
+            _ = await conversationCache(for: route.host).load(chatKey: route.paneID)
+        }
     }
 
     public var rows: [HostRow] {
@@ -1446,6 +1456,9 @@ public struct HostOverview: Equatable, Sendable {
     public var hasHostSettings: Bool
     /// 已存的主機(可編輯、移除);範例主機不是。
     public var isSaved: Bool
+
+    /// 狀態卡要不要畫骨架(#496):只有「第一次連線、還沒讀到任何內容」才畫;重連時(已有 herdr 版本)保留最後已知的內容。
+    public var showsSkeleton: Bool { status == .connecting && herdrVersion == nil }
 }
 
 /// 偵測主機上的 Agent 失敗(HTTPS 主機讀不到 herdr 快照)。

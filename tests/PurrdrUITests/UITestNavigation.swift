@@ -196,12 +196,15 @@ extension XCUIApplication {
         scrollIntoView(target, in: element(sheetIdentifier), search: search, limit: limit, timeout: timeout)
     }
 
-    /// 從 Agent 列表點開某台主機某個 Agent 的聊天(`agent.row.<主機身分>/<paneID>`;Demo 主機身分是 `demo`)。
+    /// 從聊天列表(Spaces)點開某台主機某個 Agent 的聊天(Tab 列 `spaces.tab.<主機身分>/<tab>`,見 `chatRowID`;Demo 主機身分是 `demo`)。
+    /// Tab 有多個 Pane(Demo 的 `w3`)時先開版面圖、再點 Agent 方塊。
     @MainActor
     func openConversation(paneID: String, host: String = "demo", file: StaticString = #filePath, line: UInt = #line) {
-        let row = element("agent.row.\(host)/\(paneID)")
+        let row = element(chatRowID(paneID, host: host))
         XCTAssertTrue(reveal(row), "沒有看到 \(host) 主機的 Agent \(paneID)", file: file, line: line)
         row.tap()
+        let block = buttons["layout.block.\(paneID)"]
+        if block.waitUntilExists(timeout: 2) { block.tap() }
         // 推進聊天畫面的轉場中，標題列的按鈕已經存在但點不到：等標題列停下。
         XCTAssertTrue(element("conversation.header").waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面", file: file, line: line)
     }
@@ -283,6 +286,10 @@ extension XCUIApplication {
         return false
     }
 
+    /// 對話列表(`UICollectionView`,ADR-0014);原本的 `ScrollView` 查詢改指到它。
+    @MainActor
+    var conversationList: XCUIElement { collectionViews["conversation.list"] }
+
     /// 等鍵盤收起(自己按「完成」或 return 之後)。
     @MainActor
     func waitForKeyboardToHide(timeout: TimeInterval = 3) -> Bool {
@@ -296,7 +303,7 @@ extension XCUIApplication {
     @MainActor
     @discardableResult
     func revealInConversation(_ target: XCUIElement, timeout: TimeInterval = 10) -> Bool {
-        let list = scrollViews.firstMatch
+        let list = conversationList
         guard list.waitUntilExists(timeout: timeout) else { return false }
         _ = target.waitUntilExists(timeout: 3)
         for attempt in 0..<16 {

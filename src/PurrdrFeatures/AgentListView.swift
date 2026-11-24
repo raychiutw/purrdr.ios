@@ -2,9 +2,22 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「已釘選／需要你／工作中／閒置」分 section,標題帶數量。
+/// 聊天 tab 頂列的動作(#499):由 `TopNavigationView` 提供,列表本身不知道有哪些 sheet。
+package struct ChatTopBarActions {
+    var newChat: () -> Void
+    var addHost: () -> Void
+    var account: AnyView
+
+    package init(newChat: @escaping () -> Void, addHost: @escaping () -> Void, account: AnyView) {
+        self.newChat = newChat
+        self.addHost = addHost
+        self.account = account
+    }
+}
+
+/// Agent 列表:聊天 tab 只有 Spaces 一種呈現(#501)——依「主機 · Workspace」分組、每個 Tab 一列。
 ///
-/// 所有主機的 Agent 合併在同一個列表(#39):非選取中主機的列在副標開頭標示主機名;某台主機連不上時保留它最後的列，
+/// 所有主機合併在同一個列表(#39):每段標題帶主機名;某台主機連不上時保留它最後的列，
 /// 列表下方顯示「主機名：原因」。每台主機都讀不到、也沒有任何列時，選取中主機的錯誤才佔滿畫面。
 /// 不整頁轉圈(#221):還在連的主機在列表上方各一行「連線中」(超過 10 秒「仍在連線」與再試一次);
 /// 第一次載入還沒有列時是列表骨架;裝置沒網路時直接顯示離線。
@@ -19,27 +32,37 @@ public struct AgentListView: View {
     private let makeConversation: @MainActor (ChatRoute, String?) -> ConversationModel
     /// 建立某台主機上某個 Pane 的終端機 model(標題)。由 composition root 提供。
     private let makeTerminal: (@MainActor (ChatRoute, String) -> PaneTerminalModel)?
+    /// 列表顯示時預先把前幾個聊天的快取讀進記憶體層,點進去時第一幀就有內容。
+    private let prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)?
     /// 所在視窗的導覽狀態(#31)。有的話：列是 split view 的選取(對話顯示在對話欄)、套用側欄的 workspace 篩選;
     /// 沒有的話列表自己推入對話。
     private let window: TopNavigationModel?
     /// 把 Agent 對話或終端機開在新視窗(支援多視窗時才有)。
-    private let openInNewWindow: ((PaneWindow.Kind, AgentRow) -> Void)?
+    private let openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
+    /// 共用頂列的動作(#499):新增聊天、新增主機與帳號鈕。
+    private let topBarActions: ChatTopBarActions
     @FocusState private var searchFocused: Bool
     /// 主機連線狀態行用的現在時間(有主機在連線時每秒更新，換成「仍在連線」)。
     @State private var now = Date()
 
-    public init(
+    package init(
         model: MergedAgentListModel, window: TopNavigationModel? = nil,
-        openInNewWindow: ((_ kind: PaneWindow.Kind, _ row: AgentRow) -> Void)? = nil,
+        openInNewWindow: ((_ kind: PaneWindow.Kind, _ route: ChatRoute, _ title: String) -> Void)? = nil,
+        topBar: ChatTopBarActions,
+        prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
     ) {
         self.model = model
         self.makeConversation = conversation
         self.makeTerminal = terminal
+        self.prefetchConversations = prefetchConversations
         self.window = window
         self.openInNewWindow = openInNewWindow
+        self.topBarActions = topBar
     }
+
+    private static let prefetchCount = 8
 
     /// 即時更新在前景時執行;主機新增、刪除或編輯後重來。
     private struct RunKey: Equatable {
@@ -73,16 +96,10 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 沒有大標題(#268):導覽列左上是 Agents／Spaces 一鍵切換、中間主機選單、右上新增聊天與帳號(#391)。
-        // 標題仍設定，給返回鈕與 VoiceOver 用(導覽列中間由主機選單佔用)。
-        // 系統搜尋欄(#391):列表在頂端時預設顯示、往上捲才收起;範圍是目前主機(所有主機就搜全部)。
-        // Agents 檢視比對 Agent、資料夾與主機,Spaces 檢視比對 workspace 與 Tab 名稱。
-        .agentListSearch(text: $model.query, focused: $searchFocused)
-        .navigationTitle(model.mode.title)
-        .toolbar(removing: .title)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
+        // 共用頂列(#499):左側大標題「聊天」,右側 [電腦圖示｜＋] 膠囊與頭像;往下滑時收合,搜尋欄貼頂。
+        // 搜尋範圍是目前主機(所有主機就搜全部),比對 Tab、Workspace、主機(含 Tab 裡的 Agent 標題)。
+        // 共用頁面(`topBarPage`):頁面底色、iPad 內容寬度上限、導覽標題(返回鈕用,導覽列隱藏)與頂列。
+        .topBarPage(topBarContent)
         // 「You should know」:每台主機各自輪詢(列表可見且在前景時，#23)。
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
             guard scenePhase == .active else { return }
@@ -94,6 +111,7 @@ public struct AgentListView: View {
             await ConnectingClock.run(
                 isActive: scenePhase == .active, needsTicks: { needsConnectingTicks }, tick: { now = $0 }, sleep: Sleeping.task)
         }
+        // 預先載入前幾個聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
         // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
         .task(id: model.agentRows.filter(\.isAway).map(\.id)) {
             await model.refreshAwayTurns()
@@ -105,10 +123,21 @@ public struct AgentListView: View {
         }
     }
 
+    private var topBarContent: TopBarContent {
+        let filtered = model.currentHost.flatMap { model.hostLabel(of: $0) }
+        return TopBarContent(
+            tab: .chats, title: "Chats",
+            hostScope: TopBarHostScope(filteredHostName: filtered?.name),
+            hostMenu: AnyView(CurrentHostMenu(list: model, addHost: topBarActions.addHost)),
+            plus: AnyView(TopBarPlusButton(title: "New Chat", identifier: "toolbar.newChat", action: topBarActions.newChat)),
+            account: topBarActions.account,
+            search: TopBarContent.Search(text: $model.query, focus: $searchFocused, identifier: "agentList.search", prompt: "Search Tabs, Workspaces, Hosts"))
+    }
+
     /// 搜尋了但沒有任何符合(顯示「找不到」,連線錯誤區塊先收起,免得疊在說明上)。
-    private var searchHasNoMatch: Bool {
+    private func searchHasNoMatch(_ sections: [SpacesSection]) -> Bool {
         guard !model.query.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-        return model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty
+        return sections.isEmpty
     }
 
     private var needsConnectingTicks: Bool { ConnectingClock.needsTicks(for: model.hostStatuses(at: now)) }
@@ -116,11 +145,6 @@ public struct AgentListView: View {
     private struct ConnectingClockKey: Equatable {
         var active: Bool
         var needsTicks: Bool
-    }
-
-    /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
-    private var sections: [AgentSection] {
-        window?.visibleSections(model.sections, host: model.selected, snapshot: model.snapshot(for: model.selected)) ?? model.sections
     }
 
     private var selection: Binding<ChatRoute?> {
@@ -204,15 +228,6 @@ public struct AgentListView: View {
                 systemImage: "bubble.left.and.text.bubble.right",
                 description: Text("Agents you start in herdr on your hosts appear here.")
             )
-        case .noAgentsInAgentsView:
-            ContentUnavailableView {
-                Label("No Agents", systemImage: "bubble.left.and.text.bubble.right")
-            } description: {
-                Text("No workspace on your hosts is running an agent. Spaces also shows their terminals.")
-            } actions: {
-                Button("Show Spaces") { model.mode = .spaces }
-                    .accessibilityIdentifier("agentList.showSpaces")
-            }
         case .list:
             list
         }
@@ -222,19 +237,20 @@ public struct AgentListView: View {
     private var loadingList: some View {
         List {
             hostStatusRows
+            // 列數取上次列表的列數(#496);整區是一個「載入中」元素,VoiceOver 不逐列念。
             Section {
-                ForEach(0..<3, id: \.self) { index in
-                    AgentRowView(row: .placeholder(index), host: nil)
+                VStack(spacing: 20) {
+                    ForEach(0..<model.loadingRowCount, id: \.self) { index in
+                        ChatRowView(content: .placeholder(index))
+                    }
                 }
+                .skeleton(identifier: "agentList.loading.skeleton")
             }
-            .redacted(reason: .placeholder)
-            .accessibilityHidden(true)
         }
         #if os(iOS)
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
-        .contentMargins(.top, 0, for: .scrollContent)
         .accessibilityIdentifier("agentList.loading")
     }
 
@@ -260,7 +276,9 @@ public struct AgentListView: View {
     }
 
     private var list: some View {
-        let sections = sections
+        // 這一次繪製只投影一次(投影要走過所有主機的 snapshot);列、搜尋無結果與預讀都用同一份。
+        let sections = spacesSections
+        let prefetchRoutes = AgentListProjection.prefetchRoutes(from: sections, limit: Self.prefetchCount)
         return Group {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             if window != nil {
@@ -280,11 +298,13 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
-        .contentMargins(.top, 0, for: .scrollContent)
-        // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
-        .id(model.mode)
+        // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。
+        .onAppear { model.rememberRowCount(of: sections) }
+        .onChange(of: MergedAgentListModel.rowCount(of: sections)) { model.rememberRowCount(of: sections) }
+        // 預先載入畫面上前幾列聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
+        .task(id: prefetchRoutes) { await prefetchConversations?(prefetchRoutes) }
         .overlay {
-            if searchHasNoMatch {
+            if searchHasNoMatch(sections) {
                 ContentUnavailableView.search(text: model.query)
                     .accessibilityIdentifier("agentList.noMatches")
             }
@@ -296,7 +316,7 @@ public struct AgentListView: View {
             case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
             }
         }
-        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(兩種檢視都有搜尋,#391)。
+        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(#391)。
         .onChange(of: window?.isSearchFocused ?? false) { _, focused in
             guard focused else { return }
             searchFocused = true
@@ -307,19 +327,12 @@ public struct AgentListView: View {
     }
 
     @ViewBuilder
-    private func listRows(_ sections: [AgentSection]) -> some View {
+    private func listRows(_ sections: [SpacesSection]) -> some View {
         let failures = model.failures
-        if model.mode == .spaces {
-            SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation)
-        } else if !sections.isEmpty {
-            // 單一清單(#244):不分段，順序仍是已釘選、需要你、工作中、閒置。
-            Section {
-                ForEach(sections.flatMap(\.rows)) { row in agentRow(row) }
-            }
-        }
+        SpacesSectionsContent(sections: sections, model: model, presentation: presentation, openInNewWindow: openInNewWindow)
         if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
-           model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty {
+           sections.isEmpty {
             // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。
             Section {
                 Text("No agents on \(filtered.name).")
@@ -328,7 +341,7 @@ public struct AgentListView: View {
                     .accessibilityIdentifier("agentList.filterEmpty")
             }
         }
-        if !failures.isEmpty, !searchHasNoMatch {
+        if !failures.isEmpty, !searchHasNoMatch(sections) {
             // 讀不到的主機：列已經在畫面上時，錯誤放在列下方，不把列推走(行為規格 F2.9)。不用 alert,也不自動消失:
             // 重新連上才會消失;列保持最後一次讀到的樣子(HIG 20.5)。每台主機一行「主機名：原因」(#37 故事 3)。
             Section {
@@ -347,26 +360,9 @@ public struct AgentListView: View {
         }
     }
 
-    /// 一個 Agent 列(兩種檢視共用：同樣的滑動、選單、已讀與釘選;Spaces 檢視的版面不同)。
-    private func agentRow(_ row: AgentRow) -> some View {
-        NavigationLink(value: row.route) {
-            AgentRowView(row: row, host: model.hostLabel(of: row.host))
-        }
-            .accessibilityIdentifier("agent.row.\(row.id)")
-            .selectionFill(for: row.route)
-            .workspaceRowActions(
-                WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
-                actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host),
-                openInNewWindow: openInNewWindow.map { open in { kind in open(kind, row) } }
-            )
-    }
-
-    /// Spaces 檢視：套用側欄的 workspace 篩選(選取中主機的那個 workspace)。
+    /// 套用側欄的 workspace 篩選(選取中主機的那個 workspace)後的 Spaces 段落。
     private var spacesSections: [SpacesSection] {
-        let all = model.spacesSections
-        guard let filter = window?.workspaceFilter,
-              let snapshot = model.snapshot(for: model.selected), snapshot.workspaces.contains(where: { $0.id == filter }) else { return all }
-        return all.filter { $0.host == model.selected && $0.workspaceID == filter }
+        window?.visibleSpaces(model.spacesSections, host: model.selected, snapshot: model.snapshot(for: model.selected)) ?? model.spacesSections
     }
 
     /// 某台主機讀不到(Claude 方案用量只在選取中主機讀得到時顯示)。
@@ -497,157 +493,6 @@ struct ConversationScreen: View {
     }
 }
 
-/// Agents 檢視的一列(#244 單一清單):列首是 agent 種類頭像、右下角是狀態(#316),第一行名稱與時間，第二行小主機圖示與「主機 · 最後一句」。
-struct AgentRowView: View {
-    let row: AgentRow
-    /// 這列所在主機的名稱與圖示(選取中主機也有)。
-    let host: HostLabel?
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 次要色;iPad 選取列是中性灰底(`selectionFill(for:)`),選取中也不換色。
-    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            AgentStatusAvatar(content: .agent(AgentKind(rawKind: row.kind)), status: row.status)
-            VStack(alignment: .leading, spacing: 2) {
-                titleLine
-                previewLine
-                    .font(.subheadline)
-                    .lineLimit(lines(2))
-                if dynamicTypeSize.isAccessibilitySize { trailingColumn }
-            }
-        }
-        // 一句念完(#269,spec #267 故事 14):agent、workspace、狀態、主機 · 最後一句、時間;畫面的排列順序不同，不用 `.combine`。
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: Self.accessibilityText(row, host: host)))
-        .accessibilityValue(row.isUnread ? Text("Unread") : Text(verbatim: ""))
-    }
-
-    /// VoiceOver 句子：agent 種類、workspace、狀態(與釘選、靜音)、「主機 · 最後一句」、時間，以「, 」連接。
-    static func accessibilityText(_ row: AgentRow, host: HostLabel?) -> String {
-        let hostName = host?.name ?? ""
-        let preview: String = switch row.preview {
-        case .needsInput: "\(hostName) · \(String(localized: "Waiting for your input"))"
-        case .message(let text, let fromYou): fromYou ? "\(hostName) · \(String(localized: "You: \(text)"))" : "\(hostName) · \(text)"
-        case .none: hostName
-        }
-        let parts: [String?] = [
-            AgentKind(rawKind: row.kind).displayName, row.workspace, row.tabName.isEmpty ? nil : row.tabName, String(localized: row.status.title),
-            row.isPinned ? String(localized: "Pinned") : nil, row.isMuted ? String(localized: "Muted") : nil,
-            row.isAway ? String(localized: "New since you were away") : nil,
-            preview.isEmpty ? nil : preview, row.time?.text(),
-            row.progress?.contextPercent.map { String(localized: "Context \($0)%") },
-            row.progress.flatMap { $0.todoTotal > 0 ? String(localized: "Todos \($0.todoDone) of \($0.todoTotal) done") : nil },
-        ]
-        return parts.compactMap { $0 }.joined(separator: ", ")
-    }
-
-    /// 「While away」,算出輪數後是「While away · +N turns」(#308)。
-    static func awayBadgeText(turns: Int?) -> String {
-        guard let turns, turns > 0 else { return String(localized: "While away") }
-        let turnsText = String(localized: "\(turns) turns")
-        return String(localized: "While away · +\(turnsText)")
-    }
-
-    /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
-    private func lines(_ limit: Int) -> Int? {
-        dynamicTypeSize.isAccessibilitySize ? nil : limit
-    }
-
-    private var titleLine: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            // 第一行是 workspace 名稱(#269,原型 B);聊天標題在對話裡。
-            Text(row.workspace)
-                .lineLimit(lines(1))
-            // Tab 名稱(#475):workspace 名稱旁的次要文字;沒有名稱時是「Tab N」。
-            if !row.tabName.isEmpty {
-                Text(verbatim: row.tabName)
-                    .font(.subheadline)
-                    .foregroundStyle(secondary)
-                    .lineLimit(lines(1))
-                    .layoutPriority(-1)
-                    .accessibilityIdentifier("agent.tabName.\(row.paneID)")
-            }
-            // 釘選、靜音：名稱後的小圖示，不只靠顏色(#37 故事 18)。
-            if row.isPinned {
-                Image(systemName: "pin.fill")
-                    .imageScale(.small)
-                    .foregroundStyle(secondary)
-                    .accessibilityLabel(Text("Pinned"))
-            }
-            if row.isMuted {
-                Image(systemName: "bell.slash.fill")
-                    .imageScale(.small)
-                    .foregroundStyle(secondary)
-                    .accessibilityLabel(Text("Muted"))
-            }
-            // 離開超過 15 分鐘後有新回覆(#308):名稱後的小標籤，文字說明、不只靠顏色。
-            if row.isAway {
-                Text(Self.awayBadgeText(turns: row.awayTurns))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondaryText)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.fill.tertiary, in: Capsule())
-                    .accessibilityHidden(true)
-            }
-            if !dynamicTypeSize.isAccessibilitySize {
-                Spacer(minLength: 8)
-                trailingColumn
-            }
-        }
-        .font(.body)
-    }
-
-    /// 小主機圖示(「無」不畫)與「主機 · 最後一句」;需要你時是「主機 · 等你回覆」。
-    private var previewLine: some View {
-        HStack(alignment: .top, spacing: 5) {
-            if let icon = host?.icon, icon.symbol != nil {
-                HostIconBadge(icon, diameter: 18)
-            }
-            previewText
-            if let todos = row.progress, todos.todoTotal > 0 {
-                Spacer(minLength: 4)
-                TodoCount(done: todos.todoDone, total: todos.todoTotal)
-            }
-        }
-    }
-
-    private var previewText: some View {
-        let hostName = host?.name ?? ""
-        return Group {
-            switch row.preview {
-            case .needsInput:
-                Text("\(hostName) · \(Text("Waiting for your input").fontWeight(.semibold).foregroundStyle(Color.primary))")
-            case .message(let text, let fromYou):
-                fromYou ? Text("\(hostName) · You: \(text)") : Text(verbatim: "\(hostName) · \(text)")
-            case .none:
-                Text(verbatim: hostName)
-            }
-        }
-        .foregroundStyle(secondary)
-    }
-
-    /// 右欄：時間，下方是 context 小圓環與百分比(#307;對 VoiceOver 隱藏，念在整列句子裡)。
-    private var trailingColumn: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            timeText
-            if let percent = row.progress?.contextPercent {
-                ContextMeter(percent: percent)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var timeText: some View {
-        if let time = row.time {
-            Text(time.text())
-                .font(.footnote)
-                .foregroundStyle(secondary)
-        }
-    }
-}
-
 /// 一台還在連線的主機(#221):主機圖示、名稱與「連線中…」(系統小型進度);超過 10 秒換成「仍在連線…」與「再試一次」。
 struct HostLoadStatusRow: View {
     let status: HostLoadStatus
@@ -683,15 +528,6 @@ struct HostLoadStatusRow: View {
         case .connecting: "Connecting…"
         case .stillConnecting: "Still connecting…"
         }
-    }
-}
-
-extension AgentRow {
-    /// 列表骨架的佔位列(`redacted` 畫成灰條，對 VoiceOver 隱藏)。
-    static func placeholder(_ index: Int) -> AgentRow {
-        AgentRow(
-            paneID: "placeholder-\(index)", title: "Agent name placeholder", subtitle: "",
-            preview: .message("The latest message from this agent", fromYou: false), time: nil, status: .idle)
     }
 }
 

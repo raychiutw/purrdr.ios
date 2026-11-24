@@ -26,7 +26,7 @@ final class SendWhenDoneUITests: XCTestCase {
     @MainActor
     func testQueuedMessagesCanBeReordered() throws {
         let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
-        let row = app.element("agent.row.\(Self.httpsHost)/w1:p1")
+        let row = app.element("spaces.tab.\(Self.httpsHost)/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 HTTPS 主機的 Agent")
         row.tap()
         // 開關在狀態 sheet(#349),不在輸入列。

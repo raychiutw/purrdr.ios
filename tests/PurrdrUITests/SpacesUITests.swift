@@ -1,6 +1,6 @@
 import XCTest
 
-/// Spaces／Agents 兩種檢視(#40);Spaces 檢視每個「主機 · workspace」一段、列出 Tab(#275,原型 purrdr-screens 定案版)。
+/// Spaces(#40、#501 起聊天只有 Spaces);每個「主機 · workspace」一段、列出 Tab(#275,原型 purrdr-screens 定案版)。
 /// Demo 主機：`ledger`(w1)、`weather-app`(w2)各一個 Tab、一個 Agent;`notes`(w3)的 Tab 有 Codex 與 shell「npm run dev」兩個 pane。
 final class SpacesUITests: XCTestCase {
     override func setUp() {
@@ -11,7 +11,6 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testSpacesShowsWorkspaceSectionsWithTabs() {
         let app = XCUIApplication.launchUITesting()
-        app.switchListMode(to: "Spaces")
         let notes = app.element("spaces.section.demo/w3")
         XCTAssertTrue(app.reveal(notes), "沒有 notes 的段落")
         XCTAssertTrue(notes.label.contains("Demo · notes"), "段落標題不是「主機 · workspace」:\(notes.label)")
@@ -26,7 +25,6 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testTabWithOnePaneOpensChat() {
         let app = XCUIApplication.launchUITesting()
-        app.switchListMode(to: "Spaces")
         let tab = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(tab))
         tab.tap()
@@ -37,7 +35,6 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testTabWithSeveralPanesOpensLayout() {
         let app = XCUIApplication.launchUITesting()
-        app.switchListMode(to: "Spaces")
         let tab = app.element("spaces.tab.demo/w3:t1")
         XCTAssertTrue(app.reveal(tab))
 
@@ -63,7 +60,6 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testRenameTabAndWorkspaceFromSpaces() {
         let app = XCUIApplication.launchUITesting()
-        app.switchListMode(to: "Spaces")
         let tab = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(tab))
 
@@ -97,20 +93,13 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(app.element("spaces.section.demo/w1").wait(for: renamed, timeout: 5), "Workspace 標題沒有更新")
     }
 
-    /// 選 Agents 後每個 agent 一列，沒有群組與終端機列(#244)。
+    /// 聊天只有 Spaces(#501):依 workspace 分段、每個 Tab 一列,沒有 Agents 檢視的單一清單與切換。
     @MainActor
-    func testSwitchingToAgentsShowsOneRowPerAgent() {
+    func testChatListIsSpacesOnly() {
         let app = XCUIApplication.launchUITesting()
-        app.switchListMode(to: "Spaces")
         XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 10))
-        XCTAssertEqual(app.listModeName, "Spaces")
-
-        app.switchListMode(to: "Agents")
-
-        XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilGone(timeout: 5), "Agents 檢視不該有 workspace 段落")
-        XCTAssertTrue(app.element("agent.row.demo/w3:p1").waitUntilExists(timeout: 5))
-        XCTAssertFalse(app.element("spaces.tab.demo/w3:t1").exists, "Agents 檢視不該有 Tab 列")
-        XCTAssertFalse(app.element("agentList.section.needsYou").exists, "Agents 檢視是單一清單，不該有分段標題")
-        XCTAssertEqual(app.listModeName, "Agents")
+        XCTAssertTrue(app.element("spaces.tab.demo/w3:t1").exists, "沒有 Tab 列")
+        XCTAssertFalse(app.buttons["agentList.mode"].exists, "不該有 Agents／Spaces 切換")
+        XCTAssertFalse(app.element("agentList.section.needsYou").exists, "不該有 Agents 檢視的分段標題")
     }
 }

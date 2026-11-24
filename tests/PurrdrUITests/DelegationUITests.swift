@@ -10,7 +10,7 @@ final class DelegationUITests: XCTestCase {
     @MainActor
     private func openWeather() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
-        let row = app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch
+        let row = app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 weather-app Agent")
         row.tap()
         return app
@@ -41,7 +41,7 @@ final class DelegationUITests: XCTestCase {
         // 展開結果後對話跟著底部捲，箭頭可能被推到導覽列底下：捲回看得到再點。
         let navigationBottom = app.navigationBars.firstMatch.frame.maxY
         for _ in 0..<6 where !open.isHittable || open.frame.minY < navigationBottom {
-            app.scrollViews.firstMatch.swipeDown(velocity: .slow)
+            app.conversationList.swipeDown(velocity: .slow)
         }
         open.tap()
         XCTAssertTrue(app.element("subagent.messages").waitUntilExists(timeout: 10), "沒有打開 subagent 畫面")

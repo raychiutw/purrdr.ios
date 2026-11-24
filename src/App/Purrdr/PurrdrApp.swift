@@ -59,9 +59,11 @@ struct PurrdrApp: App {
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
         // 對話快取(#356):存在這支裝置的本機 SQLite(Caches,排除備份),重開 app 與從推播冷啟動打開聊天都先顯示。
         // UI 測試只放記憶體，不讀寫這台模擬器的檔案。
-        let cache: any ConversationCache = uiTesting
-            ? InMemoryConversationCache()
-            : SQLiteConversationCache(file: URL.cachesDirectory.appending(path: "Purrdr/conversations.sqlite"))
+        // 前面再放一層記憶體快取(最近開過的聊天),打開聊天時同步還原,不閃骨架。
+        let cache: any ConversationCache = MemoryFrontedConversationCache(
+            base: uiTesting
+                ? InMemoryConversationCache()
+                : SQLiteConversationCache(file: URL.cachesDirectory.appending(path: "Purrdr/conversations.sqlite")))
         // UI 測試每次啟動都從空白的釘選、靜音與主機圖示開始，不讀寫這台模擬器的 UserDefaults。
         // 釘選、靜音依主機分開(#39);舊版沒有主機身分的資料在第一次啟動時丟棄。
         let preferences: any HostChatPreferencesStore = uiTesting
@@ -128,9 +130,6 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
-                // 列表檢視(Spaces／Agents)用預設的記憶體實作:每次啟動都從 Agents 開始(同正式 app 沒存過時;
-                // #275 起 Spaces 檢視是 Tab 列、沒有 Agent 列，測 Spaces 的測試自己切過去)。
-                listMode: InMemoryAgentListModeStore(.agents),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
                 makeChannel: { endpoint, _, _ in
                     if endpoint.host == Self.unreachableHost.ssh?.endpoint.host { return DemoUnreachableChannel() as any HostChannel }
@@ -156,7 +155,7 @@ struct PurrdrApp: App {
                 // 最新的主機服務版本從 purrdr.host 的 GitHub Release 取得，主機服務發版時 app 不用改版號(#362)。
                 hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
-                listMode: UserDefaultsAgentListModeStore(),
+                skeletonRowCounts: UserDefaultsSkeletonRowCountStore(),
                 // 離線佇列存在本機，App 重開仍在(#301)。
                 offlineQueues: UserDefaultsOfflineQueueStore(),
                 // 模型目錄的公開來源(#385);UI 測試不給,不連網路。
@@ -360,6 +359,7 @@ struct PurrdrApp: App {
         if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
         if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(5)) }
         if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
+        if arguments.contains("-demoToolBurst") { return .toolBurst(after: .seconds(10)) }
         if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
         if arguments.contains("-demoSentImages") { return .sentImages }
@@ -384,6 +384,12 @@ struct PurrdrApp: App {
     private static func makeMemberSession(uiTesting: Bool, arguments: [String]) -> MemberSession {
         // 登入時帶這支裝置的 id(與推播共用,Keychain);讀不到時不帶,照常登入。UI 測試用固定 id。
         let deviceID = memberDeviceID(uiTesting: uiTesting)
+        if uiTesting, arguments.contains("-uiTestingMemberLoading") {
+            // 後台一直沒回應、本機沒有上次的會員資料:帳號頁停在第一次載入的骨架(#496)。
+            return MemberSession(
+                transport: UITestingHangingBackend(), tokenStore: InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken),
+                deviceID: deviceID)
+        }
         if uiTesting, arguments.contains("-uiTestingMemberOffline") {
             // 已登入過(有更新權杖與會員快照),但後台一律連不上:帳號頁「暫時連不上,你仍是登入狀態」。
             let tokens = InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken)
@@ -446,6 +452,14 @@ struct PurrdrApp: App {
         return nil
     }
 
+    /// 進背景時把流量用量寫檔:以 background task 撐到背景佇列寫完,主執行緒不等。
+    private func flushTrafficInBackground() {
+        let task = UIApplication.shared.beginBackgroundTask(withName: "traffic.flush")
+        trafficMeter.flushInBackground {
+            Task { @MainActor in UIApplication.shared.endBackgroundTask(task) }
+        }
+    }
+
     var body: some Scene {
         // 主視窗(三欄)。iPad 可以開好幾個，每個視窗有自己的導覽狀態;主機與 Agent 列表共用。
         WindowGroup(id: PurrdrCommands.mainWindowID) {
@@ -459,13 +473,15 @@ struct PurrdrApp: App {
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.videoSource, videoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
+            .environment(\.skeletonAnimationsEnabled, !Self.disablesAnimations)
             .environment(\.allowsTestingLinks, allowsTestingLinks)
             .environment(\.usesTestingSignIn, usesTestingSignIn)
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in
             appLock.scenePhaseChanged(to: AppLockPhase(phase), at: .now)
-            if phase != .active { trafficMeter.flush() }
+            // 只在真的進背景時存(inactive 只是拉下通知中心等短暫狀態),且在背景佇列寫、不在主執行緒同步寫檔(#498)。
+            if phase == .background { flushTrafficInBackground() }
         }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in

@@ -115,12 +115,10 @@ struct UsageSectionView: View {
                 UsageBarRow(agent: entry.agent, row: row, display: model.displaySetting.display, staleMinutes: entry.staleMinutes)
             }
         case .loading:
-            HStack(spacing: 8) {
-                ProgressView()
-                Text("Checking \(entry.agent.shortName)…")
-                    .foregroundStyle(.secondaryText)
-            }
-            .frame(minHeight: 44, alignment: .leading)
+            // 第一次讀、還沒有資料:同形狀的用量列骨架(#496),資料到時原地換成內容。
+            UsageBarRow(agent: entry.agent, row: .skeletonPlaceholder, display: model.displaySetting.display, staleMinutes: nil)
+                // 同一個 Section 好幾個 Agent 都在載入時只讓第一個念「載入中」。
+                .skeleton(identifier: "usage.loading.\(entry.agent.rawValue)", announces: entry.id == visibleEntries.first { $0.state == .loading }?.id)
         case .noData:
             Text("\(entry.agent.shortName) hasn’t reported plan usage yet.")
                 .foregroundStyle(.secondaryText)
@@ -196,6 +194,11 @@ struct PlanUsageScreen: View {
 
 /// 一個用量週期:上面是「Claude · 5 小時」與「38% 已用 · 14:00 重設」,下面是進度條。
 /// 到門檻(已用 70% 起)在數字前加三角形;資料過舊時尾端改標「N 分鐘前」。
+extension PlanUsageRow {
+    /// 用量列骨架的佔位資料(進度條空的、文字被 `redacted` 蓋住)。
+    static let skeletonPlaceholder = PlanUsageRow(period: .fiveHour, percent: 50, fraction: 0, resetsAt: nil, level: .ample)
+}
+
 struct UsageBarRow: View {
     let agent: PlanUsageAgent
     let row: PlanUsageRow

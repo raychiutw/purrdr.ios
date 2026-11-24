@@ -91,7 +91,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testSentImagesReadBackFromHost() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
-        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
+        XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
         let thumbnail = app.element("conversation.sentImage.thumbnail")
         XCTAssertTrue(app.revealInConversation(thumbnail), "已送出的圖片沒有經主機讀回縮圖")
         XCTAssertTrue(
@@ -120,7 +120,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testSentFilesShowCards() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
-        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
+        XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
         let size = app.element("conversation.userFile.size")
         XCTAssertTrue(app.revealInConversation(size), "使用者送出的檔案沒有顯示大小")
         XCTAssertTrue(app.element("conversation.userFile.note").waitUntilExists(timeout: 10), "被主機清掉的檔案沒有說明")
@@ -161,7 +161,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testAgentFiles() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoAgentFiles"])
-        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
+        XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
         // 這裡看的是對話裡的卡片：先略過輸入列上方的註記，卡片才整張放得進可視區。
         dismissNote(in: app)
 
@@ -502,7 +502,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
         let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-        let ledger = app.element("agent.row.demo/w1:p1")
+        let ledger = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
         ledger.tap()
         let text = app.element("composer.text")
@@ -525,9 +525,9 @@ final class ConversationUITests: XCTestCase {
     func testJumpToLatestOnlyWhenAwayFromBottom() {
         // 「需要你」改成浮動卡(#424)後對話列表本身不夠長，改用長對話。
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
-        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
+        XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
         let jump = app.element("conversation.jumpToLatest")
-        let list = app.scrollViews.firstMatch
+        let list = app.conversationList
         XCTAssertFalse(jump.waitUntilExists(timeout: 2), "在底部時不該顯示")
 
         list.swipeDown()
@@ -551,7 +551,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testJumpToLatestReturnsToBottomEvenWhileDecelerating() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
-        let list = app.scrollViews.firstMatch
+        let list = app.conversationList
         XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
         let jump = app.element("conversation.jumpToLatest")
         let composer = app.element("composer.text")
@@ -615,11 +615,11 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(message.waitUntilExists(timeout: 10), "對話沒有載入完成")
         XCTAssertTrue(app.staticTexts["Offline — showing the last loaded conversation."].waitUntilExists(timeout: 60), "斷網後沒有顯示連線中斷橫幅")
 
-        let list = app.scrollViews.firstMatch
+        let list = app.conversationList
         list.swipeDown()
         list.swipeUp()
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch.waitUntilExists(timeout: 10), "斷網後點返回沒有回到列表")
+        XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch.waitUntilExists(timeout: 10), "斷網後點返回沒有回到列表")
     }
 
     /// 等元素的 accessibility value 以指定文字開頭(縮放有動畫)。

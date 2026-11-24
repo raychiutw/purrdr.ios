@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 一個視窗的頂層導覽(#37 故事 21、#31)。
 ///
-/// 底部 5 個 tab:聊天、檔案、主機、流量、設定(#376);帳號、新增聊天、付費牆與歡迎頁以 sheet 開啟。
+/// 底部 4 個 tab:聊天、檔案、主機、流量(#376;設定併進帳號 sheet,#503);帳號與設定、新增聊天、付費牆與歡迎頁以 sheet 開啟。
 /// 聊天 tab 是三欄 `NavigationSplitView`:主機與 workspace → Agent 列表 → 對話。依可用寬度排版(size class,不看裝置):
 /// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)收合成一疊，從 Agent 列表開始，點列推入對話(對話與終端機隱藏 tab bar)。
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
@@ -62,9 +62,10 @@ public struct TopNavigationView: View {
             .sheet(item: $navigation.sheet) { sheet in
                 switch sheet {
                 case .member:
-                    // 帳號頁(#246)自帶 NavigationStack 與「完成」。
+                    // 帳號與設定頁(#246、#503)自帶 NavigationStack 與右上角 X;設定併在第一層。
                     MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync,
-                        hosts: hosts)
+                        hosts: hosts,
+                        settings: AccountSettings(model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock))
                         // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
                         .task { await hosts.checkHostServiceVersions() }
                 case .plus:
@@ -159,7 +160,7 @@ public struct TopNavigationView: View {
                 let list = hosts.agentList
                 navigation.perform(
                     command,
-                    visibleAgents: navigation.visibleAgents(list.sections, host: hosts.selection, snapshot: list.snapshot(for: hosts.selection)))
+                    visibleAgents: navigation.visibleAgents(list.spacesSections, host: hosts.selection, snapshot: list.snapshot(for: hosts.selection)))
             },
             isLayoutCardShown: card.workspaceID != nil,
             closeLayoutCard: { card.close() })
@@ -173,7 +174,6 @@ public struct TopNavigationView: View {
         } content: {
             // 所有主機合併的 Agent 列表(#39)。換選取中主機不重建列表，只改排序與主機名標示。
             agentList
-                .toolbar { toolbar }
                 #if os(iOS)
                 // 窄視窗不顯示回到側欄的返回鈕:頂層導覽是 tab bar;workspace 篩選只在側欄看得到時套用。
                 .navigationBarBackButtonHidden(sizeClass == .compact)
@@ -190,11 +190,17 @@ public struct TopNavigationView: View {
     /// 所有主機合併的 Agent 列表(#39)。
     private var agentList: some View {
         let hosts = hosts
-        var open: ((PaneWindow.Kind, AgentRow) -> Void)?
+        var open: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
         if supportsMultipleWindows {
-            open = { kind, row in openInNewWindow(kind, row) }
+            open = { kind, route, title in openInNewWindow(kind, route, title) }
         }
-        return AgentListView(model: hosts.agentList, window: navigation, openInNewWindow: open) { route, sessionID in
+let topBar = ChatTopBarActions(
+            newChat: { navigation.sheet = .newChat }, addHost: { navigation.openAddHost() },
+            account: AnyView(TopBarAccountButton(member: member) { navigation.sheet = .member }))
+        return AgentListView(
+            model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
+            prefetchConversations: { await hosts.prefetchConversations($0) }
+        ) { route, sessionID in
             hosts.conversation(route, sessionID: sessionID)
         } terminal: { route, title in
             hosts.terminal(route, title: title)
@@ -202,9 +208,9 @@ public struct TopNavigationView: View {
     }
 
     /// 把列表上的 Agent 開在新視窗(context menu,HIG Windows)。任何一台主機的 Agent 都可以(每台主機各自連線,#39)。
-    private func openInNewWindow(_ kind: PaneWindow.Kind, _ row: AgentRow) {
+    private func openInNewWindow(_ kind: PaneWindow.Kind, _ route: ChatRoute, _ title: String) {
         openWindow(value: PaneWindow(
-            kind: kind, host: row.host, paneID: row.paneID, sessionID: hosts.agentList.sessionID(of: row.route), title: row.title))
+            kind: kind, host: route.host, paneID: route.paneID, sessionID: hosts.agentList.sessionID(of: route), title: title))
     }
 
     /// 版面圖卡片(選取中主機的 workspace)選了 Pane:Agent 在對話欄打開;終端機方塊在對話欄開它的 Pane 終端機。
@@ -218,23 +224,7 @@ public struct TopNavigationView: View {
         }
     }
 
-    @ToolbarContentBuilder
-    private var toolbar: some ToolbarContent {
-        // 左上:聊天 tab 的主機選單(#244),靠左、與其他 tab 同一個位置(#475):改「目前主機」,含所有主機;選某台時同時設成選取中主機。
-        ToolbarItem(placement: Self.modePlacement) {
-            HostFilterMenu(list: hosts.agentList) { navigation.openAddHost() }
-        }
-        // 右上:Agents／Spaces 一鍵切換(只有符號,#391)與新增聊天(`plus`)併成一個長型玻璃膠囊(相鄰的同位置工具列項目),最右上角是帳號鈕。
-        ToolbarItemGroup(placement: .primaryAction) {
-            AgentListModeButton(list: hosts.agentList)
-            Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }
-                .tint(Color.appAccent)
-                .accessibilityIdentifier("toolbar.newChat")
-        }
-        AccountToolbarItem(member: member, hasPrecedingAction: true) { navigation.sheet = .member }
-    }
-
-    /// 5 個 tab。每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
+    /// 4 個 tab。每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
     private var tabs: some View {
         TabView(selection: $navigation.tab) {
             Tab("Chats", systemImage: "bubble.left.and.bubble.right.fill", value: TopLevelTab.chats) {
@@ -260,55 +250,9 @@ public struct TopNavigationView: View {
                 TrafficTab(hosts: hosts, member: member, openAccount: { navigation.sheet = .member })
                     .tint(ProminentFillStyle())
             }
-            Tab("Settings", systemImage: "gearshape.fill", value: TopLevelTab.settings) {
-                SettingsView(
-                    model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock,
-                    account: AnyView(AccountButton(member: member) { navigation.sheet = .member })
-                )
-                .tint(ProminentFillStyle())
-            }
         }
         // tab bar 選取態的顏色(DESIGN.md「深色層次與新色票」);內容各自把 tint 還原成主色。
         .tint(AccessibleColors.tabSelection.color)
-    }
-}
-
-extension TopNavigationView {
-    #if os(iOS)
-    static let modePlacement = ToolbarItemPlacement.topBarLeading
-    #else
-    static let modePlacement = ToolbarItemPlacement.navigation
-    #endif
-}
-
-/// 聊天列表右上角的帳號鈕(#246):會員的頭像字，未加入會員顯示「?」。
-struct AccountButton: View {
-    let member: MemberModel
-    let action: () -> Void
-    /// 工具列玻璃圓鈕畫出來是 `TopBarMetrics.circleDiameter`(44pt;XCUI 回報的 frame 只有內容的 30pt 頭像);頭像是圖示，不隨字級放大。
-
-    var body: some View {
-        // 名稱放在 Label 標題與無障礙表示:AX 字級時系統把這顆收進工具列的溢出選單。
-        Button(action: action) {
-            Label {
-                Text("Account")
-            } icon: {
-                // 44pt 的玻璃圓鈕(外框與內距由工具列提供;自己再撐 44pt 會被玻璃加寬成橢圓),頭像 30pt,與其他按鈕的符號同等大小(#475)。
-                AccountAvatar(member: signedInMember)
-                    .font(.footnote)
-                    .frame(width: TopBarMetrics.avatarDiameter, height: TopBarMetrics.avatarDiameter)
-                    .accessibilityRepresentation { Text("Account") }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("Account"))
-        .accessibilityIdentifier("toolbar.account")
-        .task { if member.phase == .unknown { await member.restore() } }
-    }
-
-    private var signedInMember: Member? {
-        if case .signedIn(let member) = member.phase { return member }
-        return nil
     }
 }
 
@@ -358,56 +302,28 @@ private struct NewChatForm: View {
     }
 }
 
-/// 左上角的主機篩選(#244):所有主機或某一台，選單帶主機圖示;選某一台時同時設成選取中主機。
-struct HostFilterMenu: View {
+/// 電腦圖示的選單內容(#244、#499):所有主機或某一台,改「目前主機」;選某一台時同時設成選取中主機。最下面是「新增主機…」。
+struct CurrentHostMenu: View {
     @Bindable var list: MergedAgentListModel
     /// 選單最下面的「新增主機…」。
     var addHost: (() -> Void)?
 
     var body: some View {
-        let current = list.currentHost.flatMap { list.hostLabel(of: $0) }
-        Menu {
-            Picker(selection: $list.currentHost) {
-                Label("All Hosts", systemImage: "square.grid.2x2")
-                    .tag(HostSelection?.none)
-                ForEach(list.hostFilterOptions) { option in
-                    HostMenuLabel(option.name, icon: option.icon)
-                        .tag(HostSelection?.some(option.id))
-                }
-            } label: {
-                Text("Hosts")
-            }
-            .accessibilityIdentifier("currentHost.picker")
-            if let addHost {
-                Divider()
-                Button("Add Host…", systemImage: "plus", action: addHost)
-                    .accessibilityIdentifier("hostMenu.addHost")
+        Picker(selection: $list.currentHost) {
+            Label("All Hosts", systemImage: "square.grid.2x2")
+                .tag(HostSelection?.none)
+            ForEach(list.hostFilterOptions) { option in
+                HostMenuLabel(option.name, icon: option.icon)
+                    .tag(HostSelection?.some(option.id))
             }
         } label: {
-            // 工具列的 Label 只畫圖示，自己排「主機圖示＋名稱＋▾」(原型 purrdr-screens.html);膠囊由工具列玻璃提供。
-            HStack(spacing: 6) {
-                HostIconBadge(current?.icon ?? .default, diameter: 24)
-                Group {
-                    if let current {
-                        Text(verbatim: current.name)
-                    } else {
-                        Text("All Hosts")
-                    }
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.appAccent)
-                .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.appAccent)
-                    .accessibilityHidden(true)
-            }
-            .padding(.trailing, 4)
-            .frame(minHeight: TopBarMetrics.controlHeight)
-            .contentShape(Rectangle())
+            Text("Hosts")
         }
-        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
-        .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))
-        .accessibilityIdentifier("toolbar.currentHost")
+        .accessibilityIdentifier("currentHost.picker")
+        if let addHost {
+            Divider()
+            Button("Add Host…", systemImage: "plus", action: addHost)
+                .accessibilityIdentifier("hostMenu.addHost")
+        }
     }
 }

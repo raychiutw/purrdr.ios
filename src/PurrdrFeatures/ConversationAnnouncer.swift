@@ -11,10 +11,22 @@ struct ConversationAnnouncer {
     /// 訊息只念開頭這麼多字。
     static let previewLength = 120
 
+    /// 只帶公告用得到的摘要(#498):最後一則 agent 訊息、有沒有項目。畫面每次重算都會建一個來比較，
+    /// 不能帶整份最多 500 則的項目(深比較全文字串)。
     struct Input: Equatable {
-        var items: [ConversationItem]
+        var lastAgentText: AgentText?
+        var hasItems: Bool
         var status: AgentStatus?
         var title: String
+
+        init(items: [ConversationItem], status: AgentStatus?, title: String) {
+            lastAgentText = items.last { if case .agentText = $0 { true } else { false } }.flatMap {
+                if case .agentText(let text) = $0 { text } else { nil }
+            }
+            hasItems = !items.isEmpty
+            self.status = status
+            self.title = title
+        }
     }
 
     private enum Event {
@@ -45,11 +57,11 @@ struct ConversationAnnouncer {
 
     /// 畫面內容更新時呼叫。回傳現在要念的公告。
     mutating func observe(_ input: Input, now: Date) -> String? {
-        let message = input.items.last { if case .agentText = $0 { true } else { false } }
+        let message = input.lastAgentText
         var event: Event?
         if observed {
-            if hadItems, let message, case .agentText(let text) = message, message.id != lastAgentMessageID {
-                event = .reply(Self.preview(text.markdown))
+            if hadItems, let message, message.id != lastAgentMessageID {
+                event = .reply(Self.preview(message.markdown))
             }
             if input.status != status {
                 switch input.status {
@@ -61,7 +73,7 @@ struct ConversationAnnouncer {
             }
         }
         observed = true
-        hadItems = !input.items.isEmpty
+        hadItems = input.hasItems
         lastAgentMessageID = message?.id
         status = input.status
         guard let event else { return nil }

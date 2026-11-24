@@ -6,21 +6,17 @@ final class AccessibilityUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Agents 檢視的 Agent 列(notes 的 Codex):預設字級時狀態與時間在右側，列的高度跟三行文字差不多，
-    /// 不會在中間留一大片空白、把「Now」擠到列底(#34 截圖 01-agent-list)。
-    /// 副標較長的列(weather-app 的「需要你」)也一樣：預設字級不改成上下堆疊(堆疊只在 AX 字級)。
+    /// Spaces 的 Tab 列:預設字級時列高不會因為右欄上下堆疊或文字被擠成一字一行而暴增(堆疊只在 AX 字級)。
     @MainActor
-    func testAgentRowsKeepStatusBesideTextAtDefaultSize() {
+    func testChatRowsKeepCompactHeightAtDefaultSize() {
         continueAfterFailure = true
         let app = XCUIApplication.launchUITesting()
-        let codex = app.element("agent.row.demo/w3:p1")
-        XCTAssertTrue(app.reveal(codex), "列表沒有 Codex 列")
-        // iPhone 17 預設字級：標題折成兩行 + 副標 + 預覽約 112pt;上下堆疊(狀態、時間各佔一行)約 132pt;
-        // 狀態標題被擠成一字一行時約 188pt。
-        XCTAssertLessThan(codex.frame.height, 125, "Codex 列太高:\(codex.frame)")
-        let needsYou = app.element("agent.row.demo/w2:p1")
+        let ledger = app.element("spaces.tab.demo/w1:t1")
+        XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger 列")
+        XCTAssertLessThan(ledger.frame.height, 125, "ledger 列太高:\(ledger.frame)")
+        let needsYou = app.element("spaces.tab.demo/w2:t1")
         XCTAssertTrue(app.reveal(needsYou))
-        XCTAssertLessThan(needsYou.frame.height, 125, "「需要你」列太高(上下堆疊了):\(needsYou.frame)")
+        XCTAssertLessThan(needsYou.frame.height, 125, "「需要你」列太高:\(needsYou.frame)")
     }
 
     /// VoiceOver:每則訊息是一個元素(作者 + 內容 + 時間一次念完),不是每段文字各自一個(HIG 20.5)。
@@ -29,7 +25,7 @@ final class AccessibilityUITests: XCTestCase {
     func testEachMessageIsOneElement() {
         continueAfterFailure = true
         let app = XCUIApplication.launchUITesting()
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row))
         row.tap()
 

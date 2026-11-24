@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -32,6 +33,23 @@ struct FolderBrowserModelTests {
         return []
     }
 
+    @Test("搜尋只比對目前資料夾的項目名稱(不分大小寫、前後空白不算);清掉搜尋回到全部(#500)")
+    func searchFiltersCurrentFolder() async throws {
+        let host = FakeHost()
+        await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        let model = Self.model(host)
+        await model.load()
+        #expect(model.visibleEntries.map(\.name) == ["ledger", ".zshrc"])
+        model.query = "  LED "
+        #expect(model.visibleEntries.map(\.name) == ["ledger"])
+        model.query = "zzz"
+        #expect(model.visibleEntries.isEmpty)
+        #expect(model.isSearching)
+        model.query = ""
+        #expect(model.visibleEntries.count == 2)
+        #expect(!model.isSearching)
+    }
+
     @Test("路徑麵包屑(#273,原型):家目錄底下以「~」開頭，每段可點回那一層;家目錄外從根目錄開始")
     func breadcrumbs() async throws {
         let host = FakeHost()
@@ -53,6 +71,38 @@ struct FolderBrowserModelTests {
         #expect(model.breadcrumbs.map(\.title) == ["/", "Users"])
         #expect(model.breadcrumbs.map(\.path) == ["/", "/Users"])
         #expect(await host.unmetExpectations.isEmpty)
+    }
+
+    @Test("骨架(#496):第一次列資料夾時是載入中,骨架列數取上次列過的項目數;列完記住新的數量")
+    func skeletonRowCountFollowsLastListing() async throws {
+        let store = InMemorySkeletonRowCountStore()
+        store.save(5, for: .files)
+        let host = FakeHost()
+        await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        let model = FolderBrowserModel(folders: HostFolders(channel: host), hostName: "Studio Mac", skeletonRowCounts: store)
+        #expect(model.phase == .loading)
+        #expect(model.loadingRowCount == 5)
+
+        await model.load()
+        #expect(Self.listed(model).count == 2)
+        #expect(model.loadingRowCount == SkeletonLoading.rowCountRange.lowerBound)
+        #expect(store.load(.files) == 2)
+    }
+
+    @Test("骨架(#496):下拉重新整理已經列出的資料夾,讀取中仍顯示原本的列,不退回骨架")
+    func refreshKeepsContent() async throws {
+        let host = FakeHost()
+        await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        await host.expect(HostFolderCommand.list("/Users/demo"), reply: FakeReply(keepsOpen: true))
+        let model = Self.model(host)
+        await model.load()
+        let before = Self.listed(model)
+
+        let refreshing = Task { await model.load() }
+        defer { refreshing.cancel() }
+        _ = await host.waitUntilClosed(execution: 1, timeout: .milliseconds(300))
+        #expect(model.phase != .loading)
+        #expect(Self.listed(model) == before)
     }
 
     @Test("先列家目錄：標題是資料夾最後一段，副標是主機")

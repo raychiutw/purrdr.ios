@@ -15,3 +15,19 @@ struct SheetCloseToolbar: ToolbarContent {
         }
     }
 }
+
+/// 帳號與設定 sheet 的關閉鈕(#503、設計稿 D-5):右上角「X」玻璃圓鈕(44×44),VoiceOver 念「Close」。
+/// 帳號 sheet 沒有完成鈕;其他 sheet 仍用左上角 `SheetCloseToolbar`。
+struct TrailingCloseToolbar: ToolbarContent {
+    var identifier = "sheet.close"
+    var action: (() -> Void)?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button(role: .close) { (action ?? { dismiss() })() }
+                .accessibilityLabel(Text("Close"))
+                .accessibilityIdentifier(identifier)
+        }
+    }
+}

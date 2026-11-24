@@ -8,7 +8,7 @@ final class ChangesUITests: XCTestCase {
 
     @MainActor
     private func openChanges(_ app: XCUIApplication) {
-        let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
+        let row = app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         app.conversationMoreItem("changes.open").tap()

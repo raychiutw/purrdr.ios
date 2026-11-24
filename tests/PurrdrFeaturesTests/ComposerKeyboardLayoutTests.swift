@@ -132,4 +132,28 @@ struct ComposerKeyboardLayoutTests {
     func suggestionOnly() {
         #expect(Self.arrange(conversation: 132 - 68 + 52, note: nil) == ComposerAccessoryArrangement(note: .full, suggestion: .compact))
     }
+
+    @Test("遲滯(#498):剛好放得下完整卡片的邊界上不回到完整排法，多出一列觸控高度才恢復，避免兩種排法來回切換")
+    func relaxingNeedsHysteresisMargin() {
+        let collapsed = ComposerAccessoryArrangement(note: .compact, suggestion: .full)
+        // 可分配 = 對話 + 52 + 68;完整排法要 361 + 最小 132,所以對話 373 剛好放得下。
+        #expect(Self.arrange(conversation: 373, current: collapsed) == collapsed)
+        #expect(Self.arrange(conversation: 373 + 43, current: collapsed) == collapsed)
+        #expect(Self.arrange(conversation: 373 + 44, current: collapsed) == .full)
+        // 往讓位方向沒有遲滯:完整排法時對話低於最小高度立刻收起。
+        #expect(Self.arrange(conversation: 131, current: .full) == collapsed)
+    }
+
+    @Test("遲滯(#498):讓位後對話高度在邊界附近交替變化，排法不變;超過遲滯才換一次")
+    func alternatingHeightsSettle() {
+        let collapsed = ComposerAccessoryArrangement(note: .compact, suggestion: .full)
+        var current = collapsed
+        var changes = 0
+        for height in [372.0, 373, 400, 373, 410, 372, 416] {
+            let next = Self.arrange(conversation: height, current: current)
+            if next != current { changes += 1; current = next }
+        }
+        #expect(changes == 0)
+        #expect(Self.arrange(conversation: 417, current: current) == .full)
+    }
 }

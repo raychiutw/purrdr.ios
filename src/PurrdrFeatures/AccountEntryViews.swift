@@ -14,12 +14,14 @@ extension EnvironmentValues {
 struct AccountEntryPages: View {
     let model: MemberModel
     @Binding var entry: AccountEntryFlow
+    /// 設定(#503):只有選擇頁(沒登入的第一層)帶著。
+    var settings: AccountSettings?
 
     var body: some View {
         switch entry.screen {
         case .signIn: AccountAuthPage(model: model, entry: $entry, copy: .signIn)
         case .join: AccountAuthPage(model: model, entry: $entry, copy: .signUp)
-        case .choose, .account: ChoosePage(entry: $entry)
+        case .choose, .account: ChoosePage(entry: $entry, settings: settings)
         }
     }
 }
@@ -27,6 +29,7 @@ struct AccountEntryPages: View {
 /// 選擇頁:Purrdr 圖示、說明與「登入」「加入會員」兩列。
 private struct ChoosePage: View {
     @Binding var entry: AccountEntryFlow
+    let settings: AccountSettings?
 
     var body: some View {
         List {
@@ -63,6 +66,7 @@ private struct ChoosePage: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondaryText)
             }
+            if let settings { SettingsSections(settings) }
         }
         .appGroupedList()
         .accessibilityIdentifier("account.signedOut")
@@ -198,7 +202,7 @@ struct JoinFlowPages: View {
             }
             switch plus.storefront {
             case .loading:
-                Section { ProgressView().frame(maxWidth: .infinity) }
+                Section { PlanOptionsSkeleton(identifier: "account.join.storefront.loading") }
             case .paymentsDisabled:
                 Section {
                     Label("Purchases aren’t allowed on this device, for example because of Screen Time. You can still restore a subscription you already have.", systemImage: "lock")

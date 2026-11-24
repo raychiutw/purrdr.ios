@@ -25,6 +25,7 @@ struct HostOverviewView: View {
     var body: some View {
         List {
             Group {
+                hostListSection
                 HostStatusRow(overview: overview, retry: retry, pair: pair, update: { if let hostID { openRoute(.edit(hostID)) } })
                 if overview.showsUsage, let usage {
                     UsageSectionContainer(host: overview.host, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false, detectsInstallation: true)
@@ -40,6 +41,7 @@ struct HostOverviewView: View {
                     if let hostID {
                         Section {
                             Button("Remove Host", role: .destructive) { removeHost(hostID) }
+                                .foregroundStyle(.destructiveText)
                                 .frame(maxWidth: .infinity)
                                 .accessibilityIdentifier("hosts.delete")
                         }
@@ -66,6 +68,42 @@ struct HostOverviewView: View {
         .task {
             await hosts.checkHostServiceVersions()
             await hosts.refreshOverviewFacts()
+        }
+    }
+
+    // MARK: - 主機清單(#500)
+
+    /// 主機清單:頂列已沒有主機選單(右上只有「＋」新增主機),多台主機在這裡換看哪一台;只有一台時不顯示。
+    @ViewBuilder
+    private var hostListSection: some View {
+        let picker = hosts.selectedHostPicker()
+        if picker.options.count > 1 {
+            Section {
+                ForEach(picker.options) { option in
+                    Button {
+                        picker.select(option.id)
+                    } label: {
+                        HStack(spacing: 12) {
+                            HostIconBadge(option.icon, diameter: 24)
+                            Text(verbatim: option.name)
+                                .font(.body)
+                                .foregroundStyle(Color.primary)
+                            Spacer(minLength: 0)
+                            if option.id == overview.host {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.appAccent)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(option.id == overview.host ? .isSelected : [])
+                    .accessibilityIdentifier("hosts.host.\(option.name)")
+                }
+            } header: {
+                Text("Hosts")
+            }
         }
     }
 
@@ -323,18 +361,27 @@ struct HostStatusRow: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 10) {
-                    indicator
-                        .padding(.top, 5)
-                    VStack(alignment: .leading, spacing: 2) {
-                        title
-                            .font(.headline)
-                        subtitle
-                            .font(.footnote)
-                            .foregroundStyle(.secondaryText)
+                if overview.showsSkeleton {
+                    // 第一次連線、還沒有任何內容:同形狀的狀態卡骨架(#496);重連時保留最後已知的內容。
+                    VStack(alignment: .leading, spacing: 10) {
+                        SkeletonBlock(height: 18).containerRelativeFrame(.horizontal) { width, _ in width * 0.3 }
+                        SkeletonBlock(height: 13).containerRelativeFrame(.horizontal) { width, _ in width * 0.62 }
                     }
+                    .skeleton(identifier: "hosts.status.skeleton")
+                } else {
+                    HStack(alignment: .top, spacing: 10) {
+                        indicator
+                            .padding(.top, 5)
+                        VStack(alignment: .leading, spacing: 2) {
+                            title
+                                .font(.headline)
+                            subtitle
+                                .font(.footnote)
+                                .foregroundStyle(.secondaryText)
+                        }
+                    }
+                    action
                 }
-                action
             }
             .padding(.vertical, 4)
             .accessibilityElement(children: .contain)

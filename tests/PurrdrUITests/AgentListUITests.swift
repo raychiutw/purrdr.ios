@@ -7,103 +7,97 @@ final class AgentListUITests: XCTestCase {
 
     @MainActor
     private func row(_ paneID: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
+        app.descendants(matching: .any)[chatRowID(paneID)].firstMatch
     }
 
     /// tracer bullet:app → 畫面 model → herdr client → 主機通道(Demo 主機)整條路徑都走正式程式。
+    /// 聊天只有 Spaces(#501):依 workspace 分段,每個 Tab 一列,列念出標題、種類與狀態。
     @MainActor
     func testLaunchShowsDemoHostAgent() {
         let app = XCUIApplication.launchUITesting()
 
         let row = row("w1:p1", in: app)
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        // Agents 列第一行是 workspace 名稱(#269,原型 B)。
-        XCTAssertTrue(row.label.contains("ledger"), "列沒有 workspace 名稱:\(row.label)")
-        XCTAssertFalse(row.label.contains("Tidy up the CSV export"), "列第一行不該是聊天標題:\(row.label)")
         XCTAssertTrue(row.label.contains("Done"), "列沒有狀態文字:\(row.label)")
+        XCTAssertTrue(row.label.contains("Claude"), "列沒有 Agent 種類:\(row.label)")
+        let header = app.element("spaces.section.demo/w1")
+        XCTAssertTrue(header.exists, "沒有 workspace 段落標題")
+        XCTAssertTrue(header.label.contains("ledger"), "段落標題沒有 workspace 名稱:\(header.label)")
+        XCTAssertTrue(header.label.contains("Demo"), "段落標題沒有主機名:\(header.label)")
     }
 
-    /// 「需要你」在最上面，並以文字(不只顏色)說明在等輸入;工作中的列右欄是「Now」。
+    /// 「需要你」以文字(不只顏色)說明狀態;每列先念標題,再念種類與狀態。
     @MainActor
-    func testNeedsYouComesFirstWithTextualStatus() {
+    func testRowsHaveTextualStatus() {
         let app = XCUIApplication.launchUITesting()
 
         let needsYou = row("w2:p1", in: app)
         let working = row("w3:p1", in: app)
-        let done = row("w1:p1", in: app)
         XCTAssertTrue(needsYou.waitUntilExists(timeout: 10))
         XCTAssertTrue(needsYou.label.contains("Needs You"), "沒有「需要你」文字:\(needsYou.label)")
-        XCTAssertTrue(needsYou.label.contains("Waiting for your input"), "沒有等待輸入的預覽:\(needsYou.label)")
-        XCTAssertTrue(working.label.contains("notes"), "列沒有 workspace 名稱:\(working.label)")
-        XCTAssertTrue(working.label.contains("Now"), "工作中的列沒有「Now」:\(working.label)")
-        XCTAssertLessThan(needsYou.frame.minY, working.frame.minY)
-        // ledger 在 notes 下方，可能在畫面外(列表是 lazy)。
-        XCTAssertTrue(app.reveal(done))
-        XCTAssertLessThan(working.frame.minY, done.frame.minY)
-    }
-
-    /// Agents 檢視是單一清單(#244):沒有分段標題，需要你仍在工作中之前;每列先念 agent 種類，再念狀態，預覽前是主機名。
-    @MainActor
-    func testAgentsViewIsSingleListWithHostPreview() {
-        let app = XCUIApplication.launchUITesting()
-        app.switchListMode(to: "Agents")
-
-        let needsYou = row("w2:p1", in: app)
-        let working = row("w3:p1", in: app)
-        XCTAssertTrue(needsYou.waitUntilExists(timeout: 10))
-        XCTAssertTrue(working.waitUntilExists(timeout: 5))
-        XCTAssertTrue(needsYou.label.contains("Needs You"), "狀態點沒有念出狀態:\(needsYou.label)")
-        XCTAssertTrue(needsYou.label.contains("Demo · "), "預覽前沒有主機名:\(needsYou.label)")
-        XCTAssertTrue(working.label.contains("Now"), "工作中的列沒有「Now」:\(working.label)")
-        XCTAssertTrue(working.label.hasPrefix("Codex"), "列首頭像沒有念出 agent 種類:\(working.label)")
-        XCTAssertLessThan(needsYou.frame.minY, working.frame.minY)
-        XCTAssertFalse(app.descendants(matching: .any)["agentList.section.needsYou"].exists, "單一清單不該有分段標題")
+        XCTAssertTrue(app.reveal(working))
+        XCTAssertTrue(working.label.contains("Codex"), "列沒有念出 agent 種類:\(working.label)")
+        XCTAssertTrue(working.label.contains("Working"), "工作中的列沒有狀態文字:\(working.label)")
+        XCTAssertFalse(app.descendants(matching: .any)["agentList.section.needsYou"].exists, "沒有 Agents 檢視的分段標題")
     }
 
     @MainActor
-    func testSearchFiltersAgents() {
+    func testSearchFiltersTabs() {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
 
-        let search = app.searchFields.firstMatch
+        let search = app.chatSearch
         XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
         search.tap()
         search.typeEnglish("weather")
 
         XCTAssertTrue(row("w2:p1", in: app).waitUntilExists(timeout: 5))
-        XCTAssertFalse(row("w1:p1", in: app).exists, "不符合的列仍在")
+        XCTAssertTrue(row("w1:p1", in: app).waitUntilGone(timeout: 5), "不符合的列仍在")
         XCTAssertFalse(row("w3:p1", in: app).exists, "不符合的列仍在")
 
         search.typeEnglish("zzz")
         XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
     }
 
-    /// 聊天列表頂部(#391):沒有大標題;導覽列左上是 Agents／Spaces 一鍵切換符號,中間是主機選單,系統搜尋欄在導覽列下方、列表在頂端時預設顯示;
-    /// 列表上沒有滑動提示與註記卡。
+    /// 聊天列表頂部(#499):共用頂列。左側大標題,右側 [電腦圖示｜＋] 與頭像(由左到右),搜尋欄在標題列下方;
+    /// 往下滑時標題列收起、搜尋欄仍可用並貼近頂端,回到頂端標題列回來。
     @MainActor
-    func testChatListTopHasModeButtonAndSystemSearch() {
-        let app = XCUIApplication.launchUITesting()
+    func testChatListTopBarCollapsesOnScroll() {
+        // 字級調大讓 Spaces 的列夠多、列表高過畫面才捲得動(Demo 的列不多)。
+        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"], contentSize: "UICTContentSizeCategoryXXXL")
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
-        XCTAssertFalse(app.staticTexts["agentList.title"].exists, "不該有大標題")
-        let control = app.listModeControl
-        XCTAssertTrue(control.exists)
-        let bar = app.navigationBars.firstMatch.frame
-        XCTAssertTrue(bar.insetBy(dx: -1, dy: -1).contains(control.frame), "切換鈕不在導覽列內:\(control.frame) 導覽列 \(bar)")
+        let title = app.staticTexts["topBar.title"]
+        XCTAssertTrue(title.waitUntilExists(timeout: 5), "沒有大標題")
         let host = app.buttons["toolbar.currentHost"].firstMatch
-        XCTAssertLessThan(control.frame.minX, host.frame.minX, "切換鈕不在主機選單左邊")
-        let search = app.searchFields.firstMatch
-        XCTAssertTrue(search.exists, "列表在頂端時沒有顯示系統搜尋欄")
-        XCTAssertGreaterThan(search.frame.minY, bar.minY, "搜尋欄不在導覽列下方")
-        XCTAssertFalse(app.descendants(matching: .any)["agentList.swipeHint"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["youShouldKnow.listRow"].exists)
+        let newChat = app.buttons["toolbar.newChat"].firstMatch
+        let account = app.buttons["toolbar.account"].firstMatch
+        XCTAssertTrue(host.exists && newChat.exists && account.exists, "頂列缺控制項")
+        XCTAssertLessThan(title.frame.minX, host.frame.minX, "標題不在電腦圖示左邊")
+        XCTAssertLessThan(host.frame.minX, newChat.frame.minX, "電腦圖示不在＋左邊")
+        XCTAssertLessThan(newChat.frame.minX, account.frame.minX, "＋不在頭像左邊")
+        let search = app.chatSearch
+        XCTAssertTrue(search.exists, "沒有搜尋欄")
+        XCTAssertGreaterThan(search.frame.minY, title.frame.maxY - 1, "搜尋欄不在標題下方")
+        let topY = search.frame.minY
+
+        let list = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+        XCTAssertTrue(title.waitUntilGone(timeout: 5), "往下滑後標題列沒有收起")
+        XCTAssertTrue(search.waitUntilExists(timeout: 5), "往下滑後搜尋欄不見了")
+        XCTAssertLessThan(search.frame.minY, topY, "搜尋欄沒有上移貼頂")
+
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)))
+        XCTAssertTrue(title.waitUntilExists(timeout: 5), "回到頂端後標題列沒有回來")
     }
 
-    /// AX 字級下 5 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。
+    /// AX 字級下 4 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。
     @MainActor
     func testTabBarAndAccountReachableAtAccessibilitySize() {
         let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-        XCTAssertTrue(app.listModeControl.waitUntilExists(timeout: 15))
-        for tab in [AppTab.chats, .files, .hosts, .traffic, .settings] {
+        XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 15))
+        for tab in [AppTab.chats, .files, .hosts, .traffic] {
             XCTAssertTrue(
                 app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 5),
                 "tab bar 沒有 \(tab.rawValue)")

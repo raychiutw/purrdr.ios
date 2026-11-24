@@ -69,7 +69,9 @@ struct WindowNavigationTests {
         first.perform(.settings, visibleAgents: visible)
 
         #expect(first.selectedChat == route("w2:p1"))
-        #expect(first.tab == .settings)
+        #expect(first.sheet == .member)
+        #expect(first.tab == .chats)
+        #expect(second.sheet == nil)
         #expect(second.selectedChat == nil)
         #expect(second.tab == .chats)
     }
@@ -118,30 +120,46 @@ struct WindowNavigationTests {
             Agent(paneID: "w2:p1", workspaceID: "w2", kind: "claude", status: .blocked),
         ])
 
+    /// Spaces 的段落(#501):w2 一個 Agent Tab、w1 一個 Agent Tab、一個多 pane 的 Tab 與一個終端機 Tab。
     private static let sections = [
-        AgentSection(group: .needsYou, rows: [row("w2:p1"), row("w1:p2")]),
-        AgentSection(group: .idle, rows: [row("w1:p1")]),
+        space("w2", tabs: [tab("w2:p1")]),
+        space("w1", tabs: [tab("w1:p2"), tab("w1:p1"), layoutTab("w1:tX", in: "w1"), terminalTab("w1:p9")]),
     ]
 
-    private static func row(_ paneID: String, host: HostSelection = .demo) -> AgentRow {
-        AgentRow(host: host, paneID: paneID, title: paneID, subtitle: "", preview: .none, time: nil, status: .idle)
+    private static func space(_ workspaceID: String, host: HostSelection = .demo, tabs: [SpacesTab]) -> SpacesSection {
+        SpacesSection(host: host, hostName: "Demo", hostIcon: .default, workspaceID: workspaceID, workspace: workspaceID, tabs: tabs)
     }
 
-    @Test("側欄選了 workspace:列表只留那個 workspace 的 Agent,空的分組不顯示")
-    func workspaceFilterKeepsOnlyItsAgents() {
+    private static func tab(_ paneID: String, host: HostSelection = .demo) -> SpacesTab {
+        SpacesTab(
+            host: host, key: paneID, title: paneID, target: .pane(route(paneID, host: host)), avatar: .agent(kind: "claude", status: .idle))
+    }
+
+    private static func layoutTab(_ tabID: String, in workspaceID: String) -> SpacesTab {
+        SpacesTab(
+            host: .demo, key: tabID, title: tabID, target: .layout(workspaceID: workspaceID, tabID: tabID),
+            avatar: .agent(kind: "claude", status: .idle))
+    }
+
+    private static func terminalTab(_ paneID: String) -> SpacesTab {
+        SpacesTab(host: .demo, key: paneID, title: paneID, target: .pane(route(paneID)), avatar: .terminal)
+    }
+
+    @Test("側欄選了 workspace:列表只留那個 workspace 的段落")
+    func workspaceFilterKeepsOnlyItsSection() {
         let model = TopNavigationModel()
         model.workspaceFilter = "w2"
 
-        let sections = model.visibleSections(Self.sections, host: .demo, snapshot: Self.snapshot)
+        let sections = model.visibleSpaces(Self.sections, host: .demo, snapshot: Self.snapshot)
 
-        #expect(sections == [AgentSection(group: .needsYou, rows: [Self.row("w2:p1")])])
+        #expect(sections.map(\.workspaceID) == ["w2"])
     }
 
     @Test("側欄選「所有 workspace」時列表不變")
     func noWorkspaceFilterKeepsList() {
         let model = TopNavigationModel()
 
-        #expect(model.visibleSections(Self.sections, host: .demo, snapshot: Self.snapshot) == Self.sections)
+        #expect(model.visibleSpaces(Self.sections, host: .demo, snapshot: Self.snapshot) == Self.sections)
     }
 
     @Test("篩選的 workspace 已不在主機上(被關掉了):回到所有 workspace")
@@ -149,25 +167,25 @@ struct WindowNavigationTests {
         let model = TopNavigationModel()
         model.workspaceFilter = "w9"
 
-        #expect(model.visibleSections(Self.sections, host: .demo, snapshot: Self.snapshot) == Self.sections)
+        #expect(model.visibleSpaces(Self.sections, host: .demo, snapshot: Self.snapshot) == Self.sections)
     }
 
-    @Test("快捷鍵切換 Agent 依篩選後的列表順序")
-    func visibleAgentsFollowFilteredOrder() {
+    @Test("快捷鍵切換 Agent 依 Spaces 的畫面順序:只含單一 Pane 的 Agent Tab(不含終端機與多 pane 的 Tab)，並套用 workspace 篩選")
+    func visibleAgentsFollowSpacesOrder() {
         let model = TopNavigationModel()
-        model.workspaceFilter = "w1"
+        #expect(model.visibleAgents(Self.sections, host: .demo, snapshot: Self.snapshot) == [route("w2:p1"), route("w1:p2"), route("w1:p1")])
 
+        model.workspaceFilter = "w1"
         #expect(model.visibleAgents(Self.sections, host: .demo, snapshot: Self.snapshot) == [route("w1:p2"), route("w1:p1")])
     }
 
-    @Test("側欄的 workspace 屬於選取中主機：篩選時其他主機同 pane id 的列不顯示")
-    func workspaceFilterOnlyKeepsSelectedHostsRows() {
+    @Test("側欄的 workspace 屬於選取中主機：篩選時其他主機同 workspace id 的段落不顯示")
+    func workspaceFilterOnlyKeepsSelectedHostsSections() {
         let model = TopNavigationModel()
         model.workspaceFilter = "w2"
-        let sections = [AgentSection(group: .needsYou, rows: [Self.row("w2:p1"), Self.row("w2:p1", host: Self.other)])]
+        let sections = [Self.space("w2", tabs: [Self.tab("w2:p1")]), Self.space("w2", host: Self.other, tabs: [Self.tab("w2:p1", host: Self.other)])]
 
-        #expect(model.visibleSections(sections, host: .demo, snapshot: Self.snapshot)
-            == [AgentSection(group: .needsYou, rows: [Self.row("w2:p1")])])
+        #expect(model.visibleSpaces(sections, host: .demo, snapshot: Self.snapshot).map(\.host) == [.demo])
     }
 
     @Test("換主機：清掉這個視窗的 workspace 篩選與版面圖卡片;選取的聊天與終端機帶著自己的主機，留著")

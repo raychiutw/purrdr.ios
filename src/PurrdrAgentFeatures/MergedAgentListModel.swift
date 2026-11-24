@@ -60,8 +60,6 @@ public final class MergedAgentListModel {
         case failed(String)
         /// 所有主機都讀到了，沒有 Agent。
         case empty
-        /// Agents 檢視沒有 Agent,但有終端機(Spaces 檢視看得到):說明並提供切到 Spaces。
-        case noAgentsInAgentsView
         case list
     }
 
@@ -98,21 +96,6 @@ public final class MergedAgentListModel {
     /// (行為規格 F2.6、F2.8)。以次數記：同一個聊天開在兩個視窗，關掉一個仍算開著。
     private var visibleCounts: [ChatRoute: Int] = [:]
     public var visibleChats: Set<ChatRoute> { Set(visibleCounts.keys) }
-    /// 列表檢視(Spaces／Agents);改了就存起來，重新啟動後沿用。兩種檢視共用搜尋、分組、已讀與釘選。
-    /// 版面事件只在 Spaces 檢視訂閱(#40),所以換檢視時每台主機的即時更新跟著換訂閱。
-    public var mode: AgentListMode {
-        didSet {
-            guard mode != oldValue else { return }
-            modeStore.save(mode)
-            applyLayoutSubscription()
-        }
-    }
-
-    /// 左上角的一鍵切換(#391):Agents 與 Spaces 互換(`mode` 的 didSet 負責存起來)。
-    public func toggleMode() {
-        mode = mode == .agents ? .spaces : .agents
-    }
-
     /// 目前主機(#334):全 app 共用的主機範圍，`nil` 是所有主機;列表的主機篩選只是改它的控制。
     /// 選某台主機時同時設成選取中主機，選回所有主機時選取中主機不變。
     public var currentHost: HostSelection? {
@@ -136,15 +119,13 @@ public final class MergedAgentListModel {
         sources.map { HostOption(id: $0.host, name: $0.name, icon: $0.icon) }
     }
 
-    /// Agents 檢視的單一清單：依分組順序(已釘選、需要你、工作中、閒置)接成一份。
+    /// 每個 Agent 一列、依分組順序(已釘選、需要你、工作中、閒置)接成一份:離開期間輪數與未讀折算的資料來源，不是畫面上的檢視。
     public var agentRows: [AgentRow] { sections.flatMap(\.rows) }
 
     /// 某台主機的名稱與圖示(列首的主機圖示、預覽前的主機名;選取中主機也有)。
     public func hostLabel(of host: HostSelection) -> HostLabel? {
         sources.first { $0.host == host }.map { HostLabel(name: $0.name, icon: $0.icon) }
     }
-
-    private let modeStore: any AgentListModeStore
 
     /// 離開期間的輪數讀取(路徑與開啟時間 → 輪數);`nil` 時由各主機的列表讀對話紀錄(#308)。
     @ObservationIgnored public var awayTurnCounter: (@MainActor (ChatRoute, Date) async -> Int?)?
@@ -173,10 +154,25 @@ public final class MergedAgentListModel {
         }
     }
 
-    public init(modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
-        self.modeStore = modeStore
-        // 未知或缺值(新安裝)一律是 Agents。
-        mode = modeStore.load() ?? .agents
+    private let skeletonRowCounts: any SkeletonRowCountStore
+
+    /// 第一次載入時骨架的列數:取上次列表的列數(#496)。
+    public var loadingRowCount: Int { SkeletonLoading.rowCount(lastCount: skeletonRowCounts.load(.agentList)) }
+
+    /// 列表有列時記住列數,下次冷啟動的骨架照這個數量。
+    public func rememberRowCount() { rememberRowCount(of: spacesSections) }
+
+    /// 列的總數(骨架列數與「列數變了」的判斷共用)。
+    public static func rowCount(of sections: [SpacesSection]) -> Int { sections.reduce(0) { $0 + $1.tabs.count } }
+
+    /// 用畫面已算好的段落記列數,不必再投影一次。
+    public func rememberRowCount(of sections: [SpacesSection]) {
+        let count = Self.rowCount(of: sections)
+        if count > 0, skeletonRowCounts.load(.agentList) != count { skeletonRowCounts.save(count, for: .agentList) }
+    }
+
+    public init(skeletonRowCounts: any SkeletonRowCountStore = InMemorySkeletonRowCountStore()) {
+        self.skeletonRowCounts = skeletonRowCounts
     }
 
     /// 對話出現在畫面上：記下開啟時間(這之前的回覆都算讀過)。
@@ -226,11 +222,8 @@ public final class MergedAgentListModel {
         self.selected = selected
         self.sources = sources.filter { $0.host == selected } + sources.filter { $0.host != selected }
         if let currentHost, !sources.contains(where: { $0.host == currentHost }) { self.currentHost = nil }
-        applyLayoutSubscription()
-    }
-
-    private func applyLayoutSubscription() {
-        for source in sources { source.list.subscribesToLayout = mode == .spaces }
+        // 聊天只有 Spaces(#501):每台主機的即時更新都訂閱版面事件(#40)。
+        for source in sources { source.list.subscribesToLayout = true }
     }
 
     /// 合併後依「需要你／工作中／閒置」分組、套用搜尋的列表。
@@ -257,7 +250,7 @@ public final class MergedAgentListModel {
         return projection
     }
 
-    /// Spaces 檢視(#275):每個「主機 · workspace」一段，段內每個 Tab 一列;套用目前主機與搜尋(workspace、Tab 名稱,#391)。
+    /// Spaces(#275、#501 起聊天唯一的呈現):每個「主機 · workspace」一段，段內每個 Tab 一列;套用目前主機與搜尋(主機、workspace、Tab 名稱,#391)。
     public var spacesSections: [SpacesSection] {
         AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats, query: query)
     }
@@ -290,7 +283,7 @@ public final class MergedAgentListModel {
         }
     }
 
-    /// 任何一台主機有 Agent 以外的 pane(終端機;Spaces 檢視的卡片看得到)。
+    /// 任何一台主機有 Agent 以外的 pane(終端機;Spaces 的 Tab 列看得到)。
     private var hasTerminals: Bool {
         sources.contains { $0.list.snapshot?.terminalPanes.isEmpty == false }
     }
@@ -303,7 +296,7 @@ public final class MergedAgentListModel {
         if sources.contains(where: { $0.list.phase == .loading }) { return .loading }
         // 有主機讀不到時留在列表，錯誤顯示在那台主機的一行(#221),不換成「沒有 Agent」說明。
         if !failures.isEmpty { return .list }
-        if hasTerminals { return mode == .spaces ? .list : .noAgentsInAgentsView }
+        if hasTerminals { return .list }
         return .empty
     }
 

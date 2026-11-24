@@ -143,7 +143,7 @@ public struct NewChatView: View {
                 if let hostPicker {
                     // 主機挑選鈕佔標題位置(原型);頁面只顯示標題，不放說明。
                     ToolbarItem(placement: .principal) {
-                        HostPickerButton(model: hostPicker, identifier: "newChat.host")
+                        SheetHostPicker(model: hostPicker, identifier: "newChat.host")
                             .disabled(model.isStarting)
                     }
                 }
@@ -166,10 +166,18 @@ public struct NewChatView: View {
         case .idle:
             EmptyView()
         case .loading:
+            // 讀這個資料夾過去的 session:同形狀的列骨架(#496)。
             Section {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .accessibilityIdentifier("newChat.sessions.loading")
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(0..<2, id: \.self) { _ in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(verbatim: "Previous chat summary placeholder")
+                            Text(verbatim: "Resume · yesterday").font(.footnote)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .skeleton(identifier: "newChat.sessions.loading")
             } header: {
                 Text("Chat").foregroundStyle(.secondaryText)
             }
@@ -284,9 +292,13 @@ struct FolderPickerView: View {
     private var content: some View {
         switch model.state {
         case .loading:
-            ProgressView("Loading folders…")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityIdentifier("folderPicker.loading")
+            // 讀資料夾清單:同檔案頁的資料夾列骨架(#496)。
+            List {
+                Section {
+                    FolderSkeletonRows(count: SkeletonLoading.defaultRowCount, identifier: "folderPicker.loading", label: "Loading folders…")
+                }
+            }
+            .appSheetList()
         case .failed(let message):
             ContentUnavailableView {
                 Label("Can’t Open Folder", systemImage: "exclamationmark.triangle")

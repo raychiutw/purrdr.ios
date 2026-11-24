@@ -5,21 +5,19 @@ import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
-/// Spaces／Agents 兩種檢視(#40);Spaces 檢視每個「主機 · workspace」一段、列出 Tab(#275,原型 purrdr-screens 定案版)。
+/// Spaces(#40、#501 起聊天只有 Spaces);Spaces每個「主機 · workspace」一段、列出 Tab(#275,原型 purrdr-screens 定案版)。
 ///
 /// 錄製的 snapshot:`w1`(garden-journal)三個 Claude 各在一個 tab(`w1:t6` idle、`w1:tA`／`w1:tB` working);
 /// `w2`(scratch)只有一個 shell pane `w2:p1`(`/tmp/scratch`)。
 @MainActor
 @Suite("Spaces 檢視")
 struct SpacesViewTests {
-    static func model(
-        modeStore: any AgentListModeStore = InMemoryAgentListModeStore(), modify: ((inout [String: Any]) -> Void)? = nil
-    ) async -> HostsModel {
+    static func model(modify: ((inout [String: Any]) -> Void)? = nil) async -> HostsModel {
         let host = FakeHost()
         let reply: FakeReply = modify.map { .recorded("session.snapshot.ndjson", modify: $0) } ?? .recorded("session.snapshot.ndjson")
         await host.expect(HerdrCommand.bridge(), reply: reply)
         let model = HostsModel(
-            store: MemoryHostStore(), demoChannel: host, listMode: modeStore, makeChannel: { _, _, _ in FakeHost() })
+            store: MemoryHostStore(), demoChannel: host, makeChannel: { _, _, _ in FakeHost() })
         model.load()
         await model.agentList.load()
         return model
@@ -34,19 +32,13 @@ struct SpacesViewTests {
         response["result"] = result
     }
 
-    @Test("版面事件只在 Spaces 檢視訂閱：列表檢視決定每台主機的即時更新要不要訂閱(#40)")
-    func layoutEventsFollowListMode() async {
-        let model = await Self.model(modeStore: InMemoryAgentListModeStore(.agents))
-        #expect(model.agentList.list(for: .demo)?.subscribesToLayout == false)
-
-        model.agentList.mode = .spaces
+    @Test("版面事件一律訂閱：聊天只有 Spaces，每台主機的即時更新都訂版面事件(#40、#501)")
+    func layoutEventsAlwaysSubscribed() async {
+        let model = await Self.model()
         #expect(model.agentList.list(for: .demo)?.subscribesToLayout == true)
-
-        model.agentList.mode = .agents
-        #expect(model.agentList.list(for: .demo)?.subscribesToLayout == false)
     }
 
-    @Test("只有終端機、沒有 Agent:Spaces 檢視照常列出;Agents 檢視說明沒有 Agent 並可切到 Spaces(#40)")
+    @Test("只有終端機、沒有 Agent:Spaces 照常列出(#40)")
     func onlyTerminalsShowInSpaces() async throws {
         let model = await Self.model { response in
             // 改動：拿掉所有 agent(與它們的 pane),只剩 w2 的 shell。
@@ -59,11 +51,8 @@ struct SpacesViewTests {
             response["result"] = result
         }
 
-        model.agentList.mode = .spaces
-        #expect(model.agentList.content == .list, "只有終端機時 Spaces 檢視說成沒有 Agent")
+        #expect(model.agentList.content == .list, "只有終端機時 Spaces 說成沒有 Agent")
         #expect(model.agentList.spacesSections.map(\.workspaceID) == ["w2"])
-        model.agentList.mode = .agents
-        #expect(model.agentList.content == .noAgentsInAgentsView)
     }
 
     @Test("每個 workspace 一段：段落是主機與 workspace 名稱，依主機上的順序;段內每個 Tab 一列")
@@ -91,6 +80,20 @@ struct SpacesViewTests {
         // 實機回報(2026-11-20):SSH 主機的 Tab 都是 herdr 的預設名稱「1」「2」…,只顯示「Tab N」分不出來。
         #expect(tabs.map(\.title) == ["整理植物照片的標籤", "CSV 匯出", "重構食譜匯入"])
         #expect(sections.last?.tabs.map(\.title) == ["Shell"], "只有 shell 的 Tab 用程式名")
+    }
+
+    @Test("聊天列內容(#502、#505):取了名稱的 Tab 第一行是名稱、第二行是 Agent 標題;沒取名的第一行是「Tab N」")
+    func chatRowContentFromSnapshot() async throws {
+        let model = await Self.model { response in
+            SnapshotEdit.tab("w1:tA", in: &response) { $0["label"] = "CSV 匯出" }
+        }
+
+        let tabs = try #require(model.agentList.spacesSections.first).tabs
+        let named = ChatRowContent(tab: tabs[1])
+        #expect(named.lines.first == .title("CSV 匯出"))
+        #expect(named.lines.contains { if case .detail(_, let title) = $0 { title != nil } else { false } })
+        #expect(tabs[1].agent != nil, "代表 Agent 要帶進來,時間與預覽才有資料")
+        if case .title(let first) = ChatRowContent(tab: tabs[0]).lines.first { #expect(first.hasPrefix("Tab ")) }
     }
 
     @Test("Tab 裡有多個 Agent:第一個的聊天標題加「+N」;什麼都沒有才是「Tab N」")
@@ -145,6 +148,42 @@ struct SpacesViewTests {
         #expect(sections.last?.tabs.first?.target == .pane(ChatRoute(host: .demo, paneID: "w2:p1")))
     }
 
+    @Test("Tab 列的長按選單資料:釘選與靜音作用在 Tab 底下所有 Agent 的 session;在新視窗開啟開第一個 Agent 的聊天")
+    func tabMenuTargets() async throws {
+        let model = await Self.model { response in
+            // 改動：w1:t6 再加一個 shell pane(多 pane 的 Tab)。
+            Self.addShellPane(["pane_id": "w1:p7", "workspace_id": "w1", "tab_id": "w1:t6", "cwd": "/tmp"], to: &response)
+        }
+        let garden = try #require(model.agentList.spacesSections.first)
+        let multi = garden.tabs[0]
+        let single = garden.tabs[1]
+        let snapshot = try #require(model.agentList.snapshot(for: .demo))
+        let multiSessions = snapshot.agents.filter { $0.tabID == "w1:t6" }.compactMap(\.sessionID)
+        #expect(!multiSessions.isEmpty)
+        #expect(multi.chatSessionIDs == multiSessions)
+        #expect(single.chatSessionIDs.count == 1)
+        // 多 pane:沒有版面圖視窗,開第一個 Agent pane 的聊天。
+        let opening = try #require(multi.newWindowOpening)
+        #expect(!opening.isTerminal)
+        #expect(opening.paneID == multi.agent?.paneID)
+        // 只有 shell 的 Tab:開 Pane 終端機;沒有 session 可釘選。
+        let shell = try #require(model.agentList.spacesSections.last?.tabs.first)
+        #expect(shell.chatSessionIDs.isEmpty)
+        #expect(shell.newWindowOpening == SpacesTab.WindowOpening(isTerminal: true, paneID: "w2:p1", title: shell.title))
+    }
+
+    @Test("預讀快取取畫面上 Spaces 的前幾列(依列表順序、只算有 Agent 的 Tab、取各 Tab 的代表聊天),不是舊 Agents 排序")
+    func prefetchRoutesFollowVisibleSpacesRows() async throws {
+        let model = await Self.model()
+        let sections = model.agentList.spacesSections
+        let expected = sections.flatMap(\.tabs).compactMap { tab in tab.agent.map { ChatRoute(host: tab.host, paneID: $0.paneID) } }
+        #expect(!expected.isEmpty)
+        #expect(AgentListProjection.prefetchRoutes(from: sections, limit: 8) == expected)
+        #expect(AgentListProjection.prefetchRoutes(from: sections, limit: 1) == Array(expected.prefix(1)))
+        // 只有終端機的 Tab 不預讀(沒有聊天快取)。
+        #expect(!AgentListProjection.prefetchRoutes(from: sections, limit: 8).contains(ChatRoute(host: .demo, paneID: "w2:p1")))
+    }
+
     @Test("herdr 沒有回報 Tab 的 Agent 自成一列(標題是 Agent 標題),不會從列表消失")
     func panesWithoutTabs() async throws {
         let model = await Self.model { response in
@@ -164,29 +203,6 @@ struct SpacesViewTests {
         let garden = try #require(model.agentList.spacesSections.first)
         let loose = try #require(garden.tabs.first { $0.target == .pane(ChatRoute(host: .demo, paneID: "w1:pA")) })
         #expect(loose.title == "規劃天氣小工具")
-    }
-
-    @Test("Agents 檢視：每個 agent 一列，沒有群組也沒有終端機列;只有 shell 的 workspace 不出現")
-    func agentsViewHasNoTerminalRows() async throws {
-        let model = await Self.model()
-        model.agentList.mode = .agents
-
-        let rows = model.agentList.sections.flatMap(\.rows)
-        #expect(rows.map(\.id).sorted() == ["demo/w1:p6", "demo/w1:pA", "demo/w1:pB"])
-        #expect(!rows.contains { $0.paneID == "w2:p1" })
-    }
-
-    @Test("檢視選擇會記住;沒存過時是 Agents")
-    func modeIsRemembered() async throws {
-        let store = InMemoryAgentListModeStore()
-        let first = await Self.model(modeStore: store)
-        #expect(first.agentList.mode == .agents)
-
-        first.agentList.mode = .spaces
-
-        #expect(store.load() == .spaces)
-        let second = await Self.model(modeStore: store)
-        #expect(second.agentList.mode == .spaces)
     }
 
     @Test("同一個 ChatRoute 導覽：agent 以外的 pane 開 Pane 終端機(標題是程式名),Agent 的 pane 開對話")

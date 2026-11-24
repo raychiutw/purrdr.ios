@@ -5,7 +5,7 @@ import PurrdrCore
 
 /// 一個視窗的導覽狀態(#37 故事 21、#31):Agent 列表之上以 sheet 開啟的畫面、三欄的選取、鍵盤快捷鍵。
 ///
-/// 頂層是 5 個 tab(聊天、檔案、主機、流量、設定,#376);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
+/// 頂層是 4 個 tab(聊天、檔案、主機、流量,#376;設定併進帳號 sheet,#503);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
 @MainActor
 @Observable
@@ -64,13 +64,32 @@ public final class TopNavigationModel {
         visibleSections(sections, host: host, snapshot: snapshot).flatMap { $0.rows.map(\.route) }
     }
 
+    /// 套用側欄 workspace 篩選後的 Spaces 段落(#501);篩選的 workspace 已不在主機上時(被關掉了)顯示全部。
+    ///
+    /// 列表合併了所有主機(#39);workspace 屬於選取中主機(`host`,`snapshot` 是它的),篩選時只留那台主機上那個 workspace 的段落。
+    public func visibleSpaces(_ sections: [SpacesSection], host: HostSelection, snapshot: HostSnapshot?) -> [SpacesSection] {
+        guard let workspaceFilter, let snapshot, snapshot.workspaces.contains(where: { $0.id == workspaceFilter }) else {
+            return sections
+        }
+        return sections.filter { $0.host == host && $0.workspaceID == workspaceFilter }
+    }
+
+    /// 列表看得到的 Agent,依 Spaces 的畫面順序(段落、Tab)。鍵盤切換 Agent 用:只含單一 Pane 的 Agent Tab
+    /// (終端機與多個 Pane 的 Tab 要先開版面圖選 Pane,沒有單一對話可選)。
+    public func visibleAgents(_ sections: [SpacesSection], host: HostSelection, snapshot: HostSnapshot?) -> [ChatRoute] {
+        visibleSpaces(sections, host: host, snapshot: snapshot).flatMap(\.tabs).compactMap { tab in
+            guard case .agent = tab.avatar, case .pane(let route) = tab.target else { return nil }
+            return route
+        }
+    }
+
     /// 視窗出現了：第一次開啟 app 時開出歡迎頁(#34)。已經有 sheet(例如冷啟動的深層連結)時不蓋掉它。
     public func launched(welcome: WelcomeModel) {
         guard sheet == nil, welcome.takeFirstLaunch() else { return }
         sheet = .welcome
     }
 
-    /// 從設定頁再看一次歡迎頁(換掉設定 sheet,同一時間只開一個)。
+    /// 從帳號與設定再看一次歡迎頁(換掉帳號 sheet,同一時間只開一個)。
     public func showWelcome() {
         sheet = .welcome
     }
@@ -117,8 +136,8 @@ public final class TopNavigationModel {
         case .openTerminal: if let selectedChat { openedTerminal = selectedChat }
         case .newChat: sheet = .newChat
         case .settings:
-            sheet = nil
-            tab = .settings
+            // 設定併進帳號 sheet(#503)。
+            sheet = .member
         }
     }
 
@@ -138,8 +157,8 @@ public final class TopNavigationModel {
         guard url.scheme?.lowercased() == Self.urlScheme else { return false }
         switch url.host()?.lowercased() {
         case "settings":
-            sheet = nil
-            tab = .settings
+            // 設定併進帳號 sheet(#503):開帳號與設定,不換 tab。
+            sheet = .member
         case "plus":
             // 付費牆(#246):未加入會員也能從連結看方案。
             sheet = .plus
@@ -168,40 +187,17 @@ public final class TopNavigationModel {
     public static let urlScheme = "purrdr"
 }
 
-/// 頂層 tab(#376):聊天、檔案、主機、流量、設定。
+/// 頂層 tab(#376、#503):聊天、檔案、主機、流量。
 public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable {
-    case chats, files, hosts, traffic, settings
+    case chats, files, hosts, traffic
 
     public var id: String { rawValue }
-
-    /// 右上角(帳號鈕左邊)的動作:聊天新增聊天、檔案上傳、主機新增主機;流量與設定不放。
-    public enum TrailingAction: Sendable { case newChat, upload, addHost }
-
-    public var trailingAction: TrailingAction? {
-        switch self {
-        case .chats: .newChat
-        case .files: .upload
-        case .hosts: .addHost
-        case .traffic, .settings: nil
-        }
-    }
-
-    /// 頂列中間的主機選單改哪個值:聊天 tab 改「目前主機」(含所有主機),檔案與主機 tab 只改「選取中主機」;流量與設定沒有。
-    public enum HostMenuScope: Sendable { case currentHost, selectedHost }
-
-    public var hostMenu: HostMenuScope? {
-        switch self {
-        case .chats: .currentHost
-        case .files, .hosts: .selectedHost
-        case .traffic, .settings: nil
-        }
-    }
 }
 
 /// 以 sheet 開啟的畫面(不是 tab)。
 public enum TopLevelSheet: String, Identifiable, Sendable {
     case newChat
-    /// 帳號頁(#246;右上角帳號鈕):會員、Purrdr Plus 開通步驟、登入方式、刪除會員。
+    /// 帳號與設定頁(#246、#503;右上角帳號鈕):會員、Purrdr Plus 開通步驟、設定(外觀、App 鎖…)、登入方式、刪除會員。
     case member
     /// Purrdr Plus 的付費牆與訂閱摘要(#28)。
     case plus

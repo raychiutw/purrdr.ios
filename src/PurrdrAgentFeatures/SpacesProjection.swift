@@ -1,49 +1,6 @@
 import Foundation
 import PurrdrCore
 
-/// Agent 列表的兩種檢視(行為規格 F2.1、#37 故事 7–14)。
-public enum AgentListMode: String, CaseIterable, Sendable {
-    /// 每台主機的每個 workspace 一段，段內每個 Tab 一列(#275)。
-    case spaces
-    /// 每個 Agent 平鋪一列，不顯示終端機列。
-    case agents
-}
-
-/// 列表檢視的存放處(只在這支裝置，不分主機)。
-@MainActor
-public protocol AgentListModeStore: AnyObject {
-    func load() -> AgentListMode?
-    func save(_ mode: AgentListMode)
-}
-
-/// 只在記憶體：測試與 UI 測試用。
-@MainActor
-public final class InMemoryAgentListModeStore: AgentListModeStore {
-    private var mode: AgentListMode?
-
-    public init(_ mode: AgentListMode? = nil) {
-        self.mode = mode
-    }
-
-    public func load() -> AgentListMode? { mode }
-    public func save(_ mode: AgentListMode) { self.mode = mode }
-}
-
-/// 存在 `UserDefaults`。未知或缺值回 `nil`(呼叫端用 Agents)。
-@MainActor
-public final class UserDefaultsAgentListModeStore: AgentListModeStore {
-    private let defaults: UserDefaults
-    private let key: String
-
-    public init(defaults: UserDefaults = .standard, key: String = "agentListMode") {
-        self.defaults = defaults
-        self.key = key
-    }
-
-    public func load() -> AgentListMode? { defaults.string(forKey: key).flatMap(AgentListMode.init(rawValue:)) }
-    public func save(_ mode: AgentListMode) { defaults.set(mode.rawValue, forKey: key) }
-}
-
 /// Spaces 檢視的一段(#275,原型 purrdr-screens 定案版):一台主機上的一個 workspace,段內每個 Tab 一列。
 public struct SpacesSection: Identifiable, Equatable, Sendable {
     public var host: HostSelection
@@ -94,11 +51,48 @@ public struct SpacesTab: Identifiable, Equatable, Sendable {
     public var avatar: Avatar
     /// Tab 名稱(#475):人取的名稱,沒有時「Tab N」;沒有 Tab 的 pane 是 `nil`。標題沒有名稱時用 Agent 標題,所以另外帶。
     public var tabName: String?
+    /// 搜尋比對用的字(#501):Tab 裡每個 Agent 的聊天標題。Tab 取了名稱時標題是那個名稱,Agent 標題仍要找得到這個 Tab。
+    public var searchTerms: [String]
+    /// 聊天列第一行的標題(#502):Tab 裡第一個 Agent 的聊天標題(多個時加「+N」),只有終端機時是程式名。
+    /// 與 `title` 不同:Tab 取了名稱時 `title` 是那個名稱,這裡仍是內容標題(名稱顯示在第二行)。
+    public var contentTitle: String
+    /// 列上時間、預覽、用量與離開期間用的代表 Agent(Tab 裡第一個 Agent,與頭像同一個);沒有 Agent 時 `nil`。
+    public var agent: AgentRow?
+    /// Tab 底下所有 Agent 的 session(長按選單的釘選與靜音作用在全部);沒有 Agent 或 Agent 沒有 session 時是空的。
+    public var chatSessionIDs: [String]
 
     public var id: String { "\(host.storedValue)/\(key)" }
 
-    public init(host: HostSelection, key: String, title: String, target: Target, avatar: Avatar = .terminal, tabName: String? = nil) {
+    /// 「在新視窗開啟」要開的內容。
+    public struct WindowOpening: Equatable, Sendable {
+        public var isTerminal: Bool
+        public var paneID: String
+        public var title: String
+
+        public init(isTerminal: Bool, paneID: String, title: String) {
+            self.isTerminal = isTerminal
+            self.paneID = paneID
+            self.title = title
+        }
+    }
+
+    /// 在新視窗開啟:有 Agent 就開第一個 Agent 的聊天(多 pane 的 Tab 沒有版面圖視窗,`WindowGroup(for: PaneWindow.self)` 只能開單一 pane);
+    /// 只有終端機的單一 pane 開它的 Pane 終端機;多個終端機沒有主要 pane,不提供。
+    public var newWindowOpening: WindowOpening? {
+        if let agent { return WindowOpening(isTerminal: false, paneID: agent.paneID, title: agent.title) }
+        if case .pane(let route) = target { return WindowOpening(isTerminal: true, paneID: route.paneID, title: title) }
+        return nil
+    }
+
+    public init(
+        host: HostSelection, key: String, title: String, target: Target, avatar: Avatar = .terminal, tabName: String? = nil,
+        searchTerms: [String] = [], contentTitle: String? = nil, agent: AgentRow? = nil, chatSessionIDs: [String] = []
+    ) {
+        self.chatSessionIDs = chatSessionIDs
+        self.contentTitle = contentTitle ?? title
+        self.agent = agent
         self.tabName = tabName
+        self.searchTerms = searchTerms
         self.host = host
         self.key = key
         self.title = title
@@ -128,19 +122,24 @@ public struct TerminalRow: Identifiable, Equatable, Sendable {
 }
 
 extension AgentListProjection {
+    /// 列表出現時預讀聊天快取的對象(#356):畫面上 Spaces 由上而下前 `limit` 個有 Agent 的 Tab,取各 Tab 的代表聊天。
+    public static func prefetchRoutes(from sections: [SpacesSection], limit: Int) -> [ChatRoute] {
+        Array(sections.lazy.flatMap(\.tabs).compactMap { tab in tab.agent.map { ChatRoute(host: tab.host, paneID: $0.paneID) } }.prefix(limit))
+    }
+
     /// Spaces 檢視(#275):每台主機(順序同合併列表)的每個 workspace(依主機上的順序)一段，段內每個 Tab 一列(依 Tab 順序)。
     /// 沒有任何 pane 的 workspace 不出現。Spaces 檢視沒有釘選。
     /// - Parameter visible: 目前開著的聊天(頭像狀態的未讀折算與 Agents 列相同)。
-    /// - Parameter query: 搜尋(#391):比對 workspace 與 Tab 名稱。workspace 名稱符合時整段保留;
-    ///   否則只留名稱符合的 Tab,一個都沒有的段落不出現。空白時不篩選。
+    /// - Parameter query: 搜尋(#391、#501):比對主機名稱、workspace、Tab 名稱與 Tab 裡的 Agent 標題。
+    ///   主機或 workspace 名稱符合時整段保留;否則只留符合的 Tab,一個都沒有的段落不出現。空白時不篩選。
     package static func spacesSections(sources: [Source], visible: Set<ChatRoute> = [], query: String = "") -> [SpacesSection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let sections = allSpacesSections(sources: sources, visible: visible)
         guard !needle.isEmpty else { return sections }
         return sections.compactMap { section in
-            if contains(needle, in: [section.workspace]) { return section }
+            if contains(needle, in: [section.workspace, section.hostName]) { return section }
             var section = section
-            section.tabs = section.tabs.filter { contains(needle, in: [$0.title]) }
+            section.tabs = section.tabs.filter { contains(needle, in: [$0.title, $0.tabName] + $0.searchTerms.map { Optional($0) }) }
             return section.tabs.isEmpty ? nil : section
         }
     }
@@ -189,7 +188,10 @@ extension AgentListProjection {
             } ?? TerminalRow(pane: first, host: host, hostLabel: nil).program
             return SpacesTab(
                 host: host, key: tab.id, title: tabTitle(tab.label, contents: contents, position: index + 1), target: target,
-                avatar: avatar(for: tabAgents, source: source, visible: visible), tabName: tabName(label: tab.label, position: index + 1))
+                avatar: avatar(for: tabAgents, source: source, visible: visible), tabName: tabName(label: tab.label, position: index + 1),
+                searchTerms: tabAgents.map { AgentRowText.title(for: $0, siblings: agents) }, contentTitle: contents,
+                agent: tabAgents.first.map { representative($0, siblings: agents, source: source, visible: visible) },
+                chatSessionIDs: tabAgents.compactMap(\.sessionID))
         }
         let known = Set(tabs.map(\.id))
         for pane in panes where tabID(of: pane).map({ !known.contains($0) }) ?? true {
@@ -197,9 +199,19 @@ extension AgentListProjection {
                 ?? TerminalRow(pane: pane, host: host, hostLabel: nil).program
             rows.append(SpacesTab(
                 host: host, key: pane.id, title: title, target: .pane(ChatRoute(host: host, paneID: pane.id)),
-                avatar: avatar(for: agents.filter { $0.paneID == pane.id }, source: source, visible: visible)))
+                avatar: avatar(for: agents.filter { $0.paneID == pane.id }, source: source, visible: visible),
+                searchTerms: agents.filter { $0.paneID == pane.id }.map { AgentRowText.title(for: $0, siblings: agents) },
+                agent: agents.first { $0.paneID == pane.id }.map { representative($0, siblings: agents, source: source, visible: visible) },
+                chatSessionIDs: agents.filter { $0.paneID == pane.id }.compactMap(\.sessionID)))
         }
         return rows
+    }
+
+    /// 聊天列的代表 Agent(#502):與 Agents 列同樣的折算(狀態、未讀、離開期間、預覽、用量)。
+    private static func representative(_ agent: Agent, siblings: [Agent], source: Source, visible: Set<ChatRoute>) -> AgentRow {
+        AgentRow(
+            agent: agent, siblings: siblings, preview: source.previews[agent.paneID], host: source.host, label: nil,
+            chat: ChatUnread.State(agent: agent, source: source, visible: visible))
     }
 
     /// Tab 列的頭像(#316):第一個 Agent 的種類;狀態是 Tab 內最需要處理的(需要你 > 工作中 > 未讀 > 閒置),

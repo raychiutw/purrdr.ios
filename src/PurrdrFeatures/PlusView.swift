@@ -199,7 +199,7 @@ public struct PlusView: View {
     private var storefront: some View {
         switch model.storefront {
         case .loading:
-            Section { ProgressView().frame(maxWidth: .infinity) }
+            Section { PlanOptionsSkeleton(identifier: "plus.storefront.loading") }
         case .paymentsDisabled:
             Section {
                 Label {

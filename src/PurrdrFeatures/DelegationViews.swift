@@ -61,7 +61,11 @@ extension DelegationStatus {
 struct SubagentCardView: View {
     let card: SubagentCard
     @Environment(\.delegationContext) private var context
-    @State private var expanded = false
+    private let expansion = ExpansionState(partID: "subagent")
+    private var expanded: Bool {
+        get { expansion.binding.wrappedValue }
+        nonmutating set { expansion.binding.wrappedValue = newValue }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -99,7 +103,7 @@ struct SubagentCardView: View {
                 .accessibilityHint(card.result == nil ? Text("") : Text(expanded ? "Hides the result" : "Shows the result"))
                 .accessibilityIdentifier("conversation.subagent")
 
-                NavigationLink(value: DelegationRoute.subagent(card)) {
+                DelegationRouteLink(route: .subagent(card)) {
                     Image(systemName: "chevron.forward")
                         .font(.body.weight(.semibold))
                         .frame(width: 44, height: 44)
@@ -131,7 +135,11 @@ struct WorkflowCardView: View {
     let card: WorkflowCard
     @Environment(\.delegationContext) private var context
     @Environment(\.scenePhase) private var scenePhase
-    @State private var expanded = false
+    private let expansion = ExpansionState(partID: "workflow")
+    private var expanded: Bool {
+        get { expansion.binding.wrappedValue }
+        nonmutating set { expansion.binding.wrappedValue = newValue }
+    }
 
     var body: some View {
         let model = context.workflowModel(card)
@@ -180,7 +188,7 @@ struct WorkflowCardView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("conversation.workflow")
 
-                NavigationLink(value: DelegationRoute.workflow(card)) {
+                DelegationRouteLink(route: .workflow(card)) {
                     Image(systemName: "chevron.forward")
                         .font(.body.weight(.semibold))
                         .frame(width: 44, height: 44)
@@ -250,7 +258,7 @@ struct DelegationDestination: View {
             SubagentScreenHolder(model: conversation.subagentModel(for: card))
         case .workflow(let card):
             if let model = conversation.workflowModel(for: card) {
-                WorkflowScreen(model: model)
+                WorkflowScreen(model: model, conversation: conversation)
             } else {
                 unavailable
             }
@@ -358,6 +366,8 @@ struct SubagentScreen: View {
 /// 每個 agent 列可開其對話紀錄。
 struct WorkflowScreen: View {
     let model: WorkflowModel
+    /// agent 列推入的對話紀錄畫面由這裡直接給目的地(這個畫面是以 item 推入的，值導覽的目的地在 iOS 26 會停在按下的狀態不推入)。
+    let conversation: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -395,7 +405,9 @@ struct WorkflowScreen: View {
                     }
                     ForEach(phase.agents) { agent in
                         if agent.agentID != nil {
-                            NavigationLink(value: DelegationRoute.workflowAgent(model.card, agent)) {
+                            NavigationLink {
+                                DelegationDestination(route: .workflowAgent(model.card, agent), conversation: conversation)
+                            } label: {
                                 WorkflowAgentRow(agent: agent)
                             }
                             .accessibilityIdentifier("workflow.agent.\(agent.id)")
@@ -475,8 +487,18 @@ struct WorkflowAgentRow: View {
 
 /// 背景 agents 的一列(狀態、種類、任務、經過時間 · tokens)。清單在狀態 sheet(#349),工作中膠囊只帶數量。
 struct AgentsBarRow: View {
+    private func detail(at date: Date) -> some View {
+        let since = readAt.map { max(0, date.timeIntervalSince($0)) } ?? 0
+        return Text([DelegationText.elapsed(of: row, secondsSinceRead: since), row.tokens.map(DelegationText.tokens)].compactMap { $0 }.joined(separator: " · "))
+            .font(.caption)
+            .foregroundStyle(.secondaryText)
+            .monospacedDigit()
+    }
+
     let row: AgentsPane.Row
-    let since: TimeInterval
+    /// 讀到這一列的時間;經過時間從它起算，每秒更新(只在前景，只重畫這一行,#498)。
+    let readAt: Date?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -485,10 +507,11 @@ struct AgentsBarRow: View {
                 Text("\(DelegationText.kind(row.kind)) · \(row.task)")
                     .font(.footnote)
                     .multilineTextAlignment(.leading)
-                Text([DelegationText.elapsed(of: row, secondsSinceRead: since), row.tokens.map(DelegationText.tokens)].compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(.secondaryText)
-                    .monospacedDigit()
+                if scenePhase == .active {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in detail(at: context.date) }
+                } else {
+                    detail(at: .now)
+                }
             }
             Spacer(minLength: 0)
         }

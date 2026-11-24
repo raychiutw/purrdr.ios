@@ -12,7 +12,7 @@ final class YouShouldKnowUITests: XCTestCase {
     func testNoteInChatAndDiscuss() {
         let app = XCUIApplication.launchUITesting()
         XCTAssertFalse(app.buttons["youShouldKnow.summary"].exists, "列表不該有註記卡")
-        let ledger = app.element("agent.row.demo/w1:p1")
+        let ledger = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
         ledger.tap()
 
@@ -39,7 +39,7 @@ final class YouShouldKnowUITests: XCTestCase {
     @MainActor
     func testNoteActionsShareOneRowAndHideSuggestion() {
         let app = XCUIApplication.launchUITesting()
-        let row = app.element("agent.row.demo/w1:p1")
+        let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row, timeout: 15))
         row.tap()
 

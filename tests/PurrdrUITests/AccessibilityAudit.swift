@@ -1,5 +1,27 @@
 import XCTest
 
+extension XCUIApplication {
+    /// AX5 的 Spaces 列表每列有好幾個畫面高:一般的 `reveal` 拖得太快、次數也不夠。這裡慢慢拖(放開前停一下，不滑過頭)，
+    /// 目標列出現就停;回傳列是否出現。
+    @MainActor
+    func slowlyReveal(_ row: XCUIElement, maxDrags: Int = 40) -> Bool {
+        let list = collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch
+        guard list.waitUntilExists(timeout: 10) else { return false }
+        for _ in 0..<maxDrags where !row.exists {
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+                .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)),
+                       withVelocity: .slow, thenHoldForDuration: 0.2)
+        }
+        return row.waitUntilExists(timeout: 3)
+    }
+
+    /// 稽核用的啟動:關掉 Debug 建置才有的除錯層(順暢度量測文字),稽核只看使用者會看到的畫面(Release 沒有那一層)。
+    @MainActor
+    static func launchAuditing(flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
+        launchUITesting(flags: flags + ["-uiTestingHidesDebugOverlay"], contentSize: contentSize)
+    }
+}
+
 /// 無障礙稽核的共用部分(#35):跑 `performAccessibilityAudit`,把每一筆問題印出來，套用排除清單。
 extension XCTestCase {
     /// 對目前畫面跑 accessibility audit。排除清單以外的問題一律記成測試失敗(`performAccessibilityAudit` 自己記)。
@@ -41,12 +63,10 @@ final class AccessibilityAuditContext {
     lazy var navigationBars: [CGRect] = app.navigationBars.allElementsBoundByIndex.map(\.frame)
         .filter { !$0.isEmpty && $0.height < window.height / 2 }
 
-    /// 畫面底部蓋在內容上的玻璃層：搜尋欄(Agent 列表)、輸入列(對話)、終端機按鍵列、新增主機引導的底部玻璃面板(使用者同意，2026-11-21)。
+    /// 畫面底部蓋在內容上的玻璃層：輸入列(對話)、終端機按鍵列、新增主機引導的底部玻璃面板(使用者同意，2026-11-21)。
     lazy var bottomBars: [CGRect] = {
-        // 搜尋欄：元素只有文字欄位本身，外面的玻璃膠囊與 scroll edge effect 再往上約 24pt,一路到視窗底。
-        var frames = app.searchFields.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }.map { field in
-            CGRect(x: window.minX, y: field.minY - 24, width: window.width, height: window.maxY - field.minY + 24)
-        }
+        // 聊天的搜尋欄在頂列(#499),不再是底部玻璃。
+        var frames: [CGRect] = []
         // 新增主機引導的底部玻璃面板(`guide.panel`):表單內容捲到面板下時同樣是被玻璃模糊的那一塊(使用者同意列入，2026-11-21)。
         let guidePanel = app.descendants(matching: .any)["guide.panel"].firstMatch
         if guidePanel.exists, !guidePanel.frame.isEmpty {
@@ -225,6 +245,14 @@ enum AccessibilityAuditExclusions {
             guard context.screen.contains("版面圖") else { return false }
             guard let element = issue.element else { return false }
             return element.elementType == .staticText
+        },
+        Rule(
+            types: .dynamicType,
+            reason: "頂列搜尋欄(聊天 `agentList.search`、檔案 `files.search`)的文字上限 xxxLarge(欄高本來就有 1.45 倍上限，避免放大鏡圖示比膠囊大):"
+                + "DESIGN.md「文字一律用 text style」明列的封頂例外;audit 因此回報「部分不支援」。更大的字級靠 Large Content Viewer"
+        ) { issue, _ in
+            guard let element = issue.element, element.elementType == .textField else { return false }
+            return ["agentList.search", "files.search"].contains(element.identifier)
         },
         Rule(
             types: .textClipped,

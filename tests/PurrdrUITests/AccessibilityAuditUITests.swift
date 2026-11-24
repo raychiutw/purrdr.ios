@@ -17,20 +17,9 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testAgentListSpaces() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
-            app.switchListMode(to: "Spaces")
-            XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")))
+            let app = XCUIApplication.launchAuditing(contentSize: size)
+            XCTAssertTrue(app.slowlyReveal(app.element("spaces.section.demo/w3")))
             try audit(app, "Agent 列表(Spaces)", contentSize: size)
-            app.terminate()
-        }
-    }
-
-    @MainActor
-    func testAgentListAgents() throws {
-        for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
-            XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 15))
-            try audit(app, "Agent 列表(Agents)", contentSize: size)
             app.terminate()
         }
     }
@@ -39,21 +28,22 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testAgentListNoHosts() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"], contentSize: size)
+            let app = XCUIApplication.launchAuditing(flags: ["-uiTestingNoHosts"], contentSize: size)
             XCTAssertTrue(app.element("agentList.addHost").waitUntilExists(timeout: 15))
             try audit(app, "Agent 列表(沒有主機)", contentSize: size)
             app.terminate()
         }
     }
 
-    /// 版面圖(Spaces 檢視點有多個 pane 的 Tab,#275)。
+    /// 版面圖(Spaces 點有多個 pane 的 Tab,#275)。
     @MainActor
     func testLayout() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
-            app.switchListMode(to: "Spaces")
+            let app = XCUIApplication.launchAuditing(contentSize: size)
+            // w3 的 Tab 列在長列表下方(lazy):先露出它的段落標題,再點 Tab 列(同 SpacesUITests)。
+            XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")))
             let tab = app.element("spaces.tab.demo/w3:t1")
-            XCTAssertTrue(app.reveal(tab))
+            XCTAssertTrue(tab.waitUntilExists(timeout: 5))
             tab.tap()
             XCTAssertTrue(app.buttons["layout.block.w3:p2"].waitUntilExists(timeout: 5))
             try audit(app, "版面圖", contentSize: size)
@@ -74,7 +64,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testConversationNeedsYou() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             _ = openChat("w2:p1", in: app)
             XCTAssertTrue(app.element("prompt.card").waitUntilExists(timeout: 15))
             try audit(app, "對話(需要你、subagent)", contentSize: size)
@@ -85,7 +75,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testConversationWithNoteCard() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             _ = openChat("w1:p1", in: app)
             XCTAssertTrue(app.element("youShouldKnow.note").waitUntilExists(timeout: 15))
             try audit(app, "對話(You should know 卡片)", contentSize: size)
@@ -96,7 +86,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testConversationWorking() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             _ = openChat("w3:p1", in: app)
             let stop = app.element("stopBar.stop")
             XCTAssertTrue(stop.waitUntilExists(timeout: 15))
@@ -125,7 +115,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testSlashMenuAndPanels() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             let text = openChat("w1:p1", in: app)
             text.tap()
             text.typeEnglish("/")
@@ -151,7 +141,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testShellCommand() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             let text = openChat("w1:p1", in: app)
             text.tap()
             text.typeEnglish("!git status")
@@ -167,7 +157,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testTerminal() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             _ = openChat("w1:p1", in: app)
             app.conversationMoreItem("terminal.open").tap()
             XCTAssertTrue(app.element("terminal.screen").waitUntilExists(timeout: 10))
@@ -190,18 +180,21 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testHostsEditorAndShare() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(flags: ["-seedHost"], contentSize: size)
+            let app = XCUIApplication.launchAuditing(flags: ["-seedHost"], contentSize: size)
             openMenu("menu.hosts", in: app)
             let share = app.overviewRow("hosts.share")
             XCTAssertTrue(share.exists)
             try audit(app, "主機總頁", contentSize: size)
 
-            share.tap()
+            // 稽核可能捲動過頁面:重新找一次(lazy)再點。
+            app.overviewRow("hosts.share").tap()
             XCTAssertTrue(app.element("hostShare.qr").waitUntilExists(timeout: 5))
             try audit(app, "分享主機", contentSize: size)
             // 返回鈕:AX5 時系統只留箭頭，不以標題找。
             app.navigationBars["Share Host"].buttons.firstMatch.tap()
 
+            // 返回後主機頁還停在捲動的位置,頂列收合時「＋」不渲染:先捲回頂端。
+            app.scrollToTopBar(containing: "hosts.add")
             XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5))
             app.buttons["hosts.add"].tap()
             XCTAssertTrue(app.buttons["guide.option.ssh"].waitUntilExists(timeout: 5))
@@ -216,7 +209,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             let app = XCUIApplication.uiTesting(contentSize: size)
             app.launch()
             app.open(URL(string: "purrdr://settings")!)
-            XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10))
+            app.waitForAccountSheet()
             try audit(app, "設定", contentSize: size)
             app.terminate()
         }
@@ -225,7 +218,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testPaywall() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             app.openPlusPaywall()
             // AX5 時方案卡在畫面外(List 是 lazy,不在無障礙樹),先等頁面出來再捲到方案卡。
             XCTAssertTrue(app.collectionViews.firstMatch.waitUntilExists(timeout: 15), "沒有開出付費牆")
@@ -238,12 +231,17 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testSignIn() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             app.openAccount()
             // 沒登入時帳號頁先選登入或加入(#408)。
-            XCTAssertTrue(app.buttons["account.entry.signIn"].waitUntilExists(timeout: 10))
+            XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "帳號頁沒有選擇頁")
+            // 大字級下選擇頁的列在畫面外(lazy,不在 accessibility tree):先捲到看得到。
+            app.scrollIntoView(app.buttons["account.entry.signIn"].firstMatch)
+            XCTAssertTrue(app.buttons["account.entry.signIn"].firstMatch.waitUntilExists(timeout: 10))
             try audit(app, "登入或加入", contentSize: size)
-            app.buttons["account.entry.signIn"].tap()
+            // 稽核可能捲動過頁面:重新捲到看得到(lazy)再點。
+            app.scrollIntoView(app.buttons["account.entry.signIn"].firstMatch)
+            app.buttons["account.entry.signIn"].firstMatch.tap()
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 10))
             try audit(app, "登入", contentSize: size)
             app.terminate()
@@ -253,7 +251,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testWelcome() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"], contentSize: size)
+            let app = XCUIApplication.launchAuditing(flags: ["-showWelcome"], contentSize: size)
             XCTAssertTrue(app.element("sheet.welcome").waitUntilExists(timeout: 10))
             try audit(app, "歡迎頁", contentSize: size)
             app.terminate()
@@ -263,7 +261,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testNewChat() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let app = XCUIApplication.launchAuditing(contentSize: size)
             openMenu("menu.newChat", in: app)
             XCTAssertTrue(app.element("sheet.newChat").waitUntilExists(timeout: 10))
             try audit(app, "新增對話", contentSize: size)

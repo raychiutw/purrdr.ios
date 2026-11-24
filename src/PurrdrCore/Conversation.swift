@@ -124,9 +124,9 @@ public struct SystemNote: Sendable, Equatable {
 
 /// 工具串。
 public struct ToolRun: Sendable, Equatable {
-    /// 列的 key:以**最後一個**項目命名(往上翻頁會把舊項目加在前面，以第一個命名會讓列跳動)。
+    /// 列的 key:以**第一個**步驟命名,分配後不變(後續步驟只原地更新這一列;往上補舊頁併進來時由對話時間軸沿用原本的 key)。
     public var id: String
-    /// 展開狀態的 key:以**第一個**項目命名(串變長仍穩定)。
+    /// 展開狀態的 key:與 `id` 相同。
     public var expansionID: String
     public var steps: [ToolStep]
     public var summary: ToolRunSummary
@@ -260,7 +260,7 @@ public enum Conversation {
         return name.dropFirst(5).split(separator: "__").joined(separator: " ")
     }
 
-    private struct Builder {
+    struct Builder {
         var items: [ConversationItem] = []
         /// 正在累積的工具串(在 `items` 中的位置)。
         var openRun: Int?
@@ -362,11 +362,11 @@ public enum Conversation {
         mutating func append(_ step: ToolStep) -> (item: Int, step: Int) {
             if let openRun, case .toolRun(var run) = items[openRun] {
                 run.steps.append(step)
-                run.id = step.id
+                run.summary = Conversation.summary(of: run.steps)
                 items[openRun] = .toolRun(run)
                 return (openRun, run.steps.count - 1)
             }
-            items.append(.toolRun(ToolRun(id: step.id, expansionID: step.id, steps: [step], summary: ToolRunSummary())))
+            items.append(.toolRun(ToolRun(id: step.id, expansionID: step.id, steps: [step], summary: Conversation.summary(of: [step]))))
             openRun = items.count - 1
             return (items.count - 1, 0)
         }
@@ -383,6 +383,7 @@ public enum Conversation {
             call.result = result
             call.isError = isError
             run.steps[location.step].kind = .call(call)
+            run.summary = Conversation.summary(of: run.steps)
             items[location.item] = .toolRun(run)
         }
 

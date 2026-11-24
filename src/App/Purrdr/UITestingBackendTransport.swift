@@ -292,3 +292,11 @@ struct UITestingOfflineBackend: BackendTransport {
         throw BackendError.unreachable
     }
 }
+
+/// UI 測試的「後台一直沒回應」(`-uiTestingMemberLoading`):帳號頁停在第一次載入的骨架(#496)。
+struct UITestingHangingBackend: BackendTransport {
+    func send(_ request: BackendRequest) async throws -> BackendResponse {
+        try await Task.sleep(for: .seconds(3600))
+        throw BackendError.unreachable
+    }
+}

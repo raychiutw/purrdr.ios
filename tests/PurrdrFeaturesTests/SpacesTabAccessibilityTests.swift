@@ -14,7 +14,7 @@ struct SpacesTabAccessibilityTests {
             host: .demo, key: "w1:t1", title: "CSV 匯出", target: .pane(ChatRoute(host: .demo, paneID: "w1:p1")),
             avatar: .agent(kind: "claude", status: .blocked))
 
-        #expect(SpacesTabLabel.accessibilityText(tab) == "CSV 匯出, Claude Code, Needs You")
+        #expect(ChatRowView.accessibilityText(tab) == "CSV 匯出, Claude Code, Needs You")
     }
 
     @Test("只有終端機：Tab 名稱與「終端機」,沒有狀態")
@@ -22,6 +22,6 @@ struct SpacesTabAccessibilityTests {
         let tab = SpacesTab(
             host: .demo, key: "w2:t1", title: "Shell", target: .pane(ChatRoute(host: .demo, paneID: "w2:p1")), avatar: .terminal)
 
-        #expect(SpacesTabLabel.accessibilityText(tab) == "Shell, Terminal")
+        #expect(ChatRowView.accessibilityText(tab) == "Shell, Terminal")
     }
 }

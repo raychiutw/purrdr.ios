@@ -55,12 +55,18 @@ final class PlanUsageUITests: XCTestCase {
         let week = app.element("planUsage.period.week")
         XCTAssertTrue(week.label.contains("61% used"), "每週預設不是已用比例(#420):\(week.label)")
 
-        // 在設定 tab 改成剩餘,回來就是剩餘比例(#393、#420)。
-        app.openSettingsTab()
+        // 在帳號與設定改成剩餘,關掉回來就是剩餘比例(#393、#420、#503)。
+        // 用量頁是從主機設定推進去的子頁,頂列的頭像鈕不在這一頁:先退回主機 tab 的第一層再開帳號與設定。
+        for _ in 0..<4 where app.navigationBars.buttons.firstMatch.waitUntilExists(timeout: 2) {
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+        app.openSettingsSheet()
         let showRemaining = app.buttons["Remaining"]
         XCTAssertTrue(app.scrollIntoView(showRemaining), "設定沒有「Remaining」選項")
         showRemaining.tap()
-        app.openTab(.hosts)
+        app.closeAccountSheet()
+        // 回到用量頁:同意已經存了,直接顯示週期。
+        openPlanUsage(app)
         XCTAssertTrue(fiveHour.waitForLabel(containing: "62% left", timeout: 5), "沒切換成剩餘比例:\(fiveHour.label)")
 
         app.element("planUsage.menu").tap()
