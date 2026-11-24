@@ -69,8 +69,12 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(
             header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "標題沒有顯示畫面狀態列的 Accept Edits")
 
-        XCTAssertTrue(
-            app.conversationMoreItem("menu.model").label.contains("Gemini 4 Neon"), "「⋯」的模型與思考深度項目沒有顯示目前模型")
+        let modelItem = app.conversationMoreItem("menu.model")
+        XCTAssertTrue(modelItem.label.contains("Gemini 4 Neon"), "「⋯」的模型與思考深度項目沒有顯示目前模型")
+        modelItem.tap()
+        XCTAssertTrue(app.element("model.current").waitUntilExists(timeout: 15), "Antigravity 的模型 sheet 應只顯示目前模型")
+        app.element("model.close").tap()
+        XCTAssertTrue(app.element("model.current").waitUntilGone(timeout: 5))
         app.conversationMoreItem("menu.permissionMode").tap()
         XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "「⋯」→ 權限模式沒有開出 sheet")
         XCTAssertTrue(app.element("permissionMode.picker").waitUntilExists(timeout: 10), "面板沒有權限模式選項")

@@ -8,10 +8,16 @@ import SwiftUI
 /// 項目、副標與停用原因由 `ConversationMoreMenuPlan` 決定,這裡只畫;點項目交給 `select`(開各自的 sheet 或畫面,
 /// 選項不直接放在選單裡,照 DESIGN「選擇控制」)。系統 `Menu`(勾在前、圖示在後)。
 struct ConversationMoreMenu: View {
-    let plan: ConversationMoreMenuPlan
+    /// 聊天狀態在這個 view 內才讀:輪詢造成的變動只重畫選單,不讓整個畫面的工具列重建(重建會把開著的選單收起來)。
+    let model: ConversationModel
+    let usageSummary: UsageSummary?
+    let canOpenTerminal: Bool
+    let canShowLayout: Bool
     let select: (ConversationMoreMenuPlan.Item) -> Void
 
     var body: some View {
+        let plan = ConversationMoreMenuPlan(
+            model.moreMenuInput(usageSummary: usageSummary, canOpenTerminal: canOpenTerminal, canShowLayout: canShowLayout))
         Menu {
             ForEach(Array(plan.groups.enumerated()), id: \.offset) { _, group in
                 Section {

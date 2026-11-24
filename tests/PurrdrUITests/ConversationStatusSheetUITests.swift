@@ -13,8 +13,8 @@ final class ConversationStatusSheetUITests: XCTestCase {
         XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10))
 
         let permission = app.conversationMoreItem("menu.permissionMode")
-        XCTAssertTrue(app.buttons["menu.usage"].firstMatch.exists, "「⋯」沒有用量與 Context")
-        XCTAssertTrue(app.buttons["menu.model"].firstMatch.exists, "「⋯」沒有模型與思考深度")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Usage & Context")).firstMatch.exists, "「⋯」沒有用量與 Context")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Model & Effort")).firstMatch.exists, "「⋯」沒有模型與思考深度")
         permission.tap()
 
         XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "點項目沒有開出權限模式 sheet")

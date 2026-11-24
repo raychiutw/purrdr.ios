@@ -452,9 +452,8 @@ struct ConversationScreen: View {
                         UsageRingButton(summary: usageSummary) { showsUsage = true }
                     }
                     ConversationMoreMenu(
-                        plan: ConversationMoreMenuPlan(model.moreMenuInput(
-                            usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil, canShowLayout: layoutSnapshot != nil)),
-                        select: selectMenuItem)
+                        model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
+                        canShowLayout: layoutSnapshot != nil, select: selectMenuItem)
                 }
             }
             .task(id: UsageLifecycleKey(active: scenePhase == .active, agentKind: model.agentKind)) { startUsage() }
