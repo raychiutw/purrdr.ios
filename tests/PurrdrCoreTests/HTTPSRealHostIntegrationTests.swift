@@ -68,4 +68,66 @@ struct HTTPSRealHostIntegrationTests {
         #expect(screen.components(separatedBy: marker).count > 2, "畫面沒有出現回顯")
         #expect(events.last == .closed(.detached))
     }
+
+    /// #548:新增聊天(`workspace.create` + `agent.start`)、`tab.create`、`tab.close` 對真實主機服務 0.15.0。
+    /// 只碰自己建立的 Workspace/Tab(以建立時回傳的 id);結束一律 `workspace.close` 自己建的。
+    /// 需要可寫的裝置權杖 `PURRDR_HTTPS_TOKEN`,且測試機就是主機(在本機建資料夾),另設 `PURRDR_HTTPS_NEWCHAT=1` 才跑。
+    @Test("新增聊天、tab.create、tab.close(自建 Workspace)",
+          .enabled(if: environment["PURRDR_HTTPS_HOST"] != nil && environment["PURRDR_HTTPS_NEWCHAT"] != nil))
+    func realNewChatAndTabs() async throws {
+        let environment = Self.environment
+        let address = try #require(HostServiceAddress(environment["PURRDR_HTTPS_HOST"] ?? ""))
+        let token = try #require(environment["PURRDR_HTTPS_TOKEN"], "要設 PURRDR_HTTPS_TOKEN")
+        let connection = HTTPSHostConnection(address: address, deviceToken: { token }, appVersion: "integration-test")
+        let client = HerdrClient(connection: connection)
+
+        let welcome = try await connection.hostServiceInfo()
+        print("[548] 主機服務 \(welcome.hostServiceVersion)")
+        #expect(welcome.hostServiceVersion == "0.15.0")
+        for feature in [HostServiceFeature.tabCreate, .tabClose] {
+            #expect(feature.isAvailable(onHostServiceVersion: welcome.hostServiceVersion), "\(feature) 應可用")
+        }
+
+        let suffix = String(UUID().uuidString.prefix(6)).lowercased()
+        let label = "purrdr-test-\(suffix)"
+        let folder = NSTemporaryDirectory() + label
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        let resolvedFolder = URL(fileURLWithPath: folder).resolvingSymlinksInPath().path
+        defer { try? FileManager.default.removeItem(atPath: folder) }
+
+        let launcher = NewChatLauncher(client: client, folders: .absolutePathsOnly)
+        var workspaceID: String?
+        do {
+            let started = try await launcher.start(NewChatRequest(
+                folder: resolvedFolder, label: label, agent: .claudeCode, message: "hi"))
+            workspaceID = started.workspace.workspaceID
+            print("[548] 新增聊天:workspace \(started.workspace.workspaceID) pane \(started.workspace.rootPaneID) sentMessage=\(started.sentMessage)")
+
+            let snapshot = try await client.snapshot()
+            let agent = snapshot.agents.first { $0.paneID == started.workspace.rootPaneID }
+            print("[548] agent 狀態:\(agent.map { "\($0.status)" } ?? "無")")
+
+            // tab.create 在自建 workspace 再建一個 tab,然後 tab.close 關掉它(不是最後一個)。
+            let tab = try await client.createTab(in: started.workspace.workspaceID, label: "t2-\(suffix)")
+            print("[548] tab.create:tab \(tab.tabID) pane \(tab.rootPaneID)")
+            #expect(tab.workspaceID == started.workspace.workspaceID)
+            let afterCreate = try await client.snapshot()
+            #expect(afterCreate.tabs.contains { $0.id == tab.tabID })
+            try await client.closeTab(tab.tabID)
+            let afterClose = try await client.snapshot()
+            print("[548] tab.close 後該 tab 還在:\(afterClose.tabs.contains { $0.id == tab.tabID })")
+            #expect(!afterClose.tabs.contains { $0.id == tab.tabID })
+            #expect(afterClose.workspaces.contains { $0.id == started.workspace.workspaceID })
+        } catch {
+            print("[548] 失敗:\(error)")
+            if let workspaceID { try? await client.closeWorkspace(workspaceID) }
+            await connection.disconnect()
+            throw error
+        }
+        if let workspaceID { try await client.closeWorkspace(workspaceID) }
+        let final = try await client.snapshot()
+        print("[548] 清理後自建 workspace 還在:\(final.workspaces.contains { $0.id == workspaceID })")
+        #expect(!final.workspaces.contains { $0.id == workspaceID })
+        await connection.disconnect()
+    }
 }
