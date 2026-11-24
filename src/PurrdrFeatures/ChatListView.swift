@@ -225,8 +225,24 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
         }
     }
 
+    /// 列表正在離開畫面(`viewWillDisappear` 到再出現之間):新內容先留著,不在轉場裡做版面計算。
+    private var isLeaving = false
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        resumeAfterLeaving()
+    }
+
+    private func resumeAfterLeaving() {
+        guard isLeaving else { return }
+        isLeaving = false
+        model?.setLeaving(false)
+        applyPendingContentIfSafe()
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        resumeAfterLeaving()
         hitchRecorder?.setSceneActive(flushPolicy.isSceneActive)
         updateHitchWorkingFlag()
         hitchMonitor?.appear()
@@ -234,6 +250,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        isLeaving = true
+        model?.setLeaving(true)
         hitchMonitor?.disappear()
     }
 
@@ -346,7 +364,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegate, 
 
     private var shouldDeferApply: Bool {
         ChatListApplyGate.shouldDefer(
-            isFirstApply: !hasAppliedContent, isUserDriven: isUserDriven, isKeyboardAnimating: isKeyboardAnimating, isMenuOpen: isMenuOpen)
+            isFirstApply: !hasAppliedContent, isUserDriven: isUserDriven, isKeyboardAnimating: isKeyboardAnimating, isMenuOpen: isMenuOpen,
+            isLeaving: isLeaving)
     }
 
     /// 暫存的內容在安全時套用(拖曳結束、鍵盤動畫結束)。
