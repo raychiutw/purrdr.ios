@@ -180,7 +180,15 @@ public actor NewChatLauncher {
 
     /// 主機上目前開著的 Workspace(依主機順序)。
     public func existingWorkspaces() async throws -> [ExistingWorkspace] {
-        []
+        let snapshot = try await client.snapshot()
+        return snapshot.workspaces.sorted { $0.number < $1.number }.map { workspace in
+            // herdr 沒有 workspace 的工作目錄欄位:取第一個 Tab(編號最小)的 pane,沒有就取 workspace 裡任何一個 pane。
+            let firstTab = snapshot.tabs.filter { $0.workspaceID == workspace.id }.min { $0.number < $1.number }
+            let panes = snapshot.panes.filter { $0.workspaceID == workspace.id }
+            let pane = panes.first { $0.tabID == firstTab?.id && $0.cwd != nil } ?? panes.first { $0.cwd != nil }
+            let name = workspace.label.flatMap { $0.isEmpty ? nil : $0 } ?? workspace.id
+            return ExistingWorkspace(id: workspace.id, name: name, folder: pane?.cwd)
+        }
     }
 
     /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)與第一則訊息送了沒有。
