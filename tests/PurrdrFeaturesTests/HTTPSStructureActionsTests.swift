@@ -139,4 +139,29 @@ struct HTTPSStructureActionsTests {
         #expect(!model.newChat(on: .host(https.id)).canBrowseFolders)
         #expect(model.newChat(on: .host(ssh.id)).canBrowseFolders)
     }
+
+    @Test("HTTPS 主機沒有 tab.create:不提供「在此新增聊天」;SSH 主機提供(#537)")
+    func hostsModelNewChatInWorkspaceSupport() {
+        let https = HostConfiguration(name: "Studio", hostService: HostServiceAddress("studio.tail1234.ts.net")!)
+        let ssh = HostConfiguration(name: "SSH", endpoint: SSHEndpoint(host: "studio-mac", username: "ray"))
+        let store = MemoryHostStore()
+        store.hosts = [https, ssh]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        model.load()
+
+        #expect(!model.supportsNewChatInWorkspace(.host(https.id)))
+        #expect(model.supportsNewChatInWorkspace(.host(ssh.id)))
+    }
+
+    @Test("新增聊天的主機挑選鈕可指定偏好主機(Workspace 標題選單進來時,#537)")
+    func newChatPickerPreferringHost() {
+        let first = HostConfiguration(name: "A", endpoint: SSHEndpoint(host: "a", username: "ray"))
+        let second = HostConfiguration(name: "B", endpoint: SSHEndpoint(host: "b", username: "ray"))
+        let store = MemoryHostStore()
+        store.hosts = [first, second]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        model.load()
+
+        #expect(model.newChatHostPicker(preferring: .host(second.id)).selection == .host(second.id))
+    }
 }

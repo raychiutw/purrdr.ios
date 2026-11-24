@@ -78,6 +78,7 @@ struct AvatarStatusDotView: View {
         .frame(width: diameter, height: diameter)
         .padding(2)
         .background(.listRowSurface, in: Circle())
+        .dimsWhenWindowInactive()
     }
 }
 
