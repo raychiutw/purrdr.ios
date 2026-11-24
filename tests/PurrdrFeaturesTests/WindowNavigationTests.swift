@@ -201,4 +201,29 @@ struct WindowNavigationTests {
         #expect(window.route(hostIDs: []) == nil)
         #expect(demo.route(hostIDs: []) == ChatRoute(host: .demo, paneID: "w1:p1"))
     }
+
+    // MARK: 視窗細節(#519)
+
+    @Test("Pane 視窗標題是「Agent 名稱 · 主機」;沒有主機名稱時只有 Agent 名稱")
+    func paneWindowTitleIncludesHostName() {
+        let window = PaneWindow(kind: .chat, host: .demo, paneID: "w1:p1", sessionID: nil, title: "ledger")
+
+        #expect(window.windowTitle(hostName: "Studio Mac") == "ledger · Studio Mac")
+        #expect(window.windowTitle(hostName: nil) == "ledger")
+        #expect(window.windowTitle(hostName: "") == "ledger")
+    }
+
+    @Test("視窗不在前景時自訂控制調暗,在前景時不變")
+    func inactiveWindowDimsCustomControls() {
+        #expect(WindowActivity.opacity(appearsActive: true) == 1)
+        #expect(WindowActivity.opacity(appearsActive: false) < 1)
+        #expect(WindowActivity.opacity(appearsActive: false) > 0.3)
+    }
+
+    @Test("TabView 的選取一律落在可見的 tab")
+    func tabSelectionStaysVisible() {
+        #expect(TopLevelTab.visibleSelection(.files, visible: TopLevelTab.allCases) == .files)
+        #expect(TopLevelTab.visibleSelection(.traffic, visible: [.chats, .files]) == .chats)
+        #expect(TopLevelTab.visibleSelection(.traffic, visible: []) == .chats)
+    }
 }

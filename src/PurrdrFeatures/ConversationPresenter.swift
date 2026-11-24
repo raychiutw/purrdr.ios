@@ -109,7 +109,7 @@ private struct PresentedSheet<Sheet: View>: ViewModifier {
                 isPresented = false
             }
         } else {
-            content.sheet(isPresented: $isPresented, content: sheet)
+            content.sheet(isPresented: $isPresented) { sheet().appSheetBackground() }
         }
     }
 }

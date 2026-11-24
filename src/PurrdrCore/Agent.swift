@@ -139,6 +139,19 @@ public struct MessagePreview: Sendable, Equatable {
     }
 }
 
+/// 在既有 workspace 新建的 tab(#537)。
+public struct CreatedTab: Sendable, Equatable {
+    public var workspaceID: String
+    public var tabID: String
+    public var rootPaneID: String
+
+    public init(workspaceID: String, tabID: String, rootPaneID: String) {
+        self.workspaceID = workspaceID
+        self.tabID = tabID
+        self.rootPaneID = rootPaneID
+    }
+}
+
 /// 新建的 workspace(`worktree.create` 的結果):之後在它的 root pane 開聊天或終端機。
 public struct CreatedWorkspace: Sendable, Equatable {
     public var workspaceID: String

@@ -118,6 +118,17 @@ struct HTTPSStructureOperationsTests {
         #expect(!service.log.messages.contains { $0.contains("tab.close") })
     }
 
+    @Test("新增 Tab:主機服務還沒有 tab.create(purrdr.host#90),不送出、丟 unsupported(#537)")
+    func createTabIsReservedButUnsupported() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: Self.currentVersion))
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.unsupported("tab.create")) {
+            try await Self.client(to: service).createTab(in: "w1", label: nil)
+        }
+        #expect(!service.log.messages.contains { $0.contains("tab.create") })
+    }
+
     @Test("關閉送 workspace.close")
     func closeWorkspace() async throws {
         let service = try await Self.start()
@@ -276,6 +287,18 @@ struct HTTPSStructureOperationsTests {
         #expect(try Self.sent(service, type: "agent.start")["name"] as? String == "garden-journal")
         #expect(try Self.sent(service, type: "agent.prompt")["pane_id"] as? String == "w1:p1")
         #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w1", rootPaneID: "w1:p1"), sentMessage: true))
+    }
+
+    @Test("新增聊天(HTTPS):主機服務的 agent.start 結果不帶 launch_pending;prompt 回 agent_not_ready 時不送、不丟錯誤(purrdr.host#92 之前的行為)")
+    func newChatPromptNotReadyKeepsMessage() async throws {
+        let service = try await Self.start(.init(promptHerdrError: "agent_not_ready", hostServiceVersion: Self.currentVersion))
+        defer { Task { await service.stop() } }
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+
+        let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w1", rootPaneID: "w1:p1"), sentMessage: false))
+        #expect(!service.log.messages.contains { $0.contains("agent.get") })
     }
 
     @Test("沒有資料夾瀏覽的主機：`~` 開頭的路徑要求改成絕對路徑，不送出")

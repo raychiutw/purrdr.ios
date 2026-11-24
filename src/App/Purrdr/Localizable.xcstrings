@@ -1040,6 +1040,17 @@
         }
       }
     },
+    "A new Tab opens in this Workspace." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會在這個 Workspace 裡新增一個 Tab。"
+          }
+        }
+      }
+    },
     "A public IP or domain name of that computer" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6650,6 +6661,17 @@
         }
       }
     },
+    "Leave this empty to use the default name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空就使用預設名稱。"
+          }
+        }
+      }
+    },
     "Left Arrow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7332,6 +7354,17 @@
         }
       }
     },
+    "New Chat Here" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此新增聊天"
+          }
+        }
+      }
+    },
     "New Conversation" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7350,6 +7383,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新視窗"
+          }
+        }
+      }
+    },
+    "New Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的 Workspace"
           }
         }
       }
@@ -10412,17 +10456,6 @@
         }
       }
     },
-    "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "續接過去的聊天需要主機上有主機服務，這台主機沒有。"
-          }
-        }
-      }
-    },
     "Retry" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12346,6 +12379,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文字大小"
+          }
+        }
+      }
+    },
+    "That Workspace was closed on the computer. Choose another one, or start a new Workspace." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Workspace 已在主機上關閉。請改選另一個，或開一個新的 Workspace。"
           }
         }
       }
@@ -15988,6 +16032,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作中…"
+          }
+        }
+      }
+    },
+    "Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workspace"
           }
         }
       }

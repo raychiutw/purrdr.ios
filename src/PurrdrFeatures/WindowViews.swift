@@ -69,6 +69,7 @@ public struct PaneWindowView: View {
             Group {
             if let route = window.route(hostIDs: hosts.listedHostIDs) {
                 PaneWindowContent(window: window, route: route, hosts: hosts)
+                    .environment(\.paneWindowTitle, window.windowTitle(hostName: hosts.agentList.hostLabel(of: route.host)?.name))
             } else {
                 ContentUnavailableView(
                     "Host Not Available",
@@ -111,6 +112,8 @@ private struct PaneWindowContent: View {
 /// 有焦點的視窗執行快捷鍵的入口(每個視窗一份導覽狀態)。
 public struct WindowCommands {
     let perform: @MainActor (KeyboardCommand) -> Void
+    /// 選單項目停用條件與標題要的視窗狀態(#522)。
+    var context = KeyboardCommandContext()
 }
 
 extension FocusedValues {
@@ -148,19 +151,26 @@ public struct PurrdrCommands: Commands {
             #endif
             button(.settings)
         }
+        // 「顯示方式」:系統「View」選單的最前面(#522)。項目不顯示圖示(iPadOS 27 預設)。
+        CommandGroup(before: .toolbar) {
+            ForEach(KeyboardCommand.viewMenu, id: \.self) { button($0) }
+            Divider()
+        }
         CommandMenu("Agents") {
             button(.nextAgent)
             button(.previousAgent)
             Divider()
             button(.search)
             button(.openTerminal)
+            button(.openInNewWindow)
         }
     }
 
     private func button(_ command: KeyboardCommand) -> some View {
-        Button(command.title) { window?.perform(command) }
+        let context = window?.context ?? KeyboardCommandContext()
+        return Button(command.title(in: context)) { window?.perform(command) }
             .keyboardShortcut(command.shortcut)
-            .disabled(window == nil)
+            .disabled(window == nil || !command.isEnabled(in: context))
     }
 }
 

@@ -154,13 +154,14 @@ extension View {
     /// 所以標題本身是 `Menu`(輕點不做事、長按出選單):重新命名 Workspace…、版面圖、新 worktree、關閉。
     /// VoiceOver 另有「重新命名 Workspace…」自訂動作。唯讀裝置的改動項目停用。
     func workspaceHeaderMenu(
-        _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, isReadOnly: Bool, presentation: WorkspacePresentation
+        _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, isReadOnly: Bool, presentation: WorkspacePresentation,
+        newChatHere: (() -> Void)? = nil
     ) -> some View {
         let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: isReadOnly)
         return Menu {
-            ForEach(WorkspaceMenuLevel.workspace.entries, id: \.self) { entry in
+            ForEach(WorkspaceMenuLevel.workspace(canStartChat: newChatHere != nil).entries, id: \.self) { entry in
                 if entry == .closeWorkspace { Divider() }
-                buttons.view(for: entry, tab: nil, chats: nil, openInNewWindow: nil)
+                buttons.view(for: entry, tab: nil, chats: nil, openInNewWindow: nil, newChatHere: newChatHere)
             }
             if isReadOnly { Text(WorkspaceActionsModel.readOnlyMessage) }
         } label: {
@@ -192,7 +193,10 @@ private struct WorkspaceButtons {
 
     /// 依選單項目(`WorkspaceMenuEntry`)給對應的按鈕。
     @ViewBuilder
-    func view(for entry: WorkspaceMenuEntry, tab: TabTarget?, chats: TabChatActions?, openInNewWindow: (() -> Void)?) -> some View {
+    func view(
+        for entry: WorkspaceMenuEntry, tab: TabTarget?, chats: TabChatActions?, openInNewWindow: (() -> Void)?,
+        newChatHere: (() -> Void)? = nil
+    ) -> some View {
         switch entry {
         case .openInNewWindow:
             if let openInNewWindow {
@@ -218,6 +222,12 @@ private struct WorkspaceButtons {
         case .showLayout: showLayout()
         case .renameTab: if let tab { renameTab(tab, showsCurrent: false) }
         case .closeTab: if let tab { closeTab(tab) }
+        case .newChatHere:
+            if let newChatHere {
+                Button("New Chat Here", systemImage: "plus.bubble", action: newChatHere)
+                    .accessibilityIdentifier("menu.newChatHere")
+                    .disabled(isReadOnly)
+            }
         case .renameWorkspace: renameWorkspace(showsCurrent: true)
         case .newWorktree: newWorktree()
         case .closeWorkspace: close(title: "Close Workspace…", role: .destructive)
@@ -317,7 +327,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     func body(content: Content) -> some View {
         content
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
-                if let actions { sheetContent(sheet, actions: actions) }
+                if let actions { sheetContent(sheet, actions: actions).appSheetBackground() }
             }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
@@ -507,7 +517,7 @@ struct NewWorktreeSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .onAppear {
             actions.clearWorktreeError()
             focused = true

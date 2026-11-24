@@ -130,14 +130,27 @@ public final class NewChatModel {
         case loading
         /// 新到舊;空陣列表示沒有過去的 session(清單只有「新的聊天」)。
         case loaded([ResumableSession])
-        /// 這台主機不能續接,原因給畫面顯示。
-        case unavailable(String)
         /// 主機服務版本不足:畫面附更新指令。
         case updateRequired(HostServiceUpdateCommands)
         case failed(String)
     }
 
     public var choice: Choice = .new
+
+    /// 放在哪裡(#537):新的 Workspace(預設)或既有的。
+    public enum Placement: Hashable, Sendable {
+        case newWorkspace
+        case existing(String)
+    }
+
+    public var placement: Placement = .newWorkspace {
+        didSet { if placement != oldValue { choice = .new } }
+    }
+
+    /// 這台主機目前開著的 Workspace(`loadWorkspaces()` 讀到的)。
+    public private(set) var workspaces: [ExistingWorkspace] = []
+    /// 這台主機能不能在既有 Workspace 新增 Tab(HTTPS 主機服務還沒有 `tab.create`,purrdr.host#90)。
+    private let supportsExistingWorkspaces: Bool
     public private(set) var sessions: SessionsState = .idle
 
     private let launcher: NewChatLauncher
@@ -150,15 +163,53 @@ public final class NewChatModel {
 
     public init(
         launcher: NewChatLauncher, folders: NewChatFolders,
-        agents: [AgentID] = HostAgentSettings.newChatAgents(enabled: HostAgentSettings.previouslyShownUsage)
+        agents: [AgentID] = HostAgentSettings.newChatAgents(enabled: HostAgentSettings.previouslyShownUsage),
+        supportsExistingWorkspaces: Bool = true
     ) {
+        self.supportsExistingWorkspaces = supportsExistingWorkspaces
         self.launcher = launcher
         self.folders = folders
         availableAgents = agents
         agent = agents.first ?? .claude
     }
 
-    private var trimmedFolder: String { folder.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var trimmedFolder: String {
+        // 既有 Workspace:沿用它的工作目錄(續接過去的聊天要用它)。
+        if let selectedWorkspace { return selectedWorkspace.folder ?? "" }
+        return folder.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 選了的既有 Workspace;`placement` 是新的 Workspace 時為 `nil`。
+    public var selectedWorkspace: ExistingWorkspace? {
+        guard case .existing(let id) = placement else { return nil }
+        return workspaces.first { $0.id == id }
+    }
+
+    /// 有東西可選時畫面才出現「放在哪裡」的選擇。
+    public var canChooseExistingWorkspace: Bool { supportsExistingWorkspaces && !workspaces.isEmpty }
+
+    /// 讀這台主機的 Workspace 清單(畫面出現時)。讀不到就沒有選擇,維持新的 Workspace。
+    public func loadWorkspaces() async {
+        guard supportsExistingWorkspaces else { return }
+        workspaces = (try? await launcher.existingWorkspaces()) ?? []
+        if let id = preselectedWorkspaceID {
+            preselectedWorkspaceID = nil
+            selectWorkspace(id)
+        }
+        // 選的那個已經不在了:回到新的 Workspace。
+        if case .existing(let id) = placement, !workspaces.contains(where: { $0.id == id }) { placement = .newWorkspace }
+    }
+
+    /// 預選既有 Workspace(Spaces 的「在此新增聊天」);不在清單裡就維持新的 Workspace。
+    public func selectWorkspace(_ id: String) {
+        guard workspaces.contains(where: { $0.id == id }) else { return }
+        placement = .existing(id)
+        error = nil
+    }
+
+    /// 開啟前就指定要放在哪個既有 Workspace(清單還沒讀到時先記著,`loadWorkspaces()` 後套用)。
+    public func preselectWorkspace(_ id: String) { preselectedWorkspaceID = id }
+    private var preselectedWorkspaceID: String?
 
     private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -170,7 +221,7 @@ public final class NewChatModel {
 
     /// 續接時第一則訊息可以留空;全新的聊天一定要有。
     public var canStart: Bool {
-        !availableAgents.isEmpty && !trimmedFolder.isEmpty && (isResuming || !trimmedMessage.isEmpty) && !isStarting && readOnlyReason == nil
+        !availableAgents.isEmpty && (selectedWorkspace != nil || !trimmedFolder.isEmpty) && (isResuming || !trimmedMessage.isEmpty) && !isStarting && readOnlyReason == nil
     }
 
     /// 讀清單的條件變了(資料夾或 agent)就重讀;畫面以它當 `.task(id:)`。
@@ -199,12 +250,10 @@ public final class NewChatModel {
                 sessions = .failed(Self.message(for: error))
                 return
             }
-            // 只記住不會變的結果(能續接、SSH);版本太舊時使用者更新後要能立刻再讀到。
-            if support == .available || support == .needsHostService { resumeSupport = support }
+            // 只記住不會變的結果(能續接);版本太舊時使用者更新後要能立刻再讀到。
+            if support == .available { resumeSupport = support }
         }
         switch support {
-        case .needsHostService:
-            sessions = .unavailable(String(localized: "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it."))
         case .updateRequired(let installed):
             sessions = .updateRequired(HostServiceUpdates.commands(installed: installed ?? "0.0.0"))
         case .available:
@@ -248,7 +297,8 @@ public final class NewChatModel {
         var resumeSession: String?
         if case .resume(let id) = choice { resumeSession = id }
         let request = NewChatRequest(
-            folder: trimmedFolder, label: Self.optional(workspaceName), tabLabel: Self.optional(tabName), agent: agent, message: trimmedMessage, resumeSession: resumeSession)
+            folder: trimmedFolder, label: selectedWorkspace == nil ? Self.optional(workspaceName) : nil, tabLabel: Self.optional(tabName), agent: agent,
+            message: trimmedMessage, resumeSession: resumeSession, target: selectedWorkspace.map { .existingWorkspace(id: $0.id) } ?? .newWorkspace)
         isStarting = true
         error = nil
         unsentMessage = nil
@@ -279,6 +329,8 @@ public final class NewChatModel {
             FolderPickerModel.message(for: error)
         case TranscriptReadError.absent:
             String(localized: "That chat’s record is no longer on the host, so it can’t be resumed. Pick another chat, or start a new one.")
+        case HerdrError.herdr(code: "workspace_not_found", _):
+            String(localized: "That Workspace was closed on the computer. Choose another one, or start a new Workspace.")
         case HerdrError.herdr(code: "demo_unsupported", _):
             String(localized: "The Demo host can’t start new chats. Add your own host to try this.")
         case HerdrError.herdr(_, let message):

@@ -13,7 +13,11 @@ public final class TopNavigationModel {
     /// 目前選的 tab。
     public var tab = TopLevelTab.chats
     /// 目前開著的 sheet;`nil` 表示沒有 sheet。
-    public var sheet: TopLevelSheet?
+    public var sheet: TopLevelSheet? {
+        didSet { if sheet != .newChat { newChatPreselection = nil } }
+    }
+    /// 新增聊天 sheet 要預先選好的位置(Spaces 的「在此新增聊天」,#537);sheet 不是新增聊天時為 `nil`。
+    public var newChatPreselection: NewChatPreselection?
     /// 等著匯入的主機分享連結(`purrdr://host?d=…`)或主機配對連結(`purrdr://pair?…`)。主機 tab 出現時帶入新增主機編輯器，之後清掉。
     public var pendingHostImport: URL?
     /// 等著開編輯頁的主機(點了主機服務通知,#293)。主機 tab 出現時推入它的編輯器，之後清掉。
@@ -101,6 +105,12 @@ public final class TopNavigationModel {
         sheet = nil
     }
 
+    /// Workspace 標題選單的「在此新增聊天」:開新增聊天 sheet,預選那台主機與 Workspace。
+    public func startNewChat(inWorkspace workspaceID: String, on host: HostSelection) {
+        sheet = .newChat
+        newChatPreselection = NewChatPreselection(host: host, workspaceID: workspaceID)
+    }
+
     /// 執行鍵盤快捷鍵。`visibleAgents` 是列表目前看得到的 Agent,依畫面順序。
     public func perform(_ command: KeyboardCommand, visibleAgents: [ChatRoute]) {
         switch command {
@@ -112,6 +122,12 @@ public final class TopNavigationModel {
         case .settings:
             // 設定併進帳號 sheet(#503)。
             sheet = .member
+        case .showChats, .showFiles, .showHosts, .showTraffic:
+            if let tab = command.tab { self.tab = tab }
+        case .toggleInspector: toggleInspector()
+        case .openInNewWindow:
+            // 開視窗要 `openWindow`(畫面的環境值),由 `TopNavigationView` 的 `WindowCommands` 處理。
+            break
         }
     }
 
@@ -166,6 +182,11 @@ public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable 
     case chats, files, hosts, traffic
 
     public var id: String { rawValue }
+
+    /// `TabView` 的選取一律要是可見的 tab(iOS 27 SDK 起選到不可見的 tab 可能 crash,#519):不在可見清單時退回第一個可見的,都沒有就是聊天。
+    public static func visibleSelection(_ tab: TopLevelTab, visible: [TopLevelTab]) -> TopLevelTab {
+        visible.contains(tab) ? tab : (visible.first ?? .chats)
+    }
 }
 
 /// 以 sheet 開啟的畫面(不是 tab)。
@@ -179,4 +200,15 @@ public enum TopLevelSheet: String, Identifiable, Sendable {
     case welcome
 
     public var id: String { rawValue }
+}
+
+/// 新增聊天預先選好的主機與既有 Workspace(#537)。
+public struct NewChatPreselection: Equatable, Sendable {
+    public var host: HostSelection
+    public var workspaceID: String
+
+    public init(host: HostSelection, workspaceID: String) {
+        self.host = host
+        self.workspaceID = workspaceID
+    }
 }

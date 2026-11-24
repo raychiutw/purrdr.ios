@@ -165,13 +165,23 @@ public struct HerdrClient: Sendable {
         return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
     }
 
+    /// 在既有 workspace 新增 tab(`tab.create`,#537;herdr 0.9.5 實測:不帶 `cwd` 沿用 workspace 的工作目錄,
+    /// workspace 不存在回 `workspace_not_found`)。`focus:false`:不搶桌機的焦點。`label` 為 `nil` 時由 herdr 命名。
+    public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
+        let result = try await request(
+            method: "tab.create", params: TabCreateParams(workspaceID: workspaceID, label: label), as: TabCreatedResult.self, deadline: .seconds(60))
+        return CreatedTab(workspaceID: workspaceID, tabID: result.tab.tabID, rootPaneID: result.rootPane.paneID)
+    }
+
     /// 在 pane 的 shell 啟動 agent(`agent.start`)。`arguments` 是交給 agent 的參數(CLI 的 `--` 之後)。
     /// 我方期限 = herdr 的等待 + 60 秒：絕不比 herdr 先放棄，否則重試會在同一個 pane 再啟動一個 agent。
-    /// `resumeSession`(#309)是要續接的 session id;只有主機服務(HTTPS)認得，herdr 本身沒有這個參數。
+    /// `resumeSession`(#309)是要續接的 session id;herdr 本身沒有這個參數:HTTPS 主機服務直接收，SSH 連線層換成 `args` 的 `--resume <id>`／`resume <id>`(#535)。
     ///
     /// 回傳 agent 是否已就緒(可以收 prompt)。herdr 0.9.5 在資料夾還沒被信任等情況下會立刻回成功、
     /// 但 agent 帶 `launch_pending: true`;這時送 `agent.prompt` 會得到 `agent_not_ready`
-    /// 「agent w2:p1 is not an active named agent」,所以呼叫端不要送第一則訊息。
+    /// 「agent w2:p1 is not an active named agent」,所以呼叫端要先以 `agentLaunchState(target:)` 輪詢到就緒才送第一則訊息。
+    /// HTTPS 主機服務的 `agent.start.result` 不帶 `launch_pending`(一律當就緒),等主機端等到就緒才回(purrdr.host#92);
+    /// 在那之前 `agent.prompt` 回 `agent_not_ready` 時呼叫端不送、訊息留給輸入框。
     @discardableResult
     public func startAgent(
         name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration
@@ -183,8 +193,17 @@ public struct HerdrClient: Sendable {
         return result.agent?.launchPending != true
     }
 
-    /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。只有主機服務(HTTPS)提供;
-    /// 其他主機丟 herdr 的未知 method 錯誤，呼叫端先以主機服務版本判斷。
+    /// `agent.get`(`target` 是 root pane id):讀剛啟動的 agent 的就緒狀態(herdr 0.9.5 的 `result.agent`)。
+    /// `agent.start` 回 `launch_pending` 後以它輪詢;沒有這個 agent 丟 `agent_not_found` 等 herdr 錯誤。
+    public func agentLaunchState(target: String) async throws -> AgentLaunchState {
+        let result = try await request(method: "agent.get", params: AgentGetParams(target: target), as: AgentGetResult.self)
+        return AgentLaunchState(
+            status: result.agent?.agentStatus, launchPending: result.agent?.launchPending == true,
+            interactiveReady: result.agent?.interactiveReady)
+    }
+
+    /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。主機服務(HTTPS)的 `sessions.list`;
+    /// SSH 由連線層以腳本列出(#535);版本太舊的主機服務丟未知 method 錯誤，呼叫端先以主機服務版本判斷。
     public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
         let result = try await request(method: "sessions.list", params: SessionsListParams(cwd: cwd, agentKind: agent), as: SessionsListResult.self)
         return result.sessions.map { entry in
@@ -392,6 +411,39 @@ private struct TabIDParams: Encodable {
     }
 }
 
+private struct TabCreateParams: Encodable {
+    var workspaceID: String
+    var label: String?
+    var focus = false
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceID = "workspace_id"
+        case label, focus
+    }
+}
+
+private struct TabCreatedResult: Decodable {
+    var tab: Tab
+    var rootPane: RootPane
+
+    struct Tab: Decodable {
+        var tabID: String
+
+        enum CodingKeys: String, CodingKey { case tabID = "tab_id" }
+    }
+
+    struct RootPane: Decodable {
+        var paneID: String
+
+        enum CodingKeys: String, CodingKey { case paneID = "pane_id" }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case tab
+        case rootPane = "root_pane"
+    }
+}
+
 private struct TabRenameParams: Encodable {
     var tabID: String
     var label: String
@@ -524,6 +576,39 @@ private struct PaneReadResult: Decodable {
     }
 
     var read: Read
+}
+
+/// 剛啟動的 agent 的就緒狀態(`agent.get`)。
+public struct AgentLaunchState: Sendable, Equatable {
+    /// herdr 的 `agent_status`(`unknown`、`idle`、`blocked`…)。
+    public var status: String?
+    public var launchPending: Bool
+    public var interactiveReady: Bool?
+
+    /// 可以收 prompt:`launch_pending` 結束,或 herdr 明說可互動。
+    public var isReady: Bool { interactiveReady == true || !launchPending }
+    /// 停在啟動問題(例如資料夾信任):不會自己就緒。
+    public var isBlocked: Bool { status == "blocked" }
+}
+
+private struct AgentGetParams: Encodable {
+    var target: String
+}
+
+private struct AgentGetResult: Decodable {
+    var agent: Agent?
+
+    struct Agent: Decodable {
+        var agentStatus: String?
+        var launchPending: Bool?
+        var interactiveReady: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case agentStatus = "agent_status"
+            case launchPending = "launch_pending"
+            case interactiveReady = "interactive_ready"
+        }
+    }
 }
 
 /// `agent.start` 的成功回應;只讀 `launch_pending`(還沒就緒)。

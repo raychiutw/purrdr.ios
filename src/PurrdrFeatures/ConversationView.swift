@@ -42,13 +42,15 @@ public struct ConversationView: View {
     /// 避開玻璃導覽列、橫幅與輸入列後的安全區域框(全域座標),列表據此算上下 inset。
     @State private var safeAreaFrame: CGRect = .zero
 
+    @Environment(\.paneWindowTitle) private var paneWindowTitle
+
     public init(model: ConversationModel) {
         self.model = model
     }
 
     public var body: some View {
         content
-            .navigationTitle(displayTitle)
+            .navigationTitle(paneWindowTitle ?? displayTitle)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -71,7 +73,7 @@ public struct ConversationView: View {
             .environment(\.inlineSlashNames, model.inlineSlashNames)
             .imageViewer(item: $viewerItem)
             .quickLookPreview($previewFile)
-            .sheet(item: $presentedSheet) { $0.content }
+            .sheet(item: $presentedSheet) { $0.content.appSheetBackground() }
             .navigationDestination(item: $openedRoute) { [model] route in
                 DelegationDestination(route: route, conversation: model)
             }

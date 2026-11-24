@@ -412,7 +412,7 @@ struct AgentFileDetailsSheet: View {
             #endif
             .toolbar { SheetCloseToolbar(identifier: "conversation.agentFile.details.close") }
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .accessibilityIdentifier("conversation.agentFile.details")
     }
 

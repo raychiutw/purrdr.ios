@@ -5,12 +5,21 @@ import SwiftUI
 /// 聊天 tab 頂列的動作(#499):由 `TopNavigationView` 提供,列表本身不知道有哪些 sheet。
 package struct ChatTopBarActions {
     var newChat: () -> Void
+    /// Workspace 標題選單的「在此新增聊天」(#537):參數是主機與 Workspace id。
+    var newChatInWorkspace: (HostSelection, String) -> Void
+    /// 這台主機有沒有「在此新增聊天」(HTTPS 主機服務還沒有 tab.create)。
+    var canNewChatInWorkspace: (HostSelection) -> Bool
     var addHost: () -> Void
     /// 寬視窗時頭像在對話欄工具列(`AccountButtonPlacement`),列表頂列沒有。
     var account: AnyView?
 
-    package init(newChat: @escaping () -> Void, addHost: @escaping () -> Void, account: AnyView?) {
+    package init(
+        newChat: @escaping () -> Void, newChatInWorkspace: @escaping (HostSelection, String) -> Void,
+        canNewChatInWorkspace: @escaping (HostSelection) -> Bool, addHost: @escaping () -> Void, account: AnyView?
+    ) {
         self.newChat = newChat
+        self.newChatInWorkspace = newChatInWorkspace
+        self.canNewChatInWorkspace = canNewChatInWorkspace
         self.addHost = addHost
         self.account = account
     }
@@ -329,7 +338,9 @@ public struct AgentListView: View {
     @ViewBuilder
     private func listRows(_ sections: [SpacesSection]) -> some View {
         let failures = model.failures
-        SpacesSectionsContent(sections: sections, model: model, presentation: presentation, openInNewWindow: openInNewWindow)
+        SpacesSectionsContent(
+            sections: sections, model: model, presentation: presentation, openInNewWindow: openInNewWindow,
+            newChatInWorkspace: topBarActions.newChatInWorkspace, canNewChatInWorkspace: topBarActions.canNewChatInWorkspace)
         if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
            sections.isEmpty {
@@ -427,12 +438,14 @@ struct ConversationScreen: View {
             .onChange(of: model.modelName) { _, name in usageSection?.activeGroup = name.flatMap(PlanUsage.Group.init(modelName:)) }
             .sheet(isPresented: $showsUsage) {
                 ConversationUsageSheet(model: model, section: usageSection, display: usageContext?.display.display ?? .used)
+                    .appSheetBackground()
             }
             .modifier(ConversationInspectorModifier(
                 window: window, model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used))
-            .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model) }
+            .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model).appSheetBackground() }
             .sheet(isPresented: $isChoosingModel, onDismiss: { Task { await model.finishChoosingModel() } }) {
                 ModelSheet(model: model)
+                    .appSheetBackground()
             }
             // 工作中膠囊的子 Agent 數被點了:開背景子 Agent sheet。
             .onChange(of: model.showsBackgroundAgentsSheet) { _, shown in
@@ -442,12 +455,15 @@ struct ConversationScreen: View {
             }
             .task(id: model.canOpenChanges) { await model.refreshGitMenu() }
             .sheet(isPresented: $showsLayout) {
+                Group {
                 if let workspaceID = model.workspaceID, let snapshot = layoutSnapshot?() {
                     let label = snapshot.workspaces.first { $0.id == workspaceID }?.label ?? workspaceID
                     SpacesLayoutSheet(
                         workspaceLabel: label, layout: SpacesLayout(snapshot: snapshot, workspaceID: workspaceID),
                         onChoose: { pendingLayoutTarget = $0 })
                 }
+                }
+                .appSheetBackground()
             }
             .onChange(of: showsLayout) { _, shown in
                 // sheet 關閉後才開選到的 Pane(不能在關 sheet 的同一刻 push)。
