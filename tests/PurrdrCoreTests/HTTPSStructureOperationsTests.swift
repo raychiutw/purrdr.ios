@@ -107,6 +107,17 @@ struct HTTPSStructureOperationsTests {
         }
     }
 
+    @Test("關閉 Tab:主機服務還沒有 tab.close(purrdr.host#91),不送出、丟 unsupported")
+    func closeTabIsReservedButUnsupported() async throws {
+        let service = try await Self.start(.init(hostServiceVersion: Self.currentVersion))
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.unsupported("tab.close")) {
+            try await Self.client(to: service).closeTab("w1:t1")
+        }
+        #expect(!service.log.messages.contains { $0.contains("tab.close") })
+    }
+
     @Test("關閉送 workspace.close")
     func closeWorkspace() async throws {
         let service = try await Self.start()
