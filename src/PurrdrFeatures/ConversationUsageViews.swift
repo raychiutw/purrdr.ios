@@ -48,8 +48,7 @@ struct UsageRingView: View {
     }
 }
 
-/// 用量 sheet(#513,原型 Usage):左上 X、右上重新整理;「這個聊天」的 Context 卡片、「方案用量 · 主機名」的
-/// 目前工作階段與每週卡片、最下面一行更新時間。數字跟著「已用／剩餘」設定。
+/// 用量 sheet(#513,原型 Usage):左上 X、右上重新整理;內容是可單獨嵌入的 `UsageContentView`(#517 的 iPad 右側 inspector 也放它)。
 struct ConversationUsageSheet: View {
     let model: ConversationModel
     /// 這台主機的方案用量(`nil`:這種 Agent 沒有方案用量來源)。
@@ -57,42 +56,21 @@ struct ConversationUsageSheet: View {
     let display: PlanUsageModel.Display
     @State private var isRefreshing = false
 
-    private var hostName: String { section?.hostName ?? "" }
-
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionTitle("This Chat")
-                    contextCard
-                    (section == nil ? sectionTitle("Plan Usage") : sectionTitle("Plan Usage · \(hostName)")).padding(.top, 6)
-                    planContent
-                    if let captured = section?.lastCapturedAt {
-                        Text("Updated \(captured, format: .relative(presentation: .named))")
-                            .font(.footnote)
-                            .foregroundStyle(.secondaryText)
-                            .padding(.horizontal, 6)
-                            .padding(.top, 4)
-                            .accessibilityIdentifier("usage.sheet.updated")
+            UsageContentView(model: model, section: section, display: display)
+                .navigationTitle("Usage")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    SheetCloseToolbar(identifier: "usage.sheet.close")
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Refresh", systemImage: "arrow.clockwise") { refresh() }
+                            .disabled(isRefreshing || section == nil)
+                            .accessibilityIdentifier("usage.sheet.refresh")
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .appPageContentWidth()
-            }
-            .background(AppSurface.groupedPage)
-            .navigationTitle("Usage")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                SheetCloseToolbar(identifier: "usage.sheet.close")
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Refresh", systemImage: "arrow.clockwise") { refresh() }
-                        .disabled(isRefreshing || section == nil)
-                        .accessibilityIdentifier("usage.sheet.refresh")
-                }
-            }
         }
         .presentationDetents([.large])
         .accessibilityIdentifier("usage.sheet")
@@ -105,6 +83,39 @@ struct ConversationUsageSheet: View {
             await section.refresh()
             isRefreshing = false
         }
+    }
+}
+
+/// 用量內容(#513):「這個聊天」的 Context 卡片、「方案用量 · 主機名」的目前工作階段與每週卡片、更新時間。
+/// 不含 NavigationStack、關閉與重新整理(由容器的 toolbar 放),sheet 與 #517 的 inspector 共用。
+struct UsageContentView: View {
+    let model: ConversationModel
+    let section: UsageSectionModel?
+    let display: PlanUsageModel.Display
+
+    private var hostName: String { section?.hostName ?? "" }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionTitle("This Chat")
+                contextCard
+                (section == nil ? sectionTitle("Plan Usage") : sectionTitle("Plan Usage · \(hostName)")).padding(.top, 6)
+                planContent
+                if let captured = section?.lastCapturedAt {
+                    Text("Updated \(captured, format: .relative(presentation: .named))")
+                        .font(.footnote)
+                        .foregroundStyle(.secondaryText)
+                        .padding(.horizontal, 6)
+                        .padding(.top, 4)
+                        .accessibilityIdentifier("usage.sheet.updated")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .appPageContentWidth()
+        }
+        .background(AppSurface.groupedPage)
     }
 
     private func sectionTitle(_ title: LocalizedStringKey) -> some View {
