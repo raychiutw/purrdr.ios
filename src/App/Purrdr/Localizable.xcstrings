@@ -7354,6 +7354,17 @@
         }
       }
     },
+    "New Chat Here" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此新增聊天"
+          }
+        }
+      }
+    },
     "New Conversation" : {
       "extractionState" : "manual",
       "localizations" : {

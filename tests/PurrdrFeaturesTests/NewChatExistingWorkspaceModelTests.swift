@@ -44,6 +44,29 @@ struct NewChatExistingWorkspaceModelTests {
         #expect(model.placement == .newWorkspace, "預設仍是新的 Workspace")
     }
 
+    @Test("開啟前預選 Workspace:讀到清單後選好,不必填資料夾(#537)")
+    func preselectBeforeLoad() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        let model = Self.model(host)
+        model.preselectWorkspace("w2")
+        await model.loadWorkspaces()
+
+        #expect(model.placement == .existing("w2"))
+        #expect(model.selectedWorkspace?.name == "scratch")
+    }
+
+    @Test("預選的 Workspace 已不在清單裡:維持新的 Workspace")
+    func preselectBeforeLoadMissing() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        let model = Self.model(host)
+        model.preselectWorkspace("w99")
+        await model.loadWorkspaces()
+
+        #expect(model.placement == .newWorkspace)
+    }
+
     @Test("主機不支援(HTTPS 主機服務還沒有 tab.create)或沒有 Workspace:不提供既有 Workspace,也不讀快照")
     func unavailable() async {
         let host = FakeHost()

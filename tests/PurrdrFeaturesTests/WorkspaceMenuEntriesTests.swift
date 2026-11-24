@@ -26,7 +26,19 @@ struct WorkspaceMenuEntriesTests {
 
     @Test("Workspace 選單有改名、版面圖、新 worktree、關閉 Workspace,沒有 Tab 動作")
     func workspaceMenuEntries() {
-        let entries = WorkspaceMenuLevel.workspace.entries
+        let entries = WorkspaceMenuLevel.workspace(canStartChat: false).entries
         #expect(entries == [.renameWorkspace, .showLayout, .newWorktree, .closeWorkspace])
+    }
+
+    @Test("Workspace 選單可新增聊天時,「在此新增聊天」排在最前面(#537)")
+    func workspaceMenuHasNewChatHere() {
+        let entries = WorkspaceMenuLevel.workspace(canStartChat: true).entries
+        #expect(entries == [.newChatHere, .renameWorkspace, .showLayout, .newWorktree, .closeWorkspace])
+    }
+
+    @Test("Tab 選單沒有「在此新增聊天」")
+    func tabMenuHasNoNewChatHere() {
+        let entries = WorkspaceMenuLevel.tab(hasNewWindow: true, hasChats: true, hasTab: true).entries
+        #expect(!entries.contains(.newChatHere))
     }
 }

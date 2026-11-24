@@ -137,6 +137,10 @@ public actor NewChatLauncher {
     static let busyRetries = 4
     static let busyRetryInterval: Duration = .milliseconds(750)
 
+    /// `launch_pending` 後輪詢就緒:500ms 一次、最多 40 次(約 20 秒)。
+    static let pollInterval: Duration = .milliseconds(500)
+    static let pollAttempts = 40
+
     private let client: HerdrClient
     private let folders: NewChatFolders
     private let sleep: Sleep
@@ -218,15 +222,16 @@ public actor NewChatLauncher {
             workspace = CreatedWorkspace(workspaceID: tab.workspaceID, rootPaneID: tab.rootPaneID)
             name = Self.agentName(forTab: tab, label: request.tabLabel, folder: request.folder)
         }
-        let ready = try await startAgent(request, name: name, in: workspace)
+        var ready = try await startAgent(request, name: name, in: workspace)
         pending = nil
+        if !ready, agentStartedPending { ready = try await waitUntilInteractive(workspace.rootPaneID) }
         let message = request.message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard ready, !message.isEmpty else { return NewChatStarted(workspace: workspace, sentMessage: false) }
         // 不等 agent 開始工作：送出後聊天畫面自己跟上(送不到時丟錯誤，不重送，§7.3)。
         do {
             _ = try await client.prompt(target: workspace.rootPaneID, text: message, wait: nil)
-        } catch HerdrError.herdr(code: "agent_not_ready", _) {
-            // agent 還沒就緒(herdr:agent … is not an active named agent):什麼都沒送出，訊息留給聊天輸入框。
+        } catch HerdrError.herdr(code: "agent_not_ready", _), HerdrError.herdr(code: "agent_blocked", _) {
+            // agent 還沒就緒(herdr:agent … is not an active named agent)或停在問題上:什麼都沒送出，訊息留給聊天輸入框。
             return NewChatStarted(workspace: workspace, sentMessage: false)
         }
         return NewChatStarted(workspace: workspace, sentMessage: true)
@@ -252,15 +257,33 @@ public actor NewChatLauncher {
         return "\(base)-\(suffix)"
     }
 
+    /// 上一次 `startAgent` 是不是以 `launch_pending` 結束(才值得輪詢;`agent_not_ready` 的錯誤不輪詢)。
+    private var agentStartedPending = false
+
+    /// `agent.start` 回 `launch_pending` 後,每 500ms 以 `agent.get` 輪詢最多約 20 秒(herdr 0.9.5 的 socket 一律立刻回 pending)。
+    /// 就緒回 `true`;`blocked`(停在資料夾信任等)或逾時回 `false`(不送、不丟錯誤);輪詢中的錯誤照常丟出。
+    private func waitUntilInteractive(_ paneID: String) async throws -> Bool {
+        for _ in 0..<Self.pollAttempts {
+            try await sleep(Self.pollInterval)
+            let state = try await client.agentLaunchState(target: paneID)
+            if state.isReady { return true }
+            if state.isBlocked { return false }
+        }
+        return false
+    }
+
     /// 啟動 agent;回傳它是否已就緒(停在啟動問題時是 `false`)。
     private func startAgent(_ request: NewChatRequest, name: String, in workspace: CreatedWorkspace) async throws -> Bool {
         var retries = 0
+        agentStartedPending = false
         while true {
             do {
                 // launch_pending:agent 還在啟動(例如停在資料夾信任問題),視同還沒就緒。
-                return try await client.startAgent(
+                let ready = try await client.startAgent(
                     name: name, kind: request.agent.canonicalName, paneID: workspace.rootPaneID,
                     arguments: request.agentArguments, resumeSession: Self.hostServiceResumeSession(for: request), timeout: Self.agentTimeout)
+                agentStartedPending = !ready
+                return ready
             } catch HerdrError.herdr(code: "agent_not_ready", _) {
                 // agent 已經起來，但停在啟動問題(例如資料夾信任):在聊天裡回答。
                 return false

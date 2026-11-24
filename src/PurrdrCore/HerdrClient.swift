@@ -179,7 +179,9 @@ public struct HerdrClient: Sendable {
     ///
     /// 回傳 agent 是否已就緒(可以收 prompt)。herdr 0.9.5 在資料夾還沒被信任等情況下會立刻回成功、
     /// 但 agent 帶 `launch_pending: true`;這時送 `agent.prompt` 會得到 `agent_not_ready`
-    /// 「agent w2:p1 is not an active named agent」,所以呼叫端不要送第一則訊息。
+    /// 「agent w2:p1 is not an active named agent」,所以呼叫端要先以 `agentLaunchState(target:)` 輪詢到就緒才送第一則訊息。
+    /// HTTPS 主機服務的 `agent.start.result` 不帶 `launch_pending`(一律當就緒),等主機端等到就緒才回(purrdr.host#92);
+    /// 在那之前 `agent.prompt` 回 `agent_not_ready` 時呼叫端不送、訊息留給輸入框。
     @discardableResult
     public func startAgent(
         name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration
@@ -189,6 +191,15 @@ public struct HerdrClient: Sendable {
             timeoutMs: Self.milliseconds(timeout))
         let result = try await request(method: "agent.start", params: params, as: AgentStartResult.self, deadline: timeout + .seconds(60))
         return result.agent?.launchPending != true
+    }
+
+    /// `agent.get`(`target` 是 root pane id):讀剛啟動的 agent 的就緒狀態(herdr 0.9.5 的 `result.agent`)。
+    /// `agent.start` 回 `launch_pending` 後以它輪詢;沒有這個 agent 丟 `agent_not_found` 等 herdr 錯誤。
+    public func agentLaunchState(target: String) async throws -> AgentLaunchState {
+        let result = try await request(method: "agent.get", params: AgentGetParams(target: target), as: AgentGetResult.self)
+        return AgentLaunchState(
+            status: result.agent?.agentStatus, launchPending: result.agent?.launchPending == true,
+            interactiveReady: result.agent?.interactiveReady)
     }
 
     /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。主機服務(HTTPS)的 `sessions.list`;
@@ -565,6 +576,39 @@ private struct PaneReadResult: Decodable {
     }
 
     var read: Read
+}
+
+/// 剛啟動的 agent 的就緒狀態(`agent.get`)。
+public struct AgentLaunchState: Sendable, Equatable {
+    /// herdr 的 `agent_status`(`unknown`、`idle`、`blocked`…)。
+    public var status: String?
+    public var launchPending: Bool
+    public var interactiveReady: Bool?
+
+    /// 可以收 prompt:`launch_pending` 結束,或 herdr 明說可互動。
+    public var isReady: Bool { interactiveReady == true || !launchPending }
+    /// 停在啟動問題(例如資料夾信任):不會自己就緒。
+    public var isBlocked: Bool { status == "blocked" }
+}
+
+private struct AgentGetParams: Encodable {
+    var target: String
+}
+
+private struct AgentGetResult: Decodable {
+    var agent: Agent?
+
+    struct Agent: Decodable {
+        var agentStatus: String?
+        var launchPending: Bool?
+        var interactiveReady: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case agentStatus = "agent_status"
+            case launchPending = "launch_pending"
+            case interactiveReady = "interactive_ready"
+        }
+    }
 }
 
 /// `agent.start` 的成功回應;只讀 `launch_pending`(還沒就緒)。

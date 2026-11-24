@@ -192,6 +192,10 @@ public final class NewChatModel {
     public func loadWorkspaces() async {
         guard supportsExistingWorkspaces else { return }
         workspaces = (try? await launcher.existingWorkspaces()) ?? []
+        if let id = preselectedWorkspaceID {
+            preselectedWorkspaceID = nil
+            selectWorkspace(id)
+        }
         // 選的那個已經不在了:回到新的 Workspace。
         if case .existing(let id) = placement, !workspaces.contains(where: { $0.id == id }) { placement = .newWorkspace }
     }
@@ -202,6 +206,10 @@ public final class NewChatModel {
         placement = .existing(id)
         error = nil
     }
+
+    /// 開啟前就指定要放在哪個既有 Workspace(清單還沒讀到時先記著,`loadWorkspaces()` 後套用)。
+    public func preselectWorkspace(_ id: String) { preselectedWorkspaceID = id }
+    private var preselectedWorkspaceID: String?
 
     private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
 
