@@ -12389,7 +12389,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這個 Workspace 已在電腦上關閉。請改選另一個，或開一個新的 Workspace。"
+            "value" : "這個 Workspace 已在主機上關閉。請改選另一個，或開一個新的 Workspace。"
           }
         }
       }
