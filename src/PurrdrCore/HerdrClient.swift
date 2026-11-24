@@ -158,13 +158,19 @@ public struct HerdrClient: Sendable {
     /// 在 pane 的 shell 啟動 agent(`agent.start`)。`arguments` 是交給 agent 的參數(CLI 的 `--` 之後)。
     /// 我方期限 = herdr 的等待 + 60 秒：絕不比 herdr 先放棄，否則重試會在同一個 pane 再啟動一個 agent。
     /// `resumeSession`(#309)是要續接的 session id;只有主機服務(HTTPS)認得，herdr 本身沒有這個參數。
+    ///
+    /// 回傳 agent 是否已就緒(可以收 prompt)。herdr 0.9.5 在資料夾還沒被信任等情況下會立刻回成功、
+    /// 但 agent 帶 `launch_pending: true`;這時送 `agent.prompt` 會得到 `agent_not_ready`
+    /// 「agent w2:p1 is not an active named agent」,所以呼叫端不要送第一則訊息。
+    @discardableResult
     public func startAgent(
         name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration
-    ) async throws {
+    ) async throws -> Bool {
         let params = AgentStartParams(
             name: name, kind: kind, paneID: paneID, args: arguments.isEmpty ? nil : arguments, resumeSession: resumeSession,
             timeoutMs: Self.milliseconds(timeout))
-        _ = try await request(method: "agent.start", params: params, as: TypedResult.self, deadline: timeout + .seconds(60))
+        let result = try await request(method: "agent.start", params: params, as: AgentStartResult.self, deadline: timeout + .seconds(60))
+        return result.agent?.launchPending != true
     }
 
     /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。只有主機服務(HTTPS)提供;
@@ -498,6 +504,17 @@ private struct PaneReadResult: Decodable {
     }
 
     var read: Read
+}
+
+/// `agent.start` 的成功回應;只讀 `launch_pending`(還沒就緒)。
+private struct AgentStartResult: Decodable {
+    var agent: Agent?
+
+    struct Agent: Decodable {
+        var launchPending: Bool?
+
+        enum CodingKeys: String, CodingKey { case launchPending = "launch_pending" }
+    }
 }
 
 /// 只有 `{"type":…}` 的結果(例如 `{"type":"ok"}`)。
