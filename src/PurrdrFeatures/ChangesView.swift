@@ -232,6 +232,7 @@ struct ChangesFileView: View {
             .task(id: path) { await model.loadDiff(of: path) }
             .sheet(item: $editing) { comment in
                 ChangesCommentEditor(model: model, path: path, line: comment.line)
+                    .appSheetBackground()
             }
     }
 
@@ -429,7 +430,7 @@ private struct ChangesCommentEditor: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .onAppear {
             text = model.comment(on: line, in: path)?.body ?? ""
             focused = true

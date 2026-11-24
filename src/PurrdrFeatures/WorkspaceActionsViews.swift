@@ -317,7 +317,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     func body(content: Content) -> some View {
         content
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
-                if let actions { sheetContent(sheet, actions: actions) }
+                if let actions { sheetContent(sheet, actions: actions).appSheetBackground() }
             }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
@@ -507,7 +507,7 @@ struct NewWorktreeSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .onAppear {
             actions.clearWorktreeError()
             focused = true

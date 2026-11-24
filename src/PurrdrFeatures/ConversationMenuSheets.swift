@@ -139,7 +139,7 @@ struct ConversationMenuSheet: View {
                     DelegationDestination(route: route, conversation: model)
                 }
         }
-        .presentationDetents(kind == .permissionMode || kind == .sendWhenDone ? [.medium, .large] : [.large])
+        .appSheet(detents: kind == .permissionMode || kind == .sendWhenDone ? [.medium, .large] : [.large])
         .accessibilityIdentifier("menu.sheet.\(kind.rawValue)")
     }
 

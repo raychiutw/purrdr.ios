@@ -144,7 +144,7 @@ struct ConversationInspectorModifier: ViewModifier {
                 .sheet(isPresented: sheetBinding) {
                     ConversationInspectorView(
                         model: model, usageSection: usageSection, display: display, close: { isSheetShown = false })
-                    .presentationDetents([.medium, .large])
+                    .appSheet(detents: [.medium, .large])
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
                 .toolbar {

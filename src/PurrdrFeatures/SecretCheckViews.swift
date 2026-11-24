@@ -69,7 +69,7 @@ struct SecretCheckSheet: View {
         }
         .padding(.horizontal)
         .padding(.bottom)
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .presentationDragIndicator(.visible)
         // 容器自己一個 identifier,不蓋掉各列與按鈕的。
         .accessibilityElement(children: .contain)
