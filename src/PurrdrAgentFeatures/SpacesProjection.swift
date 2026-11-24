@@ -60,6 +60,8 @@ public struct SpacesTab: Identifiable, Equatable, Sendable {
     public var agent: AgentRow?
     /// Tab 底下所有 Agent 的 session(長按選單的釘選與靜音作用在全部);沒有 Agent 或 Agent 沒有 session 時是空的。
     public var chatSessionIDs: [String]
+    /// Tab 裡需要你(`effectiveStatus == .blocked`)的 Agent 的 pane(「需要你」段落用,#531)。
+    public var blockedPaneIDs: [String]
 
     public var id: String { "\(host.storedValue)/\(key)" }
 
@@ -86,9 +88,11 @@ public struct SpacesTab: Identifiable, Equatable, Sendable {
 
     public init(
         host: HostSelection, key: String, title: String, target: Target, avatar: Avatar = .terminal, tabName: String? = nil,
-        searchTerms: [String] = [], contentTitle: String? = nil, agent: AgentRow? = nil, chatSessionIDs: [String] = []
+        searchTerms: [String] = [], contentTitle: String? = nil, agent: AgentRow? = nil, chatSessionIDs: [String] = [],
+        blockedPaneIDs: [String] = []
     ) {
         self.chatSessionIDs = chatSessionIDs
+        self.blockedPaneIDs = blockedPaneIDs
         self.contentTitle = contentTitle ?? title
         self.agent = agent
         self.tabName = tabName
@@ -191,7 +195,8 @@ extension AgentListProjection {
                 avatar: avatar(for: tabAgents, source: source, visible: visible), tabName: tabName(label: tab.label, position: index + 1),
                 searchTerms: tabAgents.map { AgentRowText.title(for: $0, siblings: agents) }, contentTitle: contents,
                 agent: tabAgents.first.map { representative($0, siblings: agents, source: source, visible: visible) },
-                chatSessionIDs: tabAgents.compactMap(\.sessionID))
+                chatSessionIDs: tabAgents.compactMap(\.sessionID),
+                blockedPaneIDs: tabAgents.filter { $0.effectiveStatus == .blocked }.map(\.paneID))
         }
         let known = Set(tabs.map(\.id))
         for pane in panes where tabID(of: pane).map({ !known.contains($0) }) ?? true {
@@ -202,7 +207,8 @@ extension AgentListProjection {
                 avatar: avatar(for: agents.filter { $0.paneID == pane.id }, source: source, visible: visible),
                 searchTerms: agents.filter { $0.paneID == pane.id }.map { AgentRowText.title(for: $0, siblings: agents) },
                 agent: agents.first { $0.paneID == pane.id }.map { representative($0, siblings: agents, source: source, visible: visible) },
-                chatSessionIDs: agents.filter { $0.paneID == pane.id }.compactMap(\.sessionID)))
+                chatSessionIDs: agents.filter { $0.paneID == pane.id }.compactMap(\.sessionID),
+                blockedPaneIDs: agents.filter { $0.paneID == pane.id && $0.effectiveStatus == .blocked }.map(\.paneID)))
         }
         return rows
     }
