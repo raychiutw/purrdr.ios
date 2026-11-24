@@ -23,7 +23,8 @@ public struct NeedsYouSection: Equatable, Sendable {
 }
 
 extension AgentListProjection {
-    /// - Parameter order: 依「變成需要你的時間」新的在前的聊天(`NeedsYouNotifications.others`);不在裡面的排在後面、維持列表順序。
+    /// - Parameter order: `NeedsYouNotifications.others`(依「變成需要你的時間」新的在前,已排除靜音與目前開著的聊天);
+    ///   段落只列有 pane 在裡面的 Tab。
     /// - Parameter justNow: 最新轉變成需要你的聊天(`NeedsYouNotifications.latest`);沒有時 `nil`。
     package static func needsYouSection(
         sources: [Source], visible: Set<ChatRoute> = [], query: String = "", order: [ChatRoute] = [], justNow: ChatRoute? = nil
@@ -31,9 +32,10 @@ extension AgentListProjection {
         func rank(_ tab: SpacesTab) -> Int {
             order.firstIndex { $0.host == tab.host && tab.blockedPaneIDs.contains($0.paneID) } ?? Int.max
         }
+        func isListed(_ tab: SpacesTab) -> Bool { rank(tab) != Int.max }
         let tabs = spacesSections(sources: sources, visible: visible, query: query)
             .flatMap(\.tabs)
-            .filter { !$0.blockedPaneIDs.isEmpty }
+            .filter(isListed)
         guard !tabs.isEmpty else { return nil }
         let rows = tabs.enumerated()
             .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }
