@@ -52,12 +52,12 @@ extension KeyboardCommand {
         case .openTerminal: KeyboardShortcut("t", modifiers: [.command, .shift])
         case .newChat: KeyboardShortcut("n", modifiers: .command)
         case .settings: KeyboardShortcut(",", modifiers: .command)
-        case .showChats: KeyboardShortcut("?", modifiers: [])
-        case .showFiles: KeyboardShortcut("?", modifiers: [])
-        case .showHosts: KeyboardShortcut("?", modifiers: [])
-        case .showTraffic: KeyboardShortcut("?", modifiers: [])
-        case .toggleInspector: KeyboardShortcut("?", modifiers: [])
-        case .openInNewWindow: KeyboardShortcut("?", modifiers: [])
+        case .showChats: KeyboardShortcut("1", modifiers: .command)
+        case .showFiles: KeyboardShortcut("2", modifiers: .command)
+        case .showHosts: KeyboardShortcut("3", modifiers: .command)
+        case .showTraffic: KeyboardShortcut("4", modifiers: .command)
+        case .toggleInspector: KeyboardShortcut("i", modifiers: [.command, .option])
+        case .openInNewWindow: KeyboardShortcut("o", modifiers: [.command, .option])
         }
     }
 
@@ -82,7 +82,11 @@ extension KeyboardCommand {
 
     /// 選單項目的停用條件:不能用就停用、不隱藏(#522)。
     public func isEnabled(in context: KeyboardCommandContext) -> Bool {
-        true
+        switch self {
+        case .openInNewWindow: context.hasSelectedChat && context.supportsMultipleWindows
+        case .toggleInspector: context.tab == .chats && context.isWideWindow && context.hasSelectedConversation
+        default: true
+        }
     }
 
     /// 選單項目在這個狀態下的名稱(Inspector 依開關顯示「Show／Hide Inspector」)。
@@ -92,14 +96,36 @@ extension KeyboardCommand {
 
     /// `title(in:)` 的英文 key(測試用)。
     public func titleText(in context: KeyboardCommandContext) -> String {
-        "Show Inspector"
+        if self == .toggleInspector, context.isInspectorShown { return "Hide Inspector" }
+        return switch self {
+        case .showChats: "Chats"
+        case .showFiles: "Files"
+        case .showHosts: "Hosts"
+        case .showTraffic: "Traffic"
+        case .toggleInspector: "Show Inspector"
+        case .openInNewWindow: "Open in New Window"
+        case .nextAgent: "Next Agent"
+        case .previousAgent: "Previous Agent"
+        case .search: "Search"
+        case .openTerminal: "Open Terminal"
+        case .newChat: "New Chat"
+        case .settings: "App Settings…"
+        }
     }
 
     /// 「顯示方式」選單的項目與順序(#522)。
-    public static let viewMenu: [KeyboardCommand] = []
+    public static let viewMenu: [KeyboardCommand] = [.showChats, .showFiles, .showHosts, .showTraffic, .toggleInspector]
     /// 「Agent」選單的項目與順序。
-    public static let agentMenu: [KeyboardCommand] = [.nextAgent, .previousAgent, .search, .openTerminal]
+    public static let agentMenu: [KeyboardCommand] = [.nextAgent, .previousAgent, .search, .openTerminal, .openInNewWindow]
 
     /// 這個指令切到的 tab;不是切 tab 的指令為 `nil`。
-    public var tab: TopLevelTab? { nil }
+    public var tab: TopLevelTab? {
+        switch self {
+        case .showChats: .chats
+        case .showFiles: .files
+        case .showHosts: .hosts
+        case .showTraffic: .traffic
+        default: nil
+        }
+    }
 }
