@@ -62,4 +62,34 @@ struct TerminalKeyboardViewportTests {
         // 沒有鍵盤(終端機不比可見區域高):不位移
         #expect(TerminalKeyboardViewport.offset(caretBottom: 450, visibleHeight: 600, terminalHeight: 600) == 0)
     }
+
+    @Test("上移量取整到列高的倍數(向上),頂列不被切半;游標列仍完整可見(#471)")
+    func offsetRoundsUpToWholeRows() {
+        let row = 20.0
+        // 游標底 450、可見 300 → 原需上移 150(不是 20 的倍數)→ 取整為 160
+        #expect(TerminalKeyboardViewport.offset(
+            caretBottom: 450, visibleHeight: 300, terminalHeight: 600, rowHeight: row) == -160)
+        // 已是倍數:不變
+        #expect(TerminalKeyboardViewport.offset(
+            caretBottom: 460, visibleHeight: 300, terminalHeight: 600, rowHeight: row) == -160)
+        // 取整後不超過終端機底(最多移到底)
+        #expect(TerminalKeyboardViewport.offset(
+            caretBottom: 599, visibleHeight: 300, terminalHeight: 600, rowHeight: row) == -300)
+        // 游標在可見區域內:不位移
+        #expect(TerminalKeyboardViewport.offset(
+            caretBottom: 200, visibleHeight: 300, terminalHeight: 600, rowHeight: row) == 0)
+        // 各種鍵盤高度與列高:位移為列高整數倍(或到底),且游標底緣仍在可見區域內
+        for rowHeight in [14.5, 17.0, 20.0, 23.3] {
+            for visible in stride(from: 150.0, through: 450.0, by: 7.0) {
+                for caret in stride(from: 10.0, through: 600.0, by: 13.0) {
+                    let o = TerminalKeyboardViewport.offset(
+                        caretBottom: caret, visibleHeight: visible, terminalHeight: 600, rowHeight: rowHeight)
+                    let rows = -o / rowHeight
+                    let whole = abs(rows - rows.rounded()) < 1e-9
+                    #expect(o == 0 || whole || o == -(600 - visible))
+                    #expect(caret + o <= visible + 1e-9 || o == -(600 - visible))
+                }
+            }
+        }
+    }
 }
