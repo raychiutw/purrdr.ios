@@ -12,6 +12,9 @@ struct SpacesSectionsContent: View {
     let presentation: WorkspacePresentation
     /// 把 Tab 開在新視窗(支援多視窗時才有)。
     var openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
+    /// 標題選單的「在此新增聊天」(#537)。
+    var newChatInWorkspace: ((HostSelection, String) -> Void)?
+    var canNewChatInWorkspace: ((HostSelection) -> Bool)?
 
     var body: some View {
         ForEach(sections) { section in
@@ -30,9 +33,16 @@ struct SpacesSectionsContent: View {
                 SpacesSectionHeader(section: section)
                     .workspaceHeaderMenu(
                         workspaceTarget(section), host: section.host, snapshot: model.snapshot(for: section.host),
-                        isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation)
+                        isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation,
+                        newChatHere: newChatHere(section))
             }
         }
+    }
+
+    /// 這台主機支援時,標題選單的「在此新增聊天」動作。
+    private func newChatHere(_ section: SpacesSection) -> (() -> Void)? {
+        guard let newChatInWorkspace, canNewChatInWorkspace?(section.host) == true else { return nil }
+        return { newChatInWorkspace(section.host, section.workspaceID) }
     }
 
     private func newWindowAction(_ tab: SpacesTab, host: HostSelection) -> (() -> Void)? {
