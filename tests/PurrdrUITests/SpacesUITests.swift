@@ -65,9 +65,10 @@ final class SpacesUITests: XCTestCase {
 
         first.press(forDuration: 1.2)
         app.buttons["menu.closeTab"].tap()
-        let confirm = app.buttons["Close Tab and Workspace"]
+        let confirm = app.buttons["closeTab.confirm"].firstMatch
         XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有出現確認")
-        app.buttons["Cancel"].tap()
+        XCTAssertEqual(confirm.label, "Close Tab and Workspace")
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
         XCTAssertTrue(first.exists, "取消後 Tab 不該消失")
 
         first.press(forDuration: 1.2)

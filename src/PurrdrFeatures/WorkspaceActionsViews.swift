@@ -322,6 +322,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                 }
                 .accessibilityIdentifier("closeTab.confirm")
                 Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("closeTab.cancel")
             } message: { request in
                 if request.isLastInWorkspace {
                     Text("This is the last tab in “\(request.workspaceLabel)”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host.")
