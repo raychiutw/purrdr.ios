@@ -22,7 +22,7 @@ public struct UsageSummary: Equatable, Sendable {
             switch self {
             case .context: String(localized: "Context")
             case .currentSession: String(localized: "Current Session")
-            case .weekly: String(localized: "Weekly")
+            case .weekly: String(localized: "Weekly Limit")
             }
         }
     }

@@ -443,16 +443,16 @@ struct ConversationScreen: View {
                     }
                 }
                 #endif
-                // 右上角一顆玻璃膠囊 [用量環｜⋯](#513):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
-                ToolbarItem(placement: .primaryAction) {
-                    ConversationTrailingCapsule(summary: usageSummary, showUsage: { showsUsage = true }) {
-                        ConversationMoreMenu(
-                            model: model, canOpenTerminal: makeTerminal != nil, canShowLayout: layoutSnapshot != nil,
-                            openTerminal: openTerminal, openChanges: { changes = model.makeChanges() },
-                            showLayout: { showsLayout = true })
+                // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
+                ToolbarItemGroup(placement: .primaryAction) {
+                    if let usageSummary {
+                        UsageRingButton(summary: usageSummary) { showsUsage = true }
                     }
+                    ConversationMoreMenu(
+                        model: model, canOpenTerminal: makeTerminal != nil, canShowLayout: layoutSnapshot != nil,
+                        openTerminal: openTerminal, openChanges: { changes = model.makeChanges() },
+                        showLayout: { showsLayout = true })
                 }
-                .sharedBackgroundVisibility(.hidden)    // 膠囊自己是玻璃,不讓工具列再疊一層
             }
             .task(id: UsageLifecycleKey(active: scenePhase == .active, agentKind: model.agentKind)) { startUsage() }
             .onChange(of: model.modelName) { _, name in usageSection?.activeGroup = name.flatMap(PlanUsage.Group.init(modelName:)) }

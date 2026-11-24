@@ -77,9 +77,9 @@ struct UsageSummaryTests {
     @Test("VoiceOver 句子")
     func accessibilitySentence() {
         let used = UsageSummary.make(contextUsed: 21, planRows: Self.rows(weekUsed: 93), display: .used)
-        #expect(used?.accessibilityText == "Usage: Weekly 93%")
+        #expect(used?.accessibilityText == "Usage: Weekly Limit 93%")
         let left = UsageSummary.make(contextUsed: 21, planRows: Self.rows(weekUsed: 93, display: .remaining), display: .remaining)
-        #expect(left?.accessibilityText == "Usage: Weekly 7% left")
+        #expect(left?.accessibilityText == "Usage: Weekly Limit 7% left")
         let context = UsageSummary.make(contextUsed: 21, planRows: [], display: .used)
         #expect(context?.accessibilityText == "Usage: Context 21%")
     }

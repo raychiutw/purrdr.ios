@@ -2,30 +2,21 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 聊天頂列右側的玻璃膠囊(#513,原型 Main):[用量環｜⋯]。
-/// 沒有任何用量資料時沒有用量環,膠囊只剩「⋯」。兩個控制項觸控目標各 ≥ 44pt。
-struct ConversationTrailingCapsule<MoreMenu: View>: View {
-    let summary: UsageSummary?
-    let showUsage: () -> Void
-    @ViewBuilder let moreMenu: () -> MoreMenu
+/// 頂列用量環按鈕(#513,原型 Main):和「⋯」放在同一個 `ToolbarItemGroup`,系統把它們合成一顆玻璃膠囊 [用量環｜⋯]。
+/// 觸控目標 ≥ 44pt;點了開用量 sheet。
+struct UsageRingButton: View {
+    let summary: UsageSummary
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            if let summary {
-                Button(action: showUsage) {
-                    UsageRingView(summary: summary)
-                        .frame(minWidth: TopBarMetrics.circleDiameter, minHeight: TopBarMetrics.controlHeight)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(verbatim: summary.accessibilityText))
-                .accessibilityHint(Text("Shows usage details."))
-                .accessibilityIdentifier("conversation.usage")
-            }
-            moreMenu()
+        Button(action: action) {
+            UsageRingView(summary: summary)
+                .frame(minWidth: TopBarMetrics.circleDiameter, minHeight: TopBarMetrics.controlHeight)
+                .contentShape(Rectangle())
         }
-        .padding(.horizontal, summary == nil ? 0 : 2)
-        .floatingGlass(in: Capsule())
+        .accessibilityLabel(Text(verbatim: summary.accessibilityText))
+        .accessibilityHint(Text("Shows usage details."))
+        .accessibilityIdentifier("conversation.usage")
     }
 }
 
@@ -220,10 +211,17 @@ private struct UsageCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                title.font(.headline)
-                Spacer(minLength: 8)
-                value.font(.subheadline).foregroundStyle(.secondaryText).monospacedDigit()
+            // 大字級放不下並排時改上下排,標題不被擠成斷字。
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) {
+                    title.font(.headline).lineLimit(1)
+                    Spacer(minLength: 8)
+                    value.font(.subheadline).foregroundStyle(.secondaryText).monospacedDigit().lineLimit(1)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    title.font(.headline)
+                    value.font(.subheadline).foregroundStyle(.secondaryText).monospacedDigit()
+                }
             }
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
