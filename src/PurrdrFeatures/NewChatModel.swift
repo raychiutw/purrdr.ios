@@ -101,6 +101,9 @@ public final class FolderPickerModel {
 public final class NewChatModel {
     /// 主機上的資料夾(可以打 `~/…`,或從資料夾瀏覽挑)。
     public var folder = ""
+    /// 選填:workspace 與第一個 tab 的名稱(#532);留空沿用資料夾名與預設。
+    public var workspaceName = ""
+    public var tabName = ""
     public var agent: AgentID = .claude {
         didSet { if agent != oldValue { choice = .new } }
     }
@@ -244,7 +247,8 @@ public final class NewChatModel {
         guard canStart else { return nil }
         var resumeSession: String?
         if case .resume(let id) = choice { resumeSession = id }
-        let request = NewChatRequest(folder: trimmedFolder, agent: agent, message: trimmedMessage, resumeSession: resumeSession)
+        let request = NewChatRequest(
+            folder: trimmedFolder, label: Self.optional(workspaceName), tabLabel: Self.optional(tabName), agent: agent, message: trimmedMessage, resumeSession: resumeSession)
         isStarting = true
         error = nil
         unsentMessage = nil
@@ -258,6 +262,11 @@ public final class NewChatModel {
             self.error = Self.message(for: error)
             return nil
         }
+    }
+
+    private static func optional(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     package static func message(for error: any Error) -> String {

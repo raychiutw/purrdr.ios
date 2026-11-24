@@ -80,6 +80,18 @@ public struct NewChatView: View {
                 sessionsSection
 
                 Section {
+                    TextField("Workspace Name", text: $model.workspaceName, prompt: Text("Optional"))
+                        .accessibilityIdentifier("newChat.workspaceName")
+                    TextField("Tab Name", text: $model.tabName, prompt: Text("Optional"))
+                        .accessibilityIdentifier("newChat.tabName")
+                } header: {
+                    Text("Names")
+                        .foregroundStyle(.secondaryText)
+                } footer: {
+                    Text("Leave these empty to use the folder’s name.")
+                }
+
+                Section {
                     TextField(
                         "First Message", text: $model.message,
                         prompt: model.isResuming ? Text("Say what’s next…") : Text("What should the agent do?"), axis: .vertical)

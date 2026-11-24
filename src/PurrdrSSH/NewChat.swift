@@ -21,6 +21,8 @@ public struct NewChatRequest: Sendable, Equatable {
     public var folder: String
     /// workspace 名稱;`nil` 時由 herdr 命名(資料夾名)。
     public var label: String?
+    /// 第一個 tab 的名稱(#532);`nil` 時沿用 herdr 的預設。
+    public var tabLabel: String?
     /// 啟動的種類(`AgentCatalog.startableAgents`);herdr 的 kind 是它的正式名稱。
     public var agent: AgentID
     /// 只有 Claude Code 會用到。
@@ -33,13 +35,14 @@ public struct NewChatRequest: Sendable, Equatable {
     public var continuesLastSession: Bool
 
     public init(
-        folder: String, label: String? = nil, agent: AgentID, permissionMode: ClaudePermissionMode = .agentDefault, message: String = "",
+        folder: String, label: String? = nil, tabLabel: String? = nil, agent: AgentID, permissionMode: ClaudePermissionMode = .agentDefault, message: String = "",
         resumeSession: String? = nil, continuesLastSession: Bool = false
     ) {
         self.resumeSession = resumeSession
         self.continuesLastSession = continuesLastSession
         self.folder = folder
         self.label = label
+        self.tabLabel = tabLabel
         self.agent = agent
         self.permissionMode = permissionMode
         self.message = message
@@ -156,7 +159,7 @@ public actor NewChatLauncher {
                 self.pending = nil
                 try? await client.closeWorkspace(pending.workspace.workspaceID)
             }
-            workspace = try await client.createWorkspace(cwd: folder, label: request.label)
+            workspace = try await client.createWorkspace(cwd: folder, label: request.label, tabLabel: request.tabLabel)
             pending = (folder, workspace)
         }
         let name = NewChatRequest.agentName(for: request.label ?? Self.lastComponent(of: folder))

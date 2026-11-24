@@ -154,10 +154,14 @@ public struct HerdrClient: Sendable {
 
     /// 在 `cwd`(主機上的絕對路徑，呼叫端先確認存在)建立 workspace(`workspace.create`,期限 60 秒)。
     /// `focus:false`:不搶桌機的焦點。`label` 為 `nil` 時由 herdr 命名。
-    public func createWorkspace(cwd: String, label: String?) async throws -> CreatedWorkspace {
+    /// `tabLabel`(#532)有值時,建好後對新 tab 送 `tab.rename`;命名只是順手的事,失敗不讓新對話失敗。
+    public func createWorkspace(cwd: String, label: String?, tabLabel: String? = nil) async throws -> CreatedWorkspace {
         let result = try await request(
             method: "workspace.create", params: WorkspaceCreateParams(cwd: cwd, label: label), as: WorktreeCreatedResult.self, deadline: .seconds(60)
         )
+        if let tabLabel, let tabID = result.rootPane.tabID {
+            try? await renameTab(tabID, to: tabLabel)
+        }
         return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
     }
 
@@ -469,9 +473,11 @@ private struct WorktreeCreatedResult: Decodable {
 
     struct RootPane: Decodable {
         var paneID: String
+        var tabID: String?
 
         enum CodingKeys: String, CodingKey {
             case paneID = "pane_id"
+            case tabID = "tab_id"
         }
     }
 
