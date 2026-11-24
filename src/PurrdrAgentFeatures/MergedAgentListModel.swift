@@ -242,7 +242,7 @@ public final class MergedAgentListModel {
 
     private var projectionSources: [AgentListProjection.Source] { sources.map(projectionSource(of:)) }
 
-    private func projectionSource(of source: Source) -> AgentListProjection.Source {
+    package func projectionSource(of source: Source) -> AgentListProjection.Source {
         var projection = AgentListProjection.Source(
             host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
             name: source.name, icon: source.icon, snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)

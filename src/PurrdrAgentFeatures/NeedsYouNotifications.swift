@@ -151,3 +151,30 @@ extension MergedAgentListModel {
             current: visibleChats)
     }
 }
+
+/// 頂部橫幅要畫的內容(#530)。
+public struct NeedsYouBannerContent: Equatable, Sendable {
+    public var route: ChatRoute
+    /// Agent 種類(herdr 原文;頭像用)。
+    public var kind: String
+    public var workspace: String
+    /// 目前需要你的聊天總數(含它)。
+    public var total: Int
+    /// 那個 Agent 最後一段訊息;還沒讀到時 `nil`。
+    public var message: String?
+}
+
+extension MergedAgentListModel {
+    /// 目前的橫幅內容;沒有橫幅或找不到那個聊天的列時 `nil`。
+    public var needsYouBanner: NeedsYouBannerContent? {
+        guard let banner = needsYou.banner,
+              let source = sources.first(where: { $0.host == banner.chat.host }),
+              let agent = source.list.snapshot?.agents.first(where: { $0.paneID == banner.chat.paneID }) else { return nil }
+        let row = AgentListProjection.sections(sources: [projectionSource(of: source)], query: "").flatMap(\.rows)
+            .first { $0.paneID == banner.chat.paneID }
+        let text = source.list.previews[banner.chat.paneID]?.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return NeedsYouBannerContent(
+            route: banner.chat, kind: row?.kind ?? agent.kind, workspace: row?.workspace ?? banner.chat.paneID,
+            total: banner.total, message: text?.isEmpty == false ? text : nil)
+    }
+}
