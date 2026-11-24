@@ -177,4 +177,19 @@ struct ConversationReadableMessageTests {
 
         #expect(W.hasReadableMessage(second.items), "第二次開啟快取沒有可讀訊息")
     }
+
+    @Test("#508 開啟補讀不當成往上翻:時間軸原因是整份取代(跟隨最新時維持在底部,不跳位置)")
+    func backfillDoesNotReportOlderLoaded() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await Self.answering(connection, lines: Self.longToolTail)
+        let model = Self.model(connection)
+        var causes: [ConversationTimeline.Cause] = []
+        model.onTimelineUpdate = { causes.append($0.cause) }
+        let chat = try await Self.open(model, connection)
+        defer { chat.cancel() }
+
+        #expect(W.hasReadableMessage(model.items))
+        #expect(!causes.contains(.olderLoaded), "causes \(causes)")
+    }
 }

@@ -1353,11 +1353,17 @@ public final class ConversationModel {
         var pages = 0
         while !hasReadableMessage, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
             pages += 1
-            let page = try await transcripts.window(path: path, endingAt: start, lines: pageLines)
+            // 每頁加倍(上限 `maximumBackfillPageLines`):尾端一長串工具步驟時，往返次數是使用者在等的時間(#508)。
+            let lines = min(pageLines << min(pages - 1, 4), max(pageLines, Self.maximumBackfillPageLines))
+            let page = try await transcripts.window(path: path, endingAt: start, lines: lines)
             guard generation == self.generation else { return }
-            await prepend(page, generation: generation)
+            // 補讀的頁屬於「開啟視窗」而不是往上翻的舊頁:要進快取，下次開啟才立刻有可讀訊息(#508)。
+            await prepend(page, generation: generation, intoWindow: true)
         }
     }
+
+    /// 補讀單頁行數上限。
+    package static let maximumBackfillPageLines = 1_600
 
     /// 畫面上有沒有「可讀訊息」(#473):使用者訊息、Agent 文字、備註、skill、subagent、workflow、shell、檔案卡都算;
     /// 只有摺起來的工具串(`.toolRun`)不算。
@@ -1421,7 +1427,7 @@ public final class ConversationModel {
     // MARK: - 往上翻
 
     /// 把往上翻讀到的一頁接在最前面(解析在背景做，依到達順序套用)。
-    private func prepend(_ page: TranscriptChunk, generation: Int) async {
+    private func prepend(_ page: TranscriptChunk, generation: Int, intoWindow: Bool = false) async {
         await applyGate.run {
             guard generation == self.generation else { return }
             let dialect = self.dialect
@@ -1430,10 +1436,16 @@ public final class ConversationModel {
             if !prepared.skips.isEmpty { onTranscriptSkips?(dialect, prepared.skips) }
             let known = Set((olderMessages + recent).map(\.id))
             let olderPage = prepared.messages.filter { !known.contains($0.id) }
-            olderMessages = olderPage + olderMessages
+            if intoWindow {
+                recent = olderPage + recent
+                segments.insert((page.start, olderPage.count), at: 0)
+            } else {
+                olderMessages = olderPage + olderMessages
+            }
             file?.windowStart = page.start
             older = page.start > 0 ? .available : .reachedStart
-            applyTimeline(timeline.prependOlder(olderPage))
+            // 補讀屬於開啟視窗:跟隨最新時維持在底部(「整份取代」的捲動規則),不當成往上翻而停在原列、讓位置跳動(#508)。
+            applyTimeline(intoWindow ? timeline.reset(olderMessages + recent) : timeline.prependOlder(olderPage))
         }
     }
 
@@ -3005,11 +3017,19 @@ public final class ConversationModel {
             first = segments.count - 1
             count = last.count
         }
+        // 尾端只有工具步驟(補讀過才找到可讀訊息):多留到包含可讀訊息，否則下次開啟的快取不值得還原、又得整段補讀(#508)。
+        var limit = CachedConversation.maxMessages
+        while first > 0, count > 0, count < CachedConversation.maxMessagesWithReadable,
+              !Self.hasReadableMessage(in: Conversation.items(from: Array(recent.suffix(count)))) {
+            first -= 1
+            count += segments[first].count
+            limit = CachedConversation.maxMessagesWithReadable
+        }
         let windowStart = first < segments.count ? segments[first].start : file.windowStart
         await cache.save(
             CachedConversation(
                 sessionID: boundSessionID, messages: Array(recent.suffix(count)), metadata: metadata, path: file.path,
-                cursor: file.follow.cursor, windowStart: windowStart
+                cursor: file.follow.cursor, windowStart: windowStart, limit: limit
             ),
             chatKey: chatKey
         )
