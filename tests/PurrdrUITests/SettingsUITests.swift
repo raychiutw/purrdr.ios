@@ -143,6 +143,30 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(copy.wait(for: NSPredicate(format: "label == %@", "Copied"), timeout: 5), "等待的條件沒有成立")
     }
 
+    /// 捲動卡頓記錄(診斷):開關預設開啟、可關閉再開;分享與清除按鈕在。只驗行為,不驗記錄內容。
+    @MainActor
+    func testHitchLogSectionHasToggleShareAndClear() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+
+        let toggle = app.switches["settings.hitchLog"]
+        app.scrollIntoView(toggle, search: .down)
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有「記錄捲動卡頓」開關")
+        XCTAssertEqual(toggle.value as? String, "1", "預設應該開啟")
+        let share = app.buttons["settings.hitchLog.share"]
+        XCTAssertTrue(share.exists, "沒有「分享卡頓記錄」")
+        XCTAssertTrue(app.buttons["settings.hitchLog.clear"].exists, "沒有「清除記錄」")
+
+        toggle.switches.firstMatch.tap()
+        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == %@", "0"), timeout: 5), "關閉沒有生效")
+        toggle.switches.firstMatch.tap()
+        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == %@", "1"), timeout: 5), "再開啟沒有生效")
+
+        // 沒有記錄時,分享鈕只顯示一行說明(不跳出分享選單)。
+        share.tap()
+        XCTAssertTrue(app.staticTexts["settings.hitchLog.empty"].waitUntilExists(timeout: 5), "沒有記錄時應說明")
+    }
+
     /// String Catalog 真的套用到 package 裡的畫面(畫面字串在 PurrdrFeatures,catalog 在 app)。
     @MainActor
     func testTraditionalChineseInterface() {

@@ -23,7 +23,8 @@ struct SettingsModelTests {
     static func model(
         platform: RecordingPlatform = RecordingPlatform(), hostCount: Int = 1,
         defaults: UserDefaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!,
-        appStoreID: String = "6740000000", usageDisplay: UsageDisplaySetting = UsageDisplaySetting()
+        appStoreID: String = "6740000000", usageDisplay: UsageDisplaySetting = UsageDisplaySetting(),
+        hitchRecorder: HitchRecorder? = nil
     ) -> SettingsModel {
         SettingsModel(
             app: app, hostCount: { hostCount }, defaults: defaults,
@@ -32,8 +33,37 @@ struct SettingsModelTests {
                 support: URL(string: "https://example.com/support")!,
                 privacyPolicy: URL(string: "https://example.com/privacy")!
             ),
-            usageDisplay: usageDisplay
+            usageDisplay: usageDisplay, hitchRecorder: hitchRecorder
         )
+    }
+
+    // MARK: - 捲動卡頓記錄
+
+    static func hitchRecorder() -> HitchRecorder {
+        HitchRecorder(
+            sink: HitchLogFile(directory: FileManager.default.temporaryDirectory.appendingPathComponent("hitch-\(UUID().uuidString)")),
+            defaults: UserDefaults(suiteName: "hitch-r-\(UUID().uuidString)")!, system: { HitchSystemState.sample })
+    }
+
+    @Test("卡頓記錄開關預設開啟,關掉時記錄器停止;沒有記錄器時不顯示區塊")
+    func hitchToggleControlsRecorder() {
+        let recorder = Self.hitchRecorder()
+        let model = Self.model(hitchRecorder: recorder)
+        #expect(model.hasHitchRecorder)
+        #expect(model.recordsHitches)
+        model.recordsHitches = false
+        #expect(!recorder.isEnabled)
+        #expect(!Self.model().hasHitchRecorder)
+    }
+
+    @Test("沒有記錄時分享回 nil 並標示為空;清除後不再標示")
+    func hitchExportWhenEmpty() async {
+        let model = Self.model(hitchRecorder: Self.hitchRecorder())
+        let url = await model.exportHitchLog()
+        #expect(url == nil)
+        #expect(model.hitchLogIsEmpty)
+        await model.clearHitchLog()
+        #expect(!model.hitchLogIsEmpty)
     }
 
     // MARK: - 複製診斷資訊
