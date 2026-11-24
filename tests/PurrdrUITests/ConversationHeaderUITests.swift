@@ -28,25 +28,6 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10), "下拉重新整理後沒有重讀對話")
     }
 
-    /// 其他聊天需要你(#529):開 ledger(w1:p1)時,Demo 的 weather-app(w2:p1)正等著,系統返回鈕右上疊小點、VoiceOver 念出數量;
-    /// 返回仍是系統返回鈕(點得到、邊緣滑動可用)。
-    @MainActor
-    func testBackButtonShowsDotWhenOtherChatNeedsYou() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))
-
-        let dot = app.element("conversation.needsYouDot")
-        XCTAssertTrue(dot.waitUntilExists(timeout: 10), "其他聊天需要你時返回鈕沒有小點")
-        XCTAssertTrue(dot.label.contains("1"), "標籤沒有帶數量:\(dot.label)")
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        XCTAssertTrue(back.frame.insetBy(dx: -8, dy: -8).intersects(dot.frame), "小點不在返回鈕上:\(dot.frame) vs \(back.frame)")
-
-        // 邊緣滑動返回仍可用。
-        let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.5))
-        edge.withOffset(CGVector(dx: 2, dy: 0)).press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
-        XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "邊緣滑動沒有返回列表")
-    }
-
     /// 工作中(#220):輸入卡片最上面有停止列，送出鈕照舊。
     /// 點停止送 Esc:停止中按鈕念「Stopping…」且停用，停下後顯示「Stopped」,約 2 秒後停止列收起、工作中指示消失。
     @MainActor

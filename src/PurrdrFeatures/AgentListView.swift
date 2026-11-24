@@ -1,9 +1,6 @@
 import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 /// 聊天 tab 頂列的動作(#499):由 `TopNavigationView` 提供,列表本身不知道有哪些 sheet。
 package struct ChatTopBarActions {
@@ -166,7 +163,6 @@ public struct AgentListView: View {
                 makeTerminal: makeTerminal.map { make in
                     { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
                 },
-                needsYou: model.needsYou,
                 layoutSnapshot: { [model] in model.snapshot(for: route.host) },
                 openLayoutTarget: { [model] target in
                     switch target {
@@ -384,9 +380,6 @@ struct ConversationScreen: View {
     @State private var terminal: PaneTerminalModel?
     /// 推入中的變更頁(#310)。
     @State private var changes: ChangesModel?
-    /// 跨聊天「需要你」通知(#529):其他聊天需要你時,窄視窗的返回鈕疊一顆小點。
-    let needsYou: NeedsYouNotifications?
-    @Environment(\.horizontalSizeClass) private var sizeClass
     /// 更多選單的「顯示版面」(#381):讀聊天所在主機的 snapshot(開啟當下，不即時更新);沒有時不顯示這一項。
     let layoutSnapshot: (@MainActor () -> HostSnapshot?)?
     /// 版面圖選了 Pane 之後的動作(開那個 Pane)。
@@ -405,10 +398,9 @@ struct ConversationScreen: View {
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
-        window: TopNavigationModel? = nil, route: ChatRoute? = nil, needsYou: NeedsYouNotifications? = nil,
+        window: TopNavigationModel? = nil, route: ChatRoute? = nil,
         layoutSnapshot: (@MainActor () -> HostSnapshot?)? = nil, openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)? = nil
     ) {
-        self.needsYou = needsYou
         self.layoutSnapshot = layoutSnapshot
         self.openLayoutTarget = openLayoutTarget
         _model = State(wrappedValue: model())
@@ -420,9 +412,6 @@ struct ConversationScreen: View {
     var body: some View {
         ConversationView(model: model)
             .hidesTabBarWhenCompact()
-            #if os(iOS)
-            .modifier(OtherNeedsYouBackButton(count: sizeClass == .compact ? needsYou?.others.count ?? 0 : 0))
-            #endif
             .toolbar {
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -669,75 +658,3 @@ private struct SelectionFillModifier: ViewModifier {
             .listRowBackground(isSelected ? Rectangle().fill(.neutralSelection) : nil)
     }
 }
-
-#if os(iOS)
-/// 其他聊天需要你時(#529),窄視窗的系統返回鈕右上疊一顆 10pt 系統橙小點。
-/// 保留系統返回鈕(玻璃外觀、44pt、邊緣滑動返回、寬視窗沒有返回鈕都照系統),小點是加在導覽列上的獨立 view,不改鈕的寬度。
-private struct OtherNeedsYouBackButton: ViewModifier {
-    let count: Int
-
-    func body(content: Content) -> some View {
-        content.background(NavigationBarDot(count: count).frame(width: 0, height: 0))
-    }
-}
-
-private struct NavigationBarDot: UIViewControllerRepresentable {
-    let count: Int
-
-    func makeUIViewController(context: Context) -> Controller { Controller() }
-    func updateUIViewController(_ controller: Controller, context: Context) {
-        controller.count = count
-        controller.refresh()
-    }
-
-    final class Controller: UIViewController {
-        var count = 0
-        private static let tag = 0x529
-        private weak var installedIn: UINavigationBar?
-
-        override func viewDidAppear(_ animated: Bool) {
-            super.viewDidAppear(animated)
-            refresh()
-        }
-
-        override func viewWillDisappear(_ animated: Bool) {
-            super.viewWillDisappear(animated)
-            remove()
-        }
-
-        func refresh() {
-            guard count > 0, viewIfLoaded?.window != nil, let bar = navigationController?.navigationBar else {
-                remove()
-                return
-            }
-            let label = String(localized: "\(count) other chats need you")
-            if let dot = bar.viewWithTag(Self.tag) {
-                dot.accessibilityLabel = label
-                return
-            }
-            let dot = UIView()
-            dot.tag = Self.tag
-            dot.backgroundColor = .systemOrange
-            dot.layer.cornerRadius = 5
-            dot.isUserInteractionEnabled = false
-            dot.isAccessibilityElement = true
-            dot.accessibilityLabel = label
-            dot.accessibilityIdentifier = "conversation.needsYouDot"
-            dot.translatesAutoresizingMaskIntoConstraints = false
-            bar.addSubview(dot)
-            NSLayoutConstraint.activate([
-                dot.widthAnchor.constraint(equalToConstant: 10),
-                dot.heightAnchor.constraint(equalToConstant: 10),
-                dot.leadingAnchor.constraint(equalTo: bar.layoutMarginsGuide.leadingAnchor, constant: 32),
-                dot.centerYAnchor.constraint(equalTo: bar.centerYAnchor, constant: -14),
-            ])
-            installedIn = bar
-        }
-
-        private func remove() {
-            installedIn?.viewWithTag(Self.tag)?.removeFromSuperview()
-            navigationController?.navigationBar.viewWithTag(Self.tag)?.removeFromSuperview()
-        }
-    }
-}
-#endif
