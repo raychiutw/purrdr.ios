@@ -42,6 +42,9 @@ public actor DemoHost: HostChannel {
         /// 聊天中斷網(#219):第一次定位對話紀錄(對話載入完成，#371)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
+        /// 跨聊天「需要你」(#530):第一次定位對話紀錄(開啟某個聊天)後 `after`,`w3:p1`(notes)從工作中變成需要你。
+        /// `w2:p1`(weather-app)一開始就需要你,所以不觸發橫幅(給「打開聊天時已經需要你的不跳橫幅」)。
+        case needsYouLater(after: Duration)
         /// Antigravity 情境(#446):列表多一個 Antigravity Agent「garden」(w4:p1),畫面狀態列是 accept-edits · Gemini 4 Neon · medium。
         case antigravity
     }
@@ -133,7 +136,10 @@ public actor DemoHost: HostChannel {
         try await passTailscaleCheck()
         try await failIfOffline()
         // 對話載入完成(第一次定位對話紀錄)才開始計時斷網，不是 app 啟動(#371)。
-        if DemoTranscripts.isLocate(command) { scheduleOfflineIfDue() }
+        if DemoTranscripts.isLocate(command) {
+            scheduleOfflineIfDue()
+            scheduleNeedsYouLaterIfDue()
+        }
         if command == HerdrCommand.bridge() {
             let bridge = DemoBridgeSession { [weak self] line in
                 guard let self else { return (Data(), false) }
@@ -287,7 +293,31 @@ public actor DemoHost: HostChannel {
     private func currentStatuses() -> [String: String] {
         var statuses = answers.statuses
         for pending in pendingReplies { statuses[pending.paneID] = "working" }
+        if needsYouLaterFired { statuses[Self.needsYouLaterPane] = "blocked" }
         return statuses
+    }
+
+    // MARK: - 跨聊天「需要你」情境
+
+    static let needsYouLaterPane = "w3:p1"
+    private var needsYouLaterScheduled = false
+    private var needsYouLaterFired = false
+
+    /// 第一次定位對話紀錄(打開了某個聊天)時排定:`delay` 之後 notes 變成需要你,並像 herdr 一樣對訂閱送狀態事件。
+    private func scheduleNeedsYouLaterIfDue() {
+        guard case .needsYouLater(let delay) = scenario, !needsYouLaterScheduled else { return }
+        needsYouLaterScheduled = true
+        let sleep = self.sleep
+        Task { [weak self] in
+            guard (try? await sleep(delay)) != nil else { return }
+            await self?.fireNeedsYouLater()
+        }
+    }
+
+    private func fireNeedsYouLater() async {
+        let before = currentStatuses()
+        needsYouLaterFired = true
+        await notifyStatusChanges(from: before)
     }
 
     /// 狀態和 `before` 不同的 pane,像 herdr 一樣對訂閱送狀態事件。

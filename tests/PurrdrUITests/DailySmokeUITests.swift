@@ -154,6 +154,32 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
+    /// 聊天裡別的聊天變成「需要你」(#530):頂部橫幅出現、點了把目前的聊天換成那個聊天、返回回到列表。
+    @MainActor
+    func testNeedsYouBanner() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouLater"])
+        let ledger = app.element(chatRowID("w1:p1"))
+
+        step("打開 ledger 的聊天,notes 變成需要你後出現橫幅") {
+            XCTAssertTrue(app.reveal(ledger), "沒有看到 Demo 主機的 Agent")
+            ledger.tap()
+            XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "沒有輸入框")
+            let open = app.buttons["needsYou.banner.open"]
+            XCTAssertTrue(open.waitUntilExists(timeout: 20), "別的聊天變成需要你後沒有橫幅")
+            XCTAssertTrue(open.label.hasPrefix("notes"), "橫幅沒有寫出 notes:\(open.label)")
+        }
+        step("點橫幅開 notes 的聊天") {
+            app.buttons["needsYou.banner.open"].tap()
+            let header = app.element("conversation.header")
+            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'notes'"), timeout: 10), "點橫幅後沒有換成 notes 的聊天")
+            XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "已經在那個聊天,橫幅該消失")
+        }
+        step("返回回到列表") {
+            back(app)
+            XCTAssertTrue(app.reveal(app.element(chatRowID("w1:p1"))), "返回後沒有回到列表")
+        }
+    }
+
     /// 「需要你」的聊天:subagent 卡、回答 Bash 權限。
     @MainActor
     func testNeedsYouAndSubagent() {

@@ -61,7 +61,13 @@ public struct ConversationView: View {
                 }
                 .sharedBackgroundVisibility(.hidden)    // 標題自己是玻璃膠囊，不讓工具列再疊一層(glass on glass)
             }
-            .safeAreaBar(edge: .top) { banner }
+            .safeAreaBar(edge: .top) {
+                // 狀態橫幅(斷線等)在上、跨聊天「需要你」橫幅在它下面(#530),兩者上下排列不互相蓋住。
+                VStack(spacing: 0) {
+                    banner
+                    NeedsYouBannerView()
+                }
+            }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .forceQuitConfirmation(model: model)
             .secretCheckSheet(model.secretCheck)

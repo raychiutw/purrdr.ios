@@ -242,6 +242,17 @@
         }
       }
     },
+    "%@ — %lld chats need you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 等 %lld 個需要你"
+          }
+        }
+      }
+    },
     "%@, %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8615,6 +8626,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟選項,可編輯、調整順序或刪除。"
+          }
+        }
+      }
+    },
+    "Opens that chat." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟那個聊天"
           }
         }
       }
