@@ -427,9 +427,12 @@ public final class HostsModel {
     public var hasNoHostToShow: Bool { hosts.isEmpty && !demoEntered }
 
     /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表目前篩選的主機(#244),所有主機時用選取中主機。
-    public func newChatHostPicker() -> HostPickerModel {
+    public func newChatHostPicker(preferring host: HostSelection? = nil) -> HostPickerModel {
         .newChat(options: hostOptions { _ in true }, currentHost: agentList.currentHost, selection: selection)
     }
+
+    /// 這台主機能不能在既有 Workspace 新增聊天(Workspace 標題選單的「在此新增聊天」)。
+    public func supportsNewChatInWorkspace(_ host: HostSelection) -> Bool { true }
 
     /// 已啟用的範例主機(#394)加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
     private func hostOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostOption] {

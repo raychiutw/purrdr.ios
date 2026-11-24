@@ -205,6 +205,9 @@ public final class NewChatModel {
         error = nil
     }
 
+    /// 開啟前就指定要放在哪個既有 Workspace(清單還沒讀到時先記著,`loadWorkspaces()` 後套用)。
+    public func preselectWorkspace(_ id: String) {}
+
     private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     /// 選了續接。

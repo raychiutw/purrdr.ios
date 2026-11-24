@@ -158,7 +158,7 @@ extension View {
     ) -> some View {
         let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: isReadOnly)
         return Menu {
-            ForEach(WorkspaceMenuLevel.workspace.entries, id: \.self) { entry in
+            ForEach(WorkspaceMenuLevel.workspace(canStartChat: false).entries, id: \.self) { entry in
                 if entry == .closeWorkspace { Divider() }
                 buttons.view(for: entry, tab: nil, chats: nil, openInNewWindow: nil)
             }
@@ -218,6 +218,7 @@ private struct WorkspaceButtons {
         case .showLayout: showLayout()
         case .renameTab: if let tab { renameTab(tab, showsCurrent: false) }
         case .closeTab: if let tab { closeTab(tab) }
+        case .newChatHere: EmptyView()
         case .renameWorkspace: renameWorkspace(showsCurrent: true)
         case .newWorktree: newWorktree()
         case .closeWorkspace: close(title: "Close Workspace…", role: .destructive)

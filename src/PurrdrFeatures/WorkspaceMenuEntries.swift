@@ -7,6 +7,7 @@ enum WorkspaceMenuEntry: Equatable {
     case showLayout
     case renameTab
     case closeTab
+    case newChatHere
     case renameWorkspace
     case newWorktree
     case closeWorkspace
@@ -14,7 +15,7 @@ enum WorkspaceMenuEntry: Equatable {
 
 enum WorkspaceMenuLevel {
     case tab(hasNewWindow: Bool, hasChats: Bool, hasTab: Bool)
-    case workspace
+    case workspace(canStartChat: Bool)
 
     var entries: [WorkspaceMenuEntry] {
         switch self {

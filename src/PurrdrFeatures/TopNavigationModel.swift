@@ -14,6 +14,8 @@ public final class TopNavigationModel {
     public var tab = TopLevelTab.chats
     /// 目前開著的 sheet;`nil` 表示沒有 sheet。
     public var sheet: TopLevelSheet?
+    /// 新增聊天 sheet 要預先選好的位置(Spaces 的「在此新增聊天」,#537);sheet 不是新增聊天時為 `nil`。
+    public var newChatPreselection: NewChatPreselection?
     /// 等著匯入的主機分享連結(`purrdr://host?d=…`)或主機配對連結(`purrdr://pair?…`)。主機 tab 出現時帶入新增主機編輯器，之後清掉。
     public var pendingHostImport: URL?
     /// 等著開編輯頁的主機(點了主機服務通知,#293)。主機 tab 出現時推入它的編輯器，之後清掉。
@@ -101,6 +103,9 @@ public final class TopNavigationModel {
         sheet = nil
     }
 
+    /// Workspace 標題選單的「在此新增聊天」:開新增聊天 sheet,預選那台主機與 Workspace。
+    public func startNewChat(inWorkspace workspaceID: String, on host: HostSelection) {}
+
     /// 執行鍵盤快捷鍵。`visibleAgents` 是列表目前看得到的 Agent,依畫面順序。
     public func perform(_ command: KeyboardCommand, visibleAgents: [ChatRoute]) {
         switch command {
@@ -179,4 +184,15 @@ public enum TopLevelSheet: String, Identifiable, Sendable {
     case welcome
 
     public var id: String { rawValue }
+}
+
+/// 新增聊天預先選好的主機與既有 Workspace(#537)。
+public struct NewChatPreselection: Equatable, Sendable {
+    public var host: HostSelection
+    public var workspaceID: String
+
+    public init(host: HostSelection, workspaceID: String) {
+        self.host = host
+        self.workspaceID = workspaceID
+    }
 }
