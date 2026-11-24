@@ -241,14 +241,6 @@ public struct NewChatView: View {
             } header: {
                 Text("Chat").foregroundStyle(.secondaryText)
             }
-        case .unavailable(let reason):
-            Section {
-                Text(reason)
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityIdentifier("newChat.sessions.unavailable")
-            } header: {
-                Text("Chat").foregroundStyle(.secondaryText)
-            }
         case .updateRequired(let commands):
             Section {
                 HostServiceCommandRows(

@@ -130,8 +130,6 @@ public final class NewChatModel {
         case loading
         /// 新到舊;空陣列表示沒有過去的 session(清單只有「新的聊天」)。
         case loaded([ResumableSession])
-        /// 這台主機不能續接,原因給畫面顯示。
-        case unavailable(String)
         /// 主機服務版本不足:畫面附更新指令。
         case updateRequired(HostServiceUpdateCommands)
         case failed(String)
@@ -252,12 +250,10 @@ public final class NewChatModel {
                 sessions = .failed(Self.message(for: error))
                 return
             }
-            // 只記住不會變的結果(能續接、SSH);版本太舊時使用者更新後要能立刻再讀到。
-            if support == .available || support == .needsHostService { resumeSupport = support }
+            // 只記住不會變的結果(能續接);版本太舊時使用者更新後要能立刻再讀到。
+            if support == .available { resumeSupport = support }
         }
         switch support {
-        case .needsHostService:
-            sessions = .unavailable(String(localized: "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it."))
         case .updateRequired(let installed):
             sessions = .updateRequired(HostServiceUpdates.commands(installed: installed ?? "0.0.0"))
         case .available:
