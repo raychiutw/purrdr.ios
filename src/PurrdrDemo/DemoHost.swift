@@ -851,6 +851,16 @@ enum DemoSnapshot {
             state.createdTabs[index].agentKind = kind
             let agent: [String: Any] = ["pane_id": paneID, "workspace_id": state.createdTabs[index].workspaceID, "kind": kind, "status": "idle", "launch_pending": true]
             return (result(id: id, ["type": "agent_started", "agent": agent, "argv": [kind]]), false)
+        case "agent.get":
+            // `agent.start` 建出的 agent 停在啟動問題(blocked、launch_pending),所以第一則訊息留給輸入框。
+            let target = params["target"] as? String ?? ""
+            guard let tab = state.createdTabs.first(where: { $0.paneID == target && $0.agentKind != nil }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"agent_not_found","message":"agent not found"}}"#), false)
+            }
+            let agent: [String: Any] = [
+                "pane_id": target, "workspace_id": tab.workspaceID, "agent_status": "blocked", "launch_pending": true, "interactive_ready": false,
+            ]
+            return (result(id: id, ["type": "agent_info", "agent": agent]), false)
         case "workspace.create", "worktree.create", "pane.split":
             return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
         case "pane.report_metadata":
