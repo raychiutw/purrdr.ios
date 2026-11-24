@@ -289,6 +289,18 @@ struct HTTPSStructureOperationsTests {
         #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w1", rootPaneID: "w1:p1"), sentMessage: true))
     }
 
+    @Test("新增聊天(HTTPS):主機服務的 agent.start 結果不帶 launch_pending;prompt 回 agent_not_ready 時不送、不丟錯誤(purrdr.host#92 之前的行為)")
+    func newChatPromptNotReadyKeepsMessage() async throws {
+        let service = try await Self.start(.init(promptHerdrError: "agent_not_ready", hostServiceVersion: Self.currentVersion))
+        defer { Task { await service.stop() } }
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+
+        let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w1", rootPaneID: "w1:p1"), sentMessage: false))
+        #expect(!service.log.messages.contains { $0.contains("agent.get") })
+    }
+
     @Test("沒有資料夾瀏覽的主機：`~` 開頭的路徑要求改成絕對路徑，不送出")
     func newChatNeedsAbsolutePath() async throws {
         let service = try await Self.start()
