@@ -53,6 +53,7 @@ public struct TopNavigationView: View {
         tabs
             .environment(\.usageSections, UsageSectionContext(hosts: hosts))
             // 對話頂部的跨聊天「需要你」橫幅(#530):點了把目前的聊天換成那個聊天。
+            .registersAsMainWindow()
             .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, open: { [navigation] in navigation.selectedChat = $0 }))
             // 「需要你」通知跟著合併列表的快照(整個 app 只有這一個接線點;背景不推進,#492)。
             .task(id: scenePhase == .active) {

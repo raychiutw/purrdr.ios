@@ -25,6 +25,8 @@ public final class NeedsYouNotifications {
         public var isTransition: Bool
         fileprivate var order: Int
         fileprivate var isDismissed: Bool
+        /// 不看「目前開著的聊天」的轉變(第一份快照之後、沒靜音):Pane 視窗的橫幅用它(#539)。
+        fileprivate var isPaneTransition = false
     }
 
     /// 頂部橫幅:最新觸發的聊天與目前需要你的聊天總數(含它)。
@@ -75,11 +77,28 @@ public final class NeedsYouNotifications {
         return Banner(chat: newest.route, total: others.count)
     }
 
-    /// 收起橫幅:目前需要你的聊天都不再觸發橫幅,之後有新的轉變才再出現。
+    /// 這個視窗(`window` 是它自己開著的聊天)的橫幅(#539):每個視窗各有自己的「目前聊天」,
+    /// 只有自己的聊天不算;別的視窗開著的聊天變成需要你也會觸發。收起狀態與主視窗共用(`dismiss()`)。
+    public func paneBanner(excluding window: ChatRoute?) -> Banner? {
+        _ = revision
+        let visible = tracked.values
+            .filter { $0.route != window && !mutedRoutes.contains($0.route) && reportingHosts.contains($0.route.host) }
+            .sorted { ($0.since, $0.order) > ($1.since, $1.order) }
+        guard let newest = visible.first, newest.isPaneTransition, !dismissed.contains(newest.route) else { return nil }
+        return Banner(chat: newest.route, total: visible.count)
+    }
+
+    /// 收起橫幅(所有視窗共用):目前需要你的聊天都不再觸發橫幅,之後有新的轉變才再出現。
     public func dismiss() {
         for index in others.indices { others[index].isDismissed = true }
-        dismissed.formUnion(others.map(\.route))
+        dismissed.formUnion(tracked.keys)
+        revision += 1
     }
+
+    /// 觀察用:Pane 視窗的橫幅讀它，輸入或收起狀態變了就重畫。
+    private var revision = 0
+    @ObservationIgnored private var mutedRoutes: Set<ChatRoute> = []
+    @ObservationIgnored private var reportingHosts: Set<HostSelection> = []
 
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private var seenHosts: Set<HostSelection> = []
@@ -106,7 +125,8 @@ public final class NeedsYouNotifications {
                 // 第一次出現:這台主機的第一份快照就已經需要你的不算轉變。
                 let transition = !isFirstSnapshot && !input.current.contains(route) && !item.isMuted
                 tracked[route] = Chat(
-                    route: route, since: now(), isTransition: transition, order: nextOrder, isDismissed: false)
+                    route: route, since: now(), isTransition: transition, order: nextOrder, isDismissed: false,
+                    isPaneTransition: !isFirstSnapshot && !item.isMuted)
                 nextOrder += 1
             }
         }
@@ -117,6 +137,9 @@ public final class NeedsYouNotifications {
             tracked[route] = nil
             dismissed.remove(route)
         }
+        mutedRoutes = muted
+        reportingHosts = reporting
+        revision += 1
         others = tracked.values
             .filter { !input.current.contains($0.route) && !muted.contains($0.route) && reporting.contains($0.route.host) }
             .map { chat in
@@ -166,8 +189,15 @@ public struct NeedsYouBannerContent: Equatable, Sendable {
 
 extension MergedAgentListModel {
     /// 目前的橫幅內容;沒有橫幅或找不到那個聊天的列時 `nil`。
-    public var needsYouBanner: NeedsYouBannerContent? {
-        guard let banner = needsYou.banner,
+    public var needsYouBanner: NeedsYouBannerContent? { needsYouBannerContent(for: needsYou.banner) }
+
+    /// Pane 視窗的橫幅內容(#539):`window` 是那個視窗自己的聊天,不算在內。
+    public func needsYouBanner(forWindow window: ChatRoute) -> NeedsYouBannerContent? {
+        needsYouBannerContent(for: needsYou.paneBanner(excluding: window))
+    }
+
+    private func needsYouBannerContent(for banner: NeedsYouNotifications.Banner?) -> NeedsYouBannerContent? {
+        guard let banner,
               let source = sources.first(where: { $0.host == banner.chat.host }),
               let agent = source.list.snapshot?.agents.first(where: { $0.paneID == banner.chat.paneID }) else { return nil }
         let row = AgentListProjection.sections(sources: [projectionSource(of: source)], query: "").flatMap(\.rows)
