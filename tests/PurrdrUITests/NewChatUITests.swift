@@ -14,7 +14,8 @@ final class NewChatUITests: XCTestCase {
         // 新增對話是部分高度的 sheet(#425):資料夾欄在列表下方(lazy,不在 accessibility tree),先往上拉到 large 才看得到。
         let sheet = app.element("sheet.newChat")
         XCTAssertTrue(sheet.waitUntilExists(timeout: 10), "沒有開出新增對話")
-        sheet.swipeUp()
+        // 第一個欄位多了「放在哪裡」(#537):資料夾欄更靠下,往上拉到看得到為止。
+        for _ in 0..<4 where !app.textFields["newChat.folder"].exists { sheet.swipeUp() }
         XCTAssertTrue(app.textFields["newChat.folder"].waitUntilExists(timeout: 5), "新增對話沒有資料夾欄")
         return app
     }
@@ -24,6 +25,7 @@ final class NewChatUITests: XCTestCase {
     func testChooseFolderOnHostFillsForm() {
         let app = openNewChat()
         let start = app.buttons["newChat.start"]
+        app.scrollIntoView(start, search: .down)
         XCTAssertFalse(start.isEnabled, "資料夾空白時不能開始")
         let message = app.textViews["newChat.message"].exists ? app.textViews["newChat.message"] : app.textFields["newChat.message"]
         message.tap()
@@ -103,7 +105,9 @@ final class NewChatUITests: XCTestCase {
         XCTAssertFalse(app.segmentedControls["newChat.agent"].exists, "Agent 不該是分段控制(#313 攤開)")
         XCTAssertTrue(app.buttons["Claude Code"].exists && app.buttons["Codex"].exists, "Agent 選項沒有攤開")
         // 名稱兩欄選填(#532):沒填也能開始,下面開始時兩欄都空。
-        XCTAssertTrue(app.textFields["newChat.workspaceName"].waitForExistence(timeout: 5), "沒有 Workspace 名稱欄位")
+        let workspaceName = app.textFields["newChat.workspaceName"]
+        app.scrollIntoView(workspaceName, search: .down)
+        XCTAssertTrue(workspaceName.waitForExistence(timeout: 5), "沒有 Workspace 名稱欄位")
         XCTAssertTrue(app.textFields["newChat.tabName"].exists, "沒有 Tab 名稱欄位")
         XCTAssertFalse(app.buttons["newChat.permissionMode"].exists, "不該有權限欄位")
 
