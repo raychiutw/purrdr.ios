@@ -164,6 +164,43 @@ struct NewChatLaunchTests {
         #expect(await sleeper.requested.contains(.seconds(120)))
     }
 
+    /// 實測 herdr 0.9.5(資料夾還沒被 Claude 信任時):`agent.start` 立刻成功但 `launch_pending: true`,
+    /// 這時 `agent.prompt` 回 `agent_not_ready`「agent w2:p1 is not an active named agent」。
+    static func agentStartedPending(pane: String = "w4:p1") -> FakeReply {
+        let line = #"""
+        {"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"\#(pane)","workspace_id":"w4","name":"ledger","agent_status":"unknown","launch_pending":true},"argv":["claude"]}}
+        """#
+        return FakeReply(stdout: Data(line.utf8) + [0x0A], trigger: .afterStdinLine)
+    }
+
+    @Test("agent.start 回 launch_pending(還沒就緒):不送第一則訊息、不丟錯誤，訊息留給聊天輸入框")
+    func launchPendingDoesNotPromptOrFail() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("~/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: Self.agentStartedPending())
+
+        let started = try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
+        #expect(await host.executions.allSatisfy { !$0.stdinText.contains("agent.prompt") })
+    }
+
+    @Test("agent.prompt 回 agent_not_ready(agent 還沒就緒):不丟錯誤，訊息留給聊天輸入框")
+    func promptNotReadyKeepsTheMessage() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("~/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: Self.agentStarted())
+        await host.expect(Self.bridge, reply: Self.error("agent.prompt", code: "agent_not_ready", message: "agent w4:p1 is not an active named agent"))
+
+        let started = try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
+    }
+
     @Test("agent_pane_busy 重試 4 次仍失敗：丟出錯誤")
     func busyPaneGivesUpAfterFourRetries() async throws {
         let host = FakeHost()
