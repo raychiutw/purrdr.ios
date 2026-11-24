@@ -127,6 +127,12 @@ public struct HerdrClient: Sendable {
         _ = try await request(method: "tab.rename", params: TabRenameParams(tabID: tabID, label: label), as: TypedResult.self)
     }
 
+    /// 關閉 tab(`tab.close`):裡面的 pane、程序都會停止。herdr 0.9.5 實測:關掉 workspace 最後一個 tab 時,
+    /// workspace 也一併關閉(不是錯誤);連最後一個 workspace 也關掉時 herdr 會自己開一個新的空 workspace。
+    public func closeTab(_ tabID: String) async throws {
+        _ = try await request(method: "tab.close", params: TabIDParams(tabID: tabID), as: TypedResult.self)
+    }
+
     /// 關閉 workspace(`workspace.close`):裡面每個 tab、pane、程序都會停止。
     ///
     /// 不帶 `close_group`:同 repo 的 worktree workspace 還開著時，herdr 回 `workspace_group_close_required`,
@@ -375,6 +381,14 @@ private struct WorkspaceIDParams: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case workspaceID = "workspace_id"
+    }
+}
+
+private struct TabIDParams: Encodable {
+    var tabID: String
+
+    enum CodingKeys: String, CodingKey {
+        case tabID = "tab_id"
     }
 }
 

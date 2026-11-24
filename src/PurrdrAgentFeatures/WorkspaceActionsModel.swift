@@ -148,12 +148,29 @@ public final class WorkspaceActionsModel {
             actionError = $0
         }
         guard closed else { return }
+        forget(sessionIDs)
+    }
+
+    private func forget(_ sessionIDs: [String]) {
         for sessionID in sessionIDs {
             preferences.pinned[sessionID] = nil
             preferences.muted.remove(sessionID)
             preferences.opened[sessionID] = nil
         }
         store.save(preferences)
+    }
+
+    /// 關閉 tab。成功後清掉它的聊天(`sessionIDs`)在本機的釘選與靜音,並重讀列表;失敗時原因放在 `actionError`。
+    /// 是 workspace 最後一個 tab 時 herdr 會連 workspace 一起關(列表重讀後自然反映)。
+    public func closeTab(tabID: String, sessionIDs: [String]) async {
+        actionError = nil
+        let closed = await perform {
+            try await client.closeTab(tabID)
+        } onError: {
+            actionError = $0
+        }
+        guard closed else { return }
+        forget(sessionIDs)
     }
 
     // MARK: - worktree

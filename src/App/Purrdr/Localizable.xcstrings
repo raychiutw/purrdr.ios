@@ -2881,6 +2881,39 @@
         }
       }
     },
+    "Close Tab" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Tab"
+          }
+        }
+      }
+    },
+    "Close Tab and Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Tab 與 Workspace"
+          }
+        }
+      }
+    },
+    "Close Tab…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Tab…"
+          }
+        }
+      }
+    },
     "Close Workspace" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2899,6 +2932,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉 Workspace…"
+          }
+        }
+      }
+    },
+    "Close tab “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要關閉 Tab「%@」嗎?"
           }
         }
       }
@@ -4927,6 +4971,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Escape"
+          }
+        }
+      }
+    },
+    "Everything running in this tab will stop, including its agents. Chat history stays on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Tab 裡執行的所有東西都會停止,包括 Agent。對話紀錄會留在主機上。"
           }
         }
       }
@@ -13964,6 +14019,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 第一次連到 %@，要信任這台主機嗎？"
+          }
+        }
+      }
+    },
+    "This is the last tab in “%@”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是「%@」的最後一個 Tab,所以 Workspace 也會一併關閉。裡面執行的所有東西都會停止,包括 Agent。對話紀錄會留在主機上。"
           }
         }
       }
