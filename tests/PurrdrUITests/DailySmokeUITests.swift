@@ -18,10 +18,11 @@ final class DailySmokeUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
-    /// 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機。
+    /// 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機 → 跨聊天「需要你」橫幅(#530)→ 返回後列表置頂段落(#531)。
+    /// 帶 `-demoNeedsYouLater`:打開第一個聊天 3 秒後 notes 變成需要你(weather-app 一開始就需要你,不觸發橫幅)。
     @MainActor
     func testListAndChat() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo", "-demoNeedsYouLater"])
         let ledger = app.element("spaces.tab.demo/w1:t1")
 
         step("列表看到 Demo 的 Agent") {
@@ -151,32 +152,23 @@ final class DailySmokeUITests: XCTestCase {
         step("終端機") {
             app.conversationMoreItem("terminal.open").tap()
             XCTAssertTrue(app.descendants(matching: .any)["terminal.screen"].firstMatch.waitUntilExists(timeout: 10), "沒有打開終端機")
+            back(app)
         }
-    }
-
-    /// 聊天裡別的聊天變成「需要你」(#530):頂部橫幅出現、點了把目前的聊天換成那個聊天、返回回到列表。
-    @MainActor
-    func testNeedsYouBanner() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouLater"])
-        let ledger = app.element(chatRowID("w1:p1"))
-
-        step("打開 ledger 的聊天,notes 變成需要你後出現橫幅") {
-            XCTAssertTrue(app.reveal(ledger), "沒有看到 Demo 主機的 Agent")
-            ledger.tap()
-            XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "沒有輸入框")
+        step("別的聊天變成需要你:橫幅出現,點了開 notes 的聊天") {
             let open = app.buttons["needsYou.banner.open"]
             XCTAssertTrue(open.waitUntilExists(timeout: 20), "別的聊天變成需要你後沒有橫幅")
             XCTAssertTrue(open.label.hasPrefix("notes"), "橫幅沒有寫出 notes:\(open.label)")
-        }
-        step("點橫幅開 notes 的聊天") {
-            app.buttons["needsYou.banner.open"].tap()
+            open.tap()
             let header = app.element("conversation.header")
-            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'notes'"), timeout: 10), "點橫幅後沒有換成 notes 的聊天")
+            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Needs You'"), timeout: 10), "點橫幅後沒有換成需要你的 notes 聊天(標題在這條流程裡是 Tab 名稱,看狀態):\(header.label)")
             XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "已經在那個聊天,橫幅該消失")
         }
-        step("返回回到列表") {
+        step("返回後列表最上面有「需要你」段落") {
             back(app)
-            XCTAssertTrue(app.reveal(app.element(chatRowID("w1:p1"))), "返回後沒有回到列表")
+            let section = app.element("needsYou.section")
+            XCTAssertTrue(section.waitUntilExists(timeout: 10), "返回後列表沒有「需要你」段落")
+            XCTAssertTrue(section.wait(for: NSPredicate(format: "label CONTAINS '2 chats need you'"), timeout: 10), "段落沒有列出 weather-app 與 notes:\(section.label)")
+            XCTAssertTrue(app.element("needsYou.tab.demo/w3:t1").waitUntilExists(timeout: 5), "段落裡沒有 notes")
         }
     }
 

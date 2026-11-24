@@ -330,7 +330,7 @@ public final class NewChatModel {
         case TranscriptReadError.absent:
             String(localized: "That chat’s record is no longer on the host, so it can’t be resumed. Pick another chat, or start a new one.")
         case HerdrError.herdr(code: "workspace_not_found", _):
-            String(localized: "That Workspace was closed on the computer. Choose another one, or start a new Workspace.")
+            String(localized: "That Workspace was closed on the host. Choose another one, or start a new Workspace.")
         case HerdrError.herdr(code: "demo_unsupported", _):
             String(localized: "The Demo host can’t start new chats. Add your own host to try this.")
         case HerdrError.herdr(_, let message):

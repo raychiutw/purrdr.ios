@@ -268,15 +268,18 @@ struct NewChatLaunchTests {
         #expect(await sleeper.requested.filter { $0 == .milliseconds(500) }.count == 40)
     }
 
-    @Test("輪詢時 agent.get 的錯誤(agent_not_found)照常丟出")
-    func pollingErrorsPropagate() async throws {
+    @Test("輪詢時 agent.get 的錯誤:agent 已經啟動,不當成啟動失敗(不丟錯誤、訊息留輸入框),重試也不多建 Workspace")
+    func pollingErrorsDoNotFailTheStart() async throws {
         let host = FakeHost()
+        let launcher = Self.launcher(host)
         await Self.startedWithPending(host)
         await host.expect(Self.bridge, reply: Self.error("agent.get", code: "agent_not_found"))
 
-        await #expect(throws: HerdrError.herdr(code: "agent_not_found", message: "message")) {
-            try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
-        }
+        let started = try await launcher.start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
+        #expect(await host.executions.allSatisfy { !$0.stdinText.contains("agent.prompt") })
+        #expect(await host.executions.filter { $0.stdinText.contains("workspace.create") }.count == 1)
     }
 
     @Test("agent.prompt 回 agent_blocked:不丟錯誤，訊息留給聊天輸入框")

@@ -28,9 +28,36 @@ struct NeedsYouSectionTests {
         }
     }
 
+    /// 驅動 `needsYou`(正式 app 由 `run` 驅動):段落只列 `others`(排除靜音與目前開著的)。
+    static func drive(_ model: HostsModel, _ panes: [String], muted: Set<String> = [], current: Set<ChatRoute> = []) {
+        model.agentList.needsYou.apply(.init(
+            hosts: [.init(host: .demo, blocked: panes.map { .init(paneID: $0, isMuted: muted.contains($0)) })], current: current))
+    }
+
+    @Test("靜音的聊天不列進段落")
+    func mutedChatsAreExcluded() async throws {
+        let model = await Self.model()
+        Self.drive(model, ["w1:pA", "w1:pB"], muted: ["w1:pA"])
+
+        let section = try #require(model.agentList.needsYouSection)
+
+        #expect(section.rows.map(\.tab.key) == ["w1:tB"])
+    }
+
+    @Test("目前開著的聊天(iPad 寬視窗)不列進段落;只剩它時整段不顯示")
+    func currentChatIsExcluded() async throws {
+        let model = await Self.model()
+        Self.drive(model, ["w1:pA", "w1:pB"], current: [ChatRoute(host: .demo, paneID: "w1:pA")])
+        #expect(model.agentList.needsYouSection?.rows.map(\.tab.key) == ["w1:tB"])
+
+        Self.drive(model, ["w1:pA"], current: [ChatRoute(host: .demo, paneID: "w1:pA")])
+        #expect(model.agentList.needsYouSection == nil)
+    }
+
     @Test("內容:需要你的聊天各一列(Tab 列)")
     func listsBlockedChats() async throws {
         let model = await Self.model()
+        Self.drive(model, ["w1:pA", "w1:pB"])
 
         let section = try #require(model.agentList.needsYouSection)
 
@@ -80,6 +107,7 @@ struct NeedsYouSectionTests {
     @Test("這些列仍留在原本的「主機 · Workspace」段落")
     func rowsStayInWorkspaceSections() async throws {
         let model = await Self.model()
+        Self.drive(model, ["w1:pA", "w1:pB"])
 
         _ = try #require(model.agentList.needsYouSection)
 
@@ -90,6 +118,7 @@ struct NeedsYouSectionTests {
     @Test("搜尋時這段也套用搜尋;都不符合就不顯示")
     func searchAppliesToSection() async throws {
         let model = await Self.model()
+        Self.drive(model, ["w1:pA", "w1:pB"])
         let target = try #require(model.agentList.needsYouSection?.rows.first { $0.tab.key == "w1:tB" }?.tab)
 
         model.agentList.query = try #require(target.searchTerms.first)
@@ -102,6 +131,7 @@ struct NeedsYouSectionTests {
     @Test("不受主機篩選影響:所有主機需要你的都列")
     func ignoresHostFilter() async throws {
         let model = await Self.model()
+        Self.drive(model, ["w1:pA", "w1:pB"])
         model.agentList.currentHost = .host(UUID())
 
         #expect(model.agentList.needsYouSection?.rows.count == 2)
