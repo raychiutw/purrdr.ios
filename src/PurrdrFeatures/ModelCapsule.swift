@@ -70,15 +70,22 @@ struct ModelSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar { SheetCloseToolbar(identifier: "model.close") }
-                .navigationDestination(isPresented: Binding(
-                    get: { model.modelSheetPage == .effort },
-                    set: { shown in if !shown { Task { await model.closeEffortPage() } } }
-                )) {
-                    EffortPage(model: model)
-                }
+                .modelEffortDestination(model)
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+extension View {
+    /// 「投入程度」子頁的導覽目的地:模型 sheet 與 iPad Inspector 的模型頁(#521)共用。
+    func modelEffortDestination(_ model: ConversationModel) -> some View {
+        navigationDestination(isPresented: Binding(
+            get: { model.modelSheetPage == .effort },
+            set: { shown in if !shown { Task { await model.closeEffortPage() } } }
+        )) {
+            EffortPage(model: model)
+        }
     }
 }
 

@@ -456,6 +456,8 @@ struct ConversationScreen: View {
             .sheet(isPresented: $showsUsage) {
                 ConversationUsageSheet(model: model, section: usageSection, display: usageContext?.display.display ?? .used)
             }
+            .modifier(ConversationInspectorModifier(
+                window: window, model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used))
             .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model) }
             .sheet(isPresented: $isChoosingModel, onDismiss: { Task { await model.finishChoosingModel() } }) {
                 ModelSheet(model: model)
