@@ -615,6 +615,9 @@
         }
       }
     },
+    "%lld of %lld done" : {
+      "extractionState" : "manual"
+    },
     "%lld other Agents need you" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -636,6 +639,9 @@
           }
         }
       }
+    },
+    "%lld queued" : {
+      "extractionState" : "manual"
     },
     "%lld running" : {
       "extractionState" : "manual",
@@ -7057,6 +7063,9 @@
         }
       }
     },
+    "Model & Effort" : {
+      "extractionState" : "manual"
+    },
     "Modified" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7823,17 +7832,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有可恢復的購買項目"
-          }
-        }
-      }
-    },
-    "Nothing to show yet." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前沒有內容。"
           }
         }
       }
@@ -9752,6 +9750,9 @@
         }
       }
     },
+    "Read-only device" : {
+      "extractionState" : "manual"
+    },
     "Read-only devices can’t change this" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11072,17 +11073,6 @@
         }
       }
     },
-    "Show Status" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示狀態"
-          }
-        }
-      }
-    },
     "Show Welcome" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11189,17 +11179,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示這個 Tab 的版面。"
-          }
-        }
-      }
-    },
-    "Shows usage and permission mode." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示用量與權限模式。"
           }
         }
       }
@@ -14463,17 +14442,6 @@
         }
       }
     },
-    "Todos %lld/%lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待辦 %1$lld/%2$lld"
-          }
-        }
-      }
-    },
     "Too large to open here (%@). Open it on the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15254,6 +15222,9 @@
           }
         }
       }
+    },
+    "Usage & Context" : {
+      "extractionState" : "manual"
     },
     "Usage Capture" : {
       "extractionState" : "manual",

@@ -5,7 +5,7 @@ import SwiftUI
 /// 導覽列中間的標題膠囊(#476,原型 Header):單行 44pt。
 /// 依序是 8pt 單色狀態點(需要你橘、工作中主色、其他灰)、Tab 名稱(過長以 … 截斷)、權限模式(非一般才有;
 /// 略過權限前面保留橘色盾牌)。沒有下拉箭頭與狀態文字,狀態靠點與 VoiceOver 標籤。
-/// 點開是面板(`ConversationStatusSheet`):context、模型、待辦、背景子 Agent、做完再送與權限模式選項。
+/// 標題不可點(#515;功能在「⋯」選單)。
 struct ConversationTitleView: View {
     let title: String
     let header: ConversationHeader
@@ -43,15 +43,10 @@ struct ConversationTitleView: View {
         .padding(.horizontal, 16)
         .frame(minHeight: TopBarMetrics.titleCapsuleHeight)
         .floatingGlass(in: Capsule())
-        // 點標題由下方升起面板(#380):一律打得開。
-        .contentShape(Capsule())
-        .onTapGesture { model.showsStatusSheet = true }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: header.accessibilityText))
-        .accessibilityHint(Text("Shows usage and permission mode."))
-        .accessibilityAddTraits([.isButton, .isHeader])
+        .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("conversation.header")
-        .accessibilityAction(named: Text("Show Status")) { model.showsStatusSheet = true }
     }
 }
 

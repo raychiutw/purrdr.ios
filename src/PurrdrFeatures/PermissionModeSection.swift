@@ -8,13 +8,18 @@ import SwiftUI
 /// 切換失敗留在這裡說明並有「再試一次」。
 struct PermissionModeSection: View {
     let model: ConversationModel
+    /// 切換成功後呼叫(sheet 據此自動關閉);失敗時不呼叫,留在畫面說明。
+    var onSwitched: (() -> Void)?
 
     private var selection: Binding<AgentPermissionMode> {
         Binding(
             get: { model.switchingPermissionMode ?? model.permissionMode ?? .normal },
             set: { mode in
                 guard mode.isSwitchable else { return }
-                Task { await model.setPermissionMode(mode) }
+                Task {
+                    await model.setPermissionMode(mode)
+                    if model.permissionMode == mode, model.permissionModeFailure == nil { onSwitched?() }
+                }
             }
         )
     }
