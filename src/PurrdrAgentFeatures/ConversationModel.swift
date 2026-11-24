@@ -689,8 +689,8 @@ public final class ConversationModel {
     public private(set) var stopPhase: StopPhase?
     /// 強制結束的確認對話框是否開著(#220;停止列與「仍在工作」結果共用)。
     public var confirmsForceQuit = false
-    /// 狀態 sheet 是否開著(#349):點標題或工作中膠囊的子 Agent 數都開同一張。
-    public var showsStatusSheet = false
+    /// 工作中膠囊的子 Agent 數被點了(#349、#515):聊天畫面據此開背景子 Agent sheet 後歸零。
+    public var showsBackgroundAgentsSheet = false
     /// 斷線前 agent 在工作：離線橫幅說明重新連上後才能停止(#220)。
     public private(set) var stopNeedsReconnect = false
     /// 停止中最多等多久，之後當成仍在工作。

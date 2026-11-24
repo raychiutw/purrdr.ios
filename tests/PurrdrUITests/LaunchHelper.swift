@@ -226,9 +226,21 @@ extension XCUIApplication {
     /// 打開對話右上角的「更多」選單並回傳其中的項目(`terminal.open`、`changes.open`、`layout.show`,#381)。
     @MainActor
     func conversationMoreItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
-        tapToolbarItem("conversation.more", overflowLabel: "More", file: file, line: line)
-        let item = buttons[identifier].firstMatch
-        XCTAssertTrue(item.waitUntilExists(timeout: 5), "「更多」選單沒有 \(identifier)", file: file, line: line)
+        // 系統選單分段後不帶項目的 identifier,以標題(英文)找。
+        let titles = [
+            "menu.usage": "Usage & Context", "menu.permissionMode": "Permission Mode", "menu.model": "Model & Effort",
+            "menu.sendWhenDone": "Send When Done", "menu.todos": "Todos", "menu.backgroundAgents": "Background Agents",
+            "terminal.open": "Pane Terminal", "changes.open": "Git Changes", "layout.show": "Show Layout",
+        ]
+        let item = buttons.matching(NSPredicate(format: "identifier == %@ OR label BEGINSWITH %@", identifier, (titles[identifier] ?? identifier) + ",")).firstMatch
+        // 選單內容在打開當下就定了:項目依聊天讀到的狀態(Agent 種類、模型)出現,還沒讀到就收起來重開。
+        for _ in 0..<6 {
+            tapToolbarItem("conversation.more", overflowLabel: "More", file: file, line: line)
+            if item.waitUntilExists(timeout: 2) { return item }
+            windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+            _ = UITestWait.until(timeout: 2) { !self.buttons["terminal.open"].firstMatch.exists && !self.buttons["changes.open"].firstMatch.exists }
+        }
+        XCTAssertTrue(item.exists, "「更多」選單沒有 \(identifier)", file: file, line: line)
         return item
     }
 

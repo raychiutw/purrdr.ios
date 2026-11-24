@@ -1,26 +1,39 @@
 import XCTest
 
-/// 聊天狀態 sheet 與降噪(#349):頂列一行狀態，點標題開狀態 sheet;工作中只有膠囊一處，背景子 Agent 併進膠囊、清單在 sheet。
+/// 聊天「⋯」選單與各項 sheet(#349、#515):原本標題面板的功能搬進「⋯」,點項目開各自的 sheet;工作中只有膠囊一處。
 final class ConversationStatusSheetUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
-    /// 點標題一律開得了狀態 sheet(沒有 context 與待辦也一樣，顯示空狀態);完成關閉。
+    /// 「⋯」有用量、權限模式、模型(Claude);權限模式 sheet 用左上 X 關閉。
     @MainActor
-    func testTitleOpensStatusSheet() {
+    func testMoreMenuListsItemsAndOpensPermissionSheet() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
+        XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10))
+
+        let permission = app.conversationMoreItem("menu.permissionMode")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Usage & Context")).firstMatch.exists, "「⋯」沒有用量與 Context")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Model & Effort")).firstMatch.exists, "「⋯」沒有模型與思考深度")
+        permission.tap()
+
+        XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "點項目沒有開出權限模式 sheet")
+        app.buttons["sheet.close"].tap()
+        XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 5), "X 之後 sheet 還在")
+    }
+
+    /// 標題不能點(#515):點了不會開任何 sheet。
+    @MainActor
+    func testTitleIsNotAButton() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let header = app.element("conversation.header")
         XCTAssertTrue(header.waitUntilExists(timeout: 10))
-
         header.tap()
-
-        XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出狀態 sheet")
-        app.buttons["sheet.close"].tap()
-        XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "完成後狀態 sheet 還在")
+        XCTAssertFalse(app.element("menu.sheet.permissionMode").exists)
+        XCTAssertFalse(app.element("usage.sheet").exists)
     }
 
-    /// 工作中只有一顆膠囊(同一資訊只出現一處);背景 agents 列已移除，清單在狀態 sheet。
+    /// 工作中只有一顆膠囊(同一資訊只出現一處);背景 agents 列已移除，清單在「⋯」→ 背景子 Agent。
     @MainActor
     func testWorkingShownOnceAndNoBackgroundBar() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w3:p1")
@@ -28,6 +41,6 @@ final class ConversationStatusSheetUITests: XCTestCase {
 
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "conversation.working").count, 1, "工作中應只出現一處")
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "stopBar").count, 1, "膠囊應只有一顆")
-        XCTAssertFalse(app.element("agentsBar").exists, "背景 agents 列已併進工作中膠囊與狀態 sheet")
+        XCTAssertFalse(app.element("agentsBar").exists, "背景 agents 列已併進工作中膠囊與「⋯」選單")
     }
 }
