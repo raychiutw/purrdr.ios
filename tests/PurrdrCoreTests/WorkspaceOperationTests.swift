@@ -84,6 +84,17 @@ struct WorkspaceOperationTests {
             #"{"id":"purrdr:workspace.close","method":"workspace.close","params":{"workspace_id":"w2"}}"# + "\n")
     }
 
+    @Test("關閉 Tab:送 tab.close {tab_id}(herdr 0.9.5 實測:最後一個 Tab 關閉時 workspace 一併關閉)")
+    func closeTabSendsTabClose() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.okReply)
+
+        try await HerdrClient(channel: host).closeTab("w2:t1")
+
+        #expect(await host.executions.first?.stdinText ==
+            #"{"id":"purrdr:tab.close","method":"tab.close","params":{"tab_id":"w2:t1"}}"# + "\n")
+    }
+
     @Test("關閉 workspace:同 repo 的 worktree workspace 還開著時，丟出 workspace_group_close_required")
     func closeReportsGroupCloseRequired() async {
         // 錯誤 envelope 形狀沿用錄製的 workspace_not_found;碼取自 herdr CLI 文件(cli-reference「Worktrees」)。

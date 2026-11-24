@@ -56,6 +56,35 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(status.label.contains("npm run dev"), "終端機標題不是程式名:\(status.label)")
     }
 
+    /// 長按選單與左滑都能關閉 Tab,關之前先確認;Demo 每個 Workspace 只有一個 Tab,所以確認文字是「連 Workspace 一起關」(#534)。
+    @MainActor
+    func testCloseTabFromMenuAndSwipe() {
+        let app = XCUIApplication.launchUITesting()
+        let first = app.element("spaces.tab.demo/w2:t1")
+        XCTAssertTrue(app.reveal(first))
+
+        first.press(forDuration: 1.2)
+        app.buttons["menu.closeTab"].tap()
+        let confirm = app.buttons["closeTab.confirm"].firstMatch
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有出現確認")
+        XCTAssertEqual(confirm.label, "Close Tab and Workspace")
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
+        XCTAssertTrue(first.exists, "取消後 Tab 不該消失")
+
+        first.press(forDuration: 1.2)
+        app.buttons["menu.closeTab"].tap()
+        confirm.tap()
+        XCTAssertTrue(first.waitUntilGone(timeout: 10), "從選單關閉後 Tab 還在")
+
+        let second = app.element("spaces.tab.demo/w1:t1")
+        XCTAssertTrue(app.reveal(second))
+        second.swipeLeft()
+        app.buttons["menu.closeTab"].tap()
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "左滑沒有出現確認")
+        confirm.tap()
+        XCTAssertTrue(second.waitUntilGone(timeout: 10), "左滑關閉後 Tab 還在")
+    }
+
     /// 長按 Tab 列改的是那個 Tab;長按 Workspace 標題改 Workspace(#456)。
     @MainActor
     func testRenameTabAndWorkspaceFromSpaces() {

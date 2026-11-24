@@ -751,6 +751,8 @@ enum DemoSnapshot {
         /// 改過的 Tab 名稱(tab id → 名稱,#456)。
         var tabLabels: [String: String] = [:]
         var closed: Set<String> = []
+        /// 關掉的 Tab(#534)。workspace 的 Tab 全關掉時 workspace 也進 `closed`(與 herdr 相同)。
+        var closedTabs: Set<String> = []
         /// 依「需要你」情境改過的 Agent 狀態(pane id → 狀態)。
         var statuses: [String: String] = [:]
         /// Antigravity 情境:快照多一個 w4(garden)。
@@ -798,6 +800,18 @@ enum DemoSnapshot {
             state.tabLabels[tabID] = params["label"] as? String ?? ""
             let tab = (snapshot(applying: state)["tabs"] as? [[String: Any]])?.first { $0["tab_id"] as? String == tabID }
             return (result(id: id, ["type": "tab_info", "tab": tab ?? [:]]), false)
+        case "tab.close":
+            let tabs = snapshot(applying: state)["tabs"] as? [[String: Any]] ?? []
+            let tabID = params["tab_id"] as? String ?? ""
+            guard let tab = tabs.first(where: { $0["tab_id"] as? String == tabID }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"tab_not_found","message":\#(quoted("tab \(tabID) not found"))}}"#), false)
+            }
+            state.closedTabs.insert(tabID)
+            let workspaceID = tab["workspace_id"] as? String ?? ""
+            if !tabs.contains(where: { $0["workspace_id"] as? String == workspaceID && $0["tab_id"] as? String != tabID }) {
+                state.closed.insert(workspaceID)
+            }
+            return (result(id: id, ["type": "ok"]), false)
         case "workspace.create", "worktree.create", "tab.create", "pane.split":
             return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
         case "pane.report_metadata":
@@ -844,6 +858,9 @@ enum DemoSnapshot {
         }
         for key in ["workspaces", "tabs", "panes", "layouts", "agents"] {
             snapshot[key] = (snapshot[key] as? [[String: Any]])?.filter { !state.closed.contains($0["workspace_id"] as? String ?? "") }
+        }
+        for key in ["tabs", "panes", "layouts", "agents"] {
+            snapshot[key] = (snapshot[key] as? [[String: Any]])?.filter { !state.closedTabs.contains($0["tab_id"] as? String ?? "") }
         }
         for key in ["agents", "panes"] {
             snapshot[key] = (snapshot[key] as? [[String: Any]])?.map { item in
