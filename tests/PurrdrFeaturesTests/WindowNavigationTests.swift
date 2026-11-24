@@ -7,7 +7,7 @@ import Testing
 /// 列表合併了所有主機(#39):聊天以主機 + pane id 識別。
 private func route(_ paneID: String, host: HostSelection = .demo) -> ChatRoute { ChatRoute(host: host, paneID: paneID) }
 
-/// iPad 每個視窗各自的導覽狀態(#31):三欄的選取、鍵盤快捷鍵。
+/// iPad 每個視窗各自的導覽狀態(#31):兩欄的選取、鍵盤快捷鍵。
 @MainActor
 @Suite("視窗導覽")
 struct WindowNavigationTests {
@@ -109,7 +109,7 @@ struct WindowNavigationTests {
         #expect(model.openedTerminal == nil)
     }
 
-    // MARK: 側欄:主機與 workspace
+    // MARK: Spaces 與選取
 
     private static let snapshot = HostSnapshot(
         version: "0.9.5",
@@ -145,63 +145,38 @@ struct WindowNavigationTests {
         SpacesTab(host: .demo, key: paneID, title: paneID, target: .pane(route(paneID)), avatar: .terminal)
     }
 
-    @Test("側欄選了 workspace:列表只留那個 workspace 的段落")
-    func workspaceFilterKeepsOnlyItsSection() {
+    @Test("列表沒有 workspace 篩選:快捷鍵切換 Agent 依 Spaces 的畫面順序,含所有主機,只含單一 Pane 的 Agent Tab(不含終端機與多 pane 的 Tab)")
+    func visibleAgentsFollowSpacesOrderAcrossHosts() {
         let model = TopNavigationModel()
-        model.workspaceFilter = "w2"
+        let sections = Self.sections + [Self.space("w2", host: Self.other, tabs: [Self.tab("w2:p1", host: Self.other)])]
 
-        let sections = model.visibleSpaces(Self.sections, host: .demo, snapshot: Self.snapshot)
-
-        #expect(sections.map(\.workspaceID) == ["w2"])
+        #expect(
+            model.visibleAgents(sections)
+                == [route("w2:p1"), route("w1:p2"), route("w1:p1"), route("w2:p1", host: Self.other)])
     }
 
-    @Test("側欄選「所有 workspace」時列表不變")
-    func noWorkspaceFilterKeepsList() {
+    @Test("兩欄:切到別的 tab 再回聊天,這個視窗選的聊天與開著的終端機還在")
+    func selectionSurvivesTabSwitches() {
         let model = TopNavigationModel()
-
-        #expect(model.visibleSpaces(Self.sections, host: .demo, snapshot: Self.snapshot) == Self.sections)
-    }
-
-    @Test("篩選的 workspace 已不在主機上(被關掉了):回到所有 workspace")
-    func closedWorkspaceFilterFallsBackToAll() {
-        let model = TopNavigationModel()
-        model.workspaceFilter = "w9"
-
-        #expect(model.visibleSpaces(Self.sections, host: .demo, snapshot: Self.snapshot) == Self.sections)
-    }
-
-    @Test("快捷鍵切換 Agent 依 Spaces 的畫面順序:只含單一 Pane 的 Agent Tab(不含終端機與多 pane 的 Tab)，並套用 workspace 篩選")
-    func visibleAgentsFollowSpacesOrder() {
-        let model = TopNavigationModel()
-        #expect(model.visibleAgents(Self.sections, host: .demo, snapshot: Self.snapshot) == [route("w2:p1"), route("w1:p2"), route("w1:p1")])
-
-        model.workspaceFilter = "w1"
-        #expect(model.visibleAgents(Self.sections, host: .demo, snapshot: Self.snapshot) == [route("w1:p2"), route("w1:p1")])
-    }
-
-    @Test("側欄的 workspace 屬於選取中主機：篩選時其他主機同 workspace id 的段落不顯示")
-    func workspaceFilterOnlyKeepsSelectedHostsSections() {
-        let model = TopNavigationModel()
-        model.workspaceFilter = "w2"
-        let sections = [Self.space("w2", tabs: [Self.tab("w2:p1")]), Self.space("w2", host: Self.other, tabs: [Self.tab("w2:p1", host: Self.other)])]
-
-        #expect(model.visibleSpaces(sections, host: .demo, snapshot: Self.snapshot).map(\.host) == [.demo])
-    }
-
-    @Test("換主機：清掉這個視窗的 workspace 篩選與版面圖卡片;選取的聊天與終端機帶著自己的主機，留著")
-    func changingHostResetsWorkspaceFilterButKeepsChat() {
-        let model = TopNavigationModel()
-        model.workspaceFilter = "w1"
         model.selectedChat = route("w1:p1")
         model.perform(.openTerminal, visibleAgents: visible)
-        model.layoutCard.tap("w1")
 
-        model.hostChanged()
+        model.tab = .files
+        model.tab = .chats
 
-        #expect(model.workspaceFilter == nil)
-        #expect(model.layoutCard.state == .hidden)
         #expect(model.selectedChat == route("w1:p1"))
         #expect(model.openedTerminal == route("w1:p1"))
+    }
+
+    @Test("兩欄:點新增主機換到主機 tab,不清掉選的聊天")
+    func openingAddHostKeepsSelectedChat() {
+        let model = TopNavigationModel()
+        model.selectedChat = route("w1:p1")
+
+        model.openAddHost()
+
+        #expect(model.tab == .hosts)
+        #expect(model.selectedChat == route("w1:p1"))
     }
 
     // MARK: 在新視窗開啟

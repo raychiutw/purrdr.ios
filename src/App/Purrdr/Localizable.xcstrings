@@ -1425,17 +1425,6 @@
         }
       }
     },
-    "All Workspaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所有 Workspace"
-          }
-        }
-      }
-    },
     "Allow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2888,17 +2877,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉檔案選擇器"
-          }
-        }
-      }
-    },
-    "Close Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "關閉版面"
           }
         }
       }
@@ -5580,6 +5558,17 @@
         }
       }
     },
+    "Hide Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏檢閱器"
+          }
+        }
+      }
+    },
     "Hide Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6173,6 +6162,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已插入 /%@"
+          }
+        }
+      }
+    },
+    "Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢閱器"
           }
         }
       }
@@ -11061,6 +11061,17 @@
         }
       }
     },
+    "Show Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示檢閱器"
+          }
+        }
+      }
+    },
     "Show Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15878,17 +15889,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workspace 名稱"
-          }
-        }
-      }
-    },
-    "Workspaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workspace"
           }
         }
       }

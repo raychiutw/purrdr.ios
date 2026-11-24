@@ -3,7 +3,7 @@ import Observation
 import PurrdrAgentFeatures
 import PurrdrCore
 
-/// 一個視窗的導覽狀態(#37 故事 21、#31):Agent 列表之上以 sheet 開啟的畫面、三欄的選取、鍵盤快捷鍵。
+/// 一個視窗的導覽狀態(#37 故事 21、#31):Agent 列表之上以 sheet 開啟的畫面、兩欄的選取、鍵盤快捷鍵。
 ///
 /// 頂層是 4 個 tab(聊天、檔案、主機、流量,#376;設定併進帳號 sheet,#503);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
@@ -31,10 +31,6 @@ public final class TopNavigationModel {
     public var isSearchFocused = false
     /// 對話欄推入的 Pane 終端機(主機 + pane id)。
     public var openedTerminal: ChatRoute?
-    /// 側欄選的 workspace(選取中主機上的);`nil` 是所有 workspace。
-    public var workspaceFilter: String?
-    /// iPad 的版面圖浮動卡片。
-    public let layoutCard = LayoutCardModel()
 
     /// UI 測試用:是否處理 `purrdr://testing-…` 測試連結。只有 `-uiTesting` 啟動時由 composition root 開啟,正式 app 一律忽略。
     public var allowsTestingLinks = false
@@ -43,41 +39,26 @@ public final class TopNavigationModel {
     /// 測試連結指定的外觀(`light`／`dark`);`nil` 跟隨系統。
     public private(set) var testingAppearance: String?
 
-    public init() {}
+    /// 對話右側的 Inspector 是否打開(#521):寬視窗是右側欄、窄視窗由系統變成 sheet;偏好存在這支裝置,下一個視窗與下次啟動沿用。
+    public var isInspectorShown: Bool {
+        didSet { if isInspectorShown != oldValue { inspectorStore.save(isInspectorShown) } }
+    }
+    @ObservationIgnored private let inspectorStore: any InspectorVisibilityStore
 
-    /// 套用側欄 workspace 篩選後的列表;空的分組不顯示。篩選的 workspace 已不在主機上時(被關掉了)顯示全部。
-    ///
-    /// 列表合併了所有主機(#39);workspace 屬於選取中主機(`host`,`snapshot` 是它的),篩選時只留那台主機上那個 workspace 的列。
-    public func visibleSections(_ sections: [AgentSection], host: HostSelection, snapshot: HostSnapshot?) -> [AgentSection] {
-        guard let workspaceFilter, let snapshot, snapshot.workspaces.contains(where: { $0.id == workspaceFilter }) else {
-            return sections
-        }
-        let panes = Set(snapshot.agents.filter { $0.workspaceID == workspaceFilter }.map(\.paneID))
-        return sections.compactMap { section in
-            let rows = section.rows.filter { $0.host == host && panes.contains($0.paneID) }
-            return rows.isEmpty ? nil : AgentSection(group: section.group, rows: rows)
-        }
+    public init(inspectorStore: any InspectorVisibilityStore = InMemoryInspectorVisibilityStore()) {
+        self.inspectorStore = inspectorStore
+        isInspectorShown = inspectorStore.load()
     }
 
-    /// 列表看得到的 Agent,依畫面順序。鍵盤切換 Agent 用。
-    public func visibleAgents(_ sections: [AgentSection], host: HostSelection, snapshot: HostSnapshot?) -> [ChatRoute] {
-        visibleSections(sections, host: host, snapshot: snapshot).flatMap { $0.rows.map(\.route) }
-    }
-
-    /// 套用側欄 workspace 篩選後的 Spaces 段落(#501);篩選的 workspace 已不在主機上時(被關掉了)顯示全部。
-    ///
-    /// 列表合併了所有主機(#39);workspace 屬於選取中主機(`host`,`snapshot` 是它的),篩選時只留那台主機上那個 workspace 的段落。
-    public func visibleSpaces(_ sections: [SpacesSection], host: HostSelection, snapshot: HostSnapshot?) -> [SpacesSection] {
-        guard let workspaceFilter, let snapshot, snapshot.workspaces.contains(where: { $0.id == workspaceFilter }) else {
-            return sections
-        }
-        return sections.filter { $0.host == host && $0.workspaceID == workspaceFilter }
+    /// 顯示／隱藏 Inspector(對話頂列的鈕;選單列的快捷鍵之後也接這裡)。
+    public func toggleInspector() {
+        isInspectorShown.toggle()
     }
 
     /// 列表看得到的 Agent,依 Spaces 的畫面順序(段落、Tab)。鍵盤切換 Agent 用:只含單一 Pane 的 Agent Tab
-    /// (終端機與多個 Pane 的 Tab 要先開版面圖選 Pane,沒有單一對話可選)。
-    public func visibleAgents(_ sections: [SpacesSection], host: HostSelection, snapshot: HostSnapshot?) -> [ChatRoute] {
-        visibleSpaces(sections, host: host, snapshot: snapshot).flatMap(\.tabs).compactMap { tab in
+    /// (終端機與多個 Pane 的 Tab 要先開版面圖選 Pane,沒有單一對話可選)。列表合併了所有主機(#39),所以含所有主機的 Agent。
+    public func visibleAgents(_ sections: [SpacesSection]) -> [ChatRoute] {
+        sections.flatMap(\.tabs).compactMap { tab in
             guard case .agent = tab.avatar, case .pane(let route) = tab.target else { return nil }
             return route
         }
@@ -118,19 +99,6 @@ public final class TopNavigationModel {
         pendingHostEditor = id
         tab = .hosts
         sheet = nil
-    }
-
-    /// 換了選取中主機：側欄的 workspace 篩選與版面圖卡片屬於前一台主機，清掉。
-    /// 選取的聊天與它的終端機留著：列表合併了所有主機(#39),聊天帶著自己的主機，換選取中主機不影響它。
-    public func hostChanged() {
-        workspaceFilter = nil
-        layoutCard.close()
-    }
-
-    /// 視窗寬窄改變(iPad 縮放視窗、旋轉):窄視窗沒有側欄,workspace 篩選清掉。
-    /// 選取的聊天與推入的終端機兩種排版共用(窄是推入、寬是對話欄),切換不丟失。
-    public func layoutChanged(isCompact: Bool) {
-        if isCompact { workspaceFilter = nil }
     }
 
     /// 執行鍵盤快捷鍵。`visibleAgents` 是列表目前看得到的 Agent,依畫面順序。

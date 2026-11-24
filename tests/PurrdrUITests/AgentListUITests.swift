@@ -80,7 +80,7 @@ final class AgentListUITests: XCTestCase {
         XCTAssertGreaterThan(search.frame.minY, title.frame.maxY - 1, "搜尋欄不在標題下方")
         let topY = search.frame.minY
 
-        let list = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch
+        let list = app.collectionViews.firstMatch
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
         XCTAssertTrue(title.waitUntilGone(timeout: 5), "往下滑後標題列沒有收起")

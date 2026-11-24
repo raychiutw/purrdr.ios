@@ -27,6 +27,8 @@ struct PurrdrApp: App {
     private let hostSync: HostSyncModel
     /// 第一次開啟的歡迎頁(#34)。
     private let welcome: WelcomeModel
+    /// iPad 對話右側 Inspector 的開關偏好(#521);UI 測試預設關閉(`-uiTestingInspectorShown` 開),存在記憶體。
+    private let inspectorStore: any InspectorVisibilityStore
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
     /// 捲動卡頓記錄器(只記數字,存在這支手機;設定頁可關閉、分享、清除)。
@@ -219,6 +221,9 @@ struct PurrdrApp: App {
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
+        inspectorStore = uiTesting
+            ? InMemoryInspectorVisibilityStore(isShown: arguments.contains("-uiTestingInspectorShown"))
+            : UserDefaultsInspectorVisibilityStore()
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
         // `-uiTestingSimulatedVideo`:「影片」不開相簿挑選器(XCUITest 操作不了)，直接給一支小影片(#474)。
@@ -482,7 +487,7 @@ struct PurrdrApp: App {
         WindowGroup(id: PurrdrCommands.mainWindowID) {
             TopNavigationView(
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
-                welcome: welcome, appLock: appLock)
+                welcome: welcome, appLock: appLock, inspectorStore: inspectorStore)
             .appAppearance()
             .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
             .appLockCover(appLock)

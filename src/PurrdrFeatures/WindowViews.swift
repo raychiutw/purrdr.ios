@@ -2,197 +2,9 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-// MARK: - 側欄：主機與 workspace
-
-/// iPad 三欄的第一欄(#31):主機(點了即選取)與選取中主機的 workspace(點了篩選 Agent 列表)。
-/// 所有主機的 Agent 都在列表上(#39);選取中主機決定新聊天開在哪裡，以及這裡列出誰的 workspace。
-///
-/// 只有兩層(HIG Sidebars)。workspace 列尾的版面圖按鈕：指標停留預覽、點了釘住浮動卡片(#37 故事 22)。
-struct WindowSidebar: View {
-    let hosts: HostsModel
-    let navigation: TopNavigationModel
-
-    private enum Item: Hashable {
-        case allWorkspaces
-        case workspace(String)
-    }
-
-    var body: some View {
-        List(selection: selection) {
-            Section("Hosts") {
-                ForEach(hosts.rows) { row in
-                    hostButton(.host(row.id), title: row.title, icon: row.icon, isSelected: row.isSelected)
-                }
-                if hosts.demoEntered {
-                    hostButton(.demo, title: String(localized: "Demo"), icon: .default, isSelected: hosts.selection == .demo)
-                        .accessibilityIdentifier("sidebar.host.demo")
-                }
-            }
-            Section("Workspaces") {
-                Label("All Workspaces", systemImage: "square.grid.2x2")
-                    .tag(Item.allWorkspaces)
-                    .accessibilityIdentifier("sidebar.allWorkspaces")
-                ForEach(workspaces) { workspace in
-                    WorkspaceSidebarRow(workspace: workspace, card: navigation.layoutCard)
-                        .tag(Item.workspace(workspace.id))
-                }
-            }
-        }
-        .appGroupedList()
-        .navigationTitle(hostTitle)
-        .accessibilityIdentifier("sidebar")
-    }
-
-    private var workspaces: [Workspace] {
-        hosts.agentList.snapshot(for: hosts.selection)?.workspaces ?? []
-    }
-
-    /// 側欄標題是選取中主機的名稱：多個視窗時能分辨(不用 app 名稱，HIG Toolbars)。
-    private var hostTitle: String {
-        hosts.selectedHost?.name ?? String(localized: "Demo")
-    }
-
-    private var selection: Binding<Item?> {
-        Binding {
-            navigation.workspaceFilter.map(Item.workspace) ?? .allWorkspaces
-        } set: { item in
-            if case .workspace(let id) = item {
-                navigation.workspaceFilter = id
-            } else {
-                navigation.workspaceFilter = nil
-            }
-        }
-    }
-
-    private func hostButton(_ selection: HostSelection, title: String, icon: HostIcon, isSelected: Bool) -> some View {
-        Button {
-            guard hosts.selection != selection else { return }
-            hosts.select(selection)
-        } label: {
-            HStack {
-                // 主機圖示同主機鈕與列表的主機名標示(#39)。
-                HostMenuLabel(title, icon: icon)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(.tint)
-                        .accessibilityHidden(true)
-                }
-            }
-            .contentShape(.rect)
-        }
-        .buttonStyle(.pressableRow(cornerRadius: 8))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-/// 側欄的一個 workspace:名稱 + 版面圖按鈕。
-private struct WorkspaceSidebarRow: View {
-    let workspace: Workspace
-    let card: LayoutCardModel
-
-    var body: some View {
-        HStack {
-            Label(workspace.label ?? workspace.id, systemImage: "folder")
-                .accessibilityIdentifier("sidebar.workspace.\(workspace.id)")
-            Spacer()
-            // 觸控目標 ≥ 44×44 pt(frame 放在 label 裡才會撐大可點範圍,#35 iPad audit)。
-            Button {
-                card.tap(workspace.id)
-            } label: {
-                Label("Show Layout", systemImage: "rectangle.split.3x1")
-                    .labelStyle(.iconOnly)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.borderless)
-            .onHover { inside in
-                Task { await card.pointer(overButton: workspace.id, isInside: inside) }
-            }
-            .accessibilityIdentifier("sidebar.layout.\(workspace.id)")
-        }
-        // 名稱與版面圖按鈕是兩個元素(VoiceOver、Full Keyboard Access 都能單獨到按鈕)。
-        .accessibilityElement(children: .contain)
-    }
-}
-
-// MARK: - 版面圖浮動卡片
-
-/// iPad 的版面圖浮動卡片(#37 故事 22、行為規格 F4):浮在 Agent 列表上方靠前緣，寬 340、最高 520pt。
-/// 釘住時點卡片以外的地方、按「關閉」或 Esc 關閉。
-struct LayoutCardOverlay: View {
-    let card: LayoutCardModel
-    let snapshot: HostSnapshot?
-    let onChoose: (PaneOpenTarget) -> Void
-
-    var body: some View {
-        if let workspaceID = card.workspaceID {
-            ZStack(alignment: .topLeading) {
-                if card.isPinned {
-                    // 點背景關閉。
-                    Color.clear
-                        .contentShape(.rect)
-                        .onTapGesture { card.close() }
-                        .accessibilityHidden(true)
-                }
-                LayoutCard(card: card, workspaceID: workspaceID, snapshot: snapshot, onChoose: onChoose)
-                    .id(workspaceID)
-                    .padding(12)
-            }
-        }
-    }
-}
-
-private struct LayoutCard: View {
-    let card: LayoutCardModel
-    let workspaceID: String
-    let onChoose: (PaneOpenTarget) -> Void
-    /// 開啟當下的版面，不即時更新(行為規格 F4)。
-    @State private var layout: SpacesLayout?
-    private let label: String
-
-    init(card: LayoutCardModel, workspaceID: String, snapshot: HostSnapshot?, onChoose: @escaping (PaneOpenTarget) -> Void) {
-        self.card = card
-        self.workspaceID = workspaceID
-        self.onChoose = onChoose
-        _layout = State(initialValue: snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: workspaceID) })
-        label = snapshot?.workspaces.first { $0.id == workspaceID }?.label ?? workspaceID
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(label)
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Button("Close", systemImage: "xmark") { card.close() }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("layoutCard.close")
-            }
-            .padding([.horizontal, .top])
-            SpacesLayoutContent(layout: layout, maxColumns: 1) { target in
-                card.close()
-                onChoose(target)
-            }
-        }
-        .frame(width: 340)
-        .frame(maxHeight: 520)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24))
-        .onHover { inside in
-            Task { await card.pointer(overCard: inside) }
-        }
-        // 在卡片上按下即釘住。
-        .simultaneousGesture(TapGesture().onEnded { card.pin() })
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("layoutCard")
-    }
-}
-
 // MARK: - 對話欄
 
-/// 三欄的對話欄：選取的 Agent 對話(可再推入它的終端機);沒選時「選一個對話」(行為規格 F20)。
+/// 兩欄的對話欄：選取的 Agent 對話(可再推入它的終端機);沒選時「選一個對話」(行為規格 F20)。
 struct WindowDetail: View {
     let hosts: HostsModel
     let navigation: TopNavigationModel
@@ -296,9 +108,6 @@ private struct PaneWindowContent: View {
 /// 有焦點的視窗執行快捷鍵的入口(每個視窗一份導覽狀態)。
 public struct WindowCommands {
     let perform: @MainActor (KeyboardCommand) -> Void
-    /// 這個視窗的版面圖浮動卡片開著(釘住或預覽)。開著時選單才有 Esc「關閉版面圖」。
-    var isLayoutCardShown = false
-    var closeLayoutCard: @MainActor () -> Void = {}
 }
 
 extension FocusedValues {
@@ -317,7 +126,7 @@ public struct PurrdrCommands: Commands {
 
     public init() {}
 
-    /// 主視窗(三欄)的 `WindowGroup` id。
+    /// 主視窗(兩欄)的 `WindowGroup` id。
     public static let mainWindowID = "main"
 
     public var body: some Commands {
@@ -342,12 +151,6 @@ public struct PurrdrCommands: Commands {
             Divider()
             button(.search)
             button(.openTerminal)
-            // Esc 關掉版面圖卡片(行為規格 F20)。只在卡片開著時才有，否則 Esc 要留給終端機送往遠端。
-            if window?.isLayoutCardShown == true {
-                Divider()
-                Button("Close Layout") { window?.closeLayoutCard() }
-                    .keyboardShortcut(.escape, modifiers: [])
-            }
         }
     }
 
