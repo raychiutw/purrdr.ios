@@ -38,6 +38,28 @@ extension TopLevelTab {
     }
 }
 
+/// 帳號頭像掛在哪裡(#520、spec #517):頭像要在視窗右上角。
+/// 寬視窗的聊天 tab 是兩欄,右上角屬於最右邊那欄(對話欄)的工具列,列表頂列不放;窄視窗收成一疊,回到列表頂列右側(同 iPhone)。
+/// 檔案、主機、流量只有一欄,頂列本身跨滿視窗,寬窄都在頂列。
+public enum AccountButtonPlacement: Equatable, Sendable {
+    /// 共用頂列(`TopBarContent.account`)。
+    case topBar
+    /// 對話欄的工具列 trailing。
+    case detailToolbar
+
+    public static func host(for tab: TopLevelTab, isWideWindow: Bool) -> AccountButtonPlacement {
+        tab == .chats && isWideWindow ? .detailToolbar : .topBar
+    }
+
+    public static func showsInTopBar(for tab: TopLevelTab, isWideWindow: Bool) -> Bool {
+        host(for: tab, isWideWindow: isWideWindow) == .topBar
+    }
+
+    public static func showsInDetailToolbar(for tab: TopLevelTab, isWideWindow: Bool) -> Bool {
+        host(for: tab, isWideWindow: isWideWindow) == .detailToolbar
+    }
+}
+
 /// 電腦圖示的主機範圍:篩選某台主機時右上角有小圓點。
 public struct TopBarHostScope: Equatable, Sendable {
     public var filteredHostName: String?
