@@ -326,10 +326,16 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(app.element("composer.expand").exists, "輸入列不該有展開鈕")
         XCTAssertFalse(app.element("composer.permissionMode").exists, "輸入列不該有權限模式鈕")
 
-        // 聚焦展開:上方輸入、下方 +、模型膠囊、送出;打字後至少兩行高;收起後草稿還在、沒有送出。
+        // 聚焦與一行內的字不展開(#512):維持一列、沒有模型膠囊;草稿收起鍵盤後還在、沒有送出。
         text.tap()
+        text.typeEnglish("Line one")
+        XCTAssertFalse(app.element("composer.model").exists, "聚焦與一行內的字不該展開")
+        XCTAssertEqual(text.frame.midY, send.frame.midY, accuracy: 4, "一行內仍是同一列")
+        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "聚焦時也沒有收起鍵盤鈕")
+        // 換行才展開:上方輸入、下方 +、模型膠囊、送出;至少兩行高。
+        text.typeEnglish("\nLine two")
         let capsule = app.element("composer.model")
-        XCTAssertTrue(capsule.waitUntilExists(timeout: 5), "聚焦展開後沒有模型膠囊")
+        XCTAssertTrue(capsule.waitUntilExists(timeout: 5), "換行後沒有展開出模型膠囊")
         XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "展開時送出鈕要在輸入框下方")
         XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "展開時加入圖片鈕要在輸入框下方")
         XCTAssertGreaterThan(capsule.frame.minX, addImage.frame.maxX - 1, "模型膠囊在加入圖片右邊")
@@ -337,12 +343,10 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(capsule.frame.midY, addImage.frame.midY, accuracy: 2, "模型膠囊與加入圖片同一列")
         let capsuleText = capsule.value as? String ?? ""
         XCTAssertFalse(capsuleText.isEmpty || capsuleText.hasSuffix("…"), "模型膠囊被截斷:\(capsuleText)")
-        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "聚焦時也沒有收起鍵盤鈕")
-        text.typeEnglish("Line one")
-        XCTAssertGreaterThanOrEqual(text.frame.height, 60, "有內容時不到兩行高(\(text.frame.height)pt)")
+        XCTAssertGreaterThanOrEqual(text.frame.height, 60, "有兩行內容時不到兩行高(\(text.frame.height)pt)")
         app.dismissKeyboard()
-        XCTAssertEqual(text.value as? String, "Line one", "草稿不見了")
-        XCTAssertTrue(app.element("composer.model").exists, "有草稿時收起鍵盤仍是展開")
+        XCTAssertEqual(text.value as? String, "Line one\nLine two", "草稿不見了")
+        XCTAssertTrue(app.element("composer.model").exists, "有換行的草稿收起鍵盤仍是展開")
         XCTAssertFalse(app.element("conversation.echo").exists, "收起鍵盤不該送出")
 
         // 點訊息區收起鍵盤。

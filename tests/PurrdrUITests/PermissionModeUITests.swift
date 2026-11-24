@@ -38,8 +38,8 @@ final class PermissionModeUITests: XCTestCase {
         let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
-        // 模型膠囊只在輸入列展開(聚焦或有文字)時顯示(#382)。
-        app.element("composer.text").tap()
+        // 模型膠囊只在輸入列展開(第二行、換行或附件,#512)時顯示。
+        app.expandComposer()
         let capsule = app.element("composer.model")
         let attach = app.element("composer.attach")
         XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
@@ -83,7 +83,7 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5))
         XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Plan'"), timeout: 10), "標題沒有顯示 Plan")
 
-        app.element("composer.text").tap()
+        app.expandComposer()
         let capsule = app.element("composer.model")
         XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
         XCTAssertTrue((capsule.value as? String ?? "").hasPrefix("Gemini 4 Neon"), "膠囊應顯示 Gemini 4 Neon · effort")
