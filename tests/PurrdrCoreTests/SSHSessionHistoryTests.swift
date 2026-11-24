@@ -135,6 +135,35 @@ struct SSHSessionHistoryTests {
         #expect(command.contains(HostScriptTimeLimit.posixMarker))
         #expect(SessionHistoryCommand.arguments(in: command) == ["claude", cwd, ClaudeTranscript.projectFolder(forCWD: cwd)])
     }
+
+    @Test("Windows 主機:同一個指令換成 PowerShell 版(經 stdin stub、帶時限),參數同 POSIX 版;POSIX 腳本不送過去(沒有真 Windows 主機實測)")
+    func windowsTranslation() async throws {
+        let cwd = #"C:\Users\demo\Projects\garden-journal"#
+        let command = SessionHistoryCommand.command(kind: "claude", cwd: cwd)
+
+        let invocation = try WindowsCommand.translate(command)
+
+        let script = String(decoding: try #require(invocation.stdinScript), as: UTF8.self)
+        #expect(script.contains("$a=@('claude','C:\\Users\\demo\\Projects\\garden-journal','C--Users-demo-Projects-garden-journal')"))
+        #expect(!script.contains("awk"))
+        #expect(script.hasSuffix(WindowsCommand.endOfScript + "\n"))
+        #expect(invocation.command == WindowsCommand.stdinStub)
+        #expect(invocation.command.count <= WindowsCommand.commandLimit)
+        #expect(!invocation.keepsStdinOpen)
+    }
+
+    @Test("Windows 主機:輸出格式與 POSIX 版相同,SSHSessionHistory 經 WindowsHostChannel 解析")
+    func windowsOutputIsParsed() async throws {
+        let fake = FakeHost()
+        await fake.expect(WindowsCommand.stdinStub, reply: FakeReply(stdout: Data("a1\t1795186931\tHello there\nb2\t1795100000\t\n".utf8)))
+
+        let sessions = try await SSHSessionHistory(channel: WindowsHostChannel(fake)).sessions(cwd: #"C:\w"#, kind: "claude")
+
+        #expect(sessions == [
+            ResumableSession(id: "a1", modified: Date(timeIntervalSince1970: 1_795_186_931), summary: "Hello there"),
+            ResumableSession(id: "b2", modified: Date(timeIntervalSince1970: 1_795_100_000), summary: nil),
+        ])
+    }
 }
 
 #endif
