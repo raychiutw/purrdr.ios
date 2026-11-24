@@ -232,7 +232,9 @@ public struct TopNavigationView: View {
 
     /// 4 個 tab。每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
     private var tabs: some View {
-        TabView(selection: $navigation.tab) {
+        TabView(selection: Binding(
+            get: { TopLevelTab.visibleSelection(navigation.tab, visible: TopLevelTab.allCases) },
+            set: { navigation.tab = $0 })) {
             Tab("Chats", systemImage: "bubble.left.and.bubble.right.fill", value: TopLevelTab.chats) {
                 // 選取中主機的主題(#23)只套在聊天 tab 的列表、對話與終端機。
                 chatsRoot

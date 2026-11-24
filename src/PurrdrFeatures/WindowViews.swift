@@ -69,6 +69,7 @@ public struct PaneWindowView: View {
             Group {
             if let route = window.route(hostIDs: hosts.listedHostIDs) {
                 PaneWindowContent(window: window, route: route, hosts: hosts)
+                    .environment(\.paneWindowTitle, window.windowTitle(hostName: hosts.agentList.hostLabel(of: route.host)?.name))
             } else {
                 ContentUnavailableView(
                     "Host Not Available",

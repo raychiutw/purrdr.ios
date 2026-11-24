@@ -86,6 +86,7 @@ struct StatusDot: View {
         Circle()
             .fill(tone.style)
             .frame(width: Self.diameter, height: Self.diameter)
+            .dimsWhenWindowInactive()
             .accessibilityHidden(true)
     }
 }
