@@ -54,7 +54,7 @@ struct ConversationInspectorView: View {
             }
             .appSheetList()
             .scrollContentBackground(.hidden)
-            .background(AppSurface.groupedPage)
+            .background(AppSurface.sheet)
             .navigationTitle("Inspector")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -139,6 +139,8 @@ struct ConversationInspectorModifier: ViewModifier {
             content
                 .inspector(isPresented: columnBinding) {
                     ConversationInspectorView(model: model, usageSection: usageSection, display: display)
+                        // 右側欄與 sheet 一樣是不透明底色(#533、#547),不讓系統在欄底畫半透明玻璃。
+                        .background(AppSurface.sheet.ignoresSafeArea())
                         .inspectorColumnWidth(min: 300, ideal: 340, max: 420)
                 }
                 .sheet(isPresented: sheetBinding) {

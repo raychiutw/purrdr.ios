@@ -29,7 +29,7 @@ struct NeedsYouBannerContentTests {
         #expect(content?.total == 1)
         #expect(content?.message == "Allow the build?")
         #expect(content?.workspace.isEmpty == false)
-        #expect(content?.kind.isEmpty == false)
+        #expect(content?.kind != nil)
     }
 
     @Test("沒有橫幅(第一次快照就需要你)時沒有內容")

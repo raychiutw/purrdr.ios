@@ -48,6 +48,14 @@ struct GlassLevelUsageTests {
         }
     }
 
+    @Test("iPad 對話右側 Inspector 用不透明的 AppSurface.sheet 底色(#547),不留半透明欄底")
+    func inspectorUsesOpaqueSheetSurface() throws {
+        let text = try Self.source("ConversationInspector.swift")
+        #expect(text.contains(".background(AppSurface.sheet)"), "Inspector 內容底色用 AppSurface.sheet")
+        #expect(text.contains(".background(AppSurface.sheet.ignoresSafeArea())"), "右側欄本身也鋪 AppSurface.sheet")
+        #expect(!text.contains("AppSurface.groupedPage"), "Inspector 底色統一走 AppSurface.sheet")
+    }
+
     @Test("新增聊天 sheet 是部分高度")
     func newChatIsPartialHeight() throws {
         #expect(try Self.source("TopNavigationView.swift").contains("NewChatSheet"))

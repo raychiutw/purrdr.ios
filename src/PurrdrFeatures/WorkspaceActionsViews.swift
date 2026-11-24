@@ -25,15 +25,6 @@ final class WorkspacePresentation {
         var sessionIDs: [String]
     }
 
-    struct CloseTabRequest {
-        var tabID: String
-        var label: String
-        var workspaceLabel: String
-        /// 是 Workspace 最後一個 Tab:herdr 會連 Workspace 一起關(實測),確認文字要說清楚。
-        var isLastInWorkspace: Bool
-        var sessionIDs: [String]
-    }
-
     var sheet: Sheet?
     /// 重新命名提示框(#456):Workspace 與 Tab 共用,系統帶輸入框的 alert。
     var renameRequest: RenameRequest?
@@ -43,7 +34,7 @@ final class WorkspacePresentation {
     var renameFailure: String?
     var closeRequest: CloseRequest?
     /// 關閉 Tab 的確認(#534)。
-    var closeTabRequest: CloseTabRequest?
+    var closeTabRequest: TabTarget?
     /// 操作的是哪台主機(多主機合併列表，#39)。列設定 sheet 或確認時一併設定。
     var host: HostSelection = .demo
     /// 版面圖裡點選的 Pane:先記下、關 sheet 之後才開(不能在關 sheet 的同一刻 push,行為規格 F4)。
@@ -168,6 +159,7 @@ extension View {
             self
         } primaryAction: {}
         .buttonStyle(HeaderPressStyle())
+        .accessibilityHint(Text("Double-tap and hold to show Workspace actions"))
         .accessibilityAction(named: Text("Rename Workspace…")) { if !isReadOnly { buttons.askWorkspaceName() } }
     }
 
@@ -266,9 +258,7 @@ private struct WorkspaceButtons {
     func closeTab(_ tab: TabTarget) -> some View {
         Button("Close Tab…", systemImage: "xmark", role: .destructive) {
             presentation.host = host
-            presentation.closeTabRequest = .init(
-                tabID: tab.tabID, label: tab.label, workspaceLabel: tab.workspaceLabel,
-                isLastInWorkspace: tab.isLastInWorkspace, sessionIDs: tab.sessionIDs)
+            presentation.closeTabRequest = tab
         }
         .accessibilityIdentifier("menu.closeTab")
         .disabled(isReadOnly)
@@ -307,12 +297,41 @@ private struct WorkspaceButtons {
     }
 }
 
-/// Workspace 段落標題(`Menu`)的按下反饋(#536):按住時淡灰底高亮,按下的瞬間輕觸覺。
+/// Workspace 標題長按的觸覺時機(#547):觸覺要在選單出現時才給,不是按下就給。
+/// 選單一出現,系統就接手觸控、按壓結束;所以按壓持續超過長按門檻才結束,就當作選單出現了(短按放開不算)。
+enum WorkspaceHeaderHaptic {
+    /// 系統長按叫出選單的大約時間,略取小一點以免漏掉。
+    static let menuAppearDelay: TimeInterval = 0.35
+
+    static func menuAppeared(afterPressLasting duration: TimeInterval) -> Bool {
+        duration >= menuAppearDelay
+    }
+}
+
+/// Workspace 段落標題(`Menu`)的按下反饋(#536):按住時淡灰底高亮;選單出現時輕觸覺(#547)。
 private struct HeaderPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
+        HeaderPressBody(configuration: configuration)
+    }
+}
+
+private struct HeaderPressBody: View {
+    let configuration: ButtonStyleConfiguration
+    @State private var pressStart: Date?
+    @State private var menuAppearances = 0
+
+    var body: some View {
         configuration.label
             .background(configuration.isPressed ? Color.primary.opacity(0.12) : Color.clear)
-            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in pressed }
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed {
+                    pressStart = Date()
+                } else if let start = pressStart {
+                    pressStart = nil
+                    if WorkspaceHeaderHaptic.menuAppeared(afterPressLasting: Date().timeIntervalSince(start)) { menuAppearances += 1 }
+                }
+            }
+            .sensoryFeedback(.impact(weight: .light), trigger: menuAppearances)
     }
 }
 

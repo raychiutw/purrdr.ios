@@ -199,7 +199,7 @@ public struct HerdrClient: Sendable {
     public func agentLaunchState(target: String) async throws -> AgentLaunchState {
         let result = try await request(method: "agent.get", params: AgentGetParams(target: target), as: AgentGetResult.self)
         return AgentLaunchState(
-            status: result.agent?.agentStatus, launchPending: result.agent?.launchPending == true,
+            status: result.agent?.agentStatus.flatMap(AgentStatus.init(rawValue:)), launchPending: result.agent?.launchPending == true,
             interactiveReady: result.agent?.interactiveReady)
     }
 
@@ -581,15 +581,15 @@ private struct PaneReadResult: Decodable {
 
 /// 剛啟動的 agent 的就緒狀態(`agent.get`)。
 public struct AgentLaunchState: Sendable, Equatable {
-    /// herdr 的 `agent_status`(`unknown`、`idle`、`blocked`…)。
-    public var status: String?
+    /// herdr 的 `agent_status`(看不懂的值是 `nil`)。
+    public var status: AgentStatus?
     public var launchPending: Bool
     public var interactiveReady: Bool?
 
     /// 可以收 prompt:`launch_pending` 結束,或 herdr 明說可互動。
     public var isReady: Bool { interactiveReady == true || !launchPending }
     /// 停在啟動問題(例如資料夾信任):不會自己就緒。
-    public var isBlocked: Bool { status == "blocked" }
+    public var isBlocked: Bool { status == .blocked }
 }
 
 private struct AgentGetParams: Encodable {
