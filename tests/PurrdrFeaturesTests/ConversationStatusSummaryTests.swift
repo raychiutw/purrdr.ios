@@ -119,12 +119,24 @@ struct ConversationStatusSummaryTests {
         #expect(working.working?.runningBackgroundAgents == 1)
     }
 
-    @Test("離線：橫幅是離線，頂列離線;斷線前在工作時帶「重連後才能停止」")
-    func offlineBanner() {
+    @Test("離線：沒有離線橫幅(背景自動重連)，頂列狀態是離線;斷線前在工作也不帶說明")
+    func offlineHasNoBanner() {
         let summary = Self.summary(isOffline: true, banner: .offline, stopNeedsReconnect: true)
 
         #expect(summary.header.status == .offline)
-        #expect(summary.banner == .offline(needsReconnectToStop: true))
+        #expect(summary.banner == nil)
+    }
+
+    @Test("離線＋對話紀錄問題：顯示對話紀錄橫幅")
+    func offlineStillShowsTranscriptBanner() {
+        let summary = Self.summary(isOffline: true, banner: .readFailed)
+
+        #expect(summary.banner == .transcript(.readFailed))
+    }
+
+    @Test("離線＋唯讀：顯示唯讀橫幅")
+    func offlineStillShowsReadOnlyBanner() {
+        #expect(Self.summary(isOffline: true, banner: .offline, isReadOnly: true).banner == .readOnly)
     }
 
     @Test("對話紀錄讀取問題用同一條橫幅")
@@ -145,10 +157,10 @@ struct ConversationStatusSummaryTests {
         #expect(summary.banner == .hostServiceUpdateRequired("請更新主機服務"))
     }
 
-    @Test("同時有多種提醒時只留一條：離線 > 對話紀錄 > 唯讀 > 主機服務版本")
+    @Test("同時有多種提醒時只留一條：對話紀錄 > 唯讀 > 主機服務版本")
     func onlyOneBannerByPriority() {
-        let all = Self.summary(isOffline: true, banner: .offline, isReadOnly: true, hostServiceUpdateMessage: "請更新主機服務")
-        #expect(all.banner == .offline(needsReconnectToStop: false))
+        let all = Self.summary(isOffline: true, banner: .readFailed, isReadOnly: true, hostServiceUpdateMessage: "請更新主機服務")
+        #expect(all.banner == .transcript(.readFailed))
 
         let readOnlyAndOld = Self.summary(isReadOnly: true, hostServiceUpdateMessage: "請更新主機服務")
         #expect(readOnlyAndOld.banner == .readOnly)

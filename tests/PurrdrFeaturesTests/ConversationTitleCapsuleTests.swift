@@ -48,7 +48,7 @@ struct ConversationTitleCapsuleTests {
     func accessibilityOmitsAbsentParts() {
         #expect(ConversationHeader(title: "ledger", status: .working, segments: ["studio"], permissionMode: .normal, tabName: "整理帳本").accessibilityText
             == "整理帳本, studio, Working")
-        #expect(ConversationHeader(title: "ledger", status: .offline, segments: []).accessibilityText == "ledger, Offline")
+        #expect(ConversationHeader(title: "ledger", status: .offline, segments: []).accessibilityText == "ledger, Reconnecting…")
     }
 
     @Test("第二行:主機名稱、狀態文字;一般模式與讀不到模式時沒有尾標")
@@ -73,7 +73,7 @@ struct ConversationTitleCapsuleTests {
 
     @Test("第二行:沒有主機名稱時只有狀態;多台主機每台都標")
     func secondLineHosts() {
-        #expect(ConversationHeader(title: "t", status: .offline, segments: []).secondLine.text == "Offline")
+        #expect(ConversationHeader(title: "t", status: .offline, segments: []).secondLine.text == "Reconnecting…")
         let many = ConversationHeader(title: "t", status: .online, segments: ["Studio Mac", "Build Box"]).secondLine
         #expect(many.hostNames == ["Studio Mac", "Build Box"])
         #expect(many.text == "Studio Mac, Build Box · Online")
