@@ -107,9 +107,12 @@ public final class NeedsYouNotifications {
     @ObservationIgnored private var dismissed: Set<ChatRoute> = []
     @ObservationIgnored private var nextOrder = 0
 
-    public init(now: @escaping @MainActor () -> Date = { Date() }) {
+    public init(now: @escaping @MainActor () -> Date = NeedsYouNotifications.wallClock) {
         self.now = now
     }
+
+    /// 正式的時鐘;預設值用常數、不寫閉包字面值(`@MainActor` init 的閉包預設值在 native build 的測試會中止,#105)。
+    public static let wallClock: @MainActor () -> Date = { Date() }
 
     /// 套用一份輸入(測試與 `run` 共用)。
     package func apply(_ input: Input) {
