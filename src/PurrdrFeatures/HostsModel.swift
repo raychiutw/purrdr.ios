@@ -500,7 +500,9 @@ public final class HostsModel {
         let folders = usesHostService ? NewChatFolders.absolutePathsOnly : NewChatFolders(channel: member.channel)
         return NewChatModel(
             launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders,
-            agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)))
+            agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)),
+            // HTTPS 主機服務還沒有 tab.create(purrdr.host#90):先不提供既有 Workspace。
+            supportsExistingWorkspaces: !usesHostService)
     }
 
     /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。

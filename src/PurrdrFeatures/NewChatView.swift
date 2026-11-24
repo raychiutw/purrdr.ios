@@ -29,6 +29,10 @@ public struct NewChatView: View {
     public var body: some View {
         NavigationStack {
             Form {
+                if model.canChooseExistingWorkspace {
+                    placementSection
+                }
+
                 Section {
                     Picker("Agent", selection: $model.agent) {
                         ForEach(model.availableAgents, id: \.self) { agent in
@@ -49,6 +53,7 @@ public struct NewChatView: View {
                     }
                 }
 
+                if model.selectedWorkspace == nil {
                 Section {
                     TextField("Folder", text: $model.folder, prompt: Text(verbatim: model.canBrowseFolders ? "~/projects/app" : "/Users/you/projects/app"))
                         .font(.body.monospaced())
@@ -76,19 +81,26 @@ public struct NewChatView: View {
                             .accessibilityIdentifier("newChat.fullPathHint")
                     }
                 }
+                }
 
                 sessionsSection
 
                 Section {
-                    TextField("Workspace Name", text: $model.workspaceName, prompt: Text("Optional"))
-                        .accessibilityIdentifier("newChat.workspaceName")
+                    if model.selectedWorkspace == nil {
+                        TextField("Workspace Name", text: $model.workspaceName, prompt: Text("Optional"))
+                            .accessibilityIdentifier("newChat.workspaceName")
+                    }
                     TextField("Tab Name", text: $model.tabName, prompt: Text("Optional"))
                         .accessibilityIdentifier("newChat.tabName")
                 } header: {
-                    Text("Names")
+                    Text(model.selectedWorkspace == nil ? "Names" : "Name")
                         .foregroundStyle(.secondaryText)
                 } footer: {
-                    Text("Leave these empty to use the folder’s name.")
+                    if model.selectedWorkspace == nil {
+                        Text("Leave these empty to use the folder’s name.")
+                    } else {
+                        Text("Leave this empty to use the default name.")
+                    }
                 }
 
                 Section {
@@ -145,6 +157,7 @@ public struct NewChatView: View {
             #endif
             .interactiveDismissDisabled(model.isStarting)
             .task(id: ObjectIdentifier(model)) { await model.loadAccess() }
+            .task(id: ObjectIdentifier(model)) { await model.loadWorkspaces() }
             // 資料夾或 agent 變了就重讀過去的 session;打字時等一下再讀(#309)。
             .task(id: model.sessionsKey) {
                 try? await Task.sleep(for: .milliseconds(400))
@@ -169,6 +182,44 @@ public struct NewChatView: View {
         // 部分高度的系統 sheet,系統自動套玻璃(#425);鍵盤升起或內容多時系統自動拉到 large。
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    /// 放在哪裡(#537):新的 Workspace,或這台主機目前開著的 Workspace(在裡面新增一個 Tab)。
+    private var placementSection: some View {
+        Section {
+            Picker("Workspace", selection: $model.placement) {
+                Label("New Workspace", systemImage: "plus")
+                    .tag(NewChatModel.Placement.newWorkspace)
+                    .accessibilityIdentifier("newChat.placement.new")
+                ForEach(model.workspaces) { workspace in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: workspace.name)
+                            .lineLimit(1)
+                        if let folder = workspace.folder {
+                            Text(verbatim: folder)
+                                .font(.footnote.monospaced())
+                                .foregroundStyle(.secondaryText)
+                                .lineLimit(1)
+                                .truncationMode(.head)
+                        }
+                    }
+                    .tag(NewChatModel.Placement.existing(workspace.id))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("newChat.placement.\(workspace.id)")
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+            .accessibilityIdentifier("newChat.placement")
+        } header: {
+            Text("Workspace")
+                .foregroundStyle(.secondaryText)
+        } footer: {
+            if model.selectedWorkspace != nil {
+                Text("A new Tab opens in this Workspace.")
+                    .accessibilityIdentifier("newChat.placement.footer")
+            }
+        }
     }
 
     /// 一份清單(#309,選定版 C):第一列「新的聊天」,下面是這個資料夾過去的 session;勾號只有一個。
