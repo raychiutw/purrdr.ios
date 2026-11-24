@@ -339,7 +339,7 @@ public struct AgentListView: View {
     private func listRows(_ sections: [SpacesSection]) -> some View {
         let failures = model.failures
         SpacesSectionsContent(
-            sections: sections, model: model, presentation: presentation, openInNewWindow: openInNewWindow,
+            needsYou: model.needsYouSection, sections: sections, model: model, presentation: presentation, openInNewWindow: openInNewWindow,
             newChatInWorkspace: topBarActions.newChatInWorkspace, canNewChatInWorkspace: topBarActions.canNewChatInWorkspace)
         if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,

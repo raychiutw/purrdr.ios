@@ -258,6 +258,14 @@ public final class MergedAgentListModel {
         AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats, query: query)
     }
 
+    /// 列表最上面的「需要你」段落(#531):所有主機(不受主機篩選)需要你的聊天、套用搜尋;
+    /// 排序與「剛剛」來自 `needsYou`(沒有人驅動它時照列表順序、沒有「剛剛」)。沒有時 `nil`。
+    public var needsYouSection: NeedsYouSection? {
+        AgentListProjection.needsYouSection(
+            sources: projectionSources, visible: visibleChats, query: query,
+            order: needsYou.others.map(\.route), justNow: needsYou.latest?.route)
+    }
+
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。
     public var hasAgents: Bool { sources.contains { $0.list.hasAgents } }
 
