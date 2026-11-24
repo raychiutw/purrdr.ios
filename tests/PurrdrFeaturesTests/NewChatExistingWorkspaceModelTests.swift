@@ -127,7 +127,7 @@ struct NewChatExistingWorkspaceModelTests {
 
         #expect(await model.start() == nil)
 
-        #expect(model.error == String(localized: "That Workspace was closed on the computer. Choose another one, or start a new Workspace."))
+        #expect(model.error == String(localized: "That Workspace was closed on the host. Choose another one, or start a new Workspace."))
         model.placement = .newWorkspace
         #expect(model.placement == .newWorkspace)
     }

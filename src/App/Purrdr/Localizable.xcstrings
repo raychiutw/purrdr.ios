@@ -5663,7 +5663,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "隱藏檢閱器"
+            "value" : "隱藏 Inspector"
           }
         }
       }
@@ -6271,7 +6271,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "檢閱器"
+            "value" : "Inspector"
           }
         }
       }
@@ -11243,7 +11243,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "顯示檢閱器"
+            "value" : "顯示 Inspector"
           }
         }
       }
@@ -12438,7 +12438,7 @@
         }
       }
     },
-    "That Workspace was closed on the computer. Choose another one, or start a new Workspace." : {
+    "That Workspace was closed on the host. Choose another one, or start a new Workspace." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
