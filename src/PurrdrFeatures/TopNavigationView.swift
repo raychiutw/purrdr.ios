@@ -56,6 +56,7 @@ public struct TopNavigationView: View {
             .focusedSceneValue(\.windowCommands, windowCommands)
             .tailscaleCheckPrompt(hosts.tailscaleCheck)
             .sheet(item: $navigation.sheet) { sheet in
+                Group {
                 switch sheet {
                 case .member:
                     // 帳號與設定頁(#246、#503)自帶 NavigationStack 與右上角 X;設定併在第一層。
@@ -96,6 +97,8 @@ public struct TopNavigationView: View {
                         Task { await hosts.openStartedChat(workspace, on: host) }
                     }
                 }
+                }
+                .appSheetBackground()
             }
             // 第一次開啟 app:開出歡迎頁(#34)。
             .task { if let welcome { navigation.launched(welcome: welcome) } }

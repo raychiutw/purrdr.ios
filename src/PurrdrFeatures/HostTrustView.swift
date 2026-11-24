@@ -48,7 +48,7 @@ struct HostTrustView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .interactiveDismissDisabled()
     }
 }

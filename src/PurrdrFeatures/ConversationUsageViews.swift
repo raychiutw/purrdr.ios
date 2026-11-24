@@ -63,7 +63,7 @@ struct ConversationUsageSheet: View {
                     }
                 }
         }
-        .presentationDetents([.large])
+        .appSheet(detents: [.large])
         .accessibilityIdentifier("usage.sheet")
     }
 
