@@ -616,7 +616,15 @@
       }
     },
     "%lld of %lld done" : {
-      "extractionState" : "manual"
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成 %1$lld／%2$lld"
+          }
+        }
+      }
     },
     "%lld other Agents need you" : {
       "extractionState" : "manual",
@@ -641,7 +649,15 @@
       }
     },
     "%lld queued" : {
-      "extractionState" : "manual"
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排了 %lld 則"
+          }
+        }
+      }
     },
     "%lld running" : {
       "extractionState" : "manual",
@@ -7064,7 +7080,15 @@
       }
     },
     "Model & Effort" : {
-      "extractionState" : "manual"
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型與思考深度"
+          }
+        }
+      }
     },
     "Modified" : {
       "extractionState" : "manual",
@@ -9751,7 +9775,15 @@
       }
     },
     "Read-only device" : {
-      "extractionState" : "manual"
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀裝置"
+          }
+        }
+      }
     },
     "Read-only devices can’t change this" : {
       "extractionState" : "manual",
@@ -15224,7 +15256,15 @@
       }
     },
     "Usage & Context" : {
-      "extractionState" : "manual"
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量與 Context"
+          }
+        }
+      }
     },
     "Usage Capture" : {
       "extractionState" : "manual",

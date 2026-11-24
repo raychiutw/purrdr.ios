@@ -1,6 +1,6 @@
 import XCTest
 
-/// Claude 權限模式(#380):點標題膠囊開面板,下半是勾選列直接切換;非一般模式時膠囊第二行出現模式名。
+/// Claude 權限模式(#380、#515):「⋯」→ 權限模式開 sheet,勾選列直接切換、成功自動關閉;非一般模式時膠囊第二行出現模式名。
 /// Demo 主機的 Claude 畫面會隨 Shift+Tab 輪替模式標示。
 final class PermissionModeUITests: XCTestCase {
     override func setUp() {
@@ -17,16 +17,15 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
         XCTAssertFalse(app.element("composer.permissionMode").exists, "輸入列不再有權限模式膠囊")
 
-        header.tap()
-        XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
+        app.conversationMoreItem("menu.permissionMode").tap()
+        XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "「⋯」→ 權限模式沒有開出 sheet")
         let picker = app.element("permissionMode.picker")
         XCTAssertTrue(picker.waitUntilExists(timeout: 10), "面板沒有權限模式選項")
         let accept = app.buttons["Accept Edits"].firstMatch
         XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits 勾選列")
         accept.tap()
-        XCTAssertTrue(accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Accept Edits")
-        app.buttons["sheet.close"].tap()
-        XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5))
+        // 切換成功後 sheet 自動關閉(#515)。
+        XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
         XCTAssertTrue(
             header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "膠囊第二行沒有顯示 Accept Edits")
     }
@@ -70,17 +69,16 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(
             header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "標題沒有顯示畫面狀態列的 Accept Edits")
 
-        header.tap()
-        XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
+        XCTAssertTrue(
+            app.conversationMoreItem("menu.model").label.contains("Gemini 4 Neon"), "「⋯」的模型與思考深度項目沒有顯示目前模型")
+        app.conversationMoreItem("menu.permissionMode").tap()
+        XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "「⋯」→ 權限模式沒有開出 sheet")
         XCTAssertTrue(app.element("permissionMode.picker").waitUntilExists(timeout: 10), "面板沒有權限模式選項")
         XCTAssertFalse(app.buttons["Bypass Permissions"].exists, "Antigravity 的輪替沒有略過權限")
         let plan = app.buttons["Plan"].firstMatch
         XCTAssertTrue(plan.waitUntilExists(timeout: 10), "面板裡沒有 Plan 勾選列")
         plan.tap()
-        XCTAssertTrue(plan.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Plan")
-        XCTAssertTrue(app.element("status.model").exists, "面板沒有顯示模型")
-        app.buttons["sheet.close"].tap()
-        XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5))
+        XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
         XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Plan'"), timeout: 10), "標題沒有顯示 Plan")
 
         app.expandComposer()
