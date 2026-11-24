@@ -138,14 +138,18 @@ struct SettingsSections: View {
 /// 「記錄捲動卡頓」:聊天捲動不順時只在這支手機記下數字,使用者可分享給開發者。
 struct HitchLogSection: View {
     @Bindable var model: SettingsModel
-    @State private var exported: ExportedHitchLog?
 
     var body: some View {
         Section {
             Toggle("Record Scroll Stutters", isOn: $model.recordsHitches)
                 .accessibilityIdentifier("settings.hitchLog")
             Button("Share Stutter Records", systemImage: "square.and.arrow.up") {
-                Task { exported = await model.exportHitchLog().map(ExportedHitchLog.init) }
+                Task {
+                    guard let url = await model.exportHitchLog() else { return }
+                    #if os(iOS)
+                    SystemSharePresenter.present(url)
+                    #endif
+                }
             }
             .accessibilityIdentifier("settings.hitchLog.share")
             Button("Clear Records", systemImage: "trash", role: .destructive) {
@@ -165,27 +169,33 @@ struct HitchLogSection: View {
             }
             .foregroundStyle(.secondaryText)
         }
-        #if os(iOS)
-        .sheet(item: $exported) { file in HitchLogShareSheet(url: file.url) }
-        #endif
     }
-}
-
-struct ExportedHitchLog: Identifiable {
-    let url: URL
-    var id: URL { url }
 }
 
 #if os(iOS)
-/// 系統分享選單(分享記錄檔)。
-struct HitchLogShareSheet: UIViewControllerRepresentable {
-    let url: URL
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+/// 系統分享選單(分享檔案)。直接由目前最上層的 view controller 呈現,不當成 SwiftUI sheet 的內容:
+/// 包在 `.sheet` 裡的 `UIActivityViewController` 會讓下層的帳號與設定 sheet 一起被收掉(0.51.1 實機回報)。
+@MainActor
+enum SystemSharePresenter {
+    static func present(_ url: URL) {
+        guard let top = topViewController() else { return }
+        let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        if let popover = controller.popoverPresentationController {
+            popover.sourceView = top.view
+            popover.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        top.present(controller, animated: true)
     }
 
-    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+    private static func topViewController() -> UIViewController? {
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive } ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        var top = scene?.windows.first(where: \.isKeyWindow)?.rootViewController
+        while let presented = top?.presentedViewController, !presented.isBeingDismissed { top = presented }
+        return top
+    }
 }
 #endif
 

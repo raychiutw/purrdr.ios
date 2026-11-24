@@ -143,9 +143,11 @@ public struct ConversationTimeline: Sendable {
         messages = newMessages
         knownMessageIDs = Set(newMessages.map(\.id))
         var freshBuilder = Conversation.Builder()
+        freshBuilder.defersSummaries = true
         for message in newMessages where !message.isSidechain {
             freshBuilder.add(message)
         }
+        freshBuilder.settleSummaries()
         Self.adoptIdentities(of: items, into: &freshBuilder.items)
         builder = freshBuilder
         items = builder.items

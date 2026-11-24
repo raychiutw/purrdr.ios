@@ -137,6 +137,15 @@ struct ChatListOlderPageTriggerTests {
         #expect(offset == -100)
     }
 
+    @Test("程式捲動:距離不遠才用動畫;很遠(超過 3 個畫面高)直接跳,免得途中為每一列自適應")
+    func animatesOnlyShortJumps() {
+        #expect(ChatListLayoutMath.animatesJump(wanted: true, distance: 1500, visibleHeight: 600))
+        #expect(ChatListLayoutMath.animatesJump(wanted: true, distance: -1800, visibleHeight: 600))
+        #expect(!ChatListLayoutMath.animatesJump(wanted: true, distance: 1801, visibleHeight: 600))
+        #expect(!ChatListLayoutMath.animatesJump(wanted: true, distance: -20000, visibleHeight: 600))
+        #expect(!ChatListLayoutMath.animatesJump(wanted: false, distance: 100, visibleHeight: 600))
+    }
+
     @Test("捲到某一列:不超過內容底端")
     func offsetShowingRowBottomClampsToBottomOffset() {
         let offset = ChatListLayoutMath.offsetShowingRowBottom(

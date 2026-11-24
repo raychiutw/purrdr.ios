@@ -39,8 +39,12 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(app.reveal(tab))
 
         tab.press(forDuration: 1.2)
-        for title in ["Show Layout", "Rename Tab…", "Close Workspace…"] {
+        for title in ["Show Layout", "Rename Tab…", "Close Tab…"] {
             XCTAssertTrue(app.buttons[title].waitUntilExists(timeout: 5), "長按選單沒有「\(title)」")
+        }
+        // Workspace 層級的動作只在段落標題(#536)。
+        for title in ["New Worktree…", "Close Workspace…"] {
+            XCTAssertFalse(app.buttons[title].exists, "Tab 長按選單不該有「\(title)」")
         }
         // 點螢幕下方的空白處關選單(列變高後選單位置會移動，點正中央可能點到選單項目)。
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)).tap()
@@ -54,6 +58,35 @@ final class SpacesUITests: XCTestCase {
         let status = app.element("terminal.status")
         XCTAssertTrue(status.waitUntilExists(timeout: 10), "點終端機方塊沒有開 Pane 終端機")
         XCTAssertTrue(status.label.contains("npm run dev"), "終端機標題不是程式名:\(status.label)")
+    }
+
+    /// 長按選單與左滑都能關閉 Tab,關之前先確認;Demo 每個 Workspace 只有一個 Tab,所以確認文字是「連 Workspace 一起關」(#534)。
+    @MainActor
+    func testCloseTabFromMenuAndSwipe() {
+        let app = XCUIApplication.launchUITesting()
+        let first = app.element("spaces.tab.demo/w2:t1")
+        XCTAssertTrue(app.reveal(first))
+
+        first.press(forDuration: 1.2)
+        app.buttons["menu.closeTab"].tap()
+        let confirm = app.buttons["closeTab.confirm"].firstMatch
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有出現確認")
+        XCTAssertEqual(confirm.label, "Close Tab and Workspace")
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
+        XCTAssertTrue(first.exists, "取消後 Tab 不該消失")
+
+        first.press(forDuration: 1.2)
+        app.buttons["menu.closeTab"].tap()
+        confirm.tap()
+        XCTAssertTrue(first.waitUntilGone(timeout: 10), "從選單關閉後 Tab 還在")
+
+        let second = app.element("spaces.tab.demo/w1:t1")
+        XCTAssertTrue(app.reveal(second))
+        second.swipeLeft()
+        app.buttons["menu.closeTab"].tap()
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "左滑沒有出現確認")
+        confirm.tap()
+        XCTAssertTrue(second.waitUntilGone(timeout: 10), "左滑關閉後 Tab 還在")
     }
 
     /// 長按 Tab 列改的是那個 Tab;長按 Workspace 標題改 Workspace(#456)。

@@ -70,6 +70,25 @@ struct NewChatLaunchTests {
         #expect(executions.allSatisfy { !$0.stdinText.contains("bypassPermissions") && !$0.stdinText.contains("permission-mode") })
     }
 
+    @Test("填了 tab 名稱:workspace 建好後對新 tab 送 tab.rename,之後才啟動 agent;沒填時不送")
+    func tabLabelRenamesNewTab() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("/Users/demo/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: FakeReply(
+            stdout: Data(#"{"id":"purrdr:tab.rename","result":{"type":"ok"}}"#.utf8) + [0x0A], trigger: .afterStdinLine))
+        await host.expect(Self.bridge, reply: Self.agentStarted())
+
+        _ = try await Self.launcher(host).start(
+            NewChatRequest(folder: "/Users/demo/ledger", label: "Tax", tabLabel: "Draft", agent: .claude))
+
+        let executions = await host.executions
+        #expect(executions.map(\.command) == [command, Self.bridge, Self.bridge, Self.bridge])
+        #expect(executions[1].stdinText == Self.createLine(cwd: "/Users/demo/ledger", label: "Tax"))
+        #expect(executions[2].stdinText == #"{"id":"purrdr:tab.rename","method":"tab.rename","params":{"label":"Draft","tab_id":"w4:t1"}}"# + "\n")
+    }
+
     @Test("選了權限模式：Claude 在 args 帶 --permission-mode;名稱用自訂名稱的 slug,label 照原樣")
     func explicitPermissionModeForClaude() async throws {
         let host = FakeHost()
@@ -162,6 +181,43 @@ struct NewChatLaunchTests {
         #expect(await sleeper.requested.filter { $0 == .milliseconds(750) }.count == 4)
         // 我方期限比 herdr 的等待多 60 秒，絕不比 herdr 先放棄。
         #expect(await sleeper.requested.contains(.seconds(120)))
+    }
+
+    /// 實測 herdr 0.9.5(資料夾還沒被 Claude 信任時):`agent.start` 立刻成功但 `launch_pending: true`,
+    /// 這時 `agent.prompt` 回 `agent_not_ready`「agent w2:p1 is not an active named agent」。
+    static func agentStartedPending(pane: String = "w4:p1") -> FakeReply {
+        let line = #"""
+        {"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"\#(pane)","workspace_id":"w4","name":"ledger","agent_status":"unknown","launch_pending":true},"argv":["claude"]}}
+        """#
+        return FakeReply(stdout: Data(line.utf8) + [0x0A], trigger: .afterStdinLine)
+    }
+
+    @Test("agent.start 回 launch_pending(還沒就緒):不送第一則訊息、不丟錯誤，訊息留給聊天輸入框")
+    func launchPendingDoesNotPromptOrFail() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("~/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: Self.agentStartedPending())
+
+        let started = try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
+        #expect(await host.executions.allSatisfy { !$0.stdinText.contains("agent.prompt") })
+    }
+
+    @Test("agent.prompt 回 agent_not_ready(agent 還沒就緒):不丟錯誤，訊息留給聊天輸入框")
+    func promptNotReadyKeepsTheMessage() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("~/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: Self.agentStarted())
+        await host.expect(Self.bridge, reply: Self.error("agent.prompt", code: "agent_not_ready", message: "agent w4:p1 is not an active named agent"))
+
+        let started = try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
     }
 
     @Test("agent_pane_busy 重試 4 次仍失敗：丟出錯誤")

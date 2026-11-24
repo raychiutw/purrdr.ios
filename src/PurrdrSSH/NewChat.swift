@@ -21,6 +21,8 @@ public struct NewChatRequest: Sendable, Equatable {
     public var folder: String
     /// workspace 名稱;`nil` 時由 herdr 命名(資料夾名)。
     public var label: String?
+    /// 第一個 tab 的名稱(#532);`nil` 時沿用 herdr 的預設。
+    public var tabLabel: String?
     /// 啟動的種類(`AgentCatalog.startableAgents`);herdr 的 kind 是它的正式名稱。
     public var agent: AgentID
     /// 只有 Claude Code 會用到。
@@ -33,13 +35,14 @@ public struct NewChatRequest: Sendable, Equatable {
     public var continuesLastSession: Bool
 
     public init(
-        folder: String, label: String? = nil, agent: AgentID, permissionMode: ClaudePermissionMode = .agentDefault, message: String = "",
+        folder: String, label: String? = nil, tabLabel: String? = nil, agent: AgentID, permissionMode: ClaudePermissionMode = .agentDefault, message: String = "",
         resumeSession: String? = nil, continuesLastSession: Bool = false
     ) {
         self.resumeSession = resumeSession
         self.continuesLastSession = continuesLastSession
         self.folder = folder
         self.label = label
+        self.tabLabel = tabLabel
         self.agent = agent
         self.permissionMode = permissionMode
         self.message = message
@@ -156,7 +159,7 @@ public actor NewChatLauncher {
                 self.pending = nil
                 try? await client.closeWorkspace(pending.workspace.workspaceID)
             }
-            workspace = try await client.createWorkspace(cwd: folder, label: request.label)
+            workspace = try await client.createWorkspace(cwd: folder, label: request.label, tabLabel: request.tabLabel)
             pending = (folder, workspace)
         }
         let name = NewChatRequest.agentName(for: request.label ?? Self.lastComponent(of: folder))
@@ -165,7 +168,12 @@ public actor NewChatLauncher {
         let message = request.message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard ready, !message.isEmpty else { return NewChatStarted(workspace: workspace, sentMessage: false) }
         // 不等 agent 開始工作：送出後聊天畫面自己跟上(送不到時丟錯誤，不重送，§7.3)。
-        _ = try await client.prompt(target: workspace.rootPaneID, text: message, wait: nil)
+        do {
+            _ = try await client.prompt(target: workspace.rootPaneID, text: message, wait: nil)
+        } catch HerdrError.herdr(code: "agent_not_ready", _) {
+            // agent 還沒就緒(herdr:agent … is not an active named agent):什麼都沒送出，訊息留給聊天輸入框。
+            return NewChatStarted(workspace: workspace, sentMessage: false)
+        }
         return NewChatStarted(workspace: workspace, sentMessage: true)
     }
 
@@ -174,10 +182,10 @@ public actor NewChatLauncher {
         var retries = 0
         while true {
             do {
-                try await client.startAgent(
+                // launch_pending:agent 還在啟動(例如停在資料夾信任問題),視同還沒就緒。
+                return try await client.startAgent(
                     name: name, kind: request.agent.canonicalName, paneID: workspace.rootPaneID,
                     arguments: request.agentArguments, resumeSession: Self.hostServiceResumeSession(for: request), timeout: Self.agentTimeout)
-                return true
             } catch HerdrError.herdr(code: "agent_not_ready", _) {
                 // agent 已經起來，但停在啟動問題(例如資料夾信任):在聊天裡回答。
                 return false

@@ -127,6 +127,12 @@ public struct HerdrClient: Sendable {
         _ = try await request(method: "tab.rename", params: TabRenameParams(tabID: tabID, label: label), as: TypedResult.self)
     }
 
+    /// 關閉 tab(`tab.close`):裡面的 pane、程序都會停止。herdr 0.9.5 實測:關掉 workspace 最後一個 tab 時,
+    /// workspace 也一併關閉(不是錯誤);連最後一個 workspace 也關掉時 herdr 會自己開一個新的空 workspace。
+    public func closeTab(_ tabID: String) async throws {
+        _ = try await request(method: "tab.close", params: TabIDParams(tabID: tabID), as: TypedResult.self)
+    }
+
     /// 關閉 workspace(`workspace.close`):裡面每個 tab、pane、程序都會停止。
     ///
     /// 不帶 `close_group`:同 repo 的 worktree workspace 還開著時，herdr 回 `workspace_group_close_required`,
@@ -148,23 +154,33 @@ public struct HerdrClient: Sendable {
 
     /// 在 `cwd`(主機上的絕對路徑，呼叫端先確認存在)建立 workspace(`workspace.create`,期限 60 秒)。
     /// `focus:false`:不搶桌機的焦點。`label` 為 `nil` 時由 herdr 命名。
-    public func createWorkspace(cwd: String, label: String?) async throws -> CreatedWorkspace {
+    /// `tabLabel`(#532)有值時,建好後對新 tab 送 `tab.rename`;命名只是順手的事,失敗不讓新對話失敗。
+    public func createWorkspace(cwd: String, label: String?, tabLabel: String? = nil) async throws -> CreatedWorkspace {
         let result = try await request(
             method: "workspace.create", params: WorkspaceCreateParams(cwd: cwd, label: label), as: WorktreeCreatedResult.self, deadline: .seconds(60)
         )
+        if let tabLabel, let tabID = result.rootPane.tabID {
+            try? await renameTab(tabID, to: tabLabel)
+        }
         return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
     }
 
     /// 在 pane 的 shell 啟動 agent(`agent.start`)。`arguments` 是交給 agent 的參數(CLI 的 `--` 之後)。
     /// 我方期限 = herdr 的等待 + 60 秒：絕不比 herdr 先放棄，否則重試會在同一個 pane 再啟動一個 agent。
     /// `resumeSession`(#309)是要續接的 session id;只有主機服務(HTTPS)認得，herdr 本身沒有這個參數。
+    ///
+    /// 回傳 agent 是否已就緒(可以收 prompt)。herdr 0.9.5 在資料夾還沒被信任等情況下會立刻回成功、
+    /// 但 agent 帶 `launch_pending: true`;這時送 `agent.prompt` 會得到 `agent_not_ready`
+    /// 「agent w2:p1 is not an active named agent」,所以呼叫端不要送第一則訊息。
+    @discardableResult
     public func startAgent(
         name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration
-    ) async throws {
+    ) async throws -> Bool {
         let params = AgentStartParams(
             name: name, kind: kind, paneID: paneID, args: arguments.isEmpty ? nil : arguments, resumeSession: resumeSession,
             timeoutMs: Self.milliseconds(timeout))
-        _ = try await request(method: "agent.start", params: params, as: TypedResult.self, deadline: timeout + .seconds(60))
+        let result = try await request(method: "agent.start", params: params, as: AgentStartResult.self, deadline: timeout + .seconds(60))
+        return result.agent?.launchPending != true
     }
 
     /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。只有主機服務(HTTPS)提供;
@@ -368,6 +384,14 @@ private struct WorkspaceIDParams: Encodable {
     }
 }
 
+private struct TabIDParams: Encodable {
+    var tabID: String
+
+    enum CodingKeys: String, CodingKey {
+        case tabID = "tab_id"
+    }
+}
+
 private struct TabRenameParams: Encodable {
     var tabID: String
     var label: String
@@ -449,9 +473,11 @@ private struct WorktreeCreatedResult: Decodable {
 
     struct RootPane: Decodable {
         var paneID: String
+        var tabID: String?
 
         enum CodingKeys: String, CodingKey {
             case paneID = "pane_id"
+            case tabID = "tab_id"
         }
     }
 
@@ -498,6 +524,17 @@ private struct PaneReadResult: Decodable {
     }
 
     var read: Read
+}
+
+/// `agent.start` 的成功回應;只讀 `launch_pending`(還沒就緒)。
+private struct AgentStartResult: Decodable {
+    var agent: Agent?
+
+    struct Agent: Decodable {
+        var launchPending: Bool?
+
+        enum CodingKeys: String, CodingKey { case launchPending = "launch_pending" }
+    }
 }
 
 /// 只有 `{"type":…}` 的結果(例如 `{"type":"ok"}`)。

@@ -100,6 +100,11 @@ public final class ConversationModel {
             effort: status.effort)
     }
     @ObservationIgnored private var sessionStatusReadAt: Date?
+    /// 追蹤事件觸發的快取寫入最短間隔(秒);離開聊天時一定補寫(#510)。
+    package static let cacheSaveInterval: TimeInterval = 5
+    @ObservationIgnored private var lastCacheSaveAt: Date?
+    /// 有已套用但還沒寫進快取的內容。
+    @ObservationIgnored package private(set) var cacheIsDirty = false
     /// 兩次讀 session 狀態的最短間隔(秒):輪詢每 2 秒一輪,不必每輪都問主機。
     nonisolated public static let sessionStatusInterval: TimeInterval = 10
 
@@ -1048,6 +1053,7 @@ public final class ConversationModel {
             self.pollDue = nil
         }
         if isCurrentRun { slash.cancelBackgroundReload() }
+        await flushCache()
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
@@ -1248,6 +1254,44 @@ public final class ConversationModel {
         if generation == self.generation, boundSessionID == target.sessionKey { await saveCache() }
     }
 
+    // MARK: - 離開中(返回列表的轉場)
+
+    /// 畫面正在離開(返回列表的轉場、推入子頁):追蹤到的新內容先不套用。
+    @ObservationIgnored private var isLeaving = false
+    @ObservationIgnored private var leavingWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+
+    /// 畫面開始離開或回來時呼叫(聊天列表的 `viewWillDisappear`／`viewWillAppear`)。
+    /// 離開中每則追加都讓整個聊天畫面重算與重排,全塞進返回動畫(開頭停滯、尾段凍結),而這個畫面馬上就釋放;
+    /// 所以暫停套用,回來(取消返回、從子頁回來)再接上。
+    package func setLeaving(_ leaving: Bool) {
+        guard isLeaving != leaving else { return }
+        isLeaving = leaving
+        if !leaving { resumeLeavingWaiters() }
+    }
+
+    private func resumeLeavingWaiters() {
+        let waiters = leavingWaiters
+        leavingWaiters = [:]
+        for waiter in waiters.values { waiter.resume() }
+    }
+
+    /// 離開中就等到回來或被取消。
+    private func waitWhileLeaving() async {
+        guard isLeaving else { return }
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                if isLeaving, !Task.isCancelled {
+                    leavingWaiters[id] = continuation
+                } else {
+                    continuation.resume()
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in self.leavingWaiters.removeValue(forKey: id)?.resume() }
+        }
+    }
+
     /// 已追上主機且在 `run()` 裡：開始追蹤目前的對話紀錄，之後的新內容由追蹤送來(#165)。
     private func startFollowingUpdates() {
         guard let followPace, let file, file.follow.isLive, following?.path != file.path else { return }
@@ -1274,13 +1318,16 @@ public final class ConversationModel {
                 await transcripts.followTranscript(path: path, from: cursor, pace: pace),
                 isCurrent: { generation == self.generation && file?.path == path },
                 appended: { chunk in
+                    // 畫面離開中先不套用(返回轉場期間不做整份重算);被取消就不套了。
+                    await waitWhileLeaving()
+                    guard !Task.isCancelled else { return }
                     file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
                     await append(chunk)
                 },
                 replaced: { size in try await openWindow(path: path, size: size, generation: generation) },
                 afterEach: {
                     if banner == .readFailed { banner = nil }
-                    await saveCache()
+                    await saveCacheThrottled()
                 })
         } catch is CancellationError {
         } catch {
@@ -1382,9 +1429,32 @@ public final class ConversationModel {
         items.contains { if case .toolRun = $0 { false } else { true } }
     }
 
+    /// 訊息裡有沒有會變成「可讀項目」的內容(`hasReadableMessage(in: items)` 的線性版本,不重建畫面項目,#510):
+    /// 使用者文字(去掉上傳圖片路徑後非空)或圖片、Agent 文字、委派卡、skill、備註、shell 指令、檔案卡都算;
+    /// 工具呼叫、結果、thinking、通知不算;sidechain 訊息不顯示所以不算。
+    package static func hasReadableMessage<Messages: Sequence>(in messages: Messages) -> Bool where Messages.Element == TranscriptMessage {
+        messages.contains { message in
+            guard !message.isSidechain else { return false }
+            var userTexts: [String] = []
+            var images = 0
+            for part in message.parts {
+                switch part {
+                case .text(let text):
+                    if message.role == .user { userTexts.append(text) } else { return true }
+                case .delegation, .skill, .note, .shellInput, .agentFile: return true
+                case .images(let count): images += count
+                default: break
+                }
+            }
+            guard !userTexts.isEmpty || images > 0 else { return false }
+            let (text, paths) = UploadedImages.extract(from: userTexts.joined(separator: "\n"))
+            return !text.isEmpty || max(images, paths.count) > 0
+        }
+    }
+
     /// 快取的訊息組出的畫面有可讀訊息(或根本沒有訊息)才值得還原:尾端只有工具步驟的快取會讓開啟時看到一片空白的步驟串(#473)。
     private static func isWorthRestoring(_ cached: CachedConversation) -> Bool {
-        cached.messages.isEmpty || hasReadableMessage(in: Conversation.items(from: cached.messages))
+        cached.messages.isEmpty || hasReadableMessage(in: cached.messages)
     }
 
     /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
@@ -3014,8 +3084,32 @@ public final class ConversationModel {
 
     /// 寫入快取：最多 `CachedConversation.maxMessages` 則(R-B13),以整段為單位從尾端取，視窗起點是取到的第一段開頭，
     /// 從快取恢復後往上翻接得上;往上翻的舊頁不寫入(F5.2)。最後一段本身就超過上限時只存它的最後幾則(往上翻會缺這段的前面)。
-    private func saveCache() async {
-        guard let boundSessionID, let file else { return }
+    package func saveCache() async {
+        guard let snapshot = cacheSnapshot() else { return }
+        lastCacheSaveAt = clock.now()
+        cacheIsDirty = false
+        await cache.save(snapshot, chatKey: chatKey)
+    }
+
+    /// 追蹤事件套用後的寫入:距離上次寫入不到 `cacheSaveInterval` 就只記下「有未寫入的內容」,
+    /// 之後的事件、`flushCache()`(離開聊天時)再寫;串流中每則事件都重組、重新編碼最多 2000 則訊息會一直占主執行緒(#510)。
+    private func saveCacheThrottled() async {
+        if let last = lastCacheSaveAt, clock.now().timeIntervalSince(last) < Self.cacheSaveInterval {
+            cacheIsDirty = true
+            return
+        }
+        await saveCache()
+    }
+
+    /// 把節流期間累積、還沒寫入的內容寫進快取(離開聊天、進背景時呼叫)。
+    package func flushCache() async {
+        guard cacheIsDirty else { return }
+        await saveCache()
+    }
+
+    /// 在主執行緒組出要存的內容(只做同步的整理;編碼與寫入在快取 actor)。
+    package func cacheSnapshot() -> CachedConversation? {
+        guard let boundSessionID, let file else { return nil }
         var count = 0
         var first = segments.count
         while first > 0, count + segments[first - 1].count <= CachedConversation.maxMessages {
@@ -3027,20 +3121,21 @@ public final class ConversationModel {
             count = last.count
         }
         // 尾端只有工具步驟(補讀過才找到可讀訊息):多留到包含可讀訊息，否則下次開啟的快取不值得還原、又得整段補讀(#508)。
+        // 只掃新納入那一段的訊息(線性),不重建畫面項目(#510)。
         var limit = CachedConversation.maxMessages
-        while first > 0, count > 0, count < CachedConversation.maxMessagesWithReadable,
-              !Self.hasReadableMessage(in: Conversation.items(from: Array(recent.suffix(count)))) {
-            first -= 1
-            count += segments[first].count
-            limit = CachedConversation.maxMessagesWithReadable
+        if count > 0, !Self.hasReadableMessage(in: recent.suffix(count)) {
+            while first > 0, count < CachedConversation.maxMessagesWithReadable {
+                first -= 1
+                let added = segments[first].count
+                count += added
+                limit = CachedConversation.maxMessagesWithReadable
+                if Self.hasReadableMessage(in: recent[(recent.count - count)..<(recent.count - count + added)]) { break }
+            }
         }
         let windowStart = first < segments.count ? segments[first].start : file.windowStart
-        await cache.save(
-            CachedConversation(
-                sessionID: boundSessionID, messages: Array(recent.suffix(count)), metadata: metadata, path: file.path,
-                cursor: file.follow.cursor, windowStart: windowStart, limit: limit
-            ),
-            chatKey: chatKey
+        return CachedConversation(
+            sessionID: boundSessionID, messages: Array(recent.suffix(count)), metadata: metadata, path: file.path,
+            cursor: file.follow.cursor, windowStart: windowStart, limit: limit
         )
     }
 }

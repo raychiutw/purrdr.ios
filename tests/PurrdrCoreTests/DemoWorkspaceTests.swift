@@ -49,6 +49,31 @@ struct DemoWorkspaceTests {
         #expect(snapshot.layouts?.contains { $0.workspaceID == "w2" } == false)
     }
 
+    @Test("關閉 Tab:那個 Tab 的 pane、版面與 Agent 不見;它是 workspace 最後一個 Tab,workspace 一併關閉(與 herdr 相同)")
+    func closeTabRemovesTabAndEmptyWorkspace() async throws {
+        let client = HerdrClient(channel: DemoHost())
+
+        try await client.closeTab("w2:t1")
+
+        let snapshot = try await client.snapshot()
+        #expect(snapshot.workspaces.map(\.id) == ["w1", "w3"])
+        #expect(!snapshot.tabs.contains { $0.id == "w2:t1" })
+        #expect(!snapshot.agents.contains { $0.paneID == "w2:p1" })
+        #expect(!snapshot.panes.contains { $0.tabID == "w2:t1" })
+    }
+
+    @Test("關閉 Tab:不存在的 Tab 丟 tab_not_found,已關閉的再關也是")
+    func closeUnknownTab() async throws {
+        let client = HerdrClient(channel: DemoHost())
+        await #expect(throws: HerdrError.herdr(code: "tab_not_found", message: "tab w9:t9 not found")) {
+            try await client.closeTab("w9:t9")
+        }
+        try await client.closeTab("w1:t1")
+        await #expect(throws: HerdrError.herdr(code: "tab_not_found", message: "tab w1:t1 not found")) {
+            try await client.closeTab("w1:t1")
+        }
+    }
+
     @Test("不存在的 workspace:workspace_not_found(與 herdr 相同)")
     func unknownWorkspace() async {
         await #expect(throws: HerdrError.herdr(code: "workspace_not_found", message: "workspace w9 not found")) {

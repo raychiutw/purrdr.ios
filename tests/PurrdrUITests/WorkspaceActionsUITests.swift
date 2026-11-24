@@ -18,7 +18,10 @@ final class WorkspaceActionsUITests: XCTestCase {
         let weather = row("w2:p1", in: app)
         XCTAssertTrue(weather.waitUntilExists(timeout: 10))
 
-        weather.press(forDuration: 1.2)
+        // Workspace 的關閉只在段落標題的長按選單(#536)。
+        let header = app.element("spaces.section.demo/w2")
+        XCTAssertTrue(app.reveal(header))
+        header.press(forDuration: 1.2)
         app.buttons["Close Workspace…"].firstMatch.tap()
 
         let confirm = app.buttons["Close Workspace"]
@@ -38,8 +41,11 @@ final class WorkspaceActionsUITests: XCTestCase {
         XCTAssertTrue(notes.waitUntilExists(timeout: 10))
 
         notes.press(forDuration: 1.2)
-        for title in ["Rename Tab…", "Show Layout", "New Worktree…", "Close Workspace…"] {
+        for title in ["Rename Tab…", "Show Layout", "Close Tab…"] {
             XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch.waitUntilExists(timeout: 5), "context menu 沒有「\(title)」")
+        }
+        for title in ["New Worktree…", "Close Workspace…"] {
+            XCTAssertFalse(app.buttons[title].exists, "Tab 長按選單不該有「\(title)」")
         }
         app.buttons["Show Layout"].tap()
 
@@ -62,7 +68,9 @@ final class WorkspaceActionsUITests: XCTestCase {
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(app.reveal(ledger))
 
-        ledger.press(forDuration: 1.2)
+        let header = app.element("spaces.section.demo/w1")
+        XCTAssertTrue(app.reveal(header))
+        header.press(forDuration: 1.2)
         app.buttons["New Worktree…"].tap()
         let branch = app.textFields["workspace.worktree.branch"]
         XCTAssertTrue(branch.waitUntilExists(timeout: 5))

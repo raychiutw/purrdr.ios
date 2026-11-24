@@ -1425,17 +1425,6 @@
         }
       }
     },
-    "All Workspaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所有 Workspace"
-          }
-        }
-      }
-    },
     "Allow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2892,13 +2881,35 @@
         }
       }
     },
-    "Close Layout" : {
+    "Close Tab" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "關閉版面"
+            "value" : "關閉 Tab"
+          }
+        }
+      }
+    },
+    "Close Tab and Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Tab 與 Workspace"
+          }
+        }
+      }
+    },
+    "Close Tab…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Tab…"
           }
         }
       }
@@ -2921,6 +2932,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉 Workspace…"
+          }
+        }
+      }
+    },
+    "Close tab “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要關閉 Tab「%@」嗎?"
           }
         }
       }
@@ -4953,6 +4975,17 @@
         }
       }
     },
+    "Everything running in this tab will stop, including its agents. Chat history stays on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Tab 裡執行的所有東西都會停止,包括 Agent。對話紀錄會留在主機上。"
+          }
+        }
+      }
+    },
     "Everything running in this workspace will stop, including its agents. Chat history stays on the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5580,6 +5613,17 @@
         }
       }
     },
+    "Hide Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏檢閱器"
+          }
+        }
+      }
+    },
     "Hide Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6177,6 +6221,17 @@
         }
       }
     },
+    "Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢閱器"
+          }
+        }
+      }
+    },
     "Install" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6580,6 +6635,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "留白即保留已儲存的金鑰。"
+          }
+        }
+      }
+    },
+    "Leave these empty to use the folder’s name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空就用資料夾的名稱。"
           }
         }
       }
@@ -7179,6 +7245,17 @@
       }
     },
     "Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱"
+          }
+        }
+      }
+    },
+    "Names" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8560,6 +8637,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟終端機。"
+          }
+        }
+      }
+    },
+    "Optional" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選填"
           }
         }
       }
@@ -11061,6 +11149,17 @@
         }
       }
     },
+    "Show Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示檢閱器"
+          }
+        }
+      }
+    },
     "Show Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11970,6 +12069,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tab %lld"
+          }
+        }
+      }
+    },
+    "Tab Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 名稱"
           }
         }
       }
@@ -13957,6 +14067,17 @@
         }
       }
     },
+    "This is the last tab in “%@”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是「%@」的最後一個 Tab,所以 Workspace 也會一併關閉。裡面執行的所有東西都會停止,包括 Agent。對話紀錄會留在主機上。"
+          }
+        }
+      }
+    },
     "This isn’t an OpenSSH private key. Paste the whole file, starting with “-----BEGIN OPENSSH PRIVATE KEY-----”. To convert an older key, run ssh-keygen -p -f on it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15871,7 +15992,7 @@
         }
       }
     },
-    "Workspace name" : {
+    "Workspace Name" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -15882,13 +16003,13 @@
         }
       }
     },
-    "Workspaces" : {
+    "Workspace name" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Workspace"
+            "value" : "Workspace 名稱"
           }
         }
       }

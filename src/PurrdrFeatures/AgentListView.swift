@@ -6,9 +6,10 @@ import SwiftUI
 package struct ChatTopBarActions {
     var newChat: () -> Void
     var addHost: () -> Void
-    var account: AnyView
+    /// 寬視窗時頭像在對話欄工具列(`AccountButtonPlacement`),列表頂列沒有。
+    var account: AnyView?
 
-    package init(newChat: @escaping () -> Void, addHost: @escaping () -> Void, account: AnyView) {
+    package init(newChat: @escaping () -> Void, addHost: @escaping () -> Void, account: AnyView?) {
         self.newChat = newChat
         self.addHost = addHost
         self.account = account
@@ -70,7 +71,7 @@ public struct AgentListView: View {
         var lists: [ObjectIdentifier]
     }
 
-    /// 放在呼叫端的 `NavigationStack` 或 `NavigationSplitView` 的內容欄裡(導覽層與工具列見 `TopNavigationView`)。
+    /// 放在呼叫端的 `NavigationStack` 或 `NavigationSplitView` 的列表欄裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
         Group {
             if let window {
@@ -276,7 +277,7 @@ public struct AgentListView: View {
 
     private var list: some View {
         // 這一次繪製只投影一次(投影要走過所有主機的 snapshot);列、搜尋無結果與預讀都用同一份。
-        let sections = spacesSections
+        let sections = model.spacesSections
         let prefetchRoutes = AgentListProjection.prefetchRoutes(from: sections, limit: Self.prefetchCount)
         return Group {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
@@ -359,11 +360,6 @@ public struct AgentListView: View {
         }
     }
 
-    /// 套用側欄的 workspace 篩選(選取中主機的那個 workspace)後的 Spaces 段落。
-    private var spacesSections: [SpacesSection] {
-        window?.visibleSpaces(model.spacesSections, host: model.selected, snapshot: model.snapshot(for: model.selected)) ?? model.spacesSections
-    }
-
     /// 某台主機讀不到(Claude 方案用量只在選取中主機讀得到時顯示)。
     private func list(failedFor host: HostSelection) -> Bool {
         if case .failed? = model.list(for: host)?.phase { return true }
@@ -432,6 +428,8 @@ struct ConversationScreen: View {
             .sheet(isPresented: $showsUsage) {
                 ConversationUsageSheet(model: model, section: usageSection, display: usageContext?.display.display ?? .used)
             }
+            .modifier(ConversationInspectorModifier(
+                window: window, model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used))
             .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model) }
             .sheet(isPresented: $isChoosingModel, onDismiss: { Task { await model.finishChoosingModel() } }) {
                 ModelSheet(model: model)

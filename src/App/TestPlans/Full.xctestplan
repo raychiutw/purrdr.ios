@@ -23,8 +23,7 @@
         "DailySmokeUITests",
         "AccessibilityAuditUITests",
         "AddHostGuideUITests/testAccessibilityAudit()",
-        "IPadLayoutUITests/testAccessibilityAuditThreeColumns()",
-        "IPadLayoutUITests/testAccessibilityAuditLayoutCard()"
+        "IPadLayoutUITests/testAccessibilityAuditTwoColumns()"
       ]
     }
   ],

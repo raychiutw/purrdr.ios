@@ -34,8 +34,8 @@ extension XCUIApplication {
     @MainActor
     @discardableResult
     func reveal(_ row: XCUIElement, timeout: TimeInterval = 10) -> Bool {
-        // iPad 三欄時第一個 collection view 是側欄;捲的是 Agent 列表。
-        let list = collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch
+        // iPad 兩欄時第一個 collection view 是左邊的 Agent 列表(對話欄在它後面)。
+        let list = collectionViews.firstMatch
         guard list.waitUntilExists(timeout: timeout) else { return false }
         // 列表載入中：先等一下;畫面上的列都建好之後還是沒有，才往下捲。
         if !row.waitUntilExists(timeout: min(timeout, 4)) {

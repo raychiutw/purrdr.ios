@@ -39,7 +39,8 @@ struct ConversationLayoutTests {
 
     /// 開啟一個聊天:視窗先回 `window` 行。
     func open(
-        window lines: [String], size: CGSize = CGSize(width: 390, height: 844), hitchRecorder: HitchRecorder? = nil
+        window lines: [String], size: CGSize = CGSize(width: 390, height: 844), hitchRecorder: HitchRecorder? = nil,
+        contentSizeCategory: UIContentSizeCategory? = nil, sceneActive: Bool = false, paged: Bool = false
     ) async throws -> Mounted {
         let connection = FakeHostConnection()
         await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
@@ -48,6 +49,22 @@ struct ConversationLayoutTests {
             switch request {
             case .locate:
                 return Data("\(Self.path)\n\(total)\n".utf8)
+            case .window(_, let end, let count, _, let maxBytes) where paged:
+                // 照要求的終點、行數與 byte 上限回最後一段(跟真主機一樣,舊頁才會一頁一頁讀)。
+                var ends: [Int] = []
+                var running = 0
+                for line in lines { running += line.utf8.count + 1; ends.append(running) }
+                var picked = (0..<lines.count).filter { ends[$0] <= end }.suffix(count)
+                if maxBytes > 0 {
+                    var bytes = 0
+                    picked = ArraySlice(picked.reversed().prefix { index in
+                        bytes += lines[index].utf8.count + 1
+                        return bytes <= maxBytes
+                    }.reversed())
+                }
+                let start = (picked.first ?? 0) == 0 ? 0 : ends[picked.first! - 1]
+                let stop = picked.last.map { ends[$0] } ?? start
+                return Data(("\(start) \(stop)\n" + picked.map { "\(lines[$0].utf8.count)\t\(lines[$0])\n" }.joined()).utf8)
             case .window:
                 return Data(("0 \(total)\n" + lines.map { "\($0.utf8.count)\t\($0)\n" }.joined()).utf8)
             case .tail(_, let cursor, _) where cursor == TranscriptReader.probeCursor:
@@ -60,10 +77,11 @@ struct ConversationLayoutTests {
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,
             knownSessionID: Self.sessionID, cache: InMemoryConversationCache())
         let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+        if let contentSizeCategory { window.traitOverrides.preferredContentSizeCategory = contentSizeCategory }
         let content = NavigationStack { ConversationView(model: model) }.environment(\.hitchRecorder, hitchRecorder)
         // 這個 package 測試沒有 window scene(scenePhase 不是 active):要記錄器運作時明說 app 在前景。
         window.rootViewController = UIHostingController(
-            rootView: hitchRecorder == nil ? AnyView(content) : AnyView(content.environment(\.scenePhase, .active)))
+            rootView: hitchRecorder == nil && !sceneActive ? AnyView(content) : AnyView(content.environment(\.scenePhase, .active)))
         window.makeKeyAndVisible()
         let chat = Task { await model.run(sleep: RecordingSleeper().sleep) }
         return Mounted(window: window, model: model, connection: connection, chat: chat, cursor: total)

@@ -17,14 +17,22 @@ struct PermissionModeContentView: View {
     var onSwitched: (() -> Void)?
 
     var body: some View {
-        List {
-            if model.supportsPermissionMode {
-                PermissionModeSection(model: model, onSwitched: onSwitched)
-            } else if let policy = model.approvalPolicy {
-                ApprovalPolicySection(policy: policy)
-            }
+        List { PermissionModeSections(model: model, onSwitched: onSwitched) }
+            .appGroupedList()
+    }
+}
+
+/// 權限模式的 List 內容(不含 List 本身):sheet 與 iPad 的 Inspector(#521)共用。
+struct PermissionModeSections: View {
+    let model: ConversationModel
+    var onSwitched: (() -> Void)?
+
+    var body: some View {
+        if model.supportsPermissionMode {
+            PermissionModeSection(model: model, onSwitched: onSwitched)
+        } else if let policy = model.approvalPolicy {
+            ApprovalPolicySection(policy: policy)
         }
-        .appGroupedList()
     }
 }
 
@@ -33,20 +41,30 @@ struct SendWhenDoneContentView: View {
     let model: ConversationModel
 
     var body: some View {
-        List {
-            if let sendWhenDone = model.sendWhenDone {
-                Section {
-                    SendWhenDoneToggle(model: sendWhenDone)
-                } footer: {
-                    if model.isReadOnly {
-                        Text("This device is paired read-only, so it can’t queue messages.")
-                    } else {
-                        Text("Queues your message and sends it when the agent is done.")
-                    }
+        List { SendWhenDoneSections(model: model) }
+            .appGroupedList()
+    }
+}
+
+/// 做完再送的 List 內容(不含 List 本身):sheet 與 Inspector(#521)共用;Inspector 帶標題。
+struct SendWhenDoneSections: View {
+    let model: ConversationModel
+    var showsHeader = false
+
+    var body: some View {
+        if let sendWhenDone = model.sendWhenDone {
+            Section {
+                SendWhenDoneToggle(model: sendWhenDone)
+            } header: {
+                if showsHeader { Text("Send When Done") }
+            } footer: {
+                if model.isReadOnly {
+                    Text("This device is paired read-only, so it can’t queue messages.")
+                } else {
+                    Text("Queues your message and sends it when the agent is done.")
                 }
             }
         }
-        .appGroupedList()
     }
 }
 
@@ -55,13 +73,20 @@ struct TodosContentView: View {
     let progress: AgentProgress
 
     var body: some View {
-        List {
-            ForEach(Array(progress.todos.enumerated()), id: \.offset) { _, todo in
-                TodoRow(todo: todo)
-            }
+        List { TodoRows(progress: progress) }
+            .appGroupedList()
+            .accessibilityIdentifier("status.todos")
+    }
+}
+
+/// 待辦列(不含 List 本身):sheet 與 Inspector(#521)共用。
+struct TodoRows: View {
+    let progress: AgentProgress
+
+    var body: some View {
+        ForEach(Array(progress.todos.enumerated()), id: \.offset) { _, todo in
+            TodoRow(todo: todo)
         }
-        .appGroupedList()
-        .accessibilityIdentifier("status.todos")
     }
 }
 
@@ -71,20 +96,28 @@ struct BackgroundAgentsContentView: View {
     let pane: AgentsPane
 
     var body: some View {
+        List { BackgroundAgentRows(model: model, pane: pane) }
+            .appGroupedList()
+            .accessibilityIdentifier("status.backgroundAgents")
+    }
+}
+
+/// 背景子 Agent 列(不含 List 本身):sheet 與 Inspector(#521)共用。
+struct BackgroundAgentRows: View {
+    let model: ConversationModel
+    let pane: AgentsPane
+
+    var body: some View {
         // 每秒只重畫經過時間那一行(`AgentsBarRow` 自己的 TimelineView),不再整頁重建(#498)。
-        List {
-            ForEach(pane.rows) { row in
-                if let card = model.subagentCard(forTask: row.task), model.canOpen(card) {
-                    NavigationLink(value: DelegationRoute.subagent(card)) {
-                        AgentsBarRow(row: row, readAt: model.agentsPaneReadAt)
-                    }
-                } else {
+        ForEach(pane.rows) { row in
+            if let card = model.subagentCard(forTask: row.task), model.canOpen(card) {
+                NavigationLink(value: DelegationRoute.subagent(card)) {
                     AgentsBarRow(row: row, readAt: model.agentsPaneReadAt)
                 }
+            } else {
+                AgentsBarRow(row: row, readAt: model.agentsPaneReadAt)
             }
         }
-        .appGroupedList()
-        .accessibilityIdentifier("status.backgroundAgents")
     }
 }
 
