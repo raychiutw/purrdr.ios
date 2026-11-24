@@ -14,6 +14,7 @@ import SwiftUI
 public struct ConversationView: View {
     @Bindable var model: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.hitchRecorder) private var hitchRecorder
     @Environment(\.hostTheme) private var hostTheme
     @Environment(\.forcesOpaqueGlass) private var forcesOpaqueGlass
     /// 列表的呼叫口(「跳到最新」、輸入列重排)與最近量到的可見高度。
@@ -353,7 +354,8 @@ public struct ConversationView: View {
                 model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
                 smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
                 onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
-                onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) }
+                onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) },
+                hitchRecorder: hitchRecorder
             )
             .ignoresSafeArea(.container, edges: .vertical)
         }
