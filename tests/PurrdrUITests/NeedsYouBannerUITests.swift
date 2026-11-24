@@ -72,9 +72,10 @@ final class NeedsYouBannerUITests: XCTestCase {
         XCTAssertTrue(open.label.contains("2 chats need you"), "橫幅沒有寫出多個:\(open.label)")
         open.tap()
 
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'notes'"), timeout: 10), "點橫幅沒有進到最新的 notes:\(header.label)")
-        XCTAssertFalse(header.label.contains("weather-app"), "開到一開始就需要你的 weather-app:\(header.label)")
+        // 標題可能是 Tab 名稱而不是 workspace 名稱,所以以「橫幅消失」判斷開到的是橫幅指的那個(notes):
+        // 若開到 weather-app,橫幅仍會指向 notes。
+        XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10), "沒有開出聊天")
+        XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "沒有進到橫幅指的最新聊天(橫幅仍在)")
     }
 
     /// 與對話的狀態橫幅(`conversation.banner`)並存時上下排列、不互相蓋住。

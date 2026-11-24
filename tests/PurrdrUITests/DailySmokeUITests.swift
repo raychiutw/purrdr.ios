@@ -160,7 +160,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(open.label.hasPrefix("notes"), "橫幅沒有寫出 notes:\(open.label)")
             open.tap()
             let header = app.element("conversation.header")
-            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'notes'"), timeout: 10), "點橫幅後沒有換成 notes 的聊天")
+            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Needs You'"), timeout: 10), "點橫幅後沒有換成需要你的 notes 聊天(標題在這條流程裡是 Tab 名稱,看狀態):\(header.label)")
             XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "已經在那個聊天,橫幅該消失")
         }
         step("返回後列表最上面有「需要你」段落") {
