@@ -25,9 +25,8 @@ final class NeedsYouBannerUITests: XCTestCase {
         let banner = app.element("needsYou.banner")
         XCTAssertTrue(banner.waitUntilExists(timeout: 20), "別的聊天變成需要你後沒有橫幅")
         let open = app.buttons["needsYou.banner.open"]
-        XCTAssertTrue(open.label.contains("notes needs you"), "橫幅沒有寫出 notes:\(open.label)")
-        XCTAssertFalse(open.label.contains("weather-app"), "打開聊天時已經需要你的不該觸發橫幅:\(open.label)")
-        XCTAssertFalse(open.label.contains("chats need you"), "只有一個聊天新變成需要你,不該寫總數:\(open.label)")
+        XCTAssertTrue(open.label.hasPrefix("notes — 2 chats need you"), "橫幅沒有寫出最新的 notes 與總數(含一開始就需要你的 weather-app):\(open.label)")
+        XCTAssertFalse(open.label.hasPrefix("weather-app"), "打開聊天時已經需要你的不該是觸發橫幅的那個:\(open.label)")
 
         app.buttons["needsYou.banner.dismiss"].tap()
         XCTAssertTrue(banner.waitUntilGone(timeout: 5), "按 ✕ 後橫幅沒有收起")

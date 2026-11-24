@@ -166,7 +166,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "沒有輸入框")
             let open = app.buttons["needsYou.banner.open"]
             XCTAssertTrue(open.waitUntilExists(timeout: 20), "別的聊天變成需要你後沒有橫幅")
-            XCTAssertTrue(open.label.contains("notes needs you"), "橫幅沒有寫出 notes:\(open.label)")
+            XCTAssertTrue(open.label.hasPrefix("notes"), "橫幅沒有寫出 notes:\(open.label)")
         }
         step("點橫幅開 notes 的聊天") {
             app.buttons["needsYou.banner.open"].tap()
