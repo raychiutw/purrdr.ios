@@ -28,9 +28,10 @@ final class IPadMenuShortcutsUITests: XCTestCase {
         // Command-2、3、4、1:切到檔案、主機、流量、聊天。
         for (key, label) in [("2", "Files"), ("3", "Hosts"), ("4", "Traffic"), ("1", "Chats")] {
             app.typeKey(key, modifierFlags: .command)
-            let tab = app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
+            // iPad 寬視窗的 tab bar 是浮動工具列,不在 `tabBars` 底下(同 `openTab`)。
+            let tab = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label)).firstMatch
             XCTAssertTrue(
-                UITestWait.until(timeout: 5) { tab.isSelected }, "Command-\(key) 沒有切到 \(label)")
+                UITestWait.until(timeout: 5) { tab.exists && tab.isSelected }, "Command-\(key) 沒有切到 \(label)")
         }
     }
 }
