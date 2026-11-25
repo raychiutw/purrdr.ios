@@ -82,12 +82,21 @@ struct HostOverviewView: View {
                 ForEach(picker.options) { option in
                     Button {
                         picker.select(option.id)
+                        // 需要重新確認的主機:開編輯頁走確認流程,不開連線(#572)。
+                        if option.needsReconfirmation, case .host(let id) = option.id { openRoute(.edit(id)) }
                     } label: {
                         HStack(spacing: 12) {
                             HostIconBadge(option.icon, diameter: 24)
-                            Text(verbatim: option.name)
-                                .font(.body)
-                                .foregroundStyle(Color.primary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(verbatim: option.name)
+                                    .font(.body)
+                                    .foregroundStyle(Color.primary)
+                                if option.needsReconfirmation {
+                                    Label("Check This Host Again", systemImage: "exclamationmark.triangle")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondaryText)
+                                }
+                            }
                             Spacer(minLength: 0)
                             if option.id == overview.host {
                                 Image(systemName: "checkmark")

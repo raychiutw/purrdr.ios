@@ -447,7 +447,9 @@ public final class HostsModel {
     /// 已啟用的範例主機(#394)加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
     private func hostOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostOption] {
         (demoEntered ? [HostOption(id: .demo, name: name(of: .demo))] : [])
-            + hosts.filter(isIncluded).map { HostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
+            + hosts.filter(isIncluded).map {
+                HostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id), needsReconfirmation: $0.needsReconfirmation)
+            }
     }
 
     /// 某台主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
@@ -1060,6 +1062,11 @@ public final class HostsModel {
         return wanted
     }
 
+    private func needsReconfirmation(_ host: HostSelection) -> Bool {
+        guard case .host(let id) = host else { return false }
+        return hosts.first { $0.id == id }?.needsReconfirmation ?? false
+    }
+
     /// 依列表上的主機重建成員;已有的成員沿用(連線、列、草稿不重建)。
     private func rebuildMembers() {
         let wanted = listedHosts
@@ -1069,7 +1076,7 @@ public final class HostsModel {
             members[host].map { member in
                 MergedAgentListModel.Source(
                     host: host, name: name(of: host), icon: icon(of: host), list: member.list, actions: member.actions,
-                    notes: member.youShouldKnow)
+                    notes: member.youShouldKnow, needsReconfirmation: needsReconfirmation(host))
             }
         }
         agentList.isAwaitingFirstHost = hosts.isEmpty && !demoEntered

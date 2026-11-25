@@ -322,6 +322,24 @@ struct HostsModelTests {
         id: UUID(uuidString: "1D2E3F40-5A6B-4C7D-8E9F-0A1B2C3D4E5F")!, name: "Studio HTTPS",
         hostService: HostServiceAddress("studio.tail1234.ts.net")!)
 
+    @Test("同步後需要重新確認的主機：所有主機選單的選項都標出來，沒被標記的不標(#572)")
+    func hostOptionsFlagHostsNeedingReconfirmation() {
+        var flagged = Self.httpsStudio
+        flagged.needsReconfirmation = true
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio, flagged]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        model.load()
+
+        let flags = { (options: [HostOption]) in options.map { [$0.id: $0.needsReconfirmation] } }
+        let expected = [[HostSelection.demo: false], [.host(Self.studio.id): false], [.host(flagged.id): true]]
+        #expect(flags(model.selectedHostPicker().options) == expected)
+        #expect(flags(model.newChatHostPicker().options) == expected)
+        #expect(flags(model.planUsage().hosts) == expected)
+        #expect(flags(model.dataUsage().hosts) == expected)
+        #expect(model.agentList.hostFilterOptions.filter(\.needsReconfirmation).map(\.id) == [.host(flagged.id)])
+    }
+
     @Test("方案用量畫面：主機選單列出 Demo 與所有已存主機，預設選取中主機，記住上次選擇")
     func planUsageListsAllHosts() {
         let store = MemoryHostStore()

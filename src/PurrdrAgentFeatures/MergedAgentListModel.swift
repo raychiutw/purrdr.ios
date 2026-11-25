@@ -71,10 +71,12 @@ public final class MergedAgentListModel {
         public let list: AgentListModel
         public let actions: WorkspaceActionsModel
         public var notes: YouShouldKnowModel?
+        /// 同步改了位址或 host key,等使用者重新確認(#572)。
+        public let needsReconfirmation: Bool
 
         package init(
             host: HostSelection, name: String, icon: HostIcon, list: AgentListModel, actions: WorkspaceActionsModel,
-            notes: YouShouldKnowModel? = nil
+            notes: YouShouldKnowModel? = nil, needsReconfirmation: Bool = false
         ) {
             self.host = host
             self.name = name
@@ -82,6 +84,7 @@ public final class MergedAgentListModel {
             self.list = list
             self.actions = actions
             self.notes = notes
+            self.needsReconfirmation = needsReconfirmation
         }
     }
 
@@ -119,7 +122,7 @@ public final class MergedAgentListModel {
 
     /// 篩選選單的主機項目(依列表的主機順序)。
     public var hostFilterOptions: [HostOption] {
-        sources.map { HostOption(id: $0.host, name: $0.name, icon: $0.icon) }
+        sources.map { HostOption(id: $0.host, name: $0.name, icon: $0.icon, needsReconfirmation: $0.needsReconfirmation) }
     }
 
     /// 每個 Agent 一列、依分組順序(已釘選、需要你、工作中、閒置)接成一份:離開期間輪數與未讀折算的資料來源，不是畫面上的檢視。

@@ -234,7 +234,7 @@ private struct DataUsageHostMenu: View {
         Picker(selection: selection) {
             Text("All Hosts").tag(HostSelection?.none)
             ForEach(model.hosts) { option in
-                HostMenuLabel(option.name, icon: option.icon).tag(HostSelection?.some(option.id))
+                HostMenuLabel(option).tag(HostSelection?.some(option.id))
             }
         } label: {
             Text("Host")

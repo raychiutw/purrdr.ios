@@ -9,7 +9,7 @@ struct HostSelectionMenu: View {
     var body: some View {
         Picker(selection: selection) {
             ForEach(model.options) { option in
-                HostMenuLabel(option.name, icon: option.icon).tag(option.id)
+                HostMenuLabel(option).tag(option.id)
             }
         } label: {
             Text("Host")

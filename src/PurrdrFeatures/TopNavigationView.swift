@@ -363,7 +363,7 @@ struct CurrentHostMenu: View {
             Label("All Hosts", systemImage: "square.grid.2x2")
                 .tag(HostSelection?.none)
             ForEach(list.hostFilterOptions) { option in
-                HostMenuLabel(option.name, icon: option.icon)
+                HostMenuLabel(option)
                     .tag(HostSelection?.some(option.id))
             }
         } label: {

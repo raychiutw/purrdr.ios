@@ -20,7 +20,7 @@ public struct PlanUsageView: View {
                 Section {
                     Picker("Host", selection: hostSelection) {
                         ForEach(model.hosts) { option in
-                            HostMenuLabel(option.name, icon: option.icon).tag(option.id)
+                            HostMenuLabel(option).tag(option.id)
                         }
                     }
                     .accessibilityIdentifier("planUsage.host")
