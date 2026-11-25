@@ -74,8 +74,10 @@ final class WorkspaceActionsUITests: XCTestCase {
         app.buttons["New Worktree…"].tap()
         let branch = app.textFields["workspace.worktree.branch"]
         XCTAssertTrue(branch.waitUntilExists(timeout: 5))
+        app.assertModalToolbar(close: "sheet.close", confirm: "workspace.worktree.create")
+        XCTAssertFalse(app.buttons["workspace.worktree.create"].isEnabled, "沒有分支名稱時 ✓ 應停用")
         branch.typeEnglish("try-sorting")
-        app.buttons["Create"].tap()
+        app.buttons["workspace.worktree.create"].tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["workspace.worktree.error"].waitUntilExists(timeout: 5), "沒有顯示錯誤")
     }

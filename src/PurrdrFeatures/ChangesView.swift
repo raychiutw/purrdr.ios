@@ -417,16 +417,13 @@ private struct ChangesCommentEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        model.setComment(text, on: line, in: path)
-                        dismiss()
-                    }
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityIdentifier("changes.comment.save")
+                SheetCloseToolbar()
+                ModalConfirmToolbar(
+                    title: "Save", identifier: "changes.comment.save",
+                    isEnabled: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ) {
+                    model.setComment(text, on: line, in: path)
+                    dismiss()
                 }
             }
         }

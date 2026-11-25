@@ -36,6 +36,7 @@ final class SignInMethodsUITests: XCTestCase {
         XCTAssertTrue(app.element("sheet.merge").waitUntilExists(timeout: 10), "沒有開出合併確認")
         XCTAssertTrue(app.element("member.merge.current").exists)
         XCTAssertTrue(app.element("member.merge.other").exists)
+        app.assertModalToolbar(close: "member.merge.cancel", confirm: "member.merge.confirm")
         let confirm = app.buttons["member.merge.confirm"]
         XCTAssertTrue(confirm.isEnabled)
         confirm.tap()

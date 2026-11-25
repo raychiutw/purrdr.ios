@@ -531,13 +531,10 @@ struct NewWorktreeSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(actions.isWorking ? "Creating…" : "Create", action: create)
-                        .disabled(!canCreate)
-                }
+                SheetCloseToolbar()
+                ModalConfirmToolbar(
+                    title: actions.isWorking ? "Creating…" : "Create", identifier: "workspace.worktree.create",
+                    isEnabled: canCreate, action: create)
             }
         }
         .appSheet(detents: [.medium, .large])
