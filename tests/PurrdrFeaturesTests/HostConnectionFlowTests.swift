@@ -64,6 +64,50 @@ struct HostConnectionFlowTests {
         #expect(store.hosts.first?.enabledAgents == [.agy])
     }
 
+    // MARK: - 需要重新確認的主機(#572)
+
+    @Test("需要重新確認的 SSH 主機:不沿用已存的 pin;Tailscale SSH 也不自動記住出示的 key,停在確認，確認後存檔解除旗標")
+    func reconfirmationIgnoresStoredPinAndClearsFlagOnSave() async throws {
+        let store = MemoryHostStore()
+        var existing = HostConfiguration(
+            name: "Studio", endpoint: Self.endpoint, hostKeyPin: Self.otherFingerprint)
+        existing.needsReconfirmation = true
+        store.hosts = [existing]
+        let factory = ChannelFactory(await HostEditorModelTests.unverifiedHost(), await HostEditorModelTests.healthyHost())
+        let flow = HostConnectionFlow(
+            store: store, existing: existing, credentials: HostCredentials(), hostService: HostServiceAccess(), makeChannel: factory.make)
+
+        #expect(flow.pin(for: Self.endpoint) == nil, "同步來的 pin 在確認前不算數")
+        await flow.test(Self.sshDraft())
+
+        #expect(flow.phase == .confirmHostKey(Self.fingerprint), "Tailscale SSH 也要使用者確認新指紋")
+        #expect(factory.pins == [nil])
+        #expect(flow.trustPresentedHostKey(for: Self.sshDraft()))
+        let trusted = Self.sshDraft(pin: Self.fingerprint)
+        await flow.test(trusted)
+        let saved = try #require(flow.save(trusted))
+        #expect(!saved.needsReconfirmation)
+        #expect(store.hosts.first?.needsReconfirmation == false)
+    }
+
+    @Test("需要重新確認的 HTTPS 主機:不用已存的權杖測試;重新配對存檔後解除旗標，舊權杖不送到新位址撤銷")
+    func reconfirmationDoesNotUseStoredToken() async throws {
+        let tokens = InMemoryDeviceTokenStore()
+        let address = try #require(HostServiceAddress("evil.example"))
+        var existing = HostConfiguration(name: "Studio", hostService: address)
+        existing.needsReconfirmation = true
+        try tokens.setDeviceToken("old-token", for: existing.id)
+        let store = MemoryHostStore()
+        store.hosts = [existing]
+        let flow = HostConnectionFlow(
+            store: store, existing: existing, credentials: HostCredentials(), hostService: HostServiceAccess(tokens: tokens),
+            makeChannel: ChannelFactory().make)
+
+        await flow.test(HostConnectionDraft(name: "Studio", connection: .https(address, pairingCode: nil)))
+
+        guard case .failed = flow.phase else { Issue.record("沒有配對碼不該用舊權杖連線:\(flow.phase)"); return }
+    }
+
     @Test("Tailscale SSH 第一次連線不問,自動記住出示的 key(仍 pin),重測通過後儲存帶 pin")
     func tailscaleRemembersFirstKeyWithoutAsking() async throws {
         let store = MemoryHostStore()

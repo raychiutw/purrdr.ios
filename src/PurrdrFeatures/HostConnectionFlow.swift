@@ -189,7 +189,7 @@ package final class HostConnectionFlow {
         case .failure(SSHConnectionError.hostKeyUnverified(let presented)):
             // Tailscale SSH 的身分已由 tailnet 確認:第一次連線自動記住出示的 key(仍 pin),不問使用者。
             // 只在還沒有 pin 時才會走到這裡;key 之後變了仍是 `hostKeyChanged`,照舊擋下。
-            if ssh.method == .tailscaleSSH, ssh.settings.hostKeyPin == nil {
+            if ssh.method == .tailscaleSSH, ssh.settings.hostKeyPin == nil, existing?.needsReconfirmation != true {
                 accepted = (presented, ssh.settings.endpoint)
                 var remembered = ssh
                 remembered.settings.hostKeyPin = presented
@@ -245,7 +245,7 @@ package final class HostConnectionFlow {
     /// 測試用的權杖：這次的配對碼換得的，或已存主機的。換了位址或配對碼重新配對時，前一次拿到的權杖請主機撤銷。
     private func deviceToken(address: HostServiceAddress, pairingCode: String?) async throws -> TestToken {
         guard let code = pairingCode else {
-            guard let existing, let token = try hostService.tokens.deviceToken(for: existing.id) else { throw HostServiceError.notPaired }
+            guard let existing, !existing.needsReconfirmation, let token = try hostService.tokens.deviceToken(for: existing.id) else { throw HostServiceError.notPaired }
             return TestToken(deviceToken: token, readOnly: nil)
         }
         if let pairing, pairing.address == address, pairing.code == code {
@@ -380,7 +380,7 @@ package final class HostConnectionFlow {
         }
         if newToken != nil { pairing?.isSaved = true }
         // 重新配對換了權杖：舊的請主機撤銷。
-        if let newToken, let previousToken, previousToken != newToken, let previousAddress = existing?.hostService {
+        if let newToken, let previousToken, previousToken != newToken, let existing, !existing.needsReconfirmation, let previousAddress = existing.hostService {
             hostService.revokeWithoutWaiting(previousToken, at: previousAddress)
         }
         return host
@@ -401,7 +401,7 @@ package final class HostConnectionFlow {
     /// 只有主機或埠改變(或新主機)才重設 pin;改名稱、使用者、herdr 設定不重設(行為規格 §8.2)。
     package func pin(for endpoint: SSHEndpoint) -> HostKeyFingerprint? {
         if let accepted, Self.sameMachine(accepted.endpoint, endpoint) { return accepted.fingerprint }
-        if let saved = existing?.ssh, Self.sameMachine(saved.endpoint, endpoint) { return saved.hostKeyPin }
+        if let existing, !existing.needsReconfirmation, let saved = existing.ssh, Self.sameMachine(saved.endpoint, endpoint) { return saved.hostKeyPin }
         return nil
     }
 

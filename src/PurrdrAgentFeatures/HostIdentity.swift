@@ -145,11 +145,14 @@ public struct HostOption: Identifiable, Equatable, Sendable {
     public var id: HostSelection
     public var name: String
     public var icon: HostIcon
+    /// 主機同步改了位址或 host key,等使用者重新確認(#572):清單上標出來。
+    public var needsReconfirmation: Bool
 
-    public init(id: HostSelection, name: String, icon: HostIcon = .default) {
+    public init(id: HostSelection, name: String, icon: HostIcon = .default, needsReconfirmation: Bool = false) {
         self.id = id
         self.name = name
         self.icon = icon
+        self.needsReconfirmation = needsReconfirmation
     }
 }
 

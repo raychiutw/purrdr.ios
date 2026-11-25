@@ -1,6 +1,7 @@
 import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrSSH
 import PurrdrTestSupport
 import Testing
 
@@ -58,6 +59,33 @@ struct ConversationSendExpectationTests {
         #expect(model.draft == "給原本的對話")
         #expect(model.notice == .superseded)
         #expect(model.echoes.isEmpty)
+    }
+
+    @Test("帶附件、主機回對話已變更：什麼都沒送出，草稿、附件與手機上的檔案副本都保留(#558)")
+    func paneChangedKeepsAttachments() async throws {
+        let connection = FakeHostConnection()
+        await connection.setChecksSendExpectations(true)
+        let store = FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-attachments-\(UUID().uuidString)"))
+        let fileName = HostUploadName("mh1a2b3c-k9x2m4p7-server.log")!
+        let model = ConversationModel(
+            client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,
+            knownSessionID: Self.session, cache: InMemoryConversationCache(),
+            clock: ConversationClock(now: { Date(timeIntervalSince1970: 1_794_614_400) }),
+            images: ComposerImages(uploader: FakeHostUploader(), store: store, makeFileName: { _ in fileName }))
+        await connection.expect(.snapshot, wire: Self.snapshot("idle"))
+        await model.poll()
+        await model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
+        let id = try #require(model.attachments.first).id
+        await connection.expect(.snapshot, wire: Self.snapshot("idle"))
+        await connection.stub(.agentPrompt, failure: HostServiceError.paneChanged)
+        model.draft = "給原本的對話"
+
+        await model.send()
+
+        #expect(model.notice == .superseded)
+        #expect(model.draft == "給原本的對話")
+        #expect(model.attachments.count == 1)
+        #expect(store.url(of: id) != nil)
     }
 
     @Test("回答選擇題只帶 session,不帶畫面指紋(主機讀畫面的行數與 app 不同，指紋必不符)")

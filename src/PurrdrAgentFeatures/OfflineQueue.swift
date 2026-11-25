@@ -79,15 +79,15 @@ public final class OfflineQueue {
     @ObservationIgnored private let host: String
     @ObservationIgnored private let store: any OfflineQueueStore
     @ObservationIgnored private let now: @Sendable () -> Date
-    @ObservationIgnored private let deliver: @MainActor (String, Agent, String?) async -> PromptOutcome
+    @ObservationIgnored private let deliver: @MainActor (String, SafeSend.Destination) async -> SafeSend.Result
     @ObservationIgnored private var reconciling: Task<Void, Never>?
 
     /// - Parameters:
     ///   - host: 這台主機在本機存放的 key(`HostSelection.storedValue`)。
-    ///   - deliver: 補送一則給 Agent,第三個參數是排入時的 session(由建立者以新鮮的快照與 `PromptDelivery` 實作)。
+    ///   - deliver: 補送一則給目標(含排入時的 session 與比對時的 Agent;由建立者以 `SafeSend` 實作,送前會重讀新鮮快照確認)。
     public init(
         host: String, store: any OfflineQueueStore, now: @escaping @Sendable () -> Date = Date.init,
-        deliver: @escaping @MainActor (String, Agent, String?) async -> PromptOutcome
+        deliver: @escaping @MainActor (String, SafeSend.Destination) async -> SafeSend.Result
     ) {
         self.host = host
         self.store = store
@@ -179,12 +179,13 @@ public final class OfflineQueue {
 
     /// 補送一則;送到回 `nil`。
     private func send(_ entry: QueuedPrompt, to agent: Agent) async -> QueuedPrompt.Problem? {
-        switch await deliver(entry.text, agent, entry.sessionID) {
-        case .delivered, .submittedCommand: nil
-        case .noResponse, .unconfirmed: .mayHaveBeenSent
-        case .needsAnswer: .needsAnswer
-        case .rejected, .readOnlyDevice: .notDelivered
-        case .paneChanged: .conversationChanged
+        let destination = SafeSend.Destination(paneID: entry.paneID, expectedSession: entry.sessionID, fallback: agent)
+        switch await deliver(entry.text, destination) {
+        case .delivered, .submittedCommand: return nil
+        case .noResponse, .unconfirmed: return .mayHaveBeenSent
+        case .notSent(.needsAnswer): return .needsAnswer
+        case .notSent(.rejected), .notSent(.readOnlyDevice): return .notDelivered
+        case .notSent(.conversationChanged), .notSent(.agentGone): return .conversationChanged
         }
     }
 

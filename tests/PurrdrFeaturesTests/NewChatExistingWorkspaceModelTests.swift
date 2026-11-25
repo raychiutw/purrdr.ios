@@ -140,4 +140,21 @@ struct NewChatExistingWorkspaceModelTests {
         model.selectWorkspace("w2")
         #expect(model.placement == .existing("w2"))
     }
+
+    @Test("agent 啟動失敗後按取消:主機上建了一半的 Tab 關掉")
+    func cancelAfterFailureClosesTab() async {
+        let host = FakeHost()
+        let model = await Self.loaded(host)
+        model.placement = .existing("w1")
+        model.message = "Hi"
+        await host.expect(Self.bridge, reply: Self.reply(Self.tabCreated))
+        await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.start","error":{"code":"invalid_params","message":"agent name must start with a lowercase letter"}}"#))
+        #expect(await model.start() == nil)
+        #expect(model.error != nil)
+
+        await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:tab.close","result":{"type":"ok"}}"#))
+        await model.discardUnstarted()
+
+        #expect(await host.executions.last?.stdinText == #"{"id":"purrdr:tab.close","method":"tab.close","params":{"tab_id":"w1:t12"}}"# + "\n")
+    }
 }

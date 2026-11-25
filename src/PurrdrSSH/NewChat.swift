@@ -86,7 +86,8 @@ public struct NewChatRequest: Sendable, Equatable {
     }
 
     /// herdr 的 agent 名稱：workspace 名稱的 slug(桌機的 `herdr agent list` 看到同名,行為規格 F3.2)。
-    /// NFKD 後去掉組合符號、小寫、非英數合成 `-`、頭尾修剪、最長 40 字;剩下空的用 `chat`。
+    /// NFKD 後去掉組合符號、小寫、非英數合成 `-`、頭尾修剪;剩下空的用 `chat`,數字開頭的前面加 `chat-`。
+    /// 結果一律符合 herdr 的規則：小寫字母開頭、只有小寫英數與 `-`、`_`,1 到 32 字(`maximumAgentNameLength`)。
     public static func agentName(for label: String) -> String {
         let folded = label.decomposedStringWithCompatibilityMapping.unicodeScalars
             .filter { !$0.properties.isDiacritic && $0.properties.generalCategory != .nonspacingMark }
@@ -101,9 +102,20 @@ public struct NewChatRequest: Sendable, Equatable {
                 pendingDash = true
             }
         }
-        slug = String(slug.lowercased().prefix(40))
-        while slug.hasSuffix("-") { slug.removeLast() }
-        return slug.isEmpty ? "chat" : slug
+        slug = slug.lowercased()
+        if slug.isEmpty { return "chat" }
+        if slug.first?.isLetter != true { slug = "chat-" + slug }
+        return trimmed(slug, to: maximumAgentNameLength)
+    }
+
+    /// herdr 接受的 agent 名稱最長字數。
+    public static let maximumAgentNameLength = 32
+
+    /// 截到 `length` 字並去掉結尾的 `-`。
+    static func trimmed(_ name: String, to length: Int) -> String {
+        var name = String(name.prefix(length))
+        while name.hasSuffix("-") { name.removeLast() }
+        return name
     }
 }
 
@@ -245,6 +257,11 @@ public actor NewChatLauncher {
         return NewChatStarted(workspace: workspace, sentMessage: true)
     }
 
+    /// 使用者放棄新增聊天(取消或關掉畫面):關掉上次建立、但 agent 沒成功啟動的 Workspace 或 Tab。
+    public func discardUnstarted() async {
+        await discardPending()
+    }
+
     /// 盡力關掉上次建立、但 agent 沒成功啟動的東西(不留孤兒):新 Workspace 用 `workspace.close`,新 Tab 用 `tab.close`。
     /// 只會關掉自己建立的,絕不碰使用者原本就有的 Workspace。
     private func discardPending() async {
@@ -258,10 +275,14 @@ public actor NewChatLauncher {
 
     /// 既有 Workspace 的新 Tab:agent 名稱在 herdr 的活著的 agent 裡要唯一([a-z][a-z0-9_-]{0,31}),
     /// 所以 Workspace 裡原本的 agent 可能已經用了資料夾名,這裡加上 Tab 編號(`t3`)。
+    /// herdr 的 Tab 編號到 10 以後是大寫字母(`w1:tA`),名稱不接受大寫，所以轉成小寫;加上編號後仍在 32 字內。
     private static func agentName(forTab tab: CreatedTab, label: String?, folder: String) -> String {
-        var base = String(NewChatRequest.agentName(for: label ?? lastComponent(of: folder)).prefix(27))
-        while base.hasSuffix("-") { base.removeLast() }
-        let suffix = tab.tabID.split(separator: ":").last.map(String.init) ?? "tab"
+        let rawSuffix = tab.tabID.split(separator: ":").last.map { $0.lowercased() } ?? ""
+        let cleaned = String(rawSuffix.unicodeScalars.filter { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_") })
+        let suffix = String((cleaned.isEmpty ? "tab" : cleaned).prefix(8))
+        let base = NewChatRequest.trimmed(
+            NewChatRequest.agentName(for: label ?? lastComponent(of: folder)),
+            to: NewChatRequest.maximumAgentNameLength - 1 - suffix.count)
         return "\(base)-\(suffix)"
     }
 
