@@ -36,12 +36,6 @@ struct FolderBrowserView: View {
                 guard case .success(let url) = result else { return }
                 Task { await model.upload(fileAt: url) }
             }
-            .alert("Can’t Upload", isPresented: Binding(get: { model.notice != nil }, set: { _ in })) {
-                Button("OK", role: .cancel) { model.notice = nil }
-            } message: {
-                Text(model.notice ?? "")
-            }
-            .reportsErrorDisplay(fingerprint: model.notice?.hashValue ?? 0, area: "FolderBrowser", isShowing: model.notice != nil)
             .task {
                 if case .loaded = model.phase { return }
                 await model.load()
@@ -168,6 +162,18 @@ struct FolderBrowserView: View {
             .appGroupedList()
         case .loaded(let listing):
             List {
+                if let notice = model.notice {
+                    // 上傳失敗不彈 alert(#625):顯示在列表最上面,可關閉。
+                    Section {
+                        HStack {
+                            ErrorLabel(notice, area: "FolderBrowser")
+                            Spacer(minLength: 8)
+                            Button("Dismiss") { model.notice = nil }
+                                .buttonStyle(.borderless)
+                        }
+                        .accessibilityIdentifier("files.uploadNotice")
+                    }
+                }
                 Section {
                     ForEach(model.visibleEntries, id: \.name) { entry in
                         FolderEntryRow(entry: entry) { open(entry) }

@@ -2342,17 +2342,6 @@
         }
       }
     },
-    "Can’t Paste" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法貼上"
-          }
-        }
-      }
-    },
     "Can’t Reach Purrdr" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2382,17 +2371,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法顯示這個資料夾"
-          }
-        }
-      }
-    },
-    "Can’t Upload" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法上傳"
           }
         }
       }
@@ -3589,6 +3567,28 @@
         }
       }
     },
+    "Couldn’t Close Tab" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法關閉 Tab"
+          }
+        }
+      }
+    },
+    "Couldn’t Close Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法關閉 Workspace"
+          }
+        }
+      }
+    },
     "Couldn’t Confirm It’s You" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3618,17 +3618,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "讀不到變更"
-          }
-        }
-      }
-    },
-    "Couldn’t Send Test Notification" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法傳送測試通知"
           }
         }
       }
@@ -6415,17 +6404,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "中斷 agent 目前這一輪。按住可強制結束。"
-          }
-        }
-      }
-    },
-    "It should arrive on this device in a moment." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "稍後這支裝置就會收到。"
           }
         }
       }
@@ -11050,6 +11028,17 @@
         }
       }
     },
+    "Sent. It should arrive on this device in a moment." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送出。稍後這支裝置就會收到。"
+          }
+        }
+      }
+    },
     "Session" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12432,17 +12421,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "測試連線"
-          }
-        }
-      }
-    },
-    "Test Notification Sent" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已傳送測試通知"
           }
         }
       }
