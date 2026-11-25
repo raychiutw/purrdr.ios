@@ -49,6 +49,8 @@ struct PurrdrApp: App {
                 hosts: hosts, member: root.member, settings: root.settings, plus: root.plus, hostSync: root.hostSync, notifications: PushAppDelegate.router,
                 welcome: root.welcome, appLock: root.appLock, inspectorStore: root.inspectorStore)
             .appAppearance()
+            // 第一個 frame 排版完成後才做冷啟動可延後的寫入(#590)。
+            .onAppear { DispatchQueue.main.async { root.launchGate.open() } }
             .transaction { if root.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
             .appLockCover(root.appLock)
             .environment(\.pairingCodeScanSource, root.inputSources.pairingCodeScan)

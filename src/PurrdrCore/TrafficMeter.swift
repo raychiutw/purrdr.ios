@@ -147,7 +147,9 @@ public final class TrafficMeter: Sendable {
     public static let saveInterval: TimeInterval = 5
 
     private struct State {
-        var days: [String: [String: HostTraffic]]
+        var days: [String: [String: HostTraffic]] = [:]
+        /// 歷史是否已從存放處讀進來:第一次需要歷史時才讀(#590,冷啟動不在主執行緒解碼 30 天 JSON)。
+        var loaded = false
         var launch: [String: HostTraffic] = [:]
         var lastSave: Date?
         var dirty = false
@@ -180,7 +182,10 @@ public final class TrafficMeter: Sendable {
     private let store: any TrafficStore
     private let now: @Sendable () -> Date
     private let calendar: Calendar
+    /// 自動存檔的排程(開閘前不寫,#590)。
     private let scheduler: TrafficSaveScheduling
+    /// 進背景時的存檔排程:不等閘。
+    private let immediateScheduler: TrafficSaveScheduling
     /// 序列化所有 `store.save`(背景排程、`flush()`、`reset()`),不與 `state` 的鎖混用:計量路徑絕不等它。
     private let saveLock = Mutex<Void>(())
 
@@ -191,7 +196,7 @@ public final class TrafficMeter: Sendable {
 
     public init(
         store: any TrafficStore, now: @escaping @Sendable () -> Date = { Date() }, calendar: Calendar = .current,
-        network: TrafficNetwork = .other, scheduler: TrafficSaveScheduling? = nil,
+        network: TrafficNetwork = .other, scheduler: TrafficSaveScheduling? = nil, launchGate: LaunchGate? = nil,
         onAggregate: @escaping @Sendable () -> Void = {}
     ) {
         self.onAggregate = onAggregate
@@ -199,16 +204,29 @@ public final class TrafficMeter: Sendable {
         self.store = store
         self.now = now
         self.calendar = calendar
-        self.scheduler = scheduler ?? { delay, work in
+        let base: TrafficSaveScheduling = scheduler ?? { delay, work in
             if delay <= 0 {
                 Self.saveQueue.async(execute: work)
             } else {
                 Self.saveQueue.asyncAfter(deadline: .now() + delay, execute: work)
             }
         }
-        var loaded: [String: [String: HostTraffic]] = [:]
-        for day in store.load() { loaded[day.day] = day.hosts }
-        state = Mutex(State(days: loaded))
+        immediateScheduler = base
+        if let gate = launchGate {
+            self.scheduler = { (delay: TimeInterval, work: @escaping @Sendable () -> Void) in
+                gate.run { base(delay, work) }
+            }
+        } else {
+            self.scheduler = base
+        }
+        state = Mutex(State())
+    }
+
+    /// 第一次需要歷史時才讀存放處(在 `state` 的鎖內)。
+    private func ensureLoaded(_ state: inout State) {
+        guard !state.loaded else { return }
+        state.loaded = true
+        for day in store.load() { state.days[day.day] = day.hosts }
     }
 
     /// 平台回報目前的網路類型;之後的位元組記在這一類。
@@ -254,6 +272,7 @@ public final class TrafficMeter: Sendable {
         }
         guard !items.isEmpty else { return nil }
         return state.withLock { state in
+            ensureLoaded(&state)
             for item in items {
                 let today = dayKey(item.date)
                 prune(&state, today: item.date)
@@ -280,6 +299,7 @@ public final class TrafficMeter: Sendable {
     public func days() -> [TrafficDay] {
         aggregateAndScheduleSave()
         return state.withLock { state in
+            ensureLoaded(&state)
             prune(&state, today: now())
             return Self.snapshot(state)
         }
@@ -290,6 +310,7 @@ public final class TrafficMeter: Sendable {
         aggregateAndScheduleSave()
         let key = dayKey(now())
         return state.withLock { state in
+            ensureLoaded(&state)
             prune(&state, today: now())
             return state.days[key] ?? [:]
         }
@@ -319,7 +340,7 @@ public final class TrafficMeter: Sendable {
     /// 同 `flush()`,但在背景佇列寫(app 進背景時用,#498):呼叫端(主執行緒)不等檔案寫入。
     /// 呼叫端要自己用 background task 撐到寫完(`completion` 在寫完後於背景佇列呼叫)。
     public func flushInBackground(completion: @escaping @Sendable () -> Void = {}) {
-        scheduler(0) { [self] in
+        immediateScheduler(0) { [self] in
             flush()
             completion()
         }
@@ -330,6 +351,7 @@ public final class TrafficMeter: Sendable {
         _ = aggregate()
         saveLock.withLock { _ in
             state.withLock { state in
+                state.loaded = true
                 state.days = [:]
                 state.launch = [:]
                 state.dirty = false

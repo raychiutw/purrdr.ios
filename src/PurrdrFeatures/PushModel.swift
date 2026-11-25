@@ -276,7 +276,27 @@ public final class PushService {
         publishHostNames()
     }
 
+    /// 第一個 frame 之後才寫對應表(#590);沒設閘就立刻寫。
+    public var launchGate: LaunchGate?
+    private var hostNamesPublishDeferred = false
+
     private func publishHostNames() {
+        guard hostNameSharing != nil else { return }
+        if let launchGate, !launchGate.isOpen {
+            guard !hostNamesPublishDeferred else { return }
+            hostNamesPublishDeferred = true
+            launchGate.run { [weak self] in
+                Task { @MainActor in
+                    self?.hostNamesPublishDeferred = false
+                    self?.writeHostNames()
+                }
+            }
+            return
+        }
+        writeHostNames()
+    }
+
+    private func writeHostNames() {
         hostNameSharing?.save(PushHostNameMap.make(pairings: store.pairings, hostNames: latestHostNames))
     }
 
