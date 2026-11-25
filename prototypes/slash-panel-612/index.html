@@ -1,0 +1,202 @@
+<title>Slash 面板版面原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* PROTOTYPE — 丟棄式。版面：上方說明 + 一支 iPhone 畫面 + 底部浮動切換列;四種版面以 #a #b #c #d 切換。 */
+:root{
+  --page:#F2F2F7; --surface:#FFFFFF; --inner:#E5E5EA; --fg:#111114; --muted:#6B6B73; --accent:#0B7A5C; --accent-soft:#D5EFE6;
+  --scrim:rgba(0,0,0,.28); --glass:rgba(255,255,255,.78); --stroke:rgba(0,0,0,.10); --warn:#B4541A; --ok:#0B7A5C;
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif; --mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --page:#1C1C1E; --surface:#2C2C2E; --inner:#3A3A3C; --fg:#F2F2F5; --muted:#A1A1A8; --accent:#3CCF9E; --accent-soft:#1E4A3C;
+  --scrim:rgba(0,0,0,.45); --glass:rgba(44,44,46,.82); --stroke:rgba(255,255,255,.12); --warn:#F0A060; --ok:#3CCF9E; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#1C1C1E; --surface:#2C2C2E; --inner:#3A3A3C; --fg:#F2F2F5; --muted:#A1A1A8; --accent:#3CCF9E; --accent-soft:#1E4A3C;
+  --scrim:rgba(0,0,0,.45); --glass:rgba(44,44,46,.82); --stroke:rgba(255,255,255,.12); --warn:#F0A060; --ok:#3CCF9E; color-scheme:dark}
+body{background:var(--page);color:var(--fg);font-family:var(--sans);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 120px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start;justify-content:center}
+.info{flex:1 1 300px;min-width:0;max-width:420px;display:flex;flex-direction:column;gap:12px}
+.info h1{font-size:20px;margin:0;text-wrap:balance}
+.info p{margin:0;line-height:1.55;color:var(--muted)}
+.tag{display:inline-block;font-size:11px;letter-spacing:.06em;color:var(--warn);font-weight:600}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;background:var(--inner);border-radius:999px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.15);font-weight:600}
+.state{background:var(--surface);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
+.state dt{color:var(--muted)} .state dd{margin:0;font-weight:600}
+.good{color:var(--ok)} .bad{color:var(--warn)}
+.verdict{background:var(--surface);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6}
+.verdict b{display:block;margin-bottom:4px}
+/* 手機 */
+.phone{position:relative;width:min(360px,100%);aspect-ratio:390/800;background:var(--page);border-radius:44px;border:8px solid #0d0d0f;overflow:hidden;font-size:15px;flex:0 0 auto}
+.status{height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:13px;font-weight:600}
+.topbar{display:flex;align-items:center;gap:8px;padding:2px 12px 8px}
+.circle{width:38px;height:38px;border-radius:50%;background:var(--glass);border:1px solid var(--stroke);display:grid;place-items:center;flex:none;font-size:17px;color:var(--fg)}
+.titlecap{flex:1;min-width:0;background:var(--glass);border:1px solid var(--stroke);border-radius:999px;padding:5px 14px;font-size:13px;line-height:1.25}
+.titlecap span{display:block;color:var(--muted);font-size:11px}
+.ring{width:22px;height:22px;border-radius:50%;background:conic-gradient(var(--accent) 0 62%,var(--inner) 62% 100%);-webkit-mask:radial-gradient(circle,transparent 7px,#000 8px);mask:radial-gradient(circle,transparent 7px,#000 8px)}
+.msgs{position:absolute;inset:96px 0 0 0;padding:4px 16px 0;display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.5;overflow:hidden}
+.bubble{align-self:flex-end;background:var(--accent-soft);padding:8px 12px;border-radius:16px;max-width:75%}
+.agent{max-width:92%}
+.agent code{font-family:var(--mono);font-size:12px;background:var(--inner);padding:1px 4px;border-radius:4px}
+.composer{position:absolute;left:10px;right:10px;display:flex;gap:8px;align-items:center;transition:bottom .25s,opacity .2s}
+.composer .plus{width:40px;height:40px}
+.composer .field{flex:1;min-width:0;background:var(--glass);border:1px solid var(--stroke);border-radius:22px;height:44px;display:flex;align-items:center;padding:0 14px;color:var(--muted);font-size:14px}
+.composer .field b{color:var(--fg);font-weight:400}
+.composer .send{width:40px;height:40px;background:var(--accent);color:#fff;border:0}
+.kbd{position:absolute;left:0;right:0;bottom:0;height:300px;background:#cfd2d8;display:grid;grid-template-rows:repeat(4,1fr);gap:8px;padding:10px 6px 30px;transition:transform .25s}
+:root[data-theme="dark"] .kbd{background:#2b2b2d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .kbd{background:#2b2b2d}}
+.kbd div{display:flex;gap:5px}
+.kbd i{flex:1;background:var(--surface);border-radius:6px;opacity:.9}
+.kbd.off{transform:translateY(100%)}
+.scrim{position:absolute;inset:0;background:var(--scrim)}
+.panel{background:var(--surface);color:var(--fg)}
+.ptitle{display:flex;align-items:center;gap:8px;padding:10px 12px 6px;font-weight:600;font-size:15px}
+.ptitle .grow{flex:1;text-align:center}
+.x,.check{width:32px;height:32px;border-radius:50%;background:var(--inner);display:grid;place-items:center;font-size:14px;border:0;color:var(--fg)}
+.check{background:var(--accent);color:#fff}
+.row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--stroke);font-size:14px}
+.row:first-child{border-top:0}
+.row .main{flex:1;min-width:0} .row small{display:block;color:var(--muted);font-size:12px}
+.row .tick{color:var(--accent);font-weight:700;width:16px}
+.row.cur{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+.effort{padding:10px 16px 14px;display:flex;flex-direction:column;gap:8px}
+.track{position:relative;height:6px;border-radius:3px;background:var(--inner)}
+.track .fill{position:absolute;inset:0 auto 0 0;width:62%;background:var(--accent);border-radius:3px}
+.track .knob{position:absolute;top:50%;left:62%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.hint{font-size:11px;color:var(--muted);padding:6px 14px 10px}
+.grabber{width:36px;height:5px;border-radius:3px;background:var(--inner);margin:6px auto 0}
+.cover{position:absolute;inset:0;pointer-events:none;outline:3px dashed var(--warn);outline-offset:-3px;border-radius:24px}
+/* 切換列 */
+.switcher{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:#111;color:#fff;border-radius:999px;padding:6px;box-shadow:0 6px 24px rgba(0,0,0,.35);z-index:20;max-width:calc(100% - 32px)}
+.switcher button{background:#2a2a2a;color:#fff;border:0;width:36px;height:36px;border-radius:50%;font-size:16px;cursor:pointer}
+.switcher span{font-size:13px;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <section class="info">
+    <span class="tag">PROTOTYPE · 丟棄式</span>
+    <h1 id="vtitle"></h1>
+    <p id="vdesc"></p>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="面板">
+        <button id="p-model" aria-pressed="true">/model</button>
+        <button id="p-effort" aria-pressed="false">/effort</button>
+      </div>
+      <div class="seg" role="group" aria-label="鍵盤">
+        <button id="k-off" aria-pressed="true">鍵盤收起</button>
+        <button id="k-on" aria-pressed="false">鍵盤升起</button>
+      </div>
+    </div>
+    <dl class="state" id="state"></dl>
+    <div class="verdict" id="verdict"></div>
+  </section>
+  <div class="phone" id="phone"></div>
+</div>
+
+<div class="switcher" aria-label="切換版面">
+  <button id="prev" aria-label="上一個">‹</button>
+  <span id="label"></span>
+  <button id="next" aria-label="下一個">›</button>
+</div>
+
+<script>
+const V = {
+  a:{name:'A 底部 sheet(現況 #366)',
+     desc:'面板以系統 sheet 從下往上蓋上來，停在一半高。左上 X(= Esc 取消),選定後自動收起。',
+     composer:'hidden', kbdForced:false,
+     verdict:'<b>會遮住輸入框。</b>sheet 一開就蓋住輸入框和上面幾則對話；鍵盤會先收起。好處是空間大、不會被浮動輸入框擋到按鈕(#366 當初的原因),而且符合「modal 左上 X」。看不到剛送出的指令與 Agent 的回覆。'},
+  b:{name:'B 貼在輸入框上方的卡片',
+     desc:'面板是一張卡片，直接貼在輸入框上方，跟 slash 選單同位置。輸入框和鍵盤都留著，對話往上推。',
+     composer:'visible', kbdForced:false,
+     verdict:'<b>不遮輸入框。</b>跟 slash 選單同一個位置，看得到對話下緣。代價：鍵盤升起時剩下的高度很少，/model 長清單要在卡片內捲動;卡片不是 modal,所以左上用 X 關閉(= Esc)。'},
+  c:{name:'C 輸入框變成面板',
+     desc:'面板出現時，輸入框收起、由面板佔住輸入框的位置(像系統鍵盤被換掉)。左 X 取消、右 ✓ 確定。',
+     composer:'replaced', kbdForced:true,
+     verdict:'<b>輸入框暫時被取代，但沒有被蓋住。</b>對話整段仍可見，面板高度固定在鍵盤的位置，不跳版。面板開著時不能打字(TUI 本來就在等面板),左 X、右 ✓ 跟決議 15 一致。'},
+  d:{name:'D 從輸入框彈出的選單',
+     desc:'像系統選單從輸入框上方彈出(morph),只蓋住一小塊。/effort 是選單內的滑桿。',
+     composer:'visible', kbdForced:false,
+     verdict:'<b>不遮輸入框，遮最少。</b>最像 HIG 的「選一個就回來」。限制：選單寬度與高度有限，Claude 面板若有很多選項或說明文字會被截;非系統選單得自繪，點外面就關(= Esc)。'},
+};
+const keys = Object.keys(V);
+let panel='model', kbd=false;
+const cur = () => { const h=(location.hash||'#a').slice(1); return V[h]?h:'a'; };
+
+function panelBody(compact){
+  if(panel==='model') return `
+    <div class="row"><span class="tick"></span><div class="main">Default<small>Opus 5.5 · 用量上限內最強</small></div></div>
+    <div class="row cur"><span class="tick">✓</span><div class="main">Opus 5.5<small>複雜任務</small></div></div>
+    <div class="row"><span class="tick"></span><div class="main">Sonnet 5.5<small>日常任務，較快</small></div></div>
+    ${compact?'':'<div class="row"><span class="tick"></span><div class="main">Haiku 5.5<small>最快</small></div></div>'}
+    <div class="effort"><div style="font-size:12px;color:var(--muted)">Effort ←/→ 調整</div><div class="track"><div class="fill"></div><div class="knob"></div></div><div class="ticks"><span>low</span><span>medium</span><span>high</span><span>xhigh</span><span>max</span></div></div>`;
+  return `<div class="effort" style="padding-top:16px"><div class="track"><div class="fill"></div><div class="knob"></div></div><div class="ticks"><span>low</span><span>medium</span><span>high</span><span>xhigh</span><span>max</span></div></div>
+    <div class="hint">目前：high · 從下一則訊息開始生效</div>`;
+}
+const ptitle = (withCheck)=>`<div class="ptitle"><button class="x" aria-label="取消">✕</button><span class="grow">${panel==='model'?'選擇模型':'Effort'}</span>${withCheck?'<button class="check" aria-label="確定">✓</button>':'<span style="width:32px"></span>'}</div>`;
+
+function render(){
+  const k=cur(), v=V[k];
+  const kbOn = v.composer==='hidden' ? false : kbd;   // sheet 開著時鍵盤被收起
+  const H=800, kbH=300;
+  let composerBottom = kbOn ? kbH+8 : 30;
+  let overlay='', composerStyle='', msgsShift=0, cover='';
+  if(k==='a'){
+    const top = panel==='model'? 360 : 520;
+    overlay = `<div class="scrim"></div><div class="panel" style="position:absolute;left:0;right:0;bottom:0;top:${top}px;border-radius:28px 28px 0 0"><div class="grabber"></div>${ptitle(false)}<div style="margin:4px 12px;background:var(--inner);border-radius:14px;overflow:hidden">${panelBody(false)}</div></div>`;
+    cover = `<div class="cover" style="top:${top}px"></div>`;
+  } else if(k==='b'){
+    const ph = panel==='model' ? (kbOn?190:320) : 120;
+    overlay = `<div class="panel" style="position:absolute;left:10px;right:10px;bottom:${composerBottom+52}px;height:${ph}px;border-radius:20px;border:1px solid var(--stroke);box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:auto">${ptitle(false)}${panelBody(kbOn)}</div>`;
+    msgsShift = ph+10;
+  } else if(k==='c'){
+    composerStyle='opacity:0;pointer-events:none';
+    overlay = `<div class="panel" style="position:absolute;left:0;right:0;bottom:0;height:${kbH}px;border-radius:24px 24px 0 0;border-top:1px solid var(--stroke);overflow:auto">${ptitle(true)}${panelBody(false)}</div>`;
+    msgsShift = kbH-30;
+  } else {
+    const ph = panel==='model' ? 250 : 110;
+    overlay = `<div class="panel" style="position:absolute;right:58px;width:250px;bottom:${composerBottom+52}px;height:${ph}px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.3);overflow:auto;font-size:13px">${panelBody(true)}</div>`;
+  }
+  const kbVisible = k==='c' ? false : kbOn;
+  document.getElementById('phone').innerHTML = `
+    <div class="status"><span>16:58</span><span>5G ▮▮▮</span></div>
+    <div class="topbar"><span class="circle">‹</span><div class="titlecap">purrdr.ios<span>● 完成</span></div><span class="circle"><span class="ring"></span></span><span class="circle">⋯</span></div>
+    <div class="msgs" style="bottom:${(kbVisible?kbH:0)+90+msgsShift}px;justify-content:flex-end">
+      <div class="agent">已經把上限改成 32 字，測試全綠。</div>
+      <div class="bubble">/model</div>
+      <div class="agent">開啟模型選擇…<code>/model</code></div>
+    </div>
+    <div class="composer" style="bottom:${k==='c'?30:composerBottom}px;${composerStyle}">
+      <span class="circle plus">＋</span><div class="field">${kbOn?'<b>|</b>':'訊息'}</div><button class="circle send" aria-label="送出">↑</button>
+    </div>
+    <div class="kbd ${kbVisible?'':'off'}"><div>${'<i></i>'.repeat(10)}</div><div>${'<i></i>'.repeat(9)}</div><div>${'<i></i>'.repeat(9)}</div><div><i></i><i style="flex:5"></i><i></i></div></div>
+    ${overlay}${cover}`;
+  const composerVisible = v.composer==='visible';
+  document.getElementById('vtitle').textContent = v.name;
+  document.getElementById('vdesc').textContent = v.desc;
+  document.getElementById('label').textContent = `${k.toUpperCase()} · ${v.name.slice(2)}`;
+  document.getElementById('verdict').innerHTML = v.verdict;
+  document.getElementById('state').innerHTML = `
+    <dt>版面</dt><dd>${k.toUpperCase()}</dd>
+    <dt>面板</dt><dd>/${panel}</dd>
+    <dt>輸入框</dt><dd class="${composerVisible?'good':'bad'}">${v.composer==='visible'?'看得到、可打字':v.composer==='hidden'?'被 sheet 蓋住':'被面板取代(沒被蓋)'}</dd>
+    <dt>鍵盤</dt><dd>${kbVisible?'升起':(kbd&&!kbVisible?'被收起':'收起')}</dd>
+    <dt>關閉</dt><dd>${k==='c'?'左 X 取消、右 ✓ 確定':k==='d'?'點外面或選定':'左 X(= Esc)'}</dd>`;
+  for(const [id,on] of [['p-model',panel==='model'],['p-effort',panel==='effort'],['k-off',!kbd],['k-on',kbd]]) document.getElementById(id).setAttribute('aria-pressed',on);
+}
+function go(d){ const i=keys.indexOf(cur()); location.hash = '#'+keys[(i+d+keys.length)%keys.length]; }
+document.getElementById('prev').onclick=()=>go(-1);
+document.getElementById('next').onclick=()=>go(1);
+document.getElementById('p-model').onclick=()=>{panel='model';render()};
+document.getElementById('p-effort').onclick=()=>{panel='effort';render()};
+document.getElementById('k-off').onclick=()=>{kbd=false;render()};
+document.getElementById('k-on').onclick=()=>{kbd=true;render()};
+addEventListener('keydown',e=>{ if(e.target.closest('input,textarea,[contenteditable]'))return; if(e.key==='ArrowLeft')go(-1); if(e.key==='ArrowRight')go(1); });
+addEventListener('hashchange',render);
+render();
+</script>
