@@ -60,31 +60,6 @@ public final class InMemoryOfflineQueueStore: OfflineQueueStore {
     public func save(_ prompts: [QueuedPrompt], host: String) { stored[host] = prompts }
 }
 
-/// 存在 `UserDefaults`(只在這支裝置、不同步):每台主機一個 key,內容是 JSON。
-@MainActor
-public final class UserDefaultsOfflineQueueStore: OfflineQueueStore {
-    public static let keyPrefix = "offlineQueue."
-
-    private let defaults: UserDefaults
-
-    public init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-    }
-
-    public func load(host: String) -> [QueuedPrompt] {
-        guard let data = defaults.data(forKey: Self.keyPrefix + host) else { return [] }
-        return (try? JSONDecoder().decode([QueuedPrompt].self, from: data)) ?? []
-    }
-
-    public func save(_ prompts: [QueuedPrompt], host: String) {
-        if prompts.isEmpty {
-            defaults.removeObject(forKey: Self.keyPrefix + host)
-        } else if let data = try? JSONEncoder().encode(prompts) {
-            defaults.set(data, forKey: Self.keyPrefix + host)
-        }
-    }
-}
-
 /// 一台主機的離線佇列(#301,spec #298):沒有連線時送出的訊息先排在這裡(每台主機最多 30 則，存本機)。
 ///
 /// 訊息只在離線時進來，所以之後收到的第一份 Agent 列表(`reconcile(with:)`)就是重連後的第一次:逐則比對，

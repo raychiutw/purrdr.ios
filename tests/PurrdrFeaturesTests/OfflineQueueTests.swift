@@ -173,14 +173,15 @@ struct OfflineQueueTests {
     }
 
     @Test("存在本機：App 重開(新的佇列讀同一個 store)仍在")
-    func persistsAcrossLaunches() throws {
-        let suite = "OfflineQueueTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let first = Self.queue(store: UserDefaultsOfflineQueueStore(defaults: defaults))
+    func persistsAcrossLaunches() {
+        let blobs = ProtectedOfflineQueueStoreTests.MemoryBlobs()
+        let legacy = ProtectedOfflineQueueStoreTests.initializedLegacy()
+        let firstStore = ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy)
+        let first = Self.queue(store: firstStore)
         first.enqueue(Self.prompt("重開也在"))
+        firstStore.flush()
 
-        let relaunched = Self.queue(store: UserDefaultsOfflineQueueStore(defaults: defaults))
+        let relaunched = Self.queue(store: ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy))
 
         #expect(relaunched.entries.map(\.text) == ["重開也在"])
         #expect(relaunched.entries.first?.sessionID == "s-1")
