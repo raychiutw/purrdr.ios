@@ -32,11 +32,11 @@ struct WindowDetailContent: View {
     var body: some View {
         if let route, let title = hosts.agentList.terminalTitle(of: route) {
             // agent 以外的 pane(Spaces 的終端機列、版面圖的終端機方塊):開它的 Pane 終端機(#40)。
-            PaneTerminalScreen(model: hosts.terminal(route, title: title))
+            PaneTerminalScreen(model: hosts.member(for: route.host).terminal(paneID: route.paneID, title: title))
         } else if let route {
             ConversationScreen(
-                model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
-                makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route,
+                model: hosts.member(for: route.host).conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
+                makeTerminal: { hosts.member(for: route.host).terminal(paneID: $0, title: $1) }, window: navigation, route: route,
                 layoutSnapshot: { hosts.agentList.snapshot(for: route.host) },
                 openLayoutTarget: { target in
                     switch target {
@@ -103,8 +103,8 @@ private struct PaneWindowContent: View {
         switch window.kind {
         case .chat:
             ConversationScreen(
-                model: hosts.conversation(route, sessionID: window.sessionID),
-                makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) })
+                model: hosts.member(for: route.host).conversation(route, sessionID: window.sessionID),
+                makeTerminal: { hosts.member(for: route.host).terminal(paneID: $0, title: $1) })
             .environment(\.usageHost, route.host)
             // 「需要你」橫幅(#539):自己的聊天不算;點了在主視窗開那個聊天並帶到前面,沒有主視窗就開新的 Pane 視窗。
             .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, windowChat: route, open: openFromBanner))
@@ -112,7 +112,7 @@ private struct PaneWindowContent: View {
             .onAppear { hosts.agentList.chatAppeared(route) }
             .onDisappear { hosts.agentList.chatDisappeared(route) }
         case .terminal:
-            PaneTerminalScreen(model: hosts.terminal(route, title: window.title))
+            PaneTerminalScreen(model: hosts.member(for: route.host).terminal(paneID: route.paneID, title: window.title))
         }
     }
 

@@ -105,27 +105,27 @@ public final class HostsModel {
     /// 送出可撤回的秒數(#300),每次送出時讀;預設讀本機偏好(設定頁改的那一個)。
     @ObservationIgnored public var undoSendSeconds: @MainActor () -> Int = { UndoSendSettings.seconds(in: .standard) }
 
-    private let store: any HostStore
+    let store: any HostStore
     /// 離線佇列存放處(#301);每台主機一份佇列，同一台的聊天共用。
     private let offlineQueueStore: any OfflineQueueStore
     private var offlineQueues: [HostSelection: OfflineQueue] = [:]
     private let selectionStore: any HostSelectionStore
     private let currentHostStore: any CurrentHostStore
     /// 方案用量畫面上次選的主機與 Agent。
-    private let planUsageSelection: any PlanUsageSelectionStore
+    let planUsageSelection: any PlanUsageSelectionStore
     /// 用量的「已用／剩餘」全域設定(#389):用量區、方案用量頁、context 與設定共用同一份。
     public let usageDisplay: UsageDisplaySetting
     /// 登入 Shell、檔案上次選的電腦(#245)。
-    private let hostPickerStore: any HostPickerStore
+    let hostPickerStore: any HostPickerStore
     private let demoChannel: any HostChannel
     /// Demo 主機的主機取檔(#225;composition root 給 Demo 的 adapter,Features 不 import Demo)。
     private let demoFiles: any HostFileFetching
     /// Demo 的示範主機(#34)。
     private let demoCompanions: [DemoCompanionHost]
-    private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
-    private let credentials: HostCredentials
+    let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
+    let credentials: HostCredentials
     /// HTTPS 主機的裝置權杖、連線配對與主機連線(ADR-0010)。
-    private let hostService: HostServiceAccess
+    let hostService: HostServiceAccess
     private let conversationCache: any ConversationCache
     private let preferences: any HostChatPreferencesStore
     private let hostIcons: any HostIconStore
@@ -151,8 +151,6 @@ public final class HostsModel {
     private var demoAdapter: DemoHostAdapter!
     /// 列表上每台主機的連線與 model(以主機身分)。
     private var members: [HostSelection: HostMember] = [:]
-    /// 主機頁的 Codex 啟動器(#274):每台主機一份，主機刪除時丟掉。
-    private var codexLaunchers: [UUID: CodexLauncherModel] = [:]
     /// 依 Agent 種類接上主機能力的對照表(#443)。
     private let agentHostServices = AgentHostServices()
     /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
@@ -241,11 +239,41 @@ public final class HostsModel {
         sshAdapter = SSHHostAdapter(environment: environment)
         httpsAdapter = HTTPSHostAdapter(environment: environment)
         demoAdapter = DemoHostAdapter(channel: demoChannel, files: demoFiles, consent: demoConsent)
+        memberEnvironment = HostMemberEnvironment(
+            hostName: { [weak self] in self?.name(of: $0) ?? "" },
+            enabledAgents: { [weak self] in self?.enabledAgents(on: $0) ?? Set(HostAgentSettings.configurable) },
+            isSavedHost: { [weak self] id in self?.hosts.contains { $0.id == id } ?? false },
+            conversationCache: conversationCache,
+            haptics: { [weak self] in self?.haptics ?? SilentHaptics() },
+            attachmentStore: attachmentStore,
+            trafficMeter: { [weak self] in self?.trafficMeter },
+            undoSendSeconds: { [weak self] in self?.undoSendSeconds() ?? 0 },
+            publicModelCatalog: publicModelCatalog,
+            reviewPrompt: { [weak self] in self?.reviewPrompt },
+            awayStart: { [weak self] route in self?.agentList.awayStart(for: route) },
+            offlineQueue: { [weak self] host in
+                guard let self else { return OfflineQueue(host: host.storedValue, store: InMemoryOfflineQueueStore()) { _, _ in .notSent(.rejected("")) } }
+                return offlineQueue(for: host)
+            },
+            supportsNewChatInWorkspace: { [weak self] in self?.supportsNewChatInWorkspace($0) ?? true },
+            skeletonRowCounts: skeletonRowCounts,
+            usageDisplay: usageDisplay,
+            planUsageSource: { [weak self] host, agent in self?.planUsageSource(host, agent) },
+            detectAgents: { [weak self] id in try await self?.detectAgents(on: id) ?? [] },
+            setEnabledAgents: { [weak self] agents, id in self?.setEnabledAgents(agents, for: id) },
+            hostConsent: hostConsent,
+            agentHostServices: agentHostServices)
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
         agentList.enterDemo = { [weak self] in self?.enterDemo() }
         agentList.currentHostDidChange = { [weak self] host in self?.currentHostStore.save(host) }
     }
+
+    /// 成員建立畫面 model 時向清單問事情的入口(#564)。
+    private var memberEnvironment: HostMemberEnvironment!
+
+    /// 跨主機的畫面 model 工廠(#564);作用在單一主機的畫面 model 向那台主機的成員要(`HostMember+Screens.swift`)。
+    public var screens: HostScreens { HostScreens(hosts: self) }
 
     /// Demo 主機在同意紀錄裡的主機 id。
     static let demoID = "demo"
@@ -272,52 +300,8 @@ public final class HostsModel {
     /// 選取中主機的「You should know」註記(設定頁撤掉修改用，#23)。每台主機各自一份，寫回的同意以主機為單位記住。
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
 
-    /// 某台主機的主機設定(#274):主機頁(主機清單的 ⓘ)下方的主機主題、You should know、Codex 啟動器，作用在那台主機。
-    /// 沒有這台主機時是 `nil`。
-    public func hostSettings(for id: UUID) -> HostSettings? {
-        guard hosts.contains(where: { $0.id == id }) else { return nil }
-        let member = member(for: .host(id))
-        // 畫面每次重繪都會呼叫：已有就不再寫回，否則改了被觀察的狀態會無限重繪。
-        if let launcher = codexLaunchers[id] {
-            return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
-        }
-        guard let launcher = agentHostServices.launcher(for: .codex, channel: member.channel, hostID: id.uuidString, consent: hostConsent) else {
-            return nil
-        }
-        codexLaunchers[id] = launcher
-        return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
-    }
-
-    /// 數據用量頁的 model(#354):主機選單是 Demo 主機加上所有已存主機,預設看目前主機(#334);在這裡改主機只改這個畫面的選取,不動聊天列表的目前主機(切換規則,#390)。
-    public func dataUsage() -> DataUsageModel {
-        DataUsageModel(
-            meter: trafficMeter ?? TrafficMeter(store: InMemoryTrafficStore()), hosts: hostOptions { _ in true }, currentHost: agentList.currentHost)
-    }
-
-    /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
-    /// `host`、`agent` 有值時直接選那台與那個 Agent(用量區的「啟用用量顯示」導到這裡的同意流程)。
-    public func planUsage(host: HostSelection? = nil, agent: PlanUsageAgent? = nil) -> PlanUsageModel {
-        PlanUsageModel(
-            hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection, currentHost: host ?? agentList.currentHost,
-            initialAgent: agent, enabledAgents: { [weak self] in self?.enabledAgents(on: $0) ?? Set(HostAgentSettings.configurable) }
-        ) { [weak self] host, agent in
-            self?.planUsageSource(host, agent)
-        }
-    }
-
-    /// 用量區(#389):面板(單一 Agent)與主機 tab(Claude 與 Codex)共用。HTTPS 主機沒有來源,整區是「等主機服務支援」。
-    /// `detectsInstallation`:主機 tab 只列主機上偵測到的 Agent(Antigravity,#465);面板的 Agent 是聊天正在跑的,不偵測。
-    public func usageSection(host: HostSelection, agents: [PlanUsageAgent], detectsInstallation: Bool = false) -> UsageSectionModel {
-        // 只查、只列這台主機啟用的 Agent(#477)。
-        let enabled = enabledAgents(on: host)
-        let shown = agents.filter { HostAgentSettings.showsUsage(of: $0.agentID, enabled: enabled) }
-        return UsageSectionModel(hostName: name(of: host), agents: shown, display: usageDisplay, detectsInstallation: detectsInstallation) { [weak self] agent in
-            self?.planUsageSource(host, agent)
-        }
-    }
-
     /// 方案用量的來源：Demo 主機是本機假資料(不耗 token 與傳輸);SSH 主機經主機通道;HTTPS 主機經主機服務(0.12.0 起)。
-    private func planUsageSource(_ host: HostSelection, _ agent: PlanUsageAgent) -> PlanUsageSource? {
+    func planUsageSource(_ host: HostSelection, _ agent: PlanUsageAgent) -> PlanUsageSource? {
         let channel: any HostChannel
         let cost: PlanUsageQueryCost
         let hostID: String
@@ -344,27 +328,8 @@ public final class HostsModel {
                 channel: channel, files: files, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent))
     }
 
-    /// 某台主機上某個 Pane 的終端機 model(標題)。
-    public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
-        PaneTerminalModel(client: member(for: route.host).terminals, paneID: route.paneID, title: title)
-    }
-
     /// 「⋯」選單要不要有登入 Shell 與檔案：有任何一台支援就有(挑選鈕能選;HTTPS 主機沒有，ADR-0010)。
     public var anyHostSupportsShell: Bool { !hostOptions { $0.supportsLoginShell }.isEmpty }
-
-    /// 登入 Shell、檔案的主機挑選鈕(#245):只列支援的主機(HTTPS 主機沒有，ADR-0010),預設上次選的電腦或選取中主機。
-    public func hostPicker(for scope: HostPickerScope) -> HostPickerModel {
-        let options = hostOptions { $0.supportsLoginShell }
-        return .remembering(scope, options: options, fallback: selection, store: hostPickerStore)
-    }
-
-    /// 檔案與主機 tab 頂列的主機選單(#390):只改選取中主機、不列「所有主機」,在那裡換主機不動聊天列表的篩選。
-    /// 範例主機啟用前不列入。
-    public func selectedHostPicker() -> HostPickerModel {
-        HostPickerModel(options: hostOptions { _ in true }, preferred: [selection]) { [weak self] in
-            self?.select($0)
-        }
-    }
 
     /// 選取中主機沒有登入 Shell 與檔案(HTTPS 主機,ADR-0010)。檔案 tab 顯示「不支援」。
     public var selectedHostSupportsFiles: Bool {
@@ -439,11 +404,6 @@ public final class HostsModel {
     /// 沒有任何主機可看(沒有已存主機、也還沒進入範例主機):檔案與主機 tab 顯示空狀態。
     public var hasNoHostToShow: Bool { hosts.isEmpty && !demoEntered }
 
-    /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表目前篩選的主機(#244),所有主機時用選取中主機。
-    public func newChatHostPicker(preferring host: HostSelection? = nil) -> HostPickerModel {
-        .newChat(options: hostOptions { _ in true }, currentHost: host ?? agentList.currentHost, selection: selection)
-    }
-
     /// 這台主機能不能在既有 Workspace 新增聊天(Workspace 標題選單的「在此新增聊天」)。
     /// 也是新增聊天能不能選既有 Workspace 的條件。HTTPS 主機要主機服務 0.15.0 起(`tab.create`);
     /// 已知版本不足時不提供,還不知道版本(還沒連上)時先提供,送出時版本不足會說明要更新主機服務。
@@ -453,86 +413,14 @@ public final class HostsModel {
     }
 
     /// 已啟用的範例主機(#394)加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
-    private func hostOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostOption] {
+    func hostOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostOption] {
         (demoEntered ? [HostOption(id: .demo, name: name(of: .demo))] : [])
             + hosts.filter(isIncluded).map {
                 HostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id), needsReconfirmation: $0.needsReconfirmation)
             }
     }
 
-    /// 某台主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
-    public func loginShell(on host: HostSelection) -> LoginShellModel {
-        LoginShellModel(channel: member(for: host).channel, title: name(of: host))
-    }
-
-    /// 某台主機的檔案瀏覽(從家目錄開始);壓得小的檔案以 gzip 傳輸，主機沒有 `gzip` 時記在那台主機的成員上。
-    public func folderBrowser(on host: HostSelection) -> FolderBrowserModel {
-        let member = member(for: host)
-        let folders = HostFolders(channel: member.channel, deflate: SystemDeflate(), gzipAvailability: member.gzipAvailability)
-        return FolderBrowserModel(folders: folders, hostName: name(of: host), skeletonRowCounts: skeletonRowCounts)
-    }
-
-    /// 某台主機上某個 Agent 的對話 model(列表看到的 session)。非選取中主機的聊天在標題列帶主機名(#44)。
-    public func conversation(_ route: ChatRoute, sessionID: String?) -> ConversationModel {
-        let member = member(for: route.host)
-        let model = ConversationModel(
-            client: member.client, transcripts: member.transcripts, paneID: route.paneID, knownSessionID: sessionID,
-            cache: conversationCache(for: route.host), drafts: member.drafts, slashDiscovery: agentHostServices.slashDiscovery(for: .claude, channel: member.channel),
-            haptics: haptics,
-            // 標題列副標一律是聊天所在主機的名稱(#270)。
-            hostName: { [weak self] in self?.name(of: route.host) },
-            images: ComposerAttachments.Dependencies(
-                uploader: member.uploader, store: attachmentStore, videoCompressor: AVVideoCompressor(),
-                isOnCellular: { [meter = trafficMeter] in meter?.currentNetwork == .cellular }),
-            updates: member.list.updates,
-            // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300),
-            // 倒數結束時離線就排進那台主機的離線佇列(#301)。
-            // 「做完再送」開著時排進主機的佇列(#305),不經撤回倒數與離線佇列。
-            sendSteps: [
-                SecretCheck(),
-                SendWhenDoneStep(model: SendWhenDoneModel(host: member.sendWhenDoneHost, paneID: route.paneID)),
-                UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 }),
-                OfflineQueueStep(queue: offlineQueue(for: route.host)),
-            ],
-            // 模型目錄(#385):主機快取 → 公開目錄 → 內建對照表。
-            modelCatalog: ModelCatalogResolver(host: SSHModelCatalogReader(channel: member.channel), publicCatalog: publicModelCatalog))
-        // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
-        model.youShouldKnow = member.youShouldKnow
-        // 圖片縮圖讀聊天所在的主機(#225)。
-        model.agentFiles = member.agentFiles
-        // 變更頁讀聊天所在主機的 git(#310)。
-        model.gitChanges = member.gitChanges
-        // context 取自聊天所在主機的 status line 檔(#388)。
-        model.sessionStatusReader = member.sessionStatus
-        // Antigravity 裝了 statusline 包裝時,context、模型、effort 與權限模式取自它(#448;只有 SSH 主機)。
-        if let antigravity = member.antigravityStatus { model.agentSessionStatusReaders = [.agy: antigravity] }
-        // 對話紀錄認不得的行記到診斷紀錄(#449)。
-        model.onTranscriptSkips = TranscriptSkipLog.shared.report
-        model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
-        // 離開期間摘要(#308):上次離開這個聊天的時間。
-        model.awayStart = { [weak self] in self?.agentList.awayStart(for: route) }
-        return model
-    }
-
-    /// 某台主機上的新增對話(#18;主機由新增聊天的主機挑選鈕決定，#245)。
-    public func newChat(on host: HostSelection, preselectingWorkspace workspaceID: String? = nil) -> NewChatModel {
-        let member = member(for: host)
-        let folders = member.capabilities.folders
-        let model = NewChatModel(
-            launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders,
-            agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)),
-            // HTTPS 主機服務要 0.15.0 起才有 tab.create。
-            supportsExistingWorkspaces: supportsNewChatInWorkspace(host))
-        if let workspaceID { model.preselectWorkspace(workspaceID) }
-        return model
-    }
-
     /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
-    /// 把文字放進某個聊天的輸入框(草稿):新增聊天沒送出的第一則訊息(#272)。
-    public func keepDraft(_ text: String, for route: ChatRoute) {
-        member(for: route.host).drafts.save(text, chatKey: route.paneID, session: nil)
-    }
-
     public func openStartedChat(_ workspace: CreatedWorkspace, on host: HostSelection) async {
         let list = agentList
         await list.load()
@@ -671,7 +559,6 @@ public final class HostsModel {
         refreshPairing()
         dropChannel(of: host.id)
         members[.host(host.id)] = nil
-        codexLaunchers[host.id] = nil
         select(.host(host.id))
         // 新增主機:偵測有哪些 Agent 並預先打開(#477);改設定的既有主機沒設定過才補初始化。
         Task { await initializeAgentSettingsWhenReachable(for: host.id, isNewHost: isNewHost) }
@@ -703,15 +590,6 @@ public final class HostsModel {
         host.enabledAgents = agents
         guard (try? store.save(host)) != nil else { return }
         hosts = (try? sortedHosts()) ?? hosts
-    }
-
-    /// 主機頁「Agent」子頁的 model;沒有這台已存主機(範例主機)時是 `nil`。
-    public func agentSettings(for id: UUID) -> HostAgentSettingsModel? {
-        guard hosts.contains(where: { $0.id == id }) else { return nil }
-        return HostAgentSettingsModel(
-            enabled: enabledAgents(on: .host(id)),
-            detect: { [weak self] in try await self?.detectAgents(on: id) ?? [] },
-            save: { [weak self] in self?.setEnabledAgents($0, for: id) })
     }
 
     /// 主機上有哪些 Agent:SSH 看設定資料夾(唯讀);HTTPS 看 herdr 快照裡出現過的種類。連不上時丟出錯誤。
@@ -771,7 +649,6 @@ public final class HostsModel {
             if let previous, previous.connection != host.connection {
                 dropChannel(of: host.id)
                 members[.host(host.id)] = nil
-                codexLaunchers[host.id] = nil
                 reselect = reselect || selection == .host(host.id)
             }
         }
@@ -789,7 +666,6 @@ public final class HostsModel {
 
     private func remove(_ id: UUID) async throws {
         let removed = hosts.first { $0.id == id }
-        codexLaunchers[id] = nil
         // 刪配對要再連一次主機：祕密刪掉前先讀出來，給刪配對用的連線。
         let secret = try? credentials.secrets.secret(for: id)
         let deviceToken = try? hostService.tokens.deviceToken(for: id)
@@ -852,54 +728,17 @@ public final class HostsModel {
         return open(route, pairings: pushService.store)
     }
 
-    /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。`method`:新增時預選的連線方式。
-    public func makeEditor(editing: HostConfiguration? = nil, method: HostConfiguration.ConnectionMethod? = nil) -> HostEditorModel {
-        let editor = HostEditorModel(
-            store: store, editing: editing, credentials: credentials, hostService: hostService,
-            icon: editing.map { icon(for: $0.id) } ?? .default, saveIcon: setIcon(_:for:),
-            renameHost: { [weak self] id, name in try self?.rename(id, to: name) }, makeChannel: makeChannel)
-        if editing == nil, let method { editor.connectionMethod = method }
-        editor.attachTraffic(trafficProvider)
-        return editor
-    }
-
     /// 引導最後一頁判斷有沒有 Purrdr Plus 用的檢查(同推播開關:重讀後台後的結果)。沒有推播服務就當沒有。
-    private var guidePlusCheck: @MainActor () async -> Bool {
+    var guidePlusCheck: @MainActor () async -> Bool {
         { [pushService] in
             guard let pushService else { return false }
             return await pushService.isPlusActive()
         }
     }
 
-    /// 所有新增入口(歡迎頁、主機清單「＋」、「⋯」選單)開的新增主機引導(#341)。
-    public func makeAddHostGuide() -> AddHostGuideModel {
-        let guide = AddHostGuideModel(
-            store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel)
-        guide.attachTraffic(trafficProvider)
-        return guide
-    }
-
     /// 連線測試、配對與撤銷等「還沒有連線」的流量依主機 id 記進數據用量(#353);沒有計量時不記。
-    private var trafficProvider: (UUID) -> TrafficRecording {
+    var trafficProvider: (UUID) -> TrafficRecording {
         { [trafficMeter] id in trafficMeter?.recorder(for: id.uuidString) ?? { _, _ in } }
-    }
-
-    /// 匯入連結(主機分享連結、配對 QR code)開的引導,資料已齊時直接到測試連線(#344);引導接不了(原生 SSH、壞連結)時丟錯。
-    public func makeImportGuide(_ url: URL) throws -> AddHostGuideModel {
-        let guide = try AddHostGuideModel(
-            store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel,
-            shortcut: .importLink(url))
-        guide.attachTraffic(trafficProvider)
-        return guide
-    }
-
-    /// 同步來、這支裝置還沒配對的 HTTPS 主機:直接到配對步驟(#344)。
-    public func makePairingGuide(for host: HostConfiguration) throws -> AddHostGuideModel {
-        let guide = try AddHostGuideModel(
-            store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel,
-            shortcut: .needsPairing(host))
-        guide.attachTraffic(trafficProvider)
-        return guide
     }
 
     /// 沒有已存主機時，列表要不要直接列出 Demo(#332)。預設 true(測試與預覽);app 正式啟動設 false，
@@ -924,19 +763,6 @@ public final class HostsModel {
     public func enterDemo() {
         demoEntered = true
         select(.demo)
-    }
-
-    /// 從主機分享連結或主機配對指令的 QR code(`purrdr://pair?…`)新增主機：帶入欄位的編輯器。
-    /// 連結不合法時丟 `HostShareLinkError` 或 `HostServicePairingLinkError`。
-    public func makeImportEditor(_ url: URL) throws -> HostEditorModel {
-        if HostServicePairingLink.isPairingLink(url) {
-            return HostEditorModel(
-                store: store, pairing: try HostServicePairingLink(url: url), credentials: credentials, hostService: hostService,
-                saveIcon: setIcon(_:for:), makeChannel: makeChannel)
-        }
-        return HostEditorModel(
-            store: store, importing: try HostShareLink.decode(url), credentials: credentials, hostService: hostService,
-            saveIcon: setIcon(_:for:), makeChannel: makeChannel)
     }
 
     // MARK: - 連線韌性(行為規格 §7.4、§7.5)
@@ -1095,7 +921,7 @@ public final class HostsModel {
     }
 
     /// 某台主機的成員;不在列表上時(例如剛刪除的主機還開著的畫面)暫時建一個不保留的。
-    private func member(for host: HostSelection) -> HostMember {
+    func member(for host: HostSelection) -> HostMember {
         members[host] ?? makeMember(host)
     }
 
@@ -1111,7 +937,7 @@ public final class HostsModel {
         if case .host(let id) = host, let companion = companion(id) {
             return HostMember(
                 host: host, hostID: Self.demoID, capabilities: demoAdapter.companionCapabilities(channel: companion.channel),
-                preferences: preferences.store(for: host), push: pushService)
+                preferences: preferences.store(for: host), push: pushService, environment: memberEnvironment)
         }
         let configuration: HostConfiguration? = switch host {
         case .demo: nil
@@ -1120,7 +946,7 @@ public final class HostsModel {
         guard let configuration else {
             return HostMember(
                 host: host, hostID: Self.demoID, capabilities: demoAdapter.demoHostCapabilities(),
-                preferences: preferences.store(for: host), push: pushService)
+                preferences: preferences.store(for: host), push: pushService, environment: memberEnvironment)
         }
         // 同步改了位址或 host key、使用者還沒重新確認:不開任何連線(#572)。
         let capabilities = configuration.needsReconfirmation
@@ -1128,7 +954,7 @@ public final class HostsModel {
             : adapter(for: configuration).capabilities(for: configuration)
         return HostMember(
             host: host, hostID: configuration.id.uuidString, capabilities: capabilities,
-            preferences: preferences.store(for: host), push: pushService)
+            preferences: preferences.store(for: host), push: pushService, environment: memberEnvironment)
     }
 
     /// 連線方式 → adapter:全 app 唯一依連線方式分派的地方。
@@ -1208,84 +1034,6 @@ public struct HostPush: Identifiable {
     public var supportsTestNotification: Bool {
         guard installsViaHostService else { return true }
         return hostServiceVersion.map { $0 >= HostServiceFeature.pushTest.minimumVersion } ?? false
-    }
-}
-
-/// 列表上一台主機的連線與 model:各自的通道、herdr client、列表、列操作、草稿、推播開關、「You should know」註記與主機主題。
-@MainActor
-final class HostMember {
-    let host: HostSelection
-    /// 只有 SSH 才有的功能(登入 Shell、推播外掛、主題、資料夾…)用;上層功能的 client 經主機連線建立。
-    let channel: any HostChannel
-    let client: HerdrClient
-    let transcripts: TranscriptReader
-    let terminals: PaneTerminalClient
-    let list: AgentListModel
-    let actions: WorkspaceActionsModel
-    /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。每台主機一份(pane id 在每台主機都會重複)。
-    let drafts = DraftStore()
-    /// 這台主機的推播開關;這台主機的靜音改變時改寫它上面的靜音清單。
-    let push: PushModel
-    /// 這台主機的「You should know」註記(#23)。
-    let youShouldKnow: YouShouldKnowModel
-    /// 這台主機的主機主題(#23);選取中主機的才套用到畫面。
-    let hostTheme: HostThemeModel
-    /// 這台主機有沒有 `gzip`(檔案上傳的 gzip 傳輸，#76)。
-    let gzipAvailability = HostGzipAvailability()
-    /// 主題、註記、Claude 方案用量定期讀取共用的長駐通道(#203)。
-    let hostFiles: HostFiles
-    /// 聊天裡圖片卡片的縮圖(#225)與點開的檔案(#228),這台主機的聊天共用一份快取。
-    let agentFiles: AgentFileLoads
-    /// 聊天附加的圖片與檔案上傳到主機(#286)。
-    let uploader: any HostUploading
-    /// 變更頁的唯讀 git 讀取(#310)。
-    let gitChanges: any GitChangesReading
-    /// 各 session 的 Claude status line 狀態(#388):SSH 讀主機上的 session 檔,HTTPS 走主機服務的 `usage.session_context`。
-    let sessionStatus: any ClaudeSessionStatusReading
-    /// 各 session 的 Antigravity statusline 狀態(#448):只有 SSH 主機(包裝經 SSH 寫入),HTTPS 主機是 `nil`。
-    let antigravityStatus: (any ClaudeSessionStatusReading)?
-    /// 主機上的 Send When Done 佇列(#305);只有 HTTPS 主機(主機服務)有，其他是 `nil`。
-    let sendWhenDoneHost: (any SendWhenDoneHosting)?
-    /// 這台主機的能力組(adapter 交出,含每項沒有的原因)。
-    let capabilities: HostCapabilities
-
-    /// 成員只依能力組建立畫面 model(#563):不看連線方式。
-    init(host: HostSelection, hostID: String, capabilities: HostCapabilities, preferences: any ChatPreferencesStore, push pushService: PushService?) {
-        self.host = host
-        let channel = capabilities.channel
-        self.channel = channel
-        self.capabilities = capabilities
-        uploader = capabilities.uploads
-        gitChanges = capabilities.git
-        sendWhenDoneHost = capabilities.sendWhenDone.value
-        let connection = capabilities.connection
-        client = HerdrClient(connection: connection)
-        transcripts = TranscriptReader(connection: connection)
-        terminals = PaneTerminalClient(connection: connection)
-        let list = AgentListModel(client: client, transcripts: transcripts, host: host)
-        self.list = list
-        actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
-        let installer = pushService.flatMap { service in capabilities.pushInstaller.value.map { $0(service) } }
-        let push = PushModel(service: pushService, hostID: hostID == HostsModel.demoID ? nil : hostID, installer: installer) {
-            preferences.load().muted
-        }
-        self.push = push
-        // 連上這台主機(建立成員)時,推播開著就檢查外掛版本(#432;有頻率上限，失敗不打擾)。
-        if push.state == .on { Task { await push.updatePluginIfNeeded() } }
-        // 測試通知(#328):adapter 決定這台主機有沒有、怎麼送。
-        if let pushService, let makeSender = capabilities.pushTestSender.value { push.testSender = makeSender(pushService) }
-        actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
-        let hostFiles = capabilities.hostFiles
-        self.hostFiles = hostFiles
-        sessionStatus = capabilities.sessionStatus
-        antigravityStatus = capabilities.antigravityStatus.value
-        // 點開的檔案依主機分資料夾，刪除主機時一起清(#228)。
-        agentFiles = AgentFileLoads(
-            fetcher: capabilities.files,
-            downloadDirectory: AgentFileLoads.defaultDownloadDirectory.appending(path: hostID, directoryHint: .isDirectory))
-        youShouldKnow = YouShouldKnowModel(
-            host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: capabilities.consent)
-        hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: capabilities.consent)
     }
 }
 

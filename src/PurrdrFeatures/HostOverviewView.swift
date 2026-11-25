@@ -76,7 +76,7 @@ struct HostOverviewView: View {
     /// 主機清單:頂列已沒有主機選單(右上只有「＋」新增主機),多台主機在這裡換看哪一台;只有一台時不顯示。
     @ViewBuilder
     private var hostListSection: some View {
-        let picker = hosts.selectedHostPicker()
+        let picker = hosts.screens.selectedHostPicker()
         if picker.options.count > 1 {
             Section {
                 ForEach(picker.options) { option in

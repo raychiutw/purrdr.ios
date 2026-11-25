@@ -64,9 +64,9 @@ struct FilesTab: View {
                     title: "Files Aren’t Available", systemImage: "folder",
                     message: "Files need an SSH connection. This host connects through the host service.",
                     identifier: "files.unsupported")
-                    .topBarPage(unavailableContent(picker: hosts.selectedHostPicker()))
+                    .topBarPage(unavailableContent(picker: hosts.screens.selectedHostPicker()))
             } else {
-                FilesScreen(hosts: hosts, picker: hosts.selectedHostPicker(), actions: actions)
+                FilesScreen(hosts: hosts, picker: hosts.screens.selectedHostPicker(), actions: actions)
             }
         }
     }
@@ -93,7 +93,7 @@ struct TrafficTab: View {
     var body: some View {
         NavigationStack {
             DataUsageScreen(
-                make: { hosts.dataUsage() },
+                make: { hosts.screens.dataUsage() },
                 account: AnyView(TopBarAccountButton(member: member, action: openAccount)))
         }
     }

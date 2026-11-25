@@ -20,8 +20,8 @@ extension UsageSectionContext {
     init(hosts: HostsModel) {
         self.init(
             display: hosts.usageDisplay,
-            section: { hosts.usageSection(host: $0, agents: $1, detectsInstallation: $2) },
-            planUsage: { hosts.planUsage(host: $0, agent: $1) })
+            section: { hosts.member(for: $0).usageSection(agents: $1, detectsInstallation: $2) },
+            planUsage: { hosts.screens.planUsage(host: $0, agent: $1) })
     }
 }
 

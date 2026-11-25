@@ -69,7 +69,7 @@ struct LoginShellScreen: View {
     let picker: HostPickerModel
 
     var body: some View {
-        LoginShellContent(model: hosts.loginShell(on: picker.selection), picker: picker)
+        LoginShellContent(model: hosts.member(for: picker.selection).loginShell(), picker: picker)
             .id(picker.selection)
     }
 }
@@ -99,7 +99,7 @@ struct FilesScreen: View {
     let actions: TabTopBarActions
 
     var body: some View {
-        FilesContent(model: hosts.folderBrowser(on: picker.selection), picker: picker, actions: actions)
+        FilesContent(model: hosts.member(for: picker.selection).folderBrowser(), picker: picker, actions: actions)
             .id(picker.selection)
     }
 }

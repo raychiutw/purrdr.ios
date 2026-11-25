@@ -96,7 +96,7 @@ public struct TopNavigationView: View {
                     }
                 case .newChat:
                     NewChatSheet(
-                        hosts: hosts, picker: hosts.newChatHostPicker(preferring: navigation.newChatPreselection?.host),
+                        hosts: hosts, picker: hosts.screens.newChatHostPicker(preferring: navigation.newChatPreselection?.host),
                         preselection: navigation.newChatPreselection
                     ) {
                         navigation.sheet = nil
@@ -104,7 +104,7 @@ public struct TopNavigationView: View {
                         // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
                         navigation.sheet = nil
                         // agent 停在啟動問題時沒送的第一則訊息：放進聊天的輸入框，回答後自己送(#272)。
-                        if let unsentMessage { hosts.keepDraft(unsentMessage, for: ChatRoute(host: host, paneID: workspace.rootPaneID)) }
+                        if let unsentMessage { hosts.member(for: host).keepDraft(unsentMessage, paneID: workspace.rootPaneID) }
                         Task { await hosts.openStartedChat(workspace, on: host) }
                     }
                 }
@@ -256,9 +256,9 @@ public struct TopNavigationView: View {
             model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
             prefetchConversations: { await hosts.prefetchConversations($0) }
         ) { route, sessionID in
-            hosts.conversation(route, sessionID: sessionID)
+            hosts.member(for: route.host).conversation(route, sessionID: sessionID)
         } terminal: { route, title in
-            hosts.terminal(route, title: title)
+            hosts.member(for: route.host).terminal(paneID: route.paneID, title: title)
         }
     }
 
@@ -325,7 +325,7 @@ private struct NewChatSheet: View {
         let host = picker.selection
         // 預選只在主機沒被改掉時有效。
         let preselected = preselection.flatMap { $0.host == host ? $0.workspaceID : nil }
-        NewChatForm(model: hosts.newChat(on: host, preselectingWorkspace: preselected), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
+        NewChatForm(model: hosts.member(for: host).newChat(preselectingWorkspace: preselected), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
             .id(host)
     }
 }

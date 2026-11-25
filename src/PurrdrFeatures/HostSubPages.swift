@@ -198,7 +198,7 @@ struct HostSettingsPage: View {
                 Section {
                     // 用量擷取的啟用與還原(經同意修改主機上 Claude Code 的 status line 設定,可完整還原)。
                     NavigationLink {
-                        PlanUsageScreen(model: hosts.planUsage(host: .host(hostID), agent: .claudeCode))
+                        PlanUsageScreen(model: hosts.screens.planUsage(host: .host(hostID), agent: .claudeCode))
                     } label: {
                         HostRowLabel(title: "Usage Capture")
                     }

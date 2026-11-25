@@ -96,7 +96,7 @@ struct HostsTab: View {
         Group {
             switch route {
             case .add:
-                AddHostGuideScreen(make: hosts.makeAddHostGuide) { _ in
+                AddHostGuideScreen(make: hosts.screens.makeAddHostGuide) { _ in
                     finish()  // 主機在存好時已登記(onAdded)
                 } onCancel: {
                     flow.path.removeLast()
@@ -109,7 +109,7 @@ struct HostsTab: View {
                     didEnterDemo()
                 }
             case .importGuide(let url):
-                AddHostGuideScreen(make: { (try? hosts.makeImportGuide(url)) ?? hosts.makeAddHostGuide() }) { _ in
+                AddHostGuideScreen(make: { (try? hosts.screens.makeImportGuide(url)) ?? hosts.screens.makeAddHostGuide() }) { _ in
                     finish()
                 } onCancel: {
                     flow.path.removeLast()
@@ -119,7 +119,7 @@ struct HostsTab: View {
             case .pairGuide(let id):
                 AddHostGuideScreen(
                     make: {
-                        hosts.hosts.first { $0.id == id }.flatMap { try? hosts.makePairingGuide(for: $0) } ?? hosts.makeAddHostGuide()
+                        hosts.hosts.first { $0.id == id }.flatMap { try? hosts.screens.makePairingGuide(for: $0) } ?? hosts.screens.makeAddHostGuide()
                     }
                 ) { _ in
                     finish()
@@ -131,7 +131,7 @@ struct HostsTab: View {
             case .edit:
                 // 編輯主機:名稱、圖示、連線方式與測試連線(主機主題等設定在「這台主機的設定」)。
                 HostEditorView(
-                    model: hosts.makeEditor(editing: route.hostID.flatMap { id in hosts.hosts.first { $0.id == id } })
+                    model: hosts.screens.makeEditor(editing: route.hostID.flatMap { id in hosts.hosts.first { $0.id == id } })
                 ) { host in
                     hosts.didSave(host)
                     finish()
@@ -162,13 +162,13 @@ struct HostsTab: View {
                     pair: { flow.path.append(.pairGuide($0)) })
                     .appPageContentWidth()
             case .hostSettings(let id):
-                if let settings = hosts.hostSettings(for: id) {
+                if let settings = hosts.member(for: .host(id)).settings() {
                     HostSettingsPage(
                         hosts: hosts, hostID: id, settings: settings, isReadOnly: hosts.overview?.status == .readOnly)
                         .appPageContentWidth()
                 }
             case .agents(let id):
-                if let model = hosts.agentSettings(for: id) {
+                if let model = hosts.member(for: .host(id)).agentSettings() {
                     HostAgentSettingsPage(hosts: hosts, hostID: id, model: model)
                         .appPageContentWidth()
                 }
@@ -221,7 +221,7 @@ struct HostsTab: View {
     private func openPendingImport() {
         guard let url = importURL else { return }
         importURL = nil
-        flow.path = [(try? hosts.makeImportGuide(url)) != nil ? .importGuide(url) : .importFailed]
+        flow.path = [(try? hosts.screens.makeImportGuide(url)) != nil ? .importGuide(url) : .importFailed]
     }
 
     private func openPendingAdd() {
@@ -244,7 +244,7 @@ private struct LoginShellTool: View {
 
     init(hosts: HostsModel) {
         self.hosts = hosts
-        _picker = State(wrappedValue: hosts.hostPicker(for: .loginShell))
+        _picker = State(wrappedValue: hosts.screens.hostPicker(for: .loginShell))
     }
 
     var body: some View {
