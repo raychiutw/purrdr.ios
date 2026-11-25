@@ -137,9 +137,9 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let shell = model.loginShell(on: model.selection)
+        let shell = model.member(for: model.selection).loginShell()
         shell.viewDidResize(columns: 80, rows: 24)
-        let files = model.folderBrowser(on: model.selection)
+        let files = model.member(for: model.selection).folderBrowser()
         await files.load()
         #expect(await real.waitForPTYs(1) == 1)
 
@@ -173,10 +173,10 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let first = model.folderBrowser(on: model.selection)
+        let first = model.member(for: model.selection).folderBrowser()
         await first.load()
         await first.upload(log, named: "first.log")
-        let second = model.folderBrowser(on: model.selection)
+        let second = model.member(for: model.selection).folderBrowser()
         await second.load()
         await second.upload(log, named: "second.log")
 
@@ -200,7 +200,7 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let files = model.folderBrowser(on: model.selection)
+        let files = model.member(for: model.selection).folderBrowser()
         await files.load()
         await files.upload(log, named: "build.log")
 
@@ -224,7 +224,7 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let newChat = model.newChat(on: model.selection)
+        let newChat = model.member(for: model.selection).newChat()
         newChat.folder = "~/ledger"
         newChat.message = "Fix the CSV quoting"
         let workspace = try #require(await newChat.start())
@@ -333,10 +333,10 @@ struct HostsModelTests {
 
         let flags = { (options: [HostOption]) in options.map { [$0.id: $0.needsReconfirmation] } }
         let expected = [[HostSelection.demo: false], [.host(Self.studio.id): false], [.host(flagged.id): true]]
-        #expect(flags(model.selectedHostPicker().options) == expected)
-        #expect(flags(model.newChatHostPicker().options) == expected)
-        #expect(flags(model.planUsage().hosts) == expected)
-        #expect(flags(model.dataUsage().hosts) == expected)
+        #expect(flags(model.screens.selectedHostPicker().options) == expected)
+        #expect(flags(model.screens.newChatHostPicker().options) == expected)
+        #expect(flags(model.screens.planUsage().hosts) == expected)
+        #expect(flags(model.screens.dataUsage().hosts) == expected)
         #expect(model.agentList.hostFilterOptions.filter(\.needsReconfirmation).map(\.id) == [.host(flagged.id)])
     }
 
@@ -347,14 +347,14 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
         model.load()
 
-        let usage = model.planUsage()
+        let usage = model.screens.planUsage()
         #expect(usage.hosts.map(\.id) == [.demo, .host(Self.studio.id), .host(Self.httpsStudio.id)])
         #expect(usage.hosts.map(\.name) == ["Demo", "Studio", "Studio HTTPS"])
         #expect(usage.host == model.selection)
 
         usage.select(host: .demo)
         usage.disappeared()
-        #expect(model.planUsage().host == .demo)
+        #expect(model.screens.planUsage().host == .demo)
     }
 
     @Test("方案用量的查詢成本：Demo 主機不耗 token 與傳輸，SSH 主機需要傳輸;HTTPS 主機不支援、不連線")
@@ -366,7 +366,7 @@ struct HostsModelTests {
         hostConsent.grant(ClaudePlanUsageHost.feature.id, host: Self.httpsStudio.id.uuidString)
         let model = HostsModel(store: store, demoChannel: FakeHost(), hostConsent: hostConsent, makeChannel: ChannelFactory(real).make)
         model.load()
-        let usage = model.planUsage()
+        let usage = model.screens.planUsage()
         usage.appeared()
 
         #expect(usage.cost == .transfer)
@@ -386,7 +386,7 @@ struct HostsModelTests {
         store.hosts = [Self.studio, Self.httpsStudio]
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
         model.load()
-        let usage = model.planUsage()
+        let usage = model.screens.planUsage()
         usage.select(agent: .codex)
 
         #expect(usage.cost == .transfer)

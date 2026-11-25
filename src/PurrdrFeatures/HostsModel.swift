@@ -921,7 +921,7 @@ public final class HostsModel {
     }
 
     /// 某台主機的成員;不在列表上時(例如剛刪除的主機還開著的畫面)暫時建一個不保留的。
-    func member(for host: HostSelection) -> HostMember {
+    package func member(for host: HostSelection) -> HostMember {
         members[host] ?? makeMember(host)
     }
 

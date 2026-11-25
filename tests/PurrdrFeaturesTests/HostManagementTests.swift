@@ -203,7 +203,7 @@ struct HostManagementTests {
         let (model, _) = Self.model(hosts: [], channels: ChannelFactory())
         let url = HostShareLink.url(for: Self.studio)
 
-        let editor = try model.makeImportEditor(url)
+        let editor = try model.screens.makeImportEditor(url)
 
         #expect(editor.name == "Studio")
         #expect(editor.address == "studio-mac")
@@ -221,7 +221,7 @@ struct HostManagementTests {
         let shared = SharedHost(
             name: "Office", endpoint: SSHEndpoint(host: "office.example", port: 22, username: "ray"), connectionMethod: .openSSH)
 
-        let editor = try model.makeImportEditor(HostShareLink.url(for: shared))
+        let editor = try model.screens.makeImportEditor(HostShareLink.url(for: shared))
 
         #expect(editor.connectionMethod == .openSSH)
     }

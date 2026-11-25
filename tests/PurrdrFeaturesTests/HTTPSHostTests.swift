@@ -184,7 +184,7 @@ struct HTTPSHostEditorTests {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         let url = try #require(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net&code=K7QM-2XPA"))
 
-        let editor = try model.makeImportEditor(url)
+        let editor = try model.screens.makeImportEditor(url)
 
         #expect(editor.connectionMethod == .https)
         #expect(editor.address == "studio.tail1234.ts.net")
@@ -197,7 +197,7 @@ struct HTTPSHostEditorTests {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         let link = HostShareLink.url(for: HostConfiguration(name: "Studio", hostService: Self.address))
 
-        let editor = try model.makeImportEditor(link)
+        let editor = try model.screens.makeImportEditor(link)
 
         #expect(editor.connectionMethod == .https)
         #expect(editor.name == "Studio")
@@ -400,7 +400,7 @@ struct HTTPSHostsModelTests {
         model.load()
         #expect(model.rows.first?.needsPairing == true)
 
-        let editor = model.makeEditor(editing: synced)
+        let editor = model.screens.makeEditor(editing: synced)
         editor.pairingCode = "K7QM-2XPA"
         await editor.test()
         let saved = try #require(editor.save())

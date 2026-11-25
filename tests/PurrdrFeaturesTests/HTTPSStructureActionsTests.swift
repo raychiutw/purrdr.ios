@@ -136,8 +136,8 @@ struct HTTPSStructureActionsTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
 
-        #expect(!model.newChat(on: .host(https.id)).canBrowseFolders)
-        #expect(model.newChat(on: .host(ssh.id)).canBrowseFolders)
+        #expect(!model.member(for: .host(https.id)).newChat().canBrowseFolders)
+        #expect(model.member(for: .host(ssh.id)).newChat().canBrowseFolders)
     }
 
     @Test("「在此新增聊天」與選既有 Workspace:HTTPS 主機服務 0.15.0 起提供;已知更舊的不提供;還不知道版本時先提供;SSH 提供")
@@ -167,6 +167,6 @@ struct HTTPSStructureActionsTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
 
-        #expect(model.newChatHostPicker(preferring: .host(second.id)).selection == .host(second.id))
+        #expect(model.screens.newChatHostPicker(preferring: .host(second.id)).selection == .host(second.id))
     }
 }

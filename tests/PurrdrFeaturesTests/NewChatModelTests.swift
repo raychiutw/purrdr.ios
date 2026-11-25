@@ -178,9 +178,9 @@ struct NewChatModelTests {
         let hosts = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: { _, _, _ in FakeHost() })
         let route = ChatRoute(host: .demo, paneID: "w4:p1")
 
-        hosts.keepDraft("Fix the CSV quoting", for: route)
+        hosts.member(for: route.host).keepDraft("Fix the CSV quoting", paneID: route.paneID)
 
-        #expect(hosts.conversation(route, sessionID: nil).draft == "Fix the CSV quoting")
+        #expect(hosts.member(for: route.host).conversation(route, sessionID: nil).draft == "Fix the CSV quoting")
     }
 
     @Test("名稱欄位:填了的 workspace 與 tab 名稱(去頭尾空白)交給主機;留空時不帶")

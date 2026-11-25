@@ -119,7 +119,7 @@ struct ReviewPromptTests {
         hosts.load()
 
         for pane in ["w1:p1", "w2:p1", "w3:p1"] {
-            hosts.conversation(ChatRoute(host: .demo, paneID: pane), sessionID: nil).onPromptDelivered?()
+            hosts.member(for: .demo).conversation(ChatRoute(host: .demo, paneID: pane), sessionID: nil).onPromptDelivered?()
         }
 
         #expect(requests.count == 1)

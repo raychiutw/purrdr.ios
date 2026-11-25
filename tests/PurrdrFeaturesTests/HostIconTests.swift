@@ -63,7 +63,7 @@ struct HostIconTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
         model.setIcon(.laptop, for: HostsModelTests.studio.id)
-        let editor = model.makeEditor(editing: HostsModelTests.studio)
+        let editor = model.screens.makeEditor(editing: HostsModelTests.studio)
         #expect(editor.icon == .laptop)
         #expect(!editor.hasChanges)
 
@@ -84,7 +84,7 @@ struct HostIconTests {
         store.hosts = [HostsModelTests.studio]
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
-        let editor = model.makeEditor(editing: HostsModelTests.studio)
+        let editor = model.screens.makeEditor(editing: HostsModelTests.studio)
 
         editor.icon = .home
         editor.address = "other-mac"
@@ -102,7 +102,7 @@ struct HostIconTests {
         store.hosts = [HostsModelTests.studio]
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
-        let editor = model.makeEditor(editing: HostsModelTests.studio)
+        let editor = model.screens.makeEditor(editing: HostsModelTests.studio)
 
         editor.name = "  Office Mac "
         editor.icon = .home
@@ -123,7 +123,7 @@ struct HostIconTests {
         store.hosts = [HostsModelTests.studio]
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
-        let editor = model.makeEditor(editing: HostsModelTests.studio)
+        let editor = model.screens.makeEditor(editing: HostsModelTests.studio)
 
         editor.name = "   "
 
@@ -137,7 +137,7 @@ struct HostIconTests {
         let factory = ChannelFactory(await HostEditorModelTests.unverifiedHost(), await HostEditorModelTests.healthyHost())
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: factory.make)
         model.load()
-        let editor = model.makeEditor()
+        let editor = model.screens.makeEditor()
         #expect(editor.icon == .default)
         HostEditorModelTests.fill(editor)
         editor.icon = .console

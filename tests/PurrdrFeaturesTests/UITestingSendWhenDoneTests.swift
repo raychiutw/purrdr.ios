@@ -45,7 +45,7 @@ struct UITestingSendWhenDoneTests {
             makeChannel: ChannelFactory().make)
         model.load()
 
-        let chat = model.conversation(ChatRoute(host: .host(configuration.id), paneID: "w1:p1"), sessionID: nil)
+        let chat = model.member(for: .host(configuration.id)).conversation(ChatRoute(host: .host(configuration.id), paneID: "w1:p1"), sessionID: nil)
         let queue = try #require(chat.sendWhenDone, "聊天沒有 Send When Done")
         let running = Task { await queue.run() }
         defer { running.cancel() }

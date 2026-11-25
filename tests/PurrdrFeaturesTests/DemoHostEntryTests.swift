@@ -22,13 +22,13 @@ struct DemoHostEntryTests {
         let model = Self.model(saved: [HostsModelTests.studio])
         model.demoEntered = false
 
-        #expect(!model.selectedHostPicker().options.contains { $0.id == .demo })
-        #expect(!model.newChatHostPicker().options.contains { $0.id == .demo })
+        #expect(!model.screens.selectedHostPicker().options.contains { $0.id == .demo })
+        #expect(!model.screens.newChatHostPicker().options.contains { $0.id == .demo })
 
         model.enterDemo()
 
-        #expect(model.selectedHostPicker().options.contains { $0.id == .demo })
-        #expect(model.newChatHostPicker().options.contains { $0.id == .demo })
+        #expect(model.screens.selectedHostPicker().options.contains { $0.id == .demo })
+        #expect(model.screens.newChatHostPicker().options.contains { $0.id == .demo })
     }
 
     @Test("移除範例主機:選取中主機回到已存主機,選單不再列它")
@@ -41,7 +41,7 @@ struct DemoHostEntryTests {
 
         #expect(!model.demoEntered)
         #expect(model.selection == .host(HostsModelTests.studio.id))
-        #expect(!model.selectedHostPicker().options.contains { $0.id == .demo })
+        #expect(!model.screens.selectedHostPicker().options.contains { $0.id == .demo })
     }
 
     @Test("沒有其他主機時移除範例主機:回到沒有主機的空狀態")

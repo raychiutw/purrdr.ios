@@ -44,7 +44,7 @@ struct HostMemberEnvironment {
 /// 列表上一台主機的連線與 model:各自的通道、herdr client、列表、列操作、草稿、推播開關、「You should know」註記與主機主題。
 /// 這台主機的畫面 model 由成員自己建(`HostMember+Screens.swift`)。
 @MainActor
-final class HostMember {
+package final class HostMember {
     let host: HostSelection
     /// 只有 SSH 才有的功能(登入 Shell、推播外掛、主題、資料夾…)用;上層功能的 client 經主機連線建立。
     let channel: any HostChannel

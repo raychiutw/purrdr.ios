@@ -155,7 +155,7 @@ struct HostsModelAgentSettingsTests {
     func planUsageListsOnlyEnabledAgents() {
         let host = Self.host(enabled: [.codex])
         let (model, _) = Self.model(host)
-        let usage = model.planUsage(host: .host(host.id))
+        let usage = model.screens.planUsage(host: .host(host.id))
         #expect(usage.agents == [.codex])
         #expect(usage.agent == .codex)
     }
@@ -164,7 +164,7 @@ struct HostsModelAgentSettingsTests {
     func newChatListsOnlyEnabled() {
         let host = Self.host(enabled: [.codex, .agy])
         let (model, _) = Self.model(host)
-        let chat = model.newChat(on: .host(host.id))
+        let chat = model.member(for: .host(host.id)).newChat()
         #expect(chat.availableAgents == [.codex, .agy])
         #expect(chat.agent == .codex)
     }
@@ -173,7 +173,7 @@ struct HostsModelAgentSettingsTests {
     func newChatWithNothingEnabled() {
         let host = Self.host(enabled: [])
         let (model, _) = Self.model(host)
-        let chat = model.newChat(on: .host(host.id))
+        let chat = model.member(for: .host(host.id)).newChat()
         #expect(chat.availableAgents.isEmpty)
         chat.folder = "/Users/demo/app"
         chat.message = "hi"
@@ -184,7 +184,7 @@ struct HostsModelAgentSettingsTests {
     func usageSectionSkipsDisabled() {
         let host = Self.host(enabled: [.claude])
         let (model, _) = Self.model(host)
-        let section = model.usageSection(host: .host(host.id), agents: PlanUsageAgent.allCases)
+        let section = model.member(for: .host(host.id)).usageSection(agents: PlanUsageAgent.allCases)
         #expect(section.agents == [.claudeCode])
     }
 }

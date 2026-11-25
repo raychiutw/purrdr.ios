@@ -397,7 +397,7 @@ struct OfflineQueueTests {
     func conversationsShareHostQueue() {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
-        let chat = model.conversation(ChatRoute(host: .demo, paneID: "w1:p1"), sessionID: nil)
+        let chat = model.member(for: .demo).conversation(ChatRoute(host: .demo, paneID: "w1:p1"), sessionID: nil)
 
         #expect(chat.offlineQueue === model.offlineQueue(for: .demo))
     }

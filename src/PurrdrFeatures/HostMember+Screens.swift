@@ -12,28 +12,28 @@ extension HostMember {
     }
 
     /// 這個 Pane 的終端機 model(標題)。
-    func terminal(paneID: String, title: String) -> PaneTerminalModel {
+    package func terminal(paneID: String, title: String) -> PaneTerminalModel {
         PaneTerminalModel(client: terminals, paneID: paneID, title: title)
     }
 
     /// 這台主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
-    func loginShell() -> LoginShellModel {
+    package func loginShell() -> LoginShellModel {
         LoginShellModel(channel: channel, title: environment.hostName(host))
     }
 
     /// 這台主機的檔案瀏覽(從家目錄開始);壓得小的檔案以 gzip 傳輸，主機沒有 `gzip` 時記在這個成員上。
-    func folderBrowser() -> FolderBrowserModel {
+    package func folderBrowser() -> FolderBrowserModel {
         let folders = HostFolders(channel: channel, deflate: SystemDeflate(), gzipAvailability: gzipAvailability)
         return FolderBrowserModel(folders: folders, hostName: environment.hostName(host), skeletonRowCounts: environment.skeletonRowCounts)
     }
 
     /// 把文字放進這台主機某個聊天的輸入框(草稿):新增聊天沒送出的第一則訊息(#272)。
-    func keepDraft(_ text: String, paneID: String) {
+    package func keepDraft(_ text: String, paneID: String) {
         drafts.save(text, chatKey: paneID, session: nil)
     }
 
     /// 這台主機上某個 Agent 的對話 model(列表看到的 session)。非選取中主機的聊天在標題列帶主機名(#44)。
-    func conversation(_ route: ChatRoute, sessionID: String?) -> ConversationModel {
+    package func conversation(_ route: ChatRoute, sessionID: String?) -> ConversationModel {
         let environment = environment
         let host = host
         let model = ConversationModel(
@@ -77,7 +77,7 @@ extension HostMember {
     }
 
     /// 這台主機上的新增對話(#18;主機由新增聊天的主機挑選鈕決定，#245)。
-    func newChat(preselectingWorkspace workspaceID: String? = nil) -> NewChatModel {
+    package func newChat(preselectingWorkspace workspaceID: String? = nil) -> NewChatModel {
         let folders = capabilities.folders
         let model = NewChatModel(
             launcher: NewChatLauncher(client: client, folders: folders), folders: folders,
@@ -90,7 +90,7 @@ extension HostMember {
 
     /// 用量區(#389):面板(單一 Agent)與主機 tab(Claude 與 Codex)共用。HTTPS 主機沒有來源,整區是「等主機服務支援」。
     /// `detectsInstallation`:主機 tab 只列主機上偵測到的 Agent(Antigravity,#465);面板的 Agent 是聊天正在跑的,不偵測。
-    func usageSection(agents: [PlanUsageAgent], detectsInstallation: Bool = false) -> UsageSectionModel {
+    package func usageSection(agents: [PlanUsageAgent], detectsInstallation: Bool = false) -> UsageSectionModel {
         // 只查、只列這台主機啟用的 Agent(#477)。
         let enabled = environment.enabledAgents(host)
         let shown = agents.filter { HostAgentSettings.showsUsage(of: $0.agentID, enabled: enabled) }
@@ -105,7 +105,7 @@ extension HostMember {
 
     /// 這台主機的主機設定(#274):主機頁(主機清單的 ⓘ)下方的主機主題、You should know、Codex 啟動器。
     /// 不是已存主機、或這台主機沒有 Codex 啟動器時是 `nil`。
-    func settings() -> HostSettings? {
+    package func settings() -> HostSettings? {
         guard case .host(let id) = host, environment.isSavedHost(id) else { return nil }
         // 畫面每次重繪都會呼叫：已有就不再寫回，否則改了被觀察的狀態會無限重繪。
         if let codexLauncher {
@@ -119,7 +119,7 @@ extension HostMember {
     }
 
     /// 主機頁「Agent」子頁的 model;不是已存主機(範例主機)時是 `nil`。
-    func agentSettings() -> HostAgentSettingsModel? {
+    package func agentSettings() -> HostAgentSettingsModel? {
         guard case .host(let id) = host, environment.isSavedHost(id) else { return nil }
         let environment = environment
         return HostAgentSettingsModel(
