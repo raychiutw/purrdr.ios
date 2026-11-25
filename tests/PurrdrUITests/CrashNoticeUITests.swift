@@ -12,12 +12,15 @@ final class CrashNoticeUITests: XCTestCase {
         XCTAssertTrue(banner.waitUntilExists(timeout: 10), "沒有「上次意外關閉」提示")
 
         app.buttons["crashNotice.share"].tap()
-        XCTAssertTrue(app.otherElements["ActivityListView"].waitUntilExists(timeout: 10), "沒有開出系統分享")
-        // 關掉分享選單(點選單外側)。
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
-        XCTAssertTrue(app.buttons["crashNotice.dismiss"].waitUntilExists(timeout: 10), "分享後提示不該消失")
-
-        app.buttons["crashNotice.dismiss"].tap()
+        let sheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(sheet.waitUntilExists(timeout: 10), "沒有開出系統分享")
+        // 分享選單是 popover(iPhone 模擬器):第一下點選單外側(正好是「關閉」鈕)只會收起選單,提示還在;再點一次才關閉提示。
+        let dismiss = app.buttons["crashNotice.dismiss"]
+        XCTAssertTrue(dismiss.waitUntilExists(timeout: 10), "分享後提示不該消失")
+        for _ in 0..<3 where banner.exists {
+            dismiss.tap()
+            _ = banner.waitUntilGone(timeout: 3)
+        }
         XCTAssertTrue(banner.waitUntilGone(timeout: 5), "關閉後提示還在")
     }
 
