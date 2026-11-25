@@ -768,6 +768,7 @@ public final class ConversationModel {
         slash.loader = { [weak self] in await self?.slashCatalog() }
         slash.onPick = { [weak self] command in self?.pick(slash: command) }
         slash.update(draft: draft, caret: draftCaret)
+        controlSwitcher.host = self
         // 記憶體層有這個聊天最近的內容:同步還原,打開時第一幀就有內容(不閃骨架)。
         if let cached = cache.cachedConversation(chatKey: paneID), accepts(cached) { restore(cached) }
     }
@@ -859,7 +860,7 @@ public final class ConversationModel {
             while !Task.isCancelled {
                 await poll()
                 await refreshSessionStatusIfDue()
-                await probePermissionModeIfNeeded()
+                await controlSwitcher.probePermissionModeIfNeeded()
                 await refreshStatusLineIfDue()
                 do {
                     // 輪詢期間被叫醒就不等。
@@ -2030,7 +2031,7 @@ public final class ConversationModel {
     /// 監看中或面板開著時讀畫面(只限 Claude／Codex、沒有問題在等、agent 不在工作);這次輪詢已讀過畫面就順便看。
     /// 讀不到畫面沿用上次;畫面上沒有面板、或 agent 開始工作／需要你時關掉。
     private func refreshPanel(_ agent: Agent) async {
-        defer { updatePanelReadability() }
+        defer { controlSwitcher.updatePanelReadability() }
         let watching = panelWatchUntil.map { clock.now() < $0 } ?? false
         if !watching { panelWatchUntil = nil }
         guard AgentCatalog.profile(forHerdrName: agent.kind).screen.readsPanels, prompt == nil, agentStatus != .working, agentStatus != .blocked else {
@@ -2043,16 +2044,7 @@ public final class ConversationModel {
         let next = await Task.detached(priority: .userInitiated) { SlashPanelParser.parse(screen: screen, dialect: dialect) }.value
         guard !Task.isCancelled else { return }
         if next != panel { panel = next }
-        if modelSheetPage == .effort, effortBaseline == nil, let next, let slider = next.slider {
-            effortBaseline = EffortBaseline(level: slider.current, ultracode: next.ultracode)
-        }
-    }
-
-    /// 模型選擇 sheet 在等面板、監看期已滿還是沒讀到面板:sheet 改成只顯示目前模型(#384)。
-    private func updatePanelReadability() {
-        let watching = panelWatchUntil.map { clock.now() < $0 } ?? false
-        let unreadable = isChoosingModel && panel == nil && !watching
-        if unreadable != modelPanelUnreadable { modelPanelUnreadable = unreadable }
+        controlSwitcher.notePanelRead(next)
     }
 
     // MARK: - 建議提示詞(#121、#123)
@@ -2095,8 +2087,13 @@ public final class ConversationModel {
     public var controls: AgentControls {
         AgentControls(
             dialect: screenDialect, metadata: metadata, sessionStatus: sessionStatus, observations: controlObservations,
-            link: AgentControls.Link(isReadOnly: isReadOnly, isOffline: isOffline, agentStatus: agentStatus ?? .unknown))
+            link: AgentControls.Link(
+                isReadOnly: isReadOnly, isOffline: isOffline, hasAgent: currentAgent != nil, hasPrompt: prompt != nil,
+                agentStatus: agentStatus ?? .unknown))
     }
+
+    /// 切換程序(#561 第二步):權限模式輪替、模型與 effort sheet;狀態與流程都在它裡面。
+    let controlSwitcher = AgentControlSwitcher()
 
     /// 這個聊天看過的控制來源(畫面狀態列、畫面認出的權限模式、看過的模式)。
     public private(set) var controlObservations = AgentControlObservations()
@@ -2113,7 +2110,7 @@ public final class ConversationModel {
     public static func effortName(of level: String) -> String? { AgentControls.effortName(of: level) }
 
     /// 模型選擇 sheet 開著(從送出 `/model` 到選定或取消)。畫面據此不在對話裡重複畫同一張面板卡片。
-    public private(set) var isChoosingModel = false
+    public var isChoosingModel: Bool { controlSwitcher.isChoosingModel }
 
     /// 模型膠囊要顯示:Claude(可切換),或 Codex 有讀到目前模型(只顯示、說明不能在 app 內切換,#384)。
     public var showsModelCapsule: Bool { controls.showsModelCapsule }
@@ -2125,48 +2122,10 @@ public final class ConversationModel {
             && prompt == nil && panel == nil && agentStatus != .working && agentStatus != .blocked && !isChoosingModel
     }
 
-    /// 模型選擇為什麼停用(#384);可選時是 `nil`。停用時膠囊仍可點開 sheet,sheet 只顯示目前模型與這個原因(說明同權限模式)。
-    public enum ModelChoiceLock: Equatable, Sendable {
-        case readOnlyDevice
-        case offline
-        /// Agent 在等使用者回覆:這時 `/model` 面板不會出現。
-        case waitingForYou
-        /// Agent 在工作:`/model` 會排進佇列。
-        case working
-        /// 這個 Agent 沒有在 app 內切換模型的功能(Codex 等)。
-        case agentLacksFeature
-        /// 這個 Agent 的切換方式還沒驗證過,所以不開放。
-        case notVerified(documentedFor: String)
-        /// 這台主機做不到。
-        case hostCannot
+    public typealias ModelChoiceLock = AgentControls.ModelChoiceLock
 
-        public init(_ unavailability: FeatureUnavailability) {
-            switch unavailability {
-            case .agentLacksFeature: self = .agentLacksFeature
-            case .notVerified(let version): self = .notVerified(documentedFor: version)
-            case .hostCannot: self = .hostCannot
-            }
-        }
-
-        /// 對應三種「不能用」的原因;因為唯讀、離線、等你回覆、工作中而停用的不算。
-        public var unavailability: FeatureUnavailability? {
-            switch self {
-            case .agentLacksFeature: .agentLacksFeature
-            case .notVerified(let version): .notVerified(documentedFor: version)
-            case .hostCannot: .hostCannot
-            case .readOnlyDevice, .offline, .waitingForYou, .working: nil
-            }
-        }
-    }
-
-    public var modelChoiceLock: ModelChoiceLock? {
-        if currentAgent != nil, let reason = screenDialect.modelChoiceUnavailability { return ModelChoiceLock(reason) }
-        if isReadOnly { return .readOnlyDevice }
-        if isOffline { return .offline }
-        if agentStatus == .blocked || prompt != nil { return .waitingForYou }
-        if agentStatus == .working { return .working }
-        return nil
-    }
+    /// 模型選擇為什麼停用(#384);可選時是 `nil`。規則只在 `AgentControls`。
+    public var modelChoiceLock: ModelChoiceLock? { controls.modelChoiceLock }
 
     /// 模型選擇 sheet 的頁面:模型列,或投入程度子頁(#384)。
     public enum ModelSheetPage: Equatable, Sendable {
@@ -2174,18 +2133,11 @@ public final class ConversationModel {
         case effort
     }
 
-    public private(set) var modelSheetPage: ModelSheetPage = .models
+    public var modelSheetPage: ModelSheetPage { controlSwitcher.modelSheetPage }
     /// 模型切換的按鍵送出中(膠囊顯示「切換中」)。
-    public private(set) var isSwitchingModel = false
+    public var isSwitchingModel: Bool { controlSwitcher.isSwitchingModel }
     /// 面板監看期滿還是讀不到(解析失敗或畫面不是預期的面板):sheet 只顯示目前模型,不開自己的選單。
-    public private(set) var modelPanelUnreadable = false
-
-    private struct EffortBaseline {
-        var level: Int?
-        var ultracode: Bool?
-    }
-
-    @ObservationIgnored private var effortBaseline: EffortBaseline?
+    public var modelPanelUnreadable: Bool { controlSwitcher.modelPanelUnreadable }
 
     // MARK: - 模型目錄(#385)
 
@@ -2195,7 +2147,7 @@ public final class ConversationModel {
 
     @ObservationIgnored private var catalogTask: Task<Void, Never>?
 
-    private func refreshModelCatalog() {
+    package func refreshModelCatalog() {
         guard let provider = modelCatalogProvider else { return }
         catalogTask?.cancel()
         catalogTask = Task { [weak self] in
@@ -2220,146 +2172,42 @@ public final class ConversationModel {
         currentModelEntry?.effort(level)
     }
 
-    /// 點模型膠囊:送 `/model`(不產生回音泡泡),之後由既有的面板監看讀到畫面上的面板。
-    /// 什麼都沒送出(Agent 不在、對話已變更、唯讀…)時 sheet 只顯示目前模型與原因,原因放在 `notice`。
-    public func beginChoosingModel() async {
-        guard canChooseModel else { return }
-        isChoosingModel = true
-        modelSheetPage = .models
-        modelPanelUnreadable = false
-        effortBaseline = nil
-        notice = nil
-        refreshModelCatalog()
-        await sendModelCommand()
-    }
+    // MARK: - 模型與 effort 切換(程序在 `AgentControlSwitcher`,#561)
 
-    private func sendModelCommand() async {
-        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
-        let result = await safeSend.send("/model", to: destination(expectedSession: boundSessionID ?? knownSessionID))
-        switch result {
-        case .submittedCommand:
-            watchForPanel()
-        case .noResponse:
-            notice = .noResponse
-            isChoosingModel = false
-        case .notSent(let reason):
-            if let target = Self.notice(for: reason) { notice = target }
-            isChoosingModel = false
-        default:
-            isChoosingModel = false
-        }
-    }
+    /// 點模型膠囊:送 `/model`(不產生回音泡泡),之後由既有的面板監看讀到畫面上的面板。
+    public func beginChoosingModel() async { await controlSwitcher.beginChoosingModel() }
 
     /// 在 sheet 點選一個模型:移動面板游標到那一列,再按面板自己的 `s`(只用在這個 session;永不送數字)。
-    /// 按鍵送不出去就維持原模型,`notice` 說明。
-    public func chooseModel(_ option: SlashPanelOption) async {
-        guard let panel, isChoosingModel, modelSheetPage == .models else { return }
-        isSwitchingModel = true
-        defer { isSwitchingModel = false }
-        guard await operatePanel(.select(option)) else {
-            notice = .modelSwitchFailed
-            isChoosingModel = false
-            return
-        }
-        // 面板的 Enter 是「設為預設」(寫進使用者設定);膠囊只改這個 session,所以有 `s`(只用在這個 session)就按它。
-        if let confirm = panel.actions.first(where: { $0.key == "s" }) ?? panel.actions.first(where: { $0.key == "enter" }) {
-            guard await operatePanel(.action(confirm)) else {
-                notice = .modelSwitchFailed
-                isChoosingModel = false
-                return
-            }
-        }
-        isChoosingModel = false
-    }
+    public func chooseModel(_ option: SlashPanelOption) async { await controlSwitcher.chooseModel(option) }
 
-    /// sheet 關閉(選定後或使用者下滑／按完成):面板還開著就取消(在投入程度子頁且有改動則確認),不改模型。
-    public func finishChoosingModel() async {
-        guard isChoosingModel else { return }
-        isChoosingModel = false
-        let key = modelSheetPage == .effort && effortChanged ? "enter" : "esc"
-        modelSheetPage = .models
-        effortBaseline = nil
-        if let action = panel?.actions.first(where: { $0.key == key }) {
-            await operatePanel(.action(action))
-        }
-    }
-
-    // MARK: - 投入程度子頁(#384)
+    /// sheet 關閉(選定後或使用者下滑／按完成):面板還開著就取消,不改模型。
+    public func finishChoosingModel() async { await controlSwitcher.finishChoosingModel() }
 
     /// 子頁上的層級滑桿(讀到 `/effort` 面板後才有)。
-    public var effortSlider: SlashPanelSlider? { modelSheetPage == .effort ? panel?.slider : nil }
+    public var effortSlider: SlashPanelSlider? { controlSwitcher.effortSlider }
 
-    /// Ultracode 開關只在目前模型支援 xhigh 時出現:面板有開關,且層級含 xhigh。
-    public var showsUltracode: Bool {
-        guard modelSheetPage == .effort, let panel, panel.ultracode != nil, let slider = panel.slider else { return false }
-        return slider.levels.contains { $0.lowercased() == "xhigh" }
-    }
+    /// Ultracode 開關只在目前模型支援 xhigh 時出現。
+    public var showsUltracode: Bool { controlSwitcher.showsUltracode }
 
-    public var ultracodeIsOn: Bool { panel?.ultracode == true }
+    public var ultracodeIsOn: Bool { controlSwitcher.ultracodeIsOn }
 
     /// 子頁開著後層級或 Ultracode 與剛進來時不同。
-    public var effortChanged: Bool {
-        guard modelSheetPage == .effort, let baseline = effortBaseline, let panel, let slider = panel.slider else { return false }
-        return slider.current != baseline.level || panel.ultracode != baseline.ultracode
-    }
+    public var effortChanged: Bool { controlSwitcher.effortChanged }
 
     /// 點「投入程度」列:先 Esc 收掉 `/model` 面板(不改模型),再送 `/effort` 讀滑桿面板。
-    public func openEffortPage() async {
-        guard isChoosingModel, modelSheetPage == .models, !isOperatingPanel else { return }
-        if let esc = panel?.actions.first(where: { $0.key == "esc" }) {
-            await operatePanel(.action(esc))
-        }
-        panel = nil
-        modelSheetPage = .effort
-        effortBaseline = nil
-        modelPanelUnreadable = false
-        notice = nil
-        await sendEffortCommand()
-    }
-
-    private func sendEffortCommand() async {
-        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
-        let result = await safeSend.send("/effort", to: destination(expectedSession: boundSessionID ?? knownSessionID))
-        if result == .submittedCommand {
-            watchForPanel()
-        } else {
-            if result == .noResponse { notice = .noResponse }
-            if case .notSent(let reason) = result, let target = Self.notice(for: reason) { notice = target }
-            panelWatchUntil = nil
-            updatePanelReadability()
-        }
-    }
+    public func openEffortPage() async { await controlSwitcher.openEffortPage() }
 
     /// 點一個層級:只移動滑桿(送方向鍵),離開子頁時才確認。
-    public func chooseEffortLevel(_ level: Int) async {
-        guard modelSheetPage == .effort else { return }
-        await operatePanel(.level(level))
-    }
+    public func chooseEffortLevel(_ level: Int) async { await controlSwitcher.chooseEffortLevel(level) }
 
     /// 切換 Ultracode(Tab)。
-    public func toggleUltracode() async {
-        guard showsUltracode else { return }
-        await operatePanel(.toggleUltracode)
-    }
+    public func toggleUltracode() async { await controlSwitcher.toggleUltracode() }
 
-    /// 離開子頁:有改動就按 Enter 確認(成為新 session 的預設),沒有就 Esc;接著重開 `/model` 回到模型列。
-    public func closeEffortPage() async {
-        guard modelSheetPage == .effort else { return }
-        let key = effortChanged ? "enter" : "esc"
-        let action = panel?.slider != nil ? panel?.actions.first(where: { $0.key == key }) : nil
-        modelSheetPage = .models
-        effortBaseline = nil
-        if let action { await operatePanel(.action(action)) }
-        panel = nil
-        modelPanelUnreadable = false
-        await sendModelCommand()
-    }
+    /// 離開子頁:有改動就按 Enter 確認,沒有就 Esc;接著重開 `/model` 回到模型列。
+    public func closeEffortPage() async { await controlSwitcher.closeEffortPage() }
 
-    /// 面板 sheet 被使用者關掉(下滑或「完成」)時：面板還開著就按 Esc 取消，不改設定(#366)。
-    public func dismissPanel() async {
-        guard !isChoosingModel, let esc = panel?.actions.first(where: { $0.key == "esc" }) else { return }
-        await operatePanel(.action(esc))
-    }
+    /// 面板 sheet 被使用者關掉(下滑或「完成」)時:面板還開著就按 Esc 取消,不改設定(#366)。
+    public func dismissPanel() async { await controlSwitcher.dismissPanel() }
 
     // MARK: - 畫面狀態列(#446)
 
@@ -2421,13 +2269,9 @@ public final class ConversationModel {
         controlObservations.noteTranscript(lines: lines)
     }
 
-    private func observeScreen(_ mode: AgentPermissionMode) {
-        controlObservations.observeScreen(mode: mode, transcriptValue: metadata.permissionMode)
-    }
     /// 正在切到這個模式(膠囊顯示進行中)。
-    public private(set) var switchingPermissionMode: AgentPermissionMode?
-    public var isSwitchingPermissionMode: Bool { switchingPermissionMode != nil }
-    @ObservationIgnored private var permissionModeProbed = false
+    public var switchingPermissionMode: AgentPermissionMode? { controlSwitcher.switchingPermissionMode }
+    public var isSwitchingPermissionMode: Bool { controlSwitcher.isSwitchingPermissionMode }
 
     /// 只有畫面方言有權限模式(Claude Code)且驗證過才開放切換。
     public var supportsPermissionMode: Bool { controls.supportsPermissionMode }
@@ -2443,104 +2287,21 @@ public final class ConversationModel {
     /// 讀一次畫面:對話紀錄還沒有模式時用它當目前模式,紀錄有值就以紀錄為準(畫面只用來記錄看過哪些模式);認不出沿用上次。
     public func refreshPermissionMode() async {
         screens.begin()
-        await readPermissionModeFromScreen()
-    }
-
-    private func readPermissionModeFromScreen() async {
-        guard supportsPermissionMode, let mode = await readPermissionMode() else { return }
-        if metadata.permissionMode == nil {
-            observeScreen(mode)
-        } else {
-            controlObservations.noteSeen(mode: mode)
-        }
-    }
-
-    /// 每次 `run` 第一輪輪詢後讀一次(平常的輪詢不讀畫面,指令預算)。
-    private func probePermissionModeIfNeeded() async {
-        guard !permissionModeProbed, supportsPermissionMode, !isReadOnly, !isOffline else { return }
-        permissionModeProbed = true
-        await readPermissionModeFromScreen()
+        await controlSwitcher.readPermissionModeFromScreen()
     }
 
     /// 最近一次切換失敗的原因(#306);切換成功、再試或換 Agent 時清掉。膠囊的 sheet 顯示說明與「再試一次」。
-    public private(set) var permissionModeFailure: PermissionModeFailure?
+    public var permissionModeFailure: PermissionModeFailure? { controlSwitcher.permissionModeFailure }
 
     /// 對上次失敗的目標再切一次。
-    public func retryPermissionMode() async {
-        guard let target = permissionModeFailure?.target else { return }
-        await setPermissionMode(target)
-    }
+    public func retryPermissionMode() async { await controlSwitcher.retryPermissionMode() }
 
-    /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式,最多 `maximumSwitchAttempts` 次。
-    /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面;按鍵帶 `expected_session`,對話已換掉就不按。
-    /// 目標是略過權限或自動時,輪替一圈回到看過的模式就停(這個 session 沒開,再按也不會出現)。
-    /// 失敗記在 `permissionModeFailure`,可再試;離開聊天(取消)時直接結束、不算失敗。
-    public func setPermissionMode(_ target: AgentPermissionMode) async {
-        guard supportsPermissionMode, !isSwitchingPermissionMode, target.isSwitchable else { return }
-        // 有自己輪替的 Agent:目標不在輪替裡(例如略過權限)按不出來,一個鍵都不送。
-        if let cycle = screenDialect.permissionModeCycle, !cycle.contains(target) { return }
-        guard !isReadOnly else {
-            notice = .readOnlyDevice
-            return
-        }
-        // 離線,或 Agent 在等你回覆(這時 Shift+Tab 會變成「核准」):一個鍵都不送。
-        guard permissionModeLock == nil else { return }
-        permissionModeFailure = nil
-        switchingPermissionMode = target
-        defer { switchingPermissionMode = nil }
-        guard var current = await readPermissionMode(verifying: true) else {
-            permissionModeFailure = .unreadable(target: target)
-            return
-        }
-        observeScreen(current)
-        let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
-        var visited: Set<AgentPermissionMode> = [current]
-        var attempts = 0
-        while current != target, attempts < AgentPermissionMode.maximumSwitchAttempts {
-            do {
-                try await client.sendKeys(paneID: paneID, keys: ["shift+tab"], expecting: expectation)
-            } catch is CancellationError {
-                return
-            } catch {
-                permissionModeFailure = error as? HostServiceError == .paneChanged
-                    ? .paneChanged(target: target) : .keysFailed(target: target)
-                haptics.play(.error)
-                return
-            }
-            attempts += 1
-            do { try await sleep(.milliseconds(300)) } catch { return }
-            guard var read = await readPermissionMode(verifying: true) else { break }
-            // 有自己輪替的 Agent:畫面可能還沒重畫(讀到的模式沒變),先再讀幾次,不要重複按而跳過目標。
-            var rereads = 0
-            while screenDialect.permissionModeCycle != nil, read == current, rereads < Self.staleModeRereads {
-                rereads += 1
-                do { try await sleep(.milliseconds(300)) } catch { return }
-                guard let again = await readPermissionMode(verifying: true) else { break }
-                read = again
-            }
-            let wrapped = read != current && !visited.insert(read).inserted
-            current = read
-            observeScreen(read)
-            if wrapped, current != target {
-                permissionModeFailure = .modeUnavailable(target)
-                haptics.play(.error)
-                return
-            }
-        }
-        if current != target {
-            permissionModeFailure = .notReached(attempts: attempts, target: target)
-            haptics.play(.error)
-        } else {
-            haptics.play(.selection)
-        }
-    }
-
-    /// 按了 Shift+Tab 後畫面沒變時最多再讀幾次(每次隔 0.3 秒)才再按。
-    private static let staleModeRereads = 2
+    /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式(程序與驗證在 `AgentControlSwitcher`)。
+    public func setPermissionMode(_ target: AgentPermissionMode) async { await controlSwitcher.setPermissionMode(target) }
 
     /// 讀畫面認出目前的權限模式(依畫面方言);狀態列方言順便更新狀態列,讓膠囊與標題跟著變。
     /// `verifying` 為真(切換後確認)一律重讀;探測時與這輪其他用途共用畫面(#559)。
-    private func readPermissionMode(verifying: Bool = false) async -> AgentPermissionMode? {
+    fileprivate func readPermissionMode(verifying: Bool = false) async -> AgentPermissionMode? {
         guard let screen = await readScreen(for: verifying ? .permissionModeVerify : .permissionMode) else { return nil }
         if screenDialect.statusLine != nil, let line = screenDialect.readStatusLine(in: screen) {
             controlObservations.observeStatusLine(line)
@@ -2877,5 +2638,59 @@ extension ConversationModel {
         panelWatchUntil = now
         entriesRevision &+= 1
         onTranscriptWork = {}
+    }
+}
+
+// MARK: - 切換程序要的「手」(#561)
+
+extension ConversationModel: AgentControlSwitchingHost {
+    package var permissionModeCycle: [AgentPermissionMode]? { screenDialect.permissionModeCycle }
+    package var isWatchingPanel: Bool { panelWatchUntil.map { clock.now() < $0 } ?? false }
+
+    package func clearPanel() { panel = nil }
+
+    package func setNotice(_ notice: SendNotice?) { self.notice = notice }
+
+    package func cancelPanelWatch() { panelWatchUntil = nil }
+
+    package func readScreenPermissionMode(verifying: Bool) async -> AgentPermissionMode? { await readPermissionMode(verifying: verifying) }
+
+    package func recordSwitchedScreenMode(_ mode: AgentPermissionMode) {
+        controlObservations.observeScreen(mode: mode, transcriptValue: metadata.permissionMode)
+    }
+
+    package func recordProbedScreenMode(_ mode: AgentPermissionMode) {
+        if metadata.permissionMode == nil {
+            recordSwitchedScreenMode(mode)
+        } else {
+            controlObservations.noteSeen(mode: mode)
+        }
+    }
+
+    package func sendShiftTab() async throws {
+        try await client.sendKeys(
+            paneID: paneID, keys: ["shift+tab"], expecting: SendExpectation(session: boundSessionID ?? knownSessionID))
+    }
+
+    package func pause(_ duration: Duration) async throws { try await sleep(duration) }
+
+    package func play(_ feedback: HapticFeedback) { haptics.play(feedback) }
+
+    /// 送 slash 指令開面板並監看;沒送出時把原因放進提示。
+    package func sendPanelCommand(_ text: String) async -> Bool {
+        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
+        let result = await safeSend.send(text, to: destination(expectedSession: boundSessionID ?? knownSessionID))
+        switch result {
+        case .submittedCommand:
+            watchForPanel()
+            return true
+        case .noResponse:
+            notice = .noResponse
+        case .notSent(let reason):
+            if let target = Self.notice(for: reason) { notice = target }
+        default:
+            break
+        }
+        return false
     }
 }

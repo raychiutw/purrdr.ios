@@ -65,11 +65,20 @@ public struct AgentControls: Sendable, Equatable {
     public struct Link: Sendable, Equatable {
         public var isReadOnly: Bool
         public var isOffline: Bool
+        /// 已經讀到這個聊天的 Agent(方言的「做不到」原因要有 Agent 才算)。
+        public var hasAgent: Bool
+        /// 有問題在等使用者回答(`/model` 面板這時不會出現)。
+        public var hasPrompt: Bool
         public var agentStatus: AgentStatus
 
-        public init(isReadOnly: Bool = false, isOffline: Bool = false, agentStatus: AgentStatus = .unknown) {
+        public init(
+            isReadOnly: Bool = false, isOffline: Bool = false, hasAgent: Bool = false, hasPrompt: Bool = false,
+            agentStatus: AgentStatus = .unknown
+        ) {
             self.isReadOnly = isReadOnly
             self.isOffline = isOffline
+            self.hasAgent = hasAgent
+            self.hasPrompt = hasPrompt
             self.agentStatus = agentStatus
         }
     }
@@ -82,6 +91,40 @@ public struct AgentControls: Sendable, Equatable {
         case working
         /// Agent 在等使用者回覆:這時 Shift+Tab 會變成「核准」。
         case waitingForYou
+    }
+
+    /// 模型選擇為什麼停用(#384);可選時是 `nil`。停用時膠囊仍可點開 sheet,sheet 只顯示目前模型與這個原因。
+    public enum ModelChoiceLock: Equatable, Sendable {
+        case readOnlyDevice
+        case offline
+        /// Agent 在等使用者回覆:這時 `/model` 面板不會出現。
+        case waitingForYou
+        /// Agent 在工作:`/model` 會排進佇列。
+        case working
+        /// 這個 Agent 沒有在 app 內切換模型的功能(Codex 等)。
+        case agentLacksFeature
+        /// 這個 Agent 的切換方式還沒驗證過,所以不開放。
+        case notVerified(documentedFor: String)
+        /// 這台主機做不到。
+        case hostCannot
+
+        public init(_ unavailability: FeatureUnavailability) {
+            switch unavailability {
+            case .agentLacksFeature: self = .agentLacksFeature
+            case .notVerified(let version): self = .notVerified(documentedFor: version)
+            case .hostCannot: self = .hostCannot
+            }
+        }
+
+        /// 對應三種「不能用」的原因;因為唯讀、離線、等你回覆、工作中而停用的不算。
+        public var unavailability: FeatureUnavailability? {
+            switch self {
+            case .agentLacksFeature: .agentLacksFeature
+            case .notVerified(let version): .notVerified(documentedFor: version)
+            case .hostCannot: .hostCannot
+            case .readOnlyDevice, .offline, .waitingForYou, .working: nil
+            }
+        }
     }
 
     private let dialect: ScreenDialect
@@ -186,6 +229,15 @@ public struct AgentControls: Sendable, Equatable {
         if link.isOffline { return .offline }
         if link.agentStatus == .blocked { return .waitingForYou }
         if link.agentStatus == .working, dialect.switchesPermissionModeOnlyWhenIdle { return .working }
+        return nil
+    }
+
+    public var modelChoiceLock: ModelChoiceLock? {
+        if link.hasAgent, let reason = dialect.modelChoiceUnavailability { return ModelChoiceLock(reason) }
+        if link.isReadOnly { return .readOnlyDevice }
+        if link.isOffline { return .offline }
+        if link.agentStatus == .blocked || link.hasPrompt { return .waitingForYou }
+        if link.agentStatus == .working { return .working }
         return nil
     }
 
