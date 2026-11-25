@@ -166,6 +166,27 @@ struct AddHostGuideHTTPSTests {
         #expect(try rig.tokens.deviceToken(for: saved.id) == "token-paired")
     }
 
+    @Test("匯入配對連結只到確認頁:顯示完整位址、不送任何請求，按下測試才送(#573)")
+    func importedLinkWaitsForConfirmationBeforeAnyRequest() async throws {
+        let rig = try await Self.rig(shortcut: .importLink(Self.pairingURL))
+
+        #expect(rig.model.step == .test)
+        #expect(rig.model.awaitsTestConfirmation)
+        #expect(rig.model.connectionTarget == "\(Self.address.hostName):\(Self.address.port)")
+        #expect(rig.http.requests.isEmpty)
+
+        await rig.model.testConnection()
+
+        #expect(!rig.model.awaitsTestConfirmation)
+        #expect(!rig.http.requests.isEmpty)
+    }
+
+    @Test("自己一步步走到測試頁不需要再確認一次")
+    func manualWalkDoesNotAwaitConfirmation() async throws {
+        let model = try await Self.rig().model
+        #expect(!model.awaitsTestConfirmation)
+    }
+
     @Test("新增主機時的配對與撤銷也計入數據用量:記在即將儲存的那台主機底下(#353)")
     func pairingAndRevokeAreMetered() async throws {
         let rig = try await Self.rig(shortcut: .importLink(Self.pairingURL))

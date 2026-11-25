@@ -149,6 +149,13 @@ public final class AddHostGuideModel {
     /// 最後一頁的通知選項(`loadNotificationOffer()` 之後才有)。
     public private(set) var notificationOffer: NotificationOffer?
     public var phase: HostConnectionPhase { flow.phase }
+    /// 從外部連結直接到測試頁:先顯示位址，使用者按下才測試(`testConnection()` 之後為 `false`)。
+    public private(set) var awaitsTestConfirmation = false
+    /// 測試頁顯示的完整連線目標(`主機:Port`，SSH 前面加帳號)。
+    public var connectionTarget: String {
+        if kind == .https { return "\(pairAddress):\(pairPort)" }
+        return "\(username)@\(address):\(port)"
+    }
 
     @ObservationIgnored private let flow: HostConnectionFlow
     @ObservationIgnored private let credentials: HostCredentials
@@ -195,6 +202,7 @@ public final class AddHostGuideModel {
                 load(link.address)
                 pairingCode = link.pairingCode
                 step = .test
+                awaitsTestConfirmation = true
                 return
             }
             let shared = try HostShareLink.decode(url)
@@ -214,6 +222,7 @@ public final class AddHostGuideModel {
                 username = shared.endpoint.username
                 flow.acceptSharedPin(of: shared)
                 step = .test
+                awaitsTestConfirmation = true
             case .openSSH:
                 // 位址、Port、帳號與 host key 已帶入:只問電腦種類(金鑰指令要依它),再選登入方式,不問連線方式與位址。
                 kind = .ssh
@@ -537,6 +546,7 @@ public final class AddHostGuideModel {
     /// 測試連線:第一次連線會停在主機身分確認(`phase == .confirmHostKey`)。
     public func testConnection() async {
         guard let draft else { return }
+        awaitsTestConfirmation = false
         if step != .test { push(.test) }
         await flow.test(draft)
     }

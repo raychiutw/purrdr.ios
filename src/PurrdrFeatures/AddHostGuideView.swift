@@ -103,7 +103,7 @@ struct AddHostGuideView: View {
         // 進到測試連線那頁就開始測;失敗後按「再試一次」。
         .task(id: model.step) {
             if model.step == .pair, !model.pairAddress.isEmpty { manualExpanded = true }
-            if model.step == .test, model.phase == .editing { await model.testConnection() }
+            if model.step == .test, model.phase == .editing, !model.awaitsTestConfirmation { await model.testConnection() }
             if model.step == .keySetup { await model.loadDeviceKey() }
             if model.step == .finished { await model.loadNotificationOffer() }
         }
@@ -453,6 +453,19 @@ struct AddHostGuideView: View {
 
     @ViewBuilder
     private var testContent: some View {
+        if model.awaitsTestConfirmation {
+            Text(verbatim: model.connectionTarget)
+                .font(.title3.monospaced())
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("guide.target")
+        } else {
+            testResult
+        }
+    }
+
+    @ViewBuilder
+    private var testResult: some View {
         switch model.phase {
         case .confirmHostKey(let fingerprint):
             VStack(alignment: .leading, spacing: 12) {
@@ -693,6 +706,15 @@ struct AddHostGuideView: View {
 
     @ViewBuilder
     private var testPanel: some View {
+        if model.awaitsTestConfirmation {
+            primary("Test Connection", id: "guide.confirmTest", enabled: true) { Task { await model.testConnection() } }
+        } else {
+            testPanelResult
+        }
+    }
+
+    @ViewBuilder
+    private var testPanelResult: some View {
         switch model.phase {
         case .confirmHostKey:
             Text("Trust this host?")
