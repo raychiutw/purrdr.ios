@@ -210,7 +210,7 @@ public final class HostEditorModel {
         self.credentials = credentials
         self.hostService = hostService
         hasStoredDeviceToken = editing.map {
-            $0.connectionMethod.usesHostService && (try? hostService.tokens.deviceToken(for: $0.id)) != nil
+            $0.connectionMethod.usesHostService && !$0.needsReconfirmation && (try? hostService.tokens.deviceToken(for: $0.id)) != nil
         } ?? false
         guard let editing else { return }
         name = editing.name

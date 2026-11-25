@@ -168,9 +168,11 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
 extension SyncedHost {
     /// 套用到這支裝置的主機設定：只換同步的欄位;沒有這台主機時建立新的(OpenSSH 預設用這支裝置的金鑰)。
     /// HTTPS 主機的裝置權杖不同步，這支裝置要自己連線配對。標成 HTTPS 卻沒有位址時是 `nil`(無法套用)。
+    /// 既有主機的位址、主機服務位址或 host key 被改掉時保留新值，但標成需要重新確認(#572)。
     func applied(to existing: HostConfiguration?) -> HostConfiguration? {
         var host = existing ?? HostConfiguration(id: id, name: name, connection: .tailscaleSSH(.init(endpoint: endpoint)))
         host.name = name
+        if let existing, changesAddress(of: existing) { host.needsReconfirmation = true }
         let herdr = host.ssh?.herdr ?? HerdrInstallation()
         let settings = HostConfiguration.SSHSettings(endpoint: endpoint, herdr: herdr, hostKeyPin: hostKeyPin)
         switch connectionMethod {
@@ -183,5 +185,16 @@ extension SyncedHost {
             host.connection = .https(hostService)
         }
         return host
+    }
+
+    /// 同步來的位址或 host key 與這支裝置存的不同。
+    private func changesAddress(of existing: HostConfiguration) -> Bool {
+        switch connectionMethod {
+        case .https:
+            return hostService != existing.hostService
+        case .tailscaleSSH, .openSSH:
+            guard let saved = existing.ssh else { return true }
+            return endpoint != saved.endpoint || hostKeyPin != saved.hostKeyPin
+        }
     }
 }

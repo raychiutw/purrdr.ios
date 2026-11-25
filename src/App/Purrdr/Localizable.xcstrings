@@ -1682,6 +1682,17 @@
         }
       }
     },
+    "Another device changed this host. Check it before connecting. Nothing is sent until you do." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別台裝置改了這台主機。連線前請先確認；確認前不會送出任何資料。"
+          }
+        }
+      }
+    },
     "Another device took over this pane." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2646,6 +2657,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聊天"
+          }
+        }
+      }
+    },
+    "Check Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認主機"
+          }
+        }
+      }
+    },
+    "Check This Host Again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請再確認這台主機"
           }
         }
       }

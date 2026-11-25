@@ -157,6 +157,7 @@ struct HostSyncJournalTests {
             $0.hostKeyPin = newer.hostKeyPin
         }
         expected.name = "Renamed on iPad"
+        expected.needsReconfirmation = true
         #expect(outcome == HostSyncOutcome(saves: [expected]))
         #expect(journal.pendingChanges(hosts: [expected], now: Self.t3).isEmpty, "採用後台的版本後不再上傳")
     }

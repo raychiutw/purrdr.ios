@@ -321,7 +321,7 @@ public final class HostsModel {
             guard let configuration = hosts.first(where: { $0.id == id }) else { return nil }
             if case .https(let address) = configuration.connection {
                 // HTTPS 主機經主機服務讀(0.12.0 起,#392);還沒配對或不是真的主機服務連線(UI 測試)沒有來源。
-                guard agent.supportsHostService, !unpairedHostIDs.contains(id),
+                guard agent.supportsHostService, !unpairedHostIDs.contains(id), !configuration.needsReconfirmation,
                     let connection = hostServiceConnection(for: configuration, address: address) as? HTTPSHostConnection
                 else { return nil }
                 return .hostService(
@@ -377,6 +377,8 @@ public final class HostsModel {
         let status: HostOverview.Status
         if configuration == nil {
             status = .demo
+        } else if configuration?.needsReconfirmation == true {
+            status = .needsReconfirmation
         } else if let id, unpairedHostIDs.contains(id) {
             status = .needsPairing
         } else {
@@ -393,17 +395,17 @@ public final class HostsModel {
                 }
             }
         }
-        let pairedHostService = usesHostService && status != .needsPairing
+        let pairedHostService = usesHostService && status != .needsPairing && status != .needsReconfirmation
         let hasUsageSource: Bool = switch status {
-        case .demo, .needsPairing, .herdrTooOld: false
+        case .demo, .needsPairing, .needsReconfirmation, .herdrTooOld: false
         case .connecting, .online, .readOnly, .offline: true
         }
         return HostOverview(
             host: selected, name: name(of: selected), icon: icon(of: selected), status: status, connection: method,
             herdrVersion: herdrVersion, address: configuration?.hostService?.description,
             showsUsage: hasUsageSource, showsHostService: pairedHostService,
-            showsLoginShell: (configuration?.supportsLoginShell ?? true) && status != .needsPairing,
-            canShare: configuration != nil, hasHostSettings: configuration != nil && status != .needsPairing,
+            showsLoginShell: (configuration?.supportsLoginShell ?? true) && status != .needsPairing && status != .needsReconfirmation,
+            canShare: configuration != nil, hasHostSettings: configuration != nil && status != .needsPairing && status != .needsReconfirmation,
             isSaved: configuration != nil)
     }
 
@@ -417,7 +419,7 @@ public final class HostsModel {
     public func refreshOverviewFacts() async {
         // 主機 tab 出現時(列表多半已讀到快照),補上還沒設定過的主機的 Agent 設定(#477)。
         for host in hosts where host.enabledAgents == nil { await initializeAgentSettings(for: host.id, isNewHost: false) }
-        guard let host = selectedHost, case .https = host.connection, !unpairedHostIDs.contains(host.id),
+        guard let host = selectedHost, case .https = host.connection, !unpairedHostIDs.contains(host.id), !host.needsReconfirmation,
             let connection = hostStatusConnection(for: host.id)
         else { return }
         if let readOnly = try? await connection.isReadOnlyDevice() {
@@ -558,7 +560,7 @@ public final class HostsModel {
     /// 沒有已配對的 HTTPS 主機時不查最新版本。最新版本這次取不到時沿用上次取到的。
     public func checkHostServiceVersions() async {
         let targets = hosts.compactMap { host -> (UUID, any HostConnection)? in
-            guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id) else { return nil }
+            guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id), !host.needsReconfirmation else { return nil }
             return (host.id, hostServiceConnection(for: host, address: address))
         }
         guard !targets.isEmpty else { return }
@@ -573,7 +575,7 @@ public final class HostsModel {
     /// 主機編輯頁的主機服務與已配對裝置區塊(#290、#291)用的連線：已配對的 HTTPS 主機才有。
     public func hostStatusConnection(for id: UUID) -> (any HostConnection)? {
         guard let host = hosts.first(where: { $0.id == id }), case .https(let address) = host.connection,
-            !unpairedHostIDs.contains(id)
+            !unpairedHostIDs.contains(id), !host.needsReconfirmation
         else { return nil }
         return hostServiceConnection(for: host, address: address)
     }
@@ -789,7 +791,10 @@ public final class HostsModel {
         try credentials.secrets.setSecret(nil, for: id)
         try hostService.tokens.setDeviceToken(nil, for: id)
         try store.delete(id)
-        if let removed, let settings = removed.ssh {
+        // 還沒重新確認的主機不再連線:不對它(可能是被改掉的位址)送出密碼、私鑰或權杖(#572)。
+        if removed?.needsReconfirmation == true {
+            // 略過主機上的推播配對、公鑰與權杖清理。
+        } else if let removed, let settings = removed.ssh {
             forgetPush(of: removed, settings: settings, secret: secret)
             if hostConsent.isGranted(AuthorizedKeyInstaller.feature.id, host: id.uuidString) {
                 restoreDeviceKey(on: removed, settings: settings, secret: secret)
@@ -1019,6 +1024,7 @@ public final class HostsModel {
         guard case .host(let id) = host, let configuration = hosts.first(where: { $0.id == id }) else { return .demoHost }
         // 沒有裝置權杖連不上主機服務：先說明要配對(#295),配對後才看得到能不能裝。
         guard !unpairedHostIDs.contains(id) else { return .needsPairing }
+        guard !configuration.needsReconfirmation else { return .unsupported }
         guard members[host]?.push.isAvailable == true else { return .unsupported }
         // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
         guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
@@ -1111,6 +1117,12 @@ public final class HostsModel {
             return HostMember(
                 host: host, configuration: nil, channel: demoChannel, files: demoFiles, preferences: preferences.store(for: host),
                 push: pushService, consent: demoConsent)
+        }
+        // 同步改了位址或 host key、使用者還沒重新確認:不開任何連線(#572)。
+        if configuration.needsReconfirmation {
+            return HostMember(
+                host: host, configuration: configuration, channel: UnsupportedHostChannel(),
+                preferences: preferences.store(for: host), push: pushService, consent: hostConsent)
         }
         switch configuration.connection {
         case .https(let address):
@@ -1447,6 +1459,8 @@ public struct HostOverview: Equatable, Sendable {
         case offline(message: String, lastConnected: Date?)
         /// HTTPS 主機在這支裝置還沒有裝置權杖。
         case needsPairing
+        /// 主機同步改了位址或 host key(#572):使用者重新確認前不連線。
+        case needsReconfirmation
         /// herdr 低於 0.9.5。
         case herdrTooOld(version: String)
     }
