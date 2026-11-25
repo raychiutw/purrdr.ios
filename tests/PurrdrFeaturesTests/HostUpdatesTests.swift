@@ -161,6 +161,66 @@ struct HostUpdatesTests {
         #expect(await connection.requests.count == 6)
     }
 
+    static let layoutUpdated = Data(#"{"event":"layout_updated","data":{"type":"layout_updated","workspace_id":"w1"}}"#.utf8)
+
+    @Test("拖動分隔線的 layout.updated 連發：第一個立刻讀，之後以最小間隔限速，期間的事件不再各讀一次(#587)")
+    func layoutUpdatedBurstIsThrottled() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect(.snapshot, wire: Self.snapshot)
+        await connection.expectSubscription(wire: Self.started)
+        await Self.expectSnapshots(connection, count: 40)
+        let sleeper = RecordingSleeper { _ in false }
+        let (_, task) = Self.start(connection, sleep: sleeper.sleep)
+        defer { task.cancel() }
+        try await waitUntil { await connection.requests.count == 3 }
+
+        await connection.send(event: Self.layoutUpdated, toSubscription: 0)
+        try await waitUntil { await connection.requests.count == 4 }
+        try await waitUntil { await sleeper.requested == [HostUpdates.layoutMinimumInterval] }
+        for _ in 0..<30 { await connection.send(event: Self.layoutUpdated, toSubscription: 0) }
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(await connection.requests.count == 4, "限速期間讀了快照")
+    }
+
+    @Test("限速時間到後，期間的版面事件併成一次尾端讀取")
+    func layoutBurstTrailingRead() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect(.snapshot, wire: Self.snapshot)
+        await connection.expectSubscription(wire: Self.started)
+        await Self.expectSnapshots(connection, count: 10)
+        let (updates, task) = Self.start(connection, sleep: RecordingSleeper { _ in true }.sleep)
+        defer { task.cancel() }
+        try await waitUntil { await connection.requests.count == 3 }
+
+        await connection.hold("session.snapshot")
+        await connection.send(event: Self.layoutUpdated, toSubscription: 0)
+        try await waitUntil { await connection.heldCount == 1 }
+        for _ in 0..<5 { await connection.send(event: Self.layoutUpdated, toSubscription: 0) }
+        try await waitUntil { await MainActor.run { updates.hasQueuedResync } }
+        await connection.releaseHeld()
+        try await waitUntil { await connection.requests.count == 5 }
+        try await Self.barrier(connection, before: 5)
+        #expect(await connection.requests.count == 6, "期間的版面事件應只併成一次尾端讀取")
+    }
+
+    @Test("其他事件(狀態改變)不受版面限速影響:不等間隔")
+    func nonLayoutEventsAreNotThrottled() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect(.snapshot, wire: Self.snapshot)
+        await connection.expectSubscription(wire: Self.started)
+        await Self.expectSnapshots(connection, count: 6)
+        let sleeper = RecordingSleeper { _ in false }
+        let (_, task) = Self.start(connection, sleep: sleeper.sleep)
+        defer { task.cancel() }
+        try await waitUntil { await connection.requests.count == 3 }
+        await connection.send(event: Self.statusChanged(), toSubscription: 0)
+        try await waitUntil { await connection.requests.count == 4 }
+        await connection.send(event: Self.statusChanged("w1:pA"), toSubscription: 0)
+        try await waitUntil { await connection.requests.count == 5 }
+        #expect(await sleeper.requested.isEmpty)
+    }
+
     /// 第一次連上之後的(重)訂閱：以手上快照的 pane 訂閱，訂閱開始時讀一次快照對帳，不先讀。
     static func expectResubscription(_ connection: FakeHostConnection) async {
         await connection.expectSubscription(wire: Self.started)

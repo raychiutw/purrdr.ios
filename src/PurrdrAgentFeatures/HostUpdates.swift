@@ -97,6 +97,8 @@ public final class HostUpdates {
     @ObservationIgnored private var isReading = false
     /// 還沒讀快照處理的事件指名的 pane。
     @ObservationIgnored private var pendingNamedPanes: Set<String> = []
+    /// 還沒處理的事件裡有 `layout.updated` 以外的(它們不限速,#587)。
+    @ObservationIgnored private var pendingNonLayoutEvent = false
     /// 這一輪訂閱收到 ack 了(退避歸零)。
     @ObservationIgnored private var subscriptionStarted = false
 
@@ -162,6 +164,7 @@ public final class HostUpdates {
                 }
                 subscriptionStarted = false
                 pendingNamedPanes = []
+                pendingNonLayoutEvent = false
                 let triggers = coalesced(subscription)
                 defer {
                     endSubscription?()
@@ -173,7 +176,11 @@ public final class HostUpdates {
                     hasQueuedResync = false
                     let namedPanes = pendingNamedPanes
                     pendingNamedPanes = []
+                    let layoutOnly = !pendingNonLayoutEvent
+                    pendingNonLayoutEvent = false
                     try await refresh(namedPanes: namedPanes)
+                    // 拖動分隔線時 layout.updated 每一步都送:讀完後先等最小間隔,期間的事件併成下一次(尾端)讀取。
+                    if layoutOnly { try await sleep(Self.layoutMinimumInterval) }
                     if subscriptionStarted { isSubscribed = true }
                     if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
                 }
@@ -238,6 +245,9 @@ public final class HostUpdates {
     /// 為了重新開始而丟掉連線：接下來那次失敗不算讀不到。
     @ObservationIgnored private var isRestarting = false
 
+    /// 只有 `layout.updated` 觸發的讀取之間的最小間隔(#587):拖動分隔線時每一步都送,不限速會連續讀快照。
+    package static let layoutMinimumInterval: Duration = .milliseconds(500)
+
     /// 沒有事件訂閱可用時重讀的間隔。
     package static let pollingInterval: Duration = .seconds(30)
 
@@ -261,6 +271,11 @@ public final class HostUpdates {
         onSnapshot?(fresh)
     }
 
+    private static func isLayoutUpdated(_ event: HerdrEvent) -> Bool {
+        if case .event(let name, nil) = event { return name == "layout_updated" || name == "layout.updated" }
+        return false
+    }
+
     /// 把訂閱的事件併成「要重讀」的觸發：最多暫存一個，讀取期間的事件都併進它。
     /// `endSubscription` 能從外面結束它(結束時取消轉送，關掉底層的訂閱通道)。
     private func coalesced(_ events: AsyncThrowingStream<HerdrEvent, any Error>) -> AsyncThrowingStream<Void, any Error> {
@@ -269,6 +284,7 @@ public final class HostUpdates {
             do {
                 for try await event in events {
                     if event == .subscriptionStarted { self?.subscriptionStarted = true }
+                    if !Self.isLayoutUpdated(event) { self?.pendingNonLayoutEvent = true }
                     if case .event(_, let paneID?) = event { self?.pendingNamedPanes.insert(paneID) }
                     if self?.isReading == true { self?.hasQueuedResync = true }
                     continuation.yield()
