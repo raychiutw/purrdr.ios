@@ -215,6 +215,7 @@ struct PurrdrApp: App {
         if uiTesting {
             hitchMetrics = nil
         } else {
+            CrashExceptionHandler.installAtLaunch(recorder: hitchRecorder)
             let subscriber = HitchMetricKitSubscriber(recorder: hitchRecorder)
             subscriber.start()
             hitchMetrics = subscriber
