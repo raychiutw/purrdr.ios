@@ -212,6 +212,7 @@ struct JoinFlowPages: View {
                 Section {
                     Text("Couldn’t load subscription options. Check your connection and try again.")
                     Button("Try Again") { Task { await plus.loadPlans() } }
+                        .listAction()
                 }
             case .available:
                 Section {

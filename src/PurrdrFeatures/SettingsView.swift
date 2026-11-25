@@ -95,15 +95,19 @@ struct SettingsSections: View {
 
             Section {
                 Button("Show Welcome", systemImage: "hand.wave") { openWelcome() }
+                    .listAction()
                     .accessibilityIdentifier("settings.welcome")
                 Button("Rate Purrdr", systemImage: "star") { model.rateApp() }
+                    .listAction()
                     .accessibilityIdentifier("settings.rate")
                 Button("Support", systemImage: "questionmark.circle") { model.openSupport() }
+                    .listAction()
                     .accessibilityIdentifier("settings.support")
                 Button(
                     model.copiedDiagnostics ? "Copied" : "Copy Diagnostics",
                     systemImage: model.copiedDiagnostics ? "checkmark" : "document.on.document"
                 ) { model.copyDiagnostics() }
+                    .listAction()
                     .accessibilityIdentifier("settings.copyDiagnostics")
             } header: {
                 Text("Support")
@@ -122,6 +126,7 @@ struct SettingsSections: View {
                 LabeledContent("Version", value: model.appVersionText)
                     .accessibilityIdentifier("settings.version")
                 Button("Privacy Policy", systemImage: "hand.raised") { model.openPrivacyPolicy() }
+                    .listAction()
                     .accessibilityIdentifier("settings.privacy")
             } header: {
                 Text("About")
@@ -151,6 +156,7 @@ struct HitchLogSection: View {
                     #endif
                 }
             }
+            .listAction()
             .accessibilityIdentifier("settings.hitchLog.share")
             Button("Clear Records", systemImage: "trash", role: .destructive) {
                 Task { await model.clearHitchLog() }

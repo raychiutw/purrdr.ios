@@ -307,6 +307,7 @@ struct PushProblemRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Notifications need Purrdr Plus.", systemImage: "bell.badge")
                 Button("See Purrdr Plus", action: openPlus)
+                    .listAction()
                     .accessibilityIdentifier("settings.push.plus")
             }
             .accessibilityIdentifier("settings.push.problem")
@@ -314,6 +315,7 @@ struct PushProblemRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Notifications are off for Purrdr in iOS Settings.", systemImage: "bell.slash")
                 Button("Open Settings") { model.openSystemSettings() }
+                    .listAction()
                     .accessibilityIdentifier("settings.push.openSettings")
             }
             .accessibilityIdentifier("settings.push.problem")
@@ -356,6 +358,7 @@ struct HostServicePushUpdateRow: View {
                 .textSelection(.enabled)
             Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
                 .buttonStyle(.borderless)
+                .listAction()
         }
     }
 }

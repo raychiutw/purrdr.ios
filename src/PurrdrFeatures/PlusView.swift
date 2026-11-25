@@ -127,6 +127,7 @@ public struct PlusView: View {
             .accessibilityElement(children: .combine)
             if subscription.store == .appStore {
                 Button("Manage Subscription") { managing = true }
+                    .listAction()
                     .accessibilityIdentifier("plus.manage")
             }
         } footer: {
@@ -264,10 +265,12 @@ public struct PlusView: View {
             Button("Restore Purchases") {
                 if signedInMember == nil { signingIn = true } else { Task { await model.restore() } }
             }
+            .listAction()
             .accessibilityIdentifier("plus.restore")
             Button("Redeem Code") {
                 if signedInMember == nil { signingIn = true } else { redeeming = true }
             }
+            .listAction()
             .accessibilityIdentifier("plus.redeem")
         }
     }

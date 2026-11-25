@@ -451,6 +451,7 @@ struct AccountView: View {
                 }
                 Section {
                     Button("Sign Out") { confirmingSignOut = true }
+                        .listAction()
                         .accessibilityIdentifier("member.signOut")
                     Button("Delete Member", role: .destructive) { startDeletion() }
                         .accessibilityIdentifier("member.delete")
@@ -702,6 +703,7 @@ struct SignInDevicesView: View {
                     ErrorLabel(problem)
                         .accessibilityIdentifier("account.signInDevices.problem")
                     Button("Try Again") { Task { await model.load() } }
+                        .listAction()
                 }
             } footer: {
                 Text("Signing out another device means it has to sign in again. To sign out this device, use Sign Out on the account page.")
@@ -1123,6 +1125,7 @@ struct DeletionSubscriptionView: View {
             if notice == .appStore {
                 Section {
                     Button("Manage Subscription", action: manage)
+                        .listAction()
                         .accessibilityIdentifier("member.deleteSubscription.manage")
                 }
             }

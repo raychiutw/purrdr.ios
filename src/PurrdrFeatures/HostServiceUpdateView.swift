@@ -47,6 +47,7 @@ struct HostServiceUpdateView: View {
                 .textSelection(.enabled)
                 .accessibilityIdentifier("hostServiceUpdate.command.\(identifier)")
             Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
+                .listAction()
                 .accessibilityIdentifier("hostServiceUpdate.copy.\(identifier)")
         } header: {
             Text(title)
@@ -81,6 +82,7 @@ struct HostServiceCommandRows: View {
                 .textSelection(.enabled)
             Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
                 .buttonStyle(.borderless)
+                .listAction()
                 .accessibilityIdentifier("\(identifier).copy.\(key)")
         }
     }

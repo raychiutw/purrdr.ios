@@ -173,6 +173,7 @@ struct HostNotificationsPage: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Sign in to use notifications.", systemImage: "person.crop.circle")
                 Button("Sign In", action: openAccount)
+                    .listAction()
                     .accessibilityIdentifier("hosts.notifications.signIn")
             }
             .accessibilityIdentifier("settings.push.problem")
