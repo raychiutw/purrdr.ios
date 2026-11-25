@@ -163,7 +163,11 @@ public enum BlockedPromptParser {
                 }
                 continue
             }
-            guard current != nil else { continue }
+            guard let open = current else { continue }
+            if isSeparator(line), chatOptionFollows(after: index, in: lines, last: open.options.last?.number) {
+                // AskUserQuestion:分隔線之後的「Chat about this」仍屬於同一張問題卡。
+                continue
+            }
             if line.isBlank || isSeparator(line) {
                 close()
             } else {
@@ -173,6 +177,15 @@ public enum BlockedPromptParser {
         }
         close()
         return result
+    }
+
+    /// 分隔線之後(只隔空行)緊接著下一個編號的「Chat about this」。
+    private static func chatOptionFollows(after index: Int, in lines: [String], last: Int?) -> Bool {
+        guard let last else { return false }
+        var next = index + 1
+        while next < lines.count, lines[next].isBlank { next += 1 }
+        guard next < lines.count, let option = optionLine(lines[next]) else { return false }
+        return option.number == last + 1 && option.label == PromptOption.chatAboutThisLabel
     }
 
     private static func optionLine(_ line: String) -> OptionLine? {
