@@ -87,8 +87,12 @@ public struct TopNavigationView: View {
                                 notifyingHostCount: hosts.hostPushes.notifyingHostNames.count,
                                 isHostSyncOn: hostSync?.isEnabled ?? false,
                                 deviceCount: hosts.pushDevices.flatMap { $0.hasLoaded ? $0.devices.count : nil }),
-                            // 前往帳號頁:換成帳號 sheet(捲到對應區塊留給帳號頁自己)。
-                            open: { _ in navigation.sheet = .member }))
+                            // 功能列往右推入對應的頁面(#619),不換成帳號 sheet。
+                            destination: { feature in
+                                AnyView(PlusFeatureDestination(
+                                    feature: feature, member: member, plus: plus, pushes: hosts.hostPushes,
+                                    pushDevices: hosts.pushDevices, hostSync: hostSync, hosts: hosts, canRename: true))
+                            }))
                     }
                 case .welcome:
                     WelcomeView {

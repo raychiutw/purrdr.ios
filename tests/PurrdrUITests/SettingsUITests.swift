@@ -143,7 +143,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(copy.wait(for: NSPredicate(format: "label == %@", "Copied"), timeout: 5), "等待的條件沒有成立")
     }
 
-    /// 捲動卡頓記錄(診斷):開關預設開啟、可關閉再開;分享與清除按鈕在。只驗行為,不驗記錄內容。
+    /// 操作記錄(診斷):開關預設開啟、可關閉再開;分享與清除按鈕在。只驗行為,不驗記錄內容。
     @MainActor
     func testHitchLogSectionHasToggleShareAndClear() {
         let app = XCUIApplication.launchUITesting()
@@ -151,7 +151,9 @@ final class SettingsUITests: XCTestCase {
 
         let toggle = app.switches["settings.hitchLog"]
         app.scrollIntoView(toggle, search: .down)
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有「記錄捲動卡頓」開關")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有「操作記錄」開關")
+        XCTAssertEqual(toggle.label, "Operation Log")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "When Purrdr closes unexpectedly")).firstMatch.exists, "說明文字應已移除")
         XCTAssertEqual(toggle.value as? String, "1", "預設應該開啟")
         let share = app.buttons["settings.hitchLog.share"]
         XCTAssertTrue(share.exists, "沒有「分享診斷記錄」")

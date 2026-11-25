@@ -27,7 +27,6 @@ public struct DataUsageView: View {
     @Bindable var model: DataUsageModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var optionsSheet: OptionsSheet?
-    @State private var detailHostID: String?
     @State private var confirmsReset = false
     @State private var selectedDate: Date?
     /// 流量 tab 最右上角的帳號鈕(#390)。
@@ -62,8 +61,9 @@ public struct DataUsageView: View {
         .sheet(item: $optionsSheet) { sheet in
             DataUsageOptionsSheet(model: model, sheet: sheet)
         }
-        .sheet(item: Binding(get: { detailHostID.map(HostDetailID.init) }, set: { detailHostID = $0?.id })) { item in
-            DataUsageHostSheet(model: model, hostID: item.id)
+        // 主機明細是下一頁(#619):列尾 > 往右 push,左上「<」返回,tab bar 保留。
+        .navigationDestination(for: DataUsageHostRoute.self) { route in
+            DataUsageHostPage(model: model, hostID: route.hostID)
         }
         .confirmationDialog("Reset Statistics?", isPresented: $confirmsReset, titleVisibility: .visible) {
             Button("Reset Statistics", role: .destructive) { model.reset() }
@@ -180,7 +180,7 @@ public struct DataUsageView: View {
                 VStack(spacing: 0) {
                     ForEach(rows) { row in
                         if row.id != rows.first?.id { Divider().padding(.leading, 56) }
-                        Button { detailHostID = row.id } label: { HostUsageRow(row: row) }
+                        NavigationLink(value: DataUsageHostRoute(hostID: row.id)) { HostUsageRow(row: row) }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("dataUsage.host.\(row.id)")
                     }
@@ -218,8 +218,9 @@ public struct DataUsageView: View {
     }
 }
 
-private struct HostDetailID: Identifiable {
-    var id: String
+/// 流量頁點一台主機的目的地。
+struct DataUsageHostRoute: Hashable {
+    var hostID: String
 }
 
 // MARK: - 元件
@@ -357,44 +358,36 @@ private struct DataUsageOptionsSheet: View {
     }
 }
 
-/// 點一台主機:收到、送出、行動網路與 30 天合計。
-private struct DataUsageHostSheet: View {
+/// 點一台主機:收到、送出、行動網路與 30 天合計(下一頁,#619)。
+private struct DataUsageHostPage: View {
     let model: DataUsageModel
     let hostID: String
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            let detail = model.detail(forHost: hostID)
-            let row = model.hostRows.first { $0.id == hostID }
-            List {
-                Group {
-                    Section {
-                        LabeledContent("Received", value: DataUsageFormat.bytes(detail?.received ?? 0))
-                        LabeledContent("Sent", value: DataUsageFormat.bytes(detail?.sent ?? 0))
-                        LabeledContent("Cellular", value: DataUsageFormat.bytes(detail?.cellular ?? 0))
-                    } header: {
-                        Text(model.period.hostsHeader).foregroundStyle(.secondaryText)
-                    }
-                    Section {
-                        LabeledContent("Total", value: DataUsageFormat.bytes(detail?.thirtyDayTotal ?? 0))
-                    } header: {
-                        Text("Last 30 Days").foregroundStyle(.secondaryText)
-                    }
+        let detail = model.detail(forHost: hostID)
+        let row = model.hostRows.first { $0.id == hostID }
+        List {
+            Group {
+                Section {
+                    LabeledContent("Received", value: DataUsageFormat.bytes(detail?.received ?? 0))
+                    LabeledContent("Sent", value: DataUsageFormat.bytes(detail?.sent ?? 0))
+                    LabeledContent("Cellular", value: DataUsageFormat.bytes(detail?.cellular ?? 0))
+                } header: {
+                    Text(model.period.hostsHeader).foregroundStyle(.secondaryText)
                 }
-                // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
-                .listRowBackground(AppSurface.groupedRow)
+                Section {
+                    LabeledContent("Total", value: DataUsageFormat.bytes(detail?.thirtyDayTotal ?? 0))
+                } header: {
+                    Text("Last 30 Days").foregroundStyle(.secondaryText)
+                }
             }
-            .appGroupedList()
-            .monospacedDigit()
-            .accessibilityIdentifier("dataUsage.hostDetail")
-            .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Host") : (row?.name ?? ""))
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar { SheetCloseToolbar() }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+            .listRowBackground(AppSurface.groupedRow)
         }
-        .appSheet(detents: [.medium])
+        .appGroupedList()
+        .monospacedDigit()
+        .accessibilityIdentifier("dataUsage.hostDetail")
+        .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Host") : (row?.name ?? ""))
     }
 }
 

@@ -93,7 +93,7 @@ struct ShellRunView: View {
                                 .accessibilityIdentifier("conversation.shell.stdout")
                         }
                         if !visible.stderr.isEmpty {
-                            ErrorLabel(visible.stderr.joined(separator: "\n"))
+                            ErrorLabel(visible.stderr.joined(separator: "\n"), area: "ShellRunView")
                                 .accessibilityIdentifier("conversation.shell.stderr")
                         }
                     }

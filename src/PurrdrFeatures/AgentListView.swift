@@ -319,7 +319,8 @@ public struct AgentListView: View {
             }
         }
         // 版面圖選的 Pane:聊天推入對話(或在對話欄打開);Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
-        .workspaceActionsPresentation(actions: { model.actions(for: $0) }, presentation: presentation) { host, target in
+        .workspaceActionsPresentation(
+            actions: { model.actions(for: $0) }, snapshot: { model.snapshot(for: $0) }, presentation: presentation) { host, target in
             // 版面圖選的 Pane:Agent 開對話，終端機方塊開它的 Pane 終端機(兩者都以 pane 指定，見 `conversationScreen`)。
             switch target {
             case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
@@ -452,21 +453,23 @@ struct ConversationScreen: View {
                 menuSheet = .backgroundAgents
             }
             .task(id: model.canOpenChanges) { await model.refreshGitMenu() }
-            .sheet(isPresented: $showsLayout) {
-                Group {
+            // 顯示版面是下一頁(#619):從聊天再往下一層,左上「<」回聊天。
+            .navigationDestination(isPresented: $showsLayout) {
                 if let workspaceID = model.workspaceID, let snapshot = layoutSnapshot?() {
                     let label = snapshot.workspaces.first { $0.id == workspaceID }?.label ?? workspaceID
-                    SpacesLayoutSheet(
+                    SpacesLayoutPage(
                         workspaceLabel: label, layout: SpacesLayout(snapshot: snapshot, workspaceID: workspaceID),
                         onChoose: { pendingLayoutTarget = $0 })
                 }
-                }
             }
             .onChange(of: showsLayout) { _, shown in
-                // sheet 關閉後才開選到的 Pane(不能在關 sheet 的同一刻 push)。
+                // 返回聊天之後才開選到的 Pane(不能在返回的同一刻 push)。
                 guard !shown, let target = pendingLayoutTarget else { return }
                 pendingLayoutTarget = nil
-                openLayoutTarget?(target)
+                Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    openLayoutTarget?(target)
+                }
             }
             .navigationDestination(isPresented: Binding(get: { changes != nil }, set: { if !$0 { changes = nil } })) {
                 if let changes {

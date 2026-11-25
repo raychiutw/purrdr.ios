@@ -93,7 +93,7 @@ public final class SettingsModel {
         }
     }
 
-    /// 記錄捲動卡頓(診斷;預設開、只記數字不含對話內容、只存在這支手機,由使用者自己分享)。沒有記錄器時(例如測試)為 false。
+    /// 操作記錄(診斷:捲動卡頓與顯示給使用者的錯誤;預設開、只記數字與錯誤碼不含對話內容、只存在這支手機,由使用者自己分享)。沒有記錄器時(例如測試)為 false。
     public var recordsHitches: Bool {
         didSet { hitchRecorder?.isEnabled = recordsHitches }
     }

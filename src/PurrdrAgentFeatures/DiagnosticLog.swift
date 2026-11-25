@@ -33,6 +33,8 @@ public enum DiagnosticEntry: Equatable, Sendable {
     case crashReport(MetricKitCrashReport)
     /// 操作計時(#635):新增聊天／續接的步驟與 SSH 關鍵請求的耗時;只有名稱與毫秒數。
     case timing(OperationTiming)
+    /// 顯示給使用者的錯誤(操作記錄):只有類別、錯誤碼與功能區,不含訊息原文。
+    case error(ErrorRecord)
     /// 匯出檔開頭的一筆:匯出時間與目前的系統狀態。
     case meta(HitchSystemState, at: Date)
 }
@@ -128,6 +130,12 @@ public enum DiagnosticLogEncoder {
             object["name"] = timing.name
             object["ms"] = timing.milliseconds
             if timing.failed { object["failed"] = true }
+        case .error(let record):
+            object["kind"] = "error"
+            object["t"] = time(record.at)
+            object["category"] = record.category
+            object["code"] = record.code
+            object["area"] = record.area
         case .crashReport(let report):
             object["kind"] = "crashReport"
             object["t"] = time(report.timestamp)

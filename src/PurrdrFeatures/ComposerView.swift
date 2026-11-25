@@ -653,7 +653,7 @@ struct EchoBubbleView: View {
                 .foregroundStyle(.secondaryText)
         case .failed(let failure):
             HStack(spacing: 4) {
-                ErrorLabel(failure.text)
+                ErrorLabel(failure.text, area: "ComposerView")
                     .font(.caption)
                 Button(action: retry) { HitTarget("Retry") }
                     .font(.caption.weight(.semibold))
@@ -731,7 +731,7 @@ struct QueuedPromptBubbleView: View {
     private var status: some View {
         if let problem = prompt.problem {
             HStack(spacing: 4) {
-                ErrorLabel(problem.text)
+                ErrorLabel(problem.text, area: "ComposerView")
                     .accessibilityIdentifier("conversation.queued.problem")
                 Button(action: putBack) { HitTarget("Put Back") }
                     .fontWeight(.semibold)

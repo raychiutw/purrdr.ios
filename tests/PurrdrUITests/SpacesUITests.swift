@@ -53,6 +53,15 @@ final class SpacesUITests: XCTestCase {
         tab.tap()
         let shellBlock = app.buttons["layout.block.w3:p2"]
         XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "點 Tab 沒有開版面圖")
+        // 列尾 > 是 push(#619):左上返回、tab bar 保留;返回後回到列表,再點一次進去選方塊。
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "版面圖左上沒有返回鈕")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "版面圖沒有保留 tab bar")
+        XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(shellBlock.waitUntilGone(timeout: 5), "返回後版面圖還在")
+        XCTAssertTrue(app.reveal(tab))
+        tab.tap()
+        XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "再點 Tab 沒有開版面圖")
         shellBlock.tap()
 
         let status = app.element("terminal.status")

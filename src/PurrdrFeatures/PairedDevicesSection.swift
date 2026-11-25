@@ -28,14 +28,14 @@ struct PairedDevicesSection: View {
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("pairedDevices.loading")
         case .failed(let message):
-            ErrorLabel(message)
+            ErrorLabel(message, area: "PairedDevicesSection")
                 .accessibilityIdentifier("pairedDevices.error")
         case .loaded(let devices):
             ForEach(devices) { device in
                 row(device)
             }
             if let error = model.revocationError {
-                ErrorLabel(error)
+                ErrorLabel(error, area: "PairedDevicesSection")
                     .accessibilityIdentifier("pairedDevices.revokeError")
             }
         }
