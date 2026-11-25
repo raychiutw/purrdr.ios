@@ -32,6 +32,10 @@ struct PurrdrApp: App {
         backgroundScheduler = scheduler
         backgroundRetention = BackgroundRetentionController(scheduler: scheduler)
         _hosts = State(initialValue: root.hosts)
+        // 取檔快取(#591):記憶體警告時清空,需要時再從主機讀。
+        NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
+            HostFileCache.shared.removeAll()
+        }
     }
 
     /// 進背景時把流量用量寫檔:以 background task 撐到背景佇列寫完,主執行緒不等。
