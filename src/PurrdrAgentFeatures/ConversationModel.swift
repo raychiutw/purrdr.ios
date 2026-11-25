@@ -425,7 +425,7 @@ public final class ConversationModel {
     /// 畫面上的列：對話紀錄的項目，加上依時間併入的回音。
     public private(set) var entries: [ConversationEntry] = []
     /// 列表結構(列的 id 與順序)每變一次遞增。畫面觀察它，不必每次 body 都配置整個 id 陣列(#130)。
-    public private(set) var entriesRevision = 0
+    @ObservationIgnored public private(set) var entriesRevision = 0
     /// 時間軸目前的列(身分穩定,回音確認後仍沿用回音的 id);聊天列表用它的 id 當 diffable 的 identifier(#487)。
     public private(set) var rows: [ConversationRow] = []
     /// 時間軸每次產生變更時呼叫(聊天列表據此餵捲動決策者,#487);沒有變更不呼叫。
@@ -571,11 +571,11 @@ public final class ConversationModel {
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
     /// 對話紀錄的方言，依 Agent 設定檔(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
-    private var dialect: TranscriptDialect = .claude
+    @ObservationIgnored private var dialect: TranscriptDialect = .claude
     /// 解析時略過認不得的行(#449):交給診斷紀錄(只含種類名稱與數量);`nil` 不回報。
     public let onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
     /// 對話紀錄的解析與重建在背景做(#498);測試用:每次背景計算開頭呼叫(在背景執行緒上)。
-    package var onTranscriptWork: (@Sendable () -> Void)?
+    @ObservationIgnored package var onTranscriptWork: (@Sendable () -> Void)?
     /// 對話紀錄各段依到達順序套用的鎖:解析在背景做,結果回主執行緒以時間軸增量套用(`applyTimeline`)。
     private let applyGate = TranscriptSerialGate()
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
@@ -596,16 +596,16 @@ public final class ConversationModel {
     private var recent: [TranscriptMessage] = []
     /// `recent` 由哪幾段讀取組成(每段的 byte 起點與訊息數，依序、加總等於 `recent.count`)。修剪與寫快取都以整段為單位，
     /// 視窗起點因此是某一段的開頭，往上翻接得上、不缺訊息(#130)。
-    private var segments: [(start: Int, count: Int)] = []
+    @ObservationIgnored private var segments: [(start: Int, count: Int)] = []
     /// 畫面跟隨尾端(由畫面告知)。只有跟隨中才修剪最舊的訊息：讀者正在看的不會被拿掉。
     @ObservationIgnored public var isFollowingLatest = true
     /// 跟隨尾端時記憶體裡最多保留的訊息數(含往上翻的舊頁;與快取的上限相同)。超過時整段修剪最舊的，可以往上翻回來。
     public static let followingMessageLimit = CachedConversation.maxMessages
     /// 往上翻載入的舊訊息(不寫入快取)。
-    private var olderMessages: [TranscriptMessage] = []
+    @ObservationIgnored private var olderMessages: [TranscriptMessage] = []
     /// 對話時間軸:列身分由它分配,新內容只以增量餵給它(#481)。
     @ObservationIgnored private var timeline = ConversationTimeline()
-    private var waitingSince: Date?
+    @ObservationIgnored private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
     /// 知道 Agent 後預載 slash 清單(#469);之後每次輪詢檢查是否過期,超過 60 秒在背景重讀。
     private var currentAgent: Agent? {
@@ -628,17 +628,17 @@ public final class ConversationModel {
     public var transcriptStartsAfterFirstMessage: Bool { screenDialect.transcriptStartsAfterFirstMessage }
     /// Agent 所在的 workspace(更多選單的「顯示版面」用,#381)。
     public var workspaceID: String? { currentAgent?.workspaceID }
-    private var lastPolledStatus: AgentStatus?
+    @ObservationIgnored private var lastPolledStatus: AgentStatus?
     /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
     @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
-    private var lastPresenceSeq: UInt64 = 0
+    @ObservationIgnored private var lastPresenceSeq: UInt64 = 0
 
     // MARK: 離開期間摘要(#308)
 
     /// 上次離開這個聊天的時間(由 `MergedAgentListModel.awayStart(for:)` 接上;沒開過的聊天是 `nil`)。
     @ObservationIgnored public let awayStart: (@MainActor () -> Date?)?
     /// 第一次讀到離開起點時定下來的(離開起點，進來的時間);之後不變，聊天開著時發生的項目不會被算進去。
-    private var awayLatch: (from: Date, cutoff: Date)?
+    @ObservationIgnored private var awayLatch: (from: Date, cutoff: Date)?
     /// 離開超過 15 分鐘回來時的摘要;其餘為 `nil`。
     package private(set) var awaySummary: AwaySummary?
     /// 離開期間那段是否收合(只留最後一句)。
@@ -652,7 +652,7 @@ public final class ConversationModel {
     }
 
     /// app 進背景的時間(聊天一直開著時的離開起點，#308)。
-    private var backgroundedAt: Date?
+    @ObservationIgnored private var backgroundedAt: Date?
 
     /// app 進背景或回到前景(由畫面的 scenePhase 回報):進背景記起點，回來時離開起點與這次進來的時間重新定下來，
     /// 之後的摘要規則同進出聊天畫面(離開 15 分鐘以上才出現)。
@@ -672,7 +672,7 @@ public final class ConversationModel {
         awaySummary = awayLatch.flatMap { AwaySummary.make(items: items, awayFrom: $0.from, cutoff: $0.cutoff) }
     }
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
-    private var generation = 0
+    @ObservationIgnored private var generation = 0
 
     /// 聊天所在主機接上的來源與回呼(#566):建立時一次給齊,之後畫面不能改。
     public struct HostLinks {
@@ -1966,7 +1966,7 @@ public final class ConversationModel {
     /// 面板按鍵送出中(卡片上的操作暫時停用)。
     public private(set) var isOperatingPanel = false
     /// 面板監看到這個時間為止(送出 slash 指令或操作面板後 8 秒)。
-    private var panelWatchUntil: Date?
+    @ObservationIgnored private var panelWatchUntil: Date?
     @ObservationIgnored private var panelKickTask: Task<Void, Never>?
 
     /// 面板卡片的操作：送方向鍵或面板自己的動作鍵，**永不送數字**(R-C04)。送完 0.3 秒後重讀，並把監看延長 8 秒
@@ -2836,5 +2836,32 @@ public enum PermissionModeFailure: Equatable, Sendable {
         case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
         case .modeUnavailable: nil
         }
+    }
+}
+
+// MARK: - 觀察範圍的測試入口(#593)
+
+extension ConversationModel {
+    /// 沒有畫面讀的內部欄位(標 `@ObservationIgnored` 的那組)。測試在 `withObservationTracking` 裡讀它、再呼叫
+    /// `writeObservationIgnoredStateForTesting`,證明這些欄位的寫入不會通知觀察者。新增沒有畫面讀的欄位時加在這兩處。
+    package func readObservationIgnoredStateForTesting() {
+        _ = (olderMessages, segments, waitingSince, lastPolledStatus, lastPresenceSeq, awayLatch, backgroundedAt)
+        _ = (generation, dialect, panelWatchUntil, entriesRevision, onTranscriptWork)
+    }
+
+    /// 寫入上面那組欄位(每個都換成不同的值，確保沒標 ignored 時一定會通知)。
+    package func writeObservationIgnoredStateForTesting(message: TranscriptMessage, now: Date) {
+        olderMessages = [message]
+        segments = [(0, 1)]
+        waitingSince = now
+        lastPolledStatus = .working
+        lastPresenceSeq += 1
+        awayLatch = (now, now)
+        backgroundedAt = now
+        generation += 1
+        dialect = dialect == .claude ? .codex : .claude
+        panelWatchUntil = now
+        entriesRevision &+= 1
+        onTranscriptWork = {}
     }
 }
