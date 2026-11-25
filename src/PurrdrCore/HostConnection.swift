@@ -58,6 +58,77 @@ public protocol HostConnection: Sendable {
     /// 讀以 `end` 為終點的最後 `lines` 行；`maxBytes` 大於 0 時範圍不超過該 byte 數。
     func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk
 
+    // MARK: - 型別化操作:herdr 的結構與 Agent 操作(ADR-0015、#595 第二批)
+
+    /// 主機上 herdr 的版本(健康檢查,herdr 的 `ping`)。
+    func herdrVersion() async throws -> String
+
+    /// 主機上 herdr 的 agent 整合(`integration.list`)。HTTPS 沒有這個操作,丟 `HostServiceError.unsupported`。
+    func listIntegrations() async throws -> [AgentIntegration]
+
+    /// 在場回報(`pane.report_metadata`):讓桌機 herdr 側欄顯示「手機正在看這個 Agent」。HTTPS 沒有,丟 `unsupported`。
+    func reportPresence(paneID: String, model: String?, seq: UInt64) async throws
+
+    /// 重新命名 workspace。herdr 可能正規化 label,成功後應重讀 snapshot。
+    func renameWorkspace(_ workspaceID: String, to label: String) async throws
+
+    /// 重新命名 tab(HTTPS 要主機服務 0.13.1 起)。
+    func renameTab(_ tabID: String, to label: String) async throws
+
+    /// 關閉 tab(HTTPS 要主機服務 0.15.0 起)。
+    func closeTab(_ tabID: String) async throws
+
+    /// 關閉 workspace(不帶 `close_group`)。
+    func closeWorkspace(_ workspaceID: String) async throws
+
+    /// 以 workspace 所在的 git repo 為底建立 worktree 與新分支,開成新的 workspace。
+    func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace
+
+    /// 在 `cwd` 建立 workspace(不搶桌機焦點;期限 60 秒)。`label` 為 `nil` 時由 herdr 命名。
+    func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace
+
+    /// 在既有 workspace 新增 tab(HTTPS 要主機服務 0.15.0 起;期限 60 秒)。
+    func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab
+
+    /// 在 pane 的 shell 啟動 agent;回傳 agent 是否已就緒(見 `HerdrClient.startAgent`)。
+    func startAgent(_ request: AgentStartRequest) async throws -> Bool
+
+    /// 剛啟動的 agent 的就緒狀態(`agent.get`)。HTTPS 沒有這個操作,丟 `unsupported`。
+    func agentLaunchState(target: String) async throws -> AgentLaunchState
+
+    /// 資料夾過去的 agent session,新到舊(HTTPS 要主機服務 0.9.0 起的 `sessionResume`)。
+    func listSessions(cwd: String, agent: String) async throws -> [ResumableSession]
+
+    /// 送出 prompt(`agent.prompt`)。`wait` 有值時等 agent 進入 working 或 blocked。
+    /// 錯誤與期限同 `HerdrClient.prompt`:除了 herdr 的錯誤 envelope,其他失敗都代表不知道有沒有送到,絕不可重送。
+    func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply
+
+    /// 等 agent 進入 `until` 其中一個狀態;herdr 自己逾時回 `false`。HTTPS 沒有這個操作,丟 `unsupported`。
+    func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool
+
+    /// 訂閱事件:主機接受後第一項是 `.subscriptionStarted`,之後是事件;在它之前就結束算失敗。
+    /// 持續讀到主機那端結束、herdr 回錯誤(例如 `events_lost`)或呼叫端不再讀(此時關閉串流)。
+    func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error>
+
+    // MARK: - 型別化操作:對話紀錄的追蹤讀取、預覽、subagent、workflow、委派(#595 第二批 C)
+
+    /// 讀游標之後新增的完整行(`catchUp` 為真時從游標分段接著讀、落後多少都不回報落後太多);路徑與游標已驗證。
+    /// 檔案被換掉回 `.shrank`;檔案不在或讀不了丟 `TranscriptReadError`。
+    func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead
+
+    /// 列表預覽:每個聊天對話紀錄的檔尾原始內容(key 對應 `PreviewRequest.key`);沒有檔案或讀不到的聊天可以不在結果裡。
+    /// HTTPS 要主機服務 0.7.0 起(`HostServiceFeature.transcriptPreviewsAndDelegations`)。
+    func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody]
+
+    /// 呼叫 `callID` 啟動的 subagent 的對話紀錄路徑(`toolUseId` 完全相等;還沒有丟 `.absent`,不只一個丟 `.changed`)。
+    func locateSubagent(sessionFolder: String, callID: String) async throws -> String
+
+    /// workflow 進度:run 檔只在結束時寫,所以有 run 檔讀 run 檔,否則讀 journal;checksum 與 `knownChecksum` 相同回 `.unchanged`。
+    func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead
+
+    /// 父對話紀錄中指名這個委派(呼叫 id 或 agent id)的行。
+    func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead
+
     /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
     func beginQuickDisconnectDetection() async
 
@@ -105,6 +176,94 @@ extension HostConnection {
 
     public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
         try await TranscriptReader(connection: self).wireWindow(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
+    }
+}
+
+extension HostConnection {
+    public func herdrVersion() async throws -> String { try await HerdrClient(connection: self).wirePing() }
+    public func listIntegrations() async throws -> [AgentIntegration] { try await HerdrClient(connection: self).wireIntegrations() }
+    public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
+        try await HerdrClient(connection: self).wireReportPresence(paneID: paneID, model: model, seq: seq)
+    }
+    public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
+        try await HerdrClient(connection: self).wireRenameWorkspace(workspaceID, to: label)
+    }
+    public func renameTab(_ tabID: String, to label: String) async throws {
+        try await HerdrClient(connection: self).wireRenameTab(tabID, to: label)
+    }
+    public func closeTab(_ tabID: String) async throws { try await HerdrClient(connection: self).wireCloseTab(tabID) }
+    public func closeWorkspace(_ workspaceID: String) async throws { try await HerdrClient(connection: self).wireCloseWorkspace(workspaceID) }
+    public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
+        try await HerdrClient(connection: self).wireCreateWorktree(from: workspaceID, branch: branch)
+    }
+    public func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
+        try await HerdrClient(connection: self).wireCreateWorkspace(cwd: cwd, label: label)
+    }
+    public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
+        try await HerdrClient(connection: self).wireCreateTab(in: workspaceID, label: label)
+    }
+    public func startAgent(_ request: AgentStartRequest) async throws -> Bool { try await HerdrClient(connection: self).wireStartAgent(request) }
+    public func agentLaunchState(target: String) async throws -> AgentLaunchState {
+        try await HerdrClient(connection: self).wireAgentLaunchState(target: target)
+    }
+    public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
+        try await HerdrClient(connection: self).wireListSessions(cwd: cwd, agent: agent)
+    }
+    public func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
+        try await HerdrClient(connection: self).wirePrompt(target: target, text: text, wait: wait, expecting: expecting)
+    }
+    public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
+        try await HerdrClient(connection: self).wireWaitForAgent(target: target, until: until, timeout: timeout)
+    }
+    public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        try await HerdrClient(connection: self).wireSubscribe(subscriptions)
+    }
+    public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
+        try await TranscriptReader(connection: self).wireTail(path: path, from: cursor, limit: limit, catchUp: catchUp)
+    }
+    public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
+        try await TranscriptReader(connection: self).wirePreviews(requests)
+    }
+    public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
+        try await TranscriptReader(connection: self).wireLocateSubagent(sessionFolder: sessionFolder, callID: callID)
+    }
+    public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
+        try await TranscriptReader(connection: self).wireWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
+    }
+    public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
+        try await TranscriptReader(connection: self).wireDelegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
+    }
+}
+
+/// 建立 workspace 的結果:workspace 與 root pane,加上 root pane 所在的 tab(主機沒回報時為 `nil`,例如 HTTPS 主機服務)。
+public struct NewWorkspace: Sendable, Equatable {
+    public var workspace: CreatedWorkspace
+    public var rootTabID: String?
+
+    public init(workspace: CreatedWorkspace, rootTabID: String? = nil) {
+        self.workspace = workspace
+        self.rootTabID = rootTabID
+    }
+}
+
+/// 啟動 agent 的請求(見 `HerdrClient.startAgent`)。
+public struct AgentStartRequest: Sendable, Equatable {
+    public var name: String
+    public var kind: String
+    public var paneID: String
+    /// 交給 agent 的參數(CLI 的 `--` 之後)。
+    public var arguments: [String]
+    public var resumeSession: String?
+    /// herdr 等 agent 就緒的時間;我方期限再加 60 秒(見 `HerdrClient.startDeadline(timeout:)`)。
+    public var timeout: Duration
+
+    public init(name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration) {
+        self.name = name
+        self.kind = kind
+        self.paneID = paneID
+        self.arguments = arguments
+        self.resumeSession = resumeSession
+        self.timeout = timeout
     }
 }
 

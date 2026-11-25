@@ -49,11 +49,19 @@ public struct HerdrClient: Sendable {
 
     /// 健康檢查：伺服器版本(行為規格 §3.4 `ping`)。
     public func ping() async throws -> String {
+        try await connection.herdrVersion()
+    }
+
+    package func wirePing() async throws -> String {
         try await request(method: "ping", as: PingResult.self).version
     }
 
     /// 主機上 herdr 的 agent 整合(`integration.list`)。
     public func integrations() async throws -> [AgentIntegration] {
+        try await connection.listIntegrations()
+    }
+
+    package func wireIntegrations() async throws -> [AgentIntegration] {
         try await request(method: "integration.list", as: IntegrationListResult.self).integrations.map {
             AgentIntegration(
                 target: $0.target, label: $0.label ?? $0.target,
@@ -66,6 +74,10 @@ public struct HerdrClient: Sendable {
     /// `seq` 必須單調遞增且以時鐘起算:herdr 忽略不大於上次的 seq(即使過了 TTL),從 0 起算會在每次重開後隱形(R-H22)。
     /// 模型未知時省略該 token(空 token 在側欄是空欄)。純裝飾，呼叫端可忽略失敗。
     public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
+        try await connection.reportPresence(paneID: paneID, model: model, seq: seq)
+    }
+
+    package func wireReportPresence(paneID: String, model: String?, seq: UInt64) async throws {
         var tokens = ["phone": "on"]
         if let model, !model.isEmpty { tokens["model"] = String(model.prefix(80)) }
         let params = ReportMetadataParams(paneID: paneID, source: "purrdr:presence", tokens: tokens, ttlMs: 45_000, seq: seq)
@@ -93,6 +105,11 @@ public struct HerdrClient: Sendable {
     /// 持續讀事件，直到主機那端結束、herdr 回錯誤(例如 `events_lost`),或呼叫端不再讀(此時關閉串流)。
     /// 串流第一項是 `.subscriptionStarted`;在它之前就結束算失敗(行為規格 §3.7)。
     public func subscribe(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        try await connection.subscribeToEvents(subscriptions)
+    }
+
+    /// `subscribe` 的 herdr NDJSON 實作(型別化操作預設實作用)。
+    package func wireSubscribe(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
         let lines = try await connection.herdrEvents(Self.requestLine(method: "events.subscribe", params: SubscribeParams(subscriptions: subscriptions)))
         let (events, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
         let reader = Task {
@@ -129,17 +146,29 @@ public struct HerdrClient: Sendable {
 
     /// 重新命名 workspace(`workspace.rename`)。herdr 可能正規化 label,成功後應重讀 snapshot。
     public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
+        try await connection.renameWorkspace(workspaceID, to: label)
+    }
+
+    package func wireRenameWorkspace(_ workspaceID: String, to label: String) async throws {
         _ = try await request(method: "workspace.rename", params: RenameParams(workspaceID: workspaceID, label: label), as: TypedResult.self)
     }
 
     /// 重新命名 tab(`tab.rename`,herdr 0.9.5;#456)。herdr 可能正規化 label,成功後應重讀 snapshot。
     public func renameTab(_ tabID: String, to label: String) async throws {
+        try await connection.renameTab(tabID, to: label)
+    }
+
+    package func wireRenameTab(_ tabID: String, to label: String) async throws {
         _ = try await request(method: "tab.rename", params: TabRenameParams(tabID: tabID, label: label), as: TypedResult.self)
     }
 
     /// 關閉 tab(`tab.close`):裡面的 pane、程序都會停止。herdr 0.9.5 實測:關掉 workspace 最後一個 tab 時,
     /// workspace 也一併關閉(不是錯誤);連最後一個 workspace 也關掉時 herdr 會自己開一個新的空 workspace。
     public func closeTab(_ tabID: String) async throws {
+        try await connection.closeTab(tabID)
+    }
+
+    package func wireCloseTab(_ tabID: String) async throws {
         _ = try await request(method: "tab.close", params: TabIDParams(tabID: tabID), as: TypedResult.self)
     }
 
@@ -148,12 +177,20 @@ public struct HerdrClient: Sendable {
     /// 不帶 `close_group`:同 repo 的 worktree workspace 還開著時，herdr 回 `workspace_group_close_required`,
     /// 由使用者先關掉它們，而不是替他一起關(herdr CLI 文件「Worktrees」)。
     public func closeWorkspace(_ workspaceID: String) async throws {
+        try await connection.closeWorkspace(workspaceID)
+    }
+
+    package func wireCloseWorkspace(_ workspaceID: String) async throws {
         _ = try await request(method: "workspace.close", params: WorkspaceIDParams(workspaceID: workspaceID), as: TypedResult.self)
     }
 
     /// 以 workspace 所在的 git repo 為底建立 worktree 與新分支，並開成新的 workspace(`worktree.create`)。
     /// `focus:false`:不搶桌機的焦點。分支已存在時 herdr 直接 checkout,否則從 `HEAD` 建立。
     public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
+        try await connection.createWorktree(from: workspaceID, branch: branch)
+    }
+
+    package func wireCreateWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
         let result = try await request(
             method: "worktree.create", params: WorktreeCreateParams(workspaceID: workspaceID, branch: branch), as: WorktreeCreatedResult.self
         )
@@ -166,20 +203,35 @@ public struct HerdrClient: Sendable {
     /// `focus:false`:不搶桌機的焦點。`label` 為 `nil` 時由 herdr 命名。
     /// `tabLabel`(#532)有值時,建好後對新 tab 送 `tab.rename`;命名只是順手的事,失敗不讓新對話失敗。
     public func createWorkspace(cwd: String, label: String?, tabLabel: String? = nil) async throws -> CreatedWorkspace {
-        let result = try await request(
-            method: "workspace.create", params: WorkspaceCreateParams(cwd: cwd, label: label), as: WorktreeCreatedResult.self, deadline: .seconds(60)
-        )
-        if let tabLabel, let tabID = result.rootPane.tabID {
+        let created = try await connection.createWorkspace(cwd: cwd, label: label)
+        if let tabLabel, let tabID = created.rootTabID {
             try? await renameTab(tabID, to: tabLabel)
         }
-        return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
+        return created.workspace
     }
+
+    package func wireCreateWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
+        let result = try await request(
+            method: "workspace.create", params: WorkspaceCreateParams(cwd: cwd, label: label), as: WorktreeCreatedResult.self,
+            deadline: Self.createDeadline)
+        return NewWorkspace(
+            workspace: CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID),
+            rootTabID: result.rootPane.tabID)
+    }
+
+    /// 建立 workspace 與 tab 的我方期限(herdr 要建 PTY 與 shell)。
+    package static let createDeadline = Duration.seconds(60)
 
     /// 在既有 workspace 新增 tab(`tab.create`,#537;herdr 0.9.5 實測:不帶 `cwd` 沿用 workspace 的工作目錄,
     /// workspace 不存在回 `workspace_not_found`)。`focus:false`:不搶桌機的焦點。`label` 為 `nil` 時由 herdr 命名。
     public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
+        try await connection.createTab(in: workspaceID, label: label)
+    }
+
+    package func wireCreateTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
         let result = try await request(
-            method: "tab.create", params: TabCreateParams(workspaceID: workspaceID, label: label), as: TabCreatedResult.self, deadline: .seconds(60))
+            method: "tab.create", params: TabCreateParams(workspaceID: workspaceID, label: label), as: TabCreatedResult.self,
+            deadline: Self.createDeadline)
         return CreatedTab(workspaceID: workspaceID, tabID: result.tab.tabID, rootPaneID: result.rootPane.paneID)
     }
 
@@ -197,16 +249,28 @@ public struct HerdrClient: Sendable {
     public func startAgent(
         name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration
     ) async throws -> Bool {
+        try await connection.startAgent(AgentStartRequest(
+            name: name, kind: kind, paneID: paneID, arguments: arguments, resumeSession: resumeSession, timeout: timeout))
+    }
+
+    package func wireStartAgent(_ start: AgentStartRequest) async throws -> Bool {
         let params = AgentStartParams(
-            name: name, kind: kind, paneID: paneID, args: arguments.isEmpty ? nil : arguments, resumeSession: resumeSession,
-            timeoutMs: Self.milliseconds(timeout))
-        let result = try await request(method: "agent.start", params: params, as: AgentStartResult.self, deadline: timeout + .seconds(60))
+            name: start.name, kind: start.kind, paneID: start.paneID, args: start.arguments.isEmpty ? nil : start.arguments,
+            resumeSession: start.resumeSession, timeoutMs: Self.milliseconds(start.timeout))
+        let result = try await request(method: "agent.start", params: params, as: AgentStartResult.self, deadline: Self.startDeadline(timeout: start.timeout))
         return result.agent?.launchPending != true
     }
+
+    /// 我方期限 = herdr 的等待 + 60 秒。
+    package static func startDeadline(timeout: Duration) -> Duration { timeout + .seconds(60) }
 
     /// `agent.get`(`target` 是 root pane id):讀剛啟動的 agent 的就緒狀態(herdr 0.9.5 的 `result.agent`)。
     /// `agent.start` 回 `launch_pending` 後以它輪詢;沒有這個 agent 丟 `agent_not_found` 等 herdr 錯誤。
     public func agentLaunchState(target: String) async throws -> AgentLaunchState {
+        try await connection.agentLaunchState(target: target)
+    }
+
+    package func wireAgentLaunchState(target: String) async throws -> AgentLaunchState {
         let result = try await request(method: "agent.get", params: AgentGetParams(target: target), as: AgentGetResult.self)
         return AgentLaunchState(
             status: result.agent?.agentStatus.flatMap(AgentStatus.init(rawValue:)), launchPending: result.agent?.launchPending == true,
@@ -216,6 +280,10 @@ public struct HerdrClient: Sendable {
     /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。主機服務(HTTPS)的 `sessions.list`;
     /// SSH 由連線層以腳本列出(#535);版本太舊的主機服務丟未知 method 錯誤，呼叫端先以主機服務版本判斷。
     public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
+        try await connection.listSessions(cwd: cwd, agent: agent)
+    }
+
+    package func wireListSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
         let result = try await request(method: "sessions.list", params: SessionsListParams(cwd: cwd, agentKind: agent), as: SessionsListResult.self)
         return result.sessions.map { entry in
             ResumableSession(
@@ -234,18 +302,29 @@ public struct HerdrClient: Sendable {
     ///
     /// `expecting` 交給主機在送出前比對(`SendExpectation`);不符時丟 `HostServiceError.paneChanged`,什麼都沒送出。
     public func prompt(target: String, text: String, wait: Duration?, expecting: SendExpectation = .none) async throws -> PromptReply {
+        try await connection.sendPrompt(target: target, text: text, wait: wait, expecting: expecting)
+    }
+
+    package func wirePrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
         let params = Expecting(
             PromptParams(
                 target: target, text: text,
                 wait: wait.map { PromptParams.Wait(until: ["working", "blocked"], timeoutMs: Self.milliseconds($0)) }),
             await checked(expecting))
         let result = try await request(
-            method: "agent.prompt", params: params, as: PromptResult.self, deadline: (wait ?? .zero) + HostCommandDeadline.standard)
+            method: "agent.prompt", params: params, as: PromptResult.self, deadline: Self.promptDeadline(wait: wait))
         return PromptReply(writtenOnly: result.delivery == "written_to_pty")
     }
 
+    /// 我方期限 = herdr 的等待 + 20 秒(沒有等待是 20 秒)。
+    package static func promptDeadline(wait: Duration?) -> Duration { (wait ?? .zero) + HostCommandDeadline.standard }
+
     /// `agent.wait`:等 agent 進入 `until` 其中一個狀態。herdr 自己逾時回 `false`(`timeout` 錯誤);期限是等待 + 20 秒。
     public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
+        try await connection.waitForAgent(target: target, until: until, timeout: timeout)
+    }
+
+    package func wireWaitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
         let params = WaitParams(target: target, until: until.map(\.rawValue), timeoutMs: Self.milliseconds(timeout))
         do {
             _ = try await request(method: "agent.wait", params: params, as: TypedResult.self, deadline: timeout + HostCommandDeadline.standard)

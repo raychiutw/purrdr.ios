@@ -126,21 +126,45 @@ public actor HTTPSHostConnection: HostConnection {
     public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
         let line = try HerdrRequestLine(request)
         guard line.method == HerdrMethod.eventsSubscribe.rawValue else { throw HostServiceError.unsupported(line.method) }
-        let subscriptions = try JSONDecoder().decode(SubscribeParams.self, from: line.params).subscriptions.map {
-            HostServiceProtocol.EventSubscription(event: $0.type, paneId: $0.paneID)
+        let subscriptions = try JSONDecoder().decode(SubscribeParams.self, from: line.params).subscriptions.compactMap { subscription in
+            PurrdrCore.EventSubscription.EventType(rawValue: subscription.type).map { PurrdrCore.EventSubscription($0, paneID: subscription.paneID) }
         }
+        let events = try await subscribeToEvents(subscriptions)
+        let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
+        let relay = Task {
+            do {
+                for try await event in events {
+                    switch event {
+                    case .subscriptionStarted: continuation.yield(try HerdrResponseLine.subscriptionStarted(id: line.id))
+                    case .event(let name, let paneID): continuation.yield(try HerdrResponseLine.event(name: name, paneID: paneID))
+                    }
+                }
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        continuation.onTermination = { _ in relay.cancel() }
+        return lines
+    }
+
+    /// 型別化的事件訂閱(ADR-0015、#595):主機接受後第一項是 `.subscriptionStarted`,之後是事件;
+    /// 主機端結束串流(`events_lost` 是 `HerdrError.herdr`)或連線結束(含心跳逾時)時串流跟著結束，上層據此重連對帳。
+    /// 呼叫端不再讀時通知主機服務關掉那條串流，連線留給其他操作。
+    public func subscribeToEvents(_ subscriptions: [PurrdrCore.EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        let wire = subscriptions.map { HostServiceProtocol.EventSubscription(event: $0.type.rawValue, paneId: $0.paneID) }
         let subscribed = try await withDeadline(HostCommandDeadline.standard) {
-            try await self.subscribeEvents(subscriptions)
+            try await self.subscribeEvents(wire)
         }
         let (session, streamID) = (subscribed.session, subscribed.streamID)
-        let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
-        continuation.yield(try HerdrResponseLine.subscriptionStarted(id: line.id))
+        let (events, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
+        continuation.yield(.subscriptionStarted)
         let forwarding = Task {
             do {
                 for try await message in subscribed.messages {
                     switch message {
                     case .subscribedEvent(let event):
-                        continuation.yield(try HerdrResponseLine.event(name: event.event, paneID: event.paneId))
+                        continuation.yield(.event(name: event.event, paneID: event.paneId))
                     case .eventsEnded(let ended):
                         if let code = ended.code {
                             throw Self.error(for: .init(code: code, message: ended.message ?? "", herdrCode: ended.herdrCode))
@@ -159,7 +183,7 @@ public actor HTTPSHostConnection: HostConnection {
             forwarding.cancel()
             Task { await self.unsubscribeEvents(streamID, on: session) }
         }
-        return lines
+        return events
     }
 
     /// 主機接受的事件串流。
