@@ -265,7 +265,6 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
-        .environment(\.pushesChatsByPath, window != nil && listSizeClass == .compact)
         .accessibilityIdentifier("agentList.loading")
     }
 
@@ -315,6 +314,7 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
+        .environment(\.pushesChatsByPath, window != nil && listSizeClass == .compact)
         // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。
         .onAppear { model.rememberRowCount(of: sections) }
         .onChange(of: MergedAgentListModel.rowCount(of: sections)) { model.rememberRowCount(of: sections) }
