@@ -59,8 +59,8 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
     }
 
-    /// 聊天列表頂部(#615):系統導覽列。大標題、右側 [電腦圖示｜＋] 與頭像(由左到右),系統搜尋欄;
-    /// 往下滑時系統收合大標題,搜尋欄仍可用,回到頂端大標題回來。
+    /// 聊天列表頂部(#615):系統導覽列。大標題、右側 [電腦圖示｜＋] 與頭像(由左到右),系統搜尋欄(平常收起、往下拉才出現);
+    /// 往上滑時系統收合大標題,回到頂端大標題回來。
     @MainActor
     func testChatListTopBarCollapsesOnScroll() {
         // 字級調大讓 Spaces 的列夠多、列表高過畫面才捲得動(Demo 的列不多)。
@@ -74,13 +74,12 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(host.exists && newChat.exists && account.exists, "頂列缺控制項")
         XCTAssertLessThan(host.frame.minX, newChat.frame.minX, "電腦圖示不在＋左邊")
         XCTAssertLessThan(newChat.frame.minX, account.frame.minX, "＋不在頭像左邊")
-        XCTAssertTrue(app.chatSearch.exists, "沒有搜尋欄")
         XCTAssertTrue(app.navigationBars.firstMatch.exists, "系統導覽列不見了")
 
         let list = app.collectionViews.firstMatch
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
-        XCTAssertTrue(app.chatSearch.waitUntilExists(timeout: 5), "往下滑後搜尋欄不見了")
+        XCTAssertTrue(app.revealChatSearch().exists, "往下拉後沒有搜尋欄(平常收起)")
         XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "往下滑後頭像不見了")
 
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
