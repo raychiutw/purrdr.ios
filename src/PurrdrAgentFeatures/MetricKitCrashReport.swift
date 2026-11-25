@@ -34,6 +34,15 @@ public struct MetricKitCrashReport: Equatable, Sendable {
         self.periodStart = periodStart
     }
 
+    /// 轉成診斷記錄裡的閃退記錄(啟動提示比對用):名稱優先用例外名稱,沒有就用終止原因;
+    /// 區間是 payload 的開頭到尾端(`timestamp` 是尾端,不是閃退當下)。
+    public var crashRecord: CrashRecord {
+        CrashRecord(
+            timestamp: timestamp, name: exceptionName ?? terminationReason ?? "crash", reason: exceptionReason ?? "",
+            environment: environment, reportPeriod: min(periodStart ?? timestamp, timestamp)...timestamp,
+            nameIsKnown: exceptionName != nil)
+    }
+
     /// 去重用的鍵:報告時間與內容(類型、訊號、例外、堆疊)。
     var dedupKey: String {
         let content = [

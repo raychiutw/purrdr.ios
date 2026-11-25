@@ -191,4 +191,28 @@ struct CrashNoticeTests {
         #expect(model.pending != nil)
         #expect(model.pending?.timestamp == Self.t0)
     }
+
+    @Test("多個觀察者各自收到閃退記錄,後登記的不會蓋掉先登記的;移除後不再收到")
+    func multipleCrashObservers() {
+        let (model, recorder, _) = Self.make()
+        var received: [CrashRecord] = []
+        let owner = ObjectIdentifier(CrashNoticeTests.self)
+        recorder.observeCrashes(owner: owner) { received.append($0) }
+        recorder.recordCrash(Self.record())
+        #expect(received == [Self.record()])
+        #expect(model.pending == Self.record(), "模型先登記的觀察者仍會收到")
+
+        recorder.removeCrashObserver(owner: owner)
+        recorder.recordCrash(Self.record(at: Self.t0.addingTimeInterval(3_600)))
+        #expect(received.count == 1)
+    }
+
+    @Test("晚登記的觀察者立刻補收這次啟動最近的一筆閃退")
+    func lateObserverGetsLatestCrash() {
+        let (_, recorder, _) = Self.make()
+        recorder.recordCrash(Self.record())
+        var received: [CrashRecord] = []
+        recorder.observeCrashes(owner: ObjectIdentifier(CrashNoticeTests.self)) { received.append($0) }
+        #expect(received == [Self.record()])
+    }
 }

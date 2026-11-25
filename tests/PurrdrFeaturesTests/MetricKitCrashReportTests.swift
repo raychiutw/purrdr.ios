@@ -4,6 +4,7 @@ import Testing
 
 /// fixture 依 Apple 文件的 MXDiagnosticPayload／MXCrashDiagnostic `jsonRepresentation()` 形狀手寫
 /// (沒有真實裝置樣本;欄位名稱照文件,二進位 UUID 與位址為編造,不含個人資料)。
+/// TODO: 第一份 TestFlight 真實閃退報告回來後,以真實 payload 取代(或補上)這裡的 fixture。
 enum MetricKitCrashFixtures {
     static let full = Data("""
     {"timeStampBegin":"2026-11-24 08:00:00","timeStampEnd":"2026-11-25 08:00:00",
@@ -63,6 +64,29 @@ struct MetricKitCrashReportTests {
         #expect(report.exceptionReason == nil)
         #expect(report.terminationReason == nil)
         #expect(report.frames.isEmpty)
+    }
+
+    @Test("轉成閃退記錄:名稱用例外名稱;區間是 payload 的開頭到尾端")
+    func convertsToCrashRecordWithPeriod() throws {
+        let report = try #require(MetricKitCrashParser.parse(payloadJSON: MetricKitCrashFixtures.full).first)
+        let record = report.crashRecord
+        #expect(record.name == "NSInternalInconsistencyException")
+        #expect(record.nameIsKnown)
+        #expect(record.reason == "invalid number of items in section 0")
+        #expect(record.environment == report.environment)
+        #expect(record.timestamp == Date(timeIntervalSince1970: 1_795_593_600))
+        #expect(record.reportPeriod == Date(timeIntervalSince1970: 1_795_507_200)...Date(timeIntervalSince1970: 1_795_593_600))
+    }
+
+    @Test("轉成閃退記錄:沒有例外名稱時用終止原因、再沒有就是 crash,而且標成名稱不明")
+    func convertsToCrashRecordWithoutExceptionName() throws {
+        let runtime = try #require(MetricKitCrashParser.parse(payloadJSON: MetricKitCrashFixtures.swiftRuntime).first)
+        #expect(runtime.crashRecord.name == "crash")
+        #expect(!runtime.crashRecord.nameIsKnown)
+        var withReason = runtime
+        withReason.terminationReason = "Namespace SIGNAL, Code 4"
+        #expect(withReason.crashRecord.name == "Namespace SIGNAL, Code 4")
+        #expect(!withReason.crashRecord.nameIsKnown)
     }
 
     @Test("沒有閃退診斷或不是 JSON:回空")

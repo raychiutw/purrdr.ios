@@ -40,7 +40,7 @@ public final class CrashNoticeModel {
     public init(recorder: DiagnosticRecorder, store: any CrashNoticeStoring) {
         self.recorder = recorder
         self.store = store
-        recorder.observeCrashes { [weak self] record in self?.received(record) }
+        recorder.observeCrashes(owner: ObjectIdentifier(self)) { [weak self] record in self?.received(record) }
     }
 
     private func received(_ record: CrashRecord) {

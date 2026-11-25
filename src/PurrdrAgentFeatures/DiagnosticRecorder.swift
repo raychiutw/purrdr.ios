@@ -209,30 +209,33 @@ public final class DiagnosticRecorder {
     /// 閃退記錄:一律寫(不看開關、不經緩衝)。
     public func recordCrash(_ record: CrashRecord) {
         sink.append([.crash(record)])
-        latestCrash = record
-        crashObserver?(record)
+        publish(record)
     }
 
-    /// 閃退記錄出現時通知(啟動提示用);登記時若這次啟動已有記錄,立刻補送最近一筆。
-    public func observeCrashes(_ handler: @escaping @MainActor (CrashRecord) -> Void) {
-        crashObserver = handler
+    /// MetricKit 的閃退報告:一律寫(不看開關、不經緩衝)。Swift 執行期錯誤沒有中止前的標記,只有這份報告,
+    /// 所以也要通知(以報告轉成的閃退記錄)。
+    public func recordCrashReport(_ report: MetricKitCrashReport) {
+        sink.append([.crashReport(report)])
+        publish(report.crashRecord)
+    }
+
+    /// 閃退記錄出現時通知(啟動提示用);各畫面各登記一個(以 `owner` 區分,同一個 owner 再登記會取代舊的)。
+    /// 登記時若這次啟動已有記錄,立刻補送最近一筆。
+    public func observeCrashes(owner: ObjectIdentifier = DiagnosticRecorder.defaultOwner, _ handler: @escaping @MainActor (CrashRecord) -> Void) {
+        crashObservers[owner] = handler
         if let latestCrash { handler(latestCrash) }
     }
 
-    private var latestCrash: CrashRecord?
-    private var crashObserver: (@MainActor (CrashRecord) -> Void)?
+    public func removeCrashObserver(owner: ObjectIdentifier = DiagnosticRecorder.defaultOwner) {
+        crashObservers[owner] = nil
+    }
 
-    /// MetricKit 的閃退報告:一律寫(不看開關、不經緩衝)。
-    public func recordCrashReport(_ report: MetricKitCrashReport) {
-        sink.append([.crashReport(report)])
-        // 啟動提示用(Swift 執行期錯誤沒有中止前的標記,只有這份報告):以名稱與原因摘要通知。
-        let record = CrashRecord(
-            timestamp: report.timestamp, name: report.exceptionName ?? report.terminationReason ?? "crash",
-            reason: report.exceptionReason ?? "", environment: report.environment,
-            reportPeriod: min(report.periodStart ?? report.timestamp, report.timestamp)...report.timestamp,
-            nameIsKnown: report.exceptionName != nil)
+    private var latestCrash: CrashRecord?
+    private var crashObservers: [ObjectIdentifier: @MainActor (CrashRecord) -> Void] = [:]
+
+    private func publish(_ record: CrashRecord) {
         latestCrash = record
-        crashObserver?(record)
+        for handler in crashObservers.values { handler(record) }
     }
 
     // MARK: - 設定頁
