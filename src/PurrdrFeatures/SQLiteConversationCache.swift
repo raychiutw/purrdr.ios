@@ -108,6 +108,7 @@ public actor SQLiteConversationCache: ConversationCache {
     // MARK: - 開啟與 SQLite 小工具
 
     /// 實例結束時關閉資料庫(actor 的 deinit 不能碰非 Sendable 的指標，所以交給這個擁有者)。
+    /// `@unchecked`:`OpaquePointer` 沒標 Sendable;這裡只有一個 `let`,唯一的操作是 deinit 時關閉,不會有並行存取。
     private final class Handle: @unchecked Sendable {
         let pointer: OpaquePointer
         init(_ pointer: OpaquePointer) { self.pointer = pointer }

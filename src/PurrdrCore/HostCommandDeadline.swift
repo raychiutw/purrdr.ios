@@ -77,6 +77,8 @@ public enum HostCommandError: Error, Equatable {
 }
 
 /// `HostCommandDeadline.run` 的結果只交出一次：操作結束、期限到或外層取消，先到的勝出，其餘的工作取消、資源關閉。
+///
+/// `@unchecked`:所有可變狀態(continuation、resource、tasks、early、isFinished)都只在 `lock` 內讀寫。
 private final class DeadlineRace<Resource: Sendable, Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private let close: @Sendable (Resource) async -> Void

@@ -16,7 +16,7 @@ import UIKit
 @main
 struct PurrdrApp: App {
     /// UI 測試時關掉 UIKit 與 SwiftUI 的動畫(#374)。
-    nonisolated(unsafe) static var disablesAnimations = false
+    private let disablesAnimations: Bool
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @State private var hosts: HostsModel
     private let member: MemberModel
@@ -58,8 +58,9 @@ struct PurrdrApp: App {
             UITestingPreferences.resetPersistedState(in: .standard, domain: domain)
         }
         // UI 測試(#374):關掉動畫，XCTest 每次互動前等動畫結束的 1 秒左右就不用等。要驗動畫本身的測試帶 `-uiTestingAnimations`。
-        Self.disablesAnimations = uiTesting && !arguments.contains("-uiTestingAnimations")
-        if Self.disablesAnimations { UIView.setAnimationsEnabled(false) }
+        let disablesAnimations = uiTesting && !arguments.contains("-uiTestingAnimations")
+        self.disablesAnimations = disablesAnimations
+        if disablesAnimations { UIView.setAnimationsEnabled(false) }
         // Tailscale SSH check mode 的提示：所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
@@ -491,14 +492,14 @@ struct PurrdrApp: App {
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
                 welcome: welcome, appLock: appLock, inspectorStore: inspectorStore)
             .appAppearance()
-            .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
+            .transaction { if disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
             .appLockCover(appLock)
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
             .environment(\.hitchRecorder, hitchRecorder)
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.videoSource, videoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
-            .environment(\.skeletonAnimationsEnabled, !Self.disablesAnimations)
+            .environment(\.skeletonAnimationsEnabled, !disablesAnimations)
             .environment(\.allowsTestingLinks, allowsTestingLinks)
             .environment(\.usesTestingSignIn, usesTestingSignIn)
         }
@@ -513,7 +514,7 @@ struct PurrdrApp: App {
             if let window {
                 PaneWindowView(window: window, hosts: hosts)
                     .appAppearance()
-                    .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
+                    .transaction { if disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
                     .appLockCover(appLock)
             }
         }

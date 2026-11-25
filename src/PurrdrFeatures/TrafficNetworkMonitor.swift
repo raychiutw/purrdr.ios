@@ -4,7 +4,7 @@ import PurrdrCore
 
 /// 把目前的網路類型(Wi-Fi／行動網路／其他)告訴流量計量(#353,Seam 3 平台服務)。
 /// 只看路徑實際使用的介面;不產生任何網路流量。
-public final class TrafficNetworkMonitor: @unchecked Sendable {
+public final class TrafficNetworkMonitor: Sendable {
     private let monitor = NWPathMonitor()
 
     public init(meter: TrafficMeter) {
