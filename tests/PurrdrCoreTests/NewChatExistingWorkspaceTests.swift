@@ -67,6 +67,30 @@ struct NewChatExistingWorkspaceTests {
         #expect(executions[2].stdinText.contains(#""target":"w1:p3""#))
     }
 
+    @Test("Tab 編號到 10 以後是大寫字母(herdr 實測 w1:tA、w1:tG):agent 名稱轉成小寫,herdr 才接受")
+    func uppercaseTabIDIsLowercased() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.tabCreated(tab: "tG"))
+        await host.expect(Self.bridge, reply: NewChatLaunchTests.agentStarted(pane: "w1:p3"))
+
+        _ = try await NewChatLaunchTests.launcher(host).start(Self.request(tabLabel: "Test"))
+
+        let executions = await host.executions
+        #expect(executions[1].stdinText.contains(#""name":"test-tg""#))
+    }
+
+    @Test("Tab 名稱很長:加上 Tab 編號後仍在 32 字內")
+    func longLabelStaysWithinLimit() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.tabCreated(tab: "t1F"))
+        await host.expect(Self.bridge, reply: NewChatLaunchTests.agentStarted(pane: "w1:p3"))
+
+        _ = try await NewChatLaunchTests.launcher(host).start(Self.request(tabLabel: String(repeating: "x", count: 40)))
+
+        let executions = await host.executions
+        #expect(executions[1].stdinText.contains(#""name":"\#(String(repeating: "x", count: 28))-t1f""#))
+    }
+
     @Test("Workspace 已被桌機關掉:丟 workspace_not_found,不啟動 agent、不留下待關閉的東西")
     func workspaceGone() async throws {
         let host = FakeHost()
