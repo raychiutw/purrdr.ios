@@ -153,7 +153,7 @@ final class SettingsUITests: XCTestCase {
         app.scrollIntoView(toggle, search: .down)
         XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有「操作記錄」開關")
         XCTAssertEqual(toggle.label, "Operation Log")
-        XCTAssertFalse(app.staticTexts["When Purrdr closes unexpectedly or scrolling feels rough, this iPhone notes down what happened. It never includes your conversations. You can share it with the developer."].exists, "說明文字應已移除")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "When Purrdr closes unexpectedly")).firstMatch.exists, "說明文字應已移除")
         XCTAssertEqual(toggle.value as? String, "1", "預設應該開啟")
         let share = app.buttons["settings.hitchLog.share"]
         XCTAssertTrue(share.exists, "沒有「分享診斷記錄」")
