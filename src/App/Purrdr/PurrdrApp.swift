@@ -32,7 +32,9 @@ struct PurrdrApp: App {
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
     /// 捲動卡頓記錄器(只記數字,存在這支手機;設定頁可關閉、分享、清除)。
-    private let hitchRecorder: HitchRecorder
+    private let hitchRecorder: DiagnosticRecorder
+    /// 啟動提示「上次 Purrdr 意外關閉」(#632)。
+    private let crashNotice: CrashNoticeModel
     /// MetricKit 每日摘要(只在真實啟動訂閱;UI 測試不接)。
     private let hitchMetrics: HitchMetricKitSubscriber?
     private let recentPhotoSource: RecentPhotoSource
@@ -208,17 +210,24 @@ struct PurrdrApp: App {
         let hitchStore = uiTesting
             // 每次啟動各用一個新資料夾:模擬器的 tmp 會跨測試保留,共用同一個資料夾會讓前面測試捲動留下的記錄
             // 殘留到「還沒有記錄」的測試(也會越積越大)。
-            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
-            : HitchLogFile.applicationSupport()
-        let hitchRecorder = HitchRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
+            ? DiagnosticLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
+            : DiagnosticLogFile.applicationSupport()
+        let hitchRecorder = DiagnosticRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
         self.hitchRecorder = hitchRecorder
         if uiTesting {
             hitchMetrics = nil
         } else {
+            CrashExceptionHandler.installAtLaunch(recorder: hitchRecorder)
             let subscriber = HitchMetricKitSubscriber(recorder: hitchRecorder)
             subscriber.start()
             hitchMetrics = subscriber
         }
+        // `-uiTestingCrashRecord`:預放一筆「上次異常結束」的閃退記錄(#632)。已提示狀態見 `uiTestingCrashNoticeStore`。
+        if uiTesting, arguments.contains("-uiTestingCrashRecord") {
+            hitchRecorder.recordUITestingCrash()
+        }
+        crashNotice = CrashNoticeModel(
+            recorder: hitchRecorder, store: uiTesting ? Self.uiTestingCrashNoticeStore(arguments) : UserDefaultsCrashNoticeStore())
         settings = Self.makeSettings(hosts: hosts, hitchRecorder: hitchRecorder)
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
@@ -256,6 +265,15 @@ struct PurrdrApp: App {
             : arguments.contains("-uiTestingRecentPhotos") ? .simulated(count: 6) : .simulatedDenied
     }
 
+    /// UI 測試的閃退提示「已提示」狀態:放在專用的 suite(不碰正式設定),預設每次啟動重置;
+    /// `-uiTestingKeepCrashNotice` 沿用上一次啟動留下的(測「關閉或顯示過的提示重啟後不再出現」)。
+    private static func uiTestingCrashNoticeStore(_ arguments: [String]) -> any CrashNoticeStoring {
+        let name = "com.raychiu.purrdr.ui-testing.crash-notice"
+        let defaults = UserDefaults(suiteName: name) ?? .standard
+        if !arguments.contains("-uiTestingKeepCrashNotice") { defaults.removePersistentDomain(forName: name) }
+        return UserDefaultsCrashNoticeStore(defaults: defaults)
+    }
+
     /// `-uiTestingPairingScan`:掃描畫面一開就像掃到配對 QR code;`-uiTestingCameraDenied`:沒有相機權限。
     private static func pairingCodeScanSource(_ arguments: [String]) -> PairingCodeScanSource {
         if arguments.contains("-uiTestingCameraDenied") { return .simulatedCameraDenied }
@@ -275,7 +293,7 @@ struct PurrdrApp: App {
     }
 
     /// 設定頁。偏好存在 `UserDefaults.standard`(輸入列的 `@AppStorage` 讀同一個 key)。
-    private static func makeSettings(hosts: HostsModel, hitchRecorder: HitchRecorder) -> SettingsModel {
+    private static func makeSettings(hosts: HostsModel, hitchRecorder: DiagnosticRecorder) -> SettingsModel {
         let info = Bundle.main.infoDictionary ?? [:]
         let system = ProcessInfo.processInfo.operatingSystemVersion
         let app = AppInfo(
@@ -491,7 +509,7 @@ struct PurrdrApp: App {
         WindowGroup(id: PurrdrCommands.mainWindowID) {
             TopNavigationView(
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
-                welcome: welcome, appLock: appLock, inspectorStore: inspectorStore)
+                welcome: welcome, appLock: appLock, inspectorStore: inspectorStore, crashNotice: crashNotice)
             .appAppearance()
             .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
             .appLockCover(appLock)

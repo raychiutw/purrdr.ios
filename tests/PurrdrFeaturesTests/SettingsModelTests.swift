@@ -24,7 +24,7 @@ struct SettingsModelTests {
         platform: RecordingPlatform = RecordingPlatform(), hostCount: Int = 1,
         defaults: UserDefaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!,
         appStoreID: String = "6740000000", usageDisplay: UsageDisplaySetting = UsageDisplaySetting(),
-        hitchRecorder: HitchRecorder? = nil
+        hitchRecorder: DiagnosticRecorder? = nil
     ) -> SettingsModel {
         SettingsModel(
             app: app, hostCount: { hostCount }, defaults: defaults,
@@ -39,9 +39,9 @@ struct SettingsModelTests {
 
     // MARK: - 捲動卡頓記錄
 
-    static func hitchRecorder() -> HitchRecorder {
-        HitchRecorder(
-            sink: HitchLogFile(directory: FileManager.default.temporaryDirectory.appendingPathComponent("hitch-\(UUID().uuidString)")),
+    static func hitchRecorder() -> DiagnosticRecorder {
+        DiagnosticRecorder(
+            sink: DiagnosticLogFile(directory: FileManager.default.temporaryDirectory.appendingPathComponent("hitch-\(UUID().uuidString)")),
             defaults: UserDefaults(suiteName: "hitch-r-\(UUID().uuidString)")!, system: { HitchSystemState.sample })
     }
 

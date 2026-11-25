@@ -89,7 +89,7 @@ struct ChatListView: UIViewControllerRepresentable {
     let onShowsJumpToLatestChanged: (Bool) -> Void
     let onVisibleHeightChanged: (Double) -> Void
     /// 捲動卡頓記錄器(沒注入時不記錄)。
-    var hitchRecorder: HitchRecorder?
+    var hitchRecorder: DiagnosticRecorder?
 
     func makeUIViewController(context: Context) -> ChatListViewController {
         let controller = ChatListViewController()
@@ -135,7 +135,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
     var onShowsJumpToLatestChanged: (Bool) -> Void = { _ in }
     var onVisibleHeightChanged: (Double) -> Void = { _ in }
     /// 捲動卡頓記錄器(診斷用,只記數字;列表可見且 app 在前景時才量測)。
-    var hitchRecorder: HitchRecorder?
+    var hitchRecorder: DiagnosticRecorder?
     private var hitchMonitor: ChatHitchMonitor?
     private var contentSizeObservation: NSKeyValueObservation?
 

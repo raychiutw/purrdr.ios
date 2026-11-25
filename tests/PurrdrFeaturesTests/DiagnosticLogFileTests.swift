@@ -5,12 +5,12 @@ import Testing
 
 /// 記錄檔(背景序列佇列寫檔、大小上限、匯出)。用暫存資料夾,不碰真的 Application Support。
 @Suite("卡頓記錄檔", .serialized)
-struct HitchLogFileTests {
+struct DiagnosticLogFileTests {
     static func directory() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("hitch-\(UUID().uuidString)", isDirectory: true)
     }
 
-    static func entry(_ ms: Double) -> HitchEntry {
+    static func entry(_ ms: Double) -> DiagnosticEntry {
         .hitch(HitchEvent(
             timestamp: Date(timeIntervalSince1970: 1_800_000_000), milliseconds: ms, frames: 1, droppedFrames: 1, scroll: .dragging,
             offsetY: 0, velocityY: 0, visibleCells: 3, activity: HitchActivity(), olderLoading: false, agentWorking: false,
@@ -27,7 +27,7 @@ struct HitchLogFileTests {
     func appendsJSONLines() async throws {
         let directory = Self.directory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let file = HitchLogFile(directory: directory)
+        let file = DiagnosticLogFile(directory: directory)
         file.append([Self.entry(50), Self.entry(60)])
         file.append([Self.entry(70)])
         await file.drain()
@@ -44,8 +44,8 @@ struct HitchLogFileTests {
     func trimsToLimit() async throws {
         let directory = Self.directory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let oneLine = HitchLogEncoder.line(Self.entry(50)).utf8.count + 1
-        let file = HitchLogFile(directory: directory, maxBytes: oneLine * 10)
+        let oneLine = DiagnosticLogEncoder.line(Self.entry(50)).utf8.count + 1
+        let file = DiagnosticLogFile(directory: directory, maxBytes: oneLine * 10)
         for index in 0..<40 { file.append([Self.entry(Double(100 + index))]) }
         await file.drain()
 
@@ -61,12 +61,12 @@ struct HitchLogFileTests {
     func exportsAndClears() async throws {
         let directory = Self.directory()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let file = HitchLogFile(directory: directory)
+        let file = DiagnosticLogFile(directory: directory)
         let none = await file.exportFile(meta: nil)
         #expect(none == nil)
 
         file.append([Self.entry(50), Self.entry(60)])
-        let meta = HitchEntry.meta(
+        let meta = DiagnosticEntry.meta(
             HitchSystemState(
                 thermal: "fair", lowPower: true, reduceTransparency: false, reduceMotion: false,
                 device: "d", os: "o", app: "a", textSize: "L", maxFramesPerSecond: 120),

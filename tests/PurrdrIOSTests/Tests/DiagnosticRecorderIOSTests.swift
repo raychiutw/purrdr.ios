@@ -9,22 +9,22 @@ import UIKit
 import PurrdrTestSupport
 
 /// 卡頓記錄器接在真正的聊天列表上(`ChatListViewController`):程式驅動捲動與內容更新時會產生記錄,離開聊天與進背景會停。
-final class CollectingHitchSink: HitchLogStoring, @unchecked Sendable {
+final class CollectingHitchSink: DiagnosticLogStoring, @unchecked Sendable {
     private let lock = NSLock()
-    private var all: [HitchEntry] = []
-    var entries: [HitchEntry] { lock.withLock { all } }
-    func append(_ entries: [HitchEntry]) { lock.withLock { all.append(contentsOf: entries) } }
-    func exportFile(meta: HitchEntry?) async -> URL? { nil }
+    private var all: [DiagnosticEntry] = []
+    var entries: [DiagnosticEntry] { lock.withLock { all } }
+    func append(_ entries: [DiagnosticEntry]) { lock.withLock { all.append(contentsOf: entries) } }
+    func exportFile(meta: DiagnosticEntry?) async -> URL? { nil }
     func clear() async {}
 }
 
 @Suite(.serialized)
 @MainActor
-struct HitchRecorderIOSTests {
+struct DiagnosticRecorderIOSTests {
     static let layoutTests = ConversationLayoutTests()
 
-    static func recorder(_ sink: CollectingHitchSink) -> HitchRecorder {
-        HitchRecorder(
+    static func recorder(_ sink: CollectingHitchSink) -> DiagnosticRecorder {
+        DiagnosticRecorder(
             sink: sink, defaults: UserDefaults(suiteName: "hitch-ios-\(UUID().uuidString)")!,
             system: { HitchSystemState.current() })
     }
@@ -118,7 +118,7 @@ struct HitchRecorderIOSTests {
     // MARK: - 開銷自檢
 
     /// 內容已載入的來回捲動,每一步(不含固定等待)的 layout 耗時,毫秒,由小到大。
-    static func sweepStepTimes(recorder: HitchRecorder?) async throws -> [Double] {
+    static func sweepStepTimes(recorder: DiagnosticRecorder?) async throws -> [Double] {
         var lines = ConversationLayoutTests.lines
         for index in 0..<120 {
             let text = index.isMultiple(of: 3)
