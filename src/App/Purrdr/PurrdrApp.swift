@@ -73,6 +73,8 @@ struct PurrdrApp: App {
                 backgroundRetention.didEnterBackground(isDeviceLocked: backgroundScheduler.isDeviceLocked)
             }
             if phase == .active { backgroundRetention.didBecomeActive() }
+            // 「需要你」通知的唯一驅動點(#589):整體進入前景才訂閱,背景不推進(#492)。
+            root.hosts.agentList.needsYou.drive(observing: root.hosts.agentList, isActive: phase == .active)
         }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in

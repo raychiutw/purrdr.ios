@@ -62,11 +62,6 @@ public struct TopNavigationView: View {
             // 對話頂部的跨聊天「需要你」橫幅(#530):點了把目前的聊天換成那個聊天。
             .registersAsMainWindow()
             .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, open: actions.openBannerChat))
-            // 「需要你」通知跟著合併列表的快照(整個 app 只有這一個接線點;背景不推進,#492)。
-            .task(id: scenePhase == .active) {
-                guard scenePhase == .active else { return }
-                await hosts.agentList.needsYou.runShared(observing: hosts.agentList)
-            }
             // 選單列與快捷鍵作用在有焦點的視窗(`PurrdrCommands`)。
             .modifier(WindowCommandsModifier(navigation: navigation, hosts: hosts))
             .tailscaleCheckPrompt(hosts.tailscaleCheck)
