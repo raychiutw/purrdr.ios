@@ -18,6 +18,8 @@ struct AppRoot {
     /// 要活著的訂閱者與監看物件。
     let hitchMetrics: HitchMetricKitSubscriber?
     let trafficMeter: TrafficMeter
+    /// 第一個 frame 之後才開:流量存檔與主機名稱對應表的寫入等它(#590)。
+    let launchGate: LaunchGate
     let trafficNetwork: TrafficNetworkMonitor
     let appLock: AppLock
     let inputSources: LaunchEnvironment.InputSources
@@ -30,6 +32,7 @@ struct AppRoot {
 @MainActor
 enum AppAssembly {
     static func assemble(_ environment: LaunchEnvironment) -> AppRoot {
+        let launchGate = LaunchGate()
         let session = environment.memberSession
         let localState = MemberLocalState(partition: environment.partition, session: session)
         let owner = environment.deviceOwner
@@ -51,6 +54,7 @@ enum AppAssembly {
             await plus.refresh()
             return plus.isPlusActive
         }
+        push.launchGate = launchGate
         if let sender = environment.push.testSender { push.testNotifications = sender }
 
         let hosts = HostsModel(environment.makeHosts(push))
@@ -58,7 +62,7 @@ enum AppAssembly {
         hosts.demoEntered = environment.demoEntry.initial
         hosts.demoEnteredDidChange = environment.demoEntry.didChange
         hosts.haptics = SystemHaptics()
-        let trafficMeter = TrafficMeter(store: environment.trafficStore)
+        let trafficMeter = TrafficMeter(store: environment.trafficStore, launchGate: launchGate)
         environment.seedTraffic?(trafficMeter)
         let trafficNetwork = TrafficNetworkMonitor(meter: trafficMeter)
         hosts.trafficMeter = trafficMeter
@@ -78,7 +82,7 @@ enum AppAssembly {
         return AppRoot(
             hosts: hosts, member: member, plus: plus, settings: makeSettings(hosts: hosts, hitchRecorder: hitchRecorder),
             hostSync: hostSync, welcome: WelcomeModel(store: environment.welcomeStore), inspectorStore: environment.inspectorStore,
-            hitchRecorder: hitchRecorder, hitchMetrics: hitchMetrics, trafficMeter: trafficMeter, trafficNetwork: trafficNetwork,
+            hitchRecorder: hitchRecorder, hitchMetrics: hitchMetrics, trafficMeter: trafficMeter, launchGate: launchGate, trafficNetwork: trafficNetwork,
             appLock: environment.appLock, inputSources: environment.inputSources, viewFlags: environment.viewFlags,
             disablesAnimations: environment.disablesAnimations)
     }
