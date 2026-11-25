@@ -89,6 +89,41 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(second.waitUntilGone(timeout: 10), "左滑關閉後 Tab 還在")
     }
 
+    /// 閃退回歸(0.52.1):關掉同時在「需要你」段落的 Tab,而同一個 Workspace 還有別的 Tab。
+    /// 兩段的列識別碼曾經相同，需要你段落整段消失時 SwiftUI List 算錯列數而中止 app。
+    @MainActor
+    func testClosingNeedsYouTabKeepsAppRunning() {
+        let app = XCUIApplication.launchUITesting()
+        app.openNewChatSheet()
+        let sheet = app.element("sheet.newChat")
+        XCTAssertTrue(sheet.waitUntilExists(timeout: 10))
+        let weather = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'weather-app'")).firstMatch
+        XCTAssertTrue(weather.waitUntilExists(timeout: 10), "沒有 weather-app")
+        weather.tap()
+        let message = app.textViews["newChat.message"].exists ? app.textViews["newChat.message"] : app.textFields["newChat.message"]
+        app.scrollIntoView(message, search: .down)
+        message.tap()
+        message.typeEnglish("Second tab")
+        let start = app.buttons["newChat.start"]
+        app.scrollIntoView(start, search: .down)
+        start.tap()
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 15))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w2:t2")), "沒有第二個 Tab")
+        XCTAssertTrue(app.descendants(matching: .any)["needsYou.section"].firstMatch.waitUntilExists(timeout: 10), "沒有需要你段落")
+        let first = app.element("spaces.tab.demo/w2:t1")
+        XCTAssertTrue(app.reveal(first))
+        first.swipeLeft()
+        app.buttons["menu.closeTab"].tap()
+        let confirm = app.buttons["closeTab.confirm"].firstMatch
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5))
+        confirm.tap()
+        sleep(3)
+        XCTAssertEqual(app.state, .runningForeground, "關掉需要你的 Tab 後 app 閃退了")
+        XCTAssertTrue(first.waitUntilGone(timeout: 10), "關閉後 Tab 還在")
+    }
+
     /// 長按 Tab 列改的是那個 Tab;長按 Workspace 標題改 Workspace(#456)。
     @MainActor
     func testRenameTabAndWorkspaceFromSpaces() {

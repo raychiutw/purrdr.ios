@@ -136,7 +136,7 @@ extension View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if let tab {
                 WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
-                    .closeTab(tab)
+                    .closeTab(tab, inSwipe: true)
             }
         }
     }
@@ -255,11 +255,15 @@ private struct WorkspaceButtons {
     }
 
     /// 「關閉 Tab…」(#534):選單與左滑共用,先經確認。
-    func closeTab(_ tab: TabTarget) -> some View {
-        Button("Close Tab…", systemImage: "xmark", role: .destructive) {
+    /// 左滑(`inSwipe`)時不標 destructive:List 的左滑按鈕標 destructive 會先自己刪掉那一列,
+    /// 但這裡要等確認、主機真的關掉才少一列;中間任何一次列表更新都會讓 UICollectionView 列數對不上而中止 app(0.52.1)。
+    /// 改用紅色外觀表示破壞性。選單裡維持 destructive(選單不會刪列)。
+    func closeTab(_ tab: TabTarget, inSwipe: Bool = false) -> some View {
+        Button("Close Tab…", systemImage: "xmark", role: inSwipe ? nil : .destructive) {
             presentation.host = host
             presentation.closeTabRequest = tab
         }
+        .tint(inSwipe ? .red : nil)
         .accessibilityIdentifier("menu.closeTab")
         .disabled(isReadOnly)
     }
