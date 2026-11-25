@@ -20,6 +20,8 @@ struct HostScriptTimeLimitTests {
             NewChatFolders.command(for: "~"),
             HostUploadCommand.posix(name: uploadName, size: 3),
             GitChangesCommand.status(cwd: "/w"),
+            SessionHistoryCommand.command(kind: "claude", cwd: "/w"),
+            SessionHistoryCommand.command(kind: "codex", cwd: "/w"),
         ]
         for command in oneShot {
             #expect(command.contains(HostScriptTimeLimit.posixMarker), "\(command.prefix(120))")
@@ -79,6 +81,7 @@ struct HostScriptTimeLimitTests {
         let folder = "C:\\Users\\someone\\Documents\\" + String(repeating: "folder name ", count: 8)
         let commands = [
             try WindowsCommand.translate(TranscriptCommand.window(path: "C:/t.jsonl", end: 10, lines: 5)).command,
+            try WindowsCommand.translate(SessionHistoryCommand.command(kind: "codex", cwd: "C:\\w")).command,
             try WindowsCommand.translate(HostUploadCommand.posix(name: uploadName, size: 25_000_000)).command,
             try WindowsCommand.translate(HostFolderCommand.upload(
                 folder: folder, name: "a long file name.bin", size: 25_000_000, encoding: .gzip, transferSize: 24_000_000)).command,

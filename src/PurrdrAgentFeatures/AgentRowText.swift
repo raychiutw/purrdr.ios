@@ -67,13 +67,17 @@ package enum AgentKind: Equatable {
     case unknown(String)
 
     package init(rawKind: String) {
-        self = switch AgentID(herdrName: rawKind) {
+        self.init(agentID: AgentID(herdrName: rawKind))
+    }
+
+    package init(agentID: AgentID) {
+        self = switch agentID {
         case .claude: .claudeCode
         case .codex: .codex
         case .gemini: .gemini
         case .opencode: .openCode
         case .copilot: .copilot
-        default: .unknown(rawKind)
+        default: .unknown(agentID.canonicalName)
         }
     }
 

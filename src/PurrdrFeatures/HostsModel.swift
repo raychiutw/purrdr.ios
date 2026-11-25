@@ -427,8 +427,16 @@ public final class HostsModel {
     public var hasNoHostToShow: Bool { hosts.isEmpty && !demoEntered }
 
     /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表目前篩選的主機(#244),所有主機時用選取中主機。
-    public func newChatHostPicker() -> HostPickerModel {
-        .newChat(options: hostOptions { _ in true }, currentHost: agentList.currentHost, selection: selection)
+    public func newChatHostPicker(preferring host: HostSelection? = nil) -> HostPickerModel {
+        .newChat(options: hostOptions { _ in true }, currentHost: host ?? agentList.currentHost, selection: selection)
+    }
+
+    /// 這台主機能不能在既有 Workspace 新增聊天(Workspace 標題選單的「在此新增聊天」)。
+    /// 也是新增聊天能不能選既有 Workspace 的條件。HTTPS 主機要主機服務 0.15.0 起(`tab.create`);
+    /// 已知版本不足時不提供,還不知道版本(還沒連上)時先提供,送出時版本不足會說明要更新主機服務。
+    public func supportsNewChatInWorkspace(_ host: HostSelection) -> Bool {
+        guard usesHostService(host), case .host(let id) = host, let installed = hostServiceVersions[id] else { return true }
+        return HostServiceFeature.tabCreate.isAvailable(onHostServiceVersion: installed)
     }
 
     /// 已啟用的範例主機(#394)加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
@@ -492,15 +500,18 @@ public final class HostsModel {
     }
 
     /// 某台主機上的新增對話(#18;主機由新增聊天的主機挑選鈕決定，#245)。
-    public func newChat(on host: HostSelection) -> NewChatModel {
+    public func newChat(on host: HostSelection, preselectingWorkspace workspaceID: String? = nil) -> NewChatModel {
         let member = member(for: host)
         // HTTPS 主機沒有主機通道：只收完整路徑(#287)。
-        var usesHostService = false
-        if case .host(let id) = host { usesHostService = hosts.first { $0.id == id }?.connectionMethod.usesHostService == true }
+        let usesHostService = usesHostService(host)
         let folders = usesHostService ? NewChatFolders.absolutePathsOnly : NewChatFolders(channel: member.channel)
-        return NewChatModel(
+        let model = NewChatModel(
             launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders,
-            agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)))
+            agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)),
+            // HTTPS 主機服務要 0.15.0 起才有 tab.create。
+            supportsExistingWorkspaces: supportsNewChatInWorkspace(host))
+        if let workspaceID { model.preselectWorkspace(workspaceID) }
+        return model
     }
 
     /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。

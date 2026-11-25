@@ -499,6 +499,50 @@ enum WindowsScripts {
         $o.Flush()
         """#
 
+    // MARK: - 過去的 session 清單(#535)
+
+    /// `SessionHistoryCommand.script` 的 PowerShell 版:同樣的參數(`種類 工作資料夾 Claude 專案資料夾名`)與輸出(每個 session 一行
+    /// 「id TAB 修改時間(epoch 秒) TAB 摘要」,新到舊、最多 50 個)。Claude 讀 `<設定目錄>\projects\<資料夾名>\*.jsonl`,Codex 讀 `sessions\` 底下
+    /// `session_meta` 的 cwd 等於工作資料夾的 `rollout-*.jsonl`(比對不分大小寫、`/` 與 `\` 視為相同);只讀每個檔案開頭 1 MiB。純 ASCII。
+    /// 沒有在真 Windows 主機實測(PowerShell 腳本只能在 Windows 執行;輸出格式由 `SSHSessionHistoryTests` 的 POSIX 版與解析測試守住)。
+    static let sessionHistory = #"""
+        function PTyped($t){if($t -isnot [string]){return};$t=([regex]::Replace($t,'\s+',' ')).Trim();if($t -eq '' -or $t.StartsWith('<') -or $t.StartsWith('[Request interrupted',[StringComparison]::Ordinal)){return};if($t.Length -gt 480){$t=$t.Substring(0,480)};$t}
+        function PSessionText([string]$k,[string]$l){try{
+        if($k -ceq 'claude'){if(-not $l.Contains('"user"')){return};$j=$l|ConvertFrom-Json;if($j.type -cne 'user' -or $j.isMeta -eq $true){return};$c=$j.message.content;if($c -is [string]){return (PTyped $c)};$x=@($c)|Select-Object -First 1;if($x.type -ceq 'text'){return (PTyped $x.text)}}
+        else{if(-not ($l.Contains('"user_message"') -or $l.Contains('"input_text"'))){return};$j=$l|ConvertFrom-Json;$p=$j.payload;if($j.type -ceq 'event_msg' -and $p.type -ceq 'user_message'){return (PTyped $p.message)};if($j.type -ceq 'response_item' -and $p.type -ceq 'message' -and $p.role -ceq 'user'){$x=@($p.content)|Where-Object{$_.type -ceq 'input_text'}|Select-Object -First 1;return (PTyped $x.text)}}
+        }catch{}}
+        function PSameFolder([string]$x,[string]$y){(($x -replace '/','\').TrimEnd('\')) -ieq (($y -replace '/','\').TrimEnd('\'))}
+        PRunBlock {
+        $k=$a[0]
+        if($k -ceq 'claude'){$d=Join-Path (Join-Path (PHome $env:CLAUDE_CONFIG_DIR '.claude') 'projects') $a[2];$pat='*.jsonl'}
+        elseif($k -ceq 'codex'){$d=Join-Path (PHome $env:CODEX_HOME '.codex') 'sessions';$pat='rollout-*.jsonl'}
+        else{PFail 64}
+        if(-not [IO.Directory]::Exists($d)){return}
+        try{if($k -ceq 'claude'){$fs=@(Get-ChildItem -LiteralPath $d -Force -File -Filter $pat)}else{$fs=@(Get-ChildItem -LiteralPath $d -Force -File -Recurse -Depth 5 -Filter $pat)}}catch{PFail 4}
+        $fs=@($fs|Where-Object{$_.Name.EndsWith('.jsonl',[StringComparison]::Ordinal)}|Sort-Object @{Expression={$_.LastWriteTimeUtc};Descending=$true},@{Expression={$_.FullName}})
+        $n=0
+        foreach($f in $fs){
+        if($n -ge 50){break}
+        $id=$null;$ok=$false;$sum=''
+        if($k -ceq 'claude'){$id=$f.BaseName;if($id -cnotmatch '^[A-Za-z0-9][A-Za-z0-9-]*$'){continue};$ok=$true}
+        try{
+        $h=POpen $f.FullName;$r=New-Object IO.StreamReader($h,$u);$bytes=0
+        while($null -ne ($l=$r.ReadLine())){
+        $bytes+=$l.Length+1;if($bytes -gt 1048576){break}
+        if($k -ceq 'codex' -and -not $ok){
+        if($l.Contains('"session_meta"')){try{$m=($l|ConvertFrom-Json).payload}catch{break};$id="$($m.id)";if($id -cnotmatch '^[A-Za-z0-9][A-Za-z0-9-]*$' -or -not (PSameFolder "$($m.cwd)" $a[1])){break};$ok=$true}
+        continue}
+        $t=PSessionText $k $l
+        if($t){$sum=$t;break}
+        }
+        $r.Close()
+        }catch{}
+        if(-not $ok){continue}
+        PWrite "$id`t$(([DateTimeOffset]$f.LastWriteTimeUtc).ToUnixTimeSeconds())`t$sum`n";$n++
+        }
+        }
+        """#
+
     // MARK: - 變更頁的唯讀 git(#310)
 
     /// `GitChangesCommand.script` 的 PowerShell 版:同樣的參數(`status 工作目錄` 或 `diff 工作目錄 標記 單檔上限 總量上限 (種類 路徑)…`)、

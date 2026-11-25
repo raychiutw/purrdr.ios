@@ -127,6 +127,17 @@
         }
       }
     },
+    "%@ of %@ tokens" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@／%2$@ Token"
+          }
+        }
+      }
+    },
     "%@ per %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -227,6 +238,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · 未自動載入"
+          }
+        }
+      }
+    },
+    "%@ — %lld chats need you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 等 %lld 個需要你"
           }
         }
       }
@@ -339,6 +361,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個 agent 工作中"
+          }
+        }
+      }
+    },
+    "%lld chats need you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個聊天需要你"
           }
         }
       }
@@ -604,13 +637,13 @@
         }
       }
     },
-    "%lld other Agents need you" : {
+    "%lld of %lld done" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "另外 %lld 個 Agent 需要你"
+            "value" : "完成 %1$lld／%2$lld"
           }
         }
       }
@@ -622,6 +655,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個 Pane"
+          }
+        }
+      }
+    },
+    "%lld queued" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排了 %lld 則"
           }
         }
       }
@@ -805,6 +849,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個 agent 工作中"
+          }
+        }
+      }
+    },
+    "1 chat needs you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個聊天需要你"
           }
         }
       }
@@ -1014,6 +1069,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "會員可以開通 Purrdr Plus,收 Agent 的通知,並在 iPhone、iPad 與 Android 之間同步主機清單。"
+          }
+        }
+      }
+    },
+    "A new Tab opens in this Workspace." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會在這個 Workspace 裡新增一個 Tab。"
           }
         }
       }
@@ -1399,17 +1465,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所有照片"
-          }
-        }
-      }
-    },
-    "All Workspaces" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所有 Workspace"
           }
         }
       }
@@ -2870,13 +2925,35 @@
         }
       }
     },
-    "Close Layout" : {
+    "Close Tab" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "關閉版面"
+            "value" : "關閉 Tab"
+          }
+        }
+      }
+    },
+    "Close Tab and Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Tab 與 Workspace"
+          }
+        }
+      }
+    },
+    "Close Tab…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Tab…"
           }
         }
       }
@@ -2899,6 +2976,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉 Workspace…"
+          }
+        }
+      }
+    },
+    "Close tab “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要關閉 Tab「%@」嗎?"
           }
         }
       }
@@ -3255,6 +3343,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "內容超過 20,000 字，已截斷"
+          }
+        }
+      }
+    },
+    "Context" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context"
           }
         }
       }
@@ -4293,6 +4392,17 @@
         }
       }
     },
+    "Current Session" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前工作階段"
+          }
+        }
+      }
+    },
     "Current: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4634,6 +4744,17 @@
         }
       }
     },
+    "Double-tap and hold to show Workspace actions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按兩下並按住,顯示 Workspace 動作"
+          }
+        }
+      }
+    },
     "Double-tap to change." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4905,6 +5026,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Escape"
+          }
+        }
+      }
+    },
+    "Everything running in this tab will stop, including its agents. Chat history stays on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Tab 裡執行的所有東西都會停止,包括 Agent。對話紀錄會留在主機上。"
           }
         }
       }
@@ -5536,6 +5668,17 @@
         }
       }
     },
+    "Hide Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏 Inspector"
+          }
+        }
+      }
+    },
     "Hide Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6133,6 +6276,17 @@
         }
       }
     },
+    "Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inspector"
+          }
+        }
+      }
+    },
     "Install" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6327,6 +6481,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跳到最新"
+          }
+        }
+      }
+    },
+    "Just now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剛剛"
           }
         }
       }
@@ -6540,6 +6705,28 @@
         }
       }
     },
+    "Leave these empty to use the folder’s name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空就用資料夾的名稱。"
+          }
+        }
+      }
+    },
+    "Leave this empty to use the default name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空就使用預設名稱。"
+          }
+        }
+      }
+    },
     "Left Arrow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6712,6 +6899,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在載入圖片"
+          }
+        }
+      }
+    },
+    "Loading plan usage…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在讀取用量⋯"
           }
         }
       }
@@ -7013,6 +7211,17 @@
         }
       }
     },
+    "Model & Effort" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型與思考深度"
+          }
+        }
+      }
+    },
     "Modified" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7123,6 +7332,17 @@
         }
       }
     },
+    "Names" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱"
+          }
+        }
+      }
+    },
     "Needs Purrdr Plus" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7189,6 +7409,17 @@
         }
       }
     },
+    "New Chat Here" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此新增聊天"
+          }
+        }
+      }
+    },
     "New Conversation" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7207,6 +7438,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新視窗"
+          }
+        }
+      }
+    },
+    "New Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的 Workspace"
           }
         }
       }
@@ -7783,17 +8025,6 @@
         }
       }
     },
-    "Nothing to show yet." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前沒有內容。"
-          }
-        }
-      }
-    },
     "Nothing was interrupted. Answer its question instead." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8054,17 +8285,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未開啟 · 另有 %lld 支裝置在這台開啟通知"
-          }
-        }
-      }
-    },
-    "Offline" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "離線"
           }
         }
       }
@@ -8454,6 +8674,17 @@
         }
       }
     },
+    "Opens that chat." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟那個聊天"
+          }
+        }
+      }
+    },
     "Opens the Tailscale sign-in page in your browser." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8505,6 +8736,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟終端機。"
+          }
+        }
+      }
+    },
+    "Optional" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選填"
           }
         }
       }
@@ -9022,6 +9264,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用量 · %@ · %@"
+          }
+        }
+      }
+    },
+    "Plan usage isn’t available for this agent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Agent 沒有方案用量。"
           }
         }
       }
@@ -9697,6 +9950,17 @@
         }
       }
     },
+    "Read-only device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀裝置"
+          }
+        }
+      }
+    },
     "Read-only devices can’t change this" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9807,6 +10071,17 @@
         }
       }
     },
+    "Reconnecting…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新連線中…"
+          }
+        }
+      }
+    },
     "Record Scroll Stutters" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9825,6 +10100,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "兌換代碼"
+          }
+        }
+      }
+    },
+    "Refresh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新整理"
           }
         }
       }
@@ -10232,17 +10518,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "續接"
-          }
-        }
-      }
-    },
-    "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "續接過去的聊天需要主機上有主機服務，這台主機沒有。"
           }
         }
       }
@@ -10973,6 +11248,17 @@
         }
       }
     },
+    "Show Inspector" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示 Inspector"
+          }
+        }
+      }
+    },
     "Show Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11002,17 +11288,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示較少"
-          }
-        }
-      }
-    },
-    "Show Status" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示狀態"
           }
         }
       }
@@ -11127,13 +11402,13 @@
         }
       }
     },
-    "Shows usage and permission mode." : {
+    "Shows usage details." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "顯示用量與權限模式。"
+            "value" : "開啟用量詳情。"
           }
         }
       }
@@ -11897,6 +12172,17 @@
         }
       }
     },
+    "Tab Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 名稱"
+          }
+        }
+      }
+    },
     "Tab name" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12159,6 +12445,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文字大小"
+          }
+        }
+      }
+    },
+    "That Workspace was closed on the host. Choose another one, or start a new Workspace." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Workspace 已在主機上關閉。請改選另一個，或開一個新的 Workspace。"
           }
         }
       }
@@ -13120,6 +13417,17 @@
         }
       }
     },
+    "This Chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個聊天"
+          }
+        }
+      }
+    },
     "This Device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13259,6 +13567,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上的對話已變更，沒有送出任何內容。"
+          }
+        }
+      }
+    },
+    "This chat hasn’t reported context yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個聊天還沒有回報 Context。"
           }
         }
       }
@@ -13858,6 +14177,17 @@
         }
       }
     },
+    "This is the last tab in “%@”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是「%@」的最後一個 Tab,所以 Workspace 也會一併關閉。裡面執行的所有東西都會停止,包括 Agent。對話紀錄會留在主機上。"
+          }
+        }
+      }
+    },
     "This isn’t an OpenSSH private key. Paste the whole file, starting with “-----BEGIN OPENSSH PRIVATE KEY-----”. To convert an older key, run ssh-keygen -p -f on it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14360,17 +14690,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "待辦"
-          }
-        }
-      }
-    },
-    "Todos %lld/%lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待辦 %1$lld/%2$lld"
           }
         }
       }
@@ -14881,6 +15200,17 @@
         }
       }
     },
+    "Untitled Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名的 Workspace"
+          }
+        }
+      }
+    },
     "Untracked" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15079,6 +15409,17 @@
         }
       }
     },
+    "Updated %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新時間:%@"
+          }
+        }
+      }
+    },
     "Updated to %@." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15134,6 +15475,28 @@
         }
       }
     },
+    "Usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量"
+          }
+        }
+      }
+    },
+    "Usage & Context" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量與 Context"
+          }
+        }
+      }
+    },
     "Usage Capture" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15152,6 +15515,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用量顯示"
+          }
+        }
+      }
+    },
+    "Usage: %@ %lld%%" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量:%1$@ %2$lld%%"
+          }
+        }
+      }
+    },
+    "Usage: %@ %lld%% left" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量:%1$@ 剩餘 %2$lld%%"
           }
         }
       }
@@ -15464,6 +15849,17 @@
         }
       }
     },
+    "Weekly Limit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每週"
+          }
+        }
+      }
+    },
     "Welcome" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15717,7 +16113,18 @@
         }
       }
     },
-    "Workspace name" : {
+    "Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workspace"
+          }
+        }
+      }
+    },
+    "Workspace Name" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -15728,13 +16135,13 @@
         }
       }
     },
-    "Workspaces" : {
+    "Workspace name" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Workspace"
+            "value" : "Workspace 名稱"
           }
         }
       }
@@ -15783,17 +16190,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一則訊息最多附加 10 個項目。"
-          }
-        }
-      }
-    },
-    "You can stop the agent after reconnecting." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新連上後才能停止。"
           }
         }
       }

@@ -5,12 +5,12 @@ import SwiftUI
 /// 一個視窗的頂層導覽(#37 故事 21、#31)。
 ///
 /// 底部 4 個 tab:聊天、檔案、主機、流量(#376;設定併進帳號 sheet,#503);帳號與設定、新增聊天、付費牆與歡迎頁以 sheet 開啟。
-/// 聊天 tab 依可用寬度排版(size class,不看裝置):寬視窗是三欄 `NavigationSplitView`(主機與 workspace → Agent 列表 → 對話);
+/// 聊天 tab 依可用寬度排版(size class,不看裝置):寬視窗是兩欄 `NavigationSplitView`:Agent 列表(Spaces)→ 對話(#518;主機只看列表頂列的電腦圖示);
 /// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)是 `NavigationStack`,從 Agent 列表開始，點列推入對話(對話與終端機隱藏 tab bar)。
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
 public struct TopNavigationView: View {
-    @State private var navigation = TopNavigationModel()
-    /// 預設不隱藏側欄(HIG Sidebars);使用者可以邊緣滑動收起。
+    @State private var navigation: TopNavigationModel
+    /// 兩欄預設都顯示。
     @State private var columns = NavigationSplitViewVisibility.all
     let hosts: HostsModel
     let member: MemberModel
@@ -25,8 +25,9 @@ public struct TopNavigationView: View {
     let welcome: WelcomeModel?
     /// App 鎖(#284);推播開啟的導航等解鎖後才執行。`nil` 時沒有 App 鎖。
     let appLock: AppLock?
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     @Environment(\.allowsTestingLinks) private var allowsTestingLinks
@@ -34,8 +35,9 @@ public struct TopNavigationView: View {
     public init(
         hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
         hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil,
-        appLock: AppLock? = nil
+        appLock: AppLock? = nil, inspectorStore: any InspectorVisibilityStore = UserDefaultsInspectorVisibilityStore()
     ) {
+        _navigation = State(initialValue: TopNavigationModel(inspectorStore: inspectorStore))
         self.welcome = welcome
         self.appLock = appLock
         self.hostSync = hostSync
@@ -50,14 +52,19 @@ public struct TopNavigationView: View {
         @Bindable var navigation = navigation
         tabs
             .environment(\.usageSections, UsageSectionContext(hosts: hosts))
-            .onChange(of: hosts.selection) { navigation.hostChanged() }
-            .onChange(of: sizeClass, initial: true) { _, sizeClass in
-                navigation.layoutChanged(isCompact: sizeClass == .compact)
+            // 對話頂部的跨聊天「需要你」橫幅(#530):點了把目前的聊天換成那個聊天。
+            .registersAsMainWindow()
+            .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, open: { [navigation] in navigation.selectedChat = $0 }))
+            // 「需要你」通知跟著合併列表的快照(整個 app 只有這一個接線點;背景不推進,#492)。
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                await hosts.agentList.needsYou.runShared(observing: hosts.agentList)
             }
             // 選單列與快捷鍵作用在有焦點的視窗(`PurrdrCommands`)。
             .focusedSceneValue(\.windowCommands, windowCommands)
             .tailscaleCheckPrompt(hosts.tailscaleCheck)
             .sheet(item: $navigation.sheet) { sheet in
+                Group {
                 switch sheet {
                 case .member:
                     // 帳號與設定頁(#246、#503)自帶 NavigationStack 與右上角 X;設定併在第一層。
@@ -88,7 +95,10 @@ public struct TopNavigationView: View {
                         navigation.sheet = nil
                     }
                 case .newChat:
-                    NewChatSheet(hosts: hosts, picker: hosts.newChatHostPicker()) {
+                    NewChatSheet(
+                        hosts: hosts, picker: hosts.newChatHostPicker(preferring: navigation.newChatPreselection?.host),
+                        preselection: navigation.newChatPreselection
+                    ) {
                         navigation.sheet = nil
                     } onStarted: { workspace, host, unsentMessage in
                         // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
@@ -98,6 +108,8 @@ public struct TopNavigationView: View {
                         Task { await hosts.openStartedChat(workspace, on: host) }
                     }
                 }
+                }
+                .appSheetBackground()
             }
             // 第一次開啟 app:開出歡迎頁(#34)。
             .task { if let welcome { navigation.launched(welcome: welcome) } }
@@ -152,20 +164,37 @@ public struct TopNavigationView: View {
     private var windowCommands: WindowCommands {
         let navigation = navigation
         let hosts = hosts
-        let card = navigation.layoutCard
-        return WindowCommands(
-            perform: { command in
-                let list = hosts.agentList
-                navigation.perform(
-                    command,
-                    visibleAgents: navigation.visibleAgents(list.spacesSections, host: hosts.selection, snapshot: list.snapshot(for: hosts.selection)))
-            },
-            isLayoutCardShown: card.workspaceID != nil,
-            closeLayoutCard: { card.close() })
+        let opening = selectedWindowOpening
+        let openWindow = openWindow
+        let hasConversation = navigation.selectedChat.map { hosts.agentList.terminalTitle(of: $0) == nil } ?? false
+        let context = KeyboardCommandContext(
+            hasSelectedChat: opening != nil, hasSelectedConversation: hasConversation, tab: navigation.tab,
+            isWideWindow: sizeClass != .compact, isInspectorShown: navigation.isInspectorShown,
+            supportsMultipleWindows: supportsMultipleWindows)
+        return WindowCommands(perform: { command in
+            if command == .openInNewWindow {
+                if let route = navigation.selectedChat, let opening {
+                    openWindow(value: PaneWindow(
+                        kind: opening.isTerminal ? .terminal : .chat, host: route.host, paneID: route.paneID,
+                        sessionID: hosts.agentList.sessionID(of: route), title: opening.title))
+                }
+                return
+            }
+            navigation.perform(command, visibleAgents: navigation.visibleAgents(hosts.agentList.spacesSections))
+        }, context: context)
+    }
+
+    /// 目前選取的聊天在 Spaces 列表上的「在新視窗開啟」內容(「在新視窗開啟」選單項目用);沒選或列表上找不到是 `nil`。
+    private var selectedWindowOpening: SpacesTab.WindowOpening? {
+        guard let route = navigation.selectedChat else { return nil }
+        for tab in hosts.agentList.spacesSections.flatMap(\.tabs) where tab.host == route.host {
+            if let opening = tab.newWindowOpening, opening.paneID == route.paneID { return opening }
+        }
+        return nil
     }
 
     /// 聊天 tab:窄視窗是一般 `NavigationStack`(列表為根、聊天推入,轉場與主機 tab 的子頁一樣順),
-    /// 寬視窗是三欄。選取的聊天(`navigation.selectedChat`)兩種排版共用,縮放視窗時不丟失。
+    /// 寬視窗是兩欄。選取的聊天(`navigation.selectedChat`)兩種排版共用,縮放視窗時不丟失。
     @ViewBuilder
     private var chatsRoot: some View {
         if sizeClass == .compact {
@@ -180,10 +209,6 @@ public struct TopNavigationView: View {
         @Bindable var navigation = navigation
         return NavigationStack {
             agentList
-                .overlay(alignment: .topLeading) {
-                    LayoutCardOverlay(
-                        card: navigation.layoutCard, snapshot: hosts.agentList.snapshot(for: hosts.selection), onChoose: openLayoutTarget)
-                }
                 .navigationDestination(item: $navigation.selectedChat) { route in
                     WindowDetailContent(hosts: hosts, navigation: navigation, route: route)
                         .appNavigationBackground()
@@ -193,21 +218,25 @@ public struct TopNavigationView: View {
         }
     }
 
-    /// 三欄(寬視窗)。
+    /// 兩欄(寬視窗)。
     private var splitView: some View {
         let navigation = navigation
         return NavigationSplitView(columnVisibility: $columns) {
-            WindowSidebar(hosts: hosts, navigation: navigation)
-        } content: {
             // 所有主機合併的 Agent 列表(#39)。換選取中主機不重建列表，只改排序與主機名標示。
             agentList
-                .overlay(alignment: .topLeading) {
-                    LayoutCardOverlay(
-                        card: navigation.layoutCard, snapshot: hosts.agentList.snapshot(for: hosts.selection), onChoose: openLayoutTarget)
-                }
+                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
-            WindowDetail(hosts: hosts, navigation: navigation)
+            WindowDetail(
+                hosts: hosts, navigation: navigation,
+                account: AccountButtonPlacement.showsInDetailToolbar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
         }
+    }
+
+    /// 寬視窗(regular 水平 size class):聊天分兩欄,帳號頭像在最右邊那欄(#520);窄視窗收成一疊,在列表頂列。依可用寬度,不看裝置。
+    private var isWideWindow: Bool { horizontalSizeClass == .regular }
+
+    private var accountButton: AnyView {
+        AnyView(TopBarAccountButton(member: member) { navigation.sheet = .member })
     }
 
     /// 所有主機合併的 Agent 列表(#39)。
@@ -217,9 +246,12 @@ public struct TopNavigationView: View {
         if supportsMultipleWindows {
             open = { kind, route, title in openInNewWindow(kind, route, title) }
         }
-let topBar = ChatTopBarActions(
-            newChat: { navigation.sheet = .newChat }, addHost: { navigation.openAddHost() },
-            account: AnyView(TopBarAccountButton(member: member) { navigation.sheet = .member }))
+        let topBar = ChatTopBarActions(
+            newChat: { navigation.sheet = .newChat },
+            newChatInWorkspace: { navigation.startNewChat(inWorkspace: $1, on: $0) },
+            canNewChatInWorkspace: { hosts.supportsNewChatInWorkspace($0) },
+            addHost: { navigation.openAddHost() },
+            account: AccountButtonPlacement.showsInTopBar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
         return AgentListView(
             model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
             prefetchConversations: { await hosts.prefetchConversations($0) }
@@ -236,22 +268,13 @@ let topBar = ChatTopBarActions(
             kind: kind, host: route.host, paneID: route.paneID, sessionID: hosts.agentList.sessionID(of: route), title: title))
     }
 
-    /// 版面圖卡片(選取中主機的 workspace)選了 Pane:Agent 在對話欄打開;終端機方塊在對話欄開它的 Pane 終端機。
-    private func openLayoutTarget(_ target: PaneOpenTarget) {
-        switch target {
-        case .chat(let paneID):
-            navigation.selectedChat = ChatRoute(host: hosts.selection, paneID: paneID)
-        case .terminal(let paneID):
-            // 終端機方塊：在對話欄開它的 Pane 終端機(#40;對話欄依 pane 是否為 Agent 決定)。
-            navigation.selectedChat = ChatRoute(host: hosts.selection, paneID: paneID)
-        }
-    }
-
     /// 4 個 tab。每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
     private var tabs: some View {
-        TabView(selection: $navigation.tab) {
+        TabView(selection: Binding(
+            get: { TopLevelTab.visibleSelection(navigation.tab, visible: TopLevelTab.allCases) },
+            set: { navigation.tab = $0 })) {
             Tab("Chats", systemImage: "bubble.left.and.bubble.right.fill", value: TopLevelTab.chats) {
-                // 選取中主機的主題(#23)只套在聊天 tab 的側欄、列表、對話與終端機。
+                // 選取中主機的主題(#23)只套在聊天 tab 的列表、對話與終端機。
                 chatsRoot
                     .selectedHostTheme(hosts)
                     .tint(ProminentFillStyle())
@@ -283,22 +306,26 @@ let topBar = ChatTopBarActions(
 private struct NewChatSheet: View {
     let hosts: HostsModel
     @State private var picker: HostPickerModel
+    let preselection: NewChatPreselection?
     let onCancel: () -> Void
     let onStarted: (CreatedWorkspace, HostSelection, String?) -> Void
 
     init(
-        hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, onCancel: @escaping () -> Void,
+        hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, preselection: NewChatPreselection?, onCancel: @escaping () -> Void,
         onStarted: @escaping (CreatedWorkspace, HostSelection, String?) -> Void
     ) {
         self.hosts = hosts
         _picker = State(wrappedValue: picker())
+        self.preselection = preselection
         self.onCancel = onCancel
         self.onStarted = onStarted
     }
 
     var body: some View {
         let host = picker.selection
-        NewChatForm(model: hosts.newChat(on: host), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
+        // 預選只在主機沒被改掉時有效。
+        let preselected = preselection.flatMap { $0.host == host ? $0.workspaceID : nil }
+        NewChatForm(model: hosts.newChat(on: host, preselectingWorkspace: preselected), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
             .id(host)
     }
 }

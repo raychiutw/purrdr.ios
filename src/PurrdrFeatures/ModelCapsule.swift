@@ -52,6 +52,7 @@ struct ModelCapsule: View {
         .accessibilityIdentifier("composer.model")
         .sheet(isPresented: $isPresented, onDismiss: { Task { await model.finishChoosingModel() } }) {
             ModelSheet(model: model)
+                .appSheetBackground()
         }
     }
 }
@@ -64,25 +65,33 @@ struct ModelSheet: View {
 
     var body: some View {
         NavigationStack {
-            ModelListPage(model: model)
+            ModelContentView(model: model)
                 .navigationTitle("Choose Model")
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar { SheetCloseToolbar(identifier: "model.close") }
-                .navigationDestination(isPresented: Binding(
-                    get: { model.modelSheetPage == .effort },
-                    set: { shown in if !shown { Task { await model.closeEffortPage() } } }
-                )) {
-                    EffortPage(model: model)
-                }
+                .modelEffortDestination(model)
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .presentationDragIndicator(.visible)
     }
 }
 
-private struct ModelListPage: View {
+extension View {
+    /// 「投入程度」子頁的導覽目的地:模型 sheet 與 iPad Inspector 的模型頁(#521)共用。
+    func modelEffortDestination(_ model: ConversationModel) -> some View {
+        navigationDestination(isPresented: Binding(
+            get: { model.modelSheetPage == .effort },
+            set: { shown in if !shown { Task { await model.closeEffortPage() } } }
+        )) {
+            EffortPage(model: model)
+        }
+    }
+}
+
+/// 模型清單內容(#515):可單獨嵌入——不含 NavigationStack 與關閉鈕(sheet 與 #517 的 inspector 共用)。
+struct ModelContentView: View {
     let model: ConversationModel
     @Environment(\.dismiss) private var dismiss
 

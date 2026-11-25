@@ -30,8 +30,6 @@ public struct ConversationStatusSummary: Equatable {
 
     /// 目前唯一的一條提醒。
     public enum Banner: Equatable {
-        /// 連不上主機;`needsReconnectToStop` 為斷線前 Agent 在工作(重連後才能停止)。
-        case offline(needsReconnectToStop: Bool)
         /// 對話紀錄讀取問題(權限、失敗、不明確、被壓縮)。
         case transcript(ConversationModel.Banner)
         /// 這支裝置是唯讀。
@@ -44,12 +42,12 @@ public struct ConversationStatusSummary: Equatable {
     /// 工作中膠囊;不需要時是 `nil`。
     public var working: Working?
     public var sheet: Sheet
-    /// 目前橫幅，優先順序:離線 > 對話紀錄 > 唯讀 > 主機服務版本。
+    /// 目前橫幅，優先順序:對話紀錄 > 唯讀 > 主機服務版本。離線不顯示橫幅(#540):背景自動重連，頂列第二行說「重新連線中…」。
     public var banner: Banner?
 
     public init(
         header: ConversationHeader, banner: ConversationModel.Banner?, isOffline: Bool, isReadOnly: Bool,
-        hostServiceUpdateMessage: String?, stopNeedsReconnect: Bool, workingSince: Date?, stopPhase: StopPhase?,
+        hostServiceUpdateMessage: String?, workingSince: Date?, stopPhase: StopPhase?,
         isWritingLive: Bool, progress: AgentProgress, agentsPane: AgentsPane?, hasSendWhenDone: Bool = false
     ) {
         self.header = header
@@ -60,9 +58,7 @@ public struct ConversationStatusSummary: Equatable {
                 since: workingSince, isWriting: isWritingLive, stopPhase: stopPhase,
                 runningBackgroundAgents: agentsPane?.rows.filter { $0.state == .running }.count ?? 0)
         }
-        if banner == .offline {
-            self.banner = .offline(needsReconnectToStop: stopNeedsReconnect)
-        } else if let banner {
+        if let banner, banner != .offline {
             self.banner = .transcript(banner)
         } else if isReadOnly {
             self.banner = .readOnly
@@ -109,7 +105,7 @@ extension ConversationModel {
     public var statusSummary: ConversationStatusSummary {
         ConversationStatusSummary(
             header: header, banner: banner, isOffline: isOffline, isReadOnly: isReadOnly,
-            hostServiceUpdateMessage: screenUpdateRequiredMessage, stopNeedsReconnect: stopNeedsReconnect, workingSince: workingSince,
+            hostServiceUpdateMessage: screenUpdateRequiredMessage, workingSince: workingSince,
             stopPhase: stopPhase, isWritingLive: livePreview != nil, progress: progress, agentsPane: agentsPane,
             hasSendWhenDone: sendWhenDone != nil)
     }

@@ -65,7 +65,7 @@ final class ChangesUITests: XCTestCase {
         app.openConversation(paneID: "w2:p1")
         let git = app.conversationMoreItem("changes.open")
         XCTAssertTrue(UITestWait.until(timeout: 10) { !git.isEnabled }, "不在 Git 資料夾卻沒有停用")
-        XCTAssertTrue(app.buttons["terminal.open"].firstMatch.isEnabled, "終端機項目不該停用")
-        XCTAssertTrue(app.buttons["layout.show"].firstMatch.exists, "更多選單沒有顯示版面")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Pane Terminal")).firstMatch.isEnabled, "終端機項目不該停用")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Show Layout")).firstMatch.exists, "更多選單沒有顯示版面")
     }
 }

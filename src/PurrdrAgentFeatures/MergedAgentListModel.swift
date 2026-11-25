@@ -105,6 +105,9 @@ public final class MergedAgentListModel {
             if let currentHost { selectHost?(currentHost) }
         }
     }
+    /// 跨聊天「需要你」通知的輸出(返回鈕小點等);由 `TopNavigationView` 的 `.task` 以 `needsYou.run(observing:)` 驅動(整個 app 唯一的接線點,#530);列表段落(#531)只讀輸出。
+    public let needsYou = NeedsYouNotifications()
+
     /// 目前主機改變時通知(主機清單接上，存到本機)。
     public var currentHostDidChange: (@MainActor (HostSelection?) -> Void)?
     /// 目前主機是某台主機時，把它設成選取中主機(主機清單接上)。
@@ -210,7 +213,7 @@ public final class MergedAgentListModel {
     public var attentionCount: Int { ChatUnread.attentionCount(sources: projectionSources, visible: visibleChats) }
 
     /// 「需要你」(blocked)的 Agent 數:聊天 tab 的 badge(#390)。所有主機合計,不受主機篩選影響;
-    /// `excluding` 是目前開著的聊天(對話返回鈕旁顯示「另外 N 個」)。
+    /// `excluding` 是要排除的聊天(目前沒有畫面使用;返回鈕旁的「另外 N 個」徽章已移除,通知方式重新設計中)。
     public func needsYouCount(excluding route: ChatRoute? = nil) -> Int {
         sources.reduce(0) { count, source in
             guard let agents = source.list.snapshot?.agents else { return count }
@@ -239,7 +242,7 @@ public final class MergedAgentListModel {
 
     private var projectionSources: [AgentListProjection.Source] { sources.map(projectionSource(of:)) }
 
-    private func projectionSource(of source: Source) -> AgentListProjection.Source {
+    package func projectionSource(of source: Source) -> AgentListProjection.Source {
         var projection = AgentListProjection.Source(
             host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
             name: source.name, icon: source.icon, snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
@@ -253,6 +256,14 @@ public final class MergedAgentListModel {
     /// Spaces(#275、#501 起聊天唯一的呈現):每個「主機 · workspace」一段，段內每個 Tab 一列;套用目前主機與搜尋(主機、workspace、Tab 名稱,#391)。
     public var spacesSections: [SpacesSection] {
         AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats, query: query)
+    }
+
+    /// 列表最上面的「需要你」段落(#531):所有主機(不受主機篩選)需要你的聊天、套用搜尋;
+    /// 排序與「剛剛」來自 `needsYou`(沒有人驅動它時照列表順序、沒有「剛剛」)。沒有時 `nil`。
+    public var needsYouSection: NeedsYouSection? {
+        AgentListProjection.needsYouSection(
+            sources: projectionSources, visible: visibleChats, query: query,
+            order: needsYou.others.map(\.route), justNow: needsYou.latest?.route)
     }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。

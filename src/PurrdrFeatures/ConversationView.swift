@@ -42,29 +42,34 @@ public struct ConversationView: View {
     /// 避開玻璃導覽列、橫幅與輸入列後的安全區域框(全域座標),列表據此算上下 inset。
     @State private var safeAreaFrame: CGRect = .zero
 
+    @Environment(\.paneWindowTitle) private var paneWindowTitle
+
     public init(model: ConversationModel) {
         self.model = model
     }
 
     public var body: some View {
         content
-            .navigationTitle(displayTitle)
+            .navigationTitle(paneWindowTitle ?? displayTitle)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 // 標題是 workspace 名稱，副標是狀態與主機名(#270);右邊只有終端機鈕，重新載入改成下拉。
                 ToolbarItem(placement: .principal) {
-                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header, model: model)
+                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header)
                 }
                 .sharedBackgroundVisibility(.hidden)    // 標題自己是玻璃膠囊，不讓工具列再疊一層(glass on glass)
             }
-            .safeAreaBar(edge: .top) { banner }
+            .safeAreaBar(edge: .top) {
+                // 狀態橫幅(斷線等)在上、跨聊天「需要你」橫幅在它下面(#530),兩者上下排列不互相蓋住。
+                VStack(spacing: 0) {
+                    banner
+                    NeedsYouBannerView()
+                }
+            }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .forceQuitConfirmation(model: model)
-            .sheet(isPresented: $model.showsStatusSheet) {
-                ConversationStatusSheet(title: displayTitle, model: model)
-            }
             .secretCheckSheet(model.secretCheck)
             .slashPanelSheet(model: model)
             .environment(\.bubbleImages, BubbleImageContext(
@@ -74,7 +79,7 @@ public struct ConversationView: View {
             .environment(\.inlineSlashNames, model.inlineSlashNames)
             .imageViewer(item: $viewerItem)
             .quickLookPreview($previewFile)
-            .sheet(item: $presentedSheet) { $0.content }
+            .sheet(item: $presentedSheet) { $0.content.appSheetBackground() }
             .navigationDestination(item: $openedRoute) { [model] route in
                 DelegationDestination(route: route, conversation: model)
             }
@@ -534,34 +539,18 @@ public struct ConversationView: View {
     }
 
     /// 非干擾式標示：不在進入畫面時跳 alert,也不只用自動消失的 toast(HIG 20.5)。
-    /// 頂列下方唯一的一條浮動橫幅(#348):斷線、對話紀錄問題、唯讀與主機服務版本都在這裡，輸入列與卡片不再重複。
+    /// 頂列下方唯一的一條浮動橫幅(#348):對話紀錄問題、唯讀與主機服務版本都在這裡，輸入列與卡片不再重複。
     @ViewBuilder
     private var banner: some View {
         if let kind = model.statusSummary.banner {
-            let isOffline = if case .offline = kind { true } else { false }
             HStack {
                 Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        kind.text
-                        // 斷線前在工作：停止列已收起，說明為什麼不能停(#220)。
-                        if kind == .offline(needsReconnectToStop: true) {
-                            Text("You can stop the agent after reconnecting.")
-                        }
-                    }
+                    kind.text
                 } icon: {
                     Image(systemName: kind.symbol)
                 }
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
-                Spacer(minLength: 8)
-                if isOffline {
-                    // 中斷標示留在畫面上直到重新連上;也可以手動立刻重試(輪詢本身仍會每幾秒重試)。
-                    Button { Task { await model.poll() } } label: {
-                        HitTarget("Try Again")
-                    }
-                    .font(.footnote)
-                    .accessibilityIdentifier("conversation.retry")
-                }
             }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
@@ -577,7 +566,6 @@ public struct ConversationView: View {
 extension ConversationStatusSummary.Banner {
     var text: Text {
         switch self {
-        case .offline: Text("Offline — showing the last loaded conversation.")
         case .transcript(let banner): Text(banner.text)
         case .readOnly: Text("This device is paired read-only, so it can’t send anything to this host.")
         case .hostServiceUpdateRequired(let message): Text(verbatim: message)
@@ -586,7 +574,6 @@ extension ConversationStatusSummary.Banner {
 
     var symbol: String {
         switch self {
-        case .offline: "wifi.slash"
         case .transcript(let banner): banner.symbol
         case .readOnly: "lock"
         case .hostServiceUpdateRequired: "arrow.down.circle"

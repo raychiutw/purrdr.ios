@@ -109,15 +109,38 @@ public enum ComposerSizing {
 
 // MARK: - 兩態(#382)
 
+/// 輸入框依目前寬度量到的內容行數(組字中的字也算)。畫面量測、規則決定形態。
+public struct ComposerLineMeasure: Sendable, Equatable {
+    /// 內容需要的行數；空白是 0。
+    public var lines: Int
+    /// 只有一行時，內容寬度佔可用寬度的比例(0…1);超過一行沒有意義。
+    public var fill: Double
+
+    public init(lines: Int, fill: Double) {
+        self.lines = lines
+        self.fill = fill
+    }
+
+    public static let empty = ComposerLineMeasure(lines: 0, fill: 0)
+}
+
 /// 輸入列的兩種形態:收合是一列(+、輸入、送出),展開是兩列(上方輸入、下方 +、模型膠囊、送出)。
 public enum ComposerForm: Sendable, Equatable {
     case collapsed
     case expanded
 
-    /// 收合只在「沒聚焦、沒有文字、沒有附件」時;其餘展開。
-    /// 草稿只有空白或換行也算有內容(使用者打過字，收起鍵盤後草稿還在)。
-    public static func resolve(isFocused: Bool, draft: String, hasAttachments: Bool) -> ComposerForm {
-        isFocused || !draft.isEmpty || hasAttachments ? .expanded : .collapsed
+    /// 已展開時，單行內容填滿可用寬度超過這個比例就先不收合。
+    public static let collapseFillLimit = 0.9
+
+    /// 草稿含換行字元(使用者按了 Return 或貼上多行)。
+    public static func draftHasNewline(_ draft: String) -> Bool { draft.contains(where: \.isNewline) }
+
+    /// 形態只看草稿需要的行數、是否有換行、是否有附件，不看聚焦(#512)。
+    public static func resolve(measure: ComposerLineMeasure, hasNewline: Bool, hasAttachments: Bool, current: ComposerForm = .collapsed) -> ComposerForm {
+        if hasNewline || hasAttachments || measure.lines > 1 { return .expanded }
+        // 遲滯：已展開時，單行幾乎填滿(剛好在一行的邊界)先維持展開，字再少一些才收合。
+        if current == .expanded && measure.lines == 1 && measure.fill > collapseFillLimit { return .expanded }
+        return .collapsed
     }
 
     /// 模型膠囊只在展開時顯示(收合沒有位置，也不會被截成「Opu…」)。

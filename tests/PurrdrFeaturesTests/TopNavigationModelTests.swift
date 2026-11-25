@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import Testing
@@ -22,6 +23,28 @@ struct TopNavigationModelTests {
     func fourTabsStartOnChats() {
         #expect(TopLevelTab.allCases == [.chats, .files, .hosts, .traffic])
         #expect(TopNavigationModel().tab == .chats)
+    }
+
+    @Test("在此新增聊天:開新增聊天 sheet 並記下預選的主機與 Workspace;sheet 關了就清掉(#537)")
+    func startNewChatInWorkspace() {
+        let model = TopNavigationModel()
+        let host = HostSelection.host(UUID())
+
+        model.startNewChat(inWorkspace: "w2", on: host)
+
+        #expect(model.sheet == .newChat)
+        #expect(model.newChatPreselection == NewChatPreselection(host: host, workspaceID: "w2"))
+
+        model.sheet = nil
+        #expect(model.newChatPreselection == nil)
+    }
+
+    @Test("一般的新增聊天(快捷鍵)沒有預選")
+    func plainNewChatHasNoPreselection() {
+        let model = TopNavigationModel()
+        model.perform(.newChat, visibleAgents: [])
+        #expect(model.sheet == .newChat)
+        #expect(model.newChatPreselection == nil)
     }
 
     @Test("新增主機…:切到主機 tab 並直接進新增主機引導")

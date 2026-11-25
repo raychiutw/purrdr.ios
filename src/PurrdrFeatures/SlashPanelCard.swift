@@ -225,7 +225,7 @@ private struct SlashPanelSheet: ViewModifier {
                     SlashPanelCard(model: model, panel: panel)
                         .padding()
                 }
-                .presentationDetents([.medium, .large])
+                .appSheet(detents: [.medium, .large])
                 .presentationDragIndicator(.visible)
             }
         }

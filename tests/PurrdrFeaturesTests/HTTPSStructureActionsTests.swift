@@ -55,6 +55,16 @@ struct HTTPSStructureActionsTests {
         #expect(actions.renameError == HostErrorText.message(for: error))
     }
 
+    @Test("主機服務版本不足：關閉 Tab 失敗顯示更新主機服務的提示")
+    func closeTabOnOutdatedHostService() async {
+        let error = HostServiceError.hostServiceUpdateRequired(.tabClose, installedVersion: "0.14.0")
+        let actions = Self.actions(RefusingHostConnection(error: error))
+
+        await actions.closeTab(tabID: "w1:t1", sessionIDs: [])
+
+        #expect(actions.actionError == HostErrorText.message(for: error))
+    }
+
     @Test("唯讀裝置：Tab 改名被拒時說明唯讀(#458)")
     func renameTabOnReadOnlyDevice() async {
         let actions = Self.actions(RefusingHostConnection(error: HostServiceError.readOnlyDevice, readOnly: true))
@@ -138,5 +148,35 @@ struct HTTPSStructureActionsTests {
 
         #expect(!model.newChat(on: .host(https.id)).canBrowseFolders)
         #expect(model.newChat(on: .host(ssh.id)).canBrowseFolders)
+    }
+
+    @Test("「在此新增聊天」與選既有 Workspace:HTTPS 主機服務 0.15.0 起提供;已知更舊的不提供;還不知道版本時先提供;SSH 提供")
+    func hostsModelNewChatInWorkspaceSupport() async {
+        let (store, tokens) = HostServiceUpdateTests.hosts()
+        let connections = await HostServiceUpdateTests.connections(reporting: ["0.14.0", "0.15.0", "0.16.0"])
+        let model = HostServiceUpdateTests.model(
+            latest: nil, store: store, tokens: tokens, connections: connections, dismissals: InMemoryHostServiceUpdateStore())
+        model.load()
+        let older = store.hosts[0].id, same = store.hosts[1].id, newer = store.hosts[2].id, ssh = store.hosts[3].id
+        #expect(model.supportsNewChatInWorkspace(.host(older)))  // 還不知道版本
+
+        await model.checkHostServiceVersions()
+
+        #expect(!model.supportsNewChatInWorkspace(.host(older)))
+        #expect(model.supportsNewChatInWorkspace(.host(same)))
+        #expect(model.supportsNewChatInWorkspace(.host(newer)))
+        #expect(model.supportsNewChatInWorkspace(.host(ssh)))
+    }
+
+    @Test("新增聊天的主機挑選鈕可指定偏好主機(Workspace 標題選單進來時,#537)")
+    func newChatPickerPreferringHost() {
+        let first = HostConfiguration(name: "A", endpoint: SSHEndpoint(host: "a", username: "ray"))
+        let second = HostConfiguration(name: "B", endpoint: SSHEndpoint(host: "b", username: "ray"))
+        let store = MemoryHostStore()
+        store.hosts = [first, second]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        model.load()
+
+        #expect(model.newChatHostPicker(preferring: .host(second.id)).selection == .host(second.id))
     }
 }

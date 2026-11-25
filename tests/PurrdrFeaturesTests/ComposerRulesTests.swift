@@ -123,14 +123,48 @@ struct ComposerRulesTests {
 
     // MARK: - 兩態(#382)
 
-    @Test("收合只有「未聚焦且空白(沒有文字也沒有附件)」;聚焦、有文字或有附件就展開")
-    func formCollapsedOnlyWhenIdleAndEmpty() {
-        #expect(ComposerForm.resolve(isFocused: false, draft: "", hasAttachments: false) == .collapsed)
-        #expect(ComposerForm.resolve(isFocused: true, draft: "", hasAttachments: false) == .expanded)
-        #expect(ComposerForm.resolve(isFocused: false, draft: "hi", hasAttachments: false) == .expanded)
-        #expect(ComposerForm.resolve(isFocused: false, draft: "", hasAttachments: true) == .expanded)
-        // 只有換行也算有內容：使用者打過字，收起鍵盤後草稿還在。
-        #expect(ComposerForm.resolve(isFocused: false, draft: "\n", hasAttachments: false) == .expanded)
+    @Test("收合只有「一行放得下、沒有換行、沒有附件」;聚焦本身不影響")
+    func formCollapsedOnlyWhenOneLineWithoutNewlineOrAttachments() {
+        let one = ComposerLineMeasure(lines: 1, fill: 0.5)
+        #expect(ComposerForm.resolve(measure: .empty, hasNewline: false, hasAttachments: false) == .collapsed)
+        #expect(ComposerForm.resolve(measure: one, hasNewline: false, hasAttachments: false) == .collapsed)
+        #expect(ComposerForm.resolve(measure: ComposerLineMeasure(lines: 2, fill: 0.3), hasNewline: false, hasAttachments: false) == .expanded)
+        #expect(ComposerForm.resolve(measure: one, hasNewline: true, hasAttachments: false) == .expanded)
+        #expect(ComposerForm.resolve(measure: .empty, hasNewline: false, hasAttachments: true) == .expanded)
+        // 只有換行也算換行：使用者按了 Return。
+        #expect(ComposerForm.resolve(measure: .empty, hasNewline: true, hasAttachments: false) == .expanded)
+    }
+
+    @Test("行數邊界：剛好一行維持收合，多一行才展開")
+    func formLineBoundary() {
+        #expect(ComposerForm.resolve(measure: ComposerLineMeasure(lines: 1, fill: 1.0), hasNewline: false, hasAttachments: false, current: .collapsed) == .collapsed)
+        #expect(ComposerForm.resolve(measure: ComposerLineMeasure(lines: 2, fill: 0.05), hasNewline: false, hasAttachments: false, current: .collapsed) == .expanded)
+    }
+
+    @Test("遲滯：已展開時，一行但幾乎填滿(>90%)先維持展開，退到 90% 以內才收合")
+    func formHysteresis() {
+        let nearlyFull = ComposerLineMeasure(lines: 1, fill: 0.95)
+        let roomy = ComposerLineMeasure(lines: 1, fill: 0.9)
+        #expect(ComposerForm.resolve(measure: nearlyFull, hasNewline: false, hasAttachments: false, current: .expanded) == .expanded)
+        #expect(ComposerForm.resolve(measure: roomy, hasNewline: false, hasAttachments: false, current: .expanded) == .collapsed)
+        // 收合中的一行不受遲滯影響(不會因為幾乎填滿就先展開)。
+        #expect(ComposerForm.resolve(measure: nearlyFull, hasNewline: false, hasAttachments: false, current: .collapsed) == .collapsed)
+    }
+
+    @Test("組字中的字也算進行數：組字本身不切換形態，組到換行才展開")
+    func formIgnoresCompositionButCountsItsLines() {
+        // 空草稿開始組字：一行，仍收合(組字不是展開的理由)。
+        #expect(ComposerForm.resolve(measure: ComposerLineMeasure(lines: 1, fill: 0.02), hasNewline: false, hasAttachments: false) == .collapsed)
+        // 組字的字讓內容超過一行：展開。
+        #expect(ComposerForm.resolve(measure: ComposerLineMeasure(lines: 2, fill: 0.4), hasNewline: false, hasAttachments: false) == .expanded)
+    }
+
+    @Test("草稿含換行字元就是有換行")
+    func newlineDetection() {
+        #expect(ComposerForm.draftHasNewline("a\nb"))
+        #expect(ComposerForm.draftHasNewline("\n"))
+        #expect(!ComposerForm.draftHasNewline("abc"))
+        #expect(!ComposerForm.draftHasNewline(""))
     }
 
     @Test("收合是一列:+、輸入、送出;展開才有模型膠囊")

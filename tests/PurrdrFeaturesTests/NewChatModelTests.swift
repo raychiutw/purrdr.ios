@@ -183,6 +183,36 @@ struct NewChatModelTests {
         #expect(hosts.conversation(route, sessionID: nil).draft == "Fix the CSV quoting")
     }
 
+    @Test("名稱欄位:填了的 workspace 與 tab 名稱(去頭尾空白)交給主機;留空時不帶")
+    func namesAreOptional() async {
+        let host = FakeHost()
+        await host.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await host.expect(Self.bridge, reply: Self.reply(Self.created))
+        await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:tab.rename","result":{"type":"ok"}}"#))
+        await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"w4:p1"},"argv":["claude"]}}"#))
+        let model = Self.model(host)
+        model.folder = "~/ledger"
+        model.message = "Hi"
+        model.workspaceName = "  Tax  "
+        model.tabName = " Draft "
+        _ = await model.start()
+        let sent = await host.executions.map(\.stdinText)
+        #expect(sent.contains { $0.contains(#""label":"Tax""#) && $0.contains("workspace.create") })
+        #expect(sent.contains { $0.contains(#""label":"Draft""#) && $0.contains("tab.rename") })
+
+        let plain = FakeHost()
+        await plain.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await plain.expect(Self.bridge, reply: Self.reply(Self.created))
+        await plain.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"w4:p1"},"argv":["claude"]}}"#))
+        let blank = Self.model(plain)
+        blank.folder = "~/ledger"
+        blank.message = "Hi"
+        blank.workspaceName = "   "
+        _ = await blank.start()
+        let blankSent = await plain.executions.map(\.stdinText)
+        #expect(!blankSent.contains { $0.contains("tab.rename") || $0.contains(#""label""#) })
+    }
+
     @Test("主機上沒有這個資料夾：說明並建議用資料夾瀏覽")
     func missingFolderMessage() async {
         let host = FakeHost()

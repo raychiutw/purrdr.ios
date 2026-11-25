@@ -70,6 +70,25 @@ struct NewChatLaunchTests {
         #expect(executions.allSatisfy { !$0.stdinText.contains("bypassPermissions") && !$0.stdinText.contains("permission-mode") })
     }
 
+    @Test("填了 tab 名稱:workspace 建好後對新 tab 送 tab.rename,之後才啟動 agent;沒填時不送")
+    func tabLabelRenamesNewTab() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("/Users/demo/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: FakeReply(
+            stdout: Data(#"{"id":"purrdr:tab.rename","result":{"type":"ok"}}"#.utf8) + [0x0A], trigger: .afterStdinLine))
+        await host.expect(Self.bridge, reply: Self.agentStarted())
+
+        _ = try await Self.launcher(host).start(
+            NewChatRequest(folder: "/Users/demo/ledger", label: "Tax", tabLabel: "Draft", agent: .claude))
+
+        let executions = await host.executions
+        #expect(executions.map(\.command) == [command, Self.bridge, Self.bridge, Self.bridge])
+        #expect(executions[1].stdinText == Self.createLine(cwd: "/Users/demo/ledger", label: "Tax"))
+        #expect(executions[2].stdinText == #"{"id":"purrdr:tab.rename","method":"tab.rename","params":{"label":"Draft","tab_id":"w4:t1"}}"# + "\n")
+    }
+
     @Test("選了權限模式：Claude 在 args 帶 --permission-mode;名稱用自訂名稱的 slug,label 照原樣")
     func explicitPermissionModeForClaude() async throws {
         let host = FakeHost()
@@ -162,6 +181,133 @@ struct NewChatLaunchTests {
         #expect(await sleeper.requested.filter { $0 == .milliseconds(750) }.count == 4)
         // 我方期限比 herdr 的等待多 60 秒，絕不比 herdr 先放棄。
         #expect(await sleeper.requested.contains(.seconds(120)))
+    }
+
+    /// 實測 herdr 0.9.5(資料夾還沒被 Claude 信任時):`agent.start` 立刻成功但 `launch_pending: true`,
+    /// 這時 `agent.prompt` 回 `agent_not_ready`「agent w2:p1 is not an active named agent」。
+    static func agentStartedPending(pane: String = "w4:p1") -> FakeReply {
+        let line = #"""
+        {"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"\#(pane)","workspace_id":"w4","name":"ledger","agent_status":"unknown","launch_pending":true},"argv":["claude"]}}
+        """#
+        return FakeReply(stdout: Data(line.utf8) + [0x0A], trigger: .afterStdinLine)
+    }
+
+    /// 實測 herdr 0.9.5:`agent.get` 的 `result.agent` 帶 `agent_status`、`launch_pending`、`interactive_ready`。
+    static func agentGet(status: String, launchPending: Bool?, ready: Bool?, pane: String = "w4:p1") -> FakeReply {
+        let pending = launchPending.map { #","launch_pending":\#($0)"# } ?? ""
+        let interactive = ready.map { #","interactive_ready":\#($0)"# } ?? ""
+        let line = #"""
+        {"id":"purrdr:agent.get","result":{"type":"agent_info","agent":{"pane_id":"\#(pane)","workspace_id":"w4","name":"ledger","agent_status":"\#(status)"\#(pending)\#(interactive)}}}
+        """#
+        return FakeReply(stdout: Data(line.utf8) + [0x0A], trigger: .afterStdinLine)
+    }
+
+    static func startedWithPending(_ host: FakeHost) async {
+        let (command, reply) = folder("~/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(bridge, reply: workspaceCreated())
+        await host.expect(bridge, reply: agentStartedPending())
+    }
+
+    @Test("agent.start 回 launch_pending:以 agent.get 每 500ms 輪詢，就緒後才送第一則訊息")
+    func launchPendingPollsThenPrompts() async throws {
+        let host = FakeHost()
+        let sleeper = RecordingSleeper(fires: { $0 < .seconds(1) })
+        await Self.startedWithPending(host)
+        await host.expect(Self.bridge, reply: Self.agentGet(status: "unknown", launchPending: true, ready: false))
+        await host.expect(Self.bridge, reply: Self.agentGet(status: "idle", launchPending: nil, ready: true))
+        await host.expect(Self.bridge, reply: PromptReplies.prompted())
+
+        let started = try await Self.launcher(host, sleeper: sleeper).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: true))
+        let stdin = await host.executions.map(\.stdinText)
+        #expect(stdin.filter { $0.contains("agent.get") }.count == 2)
+        #expect(stdin.filter { $0.contains(#""method":"agent.get","params":{"target":"w4:p1"}"#) }.count == 2)
+        #expect(stdin.last?.contains("agent.prompt") == true)
+        #expect(await sleeper.requested.filter { $0 == .milliseconds(500) }.count == 2)
+    }
+
+    @Test("launch_pending 消失(沒有 interactive_ready 欄位)也算就緒")
+    func launchPendingGoneIsReady() async throws {
+        let host = FakeHost()
+        await Self.startedWithPending(host)
+        await host.expect(Self.bridge, reply: Self.agentGet(status: "idle", launchPending: nil, ready: nil))
+        await host.expect(Self.bridge, reply: PromptReplies.prompted())
+
+        let started = try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started.sentMessage)
+    }
+
+    @Test("輪詢時 agent 停在 blocked(例如資料夾信任):不送、不丟錯誤，訊息留給聊天輸入框")
+    func launchPendingBlockedDoesNotPrompt() async throws {
+        let host = FakeHost()
+        await Self.startedWithPending(host)
+        await host.expect(Self.bridge, reply: Self.agentGet(status: "blocked", launchPending: true, ready: false))
+
+        let started = try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
+        #expect(await host.executions.allSatisfy { !$0.stdinText.contains("agent.prompt") })
+    }
+
+    @Test("輪詢約 20 秒仍 launch_pending:視為未就緒，不送、不丟錯誤")
+    func launchPendingTimesOut() async throws {
+        let host = FakeHost()
+        let sleeper = RecordingSleeper(fires: { $0 < .seconds(1) })
+        await Self.startedWithPending(host)
+        for _ in 0..<40 { await host.expect(Self.bridge, reply: Self.agentGet(status: "unknown", launchPending: true, ready: false)) }
+
+        let started = try await Self.launcher(host, sleeper: sleeper).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started.sentMessage == false)
+        let stdin = await host.executions.map(\.stdinText)
+        #expect(stdin.filter { $0.contains("agent.get") }.count == 40)
+        #expect(stdin.allSatisfy { !$0.contains("agent.prompt") })
+        #expect(await sleeper.requested.filter { $0 == .milliseconds(500) }.count == 40)
+    }
+
+    @Test("輪詢時 agent.get 的錯誤:agent 已經啟動,不當成啟動失敗(不丟錯誤、訊息留輸入框),重試也不多建 Workspace")
+    func pollingErrorsDoNotFailTheStart() async throws {
+        let host = FakeHost()
+        let launcher = Self.launcher(host)
+        await Self.startedWithPending(host)
+        await host.expect(Self.bridge, reply: Self.error("agent.get", code: "agent_not_found"))
+
+        let started = try await launcher.start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
+        #expect(await host.executions.allSatisfy { !$0.stdinText.contains("agent.prompt") })
+        #expect(await host.executions.filter { $0.stdinText.contains("workspace.create") }.count == 1)
+    }
+
+    @Test("agent.prompt 回 agent_blocked:不丟錯誤，訊息留給聊天輸入框")
+    func promptBlockedKeepsTheMessage() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("~/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: Self.agentStarted())
+        await host.expect(Self.bridge, reply: Self.error("agent.prompt", code: "agent_blocked", message: "agent is blocked"))
+
+        let started = try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started.sentMessage == false)
+    }
+
+    @Test("agent.prompt 回 agent_not_ready(agent 還沒就緒):不丟錯誤，訊息留給聊天輸入框")
+    func promptNotReadyKeepsTheMessage() async throws {
+        let host = FakeHost()
+        let (command, reply) = Self.folder("~/ledger", resolvesTo: "/Users/demo/ledger")
+        await host.expect(command, reply: reply)
+        await host.expect(Self.bridge, reply: Self.workspaceCreated())
+        await host.expect(Self.bridge, reply: Self.agentStarted())
+        await host.expect(Self.bridge, reply: Self.error("agent.prompt", code: "agent_not_ready", message: "agent w4:p1 is not an active named agent"))
+
+        let started = try await Self.launcher(host).start(NewChatRequest(folder: "~/ledger", agent: .claude, message: "Hi"))
+
+        #expect(started == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
     }
 
     @Test("agent_pane_busy 重試 4 次仍失敗：丟出錯誤")

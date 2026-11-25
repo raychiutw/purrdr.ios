@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
-import PurrdrFeatures
+@testable import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
@@ -9,6 +9,12 @@ import Testing
 @MainActor
 @Suite("Workspace 操作")
 struct WorkspaceActionsModelTests {
+    @Test("Workspace 標題觸覺:長按到選單出現才給,短按放開不給(#547)")
+    func headerHapticFiresOnlyWhenMenuAppears() {
+        #expect(!WorkspaceHeaderHaptic.menuAppeared(afterPressLasting: 0.1))
+        #expect(WorkspaceHeaderHaptic.menuAppeared(afterPressLasting: 0.6))
+    }
+
     static let bridge = HerdrCommand.bridge()
 
     /// 記錄「重讀列表」被呼叫幾次。
@@ -199,6 +205,40 @@ struct WorkspaceActionsModelTests {
         #expect(store.load().muted.isEmpty)
         #expect(counter.count == 1)
         #expect(model.actionError == nil)
+    }
+
+    @Test("關閉 Tab 成功：送 tab.close,清掉這個 Tab 聊天的本機釘選與靜音，之後重讀列表")
+    func closeTabClearsLocalPreferencesAndRefreshes() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: FakeReply(stdout: Data(#"{"id":"purrdr:tab.close","result":{"type":"ok"}}"#.utf8 + [0x0A]), trigger: .afterStdinLine))
+        let store = InMemoryChatPreferencesStore()
+        let counter = RefreshCounter()
+        let model = Self.model(host: host, store: store, counter: counter)
+        model.togglePin(sessionID: "s1")
+        model.togglePin(sessionID: "other")
+
+        await model.closeTab(tabID: "w1:t1", sessionIDs: ["s1"])
+
+        #expect(await host.executions.first?.stdinText.contains(#""method":"tab.close","params":{"tab_id":"w1:t1"}"#) == true)
+        #expect(store.load().pinned.keys.sorted() == ["other"])
+        #expect(counter.count == 1)
+        #expect(model.actionError == nil)
+    }
+
+    @Test("關閉 Tab 失敗：原因放在 actionError,不重讀、不動本機偏好")
+    func closeTabFailureKeepsHerdrMessage() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.errorReply(code: "tab_not_found", message: "tab w1:t9 not found"))
+        let store = InMemoryChatPreferencesStore()
+        let counter = RefreshCounter()
+        let model = Self.model(host: host, store: store, counter: counter)
+        model.togglePin(sessionID: "s1")
+
+        await model.closeTab(tabID: "w1:t9", sessionIDs: ["s1"])
+
+        #expect(model.actionError == "tab w1:t9 not found")
+        #expect(store.load().pinned.keys.sorted() == ["s1"])
+        #expect(counter.count == 0)
     }
 
     @Test("關閉被擋：同 repo 的 worktree 還開著時，告訴使用者先關它們(herdr 原文叫人加 --group,對手機無意義)")

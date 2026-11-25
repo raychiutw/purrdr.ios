@@ -28,7 +28,8 @@
         "DailySmokeUITests/testPlusMemberAccount()",
         "DailySmokeUITests/testDataUsage()",
         "DailySmokeUITests/testNoHostsGuideAndDemo()",
-        "DailySmokeUITests/testWelcome()"
+        "DailySmokeUITests/testWelcome()",
+        "DailySmokeUITests/testNeedsYouBanner()"
       ]
     }
   ],

@@ -114,6 +114,15 @@ public final class ConversationModel {
         if let percent = sessionStatus?.contextPercent { result.contextPercent = Int(percent.rounded()) }
         return result
     }
+    /// context 的已用 token 數與視窗上限(用量 sheet 的「已用／總 token」);讀不到上限時是 `nil`。
+    /// status line 有上限時以它為準;已用數沒有時由百分比推回。
+    public var contextTokenCounts: (used: Int, limit: Int)? {
+        guard let limit = sessionStatus?.contextWindowSize ?? progress.contextLimit, limit > 0 else { return nil }
+        if let percent = sessionStatus?.contextPercent { return (Int((Double(limit) * percent / 100).rounded()), limit) }
+        guard let used = progress.contextTokens else { return nil }
+        return (used, limit)
+    }
+
     /// Claude 的背景 agents 窗格(F10「背景 agents 列」),從 pane 畫面解析;沒有窗格是 `nil`。
     public private(set) var agentsPane: AgentsPane?
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
@@ -685,10 +694,8 @@ public final class ConversationModel {
     public private(set) var stopPhase: StopPhase?
     /// 強制結束的確認對話框是否開著(#220;停止列與「仍在工作」結果共用)。
     public var confirmsForceQuit = false
-    /// 狀態 sheet 是否開著(#349):點標題或工作中膠囊的子 Agent 數都開同一張。
-    public var showsStatusSheet = false
-    /// 斷線前 agent 在工作：離線橫幅說明重新連上後才能停止(#220)。
-    public private(set) var stopNeedsReconnect = false
+    /// 工作中膠囊的子 Agent 數被點了(#349、#515):聊天畫面據此開背景子 Agent sheet 後歸零。
+    public var showsBackgroundAgentsSheet = false
     /// 停止中最多等多久，之後當成仍在工作。
     public nonisolated static let stopTimeout: Duration = .seconds(10)
 
@@ -1117,7 +1124,6 @@ public final class ConversationModel {
             }
         }
         isOffline = false
-        stopNeedsReconnect = false
         if banner == .offline { banner = nil }
         // 重連後的 Agent 列表交給離線佇列比對、補送(#301;主機更新來源讀到的也會交給它)。
         offlineQueue?.receive(snapshot)
@@ -1556,7 +1562,6 @@ public final class ConversationModel {
         isOffline = true
         isRefreshing = false
         // 斷線前的狀態已過時：不能留著 working 讓停止鈕可按(#220)。
-        if agentStatus == .working { stopNeedsReconnect = true }
         agentStatus = nil
         // 看不到主機畫面，建議可能已過時;恢復連線後重讀(#123)。
         clearSuggestion()

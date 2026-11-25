@@ -39,6 +39,7 @@ public struct TerminalSessionView: View {
     @State private var isOnScreen = false
     /// 主機主題的終端機配色(#23);`nil` 時用預設深色。
     @Environment(\.hostTheme) private var hostTheme
+    @Environment(\.paneWindowTitle) private var paneWindowTitle
 
     public init(model: any TerminalSessionModel, hostPicker: HostPickerModel? = nil) {
         self.model = model
@@ -56,6 +57,7 @@ public struct TerminalSessionView: View {
         }
         .background(hostTheme?.terminal.map { SwiftUI.Color($0.background) } ?? SwiftUI.Color.black)
         .environment(\.colorScheme, .dark)
+        .navigationTitle(paneWindowTitle ?? model.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -753,8 +755,12 @@ final class TerminalScreenContainer: UIView {
         guard pinsAgainstKeyboard, bounds.width > 0, bounds.height > 0 else { return }
         let height = viewport.terminalHeight(
             container: .init(width: bounds.width, height: bounds.height), keyboardVisible: keyboardVisible)
+        // 上移量取整到列高(#471):列高 = 終端機視圖高度 / 列數,頂列不被切半
+        let rows = terminalView.getTerminal().rows
+        let rowHeight = rows > 0 ? Double(height) / Double(rows) : nil
         let offset = TerminalKeyboardViewport.offset(
-            caretBottom: terminalView.caretFrame.maxY, visibleHeight: bounds.height, terminalHeight: height)
+            caretBottom: terminalView.caretFrame.maxY, visibleHeight: bounds.height, terminalHeight: height,
+            rowHeight: rowHeight)
         let frame = CGRect(x: 0, y: offset, width: bounds.width, height: height)
         if terminalView.frame != frame { terminalView.frame = frame }
     }

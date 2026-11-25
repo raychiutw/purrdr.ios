@@ -33,6 +33,8 @@ final class WorkspacePresentation {
     /// 上一次送出失敗的原因(重新呈現的提示框顯示)。
     var renameFailure: String?
     var closeRequest: CloseRequest?
+    /// 關閉 Tab 的確認(#534)。
+    var closeTabRequest: TabTarget?
     /// 操作的是哪台主機(多主機合併列表，#39)。列設定 sheet 或確認時一併設定。
     var host: HostSelection = .demo
     /// 版面圖裡點選的 Pane:先記下、關 sheet 之後才開(不能在關 sheet 的同一刻 push,行為規格 F4)。
@@ -56,12 +58,18 @@ struct TabTarget {
     var tabID: String
     var label: String
     var workspaceLabel: String
+    /// 這個 Tab 底下所有 Agent 的 session(關閉時一併清掉本機偏好)。
+    var sessionIDs: [String]
+    /// 是所屬 Workspace 唯一的 Tab。
+    var isLastInWorkspace: Bool
 
     init?(tabID: String?, snapshot: HostSnapshot?, workspaceLabel: String) {
-        guard let tabID, let tab = snapshot?.tabs.first(where: { $0.id == tabID }) else { return nil }
+        guard let tabID, let snapshot, let tab = snapshot.tabs.first(where: { $0.id == tabID }) else { return nil }
         self.tabID = tabID
         label = tab.label ?? String(tab.number)
         self.workspaceLabel = workspaceLabel
+        sessionIDs = snapshot.agents.filter { $0.tabID == tabID }.compactMap(\.sessionID)
+        isLastInWorkspace = !snapshot.tabs.contains { $0.workspaceID == tab.workspaceID && $0.id != tabID }
     }
 }
 
@@ -118,28 +126,18 @@ extension View {
     ) -> some View {
         contextMenu {
             let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
-            if let openInNewWindow {
-                Button("Open in New Window", systemImage: "macwindow.badge.plus", action: openInNewWindow)
-                    .accessibilityIdentifier("menu.openInNewWindow")
+            let level = WorkspaceMenuLevel.tab(hasNewWindow: openInNewWindow != nil, hasChats: chats != nil, hasTab: tab != nil)
+            // 項目由 `WorkspaceMenuLevel` 一處決定(#536);「版面圖」前的分隔線只在前面有新視窗或釘選靜音時出現。
+            ForEach(level.entries, id: \.self) { entry in
+                if entry == .showLayout, openInNewWindow != nil || chats != nil { Divider() }
+                buttons.view(for: entry, tab: tab, chats: chats, openInNewWindow: openInNewWindow)
             }
-            if let chats {
-                let pinned = chats.actions.arePinned(sessionIDs: chats.sessionIDs)
-                Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
-                    chats.actions.togglePin(sessionIDs: chats.sessionIDs)
-                }
-                .accessibilityIdentifier("menu.pin")
-                let muted = chats.actions.areMuted(sessionIDs: chats.sessionIDs)
-                Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
-                    chats.actions.toggleMute(sessionIDs: chats.sessionIDs)
-                }
-                .accessibilityIdentifier("menu.mute")
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if let tab {
+                WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
+                    .closeTab(tab)
             }
-            if openInNewWindow != nil || chats != nil { Divider() }
-            buttons.showLayout()
-            if let tab { buttons.renameTab(tab, showsCurrent: false) }
-            buttons.newWorktree()
-            Divider()
-            buttons.close(title: "Close Workspace…", role: .destructive)
         }
     }
 
@@ -147,20 +145,21 @@ extension View {
     /// 所以標題本身是 `Menu`(輕點不做事、長按出選單):重新命名 Workspace…、版面圖、新 worktree、關閉。
     /// VoiceOver 另有「重新命名 Workspace…」自訂動作。唯讀裝置的改動項目停用。
     func workspaceHeaderMenu(
-        _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, isReadOnly: Bool, presentation: WorkspacePresentation
+        _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, isReadOnly: Bool, presentation: WorkspacePresentation,
+        newChatHere: (() -> Void)? = nil
     ) -> some View {
         let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: isReadOnly)
         return Menu {
-            buttons.renameWorkspace(showsCurrent: true)
-            buttons.showLayout()
-            buttons.newWorktree()
-            Divider()
-            buttons.close(title: "Close Workspace…", role: .destructive)
+            ForEach(WorkspaceMenuLevel.workspace(canStartChat: newChatHere != nil).entries, id: \.self) { entry in
+                if entry == .closeWorkspace { Divider() }
+                buttons.view(for: entry, tab: nil, chats: nil, openInNewWindow: nil, newChatHere: newChatHere)
+            }
             if isReadOnly { Text(WorkspaceActionsModel.readOnlyMessage) }
         } label: {
             self
         } primaryAction: {}
-        .buttonStyle(.plain)
+        .buttonStyle(HeaderPressStyle())
+        .accessibilityHint(Text("Double-tap and hold to show Workspace actions"))
         .accessibilityAction(named: Text("Rename Workspace…")) { if !isReadOnly { buttons.askWorkspaceName() } }
     }
 
@@ -183,6 +182,49 @@ private struct WorkspaceButtons {
     let presentation: WorkspacePresentation
     /// 唯讀裝置：改到主機的操作(改名、建立 worktree、關閉)停用。
     var isReadOnly = false
+
+    /// 依選單項目(`WorkspaceMenuEntry`)給對應的按鈕。
+    @ViewBuilder
+    func view(
+        for entry: WorkspaceMenuEntry, tab: TabTarget?, chats: TabChatActions?, openInNewWindow: (() -> Void)?,
+        newChatHere: (() -> Void)? = nil
+    ) -> some View {
+        switch entry {
+        case .openInNewWindow:
+            if let openInNewWindow {
+                Button("Open in New Window", systemImage: "macwindow.badge.plus", action: openInNewWindow)
+                    .accessibilityIdentifier("menu.openInNewWindow")
+            }
+        case .pin:
+            if let chats {
+                let pinned = chats.actions.arePinned(sessionIDs: chats.sessionIDs)
+                Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
+                    chats.actions.togglePin(sessionIDs: chats.sessionIDs)
+                }
+                .accessibilityIdentifier("menu.pin")
+            }
+        case .mute:
+            if let chats {
+                let muted = chats.actions.areMuted(sessionIDs: chats.sessionIDs)
+                Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
+                    chats.actions.toggleMute(sessionIDs: chats.sessionIDs)
+                }
+                .accessibilityIdentifier("menu.mute")
+            }
+        case .showLayout: showLayout()
+        case .renameTab: if let tab { renameTab(tab, showsCurrent: false) }
+        case .closeTab: if let tab { closeTab(tab) }
+        case .newChatHere:
+            if let newChatHere {
+                Button("New Chat Here", systemImage: "plus.bubble", action: newChatHere)
+                    .accessibilityIdentifier("menu.newChatHere")
+                    .disabled(isReadOnly)
+            }
+        case .renameWorkspace: renameWorkspace(showsCurrent: true)
+        case .newWorktree: newWorktree()
+        case .closeWorkspace: close(title: "Close Workspace…", role: .destructive)
+        }
+    }
 
     /// context menu 的「重新命名 Workspace…」;`showsCurrent` 時副標顯示目前名稱(#456)。
     func renameWorkspace(showsCurrent: Bool) -> some View {
@@ -209,6 +251,16 @@ private struct WorkspaceButtons {
             Image(systemName: "pencil")
         }
         .accessibilityIdentifier("menu.renameTab")
+        .disabled(isReadOnly)
+    }
+
+    /// 「關閉 Tab…」(#534):選單與左滑共用,先經確認。
+    func closeTab(_ tab: TabTarget) -> some View {
+        Button("Close Tab…", systemImage: "xmark", role: .destructive) {
+            presentation.host = host
+            presentation.closeTabRequest = tab
+        }
+        .accessibilityIdentifier("menu.closeTab")
         .disabled(isReadOnly)
     }
 
@@ -245,6 +297,44 @@ private struct WorkspaceButtons {
     }
 }
 
+/// Workspace 標題長按的觸覺時機(#547):觸覺要在選單出現時才給,不是按下就給。
+/// 選單一出現,系統就接手觸控、按壓結束;所以按壓持續超過長按門檻才結束,就當作選單出現了(短按放開不算)。
+enum WorkspaceHeaderHaptic {
+    /// 系統長按叫出選單的大約時間,略取小一點以免漏掉。
+    static let menuAppearDelay: TimeInterval = 0.35
+
+    static func menuAppeared(afterPressLasting duration: TimeInterval) -> Bool {
+        duration >= menuAppearDelay
+    }
+}
+
+/// Workspace 段落標題(`Menu`)的按下反饋(#536):按住時淡灰底高亮;選單出現時輕觸覺(#547)。
+private struct HeaderPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HeaderPressBody(configuration: configuration)
+    }
+}
+
+private struct HeaderPressBody: View {
+    let configuration: ButtonStyleConfiguration
+    @State private var pressStart: Date?
+    @State private var menuAppearances = 0
+
+    var body: some View {
+        configuration.label
+            .background(configuration.isPressed ? Color.primary.opacity(0.12) : Color.clear)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed {
+                    pressStart = Date()
+                } else if let start = pressStart {
+                    pressStart = nil
+                    if WorkspaceHeaderHaptic.menuAppeared(afterPressLasting: Date().timeIntervalSince(start)) { menuAppearances += 1 }
+                }
+            }
+            .sensoryFeedback(.impact(weight: .light), trigger: menuAppearances)
+    }
+}
+
 private struct WorkspaceActionsPresenter: ViewModifier {
     let resolve: (HostSelection) -> WorkspaceActionsModel?
     @Bindable var presentation: WorkspacePresentation
@@ -256,7 +346,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     func body(content: Content) -> some View {
         content
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
-                if let actions { sheetContent(sheet, actions: actions) }
+                if let actions { sheetContent(sheet, actions: actions).appSheetBackground() }
             }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
@@ -276,6 +366,22 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
                 Text("Everything running in this workspace will stop, including its agents. Chat history stays on the host.")
+            }
+            .confirmationDialog(
+                closeTabTitle, isPresented: closeTabDialogShown, titleVisibility: .visible, presenting: presentation.closeTabRequest
+            ) { request in
+                Button(request.isLastInWorkspace ? "Close Tab and Workspace" : "Close Tab", role: .destructive) {
+                    Task { await actions?.closeTab(tabID: request.tabID, sessionIDs: request.sessionIDs) }
+                }
+                .accessibilityIdentifier("closeTab.confirm")
+                Button("Cancel", role: .cancel) {}
+                    .accessibilityIdentifier("closeTab.cancel")
+            } message: { request in
+                if request.isLastInWorkspace {
+                    Text("This is the last tab in “\(request.workspaceLabel)”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host.")
+                } else {
+                    Text("Everything running in this tab will stop, including its agents. Chat history stays on the host.")
+                }
             }
             .alert("Couldn’t Finish", isPresented: errorShown, presenting: actions?.actionError) { _ in
                 Button("OK", role: .cancel) {}
@@ -351,6 +457,14 @@ private struct WorkspaceActionsPresenter: ViewModifier {
         Text("Close “\(presentation.closeRequest?.label ?? "")”?")
     }
 
+    private var closeTabTitle: Text {
+        Text("Close tab “\(presentation.closeTabRequest?.label ?? "")”?")
+    }
+
+    private var closeTabDialogShown: Binding<Bool> {
+        Binding { presentation.closeTabRequest != nil } set: { if !$0 { presentation.closeTabRequest = nil } }
+    }
+
     private var closeDialogShown: Binding<Bool> {
         Binding { presentation.closeRequest != nil } set: { if !$0 { presentation.closeRequest = nil } }
     }
@@ -422,7 +536,7 @@ struct NewWorktreeSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .appSheet(detents: [.medium, .large])
         .onAppear {
             actions.clearWorktreeError()
             focused = true

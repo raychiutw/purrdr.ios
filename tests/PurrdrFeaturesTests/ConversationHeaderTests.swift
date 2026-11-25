@@ -75,7 +75,7 @@ struct ConversationHeaderTests {
         #expect(header.title == "garden-journal")
         #expect(header.status == .online)
         #expect(header.segments == [])
-        #expect(header.accessibilityText == "Tab 1, Bypass Permissions, Online", "fixture 的對話紀錄最後的權限模式是 bypassPermissions")
+        #expect(header.accessibilityText == "Tab 1, Online, Bypass Permissions", "fixture 的對話紀錄最後的權限模式是 bypassPermissions")
     }
 
     @Test("標題列：副標是狀態與主機名;VoiceOver 念 workspace、狀態、主機")
@@ -90,7 +90,7 @@ struct ConversationHeaderTests {
 
         #expect(setup.model.header.status == .done)
         #expect(setup.model.header.segments == ["studio"])
-        #expect(setup.model.header.accessibilityText == "Tab 1, Bypass Permissions, Done, studio")
+        #expect(setup.model.header.accessibilityText == "Tab 1, studio, Done, Bypass Permissions")
     }
 
     @Test("標題列：還沒讀到 Agent 時標題退回聊天標題")
@@ -131,12 +131,9 @@ struct ConversationHeaderTests {
         #expect(setup.model.agentStatus != .working)
         #expect(!setup.model.canStop)
         #expect(!setup.model.canForceQuit)
-        // 斷線前在工作：離線橫幅說明重新連上後才能停止;連上後拿掉。
-        #expect(setup.model.stopNeedsReconnect)
 
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
-        #expect(!setup.model.stopNeedsReconnect)
         #expect(setup.model.canStop)
     }
 
@@ -152,7 +149,6 @@ struct ConversationHeaderTests {
         await setup.model.poll()
 
         #expect(setup.model.isOffline)
-        #expect(!setup.model.stopNeedsReconnect)
     }
 
     /// #371:對照 `ConversationUITests` 刪掉的斷網 UI 測試(「需要你」的 agent、沒有對話紀錄的 Codex):
@@ -192,7 +188,6 @@ struct ConversationHeaderTests {
 
         #expect(setup.model.isOffline)
         #expect(setup.model.banner == .offline)
-        #expect(setup.model.stopNeedsReconnect)
     }
 
     // MARK: - 重新載入與停止

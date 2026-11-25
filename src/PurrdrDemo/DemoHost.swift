@@ -42,6 +42,12 @@ public actor DemoHost: HostChannel {
         /// 聊天中斷網(#219):第一次定位對話紀錄(對話載入完成，#371)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
+        /// 跨聊天「需要你」(#530):第一次定位對話紀錄(開啟某個聊天)後 `after`,`w3:p1`(notes)從工作中變成需要你。
+        /// `w2:p1`(weather-app)一開始就需要你,所以不觸發橫幅(給「打開聊天時已經需要你的不跳橫幅」)。
+        case needsYouLater(after: Duration)
+        /// 「需要你」橫幅與對話狀態橫幅並存(#546):同 `needsYouLater`,而且 notes 變成需要你的同時,ledger 的對話紀錄變成讀不到(權限),
+        /// 聊天頂部出現狀態橫幅(`conversation.banner`)。給「兩條橫幅上下排列、不互相蓋住」。
+        case needsYouWithStatusBanner(after: Duration)
         /// Antigravity 情境(#446):列表多一個 Antigravity Agent「garden」(w4:p1),畫面狀態列是 accept-edits · Gemini 4 Neon · medium。
         case antigravity
     }
@@ -133,7 +139,10 @@ public actor DemoHost: HostChannel {
         try await passTailscaleCheck()
         try await failIfOffline()
         // 對話載入完成(第一次定位對話紀錄)才開始計時斷網，不是 app 啟動(#371)。
-        if DemoTranscripts.isLocate(command) { scheduleOfflineIfDue() }
+        if DemoTranscripts.isLocate(command) {
+            scheduleOfflineIfDue()
+            scheduleNeedsYouLaterIfDue()
+        }
         if command == HerdrCommand.bridge() {
             let bridge = DemoBridgeSession { [weak self] line in
                 guard let self else { return (Data(), false) }
@@ -162,6 +171,10 @@ public actor DemoHost: HostChannel {
         writeLargeOutputIfDue(command)
         writeDueReplies()
         if let stdout = DemoTranscripts.respond(to: command, appended: appended, sessions: transcripts) {
+            // 狀態橫幅情境:notes 變成需要你之後,對話紀錄讀不到(exit 5),對話頂部出現狀態橫幅。
+            if needsYouLaterFired, case .needsYouWithStatusBanner = scenario {
+                return DemoFinishedSession(events: [.exit(code: TranscriptReadError.ExitCode.fileUnreadable)])
+            }
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
         if let path = HostFolderCommand.parseList(command) {
@@ -287,7 +300,39 @@ public actor DemoHost: HostChannel {
     private func currentStatuses() -> [String: String] {
         var statuses = answers.statuses
         for pending in pendingReplies { statuses[pending.paneID] = "working" }
+        if needsYouLaterFired { statuses[Self.needsYouLaterPane] = "blocked" }
         return statuses
+    }
+
+    // MARK: - 跨聊天「需要你」情境
+
+    static let needsYouLaterPane = "w3:p1"
+
+    /// 兩個「需要你」情境共用的延遲。
+    private var needsYouLaterDelay: Duration? {
+        switch scenario {
+        case .needsYouLater(let delay), .needsYouWithStatusBanner(let delay): delay
+        default: nil
+        }
+    }
+    private var needsYouLaterScheduled = false
+    private var needsYouLaterFired = false
+
+    /// 第一次定位對話紀錄(打開了某個聊天)時排定:`delay` 之後 notes 變成需要你,並像 herdr 一樣對訂閱送狀態事件。
+    private func scheduleNeedsYouLaterIfDue() {
+        guard let delay = needsYouLaterDelay, !needsYouLaterScheduled else { return }
+        needsYouLaterScheduled = true
+        let sleep = self.sleep
+        Task { [weak self] in
+            guard (try? await sleep(delay)) != nil else { return }
+            await self?.fireNeedsYouLater()
+        }
+    }
+
+    private func fireNeedsYouLater() async {
+        let before = currentStatuses()
+        needsYouLaterFired = true
+        await notifyStatusChanges(from: before)
     }
 
     /// 狀態和 `before` 不同的 pane,像 herdr 一樣對訂閱送狀態事件。
@@ -751,10 +796,26 @@ enum DemoSnapshot {
         /// 改過的 Tab 名稱(tab id → 名稱,#456)。
         var tabLabels: [String: String] = [:]
         var closed: Set<String> = []
+        /// 關掉的 Tab(#534)。workspace 的 Tab 全關掉時 workspace 也進 `closed`(與 herdr 相同)。
+        var closedTabs: Set<String> = []
         /// 依「需要你」情境改過的 Agent 狀態(pane id → 狀態)。
         var statuses: [String: String] = [:]
         /// Antigravity 情境:快照多一個 w4(garden)。
         var includesAntigravity = false
+        /// 在既有 Workspace 新增的 Tab(#537)。
+        var createdTabs: [CreatedTab] = []
+
+        /// `tab.create` 建出的 Tab:有一個 root pane,`agent.start` 之後才有 agent。
+        struct CreatedTab {
+            var workspaceID: String
+            var tabID: String
+            var paneID: String
+            var number: Int
+            var label: String
+            var cwd: String
+            /// `agent.start` 啟動的種類;還沒啟動為 `nil`。
+            var agentKind: String?
+        }
     }
 
     /// 依 socket API 的請求產生一行回應(`{id,result}` 或 `{id,error}`)。
@@ -798,7 +859,54 @@ enum DemoSnapshot {
             state.tabLabels[tabID] = params["label"] as? String ?? ""
             let tab = (snapshot(applying: state)["tabs"] as? [[String: Any]])?.first { $0["tab_id"] as? String == tabID }
             return (result(id: id, ["type": "tab_info", "tab": tab ?? [:]]), false)
-        case "workspace.create", "worktree.create", "tab.create", "pane.split":
+        case "tab.close":
+            let tabs = snapshot(applying: state)["tabs"] as? [[String: Any]] ?? []
+            let tabID = params["tab_id"] as? String ?? ""
+            guard let tab = tabs.first(where: { $0["tab_id"] as? String == tabID }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"tab_not_found","message":\#(quoted("tab \(tabID) not found"))}}"#), false)
+            }
+            state.closedTabs.insert(tabID)
+            let workspaceID = tab["workspace_id"] as? String ?? ""
+            if !tabs.contains(where: { $0["workspace_id"] as? String == workspaceID && $0["tab_id"] as? String != tabID }) {
+                state.closed.insert(workspaceID)
+            }
+            return (result(id: id, ["type": "ok"]), false)
+        case "tab.create":
+            // 在既有 Workspace 新增 Tab(#537);Workspace 不存在回 workspace_not_found(與 herdr 相同)。
+            let workspaceID = params["workspace_id"] as? String ?? ""
+            let workspaces = snapshot(applying: state)["workspaces"] as? [[String: Any]] ?? []
+            guard workspaces.contains(where: { $0["workspace_id"] as? String == workspaceID }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"workspace_not_found","message":\#(quoted("workspace \(workspaceID) not found"))}}"#), false)
+            }
+            let number = 2 + state.createdTabs.filter { $0.workspaceID == workspaceID }.count
+            let panes = (snapshot(applying: state)["panes"] as? [[String: Any]] ?? []).filter { $0["workspace_id"] as? String == workspaceID }
+            let cwd = panes.first?["cwd"] as? String ?? "/Users/demo"
+            let tab = State.CreatedTab(
+                workspaceID: workspaceID, tabID: "\(workspaceID):t\(number)", paneID: "\(workspaceID):p\(panes.count + 1)", number: number,
+                label: (params["label"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "\(number)", cwd: cwd, agentKind: nil)
+            state.createdTabs.append(tab)
+            return (result(id: id, ["type": "tab_created", "tab": tabEntry(tab), "root_pane": paneEntry(tab)]), false)
+        case "agent.start":
+            // 只有 `tab.create` 建出的 pane 能啟動 agent;agent 還在啟動(launch_pending),所以第一則訊息不會送出。
+            let paneID = params["pane_id"] as? String ?? ""
+            guard let index = state.createdTabs.firstIndex(where: { $0.paneID == paneID }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
+            }
+            let kind = params["kind"] as? String ?? "claude"
+            state.createdTabs[index].agentKind = kind
+            let agent: [String: Any] = ["pane_id": paneID, "workspace_id": state.createdTabs[index].workspaceID, "kind": kind, "status": "idle", "launch_pending": true]
+            return (result(id: id, ["type": "agent_started", "agent": agent, "argv": [kind]]), false)
+        case "agent.get":
+            // `agent.start` 建出的 agent 停在啟動問題(blocked、launch_pending),所以第一則訊息留給輸入框。
+            let target = params["target"] as? String ?? ""
+            guard let tab = state.createdTabs.first(where: { $0.paneID == target && $0.agentKind != nil }) else {
+                return (line(#"{"id":\#(quoted(id)),"error":{"code":"agent_not_found","message":"agent not found"}}"#), false)
+            }
+            let agent: [String: Any] = [
+                "pane_id": target, "workspace_id": tab.workspaceID, "agent_status": "blocked", "launch_pending": true, "interactive_ready": false,
+            ]
+            return (result(id: id, ["type": "agent_info", "agent": agent]), false)
+        case "workspace.create", "worktree.create", "pane.split":
             return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
         case "pane.report_metadata":
             return (line(#"{"id":\#(quoted(id)),"result":{"type":"ok"}}"#), false)
@@ -836,14 +944,50 @@ enum DemoSnapshot {
 
     private static let workspaceIDs: Set<String> = ["w1", "w2", "w3", "w4"]
 
+    private static func tabEntry(_ tab: State.CreatedTab) -> [String: Any] {
+        [
+            "tab_id": tab.tabID, "workspace_id": tab.workspaceID, "number": tab.number, "label": tab.label, "focused": false,
+            "pane_count": 1, "agent_status": tab.agentKind == nil ? "unknown" : "idle",
+        ]
+    }
+
+    private static func paneEntry(_ tab: State.CreatedTab) -> [String: Any] {
+        var pane: [String: Any] = [
+            "pane_id": tab.paneID, "terminal_id": "term_demo_\(tab.paneID)", "workspace_id": tab.workspaceID, "tab_id": tab.tabID,
+            "focused": false, "cwd": tab.cwd, "foreground_cwd": tab.cwd, "agent_status": tab.agentKind == nil ? "unknown" : "idle",
+            "scroll": ["offset_from_bottom": 0, "max_offset_from_bottom": 0, "viewport_rows": 32], "revision": 1,
+        ]
+        if let kind = tab.agentKind { pane["agent"] = kind }
+        return pane
+    }
+
     /// 範例 snapshot 套上這次啟動中的改動：關掉的 workspace 連同 tab、pane、版面、Agent 一起拿掉;改過的名稱換掉。
     private static func snapshot(applying state: State) -> [String: Any] {
         guard var snapshot = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] else { return [:] }
         if state.includesAntigravity {
             for (key, entries) in DemoAntigravity.snapshotEntries { snapshot[key] = (snapshot[key] as? [[String: Any]] ?? []) + entries }
         }
+        for tab in state.createdTabs {
+            snapshot["tabs"] = (snapshot["tabs"] as? [[String: Any]] ?? []) + [tabEntry(tab)]
+            snapshot["panes"] = (snapshot["panes"] as? [[String: Any]] ?? []) + [paneEntry(tab)]
+            snapshot["layouts"] = (snapshot["layouts"] as? [[String: Any]] ?? []) + [[
+                "workspace_id": tab.workspaceID, "tab_id": tab.tabID, "zoomed": false, "area": ["x": 0, "y": 0, "width": 160, "height": 40],
+                "focused_pane_id": tab.paneID,
+                "panes": [["pane_id": tab.paneID, "focused": true, "rect": ["x": 0, "y": 0, "width": 160, "height": 40]]], "splits": [],
+            ]]
+            if let kind = tab.agentKind {
+                snapshot["agents"] = (snapshot["agents"] as? [[String: Any]] ?? []) + [[
+                    "terminal_id": "term_demo_\(tab.paneID)", "agent": kind, "agent_status": "idle", "workspace_id": tab.workspaceID,
+                    "tab_id": tab.tabID, "pane_id": tab.paneID, "focused": false, "state_change_seq": 6, "cwd": tab.cwd,
+                    "foreground_cwd": tab.cwd, "revision": 1,
+                ]]
+            }
+        }
         for key in ["workspaces", "tabs", "panes", "layouts", "agents"] {
             snapshot[key] = (snapshot[key] as? [[String: Any]])?.filter { !state.closed.contains($0["workspace_id"] as? String ?? "") }
+        }
+        for key in ["tabs", "panes", "layouts", "agents"] {
+            snapshot[key] = (snapshot[key] as? [[String: Any]])?.filter { !state.closedTabs.contains($0["tab_id"] as? String ?? "") }
         }
         for key in ["agents", "panes"] {
             snapshot[key] = (snapshot[key] as? [[String: Any]])?.map { item in

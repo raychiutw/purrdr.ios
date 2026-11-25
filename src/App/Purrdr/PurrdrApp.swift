@@ -27,6 +27,8 @@ struct PurrdrApp: App {
     private let hostSync: HostSyncModel
     /// 第一次開啟的歡迎頁(#34)。
     private let welcome: WelcomeModel
+    /// iPad 對話右側 Inspector 的開關偏好(#521);UI 測試預設關閉(`-uiTestingInspectorShown` 開),存在記憶體。
+    private let inspectorStore: any InspectorVisibilityStore
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
     /// 捲動卡頓記錄器(只記數字,存在這支手機;設定頁可關閉、分享、清除)。
@@ -204,7 +206,9 @@ struct PurrdrApp: App {
         self.hostSync = hostSync
         localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
         let hitchStore = uiTesting
-            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch"))
+            // 每次啟動各用一個新資料夾:模擬器的 tmp 會跨測試保留,共用同一個資料夾會讓前面測試捲動留下的記錄
+            // 殘留到「還沒有記錄」的測試(也會越積越大)。
+            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
             : HitchLogFile.applicationSupport()
         let hitchRecorder = HitchRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
         self.hitchRecorder = hitchRecorder
@@ -219,6 +223,9 @@ struct PurrdrApp: App {
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
+        inspectorStore = uiTesting
+            ? InMemoryInspectorVisibilityStore(isShown: arguments.contains("-uiTestingInspectorShown"))
+            : UserDefaultsInspectorVisibilityStore()
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
         // `-uiTestingSimulatedVideo`:「影片」不開相簿挑選器(XCUITest 操作不了)，直接給一支小影片(#474)。
@@ -381,6 +388,8 @@ struct PurrdrApp: App {
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
         if arguments.contains("-demoSentImages") { return .sentImages }
         if arguments.contains("-demoAntigravity") { return .antigravity }
+        if arguments.contains("-demoNeedsYouWithStatusBanner") { return .needsYouWithStatusBanner(after: .seconds(3)) }
+        if arguments.contains("-demoNeedsYouLater") { return .needsYouLater(after: .seconds(3)) }
         if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(1), hangs: false) }
         if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(1), hangs: true) }
         if arguments.contains("-demoNoNetwork") { return .goesOffline(after: .zero, hangs: true) }
@@ -482,7 +491,7 @@ struct PurrdrApp: App {
         WindowGroup(id: PurrdrCommands.mainWindowID) {
             TopNavigationView(
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
-                welcome: welcome, appLock: appLock)
+                welcome: welcome, appLock: appLock, inspectorStore: inspectorStore)
             .appAppearance()
             .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
             .appLockCover(appLock)

@@ -18,10 +18,11 @@ final class DailySmokeUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
-    /// 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機。
+    /// 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機 → 跨聊天「需要你」橫幅(#530)→ 返回後列表置頂段落(#531)。
+    /// 帶 `-demoNeedsYouLater`:打開第一個聊天 3 秒後 notes 變成需要你(weather-app 一開始就需要你,不觸發橫幅)。
     @MainActor
     func testListAndChat() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo", "-demoNeedsYouLater"])
         let ledger = app.element("spaces.tab.demo/w1:t1")
 
         step("列表看到 Demo 的 Agent") {
@@ -63,11 +64,11 @@ final class DailySmokeUITests: XCTestCase {
             ledger.tap()
             let text = app.element("composer.text")
             XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
-            // 輸入列兩態(#382):收合一列沒有模型膠囊,聚焦展開後有。
+            // 輸入列兩態(#512):聚焦與打一句短話都維持一列、沒有模型膠囊;換行才展開。
             XCTAssertFalse(app.element("composer.model").exists, "收合時不該有模型膠囊")
             text.tap()
-            XCTAssertTrue(app.element("composer.model").waitUntilExists(timeout: 5), "聚焦後輸入列沒有展開")
             text.typeEnglish("Add a header row too?")
+            XCTAssertFalse(app.element("composer.model").exists, "聚焦與一行內的字不該展開輸入列")
             app.element("composer.send").tap()
             app.dismissKeyboard()
             let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
@@ -106,27 +107,25 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("composer.attachment.0").waitUntilGone(timeout: 5), "移除後附件卡還在")
             app.dismissKeyboard()
         }
-        step("標題面板與權限模式") {
+        step("用量環與「⋯」→ 權限模式") {
             let header = app.element("conversation.header")
             XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
-            header.tap()
-            XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
-            // 面板上方是這個 Agent 的用量區(#389):範例主機還沒啟用用量顯示,有「啟用用量顯示」。
-            XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "面板沒有用量區的「啟用用量顯示」")
-            XCTAssertTrue(app.element("progress.context").exists, "面板沒有 context 一列")
+            app.buttons["conversation.usage"].firstMatch.tap()
+            XCTAssertTrue(app.element("usage.sheet").waitUntilExists(timeout: 5), "點用量環沒有開出用量 sheet")
+            XCTAssertTrue(app.element("usage.sheet.context").waitUntilExists(timeout: 5), "用量 sheet 沒有 Context 卡片")
+            app.buttons["usage.sheet.close"].tap()
+            XCTAssertTrue(app.element("usage.sheet").waitUntilGone(timeout: 5), "用量 sheet 沒有關閉")
+            app.conversationMoreItem("menu.permissionMode").tap()
+            XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "「⋯」→ 權限模式沒有開出 sheet")
             let accept = app.buttons["Accept Edits"].firstMatch
-            XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits")
+            XCTAssertTrue(accept.waitUntilExists(timeout: 10), "sheet 裡沒有 Accept Edits")
             accept.tap()
-            XCTAssertTrue(accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Accept Edits")
-            app.buttons["sheet.close"].tap()
-            XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "面板沒有關閉")
+            XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
+            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "標題沒有顯示 Accept Edits")
         }
         step("模型選擇 sheet 與投入程度子頁(#384)") {
-            let text = app.element("composer.text")
-            text.tap()
-            let capsule = app.element("composer.model")
-            XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
-            capsule.tap()
+            // 輸入列收合時沒有模型膠囊:從「⋯」→ 模型與思考深度開同一張 sheet(#515)。
+            app.conversationMoreItem("menu.model").tap()
             XCTAssertTrue(app.element("model.picker").waitUntilExists(timeout: 15), "sheet 裡沒有模型勾選列")
             let effortRow = app.element("model.effort")
             XCTAssertTrue(effortRow.waitUntilExists(timeout: 10), "sheet 裡沒有投入程度列")
@@ -153,6 +152,23 @@ final class DailySmokeUITests: XCTestCase {
         step("終端機") {
             app.conversationMoreItem("terminal.open").tap()
             XCTAssertTrue(app.descendants(matching: .any)["terminal.screen"].firstMatch.waitUntilExists(timeout: 10), "沒有打開終端機")
+            back(app)
+        }
+        step("別的聊天變成需要你:橫幅出現,點了開 notes 的聊天") {
+            let open = app.buttons["needsYou.banner.open"]
+            XCTAssertTrue(open.waitUntilExists(timeout: 20), "別的聊天變成需要你後沒有橫幅")
+            XCTAssertTrue(open.label.hasPrefix("notes"), "橫幅沒有寫出 notes:\(open.label)")
+            open.tap()
+            let header = app.element("conversation.header")
+            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Needs You'"), timeout: 10), "點橫幅後沒有換成需要你的 notes 聊天(標題在這條流程裡是 Tab 名稱,看狀態):\(header.label)")
+            XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "已經在那個聊天,橫幅該消失")
+        }
+        step("返回後列表最上面有「需要你」段落") {
+            back(app)
+            let section = app.element("needsYou.section")
+            XCTAssertTrue(section.waitUntilExists(timeout: 10), "返回後列表沒有「需要你」段落")
+            XCTAssertTrue(section.wait(for: NSPredicate(format: "label CONTAINS '2 chats need you'"), timeout: 10), "段落沒有列出 weather-app 與 notes:\(section.label)")
+            XCTAssertTrue(app.element("needsYou.tab.demo/w3:t1").waitUntilExists(timeout: 5), "段落裡沒有 notes")
         }
     }
 

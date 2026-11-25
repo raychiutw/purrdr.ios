@@ -7,17 +7,25 @@ import SwiftUI
 /// 點 Tab:只有一個 pane 直接開(以 `ChatRoute` 導覽，Agent 開對話、其他開 Pane 終端機，iPad 是對話欄選取);
 /// 多個 pane 開那個 Tab 的版面圖選 Pane。長按是 workspace 的動作(版面圖、重新命名、新 worktree、關閉)。
 struct SpacesSectionsContent: View {
+    /// 列表最上面的「需要你」段落(#531);沒有時 `nil`。
+    var needsYou: NeedsYouSection?
     let sections: [SpacesSection]
     let model: MergedAgentListModel
     let presentation: WorkspacePresentation
     /// 把 Tab 開在新視窗(支援多視窗時才有)。
     var openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
+    /// 標題選單的「在此新增聊天」(#537)。
+    var newChatInWorkspace: ((HostSelection, String) -> Void)?
+    var canNewChatInWorkspace: ((HostSelection) -> Bool)?
 
     var body: some View {
+        if let needsYou {
+            needsYouSection(needsYou)
+        }
         ForEach(sections) { section in
             Section {
                 ForEach(section.tabs) { tab in
-                    tabRow(tab, in: section)
+                    tabRow(tab, host: section.host)
                         .workspaceActionsMenu(
                             workspaceTarget(section),
                             tab: TabTarget(tabID: tab.key, snapshot: model.snapshot(for: section.host), workspaceLabel: section.workspace),
@@ -30,9 +38,28 @@ struct SpacesSectionsContent: View {
                 SpacesSectionHeader(section: section)
                     .workspaceHeaderMenu(
                         workspaceTarget(section), host: section.host, snapshot: model.snapshot(for: section.host),
-                        isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation)
+                        isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation,
+                        newChatHere: newChatHere(section))
             }
         }
+    }
+
+    /// 最上面的「需要你」段落(#531):點了開那個聊天(顏色只上在標題的符號,不上整列底色,DESIGN.md);最新轉變的一列尾端標「剛剛」。這些列同時留在原本的段落。
+    private func needsYouSection(_ needsYou: NeedsYouSection) -> some View {
+        Section {
+            ForEach(needsYou.rows) { row in
+                tabRow(row.tab, host: row.tab.host, justNow: row.isJustNow)
+                    .accessibilityIdentifier("needsYou.tab.\(row.tab.id)")
+            }
+        } header: {
+            NeedsYouSectionHeader(count: needsYou.rows.count)
+        }
+    }
+
+    /// 這台主機支援時,標題選單的「在此新增聊天」動作。
+    private func newChatHere(_ section: SpacesSection) -> (() -> Void)? {
+        guard let newChatInWorkspace, canNewChatInWorkspace?(section.host) == true else { return nil }
+        return { newChatInWorkspace(section.host, section.workspaceID) }
     }
 
     private func newWindowAction(_ tab: SpacesTab, host: HostSelection) -> (() -> Void)? {
@@ -45,24 +72,24 @@ struct SpacesSectionsContent: View {
     }
 
     @ViewBuilder
-    private func tabRow(_ tab: SpacesTab, in section: SpacesSection) -> some View {
+    private func tabRow(_ tab: SpacesTab, host: HostSelection, justNow: Bool = false) -> some View {
         switch tab.target {
         case .pane(let route):
             NavigationLink(value: route) {
-                ChatRowView(content: ChatRowContent(tab: tab))
+                ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
             }
             .listRowInsets(ChatRowView.rowInsets)
-            .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab)))
+            .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
             Button {
                 // 顯示開啟當下的 snapshot,只畫這個 Tab(行為規格 F4)。
-                presentation.host = section.host
-                let layout = model.snapshot(for: section.host).flatMap { SpacesLayout(snapshot: $0, workspaceID: workspaceID) }
+                presentation.host = host
+                let layout = model.snapshot(for: host).flatMap { SpacesLayout(snapshot: $0, workspaceID: workspaceID) }
                 presentation.sheet = .layout(workspaceLabel: tab.title, layout: layout?.onlyTab(tabID))
             } label: {
                 HStack {
-                    ChatRowView(content: ChatRowContent(tab: tab))
+                    ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
@@ -72,9 +99,30 @@ struct SpacesSectionsContent: View {
                 .contentShape(Rectangle())
             }
             .listRowInsets(ChatRowView.rowInsets)
-            .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab)))
+            .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))
             .accessibilityHint(Text("Shows this tab’s layout."))
         }
+    }
+}
+
+/// 「需要你」段落標題(#531):橙色 `!` 符號與「N 個聊天需要你」(標為 header,VoiceOver 念得到)。
+private struct NeedsYouSectionHeader: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Color.orange).accessibilityHidden(true)
+            Text(verbatim: NeedsYouSection.title(count: count))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.subheadline.weight(.semibold))
+        .dynamicTypeSize(...AgentStatusAvatar.largestTypeSize)
+        .foregroundStyle(Color.secondaryText)
+        .textCase(nil)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("needsYou.section")
     }
 }
 

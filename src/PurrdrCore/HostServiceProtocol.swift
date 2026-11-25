@@ -58,6 +58,8 @@ extension HostServiceProtocol {
         case workspaceCreate(WorkspaceCreate)
         case workspaceRename(WorkspaceRename)
         case tabRename(TabRename)
+        case tabCreate(TabCreate)
+        case tabClose(TabClose)
         case workspaceClose(WorkspaceClose)
         case worktreeCreate(WorktreeCreate)
         case agentStart(AgentStart)
@@ -122,6 +124,8 @@ extension HostServiceProtocol {
             case "workspace.create": self = .workspaceCreate(try WorkspaceCreate(from: decoder))
             case "workspace.rename": self = .workspaceRename(try WorkspaceRename(from: decoder))
             case "tab.rename": self = .tabRename(try TabRename(from: decoder))
+            case "tab.create": self = .tabCreate(try TabCreate(from: decoder))
+            case "tab.close": self = .tabClose(try TabClose(from: decoder))
             case "workspace.close": self = .workspaceClose(try WorkspaceClose(from: decoder))
             case "worktree.create": self = .worktreeCreate(try WorktreeCreate(from: decoder))
             case "agent.start": self = .agentStart(try AgentStart(from: decoder))
@@ -259,6 +263,12 @@ extension HostServiceProtocol {
             case .tabRename(let message):
                 try container.encode("tab.rename", forKey: .type)
                 try message.encode(to: encoder)
+            case .tabCreate(let message):
+                try container.encode("tab.create", forKey: .type)
+                try message.encode(to: encoder)
+            case .tabClose(let message):
+                try container.encode("tab.close", forKey: .type)
+                try message.encode(to: encoder)
             case .workspaceClose(let message):
                 try container.encode("workspace.close", forKey: .type)
                 try message.encode(to: encoder)
@@ -319,7 +329,7 @@ extension HostServiceProtocol {
         /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
         public var isWrite: Bool {
             switch self {
-            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove, .pushUpdateMuted, .pushTest, .claudeUsageInstall, .claudeUsageRemove, .workspaceCreate, .workspaceRename, .tabRename, .workspaceClose, .worktreeCreate, .agentStart, .fileUploadStart, .fileUploadChunk, .devicesRevoke, .hostServiceUpdate, .hostServiceSetAutoUpdate, .queueAdd, .queueRemove, .queueReorder: return true
+            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove, .pushUpdateMuted, .pushTest, .claudeUsageInstall, .claudeUsageRemove, .workspaceCreate, .workspaceRename, .tabRename, .tabCreate, .tabClose, .workspaceClose, .worktreeCreate, .agentStart, .fileUploadStart, .fileUploadChunk, .devicesRevoke, .hostServiceUpdate, .hostServiceSetAutoUpdate, .queueAdd, .queueRemove, .queueReorder: return true
             default: return false
             }
         }
@@ -367,6 +377,8 @@ extension HostServiceProtocol {
         case workspaceCreateResult(WorkspaceCreateResult)
         case workspaceRenameResult(WorkspaceRenameResult)
         case tabRenameResult(TabRenameResult)
+        case tabCreateResult(TabCreateResult)
+        case tabCloseResult(TabCloseResult)
         case workspaceCloseResult(WorkspaceCloseResult)
         case worktreeCreateResult(WorktreeCreateResult)
         case agentStartResult(AgentStartResult)
@@ -434,6 +446,8 @@ extension HostServiceProtocol {
             case "workspace.create.result": self = .workspaceCreateResult(try WorkspaceCreateResult(from: decoder))
             case "workspace.rename.result": self = .workspaceRenameResult(try WorkspaceRenameResult(from: decoder))
             case "tab.rename.result": self = .tabRenameResult(try TabRenameResult(from: decoder))
+            case "tab.create.result": self = .tabCreateResult(try TabCreateResult(from: decoder))
+            case "tab.close.result": self = .tabCloseResult(try TabCloseResult(from: decoder))
             case "workspace.close.result": self = .workspaceCloseResult(try WorkspaceCloseResult(from: decoder))
             case "worktree.create.result": self = .worktreeCreateResult(try WorktreeCreateResult(from: decoder))
             case "agent.start.result": self = .agentStartResult(try AgentStartResult(from: decoder))
@@ -575,6 +589,12 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .tabRenameResult(let message):
                 try container.encode("tab.rename.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .tabCreateResult(let message):
+                try container.encode("tab.create.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .tabCloseResult(let message):
+                try container.encode("tab.close.result", forKey: .type)
                 try message.encode(to: encoder)
             case .workspaceCloseResult(let message):
                 try container.encode("workspace.close.result", forKey: .type)
@@ -1927,6 +1947,82 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
+    /// 在既有 workspace 新增 tab(herdr tab.create,不搶桌機焦點)。新增聊天 = tab.create 後對 root pane 送 agent.start。workspace 不存在時以 herdr_error 回報(herdr_code workspace_not_found)。
+    public struct TabCreate: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var workspaceId: String
+        /// tab 名稱,不可空白;省略時由 herdr 以序號命名。
+        public var label: String?
+
+        public init(requestId: String, workspaceId: String, label: String? = nil) {
+            self.requestId = requestId
+            self.workspaceId = workspaceId
+            self.label = label
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case workspaceId = "workspace_id"
+            case label
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// tab 已建立;聊天開在 root_pane_id。
+    public struct TabCreateResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var tabId: String
+        public var rootPaneId: String
+
+        public init(requestId: String, tabId: String, rootPaneId: String) {
+            self.requestId = requestId
+            self.tabId = tabId
+            self.rootPaneId = rootPaneId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case tabId = "tab_id"
+            case rootPaneId = "root_pane_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 關閉 tab(herdr tab.close):裡面的 pane 與程序都會停止。關掉 workspace 的最後一個 tab 時,herdr 連 workspace 一起關(實測 herdr 0.9.5:仍回成功、不回錯誤);若那是 herdr 唯一的 workspace,herdr 會另開一個空的新 workspace(新的 workspace_id)。app 要關最後一個 tab 前應先提示使用者「會一併關閉這個 Workspace」。tab 不存在時以 herdr_error 回報(herdr_code tab_not_found)。
+    public struct TabClose: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var tabId: String
+
+        public init(requestId: String, tabId: String) {
+            self.requestId = requestId
+            self.tabId = tabId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case tabId = "tab_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// tab 已關閉。
+    public struct TabCloseResult: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
     /// 關閉 workspace(herdr workspace.close):裡面的 tab、pane 與程序都會停止。不連同 worktree 群組一起關，同 repo 的 worktree workspace 還開著時以 herdr_error 回報(herdr_code workspace_group_close_required)。
     public struct WorkspaceClose: Codable, Sendable, Equatable {
         public var requestId: String
@@ -2052,16 +2148,20 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// Agent 已在 pane 啟動。
+    /// Agent 已在 pane 啟動。herdr 0.9.5 的 agent.start 一律立刻回成功(agent 帶 launch_pending:true,連已信任資料夾也是),不等 Agent 就緒;所以主機服務在 herdr 回成功後輪詢 herdr 的 agent.get,等到 launch_pending 消失(Agent 已就緒)、停在 blocked(例如資料夾尚未被 Claude 信任,要有人在桌機回答)或超過 timeout_ms(省略時 30 秒),再回報最終的 launch_pending。讀不到 Agent 狀態時保守回 true。launch_pending 為 true 時 app 不要立刻送 agent.prompt(會得到 herdr_error:agent_not_ready 或 agent_blocked),應把第一則訊息留在輸入框。agent.prompt 在 Agent 尚未就緒時回 herdr_error(herdr_code agent_not_ready:Agent 還在啟動,herdr 訊息 "is not an active named agent";agent_blocked:Agent 在等互動輸入,例如信任資料夾)。
     public struct AgentStartResult: Codable, Sendable, Equatable {
         public var requestId: String
+        /// Agent 是否仍未就緒(見上):false = 已就緒可送 agent.prompt;true = 仍在啟動、停在 blocked 或等待逾時。
+        public var launchPending: Bool
 
-        public init(requestId: String) {
+        public init(requestId: String, launchPending: Bool) {
             self.requestId = requestId
+            self.launchPending = launchPending
         }
 
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
+            case launchPending = "launch_pending"
         }
     }
 }

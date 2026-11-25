@@ -102,6 +102,7 @@ struct HostEditorView: View {
             })
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
+                .appSheetBackground()
         }
         .navigationTitle(model.isEditing ? "Edit Host" : "Add Host")
         #if os(iOS)
@@ -142,6 +143,7 @@ struct HostEditorView: View {
                 HostTrustView(
                     address: model.address, fingerprint: fingerprint, operatingSystem: model.hostOperatingSystem,
                     trust: { Task { await model.trustPresentedHostKey() } }, cancel: { model.dismissPrompt() })
+                    .appSheetBackground()
             }
         }
         // 指紋變了:只能停下來,沒有「信任新的」。要重新連,得刪掉這台主機再新增。

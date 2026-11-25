@@ -102,6 +102,8 @@ final class FakeHostService: Sendable {
         var missingFolders: Set<String> = []
         /// 結構操作(`workspace.*`、`worktree.create`、`agent.start`)以 `herdr_error` 失敗：訊息種類 → herdr 錯誤碼。
         var structureHerdrErrors: [String: String] = [:]
+        /// `agent.start.result` 的 `launch_pending`(0.15.0 起;更舊的版本不帶這個欄位)。
+        var agentLaunchPending = false
         /// `host_service.status` 回的範例檔(#290)。
         var hostServiceStatusExample = "server.host-service-status-result.json"
         /// 有值時 `host_service.status` 改回這個 JSON 物件(不含 `request_id`)。
@@ -470,7 +472,12 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
-        case "workspace.create", "workspace.rename", "tab.rename", "workspace.close", "worktree.create", "agent.start":
+        case "workspace.create", "workspace.rename", "tab.rename", "tab.create", "tab.close", "workspace.close", "worktree.create", "agent.start":
+            // tab.create／tab.close 與 agent.start 的 launch_pending 是 0.15.0 起(版本沒設定視為最新)。
+            let isBefore0150 = settings.hostServiceVersion.flatMap(HostServiceVersion.init).map { $0 < HostServiceVersion(0, 15, 0) } ?? false
+            if isBefore0150, type == "tab.create" || type == "tab.close" {
+                return [.text(Self.error(requestID, "invalid_message", message: "unknown message type"))]
+            }
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
             }
@@ -483,6 +490,15 @@ final class FakeHostService: Sendable {
             }
             if let herdrCode = settings.structureHerdrErrors[type] {
                 return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
+            }
+            if type == "agent.start" {
+                if isBefore0150 {
+                    // 舊版主機服務的結果沒有 launch_pending。
+                    var object = (try? JSONSerialization.jsonObject(with: Data(Self.example("server.agent-start-result.json", requestID: requestID).utf8)) as? [String: Any]) ?? [:]
+                    object.removeValue(forKey: "launch_pending")
+                    return [.text(Self.json(object))]
+                }
+                return [.text(Self.example("server.agent-start-result.json", requestID: requestID, changing: ["launch_pending": settings.agentLaunchPending]))]
             }
             return [.text(Self.example("server.\(type.replacingOccurrences(of: ".", with: "-"))-result.json", requestID: requestID))]
         case "host_service.status", "host_service.update", "host_service.set_auto_update":

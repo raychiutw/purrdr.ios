@@ -12,6 +12,10 @@ enum HerdrMethod: String {
     case workspaceRename = "workspace.rename"
     case tabRename = "tab.rename"
     case workspaceClose = "workspace.close"
+    /// 主機服務 0.15.0 起(`HostServiceFeature.tabClose`)。
+    case tabClose = "tab.close"
+    /// 主機服務 0.15.0 起(`HostServiceFeature.tabCreate`)。
+    case tabCreate = "tab.create"
     case worktreeCreate = "worktree.create"
     case agentStart = "agent.start"
     case paneRead = "pane.read"
@@ -24,6 +28,8 @@ enum HerdrMethod: String {
         switch self {
         case .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart: .workspaceOperations
         case .tabRename: .tabRename
+        case .tabClose: .tabClose
+        case .tabCreate: .tabCreate
         case .paneRead: .paneRead
         case .sessionsList: .sessionResume
         default: nil
@@ -95,6 +101,18 @@ enum HerdrOperation {
                 guard case .tabRenameResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
+        case .tabClose:
+            let params = try JSONDecoder().decode(TabIDParams.self, from: line.params)
+            self = .request(make: { .tabClose(.init(requestId: $0, tabId: params.tabID)) }) { id, reply, _ in
+                guard case .tabCloseResult = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.ok(id: id)
+            }
+        case .tabCreate:
+            let params = try JSONDecoder().decode(TabCreateParams.self, from: line.params)
+            self = .request(make: { .tabCreate(.init(requestId: $0, workspaceId: params.workspaceID, label: params.label)) }) { id, reply, _ in
+                guard case .tabCreateResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.tabCreated(id: id, tabID: result.tabId, rootPaneID: result.rootPaneId)
+            }
         case .workspaceClose:
             let params = try JSONDecoder().decode(WorkspaceIDParams.self, from: line.params)
             self = .request(make: { .workspaceClose(.init(requestId: $0, workspaceId: params.workspaceID)) }) { id, reply, _ in
@@ -128,8 +146,8 @@ enum HerdrOperation {
                     requestId: $0, paneId: params.paneID, name: params.name, kind: params.kind, permissionMode: permissionMode,
                     resumeSession: params.resumeSession, timeoutMs: params.timeoutMs))
             }) { id, reply, _ in
-                guard case .agentStartResult = reply else { throw HostServiceError.unexpectedResponse }
-                return try HerdrResponseLine.ok(id: id)
+                guard case .agentStartResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.agentStarted(id: id, launchPending: result.launchPending)
             }
         case .paneRead:
             let params = try JSONDecoder().decode(PaneReadParams.self, from: line.params)
@@ -209,6 +227,24 @@ enum HerdrOperation {
                 case until
                 case timeoutMs = "timeout_ms"
             }
+        }
+    }
+
+    private struct TabIDParams: Decodable {
+        var tabID: String
+
+        enum CodingKeys: String, CodingKey {
+            case tabID = "tab_id"
+        }
+    }
+
+    private struct TabCreateParams: Decodable {
+        var workspaceID: String
+        var label: String?
+
+        enum CodingKeys: String, CodingKey {
+            case workspaceID = "workspace_id"
+            case label
         }
     }
 

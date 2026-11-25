@@ -20,7 +20,7 @@ final class ConversationLayoutUITests: XCTestCase {
         XCTAssertLessThanOrEqual(last.frame.maxY, card.frame.minY + 1, "最後一則被輸入框遮住")
     }
 
-    /// 輸入框與訊息左右對齊同一條邊(16pt);輸入框浮在內容上，不貼齊螢幕邊緣。
+    /// 輸入卡片離左右邊緣 12pt(比訊息的 16pt 各寬 4pt,輸入框更寬,#512);輸入框浮在內容上，不貼齊螢幕邊緣。
     @MainActor
     func testComposerAlignsWithMessages() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
@@ -29,8 +29,8 @@ final class ConversationLayoutUITests: XCTestCase {
         let card = app.element("composer.card")
         XCTAssertTrue(card.waitUntilExists(timeout: 5), "輸入框沒有玻璃卡片")
         let screen = app.windows.firstMatch.frame
-        XCTAssertEqual(card.frame.minX, 16, accuracy: 1, "輸入框左緣不是 16pt")
-        XCTAssertEqual(screen.maxX - card.frame.maxX, 16, accuracy: 1, "輸入框右緣不是 16pt")
+        XCTAssertEqual(card.frame.minX, 12, accuracy: 1, "輸入框左緣不是 12pt(比內容寬 4pt,#512)")
+        XCTAssertEqual(screen.maxX - card.frame.maxX, 12, accuracy: 1, "輸入框右緣不是 12pt(比內容寬 4pt,#512)")
         // 訊息列表與輸入列都用同一個 16pt 水平邊距(accessibility 容器的 frame 整寬，量不出文字左緣，以截圖確認)。
         _ = agent
         XCTAssertLessThan(card.frame.maxY, screen.maxY, "輸入框應浮在畫面底部上方")
