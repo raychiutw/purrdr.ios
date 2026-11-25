@@ -257,6 +257,11 @@ public actor NewChatLauncher {
         return NewChatStarted(workspace: workspace, sentMessage: true)
     }
 
+    /// 使用者放棄新增聊天(取消或關掉畫面):關掉上次建立、但 agent 沒成功啟動的 Workspace 或 Tab。
+    public func discardUnstarted() async {
+        await discardPending()
+    }
+
     /// 盡力關掉上次建立、但 agent 沒成功啟動的東西(不留孤兒):新 Workspace 用 `workspace.close`,新 Tab 用 `tab.close`。
     /// 只會關掉自己建立的,絕不碰使用者原本就有的 Workspace。
     private func discardPending() async {

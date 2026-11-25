@@ -119,6 +119,36 @@ struct NewChatExistingWorkspaceTests {
         #expect(executions[2].stdinText.contains(#""pane_id":"w1:p3""#))
     }
 
+    @Test("agent 啟動失敗後放棄:關掉建了一半的 Tab,不留只有 shell 的 Tab;之後再放棄不重複關")
+    func abandoningClosesTheCreatedTab() async throws {
+        let host = FakeHost()
+        let launcher = NewChatLaunchTests.launcher(host)
+        await host.expect(Self.bridge, reply: Self.tabCreated(tab: "tG"))
+        await host.expect(Self.bridge, reply: NewChatLaunchTests.error("agent.start", code: "invalid_params"))
+        await #expect(throws: HerdrError.self) { try await launcher.start(Self.request()) }
+
+        await host.expect(Self.bridge, reply: Self.ok("tab.close"))
+        await launcher.discardUnstarted()
+        await launcher.discardUnstarted()
+
+        let executions = await host.executions
+        #expect(executions.count == 3)
+        #expect(executions.last?.stdinText == #"{"id":"purrdr:tab.close","method":"tab.close","params":{"tab_id":"w1:tG"}}"# + "\n")
+    }
+
+    @Test("成功後放棄(畫面關掉):什麼都不關")
+    func abandoningAfterSuccessClosesNothing() async throws {
+        let host = FakeHost()
+        let launcher = NewChatLaunchTests.launcher(host)
+        await host.expect(Self.bridge, reply: Self.tabCreated())
+        await host.expect(Self.bridge, reply: NewChatLaunchTests.agentStarted(pane: "w1:p3"))
+        _ = try await launcher.start(Self.request())
+
+        await launcher.discardUnstarted()
+
+        #expect(await host.executions.count == 2)
+    }
+
     @Test("換目標:只關掉自己建立的 Tab(tab.close),絕不 workspace.close 使用者原本的 Workspace")
     func switchingTargetClosesOnlyTheCreatedTab() async throws {
         let host = FakeHost()
