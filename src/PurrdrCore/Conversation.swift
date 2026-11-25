@@ -230,7 +230,7 @@ public enum Conversation {
             let plain = text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "__", with: "")
                 .replacingOccurrences(of: "`", with: "")
                 .split(separator: "\n", omittingEmptySubsequences: false)
-                .map { String($0).replacingMatches(#"^\s*(#+\s*|[-*+]\s+|\d+[.)]\s+)"#, with: "") }
+                .map { String($0).replacingMatches(markdownLeaderPattern, with: "") }
                 .joined(separator: " ")
                 .split(whereSeparator: \.isWhitespace).joined(separator: " ")
             guard !plain.isEmpty else { continue }
@@ -566,3 +566,9 @@ extension TranscriptPart {
         if case .shellOutput = self { true } else { false }
     }
 }
+
+/// 預覽文字行首的 Markdown 標記(標題、清單);只建一次(#585)。
+private let markdownLeaderPattern: NSRegularExpression = {
+    // swiftlint:disable:next force_try
+    try! NSRegularExpression(pattern: #"^\s*(#+\s*|[-*+]\s+|\d+[.)]\s+)"#)
+}()
