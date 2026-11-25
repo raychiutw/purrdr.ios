@@ -34,8 +34,7 @@ struct HostPushPagesUsageTests {
     func editorGuardsUnsavedChanges() throws {
         #expect(try Self.source("HostEditorView.swift").contains(".discardChangesGuard(hasChanges: model.hasChanges"))
         let guardSource = try Self.source("DiscardChangesGuard.swift")
-        #expect(guardSource.contains("dismissalConfirmationDialog"), "iOS 27 用系統的離開前確認")
-        #expect(guardSource.contains("#available(iOS 27.0, *)"))
+        #expect(guardSource.contains("navigationBarBackButtonHidden(hasChanges)"), "只有未存修改時才換掉系統返回鈕")
     }
 
     @Test("連線方式是系統 .inline Picker,不是自畫的勾選列")

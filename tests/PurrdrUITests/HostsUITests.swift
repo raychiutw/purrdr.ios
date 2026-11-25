@@ -31,6 +31,12 @@ final class HostsUITests: XCTestCase {
 
         // 左上是系統返回鈕(#622);沒有另外的 Cancel。
         XCTAssertFalse(app.navigationBars.buttons["Cancel"].exists, "編輯主機不該有 Cancel")
+        if edits {
+            // 有未存修改時左緣滑回也不能直接離開(要先確認)。
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.002, dy: 0.5))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+            XCTAssertTrue(app.textFields["hostEditor.name"].waitUntilExists(timeout: 3), "有未存修改時左緣滑回直接離開了編輯頁")
+        }
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3), "點取消後 app 不在前景(閃退) \(label) edits=\(edits)")
