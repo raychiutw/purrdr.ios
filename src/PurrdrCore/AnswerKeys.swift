@@ -50,13 +50,24 @@ extension BlockedPrompt {
     ///
     /// 它的數字不是回答：Claude 收到後把那一列變成行內文字輸入，之後的按鍵都被當成文字。多選的勾選列「Type something」不算。
     public func typedAnswerOption(agentKind: String) -> PromptOption? {
-        guard kind == .menu, let last = options.last(where: { $0.number != nil }), last == options.last,
+        let candidates = options.filter { !$0.isChatAboutThis }
+        guard kind == .menu, let last = candidates.last(where: { $0.number != nil }), last == candidates.last,
               last.opensTextEntry(agentKind: agentKind) else { return nil }
         return last
+    }
+
+    /// AskUserQuestion 最後的「Chat about this」(不回答、直接聊);沒有為 `nil`。
+    public var chatOption: PromptOption? {
+        guard kind == .menu else { return nil }
+        return options.last { $0.isChatAboutThis && $0.number != nil }
     }
 }
 
 extension PromptOption {
+    public static let chatAboutThisLabel = "Chat about this"
+
+    public var isChatAboutThis: Bool { checked == nil && label == Self.chatAboutThisLabel }
+
     /// 輸入組宣告的「Type something.」列(不是勾選列);只有設定檔有宣告的 agent 才有。
     func opensTextEntry(agentKind: String) -> Bool {
         guard let label = AgentCatalog.profile(forHerdrName: agentKind).input.answers?.typedAnswerLabel else { return false }
