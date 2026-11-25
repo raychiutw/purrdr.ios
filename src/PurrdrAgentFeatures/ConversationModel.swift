@@ -186,7 +186,7 @@ public final class ConversationModel {
             // 自訂回答的文字不是草稿，也不開 slash 選單(#120)。
             guard typedAnswer == nil else {
                 slash.update(draft: "")
-                typedAnswerDraftChanged()
+                if let restored = mutateAnswerFlow({ $0.typedDraftChanged(draft) }) { draft = restored }
                 return
             }
             drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
@@ -701,14 +701,25 @@ public final class ConversationModel {
 
     // MARK: 回答「需要你」(F8)
 
+    /// 回答「需要你」的狀態機(#560):卡片、鎖定、已回答卡片、提示、自訂回答與期限規則都在 `AnswerFlow`,
+    /// 這裡只執行它吐出的動作(送按鍵、播觸覺、改輸入框、再輪詢)。
+    private var answerFlow = AnswerFlow()
     /// 畫面上正在等回答的提示。
-    public private(set) var prompt: BlockedPrompt?
+    public var prompt: BlockedPrompt? { answerFlow.prompt }
     /// 已送出、還在等結果的回答(選項全部鎖住)。
-    public private(set) var answerInFlight: PromptAnswer?
-    /// 最近一次已送達的回答(畫面清楚顯示選了什麼);Agent 寫出新的文字後收起(#213,`AnsweredCardAnchor`)。
-    public private(set) var lastAnswer: AnsweredPrompt?
-    private var answeredCardAnchor: AnsweredCardAnchor?
-    public private(set) var answerNotice: AnswerNotice?
+    public var answerInFlight: PromptAnswer? { answerFlow.inFlight }
+    /// 最近一次已送達的回答(畫面清楚顯示選了什麼);Agent 寫出新的文字後收起(#213)。
+    public var lastAnswer: AnsweredPrompt? { answerFlow.lastAnswer }
+    public var answerNotice: AnswerNotice? { answerFlow.notice }
+
+    /// 改動狀態機:只有真的變了才寫回(輪詢每 2 秒走一次,不能讓畫面每次都重繪)。
+    @discardableResult
+    private func mutateAnswerFlow<T>(_ body: (inout AnswerFlow) -> T) -> T {
+        var copy = answerFlow
+        let result = body(&copy)
+        if copy != answerFlow { answerFlow = copy }
+        return result
+    }
 
     public let paneID: String
     /// 不是選取中主機時的主機名(標題列第一段);選取中主機為 `nil`。每次算標題列時才問，
@@ -762,14 +773,6 @@ public final class ConversationModel {
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
     @ObservationIgnored public var onPromptDelivered: (@MainActor () -> Void)?
-    /// 下一次輪詢要讀畫面(送出時 agent 在等回答)。
-    private var probeScreen = false
-    private var answerSignature: String?
-    private var answerQuestion: String?
-    /// 按鍵送達主機的時間與當時對話的最後一列(已回答卡片的錨點，#213);還在送時為 `nil`(不判定)。
-    private var answerSent: AnsweredCardAnchor?
-    /// 答完後到這個時間為止，blocked 但畫面不是選單時視為過時狀態、不顯示通用鈕(#468)。
-    private var staleBlockedUntil: Date?
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 「已停止」2 秒後的收起;agent 又開始工作或有新的停止時取消(#220)。
     @ObservationIgnored private var stoppedCollapseTask: Task<Void, Never>?
@@ -843,7 +846,11 @@ public final class ConversationModel {
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
     /// 知道 Agent 後預載 slash 清單(#469);之後每次輪詢檢查是否過期,超過 60 秒在背景重讀。
     private var currentAgent: Agent? {
-        didSet { preloadSlash() }
+        didSet {
+            preloadSlash()
+            let kind = currentAgent?.kind ?? ""
+            if answerFlow.agentKind != kind { answerFlow.agentKind = kind }
+        }
     }
 
     /// 預載 slash 清單:要等 Agent 已知、對話紀錄路徑也找到(session 內的 skill 才讀得到)才開始,
@@ -1698,7 +1705,7 @@ public final class ConversationModel {
         }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         // 問題卡開著、使用者不選選項直接打字送出:先結束題目選單，等 Agent 回到可輸入，再當一般 prompt 送出。
-        if let prompt, answerInFlight == nil, isQuestionCard(prompt) {
+        if let prompt, answerInFlight == nil, answerFlow.isQuestionCard {
             draft = ""
             guard await dismissQuestionCard(prompt) else {
                 putBackInDraft(text)
@@ -1710,11 +1717,6 @@ public final class ConversationModel {
         }
         draft = ""
         await submit(text)
-    }
-
-    /// AskUserQuestion 的問題卡(有「Type something.」或「Chat about this」);權限提示這類選單不算——Esc 會替使用者拒絕。
-    private func isQuestionCard(_ prompt: BlockedPrompt) -> Bool {
-        prompt.typedAnswerOption(agentKind: answerAgentKind) != nil || prompt.chatOption != nil
     }
 
     /// 結束問題卡:有「Chat about this」就選它，沒有就送 Esc;再輪詢到 Agent 不再等回答(最多約 5 秒)。
@@ -1816,7 +1818,7 @@ public final class ConversationModel {
         }
         if case .notSent(.needsAnswer(let agent)) = result {
             // 什麼都沒送出，因為 agent 在等回答：立刻找出問題(資料夾信任這類提示 herdr 可能回報 idle)。
-            probeScreen = true
+            mutateAnswerFlow { $0.requestProbe() }
             await refreshPrompt(agent)
         }
     }
@@ -1879,36 +1881,24 @@ public final class ConversationModel {
 
     public func dismissNotice() { notice = nil }
 
-    // MARK: - 回答「需要你」
+    // MARK: - 回答「需要你」(規則在 `AnswerFlow`,#560)
 
-    /// 這個回答現在能不能送:沒有回答在途、提示還在，且有按鍵可送(編號 10 以上不行,R-Q04)。
+    /// 這個回答現在能不能送:沒有回答在途、提示還在,且有按鍵可送(編號 10 以上不行,R-Q04)。
     public func canAnswer(_ answer: PromptAnswer) -> Bool {
-        guard !isReadOnly, answerInFlight == nil, let prompt, inputs(for: answer) != nil else { return false }
-        switch answer {
-        case .option(let option): return prompt.options.contains(option)
-        case .continueMultiSelect: return prompt.isMultiSelect
-        case .closePicker: return prompt.kind == .filePicker
-        case .generic: return prompt.kind == .unrecognized
-        case .typed(let option, _): return prompt.typedAnswerOption(agentKind: answerAgentKind) == option
-        }
+        answerFlow.canAnswer(answer, isReadOnly: isReadOnly)
     }
 
     /// 回答提示(F8):依 agent 規則送出按鍵(§5.5)。
     ///
-    /// 送出前就鎖住所有選項(兩次快速點擊在重繪前就會到);之後每次輪詢判定：提示不見了或換成別的 → 已送達;
+    /// 送出前就鎖住所有選項(兩次快速點擊在重繪前就會到);之後每次輪詢判定:提示不見了或換成別的 → 已送達;
     /// 同一個提示超過期限 → 逾時、解鎖並提示可能沒送到;按鍵送不出去 → 立刻解鎖並顯示錯誤(R-Q05)。
     public func answer(_ answer: PromptAnswer) async {
-        guard canAnswer(answer), let prompt, let inputs = inputs(for: answer) else { return }
-        answerInFlight = answer
-        answerSignature = prompt.signature
-        answerQuestion = prompt.question
-        answerSent = nil
-        staleBlockedUntil = nil
-        answerNotice = nil
+        guard let inputs = mutateAnswerFlow({ $0.begin(answer: answer, isReadOnly: isReadOnly) }) else { return }
         // 正在回答:先前「請先回答」的提示已不適用(只清這一種)。
         if notice == .needsAnswer { notice = nil }
         haptics.play(.selection)
         let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
+        let result: AnswerFlow.SendResult
         do {
             for input in inputs {
                 switch input {
@@ -1916,33 +1906,28 @@ public final class ConversationModel {
                 case .text(let text): try await client.sendText(paneID: paneID, text: text, expecting: expectation)
                 }
             }
+            result = .sent(lastEntryID: entries.last?.id, at: clock.now())
         } catch {
-            guard answerInFlight == answer else { return }
-            clearAnswer()
-            if error as? HostServiceError == .paneChanged {
-                // 什麼都沒送出：題目或對話已變，立刻重讀畫面換上目前的題目。
-                answerNotice = .questionChanged
-                haptics.play(.error)
-                probeScreen = true
-                await poll()
-                return
+            switch error as? HostServiceError {
+            case .paneChanged?: result = .paneChanged
+            case .readOnlyDevice?: result = .readOnlyDevice
+            default: result = .failed
             }
-            if error as? HostServiceError == .readOnlyDevice {
-                // 卡片改顯示唯讀說明，不另外提示。
-                isReadOnly = true
-                haptics.play(.error)
-                return
-            }
-            answerNotice = .sendFailed
-            haptics.play(.error)
+        }
+        let follow = mutateAnswerFlow { $0.finish(answer, result: result) }
+        if let haptic = follow.haptic { haptics.play(haptic) }
+        // 卡片改顯示唯讀說明,不另外提示。
+        if follow.marksReadOnly { isReadOnly = true }
+        if follow.rereadsScreen {
+            await poll()
             return
         }
-        guard answerInFlight == answer else { return }
-        answerSent = AnsweredCardAnchor(lastEntryID: entries.last?.id, sentAt: clock.now())
-        // 下一題常緊接著出現：0.4 秒與 1.2 秒各多看一次(R-Q09)。
+        guard !follow.followUpPolls.isEmpty else { return }
+        // 下一題常緊接著出現:0.4 秒與 1.2 秒各多看一次(R-Q09)。
         kickTask?.cancel()
+        let delays = follow.followUpPolls
         kickTask = Task { [weak self, sleep] in
-            for delay in [Duration.milliseconds(400), .milliseconds(800)] {
+            for delay in delays {
                 do { try await sleep(delay) } catch { return }
                 guard let self, !Task.isCancelled else { return }
                 await self.poll()
@@ -1950,207 +1935,87 @@ public final class ConversationModel {
         }
     }
 
-    public func dismissAnswerNotice() { answerNotice = nil }
+    public func dismissAnswerNotice() { mutateAnswerFlow { $0.dismissNotice() } }
 
     // MARK: 自訂回答(Type something,#120)
 
     /// 正在用輸入框打自訂答案的「Type something.」選項;`nil` = 一般輸入。
-    public private(set) var typedAnswer: PromptOption?
-    /// 進入自訂回答前的草稿(結束後放回)。
-    private var draftBeforeTypedAnswer = ""
-    /// 這次自訂回答打過字了沒有。剛進入時輸入框本來就空，打過字之後再清空才算取消(#127)。
-    private var typedAnswerHasText = false
+    public var typedAnswer: PromptOption? { answerFlow.typed }
 
     /// 這個選項是不是要用輸入框打字回答的「Type something.」。
     public func isTypedAnswerOption(_ option: PromptOption) -> Bool {
-        prompt?.typedAnswerOption(agentKind: answerAgentKind) == option
+        answerFlow.isTypedOption(option)
     }
 
-    /// 這個「Type something.」現在能不能點(進入自訂回答):沒有回答在途、它是這張問題卡的自訂回答選項。
-    /// 已經在自訂回答時也可點(不做事),所以不看 `typedAnswer`。
+    /// 這個「Type something.」現在能不能點(進入自訂回答)。已經在自訂回答時也可點(不做事),所以不看 `typedAnswer`。
     public func canBeginTypedAnswer(_ option: PromptOption) -> Bool {
-        answerInFlight == nil && isTypedAnswerOption(option)
+        answerFlow.canBeginTyped(option)
     }
 
-    /// 這個選項的回答是否正在送出(點選的編號，或以它送出的自訂回答)。
+    /// 這個選項的回答是否正在送出(點選的編號,或以它送出的自訂回答)。
     public func isAnswering(_ option: PromptOption) -> Bool {
-        switch answerInFlight {
-        case .option(let answered)?, .typed(let answered, _)?: answered == option
-        default: false
-        }
+        answerFlow.isAnswering(option)
     }
 
     /// 「需要你」卡片上一個選項現在的狀態(#424):畫面據此決定附屬位置放什麼、能不能點、VoiceOver 念什麼。
     public func optionState(for option: PromptOption) -> PromptOptionState {
-        if isAnswering(option) { return .sending }
-        if answerInFlight != nil || isReadOnly { return .disabled }
-        let answer = PromptAnswer.option(option)
-        return isTypedAnswerOption(option) ? (canBeginTypedAnswer(option) ? .available : .disabled)
-            : (canAnswer(answer) ? .available : .disabled)
+        answerFlow.optionState(for: option, isReadOnly: isReadOnly)
     }
 
     /// 點「Type something.」:不送任何按鍵(Claude 收到數字只會把那一列變成文字輸入),改由輸入框打字;
     /// 原本的草稿先收起來，結束時放回。
     public func beginTypedAnswer(_ option: PromptOption) {
-        guard canBeginTypedAnswer(option), typedAnswer == nil else { return }
-        typedAnswer = option
-        typedAnswerHasText = false
-        draftBeforeTypedAnswer = draft
-        draft = ""
+        if let cleared = mutateAnswerFlow({ $0.beginTyped(option, draft: draft) }) { draft = cleared }
     }
 
     /// 取消自訂回答，回到一般輸入(什麼都沒送過，不必還原 pane)。
     public func cancelTypedAnswer() {
-        guard typedAnswer != nil else { return }
-        endTypedAnswer()
-    }
-
-    /// 自訂回答時輸入框改了：打過字之後清空 = 取消，回到一般輸入(#127)。
-    private func typedAnswerDraftChanged() {
-        if !draft.isEmpty {
-            typedAnswerHasText = true
-        } else if typedAnswerHasText {
-            endTypedAnswer()
-        }
-    }
-
-    /// `keepingText`:題目變了而結束時，打到一半的字留在輸入框(不蓋成原本的草稿)。
-    private func endTypedAnswer(keepingText: String? = nil) {
-        let restored = draftBeforeTypedAnswer
-        typedAnswer = nil
-        typedAnswerHasText = false
-        draftBeforeTypedAnswer = ""
-        if let keepingText, !keepingText.isEmpty {
-            draft = restored.isEmpty ? keepingText : restored + "\n" + keepingText
-        } else {
-            draft = restored
-        }
+        if let restored = mutateAnswerFlow({ $0.cancelTyped() }) { draft = restored }
     }
 
     /// 送出自訂回答：數字 → 文字 → enter(`AnswerKeys.inputs`)。送不出去就回到自訂回答、保留打的字。
     private func sendTypedAnswer(_ option: PromptOption) async {
         let text = draft
-        let answer = PromptAnswer.typed(option, text: text)
-        guard canAnswer(answer) else {
+        switch mutateAnswerFlow({ $0.submitTyped(option: option, text: text, isReadOnly: isReadOnly) }) {
+        case .questionChanged(let kept):
             // 題目已經變了:不默默沒反應，文字留在輸入框並提示。
-            endTypedAnswer(keepingText: text)
-            answerNotice = .questionChanged
-            return
+            draft = kept
+        case .send(let typed, let restored):
+            draft = restored
+            await answer(typed)
+            if let resumed = mutateAnswerFlow({ $0.resumeTypedAfterFailure(option: option, text: text, currentDraft: draft) }) {
+                draft = resumed
+            }
         }
-        endTypedAnswer()
-        await self.answer(answer)
-        if answerNotice == .sendFailed || answerNotice == .questionChanged, isTypedAnswerOption(option) {
-            beginTypedAnswer(option)
-            draft = text
-        }
-    }
-
-    private func inputs(for answer: PromptAnswer) -> [AnswerInput]? {
-        AnswerKeys.inputs(for: answer, agentKind: answerAgentKind)
     }
 
     /// 回答規則用的 agent 種類(還不知道 agent 時是空字串，走一般規則)。
     private var answerAgentKind: String { agentKind ?? "" }
 
-    /// 回答期限:max(12 秒, 3 × 輪詢間隔)(blocked 時每 2 秒輪詢;慢輪詢下好答案曾被判逾時,R-Q05)。
-    private static let answerDeadline: TimeInterval = max(12, 3 * 2)
-
-    /// 讀 pane 畫面找出提示(§5.1)。
-    ///
-    /// - `blocked`(或 `input_pending`)每次輪詢都讀;看不出選單就給通用鈕。
-    /// - herdr 0.9.5 沒有 `input_pending`:Claude 首次啟動的資料夾信任時 agent 是閒置、還沒有 session,
-    ///   所以閒置且沒有 session、送出時被告知在等回答、或畫面上已有提示時也讀，但**只認資料夾信任**
-    ///   (閒置畫面上對話中的編號清單不是提示)。
+    /// 讀 pane 畫面找出提示(§5.1);何時讀、讀到什麼怎麼判定都在 `AnswerFlow`。
     private func refreshPrompt(_ agent: Agent) async {
-        let blocked = agent.status == .blocked || (agent.inputPending && agent.status != .working)
-        // 工作中 = 沒有在等任何回答(提示已經被回答掉了)。
-        let probe = agent.status != .working && (probeScreen || prompt != nil || agent.session == nil)
-        probeScreen = false
-        guard blocked || probe else {
-            update(prompt: nil)
-            return
+        let observation = AnswerFlow.Observation(
+            isBlocked: agent.status == .blocked || (agent.inputPending && agent.status != .working),
+            isWorking: agent.status == .working, hasSession: agent.session != nil, now: clock.now(), draft: draft)
+        switch mutateAnswerFlow({ $0.begin(observation) }) {
+        case .settled(let outcome):
+            apply(outcome)
+        case .readScreen:
+            let screen = await readScreen(for: .prompt)
+            var observed = observation
+            observed.now = clock.now()
+            observed.draft = draft
+            let dialect = AgentCatalog.profile(forHerdrName: agent.kind).screen
+            apply(mutateAnswerFlow { $0.observe(screen: screen, dialect: dialect, observed) })
         }
-        guard let screen = await readScreen(for: .prompt) else {
-            // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
-            // 剛答完、herdr 的 blocked 還沒更新的期限內(`staleBlockedUntil`)不冒通用鈕(#468)。
-            let isWithinStaleWindow = staleBlockedUntil.map { clock.now() < $0 } ?? false
-            if blocked, prompt == nil, !isWithinStaleWindow { prompt = .unrecognized }
-            if prompt != nil { agentStatus = .blocked }
-            checkAnswerDeadline()
-            return
-        }
-        let parsed = BlockedPromptParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
-        if blocked, parsed == nil, answerInFlight != nil, answerSent == nil, prompt != nil {
-            // 送出還沒返回、按鍵可能已到 Agent 而畫面重繪：維持原卡片，不換成通用鈕(#468)。
-            agentStatus = .blocked
-            return
-        }
-        if blocked, parsed == nil, typedAnswer != nil, prompt != nil {
-            // 打自訂答案時畫面暫時看不出選單(重繪中途):維持原卡片與打的字，不換成通用鈕。
-            agentStatus = .blocked
-            return
-        }
-        var next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
-        if parsed != nil { staleBlockedUntil = nil }
-        if blocked, parsed == nil {
-            // 答完後 herdr 的 blocked 狀態可能還沒更新：畫面不是選單時不冒出通用鈕(其按鍵會真的打進 Agent)，到期限為止。
-            if let sent = answerSent, answerInFlight != nil { staleBlockedUntil = sent.sentAt.addingTimeInterval(Self.answerDeadline) }
-            if let until = staleBlockedUntil, clock.now() < until { next = nil }
-        }
-        if next != nil { agentStatus = .blocked }
-        update(prompt: next)
     }
 
-    /// 以新的畫面判定在途的回答，再換上新的提示(同一提示保持原物件)。
-    private func update(prompt next: BlockedPrompt?) {
-        if let answer = answerInFlight, let sent = answerSent {
-            if next == nil || next?.signature != answerSignature {
-                // 不再 blocked = 已送達;換成別的提示 = 被取代(通常是下一題),新問題不繼承鎖。
-                if case .option(let option) = answer, option.checked != nil {
-                    // 勾選只是切換，不是最終的回答。
-                } else {
-                    lastAnswer = AnsweredPrompt(question: answerQuestion, choice: Self.choiceText(answer))
-                    answeredCardAnchor = sent
-                }
-                clearAnswer()
-                haptics.play(.success)
-            } else {
-                checkAnswerDeadline()
-            }
-        }
-        if next?.signature != prompt?.signature || (next == nil) != (prompt == nil) { prompt = next }
+    private func apply(_ outcome: AnswerFlow.Outcome) {
+        if outcome.agentBlocked { agentStatus = .blocked }
+        if let haptic = outcome.haptic { haptics.play(haptic) }
         // Agent 不再等回答:「請先回答」的提示收掉(只清這一種)。
-        if next == nil, notice == .needsAnswer { notice = nil }
-        // 提示換了或不見了(例如在終端機回答掉):自訂回答跟著結束。
-        if let typedAnswer, !isTypedAnswerOption(typedAnswer) { endTypedAnswer(keepingText: draft) }
-    }
-
-    private func checkAnswerDeadline() {
-        guard answerInFlight != nil, let sentAt = answerSent?.sentAt,
-              clock.now().timeIntervalSince(sentAt) > Self.answerDeadline else { return }
-        clearAnswer()
-        answerNotice = .mayNotHaveArrived
-        haptics.play(.error)
-    }
-
-    private func clearAnswer() {
-        answerInFlight = nil
-        answerSignature = nil
-        answerQuestion = nil
-        answerSent = nil
-    }
-
-    private static func choiceText(_ answer: PromptAnswer) -> String {
-        switch answer {
-        case .option(let option): option.label
-        case .continueMultiSelect: String(localized: "Continue")
-        case .closePicker: String(localized: "Close File Picker")
-        case .generic(.confirm): String(localized: "Confirm")
-        case .generic(.one): "1"
-        case .generic(.two): "2"
-        case .generic(.escape): String(localized: "Esc")
-        case .typed(_, let text): text
-        }
+        if outcome.promptGone, notice == .needsAnswer { notice = nil }
+        if let restored = outcome.draft { draft = restored }
     }
 
     // MARK: - 送出(內部)
@@ -2248,9 +2113,11 @@ public final class ConversationModel {
 
     /// 已回答卡片：Agent 寫出新的文字，或只有工具步驟但已過保留時間就收起(#213)。
     private func refreshAnsweredCard() {
-        guard let anchor = answeredCardAnchor, !anchor.isShowing(rows: answeredCardRows, at: clock.now()) else { return }
-        lastAnswer = nil
-        answeredCardAnchor = nil
+        // 沒有已回答卡片時不必整理對話列(每輪輪詢都會走到這裡)。
+        guard answerFlow.lastAnswer != nil else { return }
+        let rows = answeredCardRows
+        let now = clock.now()
+        mutateAnswerFlow { $0.refreshAnsweredCard(rows: rows, now: now) }
     }
 
     /// 已回答卡片去留規則看的對話列。

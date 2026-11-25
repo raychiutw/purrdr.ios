@@ -15,7 +15,7 @@ import PurrdrCore
 /// - 答完後 herdr 的 blocked 可能還沒更新:畫面不是選單時,期限內不冒通用鈕(其按鍵會真的打進 Agent,#468)。
 /// - 讀不到畫面 = 未知,永不當成新提示,只看逾時。
 /// - 打自訂答案時畫面暫時看不出選單,維持原卡片與打的字。
-public struct AnswerFlow: Sendable {
+public struct AnswerFlow: Sendable, Equatable {
     // MARK: 對外狀態
 
     /// 畫面上正在等回答的提示。
