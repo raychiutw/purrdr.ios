@@ -36,7 +36,11 @@ final class HTTPSHostUITests: XCTestCase {
             let expired = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "pairing code expired")).firstMatch
             XCTAssertTrue(expired.waitUntilExists(timeout: 15), "沒有說明配對碼過期")
             XCTAssertFalse(app.buttons["guide.save"].exists, "配對失敗不能儲存")
-            app.navigationBars.buttons.element(boundBy: 0).tap()  // 系統返回鈕:第一頁離開引導(#622)
+            // 系統返回鈕一步一步回上一步,退到第一頁再退一次就離開引導(#622)。
+            for _ in 0..<8 {
+                if app.buttons["hosts.add"].waitUntilExists(timeout: 1) { break }
+                app.navigationBars.buttons.element(boundBy: 0).tap()
+            }
             XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "取消後沒有回到主機清單")
         }
 

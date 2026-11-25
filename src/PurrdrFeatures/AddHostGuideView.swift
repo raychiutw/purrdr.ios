@@ -680,7 +680,6 @@ struct AddHostGuideView: View {
                     .accessibilityIdentifier("guide.option.importedKey")
             }
             .font(.footnote)
-            .accessibilityIdentifier("guide.otherWays")
         case .credential, .keySetup:
             primary("Test Connection", id: "guide.next", enabled: model.canAdvance) { model.advance() }
         case .details:

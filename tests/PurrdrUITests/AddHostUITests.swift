@@ -90,7 +90,7 @@ final class AddHostUITests: XCTestCase {
     func testDoneDismissesKeyboardAfterPrivateKey() {
         let app = XCUIApplication.launchUITesting()
         openNativeSSHLogin(app)
-        app.buttons["guide.otherWays"].tapWhenReady()
+        app.buttons["Other Ways"].firstMatch.tapWhenReady()  // 系統 DisclosureGroup 的展開鈕(#622)
         app.buttons["guide.option.importedKey"].tapWhenReady()
 
         let key = app.textViews["guide.field.privateKey"]
