@@ -45,6 +45,8 @@ public struct ConversationTimeline: Sendable {
     public private(set) var pendingEchoes: [PromptEcho] = []
     /// Markdown 實際解析的次數(測試用:同一段文字只解析一次)。
     package private(set) var markdownParseCount = 0
+    /// 送進建構器的訊息總數(測試用:往上翻只建構新頁、補讀完只重建一次,#586)。
+    package private(set) var builtMessageCount = 0
 
     /// 畫面列的建構輸入(不是讀取與快取的真相:那在 `ConversationModel` 的 `recent`／`olderMessages`;這裡依 id 去重自保)。
     private var messages: [TranscriptMessage] = []
@@ -70,6 +72,7 @@ public struct ConversationTimeline: Sendable {
         for message in freshMessages where !message.isSidechain {
             builder.add(message)
         }
+        builtMessageCount += freshMessages.count
         items = builder.items
         return refreshRows(cause: nil, prepending: false)
     }
@@ -78,6 +81,13 @@ public struct ConversationTimeline: Sendable {
     public mutating func prependOlder(_ olderMessages: [TranscriptMessage]) -> Update {
         let freshMessages = olderMessages.filter { knownMessageIDs.insert($0.id).inserted }
         guard !freshMessages.isEmpty else { return Update(cause: .olderLoaded, changes: []) }
+        // 只建構新的一頁再接到最前面;有只能整份重建才對得上的相依時才整份重建(#586)。
+        builtMessageCount += freshMessages.count
+        if builder.prepend(Self.build(freshMessages)) {
+            messages = freshMessages + messages
+            items = builder.items
+            return refreshRows(cause: .olderLoaded, prepending: true)
+        }
         return rebuild(from: freshMessages + messages, cause: .olderLoaded, prepending: true)
     }
 
@@ -142,16 +152,22 @@ public struct ConversationTimeline: Sendable {
     private mutating func rebuild(from newMessages: [TranscriptMessage], cause: Cause, prepending: Bool) -> Update {
         messages = newMessages
         knownMessageIDs = Set(newMessages.map(\.id))
-        var freshBuilder = Conversation.Builder()
-        freshBuilder.defersSummaries = true
-        for message in newMessages where !message.isSidechain {
-            freshBuilder.add(message)
-        }
-        freshBuilder.settleSummaries()
+        builtMessageCount += newMessages.count
+        var freshBuilder = Self.build(newMessages)
         Self.adoptIdentities(of: items, into: &freshBuilder.items)
         builder = freshBuilder
         items = builder.items
         return refreshRows(cause: cause, prepending: prepending)
+    }
+
+    private static func build(_ messages: [TranscriptMessage]) -> Conversation.Builder {
+        var builder = Conversation.Builder()
+        builder.defersSummaries = true
+        for message in messages where !message.isSidechain {
+            builder.add(message)
+        }
+        builder.settleSummaries()
+        return builder
     }
 
     /// 依目前的項目與回音確認回音、重算列,回傳與上一版列的差異。`cause` 為 `nil` 時依內容推斷。

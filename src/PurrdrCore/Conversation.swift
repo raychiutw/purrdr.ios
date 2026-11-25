@@ -279,6 +279,17 @@ public enum Conversation {
         var callPaths: [String: String] = [:]
         /// 已有卡片的產生圖片(同一張圖的項目與事件只算一張)。
         var generatedImages: Set<String> = []
+        /// 找不到呼叫的工具結果(呼叫在更舊的頁):往上補舊頁時回頭補上(#586)。
+        var orphans: [OrphanResult] = []
+        /// 有「只能整份重建才對得上」的跨頁相依(找不到卡片的通知、沒有呼叫的檔案路徑、沒有指令的輸出…),不能增量往上補。
+        var needsFullRebuildToPrepend = false
+
+        struct OrphanResult {
+            var callID: String?
+            var text: String
+            var isError: Bool
+            var date: Date?
+        }
 
         mutating func add(_ message: TranscriptMessage) {
             // Shell 指令只和**下一則**訊息配對：下一則不是輸出 → 中斷(沒有記錄輸出,F5.9)。
@@ -312,16 +323,25 @@ public enum Conversation {
                     if let callID, let index = delegationsByCall[callID] {
                         delegationResult(text: text, isError: isError, date: message.date, at: index)
                     } else {
-                        if let resumed = DelegationResultText.resumedAgentID(in: text) { resume(agentID: resumed) }
-                        attach(result: text, isError: isError, to: callID)
+                        let resumed = DelegationResultText.resumedAgentID(in: text)
+                        let resumeFailed = resumed.map { !resume(agentID: $0) } ?? false
+                        if !attach(result: text, isError: isError, to: callID) {
+                            if resumed != nil {
+                                needsFullRebuildToPrepend = true
+                            } else {
+                                orphans.append(OrphanResult(callID: callID, text: text, isError: isError, date: message.date))
+                            }
+                        } else if resumeFailed {
+                            needsFullRebuildToPrepend = true
+                        }
                     }
                 case .delegation(let call):
                     close()
                     addCard(call, id: partID, date: message.date)
                 case .taskNotification(let notification):
-                    report(notification)
+                    if !report(notification) { needsFullRebuildToPrepend = true }
                 case .handBack(let from, let text):
-                    if let index = delegationsByTask[from] { handBack(text, at: index) }
+                    if let index = delegationsByTask[from] { handBack(text, at: index) } else { needsFullRebuildToPrepend = true }
                 case .skill(let name):
                     close()
                     items.append(.skill(SkillLoaded(id: partID, name: name)))
@@ -338,11 +358,16 @@ public enum Conversation {
                     if let index = shellAwaitingOutput, case .shell(var run) = items[index] {
                         run.output = .recorded(output)
                         items[index] = .shell(run)
+                    } else {
+                        needsFullRebuildToPrepend = true
                     }
                 case .agentFile(var file):
                     if file.path.isEmpty {
                         // Read 圖片：路徑取自同一行工具結果對應的呼叫;呼叫不在視窗內就不顯示。
-                        guard let callID = resultCallID, let path = callPaths[callID] else { continue }
+                        guard let callID = resultCallID, let path = callPaths[callID] else {
+                            needsFullRebuildToPrepend = true
+                            continue
+                        }
                         file.path = path
                     }
                     if file.origin == .generatedImage, !generatedImages.insert(file.path).inserted { continue }
@@ -372,14 +397,15 @@ public enum Conversation {
             return (items.count - 1, 0)
         }
 
-        mutating func attach(result: String, isError: Bool, to callID: String?) {
+        @discardableResult
+        mutating func attach(result: String, isError: Bool, to callID: String?) -> Bool {
             let location: (item: Int, step: Int)?
             if let callID {
                 location = callsByID.removeValue(forKey: callID)
             } else {
                 location = callsWithoutID.isEmpty ? nil : callsWithoutID.removeFirst()
             }
-            guard let location, var run = takeToolRun(at: location.item) else { return }
+            guard let location, var run = takeToolRun(at: location.item) else { return false }
             if case .call(var call) = run.steps[location.step].kind {
                 call.result = result
                 call.isError = isError
@@ -387,6 +413,7 @@ public enum Conversation {
             }
             items[location.item] = .toolRun(run)
             refreshSummary(at: location.item)
+            return true
         }
 
         /// 暫放在被取出的工具串位置上的佔位項目。
@@ -477,8 +504,9 @@ public enum Conversation {
         }
 
         /// 任務通知：依呼叫 id 或 task id(agent id／run id)對應;依序處理，所以最新一則為準。
-        mutating func report(_ notification: TaskNotification) {
-            guard let index = notification.callID.flatMap({ delegationsByCall[$0] }) ?? notification.taskID.flatMap({ delegationsByTask[$0] }) else { return }
+        @discardableResult
+        mutating func report(_ notification: TaskNotification) -> Bool {
+            guard let index = notification.callID.flatMap({ delegationsByCall[$0] }) ?? notification.taskID.flatMap({ delegationsByTask[$0] }) else { return false }
             let status = DelegationStatus.reported(notification.status)
             let duration = notification.durationMs.map { Double($0) / 1000 }
             let result = handBacks[index] ?? notification.result ?? notification.summary
@@ -503,6 +531,7 @@ public enum Conversation {
             default:
                 break
             }
+            return true
         }
 
         mutating func handBack(_ report: String, at index: Int) {
@@ -514,11 +543,91 @@ public enum Conversation {
         }
 
         /// `SendMessage` 讓 agent 續跑：變回執行中，直到下一次回報。
-        mutating func resume(agentID: String) {
-            guard let index = delegationsByTask[agentID], case .subagent(var card) = items[index] else { return }
+        @discardableResult
+        mutating func resume(agentID: String) -> Bool {
+            guard let index = delegationsByTask[agentID], case .subagent(var card) = items[index] else { return false }
             card.status = .running
             handBacks[index] = nil
             items[index] = .subagent(card)
+            return true
+        }
+
+        // MARK: 往上補舊頁(#586)
+
+        /// 把只含更舊訊息的 `older`(已建好、已 `settleSummaries()`)接在最前面,結果等於對全部訊息重建;
+        /// 回傳 false 表示有只能整份重建才對得上的相依,什麼都沒改,呼叫端改用整份重建。
+        /// 只處理邊界:舊頁尾端還開著的工具串併入這邊最前面的工具串、這邊找不到呼叫的結果回頭補到舊頁的呼叫、索引整體位移。
+        mutating func prepend(_ older: Builder) -> Bool {
+            guard !needsFullRebuildToPrepend, !items.isEmpty, older.pendingShell == nil,
+                  generatedImages.isDisjoint(with: older.generatedImages) else { return false }
+            var older = older
+
+            // 這邊找不到呼叫的結果,依序回頭補到舊頁的呼叫;補不上的留著等更舊的頁。
+            var remaining: [OrphanResult] = []
+            for orphan in orphans {
+                if let callID = orphan.callID, let index = older.delegationsByCall[callID] {
+                    older.delegationResult(text: orphan.text, isError: orphan.isError, date: orphan.date, at: index)
+                } else if !older.attach(result: orphan.text, isError: orphan.isError, to: orphan.callID) {
+                    remaining.append(orphan)
+                }
+            }
+
+            // 邊界:這邊最前面「不結束工具串」的區段(工具串、檔案卡)裡的第一串,接在舊頁還開著的那串後面。
+            var mergedSlot: Int?
+            var mergedItemIndex: Int?
+            var mergedStepOffset = 0
+            if let slot = older.openRun, case .toolRun(var olderRun) = older.items[slot] {
+                scan: for (index, item) in items.enumerated() {
+                    switch item {
+                    case .toolRun(let existing):
+                        mergedStepOffset = olderRun.steps.count
+                        olderRun.steps += existing.steps
+                        olderRun.id = existing.id
+                        olderRun.expansionID = existing.id
+                        olderRun.summary = Conversation.summary(of: olderRun.steps)
+                        older.items[slot] = .toolRun(olderRun)
+                        mergedSlot = slot
+                        mergedItemIndex = index
+                        break scan
+                    case .agentFile:
+                        continue
+                    default:
+                        break scan
+                    }
+                }
+            }
+
+            let base = older.items.count
+            let mergedIndex = mergedItemIndex
+            let slotOfMerged = mergedSlot
+            func mapped(_ index: Int) -> Int {
+                guard let mergedIndex else { return base + index }
+                if index == mergedIndex { return slotOfMerged ?? 0 }
+                return index > mergedIndex ? base + index - 1 : base + index
+            }
+            func mappedCall(_ location: (item: Int, step: Int)) -> (item: Int, step: Int) {
+                let step = location.item == mergedIndex ? location.step + mergedStepOffset : location.step
+                return (mapped(location.item), step)
+            }
+
+            var newItems = older.items
+            for (index, item) in items.enumerated() where index != mergedIndex { newItems.append(item) }
+
+            callsByID = older.callsByID.merging(callsByID.mapValues(mappedCall)) { _, existing in existing }
+            callsWithoutID = older.callsWithoutID + callsWithoutID.map(mappedCall)
+            delegationsByCall = older.delegationsByCall.merging(delegationsByCall.mapValues(mapped)) { _, existing in existing }
+            delegationsByTask = older.delegationsByTask.merging(delegationsByTask.mapValues(mapped)) { _, existing in existing }
+            var shiftedHandBacks = older.handBacks
+            for (index, report) in handBacks { shiftedHandBacks[mapped(index)] = report }
+            handBacks = shiftedHandBacks
+            openRun = openRun.map(mapped)
+            pendingShell = pendingShell.map(mapped)
+            callPaths.merge(older.callPaths) { existing, _ in existing }
+            generatedImages.formUnion(older.generatedImages)
+            orphans = older.orphans + remaining
+            needsFullRebuildToPrepend = older.needsFullRebuildToPrepend
+            items = newItems
+            return true
         }
 
         func finish() -> [ConversationItem] {
