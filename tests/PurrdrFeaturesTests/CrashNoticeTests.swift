@@ -66,15 +66,34 @@ struct CrashNoticeTests {
         #expect(model.pending == later)
     }
 
-    @Test("解鎖前不顯示:要 reveal 之後才算顯示")
-    func hiddenUntilRevealed() {
+    @Test("App 鎖定中不顯示;解鎖後顯示")
+    func hiddenWhileAppLocked() {
         let (model, recorder, _) = Self.make()
         let window = UUID()
         model.attach(window: window)
         recorder.recordCrash(Self.record())
-        #expect(!model.isShown(in: window))
-        model.reveal()
-        #expect(model.isShown(in: window))
+        #expect(!model.isShown(in: window, appLocked: true))
+        #expect(model.isShown(in: window, appLocked: false))
+    }
+
+    @Test("鎖定中有推播導航在等、也有待提示的閃退:解鎖後推播導航照常執行、提示也出現(提示不佔用 whenUnlocked)")
+    func pushNavigationSurvivesPendingCrashNotice() async {
+        let defaults = UserDefaults(suiteName: "crashnotice-lock-\(UUID().uuidString)")!
+        defaults.set(true, forKey: AppLock.enabledKey)
+        let lock = AppLock(authenticator: AppLockTests.ScriptedAuthenticator([.success]), defaults: defaults)
+        let (model, recorder, _) = Self.make()
+        let window = UUID()
+        model.attach(window: window)
+        var opened: [String] = []
+
+        lock.whenUnlocked { opened.append("w1:p1") }
+        recorder.recordCrash(Self.record())
+        #expect(lock.isLocked)
+        #expect(!model.isShown(in: window, appLocked: lock.isLocked))
+
+        await lock.unlock()
+        #expect(opened == ["w1:p1"])
+        #expect(model.isShown(in: window, appLocked: lock.isLocked))
     }
 
     @Test("多視窗只在第一個視窗顯示;它關掉後換下一個")
@@ -84,11 +103,10 @@ struct CrashNoticeTests {
         model.attach(window: first)
         model.attach(window: second)
         recorder.recordCrash(Self.record())
-        model.reveal()
-        #expect(model.isShown(in: first))
-        #expect(!model.isShown(in: second))
+        #expect(model.isShown(in: first, appLocked: false))
+        #expect(!model.isShown(in: second, appLocked: false))
         model.detach(window: first)
-        #expect(model.isShown(in: second))
+        #expect(model.isShown(in: second, appLocked: false))
     }
 
     @Test("Swift 執行期錯誤沒有標記,只有 MetricKit 報告:也會提示")

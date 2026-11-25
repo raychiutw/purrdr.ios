@@ -50,7 +50,8 @@ struct CrashNoticeBanner: View {
     }
 }
 
-/// 把橫幅掛在視窗頂端:只在 `CrashNoticeModel` 指定的那個視窗顯示;App 鎖定中等解鎖後才 `reveal`。
+/// 把橫幅掛在視窗頂端:只在 `CrashNoticeModel` 指定的那個視窗顯示;App 鎖定中不顯示,解鎖後出現。
+/// 直接觀察 `AppLock.isLocked`,不經 `whenUnlocked`(那只留一個等待導航,會和推播點擊導航互相覆蓋)。
 struct CrashNoticeModifier: ViewModifier {
     let model: CrashNoticeModel?
     let appLock: AppLock?
@@ -59,17 +60,13 @@ struct CrashNoticeModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay(alignment: .top) {
-                if let model, model.isShown(in: window) {
+                if let model, model.isShown(in: window, appLocked: appLock?.isLocked ?? false) {
                     CrashNoticeBanner(model: model)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .onAppear { model?.attach(window: window) }
             .onDisappear { model?.detach(window: window) }
-            .onChange(of: model?.pending, initial: true) { _, pending in
-                guard pending != nil, let model else { return }
-                if let appLock { appLock.whenUnlocked { model.reveal() } } else { model.reveal() }
-            }
     }
 }
 

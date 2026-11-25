@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 // 啟動提示「上次 Purrdr 意外關閉」(#632):診斷記錄裡出現新的閃退記錄時,顯示一則不打斷的橫幅。
-// 每筆閃退只提示一次(已提示的時間存本機);多視窗只在一個視窗顯示;App 鎖定中等解鎖後才顯示。
+// 每筆閃退只提示一次(已提示的時間存本機);多視窗只在一個視窗顯示;App 鎖定中不顯示。
 
 /// 已提示過的最新閃退時間(存本機)。
 public protocol CrashNoticeStoring: AnyObject {
@@ -32,8 +32,6 @@ public final class CrashNoticeModel {
 
     /// 還沒提示過的閃退記錄。
     public private(set) var pending: CrashRecord?
-    /// 已經可以顯示(App 鎖已解開)。
-    public private(set) var isRevealed = false
     private var windows: [UUID] = []
 
     @ObservationIgnored private let recorder: HitchRecorder
@@ -51,13 +49,9 @@ public final class CrashNoticeModel {
         pending = record
     }
 
-    /// 解鎖後才呼叫(經 `AppLock.whenUnlocked`)。
-    public func reveal() { if pending != nil { isRevealed = true } }
-
     public func dismiss() {
         if let pending { store.lastNoticed = max(pending.timestamp, store.lastNoticed ?? .distantPast) }
         pending = nil
-        isRevealed = false
     }
 
     // MARK: 多視窗
@@ -65,9 +59,9 @@ public final class CrashNoticeModel {
     public func attach(window: UUID) { if !windows.contains(window) { windows.append(window) } }
     public func detach(window: UUID) { windows.removeAll { $0 == window } }
 
-    /// 只有最早開著的視窗顯示。
-    public func isShown(in window: UUID) -> Bool {
-        pending != nil && isRevealed && windows.first == window
+    /// 只有最早開著的視窗顯示;App 鎖定中不顯示(畫面觀察鎖定狀態,解鎖後自然出現,不佔用 `AppLock.whenUnlocked`)。
+    public func isShown(in window: UUID, appLocked: Bool) -> Bool {
+        pending != nil && !appLocked && windows.first == window
     }
 
     /// 「分享記錄」:匯出整份診斷記錄(沿用設定頁的匯出)。
