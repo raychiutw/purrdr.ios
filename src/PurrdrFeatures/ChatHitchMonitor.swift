@@ -191,10 +191,12 @@ extension HitchSystemState {
 /// 訂閱 MetricKit 的每日 payload,把 `scrollHitchTimeRatio` 與當機掛起(hang)診斷的摘要寫進同一份記錄(只有數字)。
 public final class HitchMetricKitSubscriber: NSObject, MXMetricManagerSubscriber {
     private let recorder: HitchRecorder
+    private let crashIntake: MetricKitCrashIntake
 
     @MainActor
     public init(recorder: HitchRecorder) {
         self.recorder = recorder
+        crashIntake = MetricKitCrashIntake(recorder: recorder)
         super.init()
     }
 
@@ -212,6 +214,13 @@ public final class HitchMetricKitSubscriber: NSObject, MXMetricManagerSubscriber
     }
 
     public func didReceive(_ payloads: [MXDiagnosticPayload]) {
+        // 閃退診斷:以報告的 JSON 表示轉成記錄(沒有閃退的 payload 轉出來是空的)。
+        let crashJSON = payloads.filter { ($0.crashDiagnostics ?? []).isEmpty == false }.map { $0.jsonRepresentation() }
+        if !crashJSON.isEmpty {
+            Task { @MainActor [crashIntake] in
+                for json in crashJSON { crashIntake.ingest(payloadJSON: json) }
+            }
+        }
         let digests = payloads.compactMap { payload -> HitchMetricsDigest? in
             let hangs = payload.hangDiagnostics ?? []
             guard !hangs.isEmpty else { return nil }

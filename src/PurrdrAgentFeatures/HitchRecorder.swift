@@ -222,6 +222,11 @@ public final class HitchRecorder {
     private var latestCrash: CrashRecord?
     private var crashObserver: (@MainActor (CrashRecord) -> Void)?
 
+    /// MetricKit 的閃退報告:一律寫(不看開關、不經緩衝)。
+    public func recordCrashReport(_ report: MetricKitCrashReport) {
+        sink.append([.crashReport(report)])
+    }
+
     // MARK: - 設定頁
 
     public func exportFile() async -> URL? {

@@ -90,4 +90,14 @@ struct CrashNoticeTests {
         model.detach(window: first)
         #expect(model.isShown(in: second))
     }
+
+    @Test("Swift 執行期錯誤沒有標記,只有 MetricKit 報告:也會提示")
+    func metricKitReportAloneStillPrompts() {
+        let (model, recorder, _) = Self.make()
+        recorder.recordCrashReport(MetricKitCrashReport(
+            timestamp: Self.t0, exceptionType: nil, signal: 5, terminationReason: nil, exceptionName: nil,
+            exceptionReason: nil, frames: [], app: "a", os: "o", device: "d"))
+        #expect(model.pending != nil)
+        #expect(model.pending?.timestamp == Self.t0)
+    }
 }
