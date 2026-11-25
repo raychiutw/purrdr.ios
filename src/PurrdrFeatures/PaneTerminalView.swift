@@ -55,6 +55,7 @@ public struct TerminalSessionView: View {
             } message: {
                 Text(model.notice ?? "")
             }
+            .reportsErrorDisplay(fingerprint: model.notice?.hashValue ?? 0, area: "PaneTerminal", isShowing: model.notice != nil)
             .modifier(TerminalLifecycle(model: model, screen: screen, isOnScreen: $isOnScreen))
     }
 

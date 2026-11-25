@@ -248,7 +248,7 @@ public struct ConversationView: View {
             // 待送項目(#347):離線排隊、做完再送、撤回倒數統一從 `pendingItems` 讀，接在最後一則訊息後面。
             pendingRow(item)
         case .notice(let text):
-            ErrorLabel(text)
+            ErrorLabel(text, area: "ConversationView")
                 .font(.footnote)
                 .accessibilityIdentifier("conversation.sendWhenDone.notice")
         case .prompt:

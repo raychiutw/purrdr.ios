@@ -401,7 +401,7 @@ struct AccountView: View {
             if let plus {
                 if let subscription = plus.subscription, subscription.pendingReview {
                     Section {
-                        ErrorLabel(String(localized: "Your two old members were combined. Another subscription (\(subscription.store.displayName)) needs your attention: cancel it there to avoid paying twice."))
+                        ErrorLabel(String(localized: "Your two old members were combined. Another subscription (\(subscription.store.displayName)) needs your attention: cancel it there to avoid paying twice."), area: "MemberView")
                         .accessibilityIdentifier("account.pendingReview")
                     }
                 }
@@ -699,7 +699,7 @@ struct SignInDevicesView: View {
                     ProgressView()
                 }
                 if let problem = model.problem {
-                    ErrorLabel(problem)
+                    ErrorLabel(problem, area: "MemberView")
                         .accessibilityIdentifier("account.signInDevices.problem")
                     Button("Try Again") { Task { await model.load() } }
                 }

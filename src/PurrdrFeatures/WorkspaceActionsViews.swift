@@ -392,6 +392,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             } message: { message in
                 Text(message)
             }
+            .reportsErrorDisplay(fingerprint: actions?.actionError?.hashValue ?? 0, area: "WorkspaceActions", isShowing: actions?.actionError != nil)
     }
 
     @ViewBuilder
@@ -520,7 +521,7 @@ struct NewWorktreeSheet: View {
                 }
                 if let error = actions.worktreeError {
                     Section {
-                        ErrorLabel(error)
+                        ErrorLabel(error, area: "WorkspaceActionsViews")
                             .accessibilityIdentifier("workspace.worktree.error")
                     }
                 }

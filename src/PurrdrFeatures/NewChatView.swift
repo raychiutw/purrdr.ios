@@ -124,7 +124,7 @@ public struct NewChatView: View {
 
                 if let error = model.error {
                     Section {
-                        ErrorLabel(error)
+                        ErrorLabel(error, area: "NewChatView")
                             .accessibilityIdentifier("newChat.error")
                     }
                 }
@@ -253,7 +253,7 @@ public struct NewChatView: View {
             }
         case .failed(let message):
             Section {
-                ErrorLabel(message)
+                ErrorLabel(message, area: "NewChatView")
                     .accessibilityIdentifier("newChat.sessions.error")
                 Button("Try Again") { Task { await model.refreshSessions() } }
                     .accessibilityIdentifier("newChat.sessions.retry")

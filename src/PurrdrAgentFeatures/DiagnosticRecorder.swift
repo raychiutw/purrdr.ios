@@ -19,7 +19,7 @@ public final class DiagnosticRecorder {
         runningObservers[owner] = nil
     }
 
-    /// 設定頁的「記錄捲動卡頓」開關(預設開啟;存進 `UserDefaults`);關閉時立刻停止並丟掉還沒寫出的緩衝。
+    /// 設定頁的「操作記錄」開關(預設開啟;存進 `UserDefaults`);關閉時立刻停止並丟掉還沒寫出的緩衝。
     public var isEnabled: Bool {
         didSet {
             guard isEnabled != oldValue else { return }
@@ -212,6 +212,20 @@ public final class DiagnosticRecorder {
         guard isEnabled else { return }
         sink.append([.timing(timing)])
     }
+
+    /// 顯示給使用者的錯誤(操作記錄):記錄開著才寫(不經緩衝)。`instance` 是顯示這個錯誤的畫面元件實例,
+    /// `fingerprint` 是訊息的指紋(只用來判斷有沒有換內容,不寫進記錄);同一個實例持續顯示同一個錯誤只記一次。
+    public func errorShown(instance: UUID, fingerprint: Int, descriptor: ErrorDescriptor, area: String) {
+        guard errorTracker.shouldRecord(instance: instance, fingerprint: fingerprint), isEnabled else { return }
+        sink.append([.error(ErrorRecord(category: descriptor.category, code: descriptor.code, area: area, at: wallClock()))])
+    }
+
+    /// 錯誤從畫面上消失(之後同一個實例再顯示要重新記)。
+    public func errorHidden(instance: UUID) {
+        errorTracker.hidden(instance: instance)
+    }
+
+    private let errorTracker = ErrorDisplayTracker()
 
     /// 閃退記錄:一律寫(不看開關、不經緩衝)。
     public func recordCrash(_ record: CrashRecord) {
