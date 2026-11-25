@@ -228,7 +228,7 @@ struct WorkspaceActionsModelTests {
     @Test("關閉 Tab 失敗：原因放在 actionError,不重讀、不動本機偏好")
     func closeTabFailureKeepsHerdrMessage() async {
         let host = FakeHost()
-        await host.expect(Self.bridge, reply: Self.errorReply(code: "tab_not_found", message: "tab w1:t9 not found"))
+        await host.expect(Self.bridge, reply: Self.errorReply(code: "internal_error", message: "pane w1:p9 did not stop"))
         let store = InMemoryChatPreferencesStore()
         let counter = RefreshCounter()
         let model = Self.model(host: host, store: store, counter: counter)
@@ -236,9 +236,41 @@ struct WorkspaceActionsModelTests {
 
         await model.closeTab(tabID: "w1:t9", sessionIDs: ["s1"])
 
-        #expect(model.actionError == "tab w1:t9 not found")
+        #expect(model.actionError == "pane w1:p9 did not stop")
         #expect(store.load().pinned.keys.sorted() == ["s1"])
         #expect(counter.count == 0)
+    }
+
+    @Test("關閉 Tab 時主機回 tab_not_found(已經關掉了):當成關閉成功，不顯示錯誤，清本機偏好並重讀列表(0.52.2 回報)")
+    func closeTabAlreadyGoneCountsAsClosed() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.errorReply(code: "tab_not_found", message: "tab w1:tM not found"))
+        let store = InMemoryChatPreferencesStore()
+        let counter = RefreshCounter()
+        let model = Self.model(host: host, store: store, counter: counter)
+        model.togglePin(sessionID: "s1")
+
+        await model.closeTab(tabID: "w1:tM", sessionIDs: ["s1"])
+
+        #expect(model.actionError == nil)
+        #expect(store.load().pinned.isEmpty)
+        #expect(counter.count == 1)
+        #expect(model.isRecentlyClosed(tabID: "w1:tM"))
+    }
+
+    @Test("關閉 Tab 成功後一段時間內記為剛關閉(列表先拿掉這一列);過了時限就以主機為準")
+    func closedTabIsRememberedBriefly() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: FakeReply(stdout: Data(#"{"id":"purrdr:tab.close","result":{"type":"ok"}}"#.utf8 + [0x0A]), trigger: .afterStdinLine))
+        let clock = MarkerClock(Date(timeIntervalSince1970: 1_000))
+        let model = WorkspaceActionsModel(client: HerdrClient(channel: host), preferences: InMemoryChatPreferencesStore(), now: { clock.now })
+
+        await model.closeTab(tabID: "w1:t1", sessionIDs: [])
+
+        #expect(model.isRecentlyClosed(tabID: "w1:t1"))
+        #expect(!model.isRecentlyClosed(tabID: "w1:t2"))
+        clock.now = clock.now.addingTimeInterval(WorkspaceActionsModel.recentlyClosedGrace + 1)
+        #expect(!model.isRecentlyClosed(tabID: "w1:t1"))
     }
 
     @Test("關閉被擋：同 repo 的 worktree 還開著時，告訴使用者先關它們(herdr 原文叫人加 --group,對手機無意義)")

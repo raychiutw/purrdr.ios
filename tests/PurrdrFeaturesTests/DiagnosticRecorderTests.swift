@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 import Testing
 @testable import PurrdrAgentFeatures
 
@@ -334,5 +335,23 @@ struct DiagnosticRecorderTests {
         #expect(object["cells"] as? Int == 4)
         #expect(object["device"] as? String == "iPhone18,1")
         #expect(object["t"] as? String == "2027-01-15T08:00:00Z")
+    }
+
+    // MARK: - 操作計時(#635)
+
+    @Test("操作計時:記錄開著才寫，寫成一行 kind=timing(名稱、毫秒、成敗)")
+    func timingsAreRecordedOnlyWhenEnabled() {
+        let timing = OperationTiming(name: "resume.createTab", milliseconds: 9876, failed: false, at: Date(timeIntervalSince1970: 1_800_000_000))
+        let on = HitchHarness(enabled: true)
+        on.recorder.recordTiming(timing)
+        #expect(on.sink.entries == [.timing(timing)])
+        let line = DiagnosticLogEncoder.line(.timing(timing))
+        #expect(line.contains(#""kind":"timing""#))
+        #expect(line.contains(#""name":"resume.createTab""#))
+        #expect(line.contains(#""ms":9876"#))
+
+        let off = HitchHarness(enabled: false)
+        off.recorder.recordTiming(timing)
+        #expect(off.sink.entries.isEmpty)
     }
 }

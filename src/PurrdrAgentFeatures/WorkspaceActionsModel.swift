@@ -160,12 +160,30 @@ public final class WorkspaceActionsModel {
         store.save(preferences)
     }
 
+    /// 剛關閉的 Tab 記多久(秒):這段時間內列表先拿掉它，不等重讀列表追上。
+    public static let recentlyClosedGrace: TimeInterval = 60
+
+    /// 剛關閉的 Tab 與關閉時間(只在記憶體)。
+    private var closedTabs: [String: Date] = [:]
+
+    /// 這個 Tab 是不是剛關閉(還在記住的時間內):列表先拿掉它，不等重讀到的快照追上(SSH 重讀慢時，
+    /// 關了列還在、使用者再關一次就得到 tab not found)。過了時限一律以主機的快照為準。
+    public func isRecentlyClosed(tabID: String) -> Bool {
+        guard let closedAt = closedTabs[tabID] else { return false }
+        return now().timeIntervalSince(closedAt) < Self.recentlyClosedGrace
+    }
+
     /// 關閉 tab。成功後清掉它的聊天(`sessionIDs`)在本機的釘選與靜音,並重讀列表;失敗時原因放在 `actionError`。
     /// 是 workspace 最後一個 tab 時 herdr 會連 workspace 一起關(列表重讀後自然反映)。
     public func closeTab(tabID: String, sessionIDs: [String]) async {
         actionError = nil
         let closed = await perform {
-            try await client.closeTab(tabID)
+            do {
+                try await client.closeTab(tabID)
+            } catch HerdrError.herdr(code: "tab_not_found", _) {
+                // 主機上已經沒有這個 Tab(先前的關閉已成功、或桌機關掉了):目的已達成，當成關閉成功。
+            }
+            closedTabs[tabID] = now()
         } onError: {
             actionError = $0
         }

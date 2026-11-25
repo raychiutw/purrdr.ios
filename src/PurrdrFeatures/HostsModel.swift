@@ -97,6 +97,8 @@ public final class HostsModel {
     public var haptics: any Haptics = SilentHaptics()
     /// 數據用量的流量計量(#353):建立主機連線時接上(之後建的連線才算;app 啟動時就設好)。
     public var trafficMeter: TrafficMeter?
+    /// 新增聊天／續接的步驟與 SSH 關鍵請求的耗時(#635);由 composition root 接到診斷記錄，在建立主機連線前設定。
+    public var operationTimings: OperationTimingSink?
     /// 成功送出幾次 prompt 後請求評分(#34);`nil` 時不請求。所有主機、所有聊天共用一份計數。
     public var reviewPrompt: ReviewPrompt?
     /// 送出可撤回的秒數(#300),每次送出時讀;預設讀本機偏好(設定頁改的那一個)。
@@ -506,7 +508,7 @@ public final class HostsModel {
         let usesHostService = usesHostService(host)
         let folders = usesHostService ? NewChatFolders.absolutePathsOnly : NewChatFolders(channel: member.channel)
         let model = NewChatModel(
-            launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders,
+            launcher: NewChatLauncher(client: member.client, folders: folders, timings: operationTimings), folders: folders,
             agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)),
             // HTTPS 主機服務要 0.15.0 起才有 tab.create。
             supportsExistingWorkspaces: supportsNewChatInWorkspace(host))
@@ -1123,7 +1125,7 @@ public final class HostsModel {
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
             return HostMember(
                 host: host, configuration: configuration, channel: channel(for: configuration, settings: settings),
-                preferences: preferences.store(for: host), push: pushService, consent: hostConsent)
+                preferences: preferences.store(for: host), push: pushService, consent: hostConsent, timings: operationTimings)
         }
     }
 
@@ -1322,7 +1324,7 @@ final class HostMember {
         host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, connection: (any HostConnection)? = nil,
         files: (any HostFileFetching)? = nil, uploads: (any HostUploading)? = nil, git: (any GitChangesReading)? = nil,
         preferences: any ChatPreferencesStore, push pushService: PushService?,
-        consent: any HostWriteConsentStore
+        consent: any HostWriteConsentStore, timings: OperationTimingSink? = nil
     ) {
         self.host = host
         self.channel = channel
@@ -1331,7 +1333,7 @@ final class HostMember {
         sendWhenDoneHost = configuration?.connectionMethod.usesHostService == true ? connection as? any SendWhenDoneHosting : nil
         let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
         let connection = connection ?? SSHHostConnection(
-            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))
+            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"), timings: timings)
         client = HerdrClient(connection: connection)
         transcripts = TranscriptReader(connection: connection)
         terminals = PaneTerminalClient(connection: connection)
