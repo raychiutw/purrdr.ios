@@ -31,9 +31,8 @@ final class HostToolsUITests: XCTestCase {
         let screen = app.descendants(matching: .any)["terminal.screen"].firstMatch
         XCTAssertTrue(screen.waitUntilExists(timeout: 10), "沒有打開登入 Shell")
         screen.expectValue(containing: "demo@purrdr ~ %")
-        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.label.contains("Studio Mac"), "標題不是主機名稱:\(status.label)")
-        XCTAssertTrue(status.label.contains("Connected"), "狀態不對:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "狀態不對:\(app.terminalHeader)")
+        XCTAssertTrue(app.terminalHeader.contains("Studio Mac"), "標題不是主機名稱:\(app.terminalHeader)")
 
         // 鍵盤輸入直接寫進 PTY(Demo 的 shell 會回顯);接上後終端機自動取得焦點。
         app.typeEnglish("ls")
@@ -107,8 +106,7 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Studio HTTPS"].exists, "HTTPS 主機不支援登入 Shell,不該列出")
         app.buttons["Demo"].firstMatch.tap()
 
-        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.waitForLabel(containing: "Demo", timeout: 10), "沒有換到 Demo:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "Demo", timeout: 10), "沒有換到 Demo:\(app.terminalHeader)")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         openMenuItem("menu.loginShell", in: app)
@@ -128,8 +126,7 @@ final class HostToolsUITests: XCTestCase {
     func testDemoHostKeepsLoginShell() {
         let app = XCUIApplication.launchUITesting()
         openMenuItem("menu.loginShell", in: app)
-        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.waitForLabel(containing: "Demo", timeout: 10), "範例主機的登入 Shell 沒有開到 Demo 終端機:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "Demo", timeout: 10), "範例主機的登入 Shell 沒有開到 Demo 終端機:\(app.terminalHeader)")
     }
 
     /// 檔案換主機後從那台的家目錄重新列出。

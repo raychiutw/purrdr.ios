@@ -30,9 +30,8 @@ final class PaneTerminalUITests: XCTestCase {
 
         step("連線後標題列下方顯示狀態") {
             screen.expectValue(containing: "demo@purrdr ledger %")
-            let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-            XCTAssertTrue(status.label.contains("Tidy up the CSV export"), "標題不對:\(status.label)")
-            XCTAssertTrue(status.label.contains("Connected"), "狀態不對:\(status.label)")
+            XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "狀態不對:\(app.terminalHeader)")
+            XCTAssertTrue(app.terminalHeader.contains("Tidy up the CSV export"), "標題不對:\(app.terminalHeader)")
         }
 
         // Demo 的 Pane 依 terminal.scroll 捲主機端 scrollback;打字後回到最新(#88 故事 17、19)。
@@ -160,9 +159,7 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10), "沒有進背景")
         app.activate()
 
-        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.waitUntilExists(timeout: 10))
-        XCTAssertTrue(status.wait(timeout: 10) { $0.label.contains("Connected") }, "回到前景沒有自動接回:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "回到前景沒有自動接回:\(app.terminalHeader)")
         XCTAssertFalse(app.buttons["terminal.reconnect"].exists, "自己放開的，回來不該要使用者按「重新連線」")
         screen.expectValue(containing: "demo@purrdr ledger %")
     }
@@ -174,7 +171,7 @@ final class PaneTerminalUITests: XCTestCase {
 
         let takeOver = app.buttons["terminal.takeOver"].firstMatch
         XCTAssertTrue(takeOver.waitUntilExists(timeout: 10), "被佔用時沒有「接管」")
-        XCTAssertTrue(app.descendants(matching: .any)["terminal.status"].firstMatch.label.contains("In Use Elsewhere"))
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "In Use Elsewhere", timeout: 5), "副標題不對:\(app.terminalHeader)")
         XCTAssertTrue(app.staticTexts["Someone is using this on the host. Tap Take Over to use it here."].firstMatch.exists, "沒有說明主機正在操作")
 
         takeOver.tap()

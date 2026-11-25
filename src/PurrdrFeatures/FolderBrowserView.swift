@@ -36,12 +36,6 @@ struct FolderBrowserView: View {
                 guard case .success(let url) = result else { return }
                 Task { await model.upload(fileAt: url) }
             }
-            .alert("Can’t Upload", isPresented: Binding(get: { model.notice != nil }, set: { _ in })) {
-                Button("OK", role: .cancel) { model.notice = nil }
-            } message: {
-                Text(model.notice ?? "")
-            }
-            .reportsErrorDisplay(fingerprint: model.notice?.hashValue ?? 0, area: "FolderBrowser", isShowing: model.notice != nil)
             .task {
                 if case .loaded = model.phase { return }
                 await model.load()
@@ -115,7 +109,7 @@ struct FolderBrowserView: View {
     @ViewBuilder
     private var breadcrumbBar: some View {
         if !model.breadcrumbs.isEmpty {
-            FolderBreadcrumbBar(crumbs: model.breadcrumbs, showsBar: false) { crumb in jump(to: crumb) }
+            FolderBreadcrumbBar(crumbs: model.breadcrumbs) { crumb in jump(to: crumb) }
                 .frame(height: 44)
                 .textCase(nil)
                 .listRowInsets(EdgeInsets())
@@ -133,10 +127,6 @@ struct FolderBrowserView: View {
         }
     }
 
-    private func open(_ entry: FolderEntry) {
-        guard let child = model.childPath(for: entry) else { return }
-        path.append(FolderRoute(path: child))
-    }
 
     @ViewBuilder
     private var content: some View {
@@ -168,9 +158,18 @@ struct FolderBrowserView: View {
             .appGroupedList()
         case .loaded(let listing):
             List {
+                // 上傳失敗直接寫在頁面上(不彈對話框、不必按「OK」):錯誤加「Dismiss」。
+                if let notice = model.notice {
+                    Section {
+                        ErrorLabel(notice, area: "FolderBrowser")
+                            .accessibilityIdentifier("files.uploadError")
+                        Button("Dismiss") { model.notice = nil }
+                            .accessibilityIdentifier("files.uploadError.dismiss")
+                    }
+                }
                 Section {
                     ForEach(model.visibleEntries, id: \.name) { entry in
-                        FolderEntryRow(entry: entry) { open(entry) }
+                        FolderEntryRow(entry: entry, route: model.childPath(for: entry).map { FolderRoute(path: $0) })
                     }
                 } header: { breadcrumbBar }
                 if listing.entries.isEmpty {
@@ -194,28 +193,18 @@ struct FolderBrowserView: View {
     }
 }
 
-/// 一個項目:圖示、名稱、檔案的大小與修改時間。資料夾與 symlink 可以點。
-struct FolderEntryRow: View {
+/// 一個項目:圖示、名稱、檔案的大小與修改時間。資料夾與 symlink 是系統 `NavigationLink`(列尾的 > 與按壓態都由系統給),
+/// `route` 是點了往下推的導覽值;沒有 route(檔案、不能打開的項目、骨架)就是不能點的列。
+struct FolderEntryRow<Route: Hashable>: View {
     let entry: FolderEntry
     /// UI 測試的識別字開頭(檔案頁 `files.row.`、新增聊天的資料夾瀏覽 `folderPicker.row.`)。
     var identifierPrefix = "files.row."
-    let open: () -> Void
+    let route: Route?
 
     var body: some View {
-        if entry.kind == .folder || entry.kind == .symlink {
-            Button(action: open) {
-                HStack {
-                    label
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.forward")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("\(identifierPrefix)\(entry.name)")
+        if (entry.kind == .folder || entry.kind == .symlink), let route {
+            NavigationLink(value: route) { label }
+                .accessibilityIdentifier("\(identifierPrefix)\(entry.name)")
         } else {
             label
                 .accessibilityIdentifier("\(identifierPrefix)\(entry.name)")
@@ -282,8 +271,6 @@ struct FolderBreadcrumbBar: View {
     let crumbs: [FolderBreadcrumb]
     /// UI 測試的識別字開頭(檔案頁 `files.crumb.`、資料夾瀏覽 `folderPicker.crumb.`)。
     var identifierPrefix = "files.crumb."
-    /// 檔案頁的列表內不畫底(跟列表同一個頁面底色);sheet 內的資料夾瀏覽用系統 bar 材質。
-    var showsBar = true
     let go: (FolderBreadcrumb) -> Void
 
     var body: some View {
@@ -318,7 +305,6 @@ struct FolderBreadcrumbBar: View {
             }
             .onChange(of: crumbs, initial: true) { _, crumbs in proxy.scrollTo(crumbs.count - 1, anchor: .trailing) }
         }
-        .background { if showsBar { Rectangle().fill(.bar) } }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("files.breadcrumbs")
     }
@@ -340,7 +326,7 @@ struct FolderSkeletonRows: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(0..<count, id: \.self) { index in
-                FolderEntryRow(entry: .skeletonPlaceholder(index), open: {})
+                FolderEntryRow<FolderRoute>(entry: .skeletonPlaceholder(index), route: nil)
                     .padding(.vertical, 10)
             }
         }

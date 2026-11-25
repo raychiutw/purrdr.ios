@@ -71,12 +71,11 @@ public struct TerminalSessionView: View {
         }
         .background(hostTheme?.terminal.map { SwiftUI.Color($0.background) } ?? SwiftUI.Color.black)
         .environment(\.colorScheme, .dark)
+        // 系統標題＋副標題(#621,同聊天頂列):名稱是標題、連線狀態只用文字當副標題,不自畫兩行標題與狀態點。
         .navigationTitle(paneWindowTitle ?? model.title)
+        .navigationSubtitle(model.statusText)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                TerminalTitle(title: model.title, status: model.status, statusText: model.statusText)
-            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if let hostPicker { HostMenuButton(model: hostPicker, identifier: "loginShell.host") }
                 FontSizeMenu(model: model)
@@ -162,37 +161,6 @@ enum BackgroundRelease {
         guard token.identifier != .invalid else { return }
         UIApplication.shared.endBackgroundTask(token.identifier)
         token.identifier = .invalid
-    }
-}
-
-// MARK: - 標題與狀態
-
-struct TerminalTitle: View {
-    let title: String
-    let status: TerminalStatus
-    let statusText: String
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Text(title)
-                .font(.headline)
-                .lineLimit(1)
-            statusRow
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("terminal.status")
-    }
-
-    private var statusRow: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(status.tone.style)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
-            Text(statusText)
-                .font(.caption)
-                .foregroundStyle(.secondaryText)
-        }
     }
 }
 
