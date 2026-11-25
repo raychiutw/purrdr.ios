@@ -82,7 +82,6 @@ private struct TopBarToolbar: ToolbarContent {
 
     private var placement: ToolbarItemPlacement {
         #if os(iOS)
-        if #available(iOS 27.0, *) { return .topBarPinnedTrailing }
         return .topBarTrailing
         #else
         return .automatic
@@ -107,11 +106,20 @@ private struct TopBarToolbar: ToolbarContent {
 private struct TopBarSearchModifier: ViewModifier {
     let search: TopBarContent.Search?
 
+    /// 搜尋欄放在導覽列大標題下面(iOS 26 的預設會移到底部工具列);往下滑時由系統收合。
+    private var searchPlacement: SearchFieldPlacement {
+        #if os(iOS)
+        .navigationBarDrawer(displayMode: .always)
+        #else
+        .automatic
+        #endif
+    }
+
     @ViewBuilder
     func body(content view: Content) -> some View {
         if let search {
             view
-                .searchable(text: search.text, prompt: Text(search.prompt))
+                .searchable(text: search.text, placement: searchPlacement, prompt: Text(search.prompt))
                 .searchFocused(search.focus)
         } else {
             view
