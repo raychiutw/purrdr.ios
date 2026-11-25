@@ -238,4 +238,30 @@ struct NeedsYouNotificationsTests {
         #expect(notifications.others.map(\.route.paneID) == ["w1:pB"])
         #expect(notifications.banner == nil, "run 開始前就已經需要你的不觸發")
     }
+
+    @Test("相同輸入再套用一次:不通知觀察者(#589)")
+    func identicalInputDoesNotNotify() {
+        let model = NeedsYouNotifications()
+        let host = Self.studio
+        model.apply(.init(hosts: [.init(host: host, blocked: [])], current: []))
+        let input = NeedsYouNotifications.Input(hosts: [.init(host: host, blocked: [.init(paneID: "w2:p1", isMuted: false)])], current: [])
+        model.apply(input)
+
+        let counter = ChangeCounter()
+        func observe() {
+            withObservationTracking {
+                _ = model.paneBanner(excluding: nil)
+                _ = model.others
+            } onChange: { counter.count += 1 }
+        }
+        observe()
+        model.apply(input)
+        model.apply(input)
+        #expect(counter.count == 0, "相同輸入不該遞增 revision 或重設 others")
+
+        model.apply(.init(hosts: [.init(host: host, blocked: [.init(paneID: "w2:p1", isMuted: true)])], current: []))
+        #expect(counter.count == 1, "靜音變了才通知")
+    }
 }
+
+private final class ChangeCounter: @unchecked Sendable { var count = 0 }
