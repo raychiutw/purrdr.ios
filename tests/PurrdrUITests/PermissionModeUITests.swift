@@ -25,8 +25,8 @@ final class PermissionModeUITests: XCTestCase {
         accept.tap()
         // 切換成功後 sheet 自動關閉(#515)。
         XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
-        XCTAssertTrue(
-            header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "膠囊第二行沒有顯示 Accept Edits")
+        // 權限模式不在標題(#618):重開「⋯」,權限模式項目的副標是 Accept Edits。
+        XCTAssertTrue(app.conversationMoreItem("menu.permissionMode").label.contains("Accept Edits"), "「⋯」的權限模式副標沒有顯示 Accept Edits")
     }
 
     /// 模型膠囊(#350):在附加鈕與權限模式膠囊之間;點開 sheet 以勾選列選模型,選定後收起。
@@ -81,7 +81,7 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(plan.waitUntilExists(timeout: 10), "面板裡沒有 Plan 勾選列")
         plan.tap()
         XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
-        XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Plan'"), timeout: 10), "標題沒有顯示 Plan")
+        XCTAssertTrue(app.conversationMoreItem("menu.permissionMode").label.contains("Plan"), "「⋯」的權限模式副標沒有顯示 Plan")
 
         app.expandComposer()
         let capsule = app.element("composer.model")
