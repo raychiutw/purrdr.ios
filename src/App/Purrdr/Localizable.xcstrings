@@ -3578,6 +3578,17 @@
         }
       }
     },
+    "Copy to Clipboard?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要複製到剪貼簿嗎？"
+          }
+        }
+      }
+    },
     "Couldn’t Check" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4751,6 +4762,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成,之後再說"
+          }
+        }
+      }
+    },
+    "Don’t Allow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不允許"
           }
         }
       }
@@ -13171,6 +13193,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機服務會在這台主機安裝一個小型通知幫手。關閉通知只會移除這支裝置；最後一支裝置關閉時才會移除幫手。"
+          }
+        }
+      }
+    },
+    "The host wants to copy text to the clipboard." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機想複製文字到剪貼簿。"
           }
         }
       }
