@@ -194,20 +194,21 @@ public struct TopNavigationView: View {
             let chat = path.last(where: { $0.chatRoute != nil })?.chatRoute
             if navigation.selectedChat != chat { navigation.selectedChat = chat }
         }
+        // 已經有聊天在路徑上時換聊天(橫幅、版面圖選 Pane)不動路徑,頁面自己換內容(`CompactChatPage`),
+        // 免得路徑一次換掉整頁、轉場中途又把選取清掉。
         .onChange(of: navigation.selectedChat, initial: true) { _, chat in
-            var path = navigation.chatsPath.filter { $0.chatRoute == nil }
-            if let chat { path.append(.chat(chat)) }
-            if path != navigation.chatsPath { navigation.chatsPath = path }
+            let hasChat = navigation.chatsPath.contains { $0.chatRoute != nil }
+            switch (chat, hasChat) {
+            case (nil, true): navigation.chatsPath = navigation.chatsPath.filter { $0.chatRoute == nil }
+            case (let chat?, false): navigation.chatsPath.append(.chat(chat))
+            default: break
+            }
         }
     }
 
     /// 窄視窗路徑上的聊天內容。
     private func compactChatDestination(_ route: ChatRoute) -> AnyView {
-        AnyView(
-            WindowDetailContent(hosts: hosts, navigation: navigation, route: route)
-                .appNavigationBackground()
-                // 換一個聊天(鍵盤切換、版面圖選 Pane)就整個重建(對話 model、推入的終端機)。
-                .id(route))
+        AnyView(CompactChatPage(hosts: hosts, navigation: navigation, pushedRoute: route))
     }
 
     /// 兩欄(寬視窗)。
@@ -449,5 +450,24 @@ struct CurrentHostMenu: View {
             Button("Add Host…", systemImage: "plus", action: addHost)
                 .accessibilityIdentifier("hostMenu.addHost")
         }
+    }
+}
+
+/// 窄視窗路徑上的聊天頁。顯示的聊天跟著 `selectedChat`(換聊天就整個重建:對話 model、推入的終端機);
+/// 返回時 `selectedChat` 先清成 `nil`,轉場中仍顯示原本那個。
+private struct CompactChatPage: View {
+    let hosts: HostsModel
+    let navigation: TopNavigationModel
+    let pushedRoute: ChatRoute
+    @State private var shown: ChatRoute?
+
+    var body: some View {
+        let route = shown ?? pushedRoute
+        WindowDetailContent(hosts: hosts, navigation: navigation, route: route)
+            .appNavigationBackground()
+            .id(route)
+            .onChange(of: navigation.selectedChat) { _, chat in
+                if let chat { shown = chat }
+            }
     }
 }

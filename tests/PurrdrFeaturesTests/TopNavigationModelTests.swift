@@ -137,4 +137,16 @@ struct TopNavigationModelTests {
         #expect(!handled)
         #expect(model.tab == .hosts)
     }
+
+    @Test("同一個聊天重複回報只計一次,離開後不留在「開著」(#641:列表堆疊重建會再觸發一次 initial)")
+    func reportingVisibleChatIsIdempotent() {
+        let window = TopNavigationModel()
+        let list = MergedAgentListModel()
+        let chat = ChatRoute(host: .demo, paneID: "w3:p1")
+        window.reportVisibleChat(chat, to: list)
+        window.reportVisibleChat(chat, to: list)
+        #expect(list.visibleChats == [chat])
+        window.reportVisibleChat(nil, to: list)
+        #expect(list.visibleChats.isEmpty, "重複回報不能讓離開後仍算開著")
+    }
 }

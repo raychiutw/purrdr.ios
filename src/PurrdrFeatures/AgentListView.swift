@@ -98,8 +98,7 @@ public struct AgentListView: View {
                     }
                     // 對話欄打開與換掉的聊天各記一次開啟時間;開在旁邊的不算未讀(行為規格 F2.6)。
                     .onChange(of: window.selectedChat, initial: true) { old, new in
-                        if let old, old != new { model.chatDisappeared(old) }
-                        if let new { model.chatAppeared(new) }
+                        window.reportVisibleChat(new, to: model)
                     }
             } else {
                 content

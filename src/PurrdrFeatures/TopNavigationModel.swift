@@ -45,6 +45,18 @@ public final class TopNavigationModel {
     /// 列的 `NavigationLink(value:)`、選單的「Show Layout」、返回都改這一個陣列,不再混用 `navigationDestination(item:)`。
     var chatsPath: [ChatsDestination] = []
 
+    /// 這個視窗已經回報給列表「開著」的聊天。列表的 `onChange(initial: true)` 在堆疊重建、路徑變動時會再觸發一次,
+    /// 所以開著與離開的計次以這裡為準,同一個聊天只計一次(#641:否則返回後聊天被當成還開著,「需要你」段落少一列)。
+    private var reportedChat: ChatRoute?
+
+    /// 把選取的聊天回報給列表(冪等):換了才記上一個離開、新的出現。
+    package func reportVisibleChat(_ chat: ChatRoute?, to list: MergedAgentListModel) {
+        guard chat != reportedChat else { return }
+        if let reportedChat { list.chatDisappeared(reportedChat) }
+        if let chat { list.chatAppeared(chat) }
+        reportedChat = chat
+    }
+
     /// 搜尋欄是否有焦點(Command-F)。
     public var isSearchFocused = false
     /// 對話欄推入的 Pane 終端機(主機 + pane id)。
