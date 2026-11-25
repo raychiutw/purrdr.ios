@@ -96,9 +96,21 @@ final class ConversationHeaderUITests: XCTestCase {
 
         ring.tap()
 
-        XCTAssertTrue(app.element("usage.sheet").waitUntilExists(timeout: 5), "點用量環沒有開出用量 sheet")
-        XCTAssertTrue(app.element("usage.sheet.refresh").exists, "沒有重新整理")
-        app.buttons["usage.sheet.close"].tap()
-        XCTAssertTrue(app.element("usage.sheet").waitUntilGone(timeout: 5), "X 之後用量 sheet 還在")
+        XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
+        XCTAssertTrue(app.element("panel.refresh").exists, "沒有重新整理")
+        app.buttons["panel.close"].tap()
+        XCTAssertTrue(app.element("conversation.panel").waitUntilGone(timeout: 5), "X 之後面板還在")
+    }
+
+    /// 頂列右上只有用量環與「⋯」(#617):沒有 Inspector 開關鈕,兩顆並排(系統合成一顆膠囊)。
+    @MainActor
+    func testHeaderTrailingHasOnlyRingAndMore() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
+        let ring = app.buttons["conversation.usage"].firstMatch
+        let more = app.buttons["conversation.more"].firstMatch
+        XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
+        XCTAssertTrue(more.exists, "沒有「⋯」")
+        XCTAssertFalse(app.buttons["conversation.inspectorToggle"].exists, "不該有 Inspector 開關鈕")
+        XCTAssertLessThanOrEqual(ring.frame.maxX, more.frame.minX + 1, "用量環應該在「⋯」左邊並排")
     }
 }

@@ -25,8 +25,6 @@ enum AppSurface {
     static let card = dynamic(dark: darkCard, light: .secondarySystemBackground)
     /// grouped 清單的列(取代 `secondarySystemGroupedBackground`)。
     static let groupedRow = dynamic(dark: darkCard, light: .secondarySystemGroupedBackground)
-    /// iPad Inspector 欄的底色(#547):欄不是 sheet,維持不透明;sheet 本身用系統 Liquid Glass(#614)。
-    static let sheet = groupedPage
     /// 卡片或列裡再內一層。
     static let inner = dynamic(dark: darkInner, light: .tertiarySystemBackground)
 

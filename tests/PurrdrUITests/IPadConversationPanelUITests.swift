@@ -1,0 +1,54 @@
+import XCTest
+
+/// iPad 聊天頂列用量環開的面板(#617、spec #612):點用量環開 popover,內容是用量加「⋯」各 sheet 的同一批內容,
+/// 在面板裡直接切權限模式;頂列沒有 Inspector 開關鈕。
+/// 只在 iPad 模擬器跑;窄視窗(compact)變 sheet 的行為無法在 XCUITest 裡縮小視窗,iPhone 的 sheet 由 `ConversationHeaderUITests` 驗。
+final class IPadConversationPanelUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        let isPad = MainActor.assumeIsolated { UIDevice.current.userInterfaceIdiom == .pad }
+        try XCTSkipUnless(isPad, "popover 版面板只在 iPad 的寬視窗")
+    }
+
+    @MainActor
+    private func openChat() -> XCUIApplication {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication.launchUITesting()
+        let row = app.element("spaces.tab.demo/w1:t1")
+        XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
+        row.tap()
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 15), "對話沒有開在對話欄")
+        return app
+    }
+
+    /// 頂列沒有 Inspector 開關鈕;點用量環開 popover,有用量與權限模式。
+    @MainActor
+    func testRingOpensPanelPopover() {
+        let app = openChat()
+        XCTAssertFalse(app.buttons["conversation.inspectorToggle"].exists, "頂列不該再有 Inspector 開關鈕")
+        let ring = app.buttons["conversation.usage"].firstMatch
+        XCTAssertTrue(ring.waitUntilExists(timeout: 10), "對話頂列沒有用量環")
+        XCTAssertFalse(app.element("conversation.panel").exists, "預設不該開著")
+
+        ring.tap()
+
+        XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
+        XCTAssertTrue(app.element("panel.usage").waitUntilExists(timeout: 5), "面板沒有用量")
+        XCTAssertTrue(app.buttons["Accept Edits"].firstMatch.waitUntilExists(timeout: 20), "面板沒有權限模式")
+    }
+
+    /// 在面板裡直接切權限模式:行為同 sheet(成功切換),但面板不會因此關掉。
+    @MainActor
+    func testSwitchingPermissionModeInsidePanel() {
+        let app = openChat()
+        app.buttons["conversation.usage"].firstMatch.tap()
+        let accept = app.buttons["Accept Edits"].firstMatch
+        XCTAssertTrue(accept.waitUntilExists(timeout: 20), "面板沒有權限模式")
+
+        accept.tap()
+
+        XCTAssertTrue(
+            accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 20), "切換後 Accept Edits 沒有變成選取")
+        XCTAssertTrue(app.element("conversation.panel").exists, "切換權限模式把面板關掉了")
+    }
+}

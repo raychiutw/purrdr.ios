@@ -397,7 +397,7 @@ struct ConversationScreen: View {
     let openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)?
     @State private var showsLayout = false
     @State private var pendingLayoutTarget: PaneOpenTarget?
-    /// 用量環與用量 sheet(#513):這個聊天的 Agent 在這台主機的方案用量(沒有來源時是 `nil`)。
+    /// 用量環與面板(#513、#617):這個聊天的 Agent 在這台主機的方案用量(沒有來源時是 `nil`)。
     @Environment(\.usageSections) private var usageContext
     @Environment(\.usageHost) private var usageHost
     @Environment(\.scenePhase) private var scenePhase
@@ -426,9 +426,9 @@ struct ConversationScreen: View {
             .toolbar {
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItemGroup(placement: .primaryAction) {
-                    if let usageSummary {
-                        UsageRingButton(summary: usageSummary) { showsUsage = true }
-                    }
+                    UsageRingButton(
+                        summary: usageSummary, isPresented: $showsUsage, model: model, usageSection: usageSection,
+                        display: usageContext?.display.display ?? .used)
                     ConversationMoreMenu(
                         model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
                         canShowLayout: layoutSnapshot != nil, select: selectMenuItem)
@@ -436,11 +436,7 @@ struct ConversationScreen: View {
             }
             .task(id: UsageLifecycleKey(active: scenePhase == .active, agentKind: model.agentKind)) { startUsage() }
             .onChange(of: model.modelName) { _, name in usageSection?.activeGroup = name.flatMap(PlanUsage.Group.init(modelName:)) }
-            .sheet(isPresented: $showsUsage) {
-                ConversationUsageSheet(model: model, section: usageSection, display: usageContext?.display.display ?? .used)
-            }
-            .modifier(ConversationInspectorModifier(
-                window: window, model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used))
+            .onChange(of: window?.conversationPanelToggleCount) { showsUsage.toggle() }
             .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model) }
             .sheet(isPresented: $isChoosingModel, onDismiss: { Task { await model.finishChoosingModel() } }) {
                 ModelSheet(model: model)
@@ -525,7 +521,7 @@ struct ConversationScreen: View {
     /// 點「⋯」選單的項目:開各自的 sheet 或畫面。
     private func selectMenuItem(_ item: ConversationMoreMenuPlan.Item) {
         switch item {
-        case .usage: showsUsage = true
+        case .usage: showsUsage = true    // 開面板(從用量環展開)
         case .permissionMode: menuSheet = .permissionMode
         case .model:
             isChoosingModel = true

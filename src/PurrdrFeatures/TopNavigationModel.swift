@@ -43,20 +43,15 @@ public final class TopNavigationModel {
     /// 測試連結指定的外觀(`light`／`dark`);`nil` 跟隨系統。
     public private(set) var testingAppearance: String?
 
-    /// 對話右側的 Inspector 是否打開(#521):寬視窗是右側欄、窄視窗由系統變成 sheet;偏好存在這支裝置,下一個視窗與下次啟動沿用。
-    public var isInspectorShown: Bool {
-        didSet { if isInspectorShown != oldValue { inspectorStore.save(isInspectorShown) } }
-    }
-    @ObservationIgnored private let inspectorStore: any InspectorVisibilityStore
+    /// 聊天頂列用量環開的面板(#617)的開關要求次數:選單列快捷鍵(Option-Command-I)每按一次加一,
+    /// 目前顯示的聊天畫面依次數變化切換面板;開關狀態本身是聊天畫面的暫時狀態(不存偏好、不會每開一個聊天就跳出)。
+    public private(set) var conversationPanelToggleCount = 0
 
-    public init(inspectorStore: any InspectorVisibilityStore = InMemoryInspectorVisibilityStore()) {
-        self.inspectorStore = inspectorStore
-        isInspectorShown = inspectorStore.load()
-    }
+    public init() {}
 
-    /// 顯示／隱藏 Inspector(對話頂列的鈕;選單列的快捷鍵之後也接這裡)。
-    public func toggleInspector() {
-        isInspectorShown.toggle()
+    /// 要求目前的聊天開關面板(快捷鍵用)。
+    public func toggleConversationPanel() {
+        conversationPanelToggleCount += 1
     }
 
     /// 列表看得到的 Agent,依 Spaces 的畫面順序(段落、Tab)。鍵盤切換 Agent 用:只含單一 Pane 的 Agent Tab
@@ -124,7 +119,7 @@ public final class TopNavigationModel {
             sheet = .member
         case .showChats, .showFiles, .showHosts, .showTraffic:
             if let tab = command.tab { self.tab = tab }
-        case .toggleInspector: toggleInspector()
+        case .toggleConversationPanel: toggleConversationPanel()
         case .openInNewWindow:
             // 開視窗要 `openWindow`(畫面的環境值),由 `TopNavigationView` 的 `WindowCommands` 處理。
             break
