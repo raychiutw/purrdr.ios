@@ -73,16 +73,26 @@ public struct TopNavigationView: View {
             // 選單列與快捷鍵作用在有焦點的視窗(`PurrdrCommands`)。
             .modifier(WindowCommandsModifier(navigation: navigation, hosts: hosts))
             .tailscaleCheckPrompt(hosts.tailscaleCheck)
-            .sheet(item: $navigation.sheet) { sheet in
+            // 帳號與設定是滿版 modal(#623,fullScreenCover),其他是 sheet;同一時間只開一個(`navigation.sheet`)。
+            .accountCover(item: Binding(
+                get: { navigation.sheet == .member ? TopLevelSheet.member : nil },
+                set: { if $0 == nil, navigation.sheet == .member { navigation.sheet = nil } }
+            )) { _ in
+                // 帳號與設定頁(#246、#503)自帶 NavigationStack 與左上角 X;設定併在第一層。
+                MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync,
+                    hosts: hosts,
+                    settings: AccountSettings(model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock))
+                    // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
+                    .task { await hosts.checkHostServiceVersions() }
+            }
+            .sheet(item: Binding(
+                get: { navigation.sheet == .member ? nil : navigation.sheet },
+                set: { if $0 == nil, navigation.sheet != .member { navigation.sheet = nil } }
+            )) { sheet in
                 Group {
                 switch sheet {
                 case .member:
-                    // 帳號與設定頁(#246、#503)自帶 NavigationStack 與右上角 X;設定併在第一層。
-                    MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync,
-                        hosts: hosts,
-                        settings: AccountSettings(model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock))
-                        // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
-                        .task { await hosts.checkHostServiceVersions() }
+                    EmptyView()
                 case .plus:
                     if let plus {
                         PlusSheet(model: plus, member: member, features: PlusFeatureLinks(
@@ -175,24 +185,45 @@ public struct TopNavigationView: View {
     /// 窄視窗:Agent 列表為根,選到的聊天(對話或 Pane 終端機)推入;返回時選取清成 `nil`。
     private var compactStack: some View {
         @Bindable var navigation = navigation
-        return NavigationStack {
+        return NavigationStack(path: $navigation.chatsPath) {
             agentList
-                .navigationDestination(item: $navigation.selectedChat) { route in
-                    WindowDetailContent(hosts: hosts, navigation: navigation, route: route)
-                        .appNavigationBackground()
-                        // 換一個聊天(鍵盤切換、版面圖選 Pane)就整個重建(對話 model、推入的終端機)。
-                        .id(route)
-                }
         }
+        // 路徑與選取的聊天雙向對齊(#641):路徑上最後一個聊天就是選取的聊天(返回時清成 `nil`);
+        // 外部設定選取(推播、新增聊天、版面圖選 Pane)時把聊天放進路徑。
+        .onChange(of: navigation.chatsPath) { _, path in
+            let chat = path.last(where: { $0.chatRoute != nil })?.chatRoute
+            if navigation.selectedChat != chat { navigation.selectedChat = chat }
+        }
+        // 已經有聊天在路徑上時換聊天(橫幅、版面圖選 Pane)不動路徑,頁面自己換內容(`CompactChatPage`),
+        // 免得路徑一次換掉整頁、轉場中途又把選取清掉。
+        .onChange(of: navigation.selectedChat, initial: true) { _, chat in
+            let hasChat = navigation.chatsPath.contains { $0.chatRoute != nil }
+            switch (chat, hasChat) {
+            case (nil, true): navigation.chatsPath = navigation.chatsPath.filter { $0.chatRoute == nil }
+            case (let chat?, false): navigation.chatsPath.append(.chat(chat))
+            default: break
+            }
+        }
+    }
+
+    /// 窄視窗路徑上的聊天內容。
+    private func compactChatDestination(_ route: ChatRoute) -> AnyView {
+        AnyView(CompactChatPage(hosts: hosts, navigation: navigation, pushedRoute: route))
     }
 
     /// 兩欄(寬視窗)。
     private var splitView: some View {
-        let navigation = navigation
+        @Bindable var navigation = navigation
         return NavigationSplitView(columnVisibility: $columns) {
             // 所有主機合併的 Agent 列表(#39)。換選取中主機不重建列表，只改排序與主機名標示。
-            agentList
-                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
+            // 列表欄自己的堆疊只推版面圖(#641);聊天顯示在對話欄,不進路徑。
+            NavigationStack(path: $navigation.chatsPath) {
+                agentList
+            }
+            .onChange(of: navigation.chatsPath, initial: true) { _, path in
+                if path.contains(where: { $0.chatRoute != nil }) { navigation.chatsPath = path.filter { $0.chatRoute == nil } }
+            }
+            .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
             WindowDetail(
                 hosts: hosts, navigation: navigation,
@@ -210,6 +241,7 @@ public struct TopNavigationView: View {
     /// 所有主機合併的 Agent 列表(#39)。
     private var agentList: some View {
         let hosts = hosts
+        let chatDestination: (ChatRoute) -> AnyView = sizeClass == .compact ? { compactChatDestination($0) } : { _ in AnyView(EmptyView()) }
         var open: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
         if supportsMultipleWindows {
             open = { kind, route, title in openInNewWindow(kind, route, title) }
@@ -222,7 +254,7 @@ public struct TopNavigationView: View {
             account: AccountButtonPlacement.showsInTopBar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
         @Bindable var navigation = navigation
         return AgentListView(
-            model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
+            model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar, chatDestination: chatDestination,
             prefetchConversations: actions.prefetchConversations
         ) { route, sessionID in
             hosts.member(for: route.host).conversation(route, sessionID: sessionID)
@@ -434,5 +466,38 @@ struct CurrentHostMenu: View {
             Button("Add Host…", systemImage: "plus", action: addHost)
                 .accessibilityIdentifier("hostMenu.addHost")
         }
+    }
+}
+
+/// 窄視窗路徑上的聊天頁。顯示的聊天跟著 `selectedChat`(換聊天就整個重建:對話 model、推入的終端機);
+/// 返回時 `selectedChat` 先清成 `nil`,轉場中仍顯示原本那個。
+private struct CompactChatPage: View {
+    let hosts: HostsModel
+    let navigation: TopNavigationModel
+    let pushedRoute: ChatRoute
+    @State private var shown: ChatRoute?
+
+    var body: some View {
+        let route = shown ?? pushedRoute
+        WindowDetailContent(hosts: hosts, navigation: navigation, route: route)
+            .appNavigationBackground()
+            .id(route)
+            .onChange(of: navigation.selectedChat) { _, chat in
+                if let chat { shown = chat }
+            }
+    }
+}
+
+private extension View {
+    /// 帳號與設定的滿版 modal(#623):iOS 是 `fullScreenCover`;`fullScreenCover` 在 macOS 不存在(只為了讓 `swift test` 編得過),退回 sheet。
+    @ViewBuilder
+    func accountCover<Item: Identifiable, Content: View>(
+        item: Binding<Item?>, @ViewBuilder content: @escaping (Item) -> Content
+    ) -> some View {
+        #if os(iOS)
+        fullScreenCover(item: item, content: content)
+        #else
+        sheet(item: item, content: content)
+        #endif
     }
 }

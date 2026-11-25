@@ -8927,17 +8927,6 @@
         }
       }
     },
-    "Pair This Host First %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先配對這台主機 %@"
-          }
-        }
-      }
-    },
     "Pair this iPhone with the host" : {
       "extractionState" : "manual",
       "localizations" : {

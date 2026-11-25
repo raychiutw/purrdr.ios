@@ -37,7 +37,7 @@ final class AccountUITests: XCTestCase {
 
         XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒有登入頁")
         XCTAssertFalse(app.staticTexts["member.entry.step"].exists, "登入不標加入步驟")
-        XCTAssertTrue(app.buttons["member.entry.back"].exists)
+        XCTAssertTrue(app.buttons["BackButton"].firstMatch.exists, "登入頁左上應是系統返回鈕")
         app.buttons["member.signIn.apple"].tap()
 
         XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 10), "登入後沒有進帳號頁")
@@ -58,7 +58,7 @@ final class AccountUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
         app.buttons["account.entry.switch"].tap()
         XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒切回登入頁")
-        app.buttons["member.entry.back"].tap()
+        app.buttons["BackButton"].firstMatch.tap()
         XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 5), "返回沒回到選擇頁")
     }
 

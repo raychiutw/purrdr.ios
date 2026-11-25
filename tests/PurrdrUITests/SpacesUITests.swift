@@ -67,6 +67,27 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(app.waitForTerminalHeader(containing: "npm run dev", timeout: 10), "點終端機方塊沒有開 Pane 終端機,或標題不是程式名:\(app.terminalHeader)")
     }
 
+    /// 版面圖是系統 NavigationLink 推入的頁面(#641):連續三次進去,第一下點返回鈕就要回到列表;最後再用左緣滑動返回一次。
+    @MainActor
+    func testLayoutPushBackWorksOnFirstTapAndEdgeSwipe() {
+        let app = XCUIApplication.launchUITesting()
+        let tab = app.element("spaces.tab.demo/w3:t1")
+        let shellBlock = app.buttons["layout.block.w3:p2"]
+        for round in 1...3 {
+            XCTAssertTrue(app.reveal(tab), "第 \(round) 輪找不到 Tab 列")
+            tab.tap()
+            XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5), "第 \(round) 輪沒有開版面圖")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(shellBlock.waitUntilGone(timeout: 3), "第 \(round) 輪第一下點返回沒有返回")
+        }
+        XCTAssertTrue(app.reveal(tab))
+        tab.tap()
+        XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5))
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        XCTAssertTrue(shellBlock.waitUntilGone(timeout: 3), "左緣滑動沒有返回")
+    }
+
     /// 長按選單與左滑都能關閉 Tab,關之前先確認;Demo 每個 Workspace 只有一個 Tab,所以確認文字是「連 Workspace 一起關」(#534)。
     @MainActor
     func testCloseTabFromMenuAndSwipe() {

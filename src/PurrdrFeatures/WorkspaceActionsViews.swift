@@ -24,7 +24,7 @@ final class WorkspacePresentation {
     }
 
     var sheet: Sheet?
-    /// 要推入的版面圖(#619:列尾 > 與「顯示版面」是 push,不是 sheet)。
+    /// 選單「Show Layout」要推入的版面圖(#619):一次性的要求,presenter 轉成導覽路徑後清成 `nil`(#641)。
     var layoutRoute: SpacesLayoutRoute?
     /// 重新命名提示框(#456):Workspace 與 Tab 共用,系統帶輸入框的 alert。
     var renameRequest: RenameRequest?
@@ -167,9 +167,11 @@ extension View {
     /// `onOpen` 在版面圖選了 Pane 且 sheet 關閉之後呼叫(帶主機)。
     func workspaceActionsPresentation(
         actions: @escaping (HostSelection) -> WorkspaceActionsModel?, snapshot: @escaping (HostSelection) -> HostSnapshot?,
-        presentation: WorkspacePresentation, onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
+        presentation: WorkspacePresentation, path: Binding<[ChatsDestination]>,
+        chatDestination: @escaping (ChatRoute) -> AnyView, onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
     ) -> some View {
-        modifier(WorkspaceActionsPresenter(resolve: actions, snapshot: snapshot, presentation: presentation, onOpen: onOpen))
+        modifier(WorkspaceActionsPresenter(
+            resolve: actions, snapshot: snapshot, presentation: presentation, path: path, chatDestination: chatDestination, onOpen: onOpen))
     }
 }
 
@@ -342,6 +344,9 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     let resolve: (HostSelection) -> WorkspaceActionsModel?
     let snapshot: (HostSelection) -> HostSnapshot?
     @Bindable var presentation: WorkspacePresentation
+    @Binding var path: [ChatsDestination]
+    /// 路徑上聊天目的地的畫面(窄視窗才有聊天進路徑;寬視窗給空畫面)。
+    let chatDestination: (ChatRoute) -> AnyView
     let onOpen: (HostSelection, PaneOpenTarget) -> Void
 
     /// 目前操作的主機的 Workspace 操作。
@@ -352,8 +357,19 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
                 if let actions { sheetContent(sheet, actions: actions) }
             }
-            // 版面圖是下一頁(#619):Tab 列與選單的「Show Layout」都設 `layoutRoute` 推入。
-            .navigationDestination(item: $presentation.layoutRoute) { layoutDestination($0) }
+            // 整個聊天 tab 的堆疊只在這裡註冊一次目的地(#641):聊天與版面圖都以 `ChatsDestination` 進路徑。
+            // Tab 列是 `NavigationLink(value:)`;選單的「Show Layout」設 `layoutRoute`,在這裡轉成路徑上的一筆。
+            .navigationDestination(for: ChatsDestination.self) { destination in
+                switch destination {
+                case .chat(let route): chatDestination(route)
+                case .layout(let route): layoutDestination(route)
+                }
+            }
+            .onChange(of: presentation.layoutRoute) { _, route in
+                guard let route else { return }
+                presentation.layoutRoute = nil
+                path.append(.layout(route))
+            }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
                     .autocorrectionDisabled()

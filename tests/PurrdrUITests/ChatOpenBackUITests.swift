@@ -27,7 +27,10 @@ final class ChatOpenBackUITests: XCTestCase {
         app.openTab(.chats)
 
         ledger.tap()
+        let composer = app.element("composer.text")
+        XCTAssertTrue(composer.waitUntilExists(timeout: 10), "點列沒有開聊天")
         app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(composer.waitUntilGone(timeout: 5), "第一下點返回沒有離開聊天(#641)")
 
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)), "回到列表後沒有看到那一列")
     }
@@ -40,14 +43,16 @@ final class ChatOpenBackUITests: XCTestCase {
         XCTAssertTrue(app.reveal(ledger))
 
         ledger.tap()
-        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).waitForExistence(timeout: 5))
+        let composer = app.element("composer.text")
+        XCTAssertTrue(composer.waitUntilExists(timeout: 10), "點列沒有開聊天")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.5))
             .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)))
 
+        XCTAssertTrue(composer.waitUntilGone(timeout: 5), "左緣滑動沒有離開聊天(#641)")
         let again = row("w1:p1", in: app)
         XCTAssertTrue(app.reveal(again), "左緣滑動後沒有回到列表")
         XCTAssertTrue(again.waitUntilHittable(timeout: 5))
         again.tap()
-        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).waitForExistence(timeout: 5), "再次開啟聊天沒有推入")
+        XCTAssertTrue(composer.waitUntilExists(timeout: 10), "再次開啟聊天沒有推入")
     }
 }

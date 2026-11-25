@@ -164,15 +164,13 @@ private struct PushDeviceRow: View {
                 .frame(width: 28)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(verbatim: device.displayName)
+                // 這支裝置的標示放在名稱列尾(系統 `LabeledContent`),不自畫小膠囊。
+                LabeledContent {
                     if device.isCurrent {
                         Text("This Device")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
                     }
+                } label: {
+                    Text(verbatim: device.displayName)
                 }
                 details
                     .font(.subheadline)
