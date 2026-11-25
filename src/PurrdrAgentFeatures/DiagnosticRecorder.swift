@@ -5,16 +5,16 @@ import Foundation
 /// 畫面回呼 `frame(...)` 只在記憶體裡累加(環形緩衝),**不做任何 I/O**;`flush()`(定時、停止時)才把緩衝交給儲存,
 /// 儲存自己在背景佇列寫檔。連續卡幀合併成一個事件;每次捲動手勢結束記一筆摘要。
 @MainActor
-public final class HitchRecorder {
+public final class DiagnosticRecorder {
     /// 預設的「畫面」識別(只有一個畫面時不必指定)。
-    public static let defaultOwner = ObjectIdentifier(HitchRecorder.self)
+    public static let defaultOwner = ObjectIdentifier(DiagnosticRecorder.self)
 
     /// 運作狀態變了(橋接層據此啟停 `CADisplayLink`)。每個聊天畫面各登記一個(以畫面識別區分)。
-    public func observeRunning(owner: ObjectIdentifier = HitchRecorder.defaultOwner, _ handler: @escaping @MainActor (Bool) -> Void) {
+    public func observeRunning(owner: ObjectIdentifier = DiagnosticRecorder.defaultOwner, _ handler: @escaping @MainActor (Bool) -> Void) {
         runningObservers[owner] = handler
     }
 
-    public func removeRunningObserver(owner: ObjectIdentifier = HitchRecorder.defaultOwner) {
+    public func removeRunningObserver(owner: ObjectIdentifier = DiagnosticRecorder.defaultOwner) {
         runningObservers[owner] = nil
     }
 
@@ -54,11 +54,11 @@ public final class HitchRecorder {
         var hitchSeconds = 0.0
     }
 
-    private let sink: any HitchLogStoring
+    private let sink: any DiagnosticLogStoring
     private let defaults: UserDefaults
     private let system: @MainActor () -> HitchSystemState
     private let wallClock: @Sendable () -> Date
-    private var buffer: HitchRingBuffer<HitchEntry>
+    private var buffer: HitchRingBuffer<DiagnosticEntry>
     private var runningObservers: [ObjectIdentifier: @MainActor (Bool) -> Void] = [:]
     /// 目前可見的聊天列表(可能同時有兩個:換頁轉場、iPad 多視窗);任一個可見就運作。
     private var visibleOwners: Set<ObjectIdentifier> = []
@@ -73,7 +73,7 @@ public final class HitchRecorder {
     private var session: ScrollSession?
 
     public init(
-        sink: any HitchLogStoring, defaults: UserDefaults, system: @escaping @MainActor () -> HitchSystemState,
+        sink: any DiagnosticLogStoring, defaults: UserDefaults, system: @escaping @MainActor () -> HitchSystemState,
         wallClock: @escaping @Sendable () -> Date = { Date() }, bufferCapacity: Int = 512
     ) {
         self.sink = sink
@@ -86,7 +86,7 @@ public final class HitchRecorder {
 
     // MARK: - 運作條件
 
-    public func setVisible(_ visible: Bool, owner: ObjectIdentifier = HitchRecorder.defaultOwner) {
+    public func setVisible(_ visible: Bool, owner: ObjectIdentifier = DiagnosticRecorder.defaultOwner) {
         if visible { visibleOwners.insert(owner) } else { visibleOwners.remove(owner) }
         updateRunning()
     }
@@ -269,12 +269,12 @@ public final class HitchRecorder {
         guard let event = openEvent else { return }
         openEvent = nil
         var activity = event.activity
-        activity.offsetCorrectionPoints = HitchLogEncoder.round1(activity.offsetCorrectionPoints)
+        activity.offsetCorrectionPoints = DiagnosticLogEncoder.round1(activity.offsetCorrectionPoints)
         buffer.append(.hitch(HitchEvent(
             timestamp: wallClock(),
-            milliseconds: HitchLogEncoder.round1(event.milliseconds), frames: event.frames, droppedFrames: event.droppedFrames,
-            scroll: event.start.scroll, offsetY: HitchLogEncoder.round1(event.start.offsetY),
-            velocityY: HitchLogEncoder.round1(event.start.velocityY), visibleCells: event.start.visibleCells,
+            milliseconds: DiagnosticLogEncoder.round1(event.milliseconds), frames: event.frames, droppedFrames: event.droppedFrames,
+            scroll: event.start.scroll, offsetY: DiagnosticLogEncoder.round1(event.start.offsetY),
+            velocityY: DiagnosticLogEncoder.round1(event.start.velocityY), visibleCells: event.start.visibleCells,
             activity: activity, olderLoading: event.start.olderLoading, agentWorking: event.start.agentWorking, system: currentSystem())))
     }
 
@@ -284,9 +284,9 @@ public final class HitchRecorder {
         guard finished.frames > 0, finished.seconds > 0 else { return }
         buffer.append(.scroll(ScrollSummary(
             timestamp: wallClock(), seconds: finished.seconds, frames: finished.frames,
-            averageIntervalMilliseconds: HitchLogEncoder.round1(finished.seconds / Double(finished.frames) * 1000),
-            maxIntervalMilliseconds: HitchLogEncoder.round1(finished.maxInterval * 1000), hitchEvents: finished.hitchEvents,
-            hitchMilliseconds: HitchLogEncoder.round1(finished.hitchSeconds * 1000),
+            averageIntervalMilliseconds: DiagnosticLogEncoder.round1(finished.seconds / Double(finished.frames) * 1000),
+            maxIntervalMilliseconds: DiagnosticLogEncoder.round1(finished.maxInterval * 1000), hitchEvents: finished.hitchEvents,
+            hitchMilliseconds: DiagnosticLogEncoder.round1(finished.hitchSeconds * 1000),
             hitchTimeRatio: finished.hitchSeconds / finished.seconds, agentWorking: agentWorking, system: currentSystem())))
     }
 }

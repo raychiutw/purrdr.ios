@@ -32,7 +32,7 @@ struct PurrdrApp: App {
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
     /// 捲動卡頓記錄器(只記數字,存在這支手機;設定頁可關閉、分享、清除)。
-    private let hitchRecorder: HitchRecorder
+    private let hitchRecorder: DiagnosticRecorder
     /// 啟動提示「上次 Purrdr 意外關閉」(#632)。
     private let crashNotice: CrashNoticeModel
     /// MetricKit 每日摘要(只在真實啟動訂閱;UI 測試不接)。
@@ -210,9 +210,9 @@ struct PurrdrApp: App {
         let hitchStore = uiTesting
             // 每次啟動各用一個新資料夾:模擬器的 tmp 會跨測試保留,共用同一個資料夾會讓前面測試捲動留下的記錄
             // 殘留到「還沒有記錄」的測試(也會越積越大)。
-            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
-            : HitchLogFile.applicationSupport()
-        let hitchRecorder = HitchRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
+            ? DiagnosticLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
+            : DiagnosticLogFile.applicationSupport()
+        let hitchRecorder = DiagnosticRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
         self.hitchRecorder = hitchRecorder
         if uiTesting {
             hitchMetrics = nil
@@ -284,7 +284,7 @@ struct PurrdrApp: App {
     }
 
     /// 設定頁。偏好存在 `UserDefaults.standard`(輸入列的 `@AppStorage` 讀同一個 key)。
-    private static func makeSettings(hosts: HostsModel, hitchRecorder: HitchRecorder) -> SettingsModel {
+    private static func makeSettings(hosts: HostsModel, hitchRecorder: DiagnosticRecorder) -> SettingsModel {
         let info = Bundle.main.infoDictionary ?? [:]
         let system = ProcessInfo.processInfo.operatingSystemVersion
         let app = AppInfo(

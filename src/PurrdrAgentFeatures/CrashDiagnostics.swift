@@ -87,7 +87,7 @@ public final class CrashReporter: Sendable {
 
     /// 啟動時呼叫:有待處理的標記就轉成一筆閃退記錄(一律記,不看卡頓開關)並刪除標記;壞掉的標記直接丟掉。
     @MainActor
-    public func recoverPending(into recorder: HitchRecorder) {
+    public func recoverPending(into recorder: DiagnosticRecorder) {
         guard let data = store.read() else { return }
         store.remove()
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

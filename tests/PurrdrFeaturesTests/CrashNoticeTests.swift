@@ -22,9 +22,9 @@ struct CrashNoticeTests {
             exceptionReason: nil, frames: [], app: app, os: "o", device: "d", periodStart: end.addingTimeInterval(-hours * 3_600))
     }
 
-    static func make(store: InMemoryCrashNoticeStore = InMemoryCrashNoticeStore()) -> (CrashNoticeModel, HitchRecorder, InMemoryCrashNoticeStore) {
+    static func make(store: InMemoryCrashNoticeStore = InMemoryCrashNoticeStore()) -> (CrashNoticeModel, DiagnosticRecorder, InMemoryCrashNoticeStore) {
         let defaults = UserDefaults(suiteName: "crashnotice-\(UUID().uuidString)")!
-        let recorder = HitchRecorder(sink: RecordingHitchSink(), defaults: defaults, system: { .sample }, wallClock: { t0 })
+        let recorder = DiagnosticRecorder(sink: RecordingDiagnosticSink(), defaults: defaults, system: { .sample }, wallClock: { t0 })
         return (CrashNoticeModel(recorder: recorder, store: store), recorder, store)
     }
 
@@ -56,9 +56,9 @@ struct CrashNoticeTests {
 
     @Test("同一次閃退:MetricKit 報告的 24 小時區間涵蓋中止前標記、同版本同例外名稱,就不再提示第二次(仍寫入記錄)")
     func reportWhosePeriodCoversMarkerIsSameCrash() {
-        let sink = RecordingHitchSink()
+        let sink = RecordingDiagnosticSink()
         let defaults = UserDefaults(suiteName: "crashnotice-\(UUID().uuidString)")!
-        let recorder = HitchRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { Self.t0 })
+        let recorder = DiagnosticRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { Self.t0 })
         let model = CrashNoticeModel(recorder: recorder, store: InMemoryCrashNoticeStore())
         recorder.recordCrash(Self.record())
         // 報告的時間是區間尾端(標記之後 3 小時),和標記差遠超過 10 分鐘。
@@ -109,7 +109,7 @@ struct CrashNoticeTests {
     @Test("真實形狀的 payload(24 小時區間)經 MetricKitCrashIntake 進來,和同一次的標記不重複提示")
     func intakeFixtureDoesNotDuplicateMarker() {
         let defaults = UserDefaults(suiteName: "crashnotice-\(UUID().uuidString)")!
-        let recorder = HitchRecorder(sink: RecordingHitchSink(), defaults: defaults, system: { .sample }, wallClock: { Self.t0 })
+        let recorder = DiagnosticRecorder(sink: RecordingDiagnosticSink(), defaults: defaults, system: { .sample }, wallClock: { Self.t0 })
         let model = CrashNoticeModel(recorder: recorder, store: InMemoryCrashNoticeStore())
         let end = Date(timeIntervalSince1970: 1_795_593_600)
         recorder.recordCrash(Self.record(at: end.addingTimeInterval(-3 * 3_600), name: "NSInternalInconsistencyException", app: "0.52.2 (7)"))

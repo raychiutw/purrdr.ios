@@ -84,9 +84,9 @@ struct MetricKitCrashReportTests {
     @Test("轉成記錄:寫進診斷記錄,同一份報告重複送來只記一次(跨重啟)")
     func deduplicates() throws {
         let suite = "mkcrash-\(UUID().uuidString)"
-        let sink = RecordingHitchSink()
+        let sink = RecordingDiagnosticSink()
         let defaults = UserDefaults(suiteName: suite)!
-        let recorder = HitchRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { Date() })
+        let recorder = DiagnosticRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { Date() })
         let first = MetricKitCrashIntake(recorder: recorder, defaults: defaults)
         first.ingest(payloadJSON: MetricKitCrashFixtures.full)
         first.ingest(payloadJSON: MetricKitCrashFixtures.full)
@@ -104,7 +104,7 @@ struct MetricKitCrashReportTests {
     @Test("匯出的一行 JSON 帶 kind、時間與版本,能與標記檔記錄對上")
     func encodesLine() throws {
         let report = try #require(MetricKitCrashParser.parse(payloadJSON: MetricKitCrashFixtures.full).first)
-        let line = HitchLogEncoder.line(.crashReport(report))
+        let line = DiagnosticLogEncoder.line(.crashReport(report))
         let object = try #require(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
         #expect(object["kind"] as? String == "crashReport")
         #expect(object["app"] as? String == "0.52.2 (7)")

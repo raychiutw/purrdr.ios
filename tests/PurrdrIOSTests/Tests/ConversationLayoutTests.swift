@@ -39,7 +39,7 @@ struct ConversationLayoutTests {
 
     /// 開啟一個聊天:視窗先回 `window` 行。
     func open(
-        window lines: [String], size: CGSize = CGSize(width: 390, height: 844), hitchRecorder: HitchRecorder? = nil,
+        window lines: [String], size: CGSize = CGSize(width: 390, height: 844), hitchRecorder: DiagnosticRecorder? = nil,
         contentSizeCategory: UIContentSizeCategory? = nil, sceneActive: Bool = false, paged: Bool = false
     ) async throws -> Mounted {
         let connection = FakeHostConnection()

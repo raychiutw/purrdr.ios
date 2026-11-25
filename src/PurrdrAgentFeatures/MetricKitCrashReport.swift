@@ -136,10 +136,10 @@ public final class MetricKitCrashIntake {
     static let seenKey = "diagnostics.metricKitCrashSeen"
     static let maxSeen = 50
 
-    private let recorder: HitchRecorder
+    private let recorder: DiagnosticRecorder
     private let defaults: UserDefaults
 
-    public init(recorder: HitchRecorder, defaults: UserDefaults = .standard) {
+    public init(recorder: DiagnosticRecorder, defaults: UserDefaults = .standard) {
         self.recorder = recorder
         self.defaults = defaults
     }

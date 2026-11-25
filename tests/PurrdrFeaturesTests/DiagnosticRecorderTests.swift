@@ -3,13 +3,13 @@ import Testing
 @testable import PurrdrAgentFeatures
 
 /// 記下收到什麼的假儲存:`append` 就是 recorder 唯一的出口(真的實作在背景佇列寫檔)。
-final class RecordingHitchSink: HitchLogStoring, @unchecked Sendable {
+final class RecordingDiagnosticSink: DiagnosticLogStoring, @unchecked Sendable {
     private let lock = NSLock()
-    private var batches: [[HitchEntry]] = []
+    private var batches: [[DiagnosticEntry]] = []
     var appendCalls: Int { lock.withLock { batches.count } }
-    var entries: [HitchEntry] { lock.withLock { batches.flatMap { $0 } } }
-    func append(_ entries: [HitchEntry]) { lock.withLock { batches.append(entries) } }
-    func exportFile(meta: HitchEntry?) async -> URL? { nil }
+    var entries: [DiagnosticEntry] { lock.withLock { batches.flatMap { $0 } } }
+    func append(_ entries: [DiagnosticEntry]) { lock.withLock { batches.append(entries) } }
+    func exportFile(meta: DiagnosticEntry?) async -> URL? { nil }
     func clear() async {}
 }
 
@@ -21,14 +21,14 @@ extension HitchSystemState {
 
 @MainActor
 struct HitchHarness {
-    let sink = RecordingHitchSink()
-    let recorder: HitchRecorder
+    let sink = RecordingDiagnosticSink()
+    let recorder: DiagnosticRecorder
     var clock = 1000.0
 
     init(enabled: Bool = true, capacity: Int = 256) {
         let defaults = UserDefaults(suiteName: "hitch-\(UUID().uuidString)")!
         defaults.set(enabled, forKey: HitchLogSettings.enabledKey)
-        recorder = HitchRecorder(
+        recorder = DiagnosticRecorder(
             sink: sink, defaults: defaults, system: { .sample }, wallClock: { Date(timeIntervalSince1970: 1_800_000_000) },
             bufferCapacity: capacity)
         recorder.setVisible(true)
@@ -54,7 +54,7 @@ struct HitchHarness {
 
 @MainActor
 @Suite("捲動卡頓記錄器")
-struct HitchRecorderTests {
+struct DiagnosticRecorderTests {
     static let frame120 = 1.0 / 120
     static let frame60 = 1.0 / 60
 
@@ -207,7 +207,7 @@ struct HitchRecorderTests {
     func runningConditions() {
         let defaults = UserDefaults(suiteName: "hitch-\(UUID().uuidString)")!
         #expect(HitchLogSettings.isEnabled(defaults))
-        let recorder = HitchRecorder(sink: RecordingHitchSink(), defaults: defaults, system: { .sample })
+        let recorder = DiagnosticRecorder(sink: RecordingDiagnosticSink(), defaults: defaults, system: { .sample })
         var changes: [Bool] = []
         recorder.observeRunning { changes.append($0) }
 
@@ -229,10 +229,10 @@ struct HitchRecorderTests {
 
     @Test("兩個聊天畫面重疊(換頁轉場)時,新的先出現、舊的才消失,記錄不會中斷")
     func overlappingScreensKeepRunning() {
-        let recorder = HitchRecorder(
-            sink: RecordingHitchSink(), defaults: UserDefaults(suiteName: "hitch-\(UUID().uuidString)")!, system: { .sample })
+        let recorder = DiagnosticRecorder(
+            sink: RecordingDiagnosticSink(), defaults: UserDefaults(suiteName: "hitch-\(UUID().uuidString)")!, system: { .sample })
         let old = ObjectIdentifier(recorder)
-        let new = ObjectIdentifier(RecordingHitchSink())
+        let new = ObjectIdentifier(RecordingDiagnosticSink())
         recorder.setSceneActive(true)
         recorder.setVisible(true, owner: old)
         recorder.setVisible(true, owner: new)
@@ -282,13 +282,13 @@ struct HitchRecorderTests {
     func trimsOldestLines() {
         let lines = (0..<10).map { "\($0)" + String(repeating: "x", count: 99) }
         let total = lines.map { $0.utf8.count + 1 }.reduce(0, +)
-        #expect(HitchLogTrimmer.trim(lines, maxBytes: 10_000) == lines)
-        let trimmed = HitchLogTrimmer.trim(lines, maxBytes: total - 1)
+        #expect(DiagnosticLogTrimmer.trim(lines, maxBytes: 10_000) == lines)
+        let trimmed = DiagnosticLogTrimmer.trim(lines, maxBytes: total - 1)
         #expect(trimmed.last == lines.last)
         #expect(trimmed.count < lines.count)
         #expect(trimmed.map { $0.utf8.count + 1 }.reduce(0, +) <= Int(Double(total - 1) * 0.8))
         #expect(trimmed == Array(lines.suffix(trimmed.count)))
-        #expect(HitchLogTrimmer.trim(lines, maxBytes: 10).isEmpty)
+        #expect(DiagnosticLogTrimmer.trim(lines, maxBytes: 10).isEmpty)
     }
 
     // MARK: - JSON Lines
@@ -298,7 +298,7 @@ struct HitchRecorderTests {
         var harness = HitchHarness()
         harness.feed([Self.frame120, 0.050, Self.frame120], scroll: .dragging, offsetY: 10, velocityY: 2, cells: 4)
         harness.recorder.setVisible(false)
-        let metrics = HitchEntry.metrics(HitchMetricsDigest(
+        let metrics = DiagnosticEntry.metrics(HitchMetricsDigest(
             periodStart: Date(timeIntervalSince1970: 1_800_000_000), periodEnd: Date(timeIntervalSince1970: 1_800_086_400),
             scrollHitchTimeRatio: 3.2, hangCount: 2, longestHangSeconds: 4.5, app: "0.52.0 (1)", os: "iOS 27.0"))
 
@@ -319,17 +319,17 @@ struct HitchRecorderTests {
         let entries = harness.sink.entries + [metrics]
         #expect(entries.count == 3)
         for entry in entries {
-            let line = HitchLogEncoder.line(entry)
+            let line = DiagnosticLogEncoder.line(entry)
             #expect(!line.contains("\n"))
             let object = try #require(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
-            #expect(object["v"] as? Int == HitchLogEncoder.schemaVersion)
+            #expect(object["v"] as? Int == DiagnosticLogEncoder.schemaVersion)
             let kind = try #require(object["kind"] as? String)
             let keys = Set(object.keys)
             let permitted = try #require(allowed[kind])
             #expect(keys.isSubset(of: permitted), "多出欄位:\(keys.subtracting(permitted))")
         }
         let hitchEntry = try #require(harness.sink.entries.first { if case .hitch = $0 { true } else { false } })
-        let object = try #require(JSONSerialization.jsonObject(with: Data(HitchLogEncoder.line(hitchEntry).utf8)) as? [String: Any])
+        let object = try #require(JSONSerialization.jsonObject(with: Data(DiagnosticLogEncoder.line(hitchEntry).utf8)) as? [String: Any])
         #expect(object["scroll"] as? String == "dragging")
         #expect(object["cells"] as? Int == 4)
         #expect(object["device"] as? String == "iPhone18,1")

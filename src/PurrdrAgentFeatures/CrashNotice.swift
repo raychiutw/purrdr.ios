@@ -34,10 +34,10 @@ public final class CrashNoticeModel {
     public private(set) var pending: CrashRecord?
     private var windows: [UUID] = []
 
-    @ObservationIgnored private let recorder: HitchRecorder
+    @ObservationIgnored private let recorder: DiagnosticRecorder
     @ObservationIgnored private let store: any CrashNoticeStoring
 
-    public init(recorder: HitchRecorder, store: any CrashNoticeStoring) {
+    public init(recorder: DiagnosticRecorder, store: any CrashNoticeStoring) {
         self.recorder = recorder
         self.store = store
         recorder.observeCrashes { [weak self] record in self?.received(record) }
