@@ -30,6 +30,10 @@ public struct AgentsPane: Sendable, Equatable {
         self.hiddenCount = hiddenCount
     }
 
+    // 正規式只建一次(#585)。Regex 不是 Sendable,但建好後不可變、只讀,所以 nonisolated(unsafe)。
+    nonisolated(unsafe) private static let moreLine = /↓\s*(\d+)\s+more/
+    nonisolated(unsafe) private static let rowLine = /(\S)\s+(\S+)\s{2,}(.+?)\s{2,}((?:\d+h\s*)?(?:\d+m\s*)?\d+s)\s*·\s*↓\s*([\d.,]+[kKmM]?)\s*tokens?/
+
     /// 最後一個 `⏺ main`(或 `● main`)標頭之後的列:`<記號> <種類>  <任務>  <1h 13m 1s> · ↓ <156.7k> tokens`。
     /// 記號 `◯○` 執行中、`⏺●◉✓✔` 完成、`✗✘×` 失敗。沒有標頭時沒有窗格(`nil`)。
     public static func parse(screen: String) -> AgentsPane? {
@@ -42,11 +46,11 @@ public struct AgentsPane: Sendable, Equatable {
         var hidden = 0
         for line in lines[lines.index(after: header)...] {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if let more = trimmed.wholeMatch(of: /↓\s*(\d+)\s+more/) {
+            if let more = trimmed.wholeMatch(of: moreLine) {
                 hidden = Int(more.output.1) ?? 0
                 continue
             }
-            guard let match = trimmed.wholeMatch(of: /(\S)\s+(\S+)\s{2,}(.+?)\s{2,}((?:\d+h\s*)?(?:\d+m\s*)?\d+s)\s*·\s*↓\s*([\d.,]+[kKmM]?)\s*tokens?/),
+            guard let match = trimmed.wholeMatch(of: rowLine),
                   let state = state(ofMarker: match.output.1) else { continue }
             rows.append(Row(
                 id: rows.count, state: state, kind: String(match.output.2), task: String(match.output.3),

@@ -1008,7 +1008,10 @@ public final class ConversationModel {
         }
         guard shouldRead else { return }
         guard let screen = await readScreen(for: .agentsPane) else { return }
-        agentsPane = AgentsPane.parse(screen: screen)
+        // 畫面解析放背景,不佔主執行緒(#585);回來後 Task 若已被取消就不套用。
+        let parsed = await Task.detached(priority: .userInitiated) { AgentsPane.parse(screen: screen) }.value
+        guard !Task.isCancelled else { return }
+        agentsPane = parsed
         agentsPaneReadAt = clock.now()
     }
 
@@ -2019,7 +2022,9 @@ public final class ConversationModel {
         }
         guard watching || panel != nil || screens.hasScreen else { return }
         guard let screen = await readScreen(for: .panel) else { return }
-        let next = SlashPanelParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
+        let dialect = AgentCatalog.profile(forHerdrName: agent.kind).screen
+        let next = await Task.detached(priority: .userInitiated) { SlashPanelParser.parse(screen: screen, dialect: dialect) }.value
+        guard !Task.isCancelled else { return }
         if next != panel { panel = next }
         if modelSheetPage == .effort, effortBaseline == nil, let next, let slider = next.slider {
             effortBaseline = EffortBaseline(level: slider.current, ultracode: next.ultracode)

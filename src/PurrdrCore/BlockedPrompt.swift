@@ -201,13 +201,13 @@ public enum BlockedPromptParser {
         let column = index
         let rest = String(characters[index...])
         // Grok:`2 (○) Yes, proceed`;字母列(`z (○) …`)不是選項。
-        if let grok = rest.wholeMatch(of: /([1-9]) \([●○]\) (.+)/) {
+        if let grok = rest.wholeMatch(of: grokOption) {
             return OptionLine(number: Int(grok.output.1) ?? 0, label: cleanLabel(String(grok.output.2)), checked: nil, isCursor: isCursor, column: column)
         }
-        guard let match = rest.wholeMatch(of: /(\d{1,2})[.)]\s+(.+)/), let number = Int(match.output.1) else { return nil }
+        guard let match = rest.wholeMatch(of: numberedOption), let number = Int(match.output.1) else { return nil }
         var label = String(match.output.2)
         var checked: Bool?
-        if let box = label.prefixMatch(of: /\[([ xX✔✓])\]\s*/) {
+        if let box = label.prefixMatch(of: checkbox) {
             checked = box.output.1 != " "
             label = String(label[box.range.upperBound...])
         }
@@ -216,12 +216,19 @@ public enum BlockedPromptParser {
         return OptionLine(number: number, label: label, checked: checked, isCursor: isCursor, column: column)
     }
 
+    // 正規式只建一次(#585)。Regex 不是 Sendable,但建好後不可變、只讀,所以 nonisolated(unsafe)。
+    nonisolated(unsafe) private static let grokOption = /([1-9]) \([●○]\) (.+)/
+    nonisolated(unsafe) private static let numberedOption = /(\d{1,2})[.)]\s+(.+)/
+    nonisolated(unsafe) private static let checkbox = /\[([ xX✔✓])\]\s*/
+    nonisolated(unsafe) private static let sidePanel = /\s{2,}[│┃┌└├╭╰]/
+    nonisolated(unsafe) private static let shortcutHint = /\s*\((?:[a-z]|esc|enter|return|tab|shift\+tab)\)$/
+
     /// 截掉側邊預覽面板，去掉結尾的快捷鍵提示。
     private static func cleanLabel(_ raw: String) -> String {
         var label = raw
-        if let panel = label.firstMatch(of: /\s{2,}[│┃┌└├╭╰]/) { label = String(label[..<panel.range.lowerBound]) }
+        if let panel = label.firstMatch(of: sidePanel) { label = String(label[..<panel.range.lowerBound]) }
         label = label.trimmingCharacters(in: .whitespaces)
-        if let hint = label.firstMatch(of: /\s*\((?:[a-z]|esc|enter|return|tab|shift\+tab)\)$/) {
+        if let hint = label.firstMatch(of: shortcutHint) {
             label = String(label[..<hint.range.lowerBound])
         }
         return label.trimmingCharacters(in: .whitespaces)

@@ -173,7 +173,7 @@ public enum SlashPanelParser {
             panel.adjustment = ""
         }
 
-        if let match = content.compactMap({ $0.firstMatch(of: /Ultracode\s+(on|off)\b/) }).first {
+        if let match = content.compactMap({ $0.firstMatch(of: ultracodePhrase) }).first {
             panel.ultracode = match.output.1 == "on"
         }
 
@@ -198,7 +198,10 @@ public enum SlashPanelParser {
         line.trimmingCharacters(in: .whitespaces).prefix { $0 == "▔" }.count >= 8
     }
 
-    private static var adjustPhrase: Regex<Substring> { /←\s*\/?\s*→\s*to adjust/ }
+    nonisolated(unsafe) private static let adjustPhrase: Regex<Substring> = /←\s*\/?\s*→\s*to adjust/
+    nonisolated(unsafe) private static let ultracodePhrase = /Ultracode\s+(on|off)\b/
+    nonisolated(unsafe) private static let optionLine = /\s*(?:([❯›↑↓])\s*)?(\d{1,2})\.\s+(.+)/
+    nonisolated(unsafe) private static let detailGap = /\s{2,}/
 
     private static func isAdjustLine(_ line: String) -> Bool {
         line.contains(adjustPhrase)
@@ -285,14 +288,14 @@ public enum SlashPanelParser {
     private static func parseOptions(_ lines: [String]) -> [(line: Int, option: SlashPanelOption)] {
         var result: [(line: Int, option: SlashPanelOption)] = []
         for (index, line) in lines.enumerated() {
-            guard let match = line.wholeMatch(of: /\s*(?:([❯›↑↓])\s*)?(\d{1,2})\.\s+(.+)/) else { continue }
+            guard let match = line.wholeMatch(of: optionLine) else { continue }
             var rest = String(match.output.3)
             var isCurrent = false
             for marker in ["✔", "(current)"] where rest.contains(marker) {
                 isCurrent = true
                 rest = rest.replacingOccurrences(of: marker, with: "")
             }
-            let parts = rest.split(separator: /\s{2,}/, maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            let parts = rest.split(separator: detailGap, maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
             let cursor = match.output.1.map { $0 == "❯" || $0 == "›" } ?? false
             let option = SlashPanelOption(
                 index: result.count, label: parts.first ?? "", detail: parts.count > 1 ? parts[1] : nil,
