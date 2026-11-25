@@ -16,6 +16,26 @@ struct ListActionLabelStyle: LabelStyle {
     }
 }
 
+/// 清單內破壞性動作(#639):文字與圖示同一種紅 `destructiveText`。
+/// 系統 `role: .destructive` 的紅(#FF453A)在深色卡片上只有約 4.1:1,文字要 4.5:1,所以改用 `destructiveText`;
+/// role 保留,VoiceOver 與系統行為不變。
+struct DestructiveListActionLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Label {
+            configuration.title.foregroundStyle(Color.destructiveText)
+        } icon: {
+            configuration.icon.foregroundStyle(Color.destructiveText)
+        }
+    }
+}
+
+extension View {
+    /// 加在 List 內的破壞性 Button(`role: .destructive`)上。
+    func destructiveListAction() -> some View {
+        tint(.destructiveText).foregroundStyle(Color.destructiveText).labelStyle(DestructiveListActionLabelStyle())
+    }
+}
+
 extension View {
     /// 加在 List 內的一般動作 Button 上(只有文字的按鈕靠 tint、有圖示的靠 label style)。
     func listAction() -> some View {

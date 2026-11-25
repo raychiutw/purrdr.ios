@@ -151,7 +151,7 @@ struct FolderBrowserView: View {
                 } description: {
                     Text(message)
                 } actions: {
-                    Button("Try Again") { Task { await model.load() } }
+                    Button("Try Again") { Task { await model.load() } } // listAction:exempt ContentUnavailableView 的 actions 由系統樣式畫
                         .accessibilityIdentifier("files.retry")
                 }
                 .accessibilityIdentifier("files.error")

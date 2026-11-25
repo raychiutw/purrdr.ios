@@ -161,6 +161,7 @@ struct HitchLogSection: View {
             Button("Clear Records", systemImage: "trash", role: .destructive) {
                 Task { await model.clearHitchLog() }
             }
+            .destructiveListAction()
             .accessibilityIdentifier("settings.hitchLog.clear")
         } header: {
             Text("Diagnostic Log")

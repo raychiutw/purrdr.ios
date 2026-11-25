@@ -13,6 +13,21 @@ struct ContrastPalette: Sendable {
     var darkHighContrast: ThemeColor
 
     /// 依外觀與「增加對比」取值的顏色。
+    #if canImport(UIKit)
+    /// 同 `color` 的 UIKit 版(給 UIKit appearance 用)。
+    var uiColor: UIColor {
+        UIColor { traits in
+            let high = traits.accessibilityContrast == .high
+            return switch (traits.userInterfaceStyle == .dark, high) {
+            case (false, false): UIColor(light)
+            case (true, false): UIColor(dark)
+            case (false, true): UIColor(lightHighContrast)
+            case (true, true): UIColor(darkHighContrast)
+            }
+        }
+    }
+    #endif
+
     var color: Color {
         #if canImport(UIKit)
         Color(uiColor: UIColor { traits in
@@ -68,6 +83,16 @@ extension AccessibleColors {
         dark: ThemeColor(red: 0xFF, green: 0x8A, blue: 0x82),              // 設計稿 redtext;對 #3A3A3C 以上 ≥ 4.5:1
         lightHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11), // 白底 8.1:1
         darkHighContrast: ThemeColor(red: 0xFF, green: 0xC7, blue: 0xC2)
+    )
+}
+
+extension AccessibleColors {
+    /// 聊天 tab 未讀數字徽章的底色(白字;#639)。
+    static let unreadBadge = ContrastPalette(
+        light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白字 5.4:1(系統紅 #FF3B30 只有 3.6:1)
+        dark: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),              // 白字 5.4:1(系統紅 #FF453A 只有 3.3:1)
+        lightHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11), // 白字 8.1:1
+        darkHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11)
     )
 }
 

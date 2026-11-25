@@ -365,6 +365,7 @@ public struct AgentListView: View {
                 }
                 Button("Try Again", systemImage: "arrow.clockwise") { model.retry() }
                     .font(.footnote)
+                    .listAction()
                     .accessibilityIdentifier("agentList.retry")
             } header: {
                 Text("Connection Lost")

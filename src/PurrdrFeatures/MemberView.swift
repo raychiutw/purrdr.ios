@@ -143,7 +143,7 @@ public struct MemberContent: View {
                         } description: {
                             Text("Your sign-in is kept on this device. Try again when you’re online.")
                         } actions: {
-                            Button("Try Again") { Task { await model.restore() } }
+                            Button("Try Again") { Task { await model.restore() } } // listAction:exempt ContentUnavailableView 的 actions 由系統樣式畫
                         }
                         .listRowBackground(Color.clear)
                     }
@@ -385,6 +385,7 @@ struct AccountView: View {
                         Label("Can’t reach Purrdr for now. You’re still signed in.", systemImage: "wifi.exclamationmark")
                             .foregroundStyle(.secondaryText)
                         Button("Try Again") { Task { await model.restore() } }
+                            .listAction()
                             .accessibilityIdentifier("account.connectionLimited.retry")
                     }
                     .accessibilityElement(children: .contain)
@@ -447,6 +448,7 @@ struct AccountView: View {
                         .listAction()
                         .accessibilityIdentifier("member.signOut")
                     Button("Delete Member", role: .destructive) { startDeletion() }
+                        .destructiveListAction()
                         .accessibilityIdentifier("member.delete")
                 }
             }
@@ -853,6 +855,7 @@ struct SignInMethodsView: View {
                     LabeledContent {
                         if member.identities.count > 1 {
                             Button("Remove", role: .destructive) { removing = identity.method }
+                                .destructiveListAction()
                                 .accessibilityLabel(Text("Remove \(identity.method.displayName)"))
                                 .accessibilityIdentifier("member.identity.remove.\(identity.method.rawValue)")
                         }
@@ -1128,6 +1131,7 @@ struct DeletionSubscriptionView: View {
             }
             Section {
                 Button("Continue Deleting Member", role: .destructive, action: proceed)
+                    .destructiveListAction()
                     .accessibilityIdentifier("member.deleteSubscription.continue")
             }
         }

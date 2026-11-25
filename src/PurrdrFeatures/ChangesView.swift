@@ -406,6 +406,7 @@ private struct ChangesCommentEditor: View {
                             model.setComment("", on: line, in: path)
                             dismiss()
                         }
+                        .destructiveListAction()
                         .accessibilityIdentifier("changes.comment.delete")
                     }
                 }

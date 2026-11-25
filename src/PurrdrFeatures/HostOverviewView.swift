@@ -40,7 +40,7 @@ struct HostOverviewView: View {
                     if let hostID {
                         Section {
                             Button("Remove Host", role: .destructive) { removeHost(hostID) }
-                                .foregroundStyle(.destructiveText)
+                                .destructiveListAction()
                                 .frame(maxWidth: .infinity)
                                 .accessibilityIdentifier("hosts.delete")
                         }
@@ -260,6 +260,7 @@ struct HostOverviewView: View {
         }
         Section {
             Button("Remove Demo Host", role: .destructive, action: removeDemo)
+                .destructiveListAction()
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("hosts.demo.remove")
         }
