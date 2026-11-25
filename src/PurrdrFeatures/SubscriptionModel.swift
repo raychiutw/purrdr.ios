@@ -307,4 +307,7 @@ public enum SubscriptionNotice: Equatable, Sendable {
     /// 沒通過本人確認(取消或失敗):什麼都沒轉。
     case ownerNotConfirmed
     case failed
+
+    /// 純告知(沒有要使用者決定或排除的事):顯示在頁內說明;其餘(要先登入、被占用、不能轉移、失敗)保留 alert(#625)。
+    public var isInformational: Bool { false }
 }

@@ -16,6 +16,8 @@ public final class WorkspaceActionsModel {
     public private(set) var worktreeError: String?
     /// 關閉等已結束的動作失敗時的訊息，以可關閉的橫幅顯示(與連線錯誤分開)。
     public var actionError: String?
+    /// `actionError` 的標題,寫明失敗的是哪個動作(#625)。
+    public private(set) var actionErrorTitle = ""
     /// 有操作正在主機上執行。
     public private(set) var isWorking = false
     /// 這支裝置配對成唯讀(HTTPS 主機):改到主機的操作停用(`loadAccess()` 讀)。

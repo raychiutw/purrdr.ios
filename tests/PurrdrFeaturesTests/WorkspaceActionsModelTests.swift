@@ -241,6 +241,22 @@ struct WorkspaceActionsModelTests {
         #expect(counter.count == 0)
     }
 
+    @Test("關閉失敗的提示標題寫明是哪個動作(#625:不用籠統的「無法完成」)")
+    func closeFailureTitleNamesTheAction() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.errorReply(code: "internal_error", message: "pane w1:p9 did not stop"))
+        let model = Self.model(host: host, store: InMemoryChatPreferencesStore(), counter: RefreshCounter())
+        await model.closeTab(tabID: "w1:t9", sessionIDs: [])
+        #expect(model.actionErrorTitle == "Couldn’t Close Tab")
+
+        let other = FakeHost()
+        await other.expect(Self.bridge, reply: Self.errorReply(code: "internal_error", message: "busy"))
+        let workspaceModel = Self.model(host: other, store: InMemoryChatPreferencesStore(), counter: RefreshCounter())
+        await workspaceModel.close(workspaceID: "w1", sessionIDs: [])
+        #expect(workspaceModel.actionErrorTitle == "Couldn’t Close Workspace")
+        #expect(workspaceModel.actionError == "busy")
+    }
+
     @Test("關閉 Tab 時主機回 tab_not_found(已經關掉了):當成關閉成功，不顯示錯誤，清本機偏好並重讀列表(0.52.2 回報)")
     func closeTabAlreadyGoneCountsAsClosed() async {
         let host = FakeHost()
