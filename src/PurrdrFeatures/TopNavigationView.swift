@@ -114,7 +114,7 @@ public struct TopNavigationView: View {
             // 第一次開啟 app:開出歡迎頁(#34)。
             .task { if let welcome { navigation.launched(welcome: welcome) } }
             // 冷啟動與從背景回來的深層連結都會走到這裡。
-            .onOpenURL { navigation.open($0) }
+            .onOpenURL { url in openWhenUnlocked { navigation.open(url) } }
             // UI 測試:不重啟換字級(`purrdr://testing-content-size`),套到視窗讓 SwiftUI 與 UIKit 都跟著變。
             .task(id: allowsTestingLinks) { navigation.allowsTestingLinks = allowsTestingLinks }
             .onChange(of: navigation.testingContentSizeCategory) { _, category in
