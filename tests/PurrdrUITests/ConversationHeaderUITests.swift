@@ -87,9 +87,9 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertFalse(app.element("stopBar").exists, "需要你不該有停止列")
     }
 
-    /// 用量環(#513):點開用量 sheet(Context 與方案用量區塊),X 關閉。
+    /// 用量環(#513、#617):點開聊天面板(Context 與方案用量區塊),iPhone 是 sheet,X 關閉。
     @MainActor
-    func testUsageRingOpensUsageSheet() {
+    func testUsageRingOpensPanel() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let ring = app.buttons["conversation.usage"].firstMatch
         XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
