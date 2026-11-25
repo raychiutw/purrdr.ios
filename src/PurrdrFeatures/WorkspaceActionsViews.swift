@@ -352,8 +352,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
                 if let actions { sheetContent(sheet, actions: actions) }
             }
-            // 版面圖是下一頁(#619):Tab 列的 NavigationLink 與選單的「Show Layout」共用同一個目的地。
-            .navigationDestination(for: SpacesLayoutRoute.self) { layoutDestination($0) }
+            // 版面圖是下一頁(#619):Tab 列與選單的「Show Layout」都設 `layoutRoute` 推入。
             .navigationDestination(item: $presentation.layoutRoute) { layoutDestination($0) }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)

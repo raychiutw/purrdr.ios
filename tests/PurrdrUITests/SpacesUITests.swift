@@ -56,7 +56,6 @@ final class SpacesUITests: XCTestCase {
         // 列尾 > 是 push(#619):左上返回、tab bar 保留;返回後回到列表,再點一次進去選方塊。
         XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "版面圖左上沒有返回鈕")
         XCTAssertTrue(app.tabBars.firstMatch.exists, "版面圖沒有保留 tab bar")
-        // 等推入的轉場停下才點返回(剛推入時第一下點擊會被轉場吃掉)。
         XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5))
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(shellBlock.waitUntilGone(timeout: 5), "返回後版面圖還在")

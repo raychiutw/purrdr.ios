@@ -61,6 +61,11 @@ final class WorkspaceActionsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["sheet.close"].exists, "版面圖不該有關閉鈕")
         XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "左上沒有返回鈕")
         XCTAssertTrue(app.tabBars.firstMatch.exists, "版面圖沒有保留 tab bar")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(agentBlock.waitUntilGone(timeout: 5), "返回後版面圖還在")
+        notes.press(forDuration: 1.2)
+        app.buttons["Show Layout"].tap()
+        XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "再開版面圖失敗")
 
         shellBlock.tap()
         XCTAssertTrue(shellBlock.waitUntilGone(timeout: 5), "點方塊後版面圖沒有關閉")

@@ -41,7 +41,7 @@ final class DataUsageUITests: XCTestCase {
         XCTAssertFalse(app.buttons["sheet.close"].exists, "明細頁不該是有關閉鈕的 sheet")
         XCTAssertTrue(app.tabBars.firstMatch.exists, "明細頁沒有保留 tab bar")
         XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "左上沒有返回鈕")
-        // 左緣滑回上一頁。
+        // 左緣滑回上一頁(spec #612 使用者故事 2)。
         let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
         edge.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
         XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 5), "左緣滑動沒有回到流量頁")

@@ -24,10 +24,10 @@ struct ChevronPushUsageTests {
         #expect(list.contains(".navigationDestination(isPresented: $showsLayout)"))
         let actions = try Self.source("WorkspaceActionsViews.swift")
         #expect(!actions.contains("case layout("), "列表的版面圖不再走 sheet 列舉")
-        #expect(actions.contains("navigationDestination(for: SpacesLayoutRoute.self)"))
+        #expect(actions.contains("navigationDestination(item: $presentation.layoutRoute)"))
         let spaces = try Self.source("SpacesListView.swift")
         #expect(!spaces.contains("presentation.sheet = .layout"))
-        #expect(spaces.contains("NavigationLink(value: SpacesLayoutRoute("), "多 Pane 的 Tab 列用 NavigationLink")
+        #expect(spaces.contains("presentation.layoutRoute = SpacesLayoutRoute("), "多 Pane 的 Tab 列設 layoutRoute 推入")
     }
 
     @Test("流量主機明細是下一頁,不是 sheet")

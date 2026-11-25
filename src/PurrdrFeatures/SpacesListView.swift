@@ -82,9 +82,21 @@ struct SpacesSectionsContent: View {
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
-            // 多 Pane 的 Tab:點列往下一層看版面圖(#619),列尾的 > 由 NavigationLink 給。
-            NavigationLink(value: SpacesLayoutRoute(host: host, workspaceID: workspaceID, tabID: tabID, title: tab.title)) {
-                ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
+            // 多 Pane 的 Tab:點列往右 push 版面圖頁(#619)。用 `navigationDestination(item:)` 推入(列表的 `presentation.layoutRoute`):
+            // 以 `NavigationLink(value:)` 推入時,UI 測試實測第一下點「<」不會返回,所以列尾的 > 自己放一個。
+            Button {
+                presentation.host = host
+                presentation.layoutRoute = SpacesLayoutRoute(host: host, workspaceID: workspaceID, tabID: tabID, title: tab.title)
+            } label: {
+                HStack {
+                    ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
             }
             .listRowInsets(ChatRowView.rowInsets)
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))
