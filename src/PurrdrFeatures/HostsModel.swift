@@ -327,7 +327,7 @@ public final class HostsModel {
             (channel, cost, hostID) = (demoChannel, .free, Self.demoID)
         case .host(let id):
             guard let configuration = hosts.first(where: { $0.id == id }) else { return nil }
-            if case .https = configuration.connection {
+            if usesHostService(configuration) {
                 // HTTPS 主機經主機服務讀(0.12.0 起,#392);還沒配對或不是真的主機服務連線(UI 測試)沒有來源。
                 guard agent.supportsHostService, !unpairedHostIDs.contains(id), !configuration.needsReconfirmation,
                     let connection = httpsAdapter.capabilities(for: configuration).hostServiceConnection.value
@@ -381,7 +381,7 @@ public final class HostsModel {
         let herdrVersion = list?.snapshot?.version
         let id = configuration?.id
         let method = configuration?.connectionMethod
-        let usesHostService = method?.usesHostService == true
+        let usesHostService = configuration.map(usesHostService(_:)) ?? false
         let status: HostOverview.Status
         if configuration == nil {
             status = .demo
@@ -410,7 +410,7 @@ public final class HostsModel {
         }
         return HostOverview(
             host: selected, name: name(of: selected), icon: icon(of: selected), status: status, connection: method,
-            herdrVersion: herdrVersion, address: configuration?.hostService?.description,
+            herdrVersion: herdrVersion, address: configuration.flatMap { usesHostService ? adapter(for: $0).addressDescription(of: $0) : nil },
             showsUsage: hasUsageSource, showsHostService: pairedHostService,
             showsLoginShell: (configuration?.supportsLoginShell ?? true) && status != .needsPairing && status != .needsReconfirmation,
             canShare: configuration != nil, hasHostSettings: configuration != nil && status != .needsPairing && status != .needsReconfirmation,
@@ -427,7 +427,7 @@ public final class HostsModel {
     public func refreshOverviewFacts() async {
         // 主機 tab 出現時(列表多半已讀到快照),補上還沒設定過的主機的 Agent 設定(#477)。
         for host in hosts where host.enabledAgents == nil { await initializeAgentSettings(for: host.id, isNewHost: false) }
-        guard let host = selectedHost, case .https = host.connection, !unpairedHostIDs.contains(host.id), !host.needsReconfirmation,
+        guard let host = selectedHost, usesHostService(host), !unpairedHostIDs.contains(host.id), !host.needsReconfirmation,
             let connection = hostStatusConnection(for: host.id)
         else { return }
         if let readOnly = try? await connection.isReadOnlyDevice() {
@@ -554,8 +554,7 @@ public final class HostsModel {
     public var rows: [HostRow] {
         hosts.map { host in
             let update = hostServiceUpdate(for: host.id)
-            let subtitle = host.ssh.map { "\($0.endpoint.username)@\($0.endpoint.host):\($0.endpoint.port)" }
-                ?? host.hostService?.description ?? ""
+            let subtitle = adapter(for: host).addressDescription(of: host)
             return HostRow(
                 id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
                 isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id), needsReconfirmation: host.needsReconfirmation,
@@ -680,7 +679,7 @@ public final class HostsModel {
 
     /// HTTPS 主機要等列表讀到快照才偵測得到:每秒再試,最多 10 次;其他主機只試一次。
     package func initializeAgentSettingsWhenReachable(for id: UUID, isNewHost: Bool) async {
-        let attempts = hosts.first { $0.id == id }?.connectionMethod.usesHostService == true ? 10 : 1
+        let attempts = hosts.first { $0.id == id }.map { adapter(for: $0).traits.agentDetection.attempts } ?? 1
         for attempt in 0..<attempts {
             if attempt > 0 { try? await sleep(.seconds(1)) }
             await initializeAgentSettings(for: id, isNewHost: isNewHost)
@@ -719,7 +718,7 @@ public final class HostsModel {
     func detectAgents(on id: UUID) async throws -> Set<AgentID> {
         guard let host = hosts.first(where: { $0.id == id }) else { return [] }
         let member = member(for: .host(id))
-        if host.connectionMethod.usesHostService {
+        if case .snapshot = adapter(for: host).traits.agentDetection {
             // 不為了偵測另外讀快照(會搶走列表自己的讀取):列表讀到之後才有,還沒有就稍後再試。
             guard let snapshot = member.list.snapshot else { throw HostAgentDetectionError.unavailable }
             return Set(snapshot.agents.map { AgentID(herdrName: $0.kind) })
@@ -737,7 +736,7 @@ public final class HostsModel {
         else { return }
         // HTTPS 只看得到「當下有在跑的 Agent」:一個都沒看到不代表沒裝,不寫入空集合(否則新增聊天選單會全空),
         // 維持還沒設定、沿用預設,稍後再偵測。
-        if host.connectionMethod.usesHostService, detected.intersection(HostAgentSettings.configurable).isEmpty { return }
+        if case .snapshot = adapter(for: host).traits.agentDetection, detected.intersection(HostAgentSettings.configurable).isEmpty { return }
         setEnabledAgents(isNewHost ? HostAgentSettings.initial(detected: detected) : HostAgentSettings.migrated(detected: detected), for: id)
     }
 
@@ -1000,7 +999,7 @@ public final class HostsModel {
     private func refreshPairing() {
         let tokens = hostService.tokens
         unpairedHostIDs = Set(hosts.filter { host in
-            host.connectionMethod.usesHostService && (try? tokens.deviceToken(for: host.id)) == nil
+            adapter(for: host).traits.usesHostService && (try? tokens.deviceToken(for: host.id)) == nil
         }.map(\.id))
     }
 
@@ -1026,7 +1025,7 @@ public final class HostsModel {
         guard !configuration.needsReconfirmation else { return .unsupported }
         guard members[host]?.push.isAvailable == true else { return .unsupported }
         // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
-        guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
+        guard usesHostService(configuration), let installed = hostServiceVersions[id],
               !HostServiceFeature.pushPlugin.isAvailable(onHostServiceVersion: installed)
         else { return .supported }
         return .needsHostService(
@@ -1040,7 +1039,11 @@ public final class HostsModel {
 
     private func usesHostService(_ host: HostSelection) -> Bool {
         guard case .host(let id) = host else { return false }
-        return hosts.first { $0.id == id }?.connectionMethod.usesHostService == true
+        return hosts.first { $0.id == id }.map(usesHostService(_:)) ?? false
+    }
+
+    private func usesHostService(_ configuration: HostConfiguration) -> Bool {
+        adapter(for: configuration).traits.usesHostService
     }
 
     private func icon(of host: HostSelection) -> HostIcon {

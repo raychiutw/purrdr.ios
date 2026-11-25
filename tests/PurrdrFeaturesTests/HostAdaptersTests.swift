@@ -94,5 +94,35 @@ struct HostAdaptersTests {
         #expect(member.sendWhenDoneHost == nil)
         #expect(member.capabilities.sendWhenDone.gap == .connectionLacksSupport)
     }
+
+    @Test("連線方式固定的性質由 adapter 回答:主機服務與 Agent 偵測方式")
+    func adaptersAnswerConnectionTraits() {
+        let ssh = SSHHostAdapter(environment: environment())
+        let https = HTTPSHostAdapter(environment: environment())
+        #expect(ssh.traits.usesHostService == false)
+        #expect(ssh.traits.agentDetection == .configFolders)
+        #expect(ssh.traits.agentDetection.attempts == 1)
+        #expect(https.traits.usesHostService)
+        #expect(https.traits.agentDetection == .snapshot(attempts: 10))
+    }
+
+    @Test("清單列的位址:SSH 是 帳號@主機:埠,HTTPS 是主機服務位址")
+    func adaptersDescribeAddress() {
+        #expect(SSHHostAdapter(environment: environment()).addressDescription(of: Self.sshHost) == "demo@studio-mac:22")
+        #expect(
+            HTTPSHostAdapter(environment: environment()).addressDescription(of: Self.httpsHost)
+                == Self.httpsHost.hostService?.description)
+    }
+
+    @Test("成員的新增聊天資料夾來自能力組:HTTPS 只收完整路徑")
+    func memberFoldersComeFromCapabilities() {
+        let https = HTTPSHostAdapter(environment: environment()).capabilities(for: Self.httpsHost)
+        let member = HostMember(
+            host: .host(Self.httpsHost.id), hostID: Self.httpsHost.id.uuidString, capabilities: https,
+            preferences: InMemoryChatPreferencesStore(), push: nil)
+        #expect(member.capabilities.folders.canBrowse == false)
+        let ssh = SSHHostAdapter(environment: environment()).capabilities(for: Self.sshHost)
+        #expect(ssh.folders.canBrowse)
+    }
 }
 #endif

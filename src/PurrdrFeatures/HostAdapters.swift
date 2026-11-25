@@ -109,9 +109,37 @@ struct HostRemoval {
     var restoresDeviceKey: Bool
 }
 
+/// 主機上有哪些 Agent 的偵測方式。
+enum HostAgentDetection: Equatable, Sendable {
+    /// 看家目錄的設定資料夾(唯讀),一次就讀得到。
+    case configFolders
+    /// 看列表已讀到的 herdr 快照:要等列表讀到才有,最多重試 `attempts` 次,只看得到正在跑的 Agent。
+    case snapshot(attempts: Int)
+
+    var attempts: Int {
+        switch self {
+        case .configFolders: 1
+        case .snapshot(let attempts): attempts
+        }
+    }
+}
+
+/// 一種連線方式固定的性質:主機清單與成員問 adapter,不自己依連線方式分支。
+struct HostAdapterTraits: Equatable, Sendable {
+    /// 經主機服務(裝置權杖、主機服務版本與更新、配對、唯讀裝置)。
+    var usesHostService: Bool
+    var agentDetection: HostAgentDetection
+
+    static let ssh = HostAdapterTraits(usesHostService: false, agentDetection: .configFolders)
+    static let hostService = HostAdapterTraits(usesHostService: true, agentDetection: .snapshot(attempts: 10))
+}
+
 /// 一種連線方式的 adapter。
 @MainActor
 protocol HostAdapter: AnyObject {
+    var traits: HostAdapterTraits { get }
+    /// 主機清單列的副標題(位址)。
+    func addressDescription(of configuration: HostConfiguration) -> String
     /// 這台主機的能力組;同一台主機的連線在 adapter 內重用。
     func capabilities(for configuration: HostConfiguration) -> HostCapabilities
     /// 目前持有的主機通道(喚醒探測與網路切換用)。
@@ -168,6 +196,11 @@ final class SSHHostAdapter: HostAdapter {
     init(environment: HostAdapterEnvironment) { self.environment = environment }
 
     var liveChannels: [UUID: any HostChannel] { channels }
+    var traits: HostAdapterTraits { .ssh }
+
+    func addressDescription(of configuration: HostConfiguration) -> String {
+        configuration.ssh.map { "\($0.endpoint.username)@\($0.endpoint.host):\($0.endpoint.port)" } ?? ""
+    }
 
     func capabilities(for configuration: HostConfiguration) -> HostCapabilities {
         guard let settings = configuration.ssh else { return Self.blocked(configuration, consent: environment.consent) }
@@ -264,6 +297,11 @@ final class HTTPSHostAdapter: HostAdapter {
 
     /// HTTPS 主機沒有主機通道。
     var liveChannels: [UUID: any HostChannel] { [:] }
+    var traits: HostAdapterTraits { .hostService }
+
+    func addressDescription(of configuration: HostConfiguration) -> String {
+        configuration.hostService?.description ?? ""
+    }
 
     /// 這台主機重用的連線(版本檢查、主機狀態頁、方案用量與能力組共用同一條);不是 HTTPS 主機時是 `nil`。
     func connection(for configuration: HostConfiguration) -> (any HostConnection)? {
