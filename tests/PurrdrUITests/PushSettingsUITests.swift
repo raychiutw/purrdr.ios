@@ -32,6 +32,31 @@ final class PushSettingsUITests: XCTestCase {
         toggle.expectValue("Notifications On")
     }
 
+    /// 測試通知的結果直接寫在列下方、不彈 alert(#625、#626):成功是綠勾說明,失敗(`-uiTestingPushTestFails`)是紅色三角說明。
+    @MainActor
+    func testTestNotificationResultIsInline() {
+        for fails in [false, true] {
+            let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"] + (fails ? ["-uiTestingPushTestFails"] : []))
+            app.openAccountSheet()
+            app.openAccountNotifications()
+            let toggle = app.switches["account.push.\(Self.seededHost)"]
+            XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
+            toggle.tap()
+            let install = app.alerts.buttons["settings.push.install"].firstMatch
+            XCTAssertTrue(install.waitUntilExists(timeout: 10), "沒有先確認安裝外掛")
+            install.tap()
+            toggle.expectValue("Notifications On")
+
+            let test = app.buttons["account.push.\(Self.seededHost).test"].firstMatch
+            XCTAssertTrue(test.waitUntilExists(timeout: 10), "開啟後沒有「Send Test Notification」")
+            test.tap()
+            let result = app.descendants(matching: .any)["account.push.\(Self.seededHost).test.result"].firstMatch
+            XCTAssertTrue(result.waitUntilExists(timeout: 10), "測試通知沒有頁內結果(fails=\(fails))")
+            XCTAssertFalse(app.alerts.firstMatch.exists, "測試通知結果不該彈 alert(fails=\(fails))")
+            app.terminate()
+        }
+    }
+
     /// 還沒配對的 HTTPS 主機(#295):點通知列開與主機頁相同的配對;配對存好回到帳號頁，開關就能點。
     @MainActor
     func testUnpairedHTTPSHostRowOpensPairing() {

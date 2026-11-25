@@ -137,7 +137,6 @@ struct SendWhenDoneTests {
         #expect(!model.isEnabled)
         model.toggle()
         #expect(!model.isEnabled)
-        #expect(model.explainsUnavailability)
     }
 
     @Test("唯讀裝置:停用並說明")
@@ -149,7 +148,6 @@ struct SendWhenDoneTests {
         #expect(model.availability == .readOnlyDevice)
         model.toggle()
         #expect(!model.isEnabled)
-        #expect(model.explainsUnavailability)
         #expect(await host.calls.isEmpty)
     }
 

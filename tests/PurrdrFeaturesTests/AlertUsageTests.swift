@@ -16,7 +16,6 @@ struct AlertUsageTests {
         "HostThemeViews.swift": 1,  // 主機主題同意
         "PlanUsageView.swift": 1,  // 方案用量同意
         "PushDevicesSection.swift": 1,  // 重新命名(輸入文字)
-        "SendWhenDoneViews.swift": 1,  // 由別張票處理
         "MemberView.swift": 4,  // 訂閱結果、鎖定提示、Plus 已開啟、刪除會員、重新命名
         "WorkspaceActionsViews.swift": 2,  // 重新命名(輸入文字)、關閉失敗
         "CodexLauncherSection.swift": 1,  // Codex 啟動器同意
@@ -61,7 +60,7 @@ struct AlertUsageTests {
 
     @Test("被取代的籠統標題與純告知 alert 已移除")
     func noGenericOrInformationalAlertTitles() throws {
-        let forbidden = [#".alert("Can’t Paste""#, #".alert("Can’t Upload""#, #".alert("Couldn’t Finish""#, ".alert(resultTitle"]
+        let forbidden = [#".alert("Can’t Paste""#, #".alert("Can’t Upload""#, #".alert("Couldn’t Finish""#, ".alert(resultTitle", #".alert("Send When Done""#]
         let enumerator = try #require(FileManager.default.enumerator(at: Self.featuresFolder, includingPropertiesForKeys: nil))
         var violations: [String] = []
         for case let url as URL in enumerator where url.pathExtension == "swift" {

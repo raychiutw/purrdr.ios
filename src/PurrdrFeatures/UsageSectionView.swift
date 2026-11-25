@@ -141,8 +141,7 @@ struct UsageSectionView: View {
             }
             .padding(.vertical, 4)
         case .failed(let failure):
-            Label(failure.text, systemImage: "exclamationmark.triangle")
-                .foregroundStyle(.secondaryText)
+            ErrorLabel(failure.text, area: "UsageSection")
                 .frame(minHeight: 44, alignment: .leading)
                 .accessibilityIdentifier("usage.failed.\(entry.agent.rawValue)")
         }

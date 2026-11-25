@@ -105,6 +105,27 @@ struct AccountSkeletonView: View {
     }
 }
 
+/// 清單第一次載入的列骨架(#626):每列一行標題加一行說明,整區一個「載入中」。
+/// 裝置清單(通知裝置、登入中的裝置、已配對裝置)與 Git 變更的檔案列共用;局部動作(撤銷中、送出中)仍用小轉圈。
+struct RowsSkeleton: View {
+    var count = 3
+    let identifier: String
+    var label: LocalizedStringKey = "Loading…"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(0..<count, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 6) {
+                    SkeletonBlock(height: 16).containerRelativeFrame(.horizontal) { width, _ in width * 0.5 }
+                    SkeletonBlock(height: 12).containerRelativeFrame(.horizontal) { width, _ in width * 0.7 }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .skeleton(identifier: identifier, label: label)
+    }
+}
+
 /// 訂閱方案(StoreKit 價格)載入中的佔位(#496):兩列方案。
 struct PlanOptionsSkeleton: View {
     let identifier: String

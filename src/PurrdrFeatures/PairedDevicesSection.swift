@@ -24,9 +24,8 @@ struct PairedDevicesSection: View {
     private var content: some View {
         switch model.state {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("pairedDevices.loading")
+            // 整頁第一次載入:骨架(#626)。
+            RowsSkeleton(identifier: "pairedDevices.loading")
         case .failed(let message):
             ErrorLabel(message, area: "PairedDevicesSection")
                 .accessibilityIdentifier("pairedDevices.error")

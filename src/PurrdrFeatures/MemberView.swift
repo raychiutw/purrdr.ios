@@ -671,7 +671,8 @@ struct SignInDevicesView: View {
                         }
                     }
                 } else if model.problem == nil {
-                    ProgressView()
+                    // 整頁第一次載入:骨架(#626)。
+                    RowsSkeleton(identifier: "account.signInDevices.loading")
                 }
                 if let problem = model.problem {
                     ErrorLabel(problem, area: "MemberView")
@@ -741,6 +742,19 @@ private struct SignInDeviceRow: View {
         .frame(minHeight: 44)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("account.signInDevice.\(device.id)")
+        // 左滑與長按選單與列上的「Sign Out」同一個動作(#626);目前這支不能登出。不用 destructive role:登出要先確認。
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !device.isCurrent, !isBusy {
+                Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right", action: signOut)
+                    .tint(.red)
+                    .accessibilityIdentifier("account.signInDevice.swipeSignOut.\(device.id)")
+            }
+        }
+        .contextMenu {
+            if !device.isCurrent, !isBusy {
+                Button("Sign Out…", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive, action: signOut)
+            }
+        }
     }
 }
 
@@ -842,6 +856,15 @@ struct SignInMethodsView: View {
                     }
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("member.identity.\(identity.method.rawValue)")
+                    // 可移除的列一律有左滑(#626);至少保留一種,所以只剩一種時沒有。不用 destructive role:移除要先確認身分。
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        if member.identities.count > 1 {
+                            Button("Remove", systemImage: "trash") { removing = identity.method }
+                                .tint(.red)
+                                .accessibilityLabel(Text("Remove \(identity.method.displayName)"))
+                                .accessibilityIdentifier("member.identity.swipeRemove.\(identity.method.rawValue)")
+                        }
+                    }
                 }
             } footer: {
                 Text("Keep at least one sign-in method. Adding or removing one asks you to confirm it’s you.")

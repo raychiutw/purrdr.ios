@@ -58,6 +58,31 @@ final class PushDevicesUITests: XCTestCase {
         XCTAssertTrue(ipad.waitUntilGone(timeout: 10), "關閉後仍在清單")
     }
 
+    /// 左滑關閉(#626):與列上的選單同一個動作、先確認(確認前列還在);關掉所有裝置後顯示系統空狀態。
+    @MainActor
+    func testSwipeTurnsOffDevicesThenShowsEmptyState() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+        app.openAccountSheet()
+
+        openPushDevices(app)
+        for id in [Self.studioIPad, Self.legacyDevice] {
+            let row = app.element("account.pushDevice.\(id)")
+            XCTAssertTrue(row.waitUntilExists(timeout: 10), "沒有 \(id) 的列")
+            XCTAssertFalse(app.element("account.pushDevices.empty").exists, "還有裝置時不該顯示空狀態")
+            app.buttons["account.pushDevice.\(id)"].swipeLeft()
+            let swipeTurnOff = app.buttons["account.pushDevices.swipeTurnOff"].firstMatch
+            XCTAssertTrue(swipeTurnOff.waitUntilExists(timeout: 5), "左滑沒有「關閉通知」")
+            XCTAssertTrue(app.buttons["account.pushDevices.swipeRename"].firstMatch.exists, "有 Plus 時左滑也要有「改名」")
+            swipeTurnOff.tap()
+            let confirm = app.buttons["account.pushDevices.confirmTurnOff"].firstMatch
+            XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "左滑沒有先確認")
+            XCTAssertTrue(row.exists, "確認前列不該先被移走")
+            confirm.tap()
+            XCTAssertTrue(row.waitUntilGone(timeout: 10), "關閉後仍在清單")
+        }
+        XCTAssertTrue(app.element("account.pushDevices.empty").waitUntilExists(timeout: 10), "沒有裝置時沒有系統空狀態")
+    }
+
     /// 訂閱到期(已登入、沒有 Purrdr Plus):仍列出裝置並可遠端關閉遺失的裝置，但不能改名。
     @MainActor
     func testWithoutPlusCanStillTurnOffDevices() {

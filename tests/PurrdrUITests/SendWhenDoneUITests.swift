@@ -40,7 +40,6 @@ final class SendWhenDoneUITests: XCTestCase {
         sleep(3)
         for _ in 0..<5 where toggle.value as? String != "On" {
             toggle.tap()
-            if app.alerts.firstMatch.waitUntilExists(timeout: 1) { app.alerts.buttons["OK"].tap() }
         }
         // 已知問題(待查,見 PR 說明):UI 測試裡點「做完再送」膠囊沒有反應(值一直是 Off、也沒有說明對話框);
         // 同一條接線在 model 層的 UITestingSendWhenDoneTests 是通的。查清楚前不讓它擋住整批 UI 測試。

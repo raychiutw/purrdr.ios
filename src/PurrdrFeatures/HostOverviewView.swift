@@ -48,9 +48,8 @@ struct HostOverviewView: View {
                 }
                 if let message = actionError ?? hosts.loadError {
                     Section {
-                        Label(message, systemImage: "exclamationmark.triangle")
+                        ErrorLabel(message, area: "HostOverview")
                             .font(.footnote)
-                            .foregroundStyle(.secondaryText)
                             .accessibilityIdentifier("hosts.error")
                     }
                 }

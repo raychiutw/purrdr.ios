@@ -23,9 +23,8 @@ struct CodexLauncherSection: View {
             .disabled(isBusy)
             .accessibilityIdentifier("settings.codexLauncher")
             if let message = model.message {
-                Label(message, systemImage: "exclamationmark.triangle")
+                ErrorLabel(message, area: "CodexLauncher")
                     .font(.footnote)
-                    .foregroundStyle(.secondaryText)
                     .accessibilityIdentifier("settings.codexLauncher.message")
             }
         } header: {
