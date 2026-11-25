@@ -81,7 +81,6 @@ struct SlashPanelContent: View {
                 }
                 .tag(option.index)
                 .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("panel.option.\(option.index)")
             }
         }
         .pickerStyle(.inline)

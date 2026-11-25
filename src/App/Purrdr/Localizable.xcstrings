@@ -4480,17 +4480,6 @@
         }
       }
     },
-    "Decrease" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "減少"
-          }
-        }
-      }
-    },
     "Default" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6331,17 +6320,6 @@
         }
       }
     },
-    "Increase" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "增加"
-          }
-        }
-      }
-    },
     "Inserted /%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7350,17 +7328,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "轉移到這個會員"
-          }
-        }
-      }
-    },
-    "Moves the panel’s selection to this option." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把面板的選取移到這個選項。"
           }
         }
       }
@@ -8802,6 +8769,20 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選填"
+          }
+        }
+      }
+    },
+    "Options" : {
+      "extractionState" : "manual"
+    },
+    "Options" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選項"
           }
         }
       }

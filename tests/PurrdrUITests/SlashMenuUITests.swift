@@ -62,6 +62,16 @@ final class SlashMenuUITests: XCTestCase {
     ///
     /// 卡片在送鍵期間整張停用(`isOperatingPanel`),但畫面可能已經先反映上一次操作(面板監看的輪詢比送鍵的回應早到，
     /// 分段控制也會先自己改選取),這時的點擊會被吃掉。重點一次以上是安全的：←/→ 到底會停住，卡片消失後就不再點。
+    /// 面板的清單比面板矮(鍵盤高度)時,往上捲到目標出現(清單是 lazy,畫面外的列不在 accessibility tree)。
+    @MainActor
+    private func scrollPanel(_ app: XCUIApplication, to target: XCUIElement) -> Bool {
+        for _ in 0..<4 {
+            if target.waitUntilExists(timeout: 2) { return true }
+            app.element("panel.card").swipeUp()
+        }
+        return target.exists
+    }
+
     @MainActor
     private func tap(_ control: XCUIElement, until done: (XCUIElement) -> Bool, on target: XCUIElement, _ message: String) {
         for _ in 0..<3 {
@@ -119,7 +129,8 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertTrue(app.buttons["panel.cancel"].exists, "沒有左 X")
         XCTAssertTrue(app.buttons["panel.confirm"].exists, "沒有右 ✓")
         XCTAssertTrue(app.staticTexts["Select model"].waitUntilExists(timeout: 5))
-        let first = app.element("panel.option.0")
+        // Picker 的識別碼套在每一列(系統行為),第一列用順序找。
+        let first = app.buttons.matching(identifier: "panel.options").element(boundBy: 0)
         XCTAssertTrue(first.waitUntilExists(timeout: 5))
         app.waitForSettledLayout([bar, first], timeout: 3)
         XCTAssertFalse(first.isSelected, "游標一開始在目前的模型(第二列)")
@@ -130,7 +141,7 @@ final class SlashMenuUITests: XCTestCase {
         tap(first, until: { $0.isSelected }, on: first, "點第一列後游標沒有移過去")
 
         let stepper = app.steppers["panel.adjustment"]
-        XCTAssertTrue(stepper.waitUntilExists(timeout: 5), "沒有 ←/→ 調整")
+        XCTAssertTrue(scrollPanel(app, to: stepper), "沒有 ←/→ 調整")
         tap(stepper.buttons.element(boundBy: 1), until: { $0.exists },
             on: app.staticTexts["◐ High effort"], "←/→ 調整沒有反映")
 
@@ -172,8 +183,8 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Effort"].waitUntilExists(timeout: 5))
         let levels = app.element("panel.levels")
         XCTAssertTrue(levels.waitUntilExists(timeout: 5))
-        let xhigh = levels.buttons["xhigh"]
-        XCTAssertTrue(xhigh.waitUntilExists(timeout: 5))
+        let xhigh = app.buttons.matching(identifier: "panel.levels").matching(NSPredicate(format: "label == %@", "xhigh")).firstMatch
+        XCTAssertTrue(scrollPanel(app, to: xhigh), "層級列捲不到")
         app.waitForSettledLayout([bar, xhigh], timeout: 3)
         XCTAssertFalse(xhigh.isSelected, "一開始是 medium")
 
