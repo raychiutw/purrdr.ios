@@ -20,12 +20,7 @@ struct ConversationPanelView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    UsageContentView(model: model, section: usageSection, display: display, scrolls: false)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
+                UsageContentView(model: model, section: usageSection, display: display)
                 if model.showsModelCapsule {
                     Section {
                         NavigationLink(value: PanelPage.model) {

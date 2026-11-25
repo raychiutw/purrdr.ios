@@ -22,7 +22,7 @@ struct DataUsageScreen: View {
 /// 流量頁(#354、spec #337、#500、DESIGN.md「數據用量」)。
 ///
 /// 共用頂列:大標題「流量」,右側單顆電腦圖示圓鈕(篩選主機,預設所有主機,篩選時右上角有小圓點)與頭像,沒有「＋」;
-/// 往下滑大標題收成置中小標題。由上到下:兩個玻璃摘要方塊、期間與分類膠囊、30 天長條圖、各主機的用量、重設統計與說明。
+/// 往下滑大標題收成置中小標題。整頁是系統 List,由上到下:兩個卡片底色摘要方塊、期間與分類(系統 bordered 膠囊)、30 天長條圖、各主機的用量、重設統計與說明。
 public struct DataUsageView: View {
     @Bindable var model: DataUsageModel
     @Environment(\.scenePhase) private var scenePhase
@@ -43,19 +43,23 @@ public struct DataUsageView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            // 邊距與其他頁一致(16pt,iPad 內容寬度上限由共用頁面給);上方起點由共用頂列給。
-            VStack(alignment: .leading, spacing: 16) {
-                summaryTiles
-                chips
-                chartCard
-                hostsSection
+        // 整頁是系統 List(inset grouped):摘要方塊、膠囊在不帶底的列,圖表、主機、重設是系統列與 section(分隔線、
+        // 列尾 >、按壓態與註腳都由系統給)。上方起點由共用頂列給。
+        List {
+            Section {
+                summaryTiles.plainRow()
+                chips.plainRow()
+            }
+            Section { chartCard }
+            hostsSection
+            Section {
                 resetButton
+            } footer: {
                 footnote
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
         }
+        .appGroupedList()
+        .appPageContentWidth()
         .accessibilityIdentifier("dataUsage.page")
         .topBarPage(topBarContent)
         .sheet(item: $optionsSheet) { sheet in
@@ -127,8 +131,6 @@ public struct DataUsageView: View {
                 .accessibilityIdentifier("dataUsage.chart")
             selectionDetail
         }
-        .padding(14)
-        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func legend(for bars: [DataUsageBar]) -> some View {
@@ -174,18 +176,13 @@ public struct DataUsageView: View {
     private var hostsSection: some View {
         let rows = model.hostRows
         if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(model.period.hostsHeader)
-                    .font(.footnote).foregroundStyle(.secondaryText).padding(.horizontal, 4)
-                VStack(spacing: 0) {
-                    ForEach(rows) { row in
-                        if row.id != rows.first?.id { Divider().padding(.leading, 56) }
-                        NavigationLink(value: DataUsageHostRoute(hostID: row.id)) { HostUsageRow(row: row) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("dataUsage.host.\(row.id)")
-                    }
+            Section {
+                ForEach(rows) { row in
+                    NavigationLink(value: DataUsageHostRoute(hostID: row.id)) { HostUsageRow(row: row) }
+                        .accessibilityIdentifier("dataUsage.host.\(row.id)")
                 }
-                .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
+            } header: {
+                Text(model.period.hostsHeader)
             }
         }
     }
@@ -193,13 +190,8 @@ public struct DataUsageView: View {
     // MARK: - 重設與說明
 
     private var resetButton: some View {
-        Button(role: .destructive) { confirmsReset = true } label: {
-            Text("Reset Statistics").frame(maxWidth: .infinity, minHeight: 44)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.destructiveText)
-        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
-        .accessibilityIdentifier("dataUsage.reset")
+        Button("Reset Statistics", role: .destructive) { confirmsReset = true }
+            .accessibilityIdentifier("dataUsage.reset")
     }
 
     private var footnote: some View {
@@ -211,9 +203,6 @@ public struct DataUsageView: View {
                 Text("Stored on this device only. Nothing is counted yet.")
             }
         }
-        .font(.footnote)
-        .foregroundStyle(.secondaryText)
-        .padding(.horizontal, 4)
         .accessibilityIdentifier("dataUsage.footnote")
     }
 }
@@ -246,7 +235,7 @@ private struct DataUsageHostMenu: View {
     }
 }
 
-/// 摘要方塊(玻璃):總量與一行行動網路。
+/// 摘要方塊(卡片底色,內容層不用玻璃):總量與一行行動網路。
 private struct SummaryTile: View {
     let title: LocalizedStringKey
     let summary: DataUsageSummary
@@ -262,9 +251,18 @@ private struct SummaryTile: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
+        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+private extension View {
+    /// List 裡不帶底與分隔線的列(摘要方塊、膠囊):內容自己負責底色。
+    func plainRow() -> some View {
+        listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
     }
 }
 
@@ -282,12 +280,9 @@ private struct ChipButton: View {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold)).foregroundStyle(.secondaryText).accessibilityHidden(true)
             }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 32)
-            .glassEffect(.regular.interactive(), in: Capsule())
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
         .accessibilityHint(Text("Double-tap to change."))
         .accessibilityIdentifier(identifier)
     }
@@ -312,12 +307,7 @@ private struct HostUsageRow: View {
             }
             Spacer(minLength: 8)
             Text(DataUsageFormat.bytes(row.bytes.total)).foregroundStyle(.secondaryText).monospacedDigit()
-            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
     }
 }
 

@@ -77,15 +77,34 @@ struct ModelSheet: View {
     }
 }
 
+/// 「投入程度」子頁的路由(列是系統 `NavigationLink`,spec #612、#627)。
+struct ModelEffortRoute: Hashable {}
+
 extension View {
     /// 「投入程度」子頁的導覽目的地:模型 sheet 與聊天面板的模型頁共用。
+    /// 進入時才送 `/effort` 讀滑桿(`openEffortPage`),離開(返回、左緣滑回、關掉 sheet)時確認或取消(`closeEffortPage`)。
     func modelEffortDestination(_ model: ConversationModel) -> some View {
-        navigationDestination(isPresented: Binding(
-            get: { model.modelSheetPage == .effort },
-            set: { shown in if !shown { Task { await model.closeEffortPage() } } }
-        )) {
-            EffortPage(model: model)
+        navigationDestination(for: ModelEffortRoute.self) { _ in
+            EffortDestination(model: model)
         }
+    }
+}
+
+/// 子頁的進出對應 model 的狀態機:先顯示「讀取中」,讀到滑桿後才有層級;進入途中就返回時,讀完立刻收尾。
+private struct EffortDestination: View {
+    let model: ConversationModel
+    @State private var isShowing = true
+
+    var body: some View {
+        EffortPage(model: model)
+            .task {
+                await model.openEffortPage()
+                if !isShowing { await model.closeEffortPage() }
+            }
+            .onDisappear {
+                isShowing = false
+                Task { await model.closeEffortPage() }
+            }
     }
 }
 
@@ -110,26 +129,16 @@ struct ModelContentView: View {
                     .accessibilityIdentifier("model.picker")
                 }
                 Section {
-                    Button { // listAction:exempt label 內每個元素都明確指定顏色
-                        Task { await model.openEffortPage() }
-                    } label: {
-                        HStack {
-                            Text("Effort")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if let badge = model.metadata.effort.flatMap({ model.effortOption($0)?.badge }) {
-                                CatalogBadgeView(badge: badge)
+                    NavigationLink(value: ModelEffortRoute()) {
+                        LabeledContent("Effort") {
+                            HStack {
+                                if let badge = model.metadata.effort.flatMap({ model.effortOption($0)?.badge }) {
+                                    CatalogBadgeView(badge: badge)
+                                }
+                                Text(verbatim: model.effortDisplayName ?? "")
                             }
-                            Text(verbatim: model.effortDisplayName ?? "")
-                                .foregroundStyle(.secondaryText)
-                            Image(systemName: "chevron.forward")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                                .accessibilityHidden(true)
                         }
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
                     .disabled(model.isOperatingPanel)
                     .accessibilityIdentifier("model.effort")
                 }

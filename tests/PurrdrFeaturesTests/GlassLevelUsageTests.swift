@@ -2,7 +2,7 @@ import Foundation
 import Testing
 
 /// 玻璃層級(DESIGN.md「Liquid Glass」):sheet 回到系統 Liquid Glass(#614,推翻 #533;半高透出玻璃、全高不透明由系統決定),
-/// 不自訂 sheet 底色,detent 經 `appSheet(detents:)`;浮在內容上的跳到最新鈕與離線橫幅走 `floatingGlass`,減少透明度時不透明。
+/// 不自訂 sheet 底色,detent 經 `appSheet(detents:)`;浮在內容上的跳到最新鈕用系統 `.glass` 按鈕樣式(#627),離線橫幅走 `floatingGlass`。
 @Suite("玻璃層級用法")
 struct GlassLevelUsageTests {
     static let featuresFolder = URL(filePath: #filePath)
@@ -57,12 +57,31 @@ struct GlassLevelUsageTests {
         #expect(!(try Self.source("NewChatView.swift")).contains("appSheet(detents:"))
     }
 
-    @Test("跳到最新鈕走 floatingGlass(減少透明度時不透明),不直接用 .glass 按鈕樣式")
-    func jumpToLatestUsesFloatingGlass() throws {
+    @Test("跳到最新鈕用系統 .glass 按鈕樣式(#627),不自畫玻璃、不自加尺寸")
+    func jumpToLatestUsesSystemGlassButton() throws {
         let text = try Self.source("ConversationView.swift")
         let start = try #require(text.range(of: "Jump to Latest"))
-        let window = String(text[start.lowerBound...].prefix(500))
-        #expect(window.contains("floatingGlass"))
-        #expect(!window.contains(".buttonStyle(.glass)"))
+        let window = String(text[start.lowerBound...].prefix(600))
+        #expect(window.contains(".buttonStyle(.glass)"))
+        #expect(!window.contains("floatingGlass"))
+        #expect(!window.contains(".frame(width: 44"))
+    }
+
+    @Test("資料用量頁(#627):內容層不用玻璃,膠囊是系統 bordered")
+    func dataUsageHasNoContentGlass() throws {
+        let text = try Self.source("DataUsageView.swift")
+        #expect(!text.contains("glassEffect"))
+        #expect(!text.contains("floatingGlass"))
+        #expect(text.contains(".buttonStyle(.bordered)"))
+        #expect(text.contains(".buttonBorderShape(.capsule)"))
+    }
+
+    @Test("停止鈕是系統 bordered 膠囊(#627),沒有自訂 ButtonStyle")
+    func stopButtonIsSystemBordered() throws {
+        let text = try Self.source("StopBar.swift")
+        #expect(!text.contains(": ButtonStyle"))
+        #expect(!text.contains("StopBarButtonStyle"))
+        #expect(text.contains("buttonStyle(.bordered)"))
+        #expect(text.contains(".buttonBorderShape(.capsule)"))
     }
 }

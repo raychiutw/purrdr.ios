@@ -15,7 +15,7 @@ struct ChangesView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .safeAreaInset(edge: .bottom, spacing: 0) { ChangesReviewBar(model: model, submit: submit) }
+            .safeAreaBar(edge: .bottom) { ChangesReviewBar(model: model, submit: submit) }
             .task { if model.phase == .loading { await model.load() } }
             .refreshable { await model.load() }
     }
@@ -228,7 +228,7 @@ struct ChangesFileView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .safeAreaInset(edge: .bottom, spacing: 0) { ChangesReviewBar(model: model, submit: submit) }
+            .safeAreaBar(edge: .bottom) { ChangesReviewBar(model: model, submit: submit) }
             .task(id: path) { await model.loadDiff(of: path) }
             .sheet(item: $editing) { comment in
                 ChangesCommentEditor(model: model, path: path, line: comment.line)
@@ -467,8 +467,6 @@ private struct ChangesReviewBar: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.bar)
-            .overlay(alignment: .top) { Divider() }
         }
     }
 }

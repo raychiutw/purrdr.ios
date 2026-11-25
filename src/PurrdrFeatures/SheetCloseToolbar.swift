@@ -11,6 +11,7 @@ struct SheetCloseToolbar: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             Button("Close", systemImage: "xmark") { (action ?? { dismiss() })() }
+                .keyboardShortcut(.cancelAction)
                 .accessibilityIdentifier(identifier)
         }
     }

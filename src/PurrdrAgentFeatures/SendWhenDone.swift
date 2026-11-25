@@ -18,8 +18,6 @@ public final class SendWhenDoneModel {
     public private(set) var hasLoaded = false
     /// 排入、刪除失敗的說明;下一次操作成功時清掉。
     public private(set) var notice: String?
-    /// 停用的開關被點了:畫面顯示原因。
-    public var explainsUnavailability = false
     @ObservationIgnored private var requested = false
 
     @ObservationIgnored private let host: (any SendWhenDoneHosting)?
@@ -37,14 +35,30 @@ public final class SendWhenDoneModel {
     /// 「做完再送」開著，而且這支裝置能用。
     public var isEnabled: Bool { requested && availability == .available }
 
-    /// 點開關:可用時切換;停用時說明原因。
-    public func toggle() {
-        guard availability == .available else {
-            explainsUnavailability = true
-            return
+    /// 系統開關的繫結值:可用時才會被切換(停用的 `Toggle` 不會呼叫 setter)。
+    public var isRequested: Bool {
+        get { isEnabled }
+        set {
+            guard availability == .available else { return }
+            requested = newValue
+            notice = nil
         }
-        requested.toggle()
-        notice = nil
+    }
+
+    /// 開關停用的原因,寫在開關下方的說明(取代點了跳對話框);可用時是 `nil`。
+    public var unavailableReason: String? {
+        switch availability {
+        case .available: nil
+        case .needsHostService:
+            String(localized: "Send When Done needs the Purrdr host service on this host. Install or update it first.")
+        case .readOnlyDevice:
+            String(localized: "This device is paired read-only, so it can’t queue messages.")
+        }
+    }
+
+    /// 點開關:可用時切換。
+    public func toggle() {
+        isRequested = !isEnabled
     }
 
     /// 讀回佇列並跟著主機的推送更新，直到取消。連線斷了就退避後重連、重讀(1 秒起倍增、上限 30 秒)。

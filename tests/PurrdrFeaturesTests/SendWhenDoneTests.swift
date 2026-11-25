@@ -128,7 +128,7 @@ struct SendWhenDoneTests {
         #expect(await host.calls.filter { $0 == .queues }.count == 2)
     }
 
-    @Test("SSH 主機(沒有主機服務):停用，點開關只說明、不會開啟")
+    @Test("SSH 主機(沒有主機服務):停用，開關寫入不會開啟，原因文字給開關下方的說明")
     func sshHostIsUnavailable() async {
         let model = SendWhenDoneModel(host: nil, paneID: Self.paneID, sleep: { _ in })
         await model.run()
@@ -136,8 +136,9 @@ struct SendWhenDoneTests {
         #expect(model.availability == .needsHostService)
         #expect(!model.isEnabled)
         model.toggle()
+        model.isRequested = true
         #expect(!model.isEnabled)
-        #expect(model.explainsUnavailability)
+        #expect(model.unavailableReason == String(localized: "Send When Done needs the Purrdr host service on this host. Install or update it first."))
     }
 
     @Test("唯讀裝置:停用並說明")
@@ -149,8 +150,17 @@ struct SendWhenDoneTests {
         #expect(model.availability == .readOnlyDevice)
         model.toggle()
         #expect(!model.isEnabled)
-        #expect(model.explainsUnavailability)
+        #expect(model.unavailableReason == String(localized: "This device is paired read-only, so it can’t queue messages."))
         #expect(await host.calls.isEmpty)
+    }
+
+    @Test("可用時沒有停用原因")
+    func availableHasNoReason() async {
+        let host = FakeSendWhenDoneHost()
+        let model = SendWhenDoneModel(host: host, paneID: Self.paneID, sleep: { _ in })
+        let task = await Self.running(model, host: host)
+        #expect(model.unavailableReason == nil)
+        task.cancel()
     }
 
     @Test("開關可用時切換開啟與關閉")

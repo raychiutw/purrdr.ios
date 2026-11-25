@@ -45,6 +45,14 @@ struct DelegationStatusIcon: View {
 }
 
 extension DelegationStatus {
+    var titleString: String {
+        switch self {
+        case .running: String(localized: "Running")
+        case .completed: String(localized: "Done")
+        case .failed: String(localized: "Failed")
+        }
+    }
+
     var title: Text {
         switch self {
         case .running: Text("Running")
@@ -288,7 +296,7 @@ private struct SubagentScreenHolder: View {
     }
 }
 
-/// Subagent 畫面(唯讀，沒有輸入框):標題、副標(類型 · 模型)、狀態;內容如主對話(含巢狀卡、永遠顯示 sidechain)。
+/// Subagent 畫面(唯讀，沒有輸入框):標題、副標(狀態 · 類型 · 模型);內容如主對話(含巢狀卡、永遠顯示 sidechain)。
 struct SubagentScreen: View {
     let model: SubagentModel
     @Environment(\.scenePhase) private var scenePhase
@@ -299,26 +307,17 @@ struct SubagentScreen: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .safeAreaInset(edge: .top, spacing: 0) {
-                HStack(spacing: 8) {
-                    DelegationStatusIcon(status: model.status)
-                    if let subtitle = model.subtitle {
-                        Text(subtitle)
-                            .font(.footnote)
-                            .foregroundStyle(.secondaryText)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.bar)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("subagent.header")
-            }
+            // 狀態與「類型 · 模型」是系統副標題(spec #612、#627),不再自鋪頂部列。
+            .navigationSubtitle(Self.subtitle(status: model.status, detail: model.subtitle))
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
                 await model.run()
             }
+    }
+
+    /// 「狀態 · 類型 · 模型」:狀態用文字(不只靠顏色與符號)。
+    static func subtitle(status: DelegationStatus, detail: String?) -> String {
+        [status.titleString, detail].compactMap { $0 }.joined(separator: " · ")
     }
 
     @ViewBuilder

@@ -46,51 +46,30 @@ struct UsageRingView: View {
     }
 }
 
-/// 用量內容(#513):「這個聊天」的 Context 卡片、「方案用量 · 主機名」的目前工作階段與每週卡片、更新時間。
+/// 用量內容(#513):「這個聊天」的 Context、「方案用量 · 主機名」的目前工作階段與每週、更新時間。
+/// 輸出系統 `Section`(標題、列、註腳都是系統的,#627),放進面板的 `List`;進度條自畫(系統不能指定軌道色)。
 /// 不含 NavigationStack、關閉與重新整理(由面板的 toolbar 放),面板(`ConversationPanelView`)用。
 struct UsageContentView: View {
     let model: ConversationModel
     let section: UsageSectionModel?
     let display: PlanUsageModel.Display
-    /// `false`:不自己捲動也不鋪底(放進面板的 List 裡)。
-    var scrolls = true
 
     private var hostName: String { section?.hostName ?? "" }
 
     var body: some View {
-        if scrolls {
-            ScrollView { cards.appPageContentWidth() }
-                .background(AppSurface.groupedPage)
-        } else {
-            cards
+        Section("This Chat") {
+            contextCard
         }
-    }
-
-    private var cards: some View {
-            VStack(alignment: .leading, spacing: 10) {
-                sectionTitle("This Chat")
-                contextCard
-                (section == nil ? sectionTitle("Plan Usage") : sectionTitle("Plan Usage · \(hostName)")).padding(.top, 6)
-                planContent
-                if let captured = section?.lastCapturedAt {
-                    Text("Updated \(captured, format: .relative(presentation: .named))")
-                        .font(.footnote)
-                        .foregroundStyle(.secondaryText)
-                        .padding(.horizontal, 6)
-                        .padding(.top, 4)
-                        .accessibilityIdentifier("usage.sheet.updated")
-                }
+        Section {
+            planContent
+        } header: {
+            if section == nil { Text("Plan Usage") } else { Text("Plan Usage · \(hostName)") }
+        } footer: {
+            if let captured = section?.lastCapturedAt {
+                Text("Updated \(captured, format: .relative(presentation: .named))")
+                    .accessibilityIdentifier("usage.sheet.updated")
             }
-            .padding(.horizontal, scrolls ? 16 : 0)
-            .padding(.vertical, 8)
-    }
-
-    private func sectionTitle(_ title: LocalizedStringKey) -> some View {
-        Text(title)
-            .font(.subheadline)
-            .foregroundStyle(.secondaryText)
-            .padding(.horizontal, 6)
-            .accessibilityAddTraits(.isHeader)
+        }
     }
 
     // MARK: Context
@@ -164,14 +143,11 @@ struct UsageContentView: View {
             .font(.subheadline)
             .foregroundStyle(.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(AppSurface.groupedRow, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .accessibilityIdentifier(identifier)
     }
 }
 
-/// 用量 sheet 的一張卡片:標題、已用或剩餘百分比、8pt 進度條、一行說明(已用／總 token 或重設時間)。
+/// 用量面板的一列:標題、已用或剩餘百分比、8pt 進度條、一行說明(已用／總 token 或重設時間)。
 private struct UsageCard: View {
     let title: Text
     let value: Text
@@ -211,10 +187,7 @@ private struct UsageCard: View {
                 detail.font(.footnote).foregroundStyle(.secondaryText)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppSurface.groupedRow, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
     }

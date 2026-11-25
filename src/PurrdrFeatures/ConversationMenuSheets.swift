@@ -58,7 +58,9 @@ struct SendWhenDoneSections: View {
             } header: {
                 if showsHeader { Text("Send When Done") }
             } footer: {
-                if model.isReadOnly {
+                if let reason = sendWhenDone.unavailableReason {
+                    Text(reason)
+                } else if model.isReadOnly {
                     Text("This device is paired read-only, so it can’t queue messages.")
                 } else {
                     Text("Queues your message and sends it when the agent is done.")

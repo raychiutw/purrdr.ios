@@ -315,11 +315,11 @@ public struct ConversationView: View {
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
-                        .frame(width: 44, height: 44)
-                        .floatingGlass(in: Circle())
-                        .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                // 系統玻璃按鈕(spec #612、#627):「減少透明度」由系統處理,不自加尺寸與玻璃。
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
                 .padding(.bottom, 8)
                 .accessibilityIdentifier("conversation.jumpToLatest")
             }
