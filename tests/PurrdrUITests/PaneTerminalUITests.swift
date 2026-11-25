@@ -178,7 +178,7 @@ final class PaneTerminalUITests: XCTestCase {
         let notice = app.descendants(matching: .any)["terminal.notice"].firstMatch
         XCTAssertTrue(notice.waitUntilExists(timeout: 10), "貼上失敗沒有顯示頁內說明")
         XCTAssertFalse(app.alerts.firstMatch.exists, "貼上失敗不該彈 alert")
-        notice.buttons["Dismiss"].firstMatch.tap()
+        app.buttons["Dismiss"].firstMatch.tap()
         XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
     }
 

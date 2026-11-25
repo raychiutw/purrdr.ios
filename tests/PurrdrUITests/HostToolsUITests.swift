@@ -36,7 +36,7 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(notice.waitUntilExists(timeout: 10), "上傳失敗沒有顯示頁內說明")
         XCTAssertTrue(notice.label.contains("README.md"), "說明沒有指出哪個檔案:\(notice.label)")
         XCTAssertFalse(app.alerts.firstMatch.exists, "上傳失敗不該彈 alert")
-        notice.buttons["Dismiss"].firstMatch.tap()
+        app.buttons["Dismiss"].firstMatch.tap()
         XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
     }
 
