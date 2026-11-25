@@ -25,7 +25,6 @@ struct HostOverviewView: View {
     var body: some View {
         List {
             Group {
-                hostListSection
                 HostStatusRow(overview: overview, retry: retry, pair: pair, update: { if let hostID { openRoute(.edit(hostID)) } })
                 if overview.showsUsage, let usage {
                     UsageSectionContainer(host: overview.host, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false, detectsInstallation: true)
@@ -68,51 +67,6 @@ struct HostOverviewView: View {
         .task {
             await hosts.checkHostServiceVersions()
             await hosts.refreshOverviewFacts()
-        }
-    }
-
-    // MARK: - 主機清單(#500)
-
-    /// 主機清單:頂列已沒有主機選單(右上只有「＋」新增主機),多台主機在這裡換看哪一台;只有一台時不顯示。
-    @ViewBuilder
-    private var hostListSection: some View {
-        let picker = hosts.screens.selectedHostPicker()
-        if picker.options.count > 1 {
-            Section {
-                ForEach(picker.options) { option in
-                    Button {
-                        picker.select(option.id)
-                        // 需要重新確認的主機:開編輯頁走確認流程,不開連線(#572)。
-                        if option.needsReconfirmation, case .host(let id) = option.id { openRoute(.edit(id)) }
-                    } label: {
-                        HStack(spacing: 12) {
-                            HostIconBadge(option.icon, diameter: 24)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(verbatim: option.name)
-                                    .font(.body)
-                                    .foregroundStyle(Color.primary)
-                                if option.needsReconfirmation {
-                                    Label("Check This Host Again", systemImage: "exclamationmark.triangle")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondaryText)
-                                }
-                            }
-                            Spacer(minLength: 0)
-                            if option.id == overview.host {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(Color.appAccent)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(option.id == overview.host ? .isSelected : [])
-                    .accessibilityIdentifier("hosts.host.\(option.name)")
-                }
-            } header: {
-                Text("Hosts")
-            }
         }
     }
 

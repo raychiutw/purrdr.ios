@@ -5,6 +5,8 @@ import SwiftUI
 struct HostSelectionMenu: View {
     let model: HostPickerModel
     var addHost: (() -> Void)?
+    /// 選到需要重新確認的主機(#572)時呼叫(帶那台主機的 id):主機 tab 開編輯頁走確認流程。
+    var reconfirm: ((UUID) -> Void)?
 
     var body: some View {
         Picker(selection: selection) {
@@ -23,7 +25,9 @@ struct HostSelectionMenu: View {
     }
 
     private var selection: Binding<HostSelection> {
-        Binding { model.selection } set: { model.select($0) }
+        Binding { model.selection } set: { host in
+            if let id = model.choose(host) { reconfirm?(id) }
+        }
     }
 }
 
