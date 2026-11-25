@@ -179,7 +179,11 @@ final class ChatListAcceptanceUITests: XCTestCase {
             // 也不能大到像停在內容外(不超過最後一則自己的高度);三次落點要一致,不依賴設計稿的常數。
             let insetBottom = Self.debugValue("insetBottom", of: list).flatMap(Double.init).map { CGFloat($0) }
             XCTAssertNotNil(insetBottom, "讀不到列表實際的下方 inset(量測沒有啟用?)")
-            let gap = list.frame.maxY - (insetBottom ?? 0) - last.frame.maxY
+            // 量最後一則所在的列(cell)而不是文字元素:文字元素的 frame 會比列多出底部約 16pt 的內距
+            // (0.52 輸入列改版後列離可見底緣 11.67pt、文字框就多出 4.33pt,超過容許值,畫面上並沒有被蓋住)。
+            let lastCell = list.cells.allElementsBoundByIndex.filter { $0.frame.minY <= last.frame.minY + 1 }.max { $0.frame.maxY < $1.frame.maxY }
+            XCTAssertNotNil(lastCell, "第 \(attempt) 次找不到最後一則所在的列")
+            let gap = list.frame.maxY - (insetBottom ?? 0) - (lastCell?.frame.maxY ?? last.frame.maxY)
             XCTAssertGreaterThanOrEqual(gap, -Self.landingTolerance, "第 \(attempt) 次最後一則被蓋在可見底緣下(差 \(gap)pt)")
             XCTAssertLessThan(gap, last.frame.height, "第 \(attempt) 次最後一則離底緣太遠,像停在內容外(差 \(gap)pt)")
             gaps.append(gap)
