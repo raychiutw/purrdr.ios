@@ -158,13 +158,13 @@ public final class AgentListModel {
     public func retry() { updates.retry() }
 
     /// 各 pane 的預覽是讀哪個 session 時取得的(R-I04);有值代表這個 session 讀過(即使沒有可讀訊息)。
-    private var previewSessions: [String: String] = [:]
+    @ObservationIgnored private var previewSessions: [String: String] = [:]
     /// 各 pane 讀預覽時的 Agent 狀態;狀態變了才重讀。
-    private var previewStatuses: [String: AgentStatus] = [:]
+    @ObservationIgnored private var previewStatuses: [String: AgentStatus] = [:]
     /// 各 pane 上次讀到的對話紀錄版本(下次讀預覽時帶回)。
     @ObservationIgnored private var previewVersions: [String: PreviewVersion] = [:]
     /// 已經成功讀過一次全部的預覽。
-    private var hasReadAllPreviews = false
+    @ObservationIgnored private var hasReadAllPreviews = false
 
     /// 讀對話紀錄檔尾更新預覽與時間(行為規格 §4.7):第一次以一次往返讀全部可讀 agent;之後只讀狀態變了、
     /// 事件指名或還沒讀過這個 session 的 Agent,合併成一次往返(#164)。
@@ -178,7 +178,8 @@ public final class AgentListModel {
         )
         let statuses = Dictionary(agents.map { ($0.paneID, $0.status) }, uniquingKeysWith: { first, _ in first })
         previewSessions = previewSessions.filter { sessions[$0.key] == $0.value }
-        previews = previews.filter { previewSessions[$0.key] != nil }
+        let keptPreviews = previews.filter { previewSessions[$0.key] != nil }
+        if keptPreviews.count != previews.count { previews = keptPreviews }
         previewVersions = previewVersions.filter { previewSessions[$0.key] != nil }
         let requests = agents.compactMap { agent in
             agent.transcriptTarget.map { target in
@@ -205,15 +206,18 @@ public final class AgentListModel {
         _ requests: [PreviewRequest], using transcripts: TranscriptReader, sessions: [String: String], statuses: [String: AgentStatus]
     ) async -> Bool {
         guard let readings = try? await transcripts.previewReadings(of: requests) else { return false }
+        // 組好新字典、有不同才指派:字典下標寫入一律通知觀察者，主機回 unchanged 時不該重繪(#582)。
+        var updated = previews
+        defer { if updated != previews { previews = updated } }
         for request in requests {
             if let reading = readings[request.key] {
                 var preview = reading.preview
                 // 附加的部分沒帶 context 或待辦時沿用上次的(檔尾視窗不一定含 TodoWrite)。
-                if var fresh = preview, let older = previews[request.key]?.progress {
+                if var fresh = preview, let older = updated[request.key]?.progress {
                     fresh.progress = (fresh.progress ?? AgentProgress()).merging(over: older)
                     preview = fresh
                 }
-                previews[request.key] = preview ?? previews[request.key]
+                updated[request.key] = preview ?? updated[request.key]
                 previewVersions[request.key] = reading.version
             }
             previewSessions[request.key] = sessions[request.key]

@@ -189,4 +189,26 @@ struct AgentListPreviewTests {
         commands = await host.shellCommands
         #expect(commands.count == 3)
     }
+
+    @Test("預覽重讀沒變(unchanged)：不通知觀察者(#582)")
+    func unchangedPreviewReadDoesNotNotifyObservers() async throws {
+        let host = try await Self.makeHost(thenSnapshots: [Self.snapshot])
+        let (model, task) = try await Self.start(host)
+        defer { task.cancel() }
+        try await waitUntil { await MainActor.run { model.previews["w1:p6"] != nil } }
+        let readsBefore = await host.shellCommands.count
+
+        let changed = ObservedChange()
+        withObservationTracking {
+            _ = model.previews
+        } onChange: {
+            changed.happened = true
+        }
+        await host.bridge.send(stdout: Self.paneEvent("w1:p6"), toExecution: 1)
+        try await waitUntil { await host.shellCommands.count > readsBefore }
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(await host.shellCommands.count > readsBefore, "確實重讀了一次")
+        #expect(!changed.happened, "主機回 unchanged、預覽沒變，不該通知")
+    }
 }
