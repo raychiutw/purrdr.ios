@@ -245,12 +245,14 @@ final class DailySmokeUITests: XCTestCase {
             folder.tap()
             folder.typeEnglish("~/ledger")
             app.buttons["newChat.back"].tap()
+            let discard = app.buttons["Discard"].firstMatch
+            XCTAssertTrue(discard.waitUntilExists(timeout: 5), "有輸入時離開沒有先確認")
+            // 從工具列按鈕展開的確認是錨在按鈕上的選單(系統不放取消鈕):點旁邊等於繼續編輯;有取消鈕時點它。
             let keep = app.buttons["Keep Editing"].firstMatch
-            XCTAssertTrue(keep.waitUntilExists(timeout: 5), "有輸入時離開沒有先確認")
-            keep.tap()
+            if keep.exists { keep.tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.45)).tap() }
+            XCTAssertTrue(discard.waitUntilGone(timeout: 5), "確認沒有收起")
             XCTAssertTrue(page.exists, "選了繼續編輯還是離開了")
             app.buttons["newChat.back"].tap()
-            let discard = app.buttons["Discard"].firstMatch
             XCTAssertTrue(discard.waitUntilExists(timeout: 5))
             discard.tap()
             XCTAssertTrue(page.waitUntilGone(timeout: 5), "確認放棄後新增聊天沒有離開")
