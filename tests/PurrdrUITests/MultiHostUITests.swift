@@ -43,6 +43,20 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertLessThan(filter.frame.maxX, newChat.frame.minX, "主機範圍鈕蓋到新增聊天")
     }
 
+    /// 篩選某台主機時,電腦圖示右上角出現小圓點;選回所有主機就消失(#615)。
+    @MainActor
+    func testHostDotShowsOnlyWhileFiltered() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
+        XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitUntilExists(timeout: 20))
+        XCTAssertFalse(app.descendants(matching: .any)["topBar.hostDot"].exists, "所有主機時不該有小圓點")
+
+        app.filterHosts("Studio Mac")
+        XCTAssertTrue(app.descendants(matching: .any)["topBar.hostDot"].firstMatch.waitUntilExists(timeout: 5), "篩選主機後沒有小圓點")
+
+        app.filterHosts("All Hosts")
+        XCTAssertTrue(app.descendants(matching: .any)["topBar.hostDot"].firstMatch.waitUntilGone(timeout: 5), "選回所有主機小圓點還在")
+    }
+
     /// 主機篩選(#244):Spaces 檢視只留篩選那台主機的 workspace 段落(#275);篩選選單帶各主機，第一項是所有主機。
     @MainActor
     func testHostFilterLimitsSpaces() {

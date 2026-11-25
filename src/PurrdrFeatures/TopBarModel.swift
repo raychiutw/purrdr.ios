@@ -85,9 +85,3 @@ public struct TopBarHostScope: Equatable, Sendable {
         }
     }
 }
-
-/// 其他畫面(主機選擇列、主機範圍小圓點)仍引用的尺寸;第一階頂列(#615)與聊天頂列(#618)已全交給系統,不再有自己的尺寸。
-public enum TopBarMetrics {
-    /// 電腦圖示右上角「已篩選某台主機」的小圓點直徑。
-    public static let dotDiameter: CGFloat = 9
-}

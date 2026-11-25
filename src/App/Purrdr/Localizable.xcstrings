@@ -10797,6 +10797,17 @@
         }
       }
     },
+    "Scroll down to the latest message to read earlier ones again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "往下捲到最新訊息,就能再往上讀更早的內容。"
+          }
+        }
+      }
+    },
     "Search" : {
       "extractionState" : "manual",
       "localizations" : {

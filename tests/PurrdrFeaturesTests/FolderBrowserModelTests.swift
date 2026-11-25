@@ -61,15 +61,17 @@ struct FolderBrowserModelTests {
 
         await model.load()
         #expect(model.breadcrumbs.map(\.title) == ["~"])
-        await model.open(FolderEntry(name: "ledger", kind: .folder, size: 96))
-        #expect(model.breadcrumbs.map(\.title) == ["~", "ledger"])
-        #expect(model.breadcrumbs.map(\.path) == ["/Users/demo", "/Users/demo/ledger"])
+        let ledgerPath = try #require(model.childPath(for: FolderEntry(name: "ledger", kind: .folder, size: 96)))
+        let child = model.child(at: ledgerPath)
+        await child.load()
+        #expect(child.breadcrumbs.map(\.title) == ["~", "ledger"])
+        #expect(child.breadcrumbs.map(\.path) == ["/Users/demo", "/Users/demo/ledger"])
 
-        await model.go(to: try #require(model.breadcrumbs.first))
-        #expect(model.path == "/Users/demo")
-        await model.goUp()
-        #expect(model.breadcrumbs.map(\.title) == ["/", "Users"])
-        #expect(model.breadcrumbs.map(\.path) == ["/", "/Users"])
+        await child.go(to: try #require(child.breadcrumbs.first))
+        #expect(child.path == "/Users/demo")
+        await child.go(to: FolderBreadcrumb(title: "Users", path: "/Users"))
+        #expect(child.breadcrumbs.map(\.title) == ["/", "Users"])
+        #expect(child.breadcrumbs.map(\.path) == ["/", "/Users"])
         #expect(await host.unmetExpectations.isEmpty)
     }
 
@@ -160,12 +162,13 @@ struct FolderBrowserModelTests {
         let model = Self.model(host)
         await model.load()
 
-        await model.open(FolderEntry(name: "ledger", kind: .folder, size: 96))
-        #expect(model.title == "ledger")
-        #expect(Self.listed(model) == ["export.csv"])
+        let child = model.child(at: try #require(model.childPath(for: FolderEntry(name: "ledger", kind: .folder, size: 96))))
+        await child.load()
+        #expect(child.title == "ledger")
+        #expect(Self.listed(child) == ["export.csv"])
 
-        await model.goUp()
-        #expect(model.path == "/Users/demo")
+        await child.go(to: FolderBreadcrumb(title: "~", path: "/Users/demo"))
+        #expect(child.path == "/Users/demo")
         #expect(await host.unmetExpectations.isEmpty)
     }
 
@@ -179,8 +182,9 @@ struct FolderBrowserModelTests {
 
         #expect(model.title == "/")
         #expect(!model.canGoUp)
-        await model.open(FolderEntry(name: "tmp", kind: .folder, size: 64))
-        #expect(model.path == "/tmp")
+        let child = model.child(at: try #require(model.childPath(for: FolderEntry(name: "tmp", kind: .folder, size: 64))))
+        await child.load()
+        #expect(child.path == "/tmp")
     }
 
     @Test("檔案不能打開(不送指令)")
@@ -190,7 +194,7 @@ struct FolderBrowserModelTests {
         let model = Self.model(host)
         await model.load()
 
-        await model.open(FolderEntry(name: ".zshrc", kind: .file, size: 12))
+        #expect(model.childPath(for: FolderEntry(name: ".zshrc", kind: .file, size: 12)) == nil)
 
         #expect(await host.executions.count == 1)
         #expect(model.path == "/Users/demo")

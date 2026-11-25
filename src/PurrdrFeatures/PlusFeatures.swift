@@ -86,7 +86,7 @@ struct PlusFeatureDestination: View {
                         Text(HostSyncRows.footer).foregroundStyle(.secondaryText)
                     }
                 }
-                .appGroupedList()
+                .appSheetList()
                 .accessibilityIdentifier("plus.hostSync.page")
                 .navigationTitle("Host Sync")
             }

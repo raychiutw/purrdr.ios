@@ -557,7 +557,7 @@ struct NewWorktreeSheet: View {
                     }
                 }
             }
-            .appGroupedList()
+            .appSheetList()
             .navigationTitle("New Worktree")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

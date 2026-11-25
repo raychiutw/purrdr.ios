@@ -17,7 +17,6 @@ public struct ConversationView: View {
     @Environment(\.hitchRecorder) private var hitchRecorder
     @Environment(\.tracksReadingDrift) private var tracksReadingDrift
     @Environment(\.hostTheme) private var hostTheme
-    @Environment(\.forcesOpaqueGlass) private var forcesOpaqueGlass
     /// 列表的呼叫口(「跳到最新」、輸入列重排)與最近量到的可見高度。
     @State private var listHandle = ChatListHandle()
     /// 「跳到最新」是否已顯示(跟隨中延遲顯示,#476)。
@@ -170,7 +169,6 @@ public struct ConversationView: View {
                 ))
                 .environment(\.markdownBlocks, MarkdownBlockSource(blocks: { [model] in model.markdownBlocks(for: $0) }))
                 .environment(\.hostTheme, hostTheme)
-                .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
         )
     }
 
@@ -273,7 +271,7 @@ public struct ConversationView: View {
             ChatListView(
                 content: listContent,
                 rowEnvironment: ChatListRowEnvironment(
-                    hostTheme: hostTheme, forcesOpaqueGlass: forcesOpaqueGlass, inlineSlashNames: model.inlineSlashNames),
+                    hostTheme: hostTheme, inlineSlashNames: model.inlineSlashNames),
                 isSceneActive: scenePhase == .active,
                 model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
                 smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,

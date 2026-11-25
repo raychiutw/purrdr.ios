@@ -58,6 +58,31 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["terminal.key.esc"].firstMatch.isHittable, "按鍵列沒有出現")
     }
 
+    /// 檔案頁搜尋(#615):輸入只留名稱相符的列、搜不到有系統空狀態、清掉搜尋回到完整列表。
+    @MainActor
+    func testFilesSearchFiltersRows() {
+        let app = XCUIApplication.launchUITesting()
+        openMenuItem("menu.files", in: app)
+        let ledger = app.buttons["files.row.ledger"].firstMatch
+        XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "沒有列出家目錄")
+        let zshrc = app.descendants(matching: .any)["files.row..zshrc"].firstMatch
+        XCTAssertTrue(zshrc.exists)
+
+        let search = app.revealChatSearch()
+        XCTAssertTrue(search.waitUntilExists(timeout: 5), "檔案頁沒有搜尋欄")
+        search.tap()
+        search.typeEnglish("ledg")
+        XCTAssertTrue(ledger.exists, "搜尋 ledg 後 ledger 不見了")
+        XCTAssertTrue(zshrc.waitUntilGone(timeout: 5), "搜尋 ledg 後不相符的 .zshrc 還在")
+
+        search.clearAndType("zzzz")
+        XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "搜不到時列還在")
+
+        search.clearAndType("ledg")
+        XCTAssertTrue(ledger.waitUntilExists(timeout: 5), "改搜尋後相符的列沒有回來")
+        XCTAssertTrue(zshrc.waitUntilGone(timeout: 5), "改搜尋後不相符的列還在")
+    }
+
     /// 檔案頁(#273,原型):資料夾是 push(#620):進兩層、左上「<」返回、麵包屑「~ › ledger」當快速跳層;右上「＋」上傳;沒有「上一層」按鈕。
     @MainActor
     func testFilesBrowseFoldersWithBreadcrumbs() {

@@ -68,7 +68,7 @@ public struct PlusView: View {
             }
             legalSection
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("plus.list")
         .disabled(model.isWorking)
         // 功能列推入的頁面(#619)。
