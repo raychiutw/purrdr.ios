@@ -23,11 +23,11 @@ struct OfflineQueueTests {
     @MainActor
     final class Deliveries {
         var sent: [(text: String, paneID: String, expectedSession: String?)] = []
-        var outcome: PromptOutcome = .delivered
+        var outcome: SafeSend.Result = .delivered
 
-        var deliver: @MainActor (String, Agent, String?) async -> PromptOutcome {
-            { text, agent, expectedSession in
-                self.sent.append((text, agent.paneID, expectedSession))
+        var deliver: @MainActor (String, SafeSend.Destination) async -> SafeSend.Result {
+            { text, destination in
+                self.sent.append((text, destination.paneID, destination.expectedSession))
                 return self.outcome
             }
         }
@@ -149,7 +149,7 @@ struct OfflineQueueTests {
     @Test("補送沒送到：需要你、被拒、無法確認各自標原因，同一個 pane 後面的也不送")
     func deliveryProblemsStopThatPane() async {
         let deliveries = Deliveries()
-        deliveries.outcome = .needsAnswer
+        deliveries.outcome = .notSent(.needsAnswer(Self.snapshot().agents[0]))
         let queue = Self.queue(deliveries: deliveries)
         queue.enqueue(Self.prompt("第一則"))
         queue.enqueue(Self.prompt("第二則"))
@@ -159,10 +159,10 @@ struct OfflineQueueTests {
         #expect(deliveries.sent.map(\.text) == ["第一則"])
         #expect(queue.entries.map(\.problem) == [.needsAnswer, .needsAnswer])
 
-        for (outcome, problem) in [(PromptOutcome.rejected(message: "no"), QueuedPrompt.Problem.notDelivered),
+        for (outcome, problem) in [(SafeSend.Result.notSent(.rejected("no")), QueuedPrompt.Problem.notDelivered),
                                    (.unconfirmed(.connectionLost), .mayHaveBeenSent), (.noResponse, .mayHaveBeenSent),
                                    // 主機送出前比對發現對話已變更(#304 的 pane_changed):什麼都沒送出，標成對話已變更。
-                                   (.paneChanged, .conversationChanged)] {
+                                   (.notSent(.conversationChanged), .conversationChanged)] {
             let deliveries = Deliveries()
             deliveries.outcome = outcome
             let queue = Self.queue(deliveries: deliveries)

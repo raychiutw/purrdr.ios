@@ -27,8 +27,12 @@ public actor HostFileLoader {
         self.cacheLimit = cacheLimit
     }
 
-    /// - Parameter userRequested: 使用者點了「載入」:上限放寬到 `HostFileFetchLimits.maximumSize`。
-    public func load(_ path: String, scope: HostFileAccessScope, userRequested: Bool = false) async -> Outcome {
+    /// - Parameters:
+    ///   - userRequested: 使用者點了「載入」:上限放寬到 `HostFileFetchLimits.maximumSize`,也不限圖片格式。
+    ///   - automaticImageFormatsOnly: 內容要以 ImageIO 解碼時為 `true`:不是 PNG／JPEG／HEIC／GIF／WebP 的檔案不自動載入(#579)。
+    public func load(
+        _ path: String, scope: HostFileAccessScope, userRequested: Bool = false, automaticImageFormatsOnly: Bool = false
+    ) async -> Outcome {
         let attempt = await HostFileFetchAttempt.run(path, scope: scope, fetcher: fetcher) { target, version, size -> Outcome in
             let key = CacheKey(path: path, version: version)
             if let cached = cache[key] {
@@ -44,6 +48,10 @@ public actor HostFileLoader {
                     target, version: version, offset: data.count, length: min(HostFileFetchLimits.chunkSize, size - data.count))
                 guard !chunk.isEmpty else { throw HostFileProblem.failed("host file ended early") }
                 data.append(chunk)
+                // 第一塊就判斷格式:不是常見格式不再往下讀，等使用者點擊。
+                if automaticImageFormatsOnly, !userRequested, data.count == chunk.count, AutoDecodableImageFormat.detect(chunk) == nil {
+                    return .overAutomaticLimit(size: size)
+                }
             }
             store(data, for: key)
             return .loaded(data, version: version)
