@@ -216,13 +216,29 @@ public final class UserDefaultsHostChatPreferencesStore: HostChatPreferencesStor
         self.all = all
     }
 
+    /// 解碼結果留在記憶體,只解碼一次;寫入時更新記憶體再編碼存檔。
+    private var cache: [String: ChatPreferences]?
+    /// 解碼次數(測試守「只解碼一次」)。
+    package private(set) var decodeCount = 0
+
     private var all: [String: ChatPreferences] {
         get {
-            guard let data = defaults.data(forKey: key),
-                  let all = try? JSONDecoder().decode([String: ChatPreferences].self, from: data) else { return [:] }
-            return all
+            if let cache { return cache }
+            decodeCount += 1
+            let decoded: [String: ChatPreferences]
+            if let data = defaults.data(forKey: key),
+               let all = try? JSONDecoder().decode([String: ChatPreferences].self, from: data) {
+                decoded = all
+            } else {
+                decoded = [:]
+            }
+            cache = decoded
+            return decoded
         }
-        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: key) }
+        set {
+            cache = newValue
+            defaults.set(try? JSONEncoder().encode(newValue), forKey: key)
+        }
     }
 }
 

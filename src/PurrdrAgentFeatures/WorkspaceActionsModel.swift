@@ -92,8 +92,11 @@ public final class WorkspaceActionsModel {
     /// 記下開啟這個 session 聊天的時間(進入與離開對話時各一次;行為規格 F2.6)。之前的回覆都算讀過。
     /// - Parameter seen: 開著時看到的最後一則回覆的時間(主機時間)。主機時鐘比手機快時，回覆時間會在手機的「現在」之後;
     ///   取兩者較晚的，開過的聊天才不會一直是未讀。
-    public func markOpened(sessionID: String, seen: Date? = nil) {
-        preferences.opened[sessionID] = max(now(), seen ?? .distantPast)
+    /// - Parameter liveSessions: 主機快照裡現有的 session;給了才順便修剪 `opened`(見 `ChatPreferences.pruneOpened`)。
+    public func markOpened(sessionID: String, seen: Date? = nil, liveSessions: Set<String>? = nil) {
+        let current = now()
+        preferences.opened[sessionID] = max(current, seen ?? .distantPast)
+        if let liveSessions { preferences.pruneOpened(liveSessions: liveSessions.union([sessionID]), now: current) }
         store.save(preferences)
     }
 

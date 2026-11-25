@@ -18,6 +18,15 @@ public struct ChatPreferences: Codable, Equatable, Sendable {
         self.opened = opened
     }
 
+    /// `opened` 的保留天數:超過這個天數、而且已不在主機快照裡的 session 才修剪(快照裡還在的聊天一律保留，未讀才準)。
+    public static let openedRetentionDays = 30
+
+    /// 修剪 `opened`:不在 `liveSessions` 且早於 `now` 往前 `openedRetentionDays` 天的紀錄移除。
+    public mutating func pruneOpened(liveSessions: Set<String>, now: Date, calendar: Calendar = .current) {
+        guard let cutoff = calendar.date(byAdding: .day, value: -Self.openedRetentionDays, to: now) else { return }
+        opened = opened.filter { liveSessions.contains($0.key) || $0.value >= cutoff }
+    }
+
     private enum CodingKeys: String, CodingKey { case pinned, muted, opened }
 
     /// #41 之前存的偏好沒有 `opened`:照樣讀出釘選與靜音。
