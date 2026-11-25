@@ -17,7 +17,8 @@ extension TranscriptReader {
         channel: any HostChannel, windowChunkBytes: Int = 4 << 20, marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString },
         sleep: @escaping Sleep = Sleeping.task
     ) {
-        self.init(connection: SSHHostConnection(channel: channel, sleep: sleep), windowChunkBytes: windowChunkBytes, marker: marker)
+        self.init(
+            connection: SSHHostConnection(channel: channel, sleep: sleep, previewMarker: marker), windowChunkBytes: windowChunkBytes, marker: marker)
     }
 }
 

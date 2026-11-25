@@ -132,6 +132,116 @@ public actor FakeHostConnection: HostConnection {
         return try await TranscriptReader(connection: self).wireWindow(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
     }
 
+    // herdr 的結構與 Agent 操作(#595 第二批):記錄呼叫後走既有的 herdr 回放(`expect(method, reply:)`)。
+
+    public func herdrVersion() async throws -> String {
+        typedCalls.append("herdrVersion")
+        return try await HerdrClient(connection: self).wirePing()
+    }
+
+    public func listIntegrations() async throws -> [AgentIntegration] {
+        typedCalls.append("listIntegrations")
+        return try await HerdrClient(connection: self).wireIntegrations()
+    }
+
+    public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
+        typedCalls.append("reportPresence \(paneID) \(model ?? "-") \(seq)")
+        try await HerdrClient(connection: self).wireReportPresence(paneID: paneID, model: model, seq: seq)
+    }
+
+    public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
+        typedCalls.append("renameWorkspace \(workspaceID) \(label)")
+        try await HerdrClient(connection: self).wireRenameWorkspace(workspaceID, to: label)
+    }
+
+    public func renameTab(_ tabID: String, to label: String) async throws {
+        typedCalls.append("renameTab \(tabID) \(label)")
+        try await HerdrClient(connection: self).wireRenameTab(tabID, to: label)
+    }
+
+    public func closeTab(_ tabID: String) async throws {
+        typedCalls.append("closeTab \(tabID)")
+        try await HerdrClient(connection: self).wireCloseTab(tabID)
+    }
+
+    public func closeWorkspace(_ workspaceID: String) async throws {
+        typedCalls.append("closeWorkspace \(workspaceID)")
+        try await HerdrClient(connection: self).wireCloseWorkspace(workspaceID)
+    }
+
+    public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
+        typedCalls.append("createWorktree \(workspaceID) \(branch)")
+        return try await HerdrClient(connection: self).wireCreateWorktree(from: workspaceID, branch: branch)
+    }
+
+    public func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
+        typedCalls.append("createWorkspace \(cwd) \(label ?? "-")")
+        return try await HerdrClient(connection: self).wireCreateWorkspace(cwd: cwd, label: label)
+    }
+
+    public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
+        typedCalls.append("createTab \(workspaceID) \(label ?? "-")")
+        return try await HerdrClient(connection: self).wireCreateTab(in: workspaceID, label: label)
+    }
+
+    public func startAgent(_ request: AgentStartRequest) async throws -> Bool {
+        typedCalls.append("startAgent \(request.kind) \(request.paneID)")
+        return try await HerdrClient(connection: self).wireStartAgent(request)
+    }
+
+    public func agentLaunchState(target: String) async throws -> AgentLaunchState {
+        typedCalls.append("agentLaunchState \(target)")
+        return try await HerdrClient(connection: self).wireAgentLaunchState(target: target)
+    }
+
+    public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
+        typedCalls.append("listSessions \(cwd) \(agent)")
+        return try await HerdrClient(connection: self).wireListSessions(cwd: cwd, agent: agent)
+    }
+
+    public func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
+        typedCalls.append("sendPrompt \(target) \(text)")
+        return try await HerdrClient(connection: self).wirePrompt(target: target, text: text, wait: wait, expecting: expecting)
+    }
+
+    public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
+        typedCalls.append("waitForAgent \(target)")
+        return try await HerdrClient(connection: self).wireWaitForAgent(target: target, until: until, timeout: timeout)
+    }
+
+    public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        typedCalls.append("subscribeToEvents \(subscriptions.count)")
+        return try await HerdrClient(connection: self).wireSubscribe(subscriptions)
+    }
+
+    // 對話紀錄的追蹤讀取、預覽、subagent、workflow、委派(#595 第二批 C):記錄呼叫後走既有的對話紀錄回放(`answerTranscripts`)。
+
+    public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
+        typedCalls.append("readTranscriptTail \(path) \(cursor) \(limit) \(catchUp)")
+        return try await TranscriptReader(connection: self).wireTail(path: path, from: cursor, limit: limit, catchUp: catchUp)
+    }
+
+    public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
+        typedCalls.append("readTranscriptPreviews \(requests.map(\.key).joined(separator: ","))")
+        return try await TranscriptReader(connection: self).wirePreviews(requests)
+    }
+
+    public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
+        typedCalls.append("locateSubagent \(callID)")
+        return try await TranscriptReader(connection: self).wireLocateSubagent(sessionFolder: sessionFolder, callID: callID)
+    }
+
+    public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
+        typedCalls.append("readWorkflow \(runID)")
+        return try await TranscriptReader(connection: self).wireWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
+    }
+
+    public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
+        typedCalls.append("readDelegationLines \(callID)")
+        return try await TranscriptReader(connection: self).wireDelegationLines(
+            path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
+    }
+
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
         let method = Self.method(of: request)
         let reply = try consume(request)

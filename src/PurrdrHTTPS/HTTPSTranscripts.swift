@@ -19,16 +19,16 @@ extension HTTPSHostConnection {
             // 就以 too_far_behind 結束、只回大小，`TranscriptReader.catchUp` 改回報落後太多(讀新視窗)。
             // 行從推送累積的緩衝回答，不必依上限放寬期限。
             return try await withDeadline(HostCommandDeadline.standard) {
-                try await self.tail(path: path, from: cursor, limit: limit)
+                try await self.tail(path: path, from: cursor, limit: limit).data
             }
         case .previews(let marker, let requests):
             return try await previews(marker: marker, requests: requests)
         case .findSubagent(let sessionFolder, let callID):
             return try await findSubagent(sessionFolder: sessionFolder, callID: callID)
         case .readWorkflow(let sessionFolder, let runID, let knownChecksum):
-            return try await readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
+            return try await workflowOutput(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
         case .delegationLines(let path, let callID, let agentID, let knownChecksum):
-            return try await delegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
+            return try await delegationOutput(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
         }
     }
 
@@ -56,7 +56,7 @@ extension HTTPSHostConnection {
 
     /// 「大小」一行，再接游標之後的完整行。追蹤中且游標在已收到的範圍內時不經網路;否則(第一次、換了游標、
     /// 重新連線、主機結束追蹤之後)開始新的追蹤。
-    private func tail(path: String, from cursor: Int, limit: Int) async throws -> Data {
+    func tail(path: String, from cursor: Int, limit: Int) async throws -> TailAnswer {
         if var follow = transcriptFollows.removeValue(forKey: path) {
             if await follow.session.isOpen, let pushed = await follow.session.takeBufferedMessages(follow.streamID) {
                 follow.apply(pushed)
@@ -89,7 +89,7 @@ extension HTTPSHostConnection {
     }
 
     /// 回答這次讀取;主機已結束追蹤就丟掉這個追蹤(下次重新開始),否則留著並丟掉游標之前的行。
-    private func answer(_ follow: TranscriptFollow, path: String, cursor: Int) async throws -> Data {
+    private func answer(_ follow: TranscriptFollow, path: String, cursor: Int) async throws -> TailAnswer {
         let output = follow.output(from: cursor)
         guard let ended = follow.ended else {
             var kept = follow
@@ -182,6 +182,15 @@ extension HTTPSHostConnection {
     }
 }
 
+/// 一次尾端讀取的內容:檔案大小與游標之後的完整行。
+struct TailAnswer {
+    var size: Int
+    var records: [HostServiceProtocol.TranscriptRecord]
+
+    /// 與 SSH 追蹤腳本相同的輸出：大小一行，再接游標之後的完整行。
+    var data: Data { Data("\(size)\n".utf8) + HTTPSHostConnection.recordLines(records) }
+}
+
 /// 一個追蹤中的對話紀錄：主機服務推送的完整行，從 `bufferStart` 起相連。
 struct TranscriptFollow {
     let session: HostServiceSession
@@ -232,9 +241,9 @@ struct TranscriptFollow {
         return cursor == bufferEnd || records.contains { $0.offset == cursor }
     }
 
-    /// 與 SSH 追蹤腳本相同的輸出：大小一行，再接游標之後的完整行。
-    func output(from cursor: Int) -> Data {
-        Data("\(size)\n".utf8) + HTTPSHostConnection.recordLines(records.filter { $0.offset >= cursor }.map(\.record))
+    /// 主機上的檔案大小與游標之後的完整行。
+    func output(from cursor: Int) -> TailAnswer {
+        TailAnswer(size: size, records: records.filter { $0.offset >= cursor }.map(\.record))
     }
 
     /// 丟掉游標之前已讀過的行。

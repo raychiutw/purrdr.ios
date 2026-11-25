@@ -127,20 +127,7 @@ enum HerdrOperation {
             }
         case .agentStart:
             let params = try JSONDecoder().decode(AgentStartParams.self, from: line.params)
-            // 主機服務不收任意參數：只認得 Claude Code 的權限模式。
-            let permissionMode: HostServiceProtocol.ClaudePermissionMode?
-            // 設定檔的啟動參數(Codex 的 `--no-daemon`,#400)主機服務不收,也不能因它拒絕整個啟動;依那個種類的設定檔整組略過
-            // (只略過前綴那一組,使用者自己帶的同名參數不在其內),等主機服務支援再送。
-            let launchArguments = AgentCatalog.profile(forHerdrName: params.kind).session.launchArguments
-            var arguments = params.args ?? []
-            if !launchArguments.isEmpty, arguments.starts(with: launchArguments) { arguments.removeFirst(launchArguments.count) }
-            switch arguments {
-            case []: permissionMode = nil
-            case let args where args.count == 2 && args[0] == "--permission-mode":
-                guard let mode = HostServiceProtocol.ClaudePermissionMode(rawValue: args[1]) else { throw HostServiceError.unsupported(line.method) }
-                permissionMode = mode
-            default: throw HostServiceError.unsupported(line.method)
-            }
+            let permissionMode = try Self.permissionMode(kind: params.kind, arguments: params.args ?? [], method: line.method)
             self = .request(make: {
                 .agentStart(.init(
                     requestId: $0, paneId: params.paneID, name: params.name, kind: params.kind, permissionMode: permissionMode,
@@ -171,6 +158,23 @@ enum HerdrOperation {
             }
         case .eventsSubscribe:
             throw HostServiceError.unsupported(line.method)
+        }
+    }
+
+
+    /// agent.start 的啟動參數換成主機服務的權限模式(主機服務不收任意參數：只認得 Claude Code 的權限模式)。
+    /// 設定檔的啟動參數(Codex 的 `--no-daemon`,#400)主機服務不收,也不能因它拒絕整個啟動;依那個種類的設定檔整組略過
+    /// (只略過前綴那一組,使用者自己帶的同名參數不在其內),等主機服務支援再送。其他參數丟 `unsupported(method)`。
+    static func permissionMode(kind: String, arguments original: [String], method: String) throws -> HostServiceProtocol.ClaudePermissionMode? {
+        let launchArguments = AgentCatalog.profile(forHerdrName: kind).session.launchArguments
+        var arguments = original
+        if !launchArguments.isEmpty, arguments.starts(with: launchArguments) { arguments.removeFirst(launchArguments.count) }
+        switch arguments {
+        case []: return nil
+        case let args where args.count == 2 && args[0] == "--permission-mode":
+            guard let mode = HostServiceProtocol.ClaudePermissionMode(rawValue: args[1]) else { throw HostServiceError.unsupported(method) }
+            return mode
+        default: throw HostServiceError.unsupported(method)
         }
     }
 

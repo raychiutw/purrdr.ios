@@ -11,15 +11,21 @@ public struct SSHHostConnection: HostConnection {
     private let sleep: Sleep
     /// 對話紀錄追蹤的長駐通道(#166);這個連線的複本共用。
     private let follower: SSHTranscriptFollower
+    /// 列表預覽輸出的分隔標記產生器(每次呼叫隨機;測試注入固定值)。
+    private let previewMarker: @Sendable () -> String
 
-    /// - Parameter followDiagnostics: 對話紀錄追蹤退回輪詢時的原因(交給系統紀錄)。
+    /// - Parameters:
+    ///   - followDiagnostics: 對話紀錄追蹤退回輪詢時的原因(交給系統紀錄)。
+    ///   - previewMarker: 列表預覽的分隔標記產生器(測試注入固定值)。
     public init(
         channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(), sleep: @escaping Sleep = Sleeping.task,
-        followDiagnostics: (@Sendable (String) -> Void)? = nil
+        followDiagnostics: (@Sendable (String) -> Void)? = nil,
+        previewMarker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString }
     ) {
         self.channel = channel
         self.herdr = herdr
         self.sleep = sleep
+        self.previewMarker = previewMarker
         follower = SSHTranscriptFollower(channel: channel, sleep: sleep, diagnostics: followDiagnostics)
     }
 
@@ -188,6 +194,11 @@ public struct SSHHostConnection: HostConnection {
                 throw TranscriptReadError(exitStatus: exitCode) ?? .changed
             }
         }
+    }
+
+    /// 列表預覽:一次往返讀所有聊天的檔尾,分隔標記用注入的產生器。
+    public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
+        try await TranscriptReader(connection: self, marker: previewMarker).wirePreviews(requests)
     }
 
     // MARK: - Pane 終端機
