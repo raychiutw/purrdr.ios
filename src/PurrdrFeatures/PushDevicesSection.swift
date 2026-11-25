@@ -142,9 +142,9 @@ private struct PushDeviceRow: View {
             } label: {
                 HStack {
                     label
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                    // 會開選單的列不用 >(#619):列尾是 ⋯。
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(.secondaryText)
                         .accessibilityHidden(true)
                 }
                 .contentShape(Rectangle())

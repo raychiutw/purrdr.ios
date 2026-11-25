@@ -49,11 +49,13 @@ public struct WelcomeView: View {
                         .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("welcome.demo")
                     Button("Add Host", systemImage: "plus", action: addHost)
+                        .listAction()
                         .accessibilityIdentifier("welcome.addHost")
                 }
 
                 Section {
                     Button("Rate Purrdr", systemImage: "star", action: rate)
+                        .listAction()
                         .accessibilityIdentifier("welcome.rate")
                 }
             }

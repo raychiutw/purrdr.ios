@@ -416,6 +416,7 @@ struct HostEditorView: View {
         if case .valid(let publicKey) = model.keyCheck {
             LabeledContent {
                 Button("Replace") { model.privateKeyText = "" }
+                    .listAction()
                     .accessibilityIdentifier("hostEditor.replaceKey")
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
@@ -467,6 +468,7 @@ struct HostEditorView: View {
                 .accessibilityIdentifier("hostEditor.keyProblem")
             if error == .rsaNotSupported || error.isUnsupportedKeyType {
                 Button("Use This Device’s Key Instead") { model.useDeviceKeyInstead() }
+                    .listAction()
                     .accessibilityIdentifier("hostEditor.useDeviceKey")
             }
         case .empty, .valid:
@@ -498,6 +500,7 @@ struct HostEditorView: View {
                 Text("Connecting to \(model.address)…")
                 Spacer()
                 Button("Cancel") { model.cancelTest() }
+                    .listAction()
             }
             .accessibilityElement(children: .contain)
         case .updating:
@@ -507,6 +510,7 @@ struct HostEditorView: View {
             }
         default:
             Button("Test Connection") { Task { await model.test() } }
+                .listAction()
                 .disabled(!model.canTest)
                 .accessibilityIdentifier("hostEditor.test")
             switch model.phase {

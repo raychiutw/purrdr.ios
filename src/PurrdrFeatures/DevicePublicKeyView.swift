@@ -15,6 +15,7 @@ struct DevicePublicKeyView: View {
                     .textSelection(.enabled)
                     .accessibilityIdentifier("deviceKey.publicKey")
                 Button("Copy Public Key", systemImage: "document.on.document") { Clipboard.copy(publicKey.openSSH) }
+                    .listAction()
                     .accessibilityIdentifier("deviceKey.copy")
                 ShareLink(item: publicKey.openSSH) {
                     Label("Share Public Key", systemImage: "square.and.arrow.up")
@@ -46,6 +47,7 @@ struct DevicePublicKeyView: View {
                         .textSelection(.enabled)
                         .accessibilityIdentifier("deviceKey.command.\(platform.identifier)")
                     Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
+                        .listAction()
                         .accessibilityIdentifier("deviceKey.copyCommand.\(platform.identifier)")
                 } header: {
                     Text(platform.title)

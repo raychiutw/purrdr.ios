@@ -30,6 +30,23 @@ final class DataUsageUITests: XCTestCase {
         XCTAssertTrue(app.element("dataUsage.chart").exists)
     }
 
+    /// 主機列尾 > 往右推進主機明細頁(#619,原本是半高 sheet):左上是返回、tab bar 還在,可左緣滑回。
+    @MainActor
+    func testHostRowPushesDetailPage() {
+        let app = openDataUsage()
+        let row = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'dataUsage.host.'")).firstMatch
+        XCTAssertTrue(app.scrollSheet("dataUsage.page", to: row, search: .down, timeout: 5), "沒有主機列")
+        row.tap()
+        XCTAssertTrue(app.element("dataUsage.hostDetail").waitUntilExists(timeout: 5), "點主機列沒有進明細頁")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "明細頁不該是有關閉鈕的 sheet")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "明細頁沒有保留 tab bar")
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "左上沒有返回鈕")
+        // 左緣滑回上一頁(spec #612 使用者故事 2)。
+        let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+        edge.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 5), "左緣滑動沒有回到流量頁")
+    }
+
     @MainActor
     func testSwitchPeriodAndCategory() {
         let app = openDataUsage()
