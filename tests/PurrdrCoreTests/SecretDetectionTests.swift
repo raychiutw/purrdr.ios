@@ -64,6 +64,8 @@ struct SecretDetectionTests {
         j("sk", "-ant-api03-", "Zx9Yw8Vu7Ts6Rq5Po4Nm3Lk2Ji1Hg0Fe"),
         j("sk", "-", "4f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c"),
         j("sk", "_live_", "51HqLyjWDarjtT1zdp7dc2a3b4c5d6e7"),
+        j("rk", "_live_", "51HqLyjWDarjtT1zdp7dc2a3b4c5d6e7"),
+        j("STRIPE_KEY=", "rk", "_test_", "51HqLyjWDarjtT1zdp7dc2a3b4c5d6e7"),
     ])
     func skKeyDetected(_ text: String) {
         #expect(Self.kinds(text) == [.skKey])
@@ -74,6 +76,9 @@ struct SecretDetectionTests {
         "sk-1234",
         "sk-this-is-not-really-a-key-at-all",
         "desk-0123456789abcdefghijklmnop",
+        "rk_live_ 是 Stripe restricted key 的前綴",
+        "rk_live_1234",
+        "work_live_0123456789abcdefghijklmnop",
     ])
     func skKeyNotDetected(_ text: String) {
         #expect(Self.kinds(text).isEmpty)

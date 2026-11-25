@@ -74,8 +74,8 @@ public enum SecretDetection {
                 #"(?<![A-Za-z0-9_])gh[pousr]_[A-Za-z0-9]{36,}"#,
                 #"(?<![A-Za-z0-9_])github_pat_[A-Za-z0-9_]{22,}"#,
             ]),
-            // sk- 開頭(OpenAI、Anthropic)與 Stripe 的 sk_live_／sk_test_:20 字以上，且同時有字母與數字(排除 sk-learn 之類的字詞)。
-            Rule(.skKey, [#"(?<![A-Za-z0-9_-])(sk[-_][A-Za-z0-9_-]{20,})"#]) { value in
+            // sk- 開頭(OpenAI、Anthropic)與 Stripe 的 sk_live_／sk_test_／rk_live_／rk_test_:20 字以上，且同時有字母與數字(排除 sk-learn 之類的字詞)。
+            Rule(.skKey, [#"(?<![A-Za-z0-9_-])((?:sk[-_]|rk_(?:live|test)_)[A-Za-z0-9_-]{20,})"#]) { value in
                 value.contains(where: \.isNumber) && value.dropFirst(3).contains(where: \.isLetter)
             },
             // AWS:access key id(AKIA／ASIA 加 16 個大寫英數),與指定給 aws_secret_access_key 的 40 字值。
