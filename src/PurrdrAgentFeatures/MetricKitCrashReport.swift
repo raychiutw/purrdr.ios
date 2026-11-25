@@ -135,29 +135,48 @@ public enum MetricKitCrashParser {
     }
 }
 
+/// 已記過的 MetricKit 閃退報告鍵(最近 `MetricKitCrashIntake.maxSeen` 筆)。
+public protocol MetricKitCrashSeenStoring: AnyObject {
+    var keys: [String] { get set }
+}
+
+public final class InMemoryMetricKitCrashSeenStore: MetricKitCrashSeenStoring {
+    public var keys: [String]
+    public init(keys: [String] = []) { self.keys = keys }
+}
+
+public final class UserDefaultsMetricKitCrashSeenStore: MetricKitCrashSeenStoring {
+    static let defaultsKey = "diagnostics.metricKitCrashSeen"
+    private let defaults: UserDefaults
+    public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    public var keys: [String] {
+        get { defaults.stringArray(forKey: Self.defaultsKey) ?? [] }
+        set { defaults.set(Array(newValue.suffix(MetricKitCrashIntake.maxSeen)), forKey: Self.defaultsKey) }
+    }
+}
+
 /// 把 MetricKit 的閃退報告寫進診斷記錄(一律記,不看卡頓開關),並以「報告時間＋內容」去重。
-/// 已記過的鍵存在 `defaults`(最近 50 筆),MetricKit 重送或 app 重啟後再收到也不重複。
+/// 已記過的鍵存在 `seen`(最近 50 筆),MetricKit 重送或 app 重啟後再收到也不重複。
 @MainActor
 public final class MetricKitCrashIntake {
-    static let seenKey = "diagnostics.metricKitCrashSeen"
-    static let maxSeen = 50
+    nonisolated static let maxSeen = 50
 
     private let recorder: DiagnosticRecorder
-    private let defaults: UserDefaults
+    private let seen: any MetricKitCrashSeenStoring
 
-    public init(recorder: DiagnosticRecorder, defaults: UserDefaults = .standard) {
+    public init(recorder: DiagnosticRecorder, seen: any MetricKitCrashSeenStoring = UserDefaultsMetricKitCrashSeenStore()) {
         self.recorder = recorder
-        self.defaults = defaults
+        self.seen = seen
     }
 
     public func ingest(payloadJSON: Data) {
-        var seen = defaults.stringArray(forKey: Self.seenKey) ?? []
+        var keys = seen.keys
         for report in MetricKitCrashParser.parse(payloadJSON: payloadJSON) {
             let key = report.dedupKey
-            guard !seen.contains(key) else { continue }
-            seen.append(key)
+            guard !keys.contains(key) else { continue }
+            keys.append(key)
             recorder.recordCrashReport(report)
         }
-        defaults.set(Array(seen.suffix(Self.maxSeen)), forKey: Self.seenKey)
+        seen.keys = Array(keys.suffix(Self.maxSeen))
     }
 }

@@ -105,17 +105,17 @@ struct MetricKitCrashReportTests {
     }
 
     @MainActor
-    @Test("轉成記錄:寫進診斷記錄,同一份報告重複送來只記一次(跨重啟)")
+    @Test("轉成記錄:寫進診斷記錄,同一份報告重複送來只記一次(跨重啟:同一份已見過的鍵)")
     func deduplicates() throws {
-        let suite = "mkcrash-\(UUID().uuidString)"
         let sink = RecordingDiagnosticSink()
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = UserDefaults(suiteName: "mkcrash-\(UUID().uuidString)")!
         let recorder = DiagnosticRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { Date() })
-        let first = MetricKitCrashIntake(recorder: recorder, defaults: defaults)
+        // 重啟以同一份儲存模擬:新的 intake 讀同一份已見過的鍵。
+        let seen = InMemoryMetricKitCrashSeenStore()
+        let first = MetricKitCrashIntake(recorder: recorder, seen: seen)
         first.ingest(payloadJSON: MetricKitCrashFixtures.full)
         first.ingest(payloadJSON: MetricKitCrashFixtures.full)
-        // 重啟:新的 intake 讀同一份 defaults
-        MetricKitCrashIntake(recorder: recorder, defaults: defaults).ingest(payloadJSON: MetricKitCrashFixtures.full)
+        MetricKitCrashIntake(recorder: recorder, seen: seen).ingest(payloadJSON: MetricKitCrashFixtures.full)
         let crashes = sink.entries.compactMap { entry -> MetricKitCrashReport? in
             if case .crashReport(let report) = entry { report } else { nil }
         }
@@ -123,6 +123,18 @@ struct MetricKitCrashReportTests {
         // 內容不同(訊號不同)就是另一次閃退
         first.ingest(payloadJSON: MetricKitCrashFixtures.swiftRuntime)
         #expect(sink.entries.count == 2)
+    }
+
+    @Test("已見過的鍵:UserDefaults 版跨實例保留,只留最近 50 筆")
+    func userDefaultsSeenStoreKeepsRecentKeys() {
+        let defaults = UserDefaults(suiteName: "mkseen-\(UUID().uuidString)")!
+        let first = UserDefaultsMetricKitCrashSeenStore(defaults: defaults)
+        #expect(first.keys.isEmpty)
+        first.keys = (0..<60).map { "k\($0)" }
+        let second = UserDefaultsMetricKitCrashSeenStore(defaults: defaults)
+        #expect(second.keys.count == MetricKitCrashIntake.maxSeen)
+        #expect(second.keys.first == "k10")
+        #expect(second.keys.last == "k59")
     }
 
     @Test("匯出的一行 JSON 帶 kind、時間與版本,能與標記檔記錄對上")

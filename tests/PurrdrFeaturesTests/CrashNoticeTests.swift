@@ -114,7 +114,7 @@ struct CrashNoticeTests {
         let end = Date(timeIntervalSince1970: 1_795_593_600)
         recorder.recordCrash(Self.record(at: end.addingTimeInterval(-3 * 3_600), name: "NSInternalInconsistencyException", app: "0.52.2 (7)"))
         model.dismiss()
-        MetricKitCrashIntake(recorder: recorder, defaults: defaults).ingest(payloadJSON: MetricKitCrashFixtures.full)
+        MetricKitCrashIntake(recorder: recorder, seen: InMemoryMetricKitCrashSeenStore()).ingest(payloadJSON: MetricKitCrashFixtures.full)
         #expect(model.pending == nil)
     }
 
