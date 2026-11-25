@@ -14,8 +14,8 @@ struct ConversationAntigravityStatusTests {
     static let paneID = ConversationModelTests.paneID
     static let conversationID = "00000000-0000-4000-8000-000000000000"
 
-    static func opened() async throws -> ConversationModelTests.Setup {
-        let setup = try ConversationModelTests.setup(transcript: nil, knownSessionID: conversationID)
+    static func opened(links: ConversationModel.HostLinks = .init()) async throws -> ConversationModelTests.Setup {
+        let setup = try ConversationModelTests.setup(transcript: nil, knownSessionID: conversationID, links: links)
         try setup.shell.write(
             Fixtures.otherAgentTranscript("antigravity/live-1.5.14/transcript.jsonl"),
             to: ".gemini/antigravity-cli/brain/\(conversationID)/.system_generated/logs/transcript.jsonl")
@@ -98,9 +98,8 @@ struct ConversationAntigravityStatusTests {
     }
 
     static func opened(statusFile name: String, contextPercent: Double? = nil) async throws -> ConversationModelTests.Setup {
-        let setup = try await opened()
         let reader = ConversationSessionStatusTests.Reader([conversationID: try status(name, contextPercent: contextPercent)])
-        setup.model.agentSessionStatusReaders = [.agy: reader]
+        let setup = try await opened(links: .init(agentSessionStatusReaders: [.agy: reader]))
         await setup.model.refreshSessionStatusIfDue()
         return setup
     }
@@ -133,8 +132,7 @@ struct ConversationAntigravityStatusTests {
 
     @Test("沒有 statusline 檔:照舊用畫面與對話紀錄")
     func withoutStatusFileUsesScreen() async throws {
-        let setup = try await Self.opened()
-        setup.model.agentSessionStatusReaders = [.agy: ConversationSessionStatusTests.Reader()]
+        let setup = try await Self.opened(links: .init(agentSessionStatusReaders: [.agy: ConversationSessionStatusTests.Reader()]))
         await setup.model.refreshSessionStatusIfDue()
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("agy-idle-plan"))
         await setup.model.refreshStatusLine()

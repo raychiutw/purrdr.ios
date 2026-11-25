@@ -88,9 +88,9 @@ public final class ConversationModel {
     /// context 退回對話紀錄算法(`progress`)。
     public private(set) var sessionStatus: ClaudeSessionStatus?
     /// 讀 session 狀態的來源(SSH 主機上的 session 檔、HTTPS 的 `usage.session_context`);`nil` 時只用退回算法。
-    public var sessionStatusReader: (any ClaudeSessionStatusReading)?
+    public let sessionStatusReader: (any ClaudeSessionStatusReading)?
     /// 各 Agent 種類自己的 session 狀態來源(Antigravity 的 statusline 包裝,#448);沒有的種類用 `sessionStatusReader`。
-    public var agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:]
+    public let agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading]
 
     @ObservationIgnored private var sessionStatusReadAt: Date?
     /// 追蹤事件觸發的快取寫入最短間隔(秒);離開聊天時一定補寫(#510)。
@@ -213,11 +213,11 @@ public final class ConversationModel {
         }
     }
     /// 選取中主機的「You should know」註記(#23);由 `HostsModel` 接上，沒有時不顯示。
-    public var youShouldKnow: YouShouldKnowModel?
+    public let youShouldKnow: YouShouldKnowModel?
     /// 圖片卡片的縮圖載入(#225):聊天所在主機的那份，由 `HostsModel` 接上;沒有時卡片不載入縮圖。
-    public var agentFiles: AgentFileLoads?
+    public let agentFiles: AgentFileLoads?
     /// 變更頁的 git 讀取(#310):聊天所在主機的連線方式，由 `HostsModel` 接上;沒有時不顯示變更鈕。
-    public var gitChanges: (any GitChangesReading)?
+    public let gitChanges: (any GitChangesReading)?
 
     /// 這個 Agent 工作目錄的變更頁;沒有 git 讀取或還不知道工作目錄時是 `nil`。
     public func makeChanges() -> ChangesModel? {
@@ -499,9 +499,10 @@ public final class ConversationModel {
     /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
     private let sendPipeline: SendPipeline
     /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
-    public var undoSend: UndoSendCountdown? { sendPipeline.step(UndoSendCountdown.self) }
+    public let undoSend: UndoSendCountdown?
     /// 管線裡的離線佇列(#301):離線時送出的訊息排在這台主機的佇列;沒有這個步驟時離線不能送出。
-    public var offlineQueue: OfflineQueue? { sendPipeline.step(OfflineQueueStep.self)?.queue }
+    public var offlineQueue: OfflineQueue? { offlineQueueStep?.queue }
+    private let offlineQueueStep: OfflineQueueStep?
     /// 這個聊天(pane)排隊中與沒送出的訊息，畫在對話最下面。
     public var queuedPrompts: [QueuedPrompt] { offlineQueue?.entries(forPane: paneID) ?? [] }
 
@@ -517,7 +518,8 @@ public final class ConversationModel {
     }
 
     /// 管線裡的 Send When Done(#305):輸入列的「做完再送」開關與主機上的佇列;沒有這個步驟時是 `nil`。
-    public var sendWhenDone: SendWhenDoneModel? { sendPipeline.step(SendWhenDoneStep.self)?.model }
+    public var sendWhenDone: SendWhenDoneModel? { sendWhenDoneStep?.model }
+    private let sendWhenDoneStep: SendWhenDoneStep?
 
     /// 編輯 Send When Done 佇列裡的一則:從主機佇列拿掉，文字放回輸入框(接在目前的草稿前面)。
     public func editSendWhenDone(_ id: SendWhenDoneItem.ID) async {
@@ -526,12 +528,12 @@ public final class ConversationModel {
     }
 
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
-    public var secretCheck: SecretCheck? { sendPipeline.step(SecretCheck.self) }
+    public let secretCheck: SecretCheck?
     private let slashDiscovery: (any SlashDiscovering)?
     private let modelCatalogProvider: (any ModelCatalogProviding)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
-    @ObservationIgnored public var onPromptDelivered: (@MainActor () -> Void)?
+    @ObservationIgnored public let onPromptDelivered: (@MainActor () -> Void)?
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 「已停止」2 秒後的收起;agent 又開始工作或有新的停止時取消(#220)。
     @ObservationIgnored private var stoppedCollapseTask: Task<Void, Never>?
@@ -569,7 +571,7 @@ public final class ConversationModel {
     /// 對話紀錄的方言，依 Agent 設定檔(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
     private var dialect: TranscriptDialect = .claude
     /// 解析時略過認不得的行(#449):交給診斷紀錄(只含種類名稱與數量);`nil` 不回報。
-    public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
+    public let onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
     /// 對話紀錄的解析與重建在背景做(#498);測試用:每次背景計算開頭呼叫(在背景執行緒上)。
     package var onTranscriptWork: (@Sendable () -> Void)?
     /// 對話紀錄各段依到達順序套用的鎖:解析在背景做,結果回主執行緒以時間軸增量套用(`applyTimeline`)。
@@ -632,7 +634,7 @@ public final class ConversationModel {
     // MARK: 離開期間摘要(#308)
 
     /// 上次離開這個聊天的時間(由 `MergedAgentListModel.awayStart(for:)` 接上;沒開過的聊天是 `nil`)。
-    @ObservationIgnored public var awayStart: (@MainActor () -> Date?)?
+    @ObservationIgnored public let awayStart: (@MainActor () -> Date?)?
     /// 第一次讀到離開起點時定下來的(離開起點，進來的時間);之後不變，聊天開著時發生的項目不會被算進去。
     private var awayLatch: (from: Date, cutoff: Date)?
     /// 離開超過 15 分鐘回來時的摘要;其餘為 `nil`。
@@ -670,6 +672,35 @@ public final class ConversationModel {
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
     private var generation = 0
 
+    /// 聊天所在主機接上的來源與回呼(#566):建立時一次給齊,之後畫面不能改。
+    public struct HostLinks {
+        public var youShouldKnow: YouShouldKnowModel?
+        public var agentFiles: AgentFileLoads?
+        public var gitChanges: (any GitChangesReading)?
+        public var sessionStatusReader: (any ClaudeSessionStatusReading)?
+        public var agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading]
+        public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
+        public var onPromptDelivered: (@MainActor () -> Void)?
+        public var awayStart: (@MainActor () -> Date?)?
+
+        public init(
+            youShouldKnow: YouShouldKnowModel? = nil, agentFiles: AgentFileLoads? = nil,
+            gitChanges: (any GitChangesReading)? = nil, sessionStatusReader: (any ClaudeSessionStatusReading)? = nil,
+            agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:],
+            onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)? = nil,
+            onPromptDelivered: (@MainActor () -> Void)? = nil, awayStart: (@MainActor () -> Date?)? = nil
+        ) {
+            self.youShouldKnow = youShouldKnow
+            self.agentFiles = agentFiles
+            self.gitChanges = gitChanges
+            self.sessionStatusReader = sessionStatusReader
+            self.agentSessionStatusReaders = agentSessionStatusReaders
+            self.onTranscriptSkips = onTranscriptSkips
+            self.onPromptDelivered = onPromptDelivered
+            self.awayStart = awayStart
+        }
+    }
+
     public init(
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
         cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = TranscriptReader.openingLines,
@@ -678,7 +709,8 @@ public final class ConversationModel {
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerAttachments.Dependencies? = nil,
         updates: HostUpdates? = nil,
-        sendSteps: [any SendStep] = [],
+        sendStages: SendStages = SendStages(),
+        links: HostLinks = HostLinks(),
         modelCatalog: (any ModelCatalogProviding)? = nil,
         sleep: @escaping Sleep = Sleeping.task
     ) {
@@ -701,7 +733,19 @@ public final class ConversationModel {
         delivery = PromptDelivery(client: client, sleep: sleep)
         safeSend = SafeSend(client: client, sleep: sleep)
         screens = PaneScreenRound(read: { format in try await client.readPane(paneID: paneID, format: format) })
-        sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
+        secretCheck = sendStages.secretCheck
+        sendWhenDoneStep = sendStages.sendWhenDone
+        undoSend = sendStages.undo
+        offlineQueueStep = sendStages.offlineQueue
+        youShouldKnow = links.youShouldKnow
+        agentFiles = links.agentFiles
+        gitChanges = links.gitChanges
+        sessionStatusReader = links.sessionStatusReader
+        agentSessionStatusReaders = links.agentSessionStatusReaders
+        onTranscriptSkips = links.onTranscriptSkips
+        onPromptDelivered = links.onPromptDelivered
+        awayStart = links.awayStart
+        sendPipeline = SendPipeline(steps: sendStages.steps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)

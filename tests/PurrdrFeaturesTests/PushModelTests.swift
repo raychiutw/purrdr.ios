@@ -45,10 +45,12 @@ struct PushModelTests {
             isPlusActive: { plusActive })
     }
 
-    func model(_ service: PushService, hostID: String? = "studio", muted: Set<String> = []) -> PushModel {
+    func model(
+        _ service: PushService, hostID: String? = "studio", muted: Set<String> = [], testSender: (any PushTestNotificationSending)? = nil
+    ) -> PushModel {
         PushModel(
             service: service, hostID: hostID, installer: service.sshInstaller(channel: host, herdr: HerdrInstallation()),
-            muted: { muted })
+            testSender: testSender, muted: { muted })
     }
 
     var pairingURL: URL { host.url(".purrdr/push-0123456789abcdef/pairing") }
@@ -649,8 +651,7 @@ struct PushModelTests {
         platform.status = .authorized
         backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
         let recorder = Recorder()
-        let model = model(service())
-        model.testSender = TestSender(sent: recorder)
+        let model = model(service(), testSender: TestSender(sent: recorder))
         await turnOn(model)
 
         #expect(model.canSendTestNotification)

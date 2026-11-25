@@ -18,11 +18,10 @@ struct ConversationAwayTests {
         let first = try #require(dates.min())
         let last = try #require(dates.max())
 
-        let fresh = try ConversationModelTests.setup()
         // 離開起點在第一則之前一小時，進來的時間在最後一則之後。
-        fresh.clock.advance(by: last.timeIntervalSince(fresh.clock.now) + 60)
         var away: Date? = first.addingTimeInterval(-3600)
-        fresh.model.awayStart = { away }
+        let fresh = try ConversationModelTests.setup(links: .init(awayStart: { away }))
+        fresh.clock.advance(by: last.timeIntervalSince(fresh.clock.now) + 60)
         await fresh.host.bridge.expect(ConversationModelTests.bridge, reply: ConversationModelTests.snapshot())
         await fresh.model.poll()
 

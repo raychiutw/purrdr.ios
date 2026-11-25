@@ -10,12 +10,13 @@ import Testing
 struct ConversationReviewTests {
     static let review = "README.md:3\n> +New.\n改成 New"
 
-    static func opened(steps: [any SendStep]) async throws -> ConversationSendTests.Setup {
+    static func opened(steps: [any SendStep], git: (any GitChangesReading)? = nil) async throws -> ConversationSendTests.Setup {
         try await ConversationSendTests.opened { client, transcripts, drafts in
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-                clock: TestClock().clock, drafts: drafts, sendSteps: steps)
+                clock: TestClock().clock, drafts: drafts, sendStages: SendStages(custom: steps),
+                links: .init(gitChanges: git))
         }
     }
 
@@ -58,8 +59,8 @@ struct ConversationReviewTests {
         #expect(setup.model.makeChanges() == nil)
 
         let reader = FakeGitChanges(status: GitWorkingTreeStatus(branch: nil, files: []), diffs: GitDiffSet(files: [], truncated: false))
-        setup.model.gitChanges = reader
-        let changes = try #require(setup.model.makeChanges())
+        let withGit = try await Self.opened(steps: [], git: reader)
+        let changes = try #require(withGit.model.makeChanges())
 
         await changes.load()
         // 變更清單與 diff 並行讀取(`async let`),送達順序不固定(#324):只檢查兩個請求都帶 Agent 的工作目錄。
@@ -87,28 +88,25 @@ struct ConversationReviewTests {
 
     @Test("Git 變更項目:讀到清單後可用，帶分支與檔案數")
     func gitMenuAvailableShowsBranchAndCount() async throws {
-        let setup = try await Self.opened(steps: [])
-        setup.model.gitChanges = FakeGitChanges(
+        let setup = try await Self.opened(steps: [], git: FakeGitChanges(
             status: GitWorkingTreeStatus(branch: "fix/composer", files: [
                 GitChange(path: "a", kind: .modified), GitChange(path: "b", kind: .added), GitChange(path: "c", kind: .untracked),
             ]),
-            diffs: GitDiffSet(files: [], truncated: false))
+            diffs: GitDiffSet(files: [], truncated: false)))
         await setup.model.refreshGitMenu()
         #expect(setup.model.gitMenu == .available(branch: "fix/composer", fileCount: 3))
     }
 
     @Test("Git 變更項目:不是 Git 資料夾時停用並說明原因")
     func gitMenuNotRepository() async throws {
-        let setup = try await Self.opened(steps: [])
-        setup.model.gitChanges = FakeGitChanges(failing: GitChangesError.notGitRepository)
+        let setup = try await Self.opened(steps: [], git: FakeGitChanges(failing: GitChangesError.notGitRepository))
         await setup.model.refreshGitMenu()
         #expect(setup.model.gitMenu == .unavailable(.notGitRepository))
     }
 
     @Test("Git 變更項目:暫時讀不到(網路等)不停用，維持可點")
     func gitMenuTransientFailureStaysEnabled() async throws {
-        let setup = try await Self.opened(steps: [])
-        setup.model.gitChanges = FakeGitChanges(failing: HostServiceError.connectionLost)
+        let setup = try await Self.opened(steps: [], git: FakeGitChanges(failing: HostServiceError.connectionLost))
         await setup.model.refreshGitMenu()
         #expect(setup.model.gitMenu == .checking)
         #expect(setup.model.gitMenu.isEnabled)

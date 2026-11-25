@@ -168,7 +168,7 @@ struct UndoSendTests {
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-                clock: TestClock().clock, drafts: drafts, sendSteps: [countdown], sleep: RecordingSleeper().sleep)
+                clock: TestClock().clock, drafts: drafts, sendStages: SendStages(undo: countdown), sleep: RecordingSleeper().sleep)
         }
     }
 

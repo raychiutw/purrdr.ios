@@ -90,12 +90,12 @@ struct SendPipelineTests {
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                sendSteps: [SendStepClosure { prompt, _ in
+                sendStages: SendStages(custom: [SendStepClosure { prompt, _ in
                     seen = prompt
                     var next = prompt
                     next.text = "改過的"
                     return .proceed(next)
-                }]
+                }])
             )
         }
         await setup.host.bridge.expect(ConversationSendTests.bridge, reply: ConversationSendTests.snapshot())
@@ -120,7 +120,7 @@ struct SendPipelineTests {
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                sendSteps: [SendStepClosure { _, _ in .halt(SendHalt(restoresDraft: true)) }]
+                sendStages: SendStages(custom: [SendStepClosure { _, _ in .halt(SendHalt(restoresDraft: true)) }])
             )
         }
         setup.model.draft = "先別送"
@@ -140,7 +140,7 @@ struct SendPipelineTests {
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                sendSteps: [SendStepClosure { _, _ in .halt(SendHalt(restoresDraft: false)) }]
+                sendStages: SendStages(custom: [SendStepClosure { _, _ in .halt(SendHalt(restoresDraft: false)) }])
             )
         }
         setup.model.draft = "排隊"

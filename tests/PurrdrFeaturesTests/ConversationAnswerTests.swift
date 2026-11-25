@@ -27,7 +27,9 @@ struct ConversationAnswerTests {
         let sleeper: RecordingSleeper
     }
 
-    static func setup(sleeper: RecordingSleeper = RecordingSleeper(), modelCatalog: (any ModelCatalogProviding)? = nil) throws -> Setup {
+    static func setup(sleeper: RecordingSleeper = RecordingSleeper(), modelCatalog: (any ModelCatalogProviding)? = nil,
+        links: ConversationModel.HostLinks = .init()
+    ) throws -> Setup {
         let shell = try LocalShellHost.temporary()
         try shell.write(ConversationModelTests.fixture, to: ConversationModelTests.transcriptPath)
         let host = RoutingHost(shell: shell)
@@ -36,7 +38,7 @@ struct ConversationAnswerTests {
         let model = ConversationModel(
             client: HerdrClient(channel: host, sleep: sleeper.sleep), transcripts: TranscriptReader(channel: host), paneID: paneID,
             knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(), clock: clock.clock,
-            haptics: haptics, modelCatalog: modelCatalog, sleep: sleeper.sleep
+            haptics: haptics, links: links, modelCatalog: modelCatalog, sleep: sleeper.sleep
         )
         return Setup(host: host, shell: shell, model: model, clock: clock, haptics: haptics, sleeper: sleeper)
     }
