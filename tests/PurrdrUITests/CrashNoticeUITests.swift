@@ -1,0 +1,45 @@
+import XCTest
+
+/// 啟動提示「上次 Purrdr 意外關閉」(#632、spec #629):旗標 `-uiTestingCrashRecord` 預放一筆閃退記錄。
+final class CrashNoticeUITests: XCTestCase {
+    override func setUp() { continueAfterFailure = false }
+
+    /// 提示出現、「分享記錄」開出系統分享、「關閉」後不再出現。
+    @MainActor
+    func testLaunchNoticeSharesAndDismisses() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord"])
+        let banner = app.otherElements["crashNotice.banner"]
+        XCTAssertTrue(banner.waitUntilExists(timeout: 10), "沒有「上次意外關閉」提示")
+
+        app.buttons["crashNotice.share"].tap()
+        XCTAssertTrue(app.otherElements["ActivityListView"].waitUntilExists(timeout: 10), "沒有開出系統分享")
+        // 關掉分享選單(點選單外側)。
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
+        XCTAssertTrue(app.buttons["crashNotice.dismiss"].waitUntilExists(timeout: 10), "分享後提示不該消失")
+
+        app.buttons["crashNotice.dismiss"].tap()
+        XCTAssertTrue(banner.waitUntilGone(timeout: 5), "關閉後提示還在")
+    }
+
+    /// 沒有閃退記錄時不提示。
+    @MainActor
+    func testNoNoticeWithoutCrash() {
+        let app = XCUIApplication.launchUITesting()
+        XCTAssertFalse(app.otherElements["crashNotice.banner"].waitUntilExists(timeout: 3))
+    }
+
+    /// 設定的「診斷記錄」在有閃退記錄時可分享(開出系統分享,不是「還沒有記錄」)。
+    @MainActor
+    func testSettingsDiagnosticLogCanShareCrash() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord"])
+        XCTAssertTrue(app.buttons["crashNotice.dismiss"].waitUntilExists(timeout: 10))
+        app.buttons["crashNotice.dismiss"].tap()
+        app.openSettingsSheet()
+        let share = app.buttons["settings.hitchLog.share"]
+        app.scrollIntoView(share, search: .down)
+        XCTAssertTrue(share.waitUntilExists(timeout: 5))
+        share.tap()
+        XCTAssertTrue(app.otherElements["ActivityListView"].waitUntilExists(timeout: 10), "有閃退記錄時應開出分享")
+        XCTAssertFalse(app.staticTexts["settings.hitchLog.empty"].exists)
+    }
+}
