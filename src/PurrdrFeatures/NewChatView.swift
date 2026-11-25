@@ -77,7 +77,9 @@ public struct NewChatView: View {
                         #endif
                         .accessibilityIdentifier("newChat.folder")
                     if model.canBrowseFolders {
-                        NavigationLink(value: NewChatFolderRoute()) {
+                        NavigationLink {
+                            FolderPickerRoot(model: model)
+                        } label: {
                             Label("Choose Folder on Host", systemImage: "folder")
                         }
                         .accessibilityIdentifier("newChat.chooseFolder")
@@ -195,9 +197,7 @@ public struct NewChatView: View {
                 Button("Discard", role: .destructive, action: onLeave)
                 Button("Keep Editing", role: .cancel) {}
             }
-            .navigationDestination(for: NewChatFolderRoute.self) { _ in
-                FolderPickerRoot(model: model)
-            }
+
         }
     }
 
@@ -316,35 +316,50 @@ public struct NewChatView: View {
     }
 }
 
-/// 往資料夾瀏覽的導覽值(新增聊天的「Choose Folder on Host」列)。
-struct NewChatFolderRoute: Hashable {}
-
-/// 資料夾瀏覽往下一層的導覽值:`depth` 是那一層在串裡的位置(第一層 0,所以往下的第一層是 1)。
-struct FolderPickerRoute: Hashable {
-    var path: String
-    var depth: Int
-}
-
-/// 資料夾瀏覽這一串 push 共用的狀態:每一層出現時登記自己的路徑與「退出這一層」的動作,
-/// 麵包屑跳回前面某一層、或「Use This Folder」把整串收掉都靠它(系統導覽沒有「退到第 n 層」,只能退出某一層)。
+/// 資料夾瀏覽這一串 push 共用的狀態:每一層出現時登記自己的路徑與「退出這一層」的動作。
+/// 系統導覽只有「退出最上面這一層」(`dismiss` 對被蓋住的層沒有作用),所以:
+/// 麵包屑跳回前面某一層 = 從上往下一層一層退(`pop(toDepth:)`),「Use This Folder」= 退光整串(`unwind`);
+/// 每退一層,露出來的那一層看到 `unwinding` 就接著退自己。
 @MainActor
 @Observable
 final class FolderPickerFlow {
     private(set) var paths: [Int: String] = [:]
+    /// 退回到這一層為止(它之上的都退掉);`nil` 沒有在退。-1 是整串退光(回到新增聊天表單)。
+    private(set) var unwindTarget: Int?
     @ObservationIgnored private var exits: [Int: DismissAction] = [:]
-    @ObservationIgnored var finish: () -> Void = {}
 
     func register(depth: Int, path: String?, exit: DismissAction) {
         if let path { paths[depth] = path }
         exits[depth] = exit
     }
 
-    /// 退回 `depth` 層(它之上的各層都收掉):退出它的下一層。
-    func pop(toDepth depth: Int) { exits[depth + 1]?() }
-
+    /// 前面走過、路徑是 `path` 的那一層(比 `depth` 淺)。
     func depth(ofPath path: String, below depth: Int) -> Int? {
         paths.filter { $0.key < depth && $0.value == path }.keys.max()
     }
+
+    /// 退回 `target` 層:從目前最上面這一層(`from`)開始退。
+    func pop(toDepth target: Int, from depth: Int) {
+        guard depth > target else { return }
+        unwindTarget = target
+        exits[depth]?()
+    }
+
+    /// 退光整串(使用資料夾後回到表單)。
+    func unwind(from depth: Int) { pop(toDepth: -1, from: depth) }
+
+    /// 一層露出來了:還在退而且它在目標之上就接著退自己;退到目標層就結束。
+    func didReveal(depth: Int) {
+        guard let target = unwindTarget else { return }
+        if depth > target {
+            exits[depth]?()
+        } else {
+            unwindTarget = nil
+        }
+    }
+
+    /// 整串退光、第一層也離開時清掉狀態。
+    func didLeaveRoot() { unwindTarget = nil }
 }
 
 /// 新增對話的資料夾瀏覽第一層:自己持有一個 model(從表單已填的資料夾或家目錄開始),使用資料夾後整串 push 一起收掉。
@@ -352,7 +367,6 @@ private struct FolderPickerRoot: View {
     let model: NewChatModel
     @State private var picker: FolderPickerModel
     @State private var flow = FolderPickerFlow()
-    @Environment(\.dismiss) private var dismiss
 
     init(model: NewChatModel) {
         self.model = model
@@ -361,14 +375,12 @@ private struct FolderPickerRoot: View {
 
     var body: some View {
         FolderPickerLevelView(model: picker, depth: 0, flow: flow, onChoose: { model.choose($0) })
-            .navigationDestination(for: FolderPickerRoute.self) { route in
-                FolderPickerLevelView(model: picker.child(at: route.path), depth: route.depth, flow: flow, onChoose: { model.choose($0) })
-            }
-            .onAppear { flow.finish = { dismiss() } }
+            .onDisappear { if flow.unwindTarget == -1 { flow.didLeaveRoot() } }
     }
 }
 
-/// 資料夾瀏覽的一層(#621、#620 的 push 規則):點子資料夾 push 下一層(系統 `NavigationLink`)、左上系統「<」回上一層、
+/// 資料夾瀏覽的一層(#621、#620 的 push 規則):點子資料夾 push 下一層(系統 `NavigationLink`;新增聊天本身是 isPresented 的 push,
+/// 裡面用「值的導覽」會讓系統把新增聊天又推一次,所以這裡的連結都是帶目的地的 NavigationLink)、左上系統「<」回上一層、
 /// 每層有大標題,路徑麵包屑留著當快速跳層;「Use This Folder」在任何一層都能用,選了就把整串收掉。
 struct FolderPickerLevelView: View {
     @State var model: FolderPickerModel
@@ -376,21 +388,19 @@ struct FolderPickerLevelView: View {
     let flow: FolderPickerFlow
     let onChoose: (String) -> Void
     @Environment(\.dismiss) private var dismiss
-    /// 麵包屑點到沒走過的一層(家目錄以上)時往下推。
-    @State private var crumbTarget: FolderPickerRoute?
 
     var body: some View {
         FolderPickerView(
-            model: model, title: title, depth: depth, jump: jump,
+            model: model, title: title, flow: flow, depth: depth, onChoose: onChoose, jump: jump,
             choose: { path in
                 onChoose(path)
-                flow.finish()
+                flow.unwind(from: depth)
             }
         )
-        .navigationDestination(item: $crumbTarget) { route in
-            FolderPickerLevelView(model: model.child(at: route.path), depth: route.depth, flow: flow, onChoose: onChoose)
+        .onAppear {
+            flow.register(depth: depth, path: model.chosenPath, exit: dismiss)
+            flow.didReveal(depth: depth)
         }
-        .onAppear { flow.register(depth: depth, path: model.chosenPath, exit: dismiss) }
         .onChange(of: model.chosenPath) { _, path in flow.register(depth: depth, path: path, exit: dismiss) }
     }
 
@@ -398,14 +408,10 @@ struct FolderPickerLevelView: View {
         depth == 0 ? "Choose Folder" : LocalizedStringKey(model.chosenPath.map { ($0 as NSString).lastPathComponent } ?? "Choose Folder")
     }
 
-    /// 點麵包屑:前面某一層就退回去;沒走過的(家目錄以上)往下推一層。
+    /// 點麵包屑:退回前面走過的那一層。
     private func jump(_ crumb: FolderBreadcrumb) {
-        guard crumb.path != model.chosenPath else { return }
-        if let target = flow.depth(ofPath: crumb.path, below: depth) {
-            flow.pop(toDepth: target)
-        } else {
-            crumbTarget = FolderPickerRoute(path: crumb.path, depth: depth + 1)
-        }
+        guard crumb.path != model.chosenPath, let target = flow.depth(ofPath: crumb.path, below: depth) else { return }
+        flow.pop(toDepth: target, from: depth)
     }
 }
 
@@ -414,7 +420,9 @@ struct FolderPickerLevelView: View {
 struct FolderPickerView: View {
     let model: FolderPickerModel
     let title: LocalizedStringKey
+    let flow: FolderPickerFlow
     let depth: Int
+    let onChoose: (String) -> Void
     let jump: (FolderBreadcrumb) -> Void
     let choose: (String) -> Void
 
@@ -426,29 +434,37 @@ struct FolderPickerView: View {
             .navigationBarTitleDisplayMode(.large)
             #endif
             .safeAreaBar(edge: .top) {
-                if !model.breadcrumbs.isEmpty {
-                    FolderBreadcrumbBar(crumbs: model.breadcrumbs, identifierPrefix: "folderPicker.crumb.", go: jump)
+                // 只列走過的層(點了退回那一層)與目前這一層。
+                let crumbs = model.breadcrumbs.filter { $0.path == model.chosenPath || flow.depth(ofPath: $0.path, below: depth) != nil }
+                if !crumbs.isEmpty {
+                    FolderBreadcrumbBar(crumbs: crumbs, identifierPrefix: "folderPicker.crumb.", go: jump)
                 }
             }
+            // 完成動作在右上 ✓(同有確認動作的畫面;tab bar 保留著,所以不放在底部工具列,會與 tab bar 重疊)。
             .toolbar {
-                ToolbarItem(placement: Self.usePlacement) {
-                    Button("Use This Folder") {
-                        guard let path = model.chosenPath else { return }
-                        choose(path)
-                    }
-                    .filledGlassProminentButtonStyle()
-                    .disabled(model.chosenPath == nil)
-                    .accessibilityIdentifier("folderPicker.use")
+                ModalConfirmToolbar(title: "Use This Folder", identifier: "folderPicker.use", isEnabled: model.chosenPath != nil) {
+                    guard let path = model.chosenPath else { return }
+                    choose(path)
                 }
             }
             .task { await model.load() }
     }
 
-    #if os(iOS)
-    private static let usePlacement = ToolbarItemPlacement.bottomBar
-    #else
-    private static let usePlacement = ToolbarItemPlacement.automatic
-    #endif
+    @ViewBuilder
+    private func folderRow(_ name: String) -> some View {
+        let entry = FolderEntry(name: name, kind: .folder, size: 0)
+        if let child = model.childPath(name) {
+            NavigationLink {
+                FolderPickerLevelView(model: model.child(at: child), depth: depth + 1, flow: flow, onChoose: onChoose)
+            } label: {
+                FolderEntryLabel(entry: entry)
+            }
+            .accessibilityIdentifier("folderPicker.row.\(name)")
+        } else {
+            FolderEntryLabel(entry: entry)
+                .accessibilityIdentifier("folderPicker.row.\(name)")
+        }
+    }
 
     @ViewBuilder
     private var content: some View {
@@ -479,9 +495,7 @@ struct FolderPickerView: View {
                 List {
                     Section {
                         ForEach(listing.folders, id: \.self) { name in
-                            FolderEntryRow(
-                                entry: FolderEntry(name: name, kind: .folder, size: 0), identifierPrefix: "folderPicker.row.",
-                                route: model.childPath(name).map { FolderPickerRoute(path: $0, depth: depth + 1) })
+                            folderRow(name)
                         }
                     }
                 }

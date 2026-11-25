@@ -120,8 +120,10 @@ struct NewChatPushUsageTests {
     @Test("新增聊天的資料夾瀏覽每往下一層是 push,頁面用 appGroupedList")
     func folderPickerIsPushed() throws {
         let view = try source("NewChatView.swift")
-        #expect(view.contains(".navigationDestination(for: NewChatFolderRoute.self)"))
+        #expect(view.contains("FolderPickerRoot(model: model)"))
         #expect(view.contains("FolderPickerLevelView"))
+        #expect(!view.contains("NavigationLink(value:"), "新增聊天本身是 isPresented 的 push,裡面不用「值的導覽」(會讓系統把新增聊天又推一次)")
+        #expect(!view.contains("navigationDestination(item:") && !view.contains("navigationDestination(for:"))
         #expect(!view.contains(".appSheetList()"), "pushed 頁面用 appGroupedList")
     }
 
@@ -129,7 +131,7 @@ struct NewChatPushUsageTests {
     func folderRowsUseNavigationLink() throws {
         let text = try source("FolderBrowserView.swift")
         let start = try #require(text.range(of: "struct FolderEntryRow"))
-        let end = try #require(text.range(of: "private var label", range: start.upperBound..<text.endIndex))
+        let end = try #require(text.range(of: "struct FolderEntryLabel", range: start.upperBound..<text.endIndex))
         let row = String(text[start.lowerBound..<end.lowerBound])
         #expect(row.contains("NavigationLink(value: route)"))
         #expect(!row.contains("chevron"), "列尾 > 由 NavigationLink 給")

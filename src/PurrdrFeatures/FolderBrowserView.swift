@@ -203,15 +203,20 @@ struct FolderEntryRow<Route: Hashable>: View {
 
     var body: some View {
         if (entry.kind == .folder || entry.kind == .symlink), let route {
-            NavigationLink(value: route) { label }
+            NavigationLink(value: route) { FolderEntryLabel(entry: entry) }
                 .accessibilityIdentifier("\(identifierPrefix)\(entry.name)")
         } else {
-            label
+            FolderEntryLabel(entry: entry)
                 .accessibilityIdentifier("\(identifierPrefix)\(entry.name)")
         }
     }
+}
 
-    private var label: some View {
+/// 資料夾列的內容(圖示、名稱、大小與修改時間);檔案頁與新增聊天的資料夾瀏覽共用。
+struct FolderEntryLabel: View {
+    let entry: FolderEntry
+
+    var body: some View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: entry.name)

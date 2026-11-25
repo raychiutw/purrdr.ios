@@ -60,7 +60,9 @@ final class NewChatUITests: XCTestCase {
         app.buttons["folderPicker.use"].tap()
 
         let folder = app.textFields["newChat.folder"]
-        XCTAssertTrue(folder.waitUntilExists(timeout: 5), "沒有回到表單")
+        XCTAssertTrue(app.element("newChat.page").waitUntilExists(timeout: 10), "沒有回到表單")
+        for _ in 0..<4 where !folder.exists { app.swipeUp() }
+        XCTAssertTrue(folder.waitUntilExists(timeout: 5), "表單沒有資料夾欄")
         XCTAssertEqual(folder.value as? String, "/Users/demo/ledger/reports")
         // 回到表單後列表停在上方,「開始」在下面(lazy,不在 accessibility tree):先捲到看得到。
         app.scrollIntoView(start, search: .down)
@@ -109,6 +111,8 @@ final class NewChatUITests: XCTestCase {
     func testFormFieldsAndDemoRejection() {
         let app = openNewChat()
         XCTAssertFalse(app.segmentedControls["newChat.agent"].exists, "Agent 不該是分段控制(#313 攤開)")
+        // Agent 在「放在哪裡」下面:列表是 lazy,先捲到看得到。
+        for _ in 0..<4 where !app.buttons["Claude Code"].exists { app.swipeDown() }
         XCTAssertTrue(app.buttons["Claude Code"].exists && app.buttons["Codex"].exists, "Agent 選項沒有攤開")
         // 名稱兩欄選填(#532):沒填也能開始,下面開始時兩欄都空。
         let workspaceName = app.textFields["newChat.workspaceName"]
