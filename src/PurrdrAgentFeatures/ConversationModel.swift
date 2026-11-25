@@ -1218,7 +1218,9 @@ public final class ConversationModel {
     /// 但檔案前面有:往前一頁一頁讀到有訊息為止，不顯示「還沒有訊息」(#418)。有上限，避免超大檔案讀不完。
     private func readEarlierUntilMessages(path: String, generation: Int) async throws {
         var pages = 0
-        while !hasReadableMessage, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
+        // 補讀期間只更新訊息清單,補讀完(或中途失敗)才整份重建時間軸一次(#586);可讀與否看訊息,不看還沒更新的畫面項目。
+        defer { if pages > 0, generation == self.generation { rebuild() } }
+        while !Self.hasReadableMessage(in: olderMessages + recent), older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
             pages += 1
             // 每頁加倍(上限 `maximumBackfillPageLines`):尾端一長串工具步驟時，往返次數是使用者在等的時間(#508)。
             let lines = min(pageLines << min(pages - 1, 4), max(pageLines, Self.maximumBackfillPageLines))
@@ -1335,7 +1337,8 @@ public final class ConversationModel {
             file?.windowStart = page.start
             older = page.start > 0 ? .available : .reachedStart
             // 補讀屬於開啟視窗:跟隨最新時維持在底部(「整份取代」的捲動規則),不當成往上翻而停在原列、讓位置跳動(#508)。
-            applyTimeline(intoWindow ? timeline.reset(olderMessages + recent) : timeline.prependOlder(olderPage))
+            // 補讀(intoWindow)連讀好幾頁時不逐頁重建,由 `readEarlierUntilMessages` 補讀完整份重建一次(#586)。
+            if !intoWindow { applyTimeline(timeline.prependOlder(olderPage)) }
         }
     }
 

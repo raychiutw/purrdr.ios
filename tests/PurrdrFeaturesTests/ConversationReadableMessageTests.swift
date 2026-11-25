@@ -90,6 +90,23 @@ struct ConversationReadableMessageTests {
         #expect(await Self.windowRequests(connection) <= 1 + ConversationModel.maximumEmptyWindowPages + 1)
     }
 
+    @Test("#586 補讀好幾頁:時間軸只在補讀完整份重建一次,不是每頁一次")
+    func backfillRebuildsTimelineOnce() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
+        await Self.answering(connection, lines: W.lines)
+        let model = Self.model(connection)
+        var updates: [ConversationTimeline.Update] = []
+        model.onTimelineUpdate = { updates.append($0) }
+        let chat = try await Self.open(model, connection)
+        defer { chat.cancel() }
+
+        #expect(await Self.windowRequests(connection) >= 3, "這份紀錄要補讀兩頁以上才有意義")
+        #expect(W.hasReadableMessage(model.items))
+        // 開啟視窗一次、補讀完一次;舊實作每補一頁各整份取代一次。
+        #expect(updates.filter { $0.cause == .refreshed }.count <= 2, "實際 \(updates.map(\.cause))")
+    }
+
     @Test("補讀回來的可讀訊息:follow 持續追加工具步驟也不會被丟掉")
     func followAppendsKeepBackfilledMessages() async throws {
         let connection = FakeHostConnection()
