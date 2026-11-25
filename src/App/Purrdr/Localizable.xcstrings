@@ -5745,17 +5745,6 @@
         }
       }
     },
-    "Hide Inspector" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隱藏 Inspector"
-          }
-        }
-      }
-    },
     "Hide Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6360,17 +6349,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已插入 /%@"
-          }
-        }
-      }
-    },
-    "Inspector" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inspector"
           }
         }
       }
@@ -11347,17 +11325,6 @@
         }
       }
     },
-    "Show Inspector" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示 Inspector"
-          }
-        }
-      }
-    },
     "Show Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11387,6 +11354,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示較少"
+          }
+        }
+      }
+    },
+    "Show Usage & Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示用量與詳細資料"
           }
         }
       }
@@ -11501,13 +11479,13 @@
         }
       }
     },
-    "Shows usage details." : {
+    "Shows usage and details." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開啟用量詳情。"
+            "value" : "開啟用量與詳細資料。"
           }
         }
       }
@@ -15603,6 +15581,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用量與 Context"
+          }
+        }
+      }
+    },
+    "Usage & Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量與詳細資料"
           }
         }
       }
