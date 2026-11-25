@@ -206,7 +206,9 @@ struct PurrdrApp: App {
         self.hostSync = hostSync
         localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
         let hitchStore = uiTesting
-            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch"))
+            // 每次啟動各用一個新資料夾:模擬器的 tmp 會跨測試保留,共用同一個資料夾會讓前面測試捲動留下的記錄
+            // 殘留到「還沒有記錄」的測試(也會越積越大)。
+            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
             : HitchLogFile.applicationSupport()
         let hitchRecorder = HitchRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
         self.hitchRecorder = hitchRecorder
