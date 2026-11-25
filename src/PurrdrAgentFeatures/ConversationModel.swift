@@ -773,8 +773,8 @@ public final class ConversationModel {
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 「已停止」2 秒後的收起;agent 又開始工作或有新的停止時取消(#220)。
     @ObservationIgnored private var stoppedCollapseTask: Task<Void, Never>?
-    /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
-    @ObservationIgnored private var screenThisPoll: String?
+    /// 每輪的 Pane 畫面(#559):所有看畫面的用途向它要,同一輪最多讀一次。
+    @ObservationIgnored private var screens: PaneScreenRound
     /// 工作中讀畫面的節奏(#204)。
     @ObservationIgnored private var workingScreenReads = WorkingScreenReads()
     /// 這次輪詢若在工作中，可以讀畫面更新即時預覽與背景 agents 窗格;不行時沿用上次的。
@@ -934,6 +934,7 @@ public final class ConversationModel {
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
         safeSend = SafeSend(client: client, sleep: sleep)
+        screens = PaneScreenRound(read: { format in try await client.readPane(paneID: paneID, format: format) })
         sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
@@ -1142,7 +1143,7 @@ public final class ConversationModel {
         }
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         settleStopResult()
-        screenThisPoll = nil
+        screens.begin()
         workingScreenDue = workingScreenReads.allowsRead(isWorking: agentStatus == .working, at: clock.now())
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         tabName = AgentListProjection.tabPosition(of: agent.tabID, in: snapshot).map { AgentListProjection.tabName(label: $0.tab.label, position: $0.position) } ?? ""
@@ -1195,10 +1196,7 @@ public final class ConversationModel {
         default: agentsPane != nil || lastPolledStatus == .working
         }
         guard shouldRead else { return }
-        // 這次輪詢找提示時已經讀過畫面就沿用，不再多一個主機指令。
-        let read: String?
-        if let screenThisPoll { read = screenThisPoll } else { read = await readScreen() }
-        guard let screen = read else { return }
+        guard let screen = await readScreen(for: .agentsPane) else { return }
         agentsPane = AgentsPane.parse(screen: screen)
         agentsPaneReadAt = clock.now()
     }
@@ -2072,8 +2070,7 @@ public final class ConversationModel {
             update(prompt: nil)
             return
         }
-        screenThisPoll = await readScreen()
-        guard let screen = screenThisPoll else {
+        guard let screen = await readScreen(for: .prompt) else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
             // 剛答完、herdr 的 blocked 還沒更新的期限內(`staleBlockedUntil`)不冒通用鈕(#468)。
             let isWithinStaleWindow = staleBlockedUntil.map { clock.now() < $0 } ?? false
@@ -2359,9 +2356,8 @@ public final class ConversationModel {
             panel = nil
             return
         }
-        guard watching || panel != nil || screenThisPoll != nil else { return }
-        if screenThisPoll == nil { screenThisPoll = await readScreen() }
-        guard let screen = screenThisPoll else { return }
+        guard watching || panel != nil || screens.hasScreen else { return }
+        guard let screen = await readScreen(for: .panel) else { return }
         let next = SlashPanelParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
         if next != panel { panel = next }
         if modelSheetPage == .effort, effortBaseline == nil, let next, let slider = next.slider {
@@ -2401,18 +2397,12 @@ public final class ConversationModel {
     /// 讀得到畫面或是其他原因失敗時為 `nil`。
     public private(set) var screenUpdateRequiredMessage: String?
 
-    /// 讀 pane 可見畫面;讀不到回 `nil`(呼叫端各自沿用上次或當成未知)。主機服務太舊時記下說明，讀得到就拿掉。
-    private func readScreen(format: PaneReadFormat = .text) async -> String? {
-        do {
-            let screen = try await client.readPane(paneID: paneID, format: format)
-            screenUpdateRequiredMessage = nil
-            return screen
-        } catch let error as HostServiceError {
-            if case .hostServiceUpdateRequired = error { screenUpdateRequiredMessage = HostErrorText.hostServiceMessage(error) }
-            return nil
-        } catch {
-            return nil
-        }
+    /// 向這輪的 Pane 畫面要一份(同一輪最多讀一次,#559);讀不到回 `nil`(呼叫端各自沿用上次或當成未知)。
+    /// 主機服務太舊時記下說明，讀得到就拿掉。
+    private func readScreen(for need: PaneScreenRound.Need) async -> String? {
+        let screen = await screens.screen(for: need)
+        if screenUpdateRequiredMessage != screens.updateRequiredMessage { screenUpdateRequiredMessage = screens.updateRequiredMessage }
+        return screen
     }
 
     // MARK: - 模型膠囊(#350)
@@ -2710,10 +2700,16 @@ public final class ConversationModel {
 
     /// 讀一次畫面的狀態列;認不出(被蓋住、讀不到)沿用上次。只讀、不送按鍵。
     public func refreshStatusLine() async {
-        guard screenDialect.statusLine != nil, !isOffline, let screen = await readScreen() else { return }
+        screens.begin()
+        await readStatusLine()
+    }
+
+    /// 與這輪的其他用途共用同一份畫面(#559)。
+    private func readStatusLine() async {
+        guard screenDialect.statusLine != nil, !isOffline, let screen = await readScreen(for: .statusLine) else { return }
         pollsSinceStatusLine = 0
         statusLineReadStatus = agentStatus
-        if let line = screenDialect.readStatusLine(in: Self.plainText(ansi: screen)) { screenStatusLine = line }
+        if let line = screenDialect.readStatusLine(in: screen) { screenStatusLine = line }
     }
 
     /// 輪詢迴圈每輪呼叫:第一次、Agent 狀態變了或隔了一段時間才讀(指令預算:平常的輪詢不讀畫面)。
@@ -2722,7 +2718,7 @@ public final class ConversationModel {
         pollsSinceStatusLine += 1
         guard screenStatusLine == nil && statusLineReadStatus == nil
             || statusLineReadStatus != agentStatus || pollsSinceStatusLine >= Self.statusLineRefreshPolls else { return }
-        await refreshStatusLine()
+        await readStatusLine()
     }
 
     // MARK: - 權限模式(#306、#383)
@@ -2819,6 +2815,11 @@ public final class ConversationModel {
 
     /// 讀一次畫面:對話紀錄還沒有模式時用它當目前模式,紀錄有值就以紀錄為準(畫面只用來記錄看過哪些模式);認不出沿用上次。
     public func refreshPermissionMode() async {
+        screens.begin()
+        await readPermissionModeFromScreen()
+    }
+
+    private func readPermissionModeFromScreen() async {
         guard supportsPermissionMode, let mode = await readPermissionMode() else { return }
         if metadata.permissionMode == nil {
             observeScreen(mode)
@@ -2831,7 +2832,7 @@ public final class ConversationModel {
     private func probePermissionModeIfNeeded() async {
         guard !permissionModeProbed, supportsPermissionMode, !isReadOnly, !isOffline else { return }
         permissionModeProbed = true
-        await refreshPermissionMode()
+        await readPermissionModeFromScreen()
     }
 
     /// 最近一次切換失敗的原因(#306);切換成功、再試或換 Agent 時清掉。膠囊的 sheet 顯示說明與「再試一次」。
@@ -2860,7 +2861,7 @@ public final class ConversationModel {
         permissionModeFailure = nil
         switchingPermissionMode = target
         defer { switchingPermissionMode = nil }
-        guard var current = await readPermissionMode() else {
+        guard var current = await readPermissionMode(verifying: true) else {
             permissionModeFailure = .unreadable(target: target)
             return
         }
@@ -2881,13 +2882,13 @@ public final class ConversationModel {
             }
             attempts += 1
             do { try await sleep(.milliseconds(300)) } catch { return }
-            guard var read = await readPermissionMode() else { break }
+            guard var read = await readPermissionMode(verifying: true) else { break }
             // 有自己輪替的 Agent:畫面可能還沒重畫(讀到的模式沒變),先再讀幾次,不要重複按而跳過目標。
             var rereads = 0
             while screenDialect.permissionModeCycle != nil, read == current, rereads < Self.staleModeRereads {
                 rereads += 1
                 do { try await sleep(.milliseconds(300)) } catch { return }
-                guard let again = await readPermissionMode() else { break }
+                guard let again = await readPermissionMode(verifying: true) else { break }
                 read = again
             }
             let wrapped = read != current && !visited.insert(read).inserted
@@ -2911,9 +2912,10 @@ public final class ConversationModel {
     private static let staleModeRereads = 2
 
     /// 讀畫面認出目前的權限模式(依畫面方言);狀態列方言順便更新狀態列,讓膠囊與標題跟著變。
-    private func readPermissionMode() async -> AgentPermissionMode? {
-        guard let screen = await readScreen() else { return nil }
-        if screenDialect.statusLine != nil, let line = screenDialect.readStatusLine(in: Self.plainText(ansi: screen)) {
+    /// `verifying` 為真(切換後確認)一律重讀;探測時與這輪其他用途共用畫面(#559)。
+    private func readPermissionMode(verifying: Bool = false) async -> AgentPermissionMode? {
+        guard let screen = await readScreen(for: verifying ? .permissionModeVerify : .permissionMode) else { return nil }
+        if screenDialect.statusLine != nil, let line = screenDialect.readStatusLine(in: screen) {
             screenStatusLine = line
             return line.mode
         }
@@ -2946,11 +2948,14 @@ public final class ConversationModel {
     /// 給這次輪詢的面板、背景 agents 窗格共用(R-F02);這次輪詢已讀過純文字畫面(分不出灰色建議)就留到下次。
     /// 讀取期間建議被清掉(送出)時結果作廢，畫面也不共用。
     private func readSuggestion(_ agent: Agent) async -> SuggestionRead? {
-        guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, screenThisPoll == nil else { return nil }
+        guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, !screens.hasScreen else { return nil }
         let epoch = suggestionEpoch
         suggestionReadsLeft -= 1
-        guard let screen = await readScreen(format: .ansi), epoch == suggestionEpoch else { return nil }
-        screenThisPoll = Self.plainText(ansi: screen)
+        guard let screen = await readScreen(for: .suggestion) else { return nil }
+        guard epoch == suggestionEpoch else {
+            screens.invalidate()
+            return nil
+        }
         return SuggestionRead(suggestion: PromptSuggestion.detect(screen: screen), epoch: epoch)
     }
 
@@ -2969,11 +2974,6 @@ public final class ConversationModel {
         detectedSuggestion = nil
         suggestionReadsLeft = Self.suggestionReadLimit
         suggestionEpoch += 1
-    }
-
-    /// 去掉跳脫序列與 `\r`:`.ansi` 畫面只差在跳脫序列與行尾，其他解析器吃的是純文字。
-    static func plainText(ansi screen: String) -> String {
-        ANSIText.strip(screen).replacingOccurrences(of: "\r", with: "")
     }
 
     // MARK: - 標題列(#44)
@@ -3016,8 +3016,7 @@ public final class ConversationModel {
     private func refreshLivePreview() async {
         if agentStatus == .working, prompt == nil {
             if workingScreenDue {
-                if screenThisPoll == nil { screenThisPoll = await readScreen() }
-                screenPreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
+                screenPreview = await readScreen(for: .livePreview).flatMap(LivePreview.extract(screen:))
             }
         } else {
             screenPreview = nil
