@@ -115,7 +115,8 @@ final class HostsUITests: XCTestCase {
             // 回到總頁時列表還停在剛才捲到的位置,狀態卡在最上面(lazy):先捲回上面。
             let status = app.element("hosts.status")
             XCTAssertTrue(app.scrollIntoView(status, search: .up, timeout: 5), "存檔後沒有回到總頁")
-            XCTAssertTrue(app.staticTexts["Office Mac"].firstMatch.waitUntilExists(timeout: 5), "總頁沒有換成新名稱")
+            let picker = app.buttons["hosts.host"].firstMatch
+            XCTAssertTrue(UITestWait.until(timeout: 10) { picker.label.contains("Office Mac") }, "右上主機選單沒有換成新名稱:\(picker.label)")
         }
 
         // 分享:在同一個 NavigationStack push,顯示 QR code 與分享連結。
