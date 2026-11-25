@@ -82,6 +82,38 @@ public struct SendStepClosure: SendStep {
     }
 }
 
+/// 聊天的送出管線有哪些步驟(#566):各步驟以具名欄位給,畫面直接拿到它們,管線不必以型別取回。
+/// 順序固定:機密偵測、Send When Done、撤回倒數、離線佇列,最後才是 `custom`(測試或其他步驟)。
+@MainActor
+public struct SendStages {
+    public var secretCheck: SecretCheck?
+    public var sendWhenDone: SendWhenDoneStep?
+    public var undo: UndoSendCountdown?
+    public var offlineQueue: OfflineQueueStep?
+    public var custom: [any SendStep]
+
+    public init(
+        secretCheck: SecretCheck? = nil, sendWhenDone: SendWhenDoneStep? = nil, undo: UndoSendCountdown? = nil,
+        offlineQueue: OfflineQueueStep? = nil, custom: [any SendStep] = []
+    ) {
+        self.secretCheck = secretCheck
+        self.sendWhenDone = sendWhenDone
+        self.undo = undo
+        self.offlineQueue = offlineQueue
+        self.custom = custom
+    }
+
+    /// 依固定順序排好的步驟。
+    var steps: [any SendStep] {
+        var all: [any SendStep] = []
+        if let secretCheck { all.append(secretCheck) }
+        if let sendWhenDone { all.append(sendWhenDone) }
+        if let undo { all.append(undo) }
+        if let offlineQueue { all.append(offlineQueue) }
+        return all + custom
+    }
+}
+
 /// 送出管線(#299,spec #298):依序跑步驟，全部通過後由呼叫端交給主機。
 /// 聊天輸入列與 Send When Done 共用;步驟與時鐘都由建立者注入。
 @MainActor
@@ -92,11 +124,6 @@ public struct SendPipeline {
     public init(steps: [any SendStep] = [], clock: SendPipelineClock = SendPipelineClock()) {
         self.steps = steps
         self.clock = clock
-    }
-
-    /// 管線裡某種步驟(畫面要讀它的狀態,例如倒數中的訊息);沒有就是 `nil`。取步驟的唯一入口。
-    public func step<Step: SendStep>(_ type: Step.Type) -> Step? {
-        steps.lazy.compactMap { $0 as? Step }.first
     }
 
     /// 依序跑步驟;有步驟擋下就停，後面的不跑。`isHostReachable` 給步驟輪到時查連線狀態(離線佇列在倒數結束時才判斷)。

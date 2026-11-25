@@ -37,7 +37,8 @@ struct ConversationModelTests {
 
     static func setup(
         transcript: Data? = fixture, knownSessionID: String? = sessionID, cache: InMemoryConversationCache = InMemoryConversationCache(),
-        openLines: Int = 300, openMaxBytes: Int = 0, pageLines: Int = 200
+        openLines: Int = 300, openMaxBytes: Int = 0, pageLines: Int = 200,
+        links: ConversationModel.HostLinks = .init()
     ) throws -> Setup {
         let shell = try LocalShellHost.temporary()
         if let transcript { try shell.write(transcript, to: transcriptPath) }
@@ -45,7 +46,8 @@ struct ConversationModelTests {
         let clock = TestClock()
         let model = ConversationModel(
             client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host), paneID: paneID,
-            knownSessionID: knownSessionID, cache: cache, clock: clock.clock, openLines: openLines, openMaxBytes: openMaxBytes, pageLines: pageLines
+            knownSessionID: knownSessionID, cache: cache, clock: clock.clock, openLines: openLines, openMaxBytes: openMaxBytes, pageLines: pageLines,
+            links: links
         )
         return Setup(host: host, shell: shell, model: model, clock: clock, cache: cache)
     }

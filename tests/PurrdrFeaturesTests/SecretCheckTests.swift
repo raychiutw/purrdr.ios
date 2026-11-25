@@ -74,7 +74,7 @@ struct SecretCheckTests {
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-                clock: TestClock().clock, drafts: drafts, sendSteps: [check]
+                clock: TestClock().clock, drafts: drafts, sendStages: SendStages(secretCheck: check)
             )
         }
     }

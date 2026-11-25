@@ -27,8 +27,7 @@ struct ConversationSessionStatusTests {
     static let session = ConversationModelTests.sessionID
 
     static func opened(reader: Reader?) async throws -> ConversationAnswerTests.Setup {
-        let setup = try await ConversationPermissionModeTests.opened()
-        setup.model.sessionStatusReader = reader
+        let setup = try await ConversationPermissionModeTests.opened(links: .init(sessionStatusReader: reader))
         return setup
     }
 

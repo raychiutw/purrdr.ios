@@ -104,14 +104,16 @@ package final class HostMember {
         self.list = list
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
         let installer = pushService.flatMap { service in capabilities.pushInstaller.value.map { $0(service) } }
-        let push = PushModel(service: pushService, hostID: hostID == HostsModel.demoID ? nil : hostID, installer: installer) {
+        // 測試通知(#328):adapter 決定這台主機有沒有、怎麼送。
+        let testSender = pushService.flatMap { service in capabilities.pushTestSender.value.map { $0(service) } }
+        let push = PushModel(
+            service: pushService, hostID: hostID == HostsModel.demoID ? nil : hostID, installer: installer, testSender: testSender
+        ) {
             preferences.load().muted
         }
         self.push = push
         // 連上這台主機(建立成員)時,推播開著就檢查外掛版本(#432;有頻率上限，失敗不打擾)。
         if push.state == .on { Task { await push.updatePluginIfNeeded() } }
-        // 測試通知(#328):adapter 決定這台主機有沒有、怎麼送。
-        if let pushService, let makeSender = capabilities.pushTestSender.value { push.testSender = makeSender(pushService) }
         actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
         let hostFiles = capabilities.hostFiles
         self.hostFiles = hostFiles

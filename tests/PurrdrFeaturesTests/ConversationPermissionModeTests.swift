@@ -31,8 +31,8 @@ struct ConversationPermissionModeTests {
 
     /// 開好聊天。預設的對話紀錄沒有任何權限模式紀錄(把 fixture 裡使用者訊息的欄位拿掉),讓畫面判斷單獨運作;
     /// 帶 `transcriptMode` 時在尾端加一筆權限模式紀錄。
-    static func opened(transcriptMode: String? = nil) async throws -> ConversationAnswerTests.Setup {
-        let setup = try ConversationAnswerTests.setup(sleeper: RecordingSleeper { $0 == .milliseconds(300) })
+    static func opened(transcriptMode: String? = nil, links: ConversationModel.HostLinks = .init()) async throws -> ConversationAnswerTests.Setup {
+        let setup = try ConversationAnswerTests.setup(sleeper: RecordingSleeper { $0 == .milliseconds(300) }, links: links)
         let stripped = String(decoding: ConversationModelTests.fixture, as: UTF8.self)
             .replacingOccurrences(of: #""permissionMode":"bypassPermissions""#, with: #""note":"x""#)
         try setup.shell.write(Data(stripped.utf8), to: ConversationModelTests.transcriptPath)
