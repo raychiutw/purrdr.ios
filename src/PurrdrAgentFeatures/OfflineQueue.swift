@@ -60,29 +60,26 @@ public final class InMemoryOfflineQueueStore: OfflineQueueStore {
     public func save(_ prompts: [QueuedPrompt], host: String) { stored[host] = prompts }
 }
 
-/// 存在 `UserDefaults`(只在這支裝置、不同步):每台主機一個 key,內容是 JSON。
+/// 存放離線佇列內容的位置(Seam:正式是 Keychain,測試是記憶體);內容是 JSON。
+public protocol OfflineQueueBlobStore: AnyObject, Sendable {
+    func read(account: String) -> Data?
+    func write(_ data: Data, account: String) throws
+    func delete(account: String)
+}
+
+/// 舊版存在 `UserDefaults` 的資料(只讀取與刪除，用來遷移)。
+public protocol LegacyOfflineQueueSource: Sendable {
+    func data(host: String) -> Data?
+    func remove(host: String)
+}
+
+/// 離線佇列存在不進備份的位置;第一次載入時把舊版 `UserDefaults` 的資料遷移過來並刪除。
 @MainActor
-public final class UserDefaultsOfflineQueueStore: OfflineQueueStore {
-    public static let keyPrefix = "offlineQueue."
+public final class ProtectedOfflineQueueStore: OfflineQueueStore {
+    public init(blobs: any OfflineQueueBlobStore, legacy: any LegacyOfflineQueueSource) {}
 
-    private let defaults: UserDefaults
-
-    public init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-    }
-
-    public func load(host: String) -> [QueuedPrompt] {
-        guard let data = defaults.data(forKey: Self.keyPrefix + host) else { return [] }
-        return (try? JSONDecoder().decode([QueuedPrompt].self, from: data)) ?? []
-    }
-
-    public func save(_ prompts: [QueuedPrompt], host: String) {
-        if prompts.isEmpty {
-            defaults.removeObject(forKey: Self.keyPrefix + host)
-        } else if let data = try? JSONEncoder().encode(prompts) {
-            defaults.set(data, forKey: Self.keyPrefix + host)
-        }
-    }
+    public func load(host: String) -> [QueuedPrompt] { [] }
+    public func save(_ prompts: [QueuedPrompt], host: String) {}
 }
 
 /// 一台主機的離線佇列(#301,spec #298):沒有連線時送出的訊息先排在這裡(每台主機最多 30 則，存本機)。
