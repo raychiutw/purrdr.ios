@@ -38,9 +38,11 @@ final class SendWhenDoneUITests: XCTestCase {
         XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "做完再送 sheet 沒有開關")
         // 系統開關:主機服務的佇列可用性讀回來之前是停用的,等到能打開為止(停用時原因寫在下方,不跳對話框)。
         XCTAssertTrue(UITestWait.until(timeout: 15) { toggle.isEnabled }, "做完再送開關一直是停用")
-        XCTAssertTrue(app.alerts.isEmpty, "不該用對話框說明")
-        toggle.tap()
-        XCTAssertEqual(toggle.value as? String, "1", "做完再送沒有開啟")
+        XCTAssertEqual(app.alerts.count, 0, "不該用對話框說明")
+        // 系統開關:點的是列尾的開關本體(點列的其他地方不會切換,與系統設定相同)。
+        let knob = toggle.switches.firstMatch
+        knob.tap()
+        XCTAssertTrue(UITestWait.until(timeout: 10) { "\(knob.value ?? "")" == "1" }, "做完再送沒有開啟:\(String(describing: knob.value))")
         app.buttons["sheet.close"].tap()
 
         queue("first message", in: app)

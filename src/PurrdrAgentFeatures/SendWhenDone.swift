@@ -18,7 +18,7 @@ public final class SendWhenDoneModel {
     public private(set) var hasLoaded = false
     /// 排入、刪除失敗的說明;下一次操作成功時清掉。
     public private(set) var notice: String?
-    @ObservationIgnored private var requested = false
+    private var requested = false
 
     @ObservationIgnored private let host: (any SendWhenDoneHosting)?
     @ObservationIgnored private let paneID: String

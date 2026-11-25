@@ -2,6 +2,8 @@ import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrTestSupport
+import Observation
+import Synchronization
 import Testing
 
 /// Send When Done(#305,spec #298):輸入列的「做完再送」開關開著時，送出改排進主機上的佇列，Agent 做完後依序送出。
@@ -152,6 +154,19 @@ struct SendWhenDoneTests {
         #expect(!model.isEnabled)
         #expect(model.unavailableReason == String(localized: "This device is paired read-only, so it can’t queue messages."))
         #expect(await host.calls.isEmpty)
+    }
+
+    @Test("切換開關會通知畫面重畫(requested 要被觀察,否則系統 Toggle 點了不會變)")
+    func toggleNotifiesObservers() async {
+        let host = FakeSendWhenDoneHost()
+        let model = SendWhenDoneModel(host: host, paneID: Self.paneID, sleep: { _ in })
+        let task = await Self.running(model, host: host)
+        let changed = Mutex(false)
+        withObservationTracking { _ = model.isEnabled } onChange: { changed.withLock { $0 = true } }
+        model.isRequested = true
+        #expect(changed.withLock { $0 })
+        #expect(model.isEnabled)
+        task.cancel()
     }
 
     @Test("可用時沒有停用原因")
