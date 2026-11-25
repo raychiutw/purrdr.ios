@@ -24,9 +24,9 @@ struct ChangesView: View {
     private var content: some View {
         switch model.phase {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityIdentifier("changes.loading")
+            // 整頁第一次載入:骨架(#626)。
+            List { Section { RowsSkeleton(count: 5, identifier: "changes.loading") } }
+                .appGroupedList()
         case .failed(let problem):
             ChangesProblemView(problem: problem) { Task { await model.load() } }
         case .loaded:
@@ -239,8 +239,8 @@ struct ChangesFileView: View {
     private var content: some View {
         switch model.diff(of: path) {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            List { Section { RowsSkeleton(count: 6, identifier: "changes.diff.loading") } }
+                .appGroupedList()
         case .failed(let problem):
             ChangesProblemView(problem: problem) { Task { await model.loadDiff(of: path) } }
         case .omitted(let reason):

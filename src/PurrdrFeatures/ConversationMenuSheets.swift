@@ -58,8 +58,10 @@ struct SendWhenDoneSections: View {
             } header: {
                 if showsHeader { Text("Send When Done") }
             } footer: {
-                if let reason = sendWhenDone.unavailableReason {
+                if let reason = sendWhenDone.availability.unavailabilityReason {
+                    // 不能用的原因直接寫在開關下方,不跳 alert(#626)。
                     Text(reason)
+                        .accessibilityIdentifier("status.sendWhenDone.reason")
                 } else if model.isReadOnly {
                     Text("This device is paired read-only, so it can’t queue messages.")
                 } else {

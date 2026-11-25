@@ -111,6 +111,10 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let undoSendCountdown: Bool
     public let showsWelcome: Bool
     public let simulatesVideo: Bool
+    /// `-uiTestingSimulatedFileUpload`:檔案 tab 的「上傳檔案」不開文件挑選器,直接上傳一個與家目錄已有項目同名的檔案(#626)。
+    public let simulatesFileUpload: Bool
+    /// `-uiTestingOversizedClipboard`:剪貼簿先放一段超過終端機貼上上限的文字(#626)。
+    public let seedsOversizedClipboard: Bool
     public let hasNoPasscode: Bool
     public let appLockEnabled: Bool
     public let pushTestFails: Bool
@@ -172,6 +176,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
         undoSendCountdown = has("-uiTestingUndoSend")
         showsWelcome = has("-showWelcome")
         simulatesVideo = has("-uiTestingSimulatedVideo")
+        simulatesFileUpload = has("-uiTestingSimulatedFileUpload")
+        seedsOversizedClipboard = isUITesting && has("-uiTestingOversizedClipboard")
         hasNoPasscode = has("-uiTestingNoPasscode")
         appLockEnabled = has("-uiTestingAppLock")
         pushTestFails = has("-uiTestingPushTestFails")

@@ -239,6 +239,17 @@ struct DataUsageModelTests {
         #expect(model.countingSince.map { calendar.dateComponents([.month, .day], from: $0) }?.day == 18)
     }
 
+    @Test("還沒有流量記錄時 hasNoRecordedData 為真(畫面顯示系統空狀態),記錄後與重設後各自更新(#626)")
+    func hasNoRecordedDataFollowsRecords() {
+        let meter = meter()
+        let model = model(meter)
+        #expect(model.hasNoRecordedData)
+        meter.record(hostID: Self.hostID(Self.mac), direction: .received, bytes: 1)
+        #expect(!model.hasNoRecordedData)
+        model.reset()
+        #expect(model.hasNoRecordedData)
+    }
+
     @Test("畫面開著時每 2 秒重讀一次(等待由注入的 sleep 決定),取消後停止")
     func refreshesEveryTwoSecondsUntilCancelled() async {
         let sleeper = SteppingSleeper()

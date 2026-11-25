@@ -103,6 +103,7 @@ struct HostPushRow: View {
             Text("This host can’t send notifications.")
         case .needsHostService(let version, _):
             Label("Needs host service \(version) or later", systemImage: "exclamationmark.triangle")
+                // errorLabel:exempt 需求提示,不是失敗
         case .supported:
             switch model.state {
             case .on:
@@ -117,11 +118,7 @@ struct HostPushRow: View {
                 Text("Setting up notifications…")
             case .off:
                 if case .failed(let message) = model.problem {
-                    Label {
-                        Text("\(message) Tap the switch to try again.")
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle")
-                    }
+                    ErrorLabel(String(localized: "\(message) Tap the switch to try again."), area: "HostPush")
                 } else if model.otherDevices > 0 {
                     Text("Off · Other devices here: \(model.otherDevices)")
                 } else if push.installsViaHostService {
@@ -302,16 +299,16 @@ struct PushProblemRow: View {
             }
             .accessibilityIdentifier("settings.push.problem")
         case .unsupportedDevice(let detail):
-            Label("This device can’t receive notifications. \(detail)", systemImage: "exclamationmark.triangle")
+            ErrorLabel(String(localized: "This device can’t receive notifications. \(detail)"), area: "HostPush")
                 .accessibilityIdentifier("settings.push.problem")
         case .hostServiceOutdated(let update):
             HostServicePushUpdateRow(update: update)
                 .accessibilityIdentifier("settings.push.problem")
         case .deviceIDUnavailable:
-            Label("Couldn’t read this device’s ID. Unlock this device and try again.", systemImage: "lock")
+            ErrorLabel(String(localized: "Couldn’t read this device’s ID. Unlock this device and try again."), area: "HostPush")
                 .accessibilityIdentifier("settings.push.problem")
         case .failed(let message), .mutedSyncFailed(let message), .kindsUpdateFailed(let message):
-            Label { Text(verbatim: message) } icon: { Image(systemName: "exclamationmark.triangle") }
+            ErrorLabel(message, area: "HostPush")
                 .accessibilityIdentifier("settings.push.problem")
         }
     }

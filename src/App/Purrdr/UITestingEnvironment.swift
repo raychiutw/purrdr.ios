@@ -43,7 +43,13 @@ enum UITestingEnvironment {
             pairingCodeScan: pairingCodeScanSource(configuration.pairingScan),
             recentPhotos: recentPhotoSource(configuration.recentPhotos),
             // `-uiTestingSimulatedVideo`:「影片」不開相簿挑選器(XCUITest 操作不了)(#474)。
-            video: configuration.simulatesVideo ? .simulated : .system)
+            video: configuration.simulatesVideo ? .simulated : .system,
+            // `-uiTestingSimulatedFileUpload`:檔案 tab 的上傳不開文件挑選器(#626)。
+            fileUpload: configuration.simulatesFileUpload ? .simulated : .system)
+        // `-uiTestingOversizedClipboard`:終端機貼上失敗的說明要有確定的觸發(#626)。
+        if configuration.seedsOversizedClipboard {
+            UIPasteboard.general.string = String(repeating: "x", count: 300 * 1024)
+        }
         let viewFlags = LaunchEnvironment.ViewFlags(
             forcesOpaqueGlass: UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency"),
             allowsTestingLinks: true, usesTestingSignIn: configuration.usesTestingSignIn,

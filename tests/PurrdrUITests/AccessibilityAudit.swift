@@ -100,7 +100,7 @@ final class AccessibilityAuditContext {
 
     /// 卡片裡的內層捲動區(slash 面板的選項清單，最高 240pt):裡面的列與它們的文字。捲出這一區的列被裁掉，
     /// 無障礙樹仍回報它們疊在下方動作鈕上的位置(#251:AX5 的「Fastest for short answers」量到的是「Cancel」那一塊)。
-    lazy var innerScrollRegions: [(frame: CGRect, contents: [CGRect])] = ["panel.options"].compactMap { identifier in
+    lazy var innerScrollRegions: [(frame: CGRect, contents: [CGRect])] = ["panel.card"].compactMap { identifier in
         let region = app.descendants(matching: .any)[identifier].firstMatch
         guard region.exists else { return nil }
         return (region.frame, region.descendants(matching: .any).allElementsBoundByIndex.map(\.frame))

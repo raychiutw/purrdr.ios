@@ -164,6 +164,24 @@ final class PaneTerminalUITests: XCTestCase {
         screen.expectValue(containing: "demo@purrdr ledger %")
     }
 
+    /// 貼上失敗的說明顯示在終端機上方、不彈 alert(#625、#626):`-uiTestingOversizedClipboard` 讓剪貼簿一開始就超過貼上上限。
+    @MainActor
+    func testOversizedPasteShowsInlineNoticeNotAlert() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingOversizedClipboard"])
+        let screen = openTerminal(app)
+        screen.expectValue(containing: "demo@purrdr ledger %")
+        let paste = app.buttons["terminal.key.paste"].firstMatch
+        if !paste.waitUntilExists(timeout: 3) { screen.tap() }
+        XCTAssertTrue(paste.waitUntilExists(timeout: 10), "沒有貼上鍵")
+        paste.tap()
+
+        let notice = app.descendants(matching: .any)["terminal.notice"].firstMatch
+        XCTAssertTrue(notice.waitUntilExists(timeout: 10), "貼上失敗沒有顯示頁內說明")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "貼上失敗不該彈 alert")
+        app.buttons["Dismiss"].firstMatch.tap()
+        XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
+    }
+
     @MainActor
     func testPaneInUseOffersTakeOver() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoPaneInUse"])

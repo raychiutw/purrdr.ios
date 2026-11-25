@@ -140,7 +140,6 @@ struct SendWhenDoneTests {
         model.toggle()
         model.isRequested = true
         #expect(!model.isEnabled)
-        #expect(model.unavailableReason == String(localized: "Send When Done needs the Purrdr host service on this host. Install or update it first."))
     }
 
     @Test("唯讀裝置:停用並說明")
@@ -152,7 +151,6 @@ struct SendWhenDoneTests {
         #expect(model.availability == .readOnlyDevice)
         model.toggle()
         #expect(!model.isEnabled)
-        #expect(model.unavailableReason == String(localized: "This device is paired read-only, so it can’t queue messages."))
         #expect(await host.calls.isEmpty)
     }
 
@@ -166,15 +164,6 @@ struct SendWhenDoneTests {
         model.isRequested = true
         #expect(changed.withLock { $0 })
         #expect(model.isEnabled)
-        task.cancel()
-    }
-
-    @Test("可用時沒有停用原因")
-    func availableHasNoReason() async {
-        let host = FakeSendWhenDoneHost()
-        let model = SendWhenDoneModel(host: host, paneID: Self.paneID, sleep: { _ in })
-        let task = await Self.running(model, host: host)
-        #expect(model.unavailableReason == nil)
         task.cancel()
     }
 

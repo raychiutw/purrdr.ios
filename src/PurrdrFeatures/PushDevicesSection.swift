@@ -13,9 +13,16 @@ struct PushDevicesView: View {
     var body: some View {
         List {
             Section {
-                if model.hasLoaded, model.devices.isEmpty, model.problem == nil {
-                    Text("No devices receive notifications yet.")
-                        .foregroundStyle(.secondaryText)
+                if !model.hasLoaded {
+                    // 整頁第一次載入:骨架(#626)。
+                    RowsSkeleton(identifier: "account.pushDevices.loading")
+                } else if model.devices.isEmpty, model.problem == nil {
+                    // 系統空狀態(#626)。
+                    ContentUnavailableView(
+                        "No Notification Devices", systemImage: "bell.slash",
+                        description: Text("No devices receive notifications yet."))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                         .accessibilityIdentifier("account.pushDevices.empty")
                 }
                 ForEach(model.devices) { device in
@@ -26,15 +33,9 @@ struct PushDevicesView: View {
                     }
                 }
                 if let problem = model.problem {
-                    Label {
-                        switch problem {
-                        case .needsSubscription: Text("Renaming devices needs Purrdr Plus.")
-                        case .failed(let message): Text(verbatim: message)
-                        }
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle")
-                    }
-                    .accessibilityIdentifier("account.pushDevices.problem")
+                    // 頁內錯誤一律紅色三角說明(#626)。
+                    ErrorLabel(problem.text, area: "PushDevices")
+                        .accessibilityIdentifier("account.pushDevices.problem")
                 }
             } footer: {
                 Text("Tap a device to rename it or turn off its notifications without signing it out. Turning off a device stops its notifications from every host, even if it’s lost.")
@@ -129,6 +130,23 @@ private struct PushDeviceRow: View {
     let turnOff: () -> Void
 
     var body: some View {
+        content
+            // 左滑與選單同一組動作(#626)。不用 destructive role:關閉要先確認,確認前列不該被移走(0.52.1 閃退的教訓)。
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                if !isBusy {
+                    Button("Turn Off Notifications", systemImage: "bell.slash", action: turnOff)
+                        .tint(.red)
+                        .accessibilityIdentifier("account.pushDevices.swipeTurnOff")
+                    if canRename {
+                        Button("Rename", systemImage: "pencil", action: rename)
+                            .accessibilityIdentifier("account.pushDevices.swipeRename")
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if isBusy {
             HStack { label; ProgressView() }
         } else {
@@ -194,6 +212,16 @@ private struct PushDeviceRow: View {
             return Text("\(model.rawValue) · Hosts: \(device.hostCount) · Last used \(lastUsed)")
         }
         return Text("Hosts: \(device.hostCount) · Last used \(lastUsed)")
+    }
+}
+
+extension PushDevicesModel.Problem {
+    /// 頁內錯誤的說明文字。
+    var text: String {
+        switch self {
+        case .needsSubscription: String(localized: "Renaming devices needs Purrdr Plus.")
+        case .failed(let message): message
+        }
     }
 }
 

@@ -255,6 +255,9 @@ public final class DataUsageModel {
         return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
     }
 
+    /// 還沒有任何流量記錄(統計還沒開始):頁面用系統空狀態說明,不只寫在註腳(#626)。
+    public var hasNoRecordedData: Bool { countingSince == nil }
+
     // MARK: - 內部
 
     private func matches(_ hostID: String) -> Bool {

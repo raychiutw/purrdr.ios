@@ -140,6 +140,7 @@ struct HostNotificationsPage: View {
             }
             if let version = outdatedObserverVersion(push) {
                 Label("“May Be Stuck” and “Still Waiting for You” need host service \(version) or later.", systemImage: "exclamationmark.triangle")
+                    // errorLabel:exempt 需求提示,不是失敗
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
             } else if !push.installsViaHostService {

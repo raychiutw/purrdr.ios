@@ -28,6 +28,7 @@ struct FolderBrowserView: View {
     /// 第一層(家目錄)的路徑:點麵包屑的這一段就是清空導覽路徑。
     let rootPath: String?
     @State private var importing = false
+    @Environment(\.fileUploadSource) private var fileUploadSource
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -100,8 +101,16 @@ struct FolderBrowserView: View {
                 .accessibilityLabel(Text("Uploading \(name)"))
                 .accessibilityIdentifier("files.uploading")
         } else {
-            TopBarPlusButton(title: "Upload File", identifier: "files.upload") { importing = true }
+            TopBarPlusButton(title: "Upload File", identifier: "files.upload") { startUpload() }
                 .disabled(model.path == nil)
+        }
+    }
+
+    /// 開文件挑選器上傳;UI 測試(`-uiTestingSimulatedFileUpload`)改為直接上傳一個與家目錄已有項目同名的檔案(挑選器在另一個行程,XCUITest 操作不了)。
+    private func startUpload() {
+        switch fileUploadSource {
+        case .system: importing = true
+        case .simulated: Task { await model.upload(Data("demo".utf8), named: FileUploadSource.simulatedFileName) }
         }
     }
 
@@ -340,4 +349,17 @@ struct FolderSkeletonRows: View {
         }
         .skeleton(identifier: identifier, label: label)
     }
+}
+
+/// 檔案 tab「上傳檔案」的來源。正式用系統文件挑選器;UI 測試用替身(挑選器在另一個行程,XCUITest 操作不了)。
+public enum FileUploadSource: Sendable, Equatable {
+    case system
+    /// UI 測試:不開挑選器,直接上傳 `simulatedFileName`(Demo 主機的家目錄已有同名項目,所以一定回「已有同名項目」的說明)。
+    case simulated
+
+    public static let simulatedFileName = "README.md"
+}
+
+extension EnvironmentValues {
+    @Entry public var fileUploadSource: FileUploadSource = .system
 }

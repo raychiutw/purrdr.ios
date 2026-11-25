@@ -3,7 +3,7 @@ import PurrdrCore
 import SwiftUI
 
 /// 狀態 sheet 的「做完再送」開關(#305、#349:開關從輸入列移到狀態 sheet)。
-/// 開著時送出的訊息排進主機的佇列、Agent 做完後依序送出。SSH 主機、舊版主機服務與唯讀裝置停用，原因寫在開關下方(`SendWhenDoneModel.unavailableReason`)。
+/// 開著時送出的訊息排進主機的佇列、Agent 做完後依序送出。SSH 主機、舊版主機服務與唯讀裝置停用，原因寫在開關下方(`SendWhenDoneAvailability.unavailabilityReason`)。
 struct SendWhenDoneToggle: View {
     @Bindable var model: SendWhenDoneModel
     var identifier = "status.sendWhenDone"
@@ -14,6 +14,19 @@ struct SendWhenDoneToggle: View {
         }
         .disabled(model.availability != .available)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+extension SendWhenDoneAvailability {
+    /// 停用的原因;可用時是 `nil`。寫在開關下方的說明(footer),不再點了才跳 alert(#626)。
+    var unavailabilityReason: String? {
+        switch self {
+        case .available: nil
+        case .needsHostService:
+            String(localized: "Send When Done needs the Purrdr host service on this host. Install or update it first.")
+        case .readOnlyDevice:
+            String(localized: "This device is paired read-only, so it can’t queue messages.")
+        }
     }
 }
 

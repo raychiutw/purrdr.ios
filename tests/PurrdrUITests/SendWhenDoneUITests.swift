@@ -23,6 +23,22 @@ final class SendWhenDoneUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: "conversation.sendWhenDone.item").allElementsBoundByIndex.map(\.label)
     }
 
+    /// 不能用的原因直接寫在開關下方(#626),點開關不跳 alert、也不會開啟:SSH(Demo)主機沒有主機服務。
+    @MainActor
+    func testUnavailableReasonIsFooterNotAlert() {
+        let app = XCUIApplication.launchUITesting()
+        app.openConversation(paneID: "w1:p1")
+        app.conversationMoreItem("menu.sendWhenDone").tap()
+        let toggle = app.element("status.sendWhenDone")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "做完再送 sheet 沒有開關")
+        let reason = app.element("status.sendWhenDone.reason")
+        XCTAssertTrue(reason.waitUntilExists(timeout: 10), "沒有寫在開關下方的原因")
+        XCTAssertTrue(reason.label.contains("host service"), reason.label)
+        toggle.tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitUntilExists(timeout: 2), "點停用的開關不該跳 alert")
+        XCTAssertNotEqual(toggle.value as? String, "On", "停用的開關不該開啟")
+    }
+
     @MainActor
     func testQueuedMessagesCanBeReordered() throws {
         let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])

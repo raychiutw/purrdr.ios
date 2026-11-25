@@ -47,6 +47,14 @@ public struct NewChatView: View {
                 }
 
                 Section {
+                    if model.availableAgents.isEmpty {
+                        // 系統空狀態(#626)。
+                        ContentUnavailableView(
+                            "No Agents Turned On", systemImage: "bubble.left.and.bubble.right",
+                            description: Text("No Agents are turned on for this host. Open the Hosts tab, then Agent, to turn one on."))
+                            .listRowBackground(Color.clear)
+                            .accessibilityIdentifier("newChat.noAgents")
+                    }
                     Picker("Agent", selection: $model.agent) {
                         ForEach(model.availableAgents, id: \.self) { agent in
                             Text(verbatim: AgentCatalog.profile(for: agent).presentation.displayName ?? agent.canonicalName).tag(agent)
@@ -59,11 +67,6 @@ public struct NewChatView: View {
                 } header: {
                     Text("Agent")
                         .foregroundStyle(.secondaryText)
-                } footer: {
-                    if model.availableAgents.isEmpty {
-                        Text("No Agents are turned on for this host. Open the Hosts tab, then Agent, to turn one on.")
-                            .accessibilityIdentifier("newChat.noAgents")
-                    }
                 }
 
                 if model.selectedWorkspace == nil {

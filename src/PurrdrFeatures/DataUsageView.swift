@@ -50,12 +50,25 @@ public struct DataUsageView: View {
                 summaryTiles.plainRow()
                 chips.plainRow()
             }
-            Section { chartCard }
-            hostsSection
-            Section {
-                resetButton
-            } footer: {
-                footnote
+            if model.hasNoRecordedData {
+                // 統計還沒開始:系統空狀態,不只寫在註腳(#626)。
+                Section {
+                    ContentUnavailableView(
+                        "No Data Usage Yet", systemImage: "chart.bar",
+                        description: Text("Once Purrdr talks to your hosts, the data it sends and receives shows up here."))
+                        .accessibilityIdentifier("dataUsage.empty")
+                        .plainRow()
+                } footer: {
+                    footnote
+                }
+            } else {
+                Section { chartCard }
+                hostsSection
+                Section {
+                    resetButton
+                } footer: {
+                    footnote
+                }
             }
         }
         .appGroupedList()
@@ -200,7 +213,7 @@ public struct DataUsageView: View {
             if let since = model.countingSince {
                 Text("Stored on this device only, counting since \(since.formatted(date: .abbreviated, time: .omitted)).")
             } else {
-                Text("Stored on this device only. Nothing is counted yet.")
+                Text("Stored on this device only.")
             }
         }
         .accessibilityIdentifier("dataUsage.footnote")

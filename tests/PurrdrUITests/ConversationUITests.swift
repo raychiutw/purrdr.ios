@@ -200,7 +200,8 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["docs/export-preview.png"].exists)
         thumbnail.tap()
         XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 5), "沒有全螢幕檢視")
-        XCTAssertGreaterThanOrEqual(app.element("imageViewer.close").frame.height, 44)
+        // 關閉鈕是系統導覽列的按鈕(#627,不自加 44pt 尺寸,觸控範圍由系統給):可點即可。
+        XCTAssertTrue(app.element("imageViewer.close").isHittable, "看圖的關閉鈕點不到")
 
         // #330:雙點兩下放大、再雙點兩下縮回;1× 下滑關閉。
         let image = app.element("imageViewer.image")

@@ -45,17 +45,6 @@ public final class SendWhenDoneModel {
         }
     }
 
-    /// 開關停用的原因,寫在開關下方的說明(取代點了跳對話框);可用時是 `nil`。
-    public var unavailableReason: String? {
-        switch availability {
-        case .available: nil
-        case .needsHostService:
-            String(localized: "Send When Done needs the Purrdr host service on this host. Install or update it first.")
-        case .readOnlyDevice:
-            String(localized: "This device is paired read-only, so it can’t queue messages.")
-        }
-    }
-
     /// 點開關:可用時切換。
     public func toggle() {
         isRequested = !isEnabled
