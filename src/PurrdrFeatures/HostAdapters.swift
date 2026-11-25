@@ -151,6 +151,12 @@ protocol HostAdapter: AnyObject {
     func cleanUpAfterRemoval(_ removal: HostRemoval)
     /// 所有連線的關閉動作(網路路徑改變時丟棄用)。
     func disconnectors() -> [@Sendable () async -> Void]
+    /// 預先撥號(#550):回前景丟掉連線後立刻建立新連線,後面的畫面請求沿用它。失敗不處理(請求自己會重試)。
+    func prewarmers() -> [@Sendable () async -> Void]
+}
+
+extension HostAdapter {
+    func prewarmers() -> [@Sendable () async -> Void] { [] }
 }
 
 // MARK: - 以通道為基礎的能力組(SSH 與 Demo 共用)
@@ -239,6 +245,10 @@ final class SSHHostAdapter: HostAdapter {
 
     func disconnectors() -> [@Sendable () async -> Void] {
         channels.values.map { channel in { await channel.disconnect() } }
+    }
+
+    func prewarmers() -> [@Sendable () async -> Void] {
+        channels.values.map { channel in { await WakeProbe(channel: channel).dial() } }
     }
 
     func cleanUpAfterRemoval(_ removal: HostRemoval) {
@@ -347,6 +357,11 @@ final class HTTPSHostAdapter: HostAdapter {
 
     func disconnectors() -> [@Sendable () async -> Void] {
         connections.values.map { connection in { await connection.disconnect() } }
+    }
+
+    func prewarmers() -> [@Sendable () async -> Void] {
+        // 讀主機服務版本會撥號並完成 hello 握手。
+        connections.values.map { connection in { _ = try? await connection.hostServiceVersion() } }
     }
 
     /// 先刪推播配對再撤銷權杖(主機離線時權杖留在主機上,可在主機上撤銷);臨時連線用讀出的權杖。

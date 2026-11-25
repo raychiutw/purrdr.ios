@@ -284,7 +284,7 @@ public final class MergedAgentListModel {
     public var isNetworkAvailable = true
 
     /// 連線多久沒有結果就顯示「仍在連線」與再試一次。
-    public static let slowConnectionThreshold: TimeInterval = 10
+    public static let slowConnectionThreshold: TimeInterval = ConnectingDisplayPolicy.slowThreshold
 
     /// 還在連線的主機，各一行狀態(依主機順序)。
     public func hostStatuses(at now: Date) -> [HostLoadStatus] {
@@ -292,7 +292,12 @@ public final class MergedAgentListModel {
             // 沒網路時連不上是確定的：列表只顯示離線，不逐台顯示連線中。
             guard isNetworkAvailable, currentHost == nil || source.host == currentHost, source.list.phase == .loading else { return nil }
             let elapsed = now.timeIntervalSince(source.list.updates.connectingSince)
-            let state: HostLoadStatus.State = elapsed >= Self.slowConnectionThreshold ? .stillConnecting : .connecting
+            let state: HostLoadStatus.State
+            switch ConnectingDisplayPolicy.display(elapsed: elapsed, isQuietReconnect: source.list.updates.isQuietReconnect) {
+            case .hidden: return nil
+            case .connecting: state = .connecting
+            case .stillConnecting: state = .stillConnecting
+            }
             return HostLoadStatus(host: source.host, name: source.name, icon: source.icon, state: state)
         }
     }
@@ -381,6 +386,13 @@ public final class MergedAgentListModel {
     /// 網路恢復、回到前景：每台主機都跳過退避立刻重連。
     public func retryNow() {
         for source in sources { source.list.retryNow() }
+    }
+
+    /// 回前景重撥(#550):連線已被丟棄,每台主機跳過退避立刻重連;手上有快照的列表照舊顯示,
+    /// 「連線中」前 `ConnectingDisplayPolicy.quietGrace` 秒不出現(連上後無聲更新)。
+    public func reconnectAfterForeground() {
+        for source in sources { source.list.updates.beginQuietReconnect() }
+        retryNow()
     }
 
     /// 「再試一次」:讀不到的主機各自重試並改回連線中(取消 Tailscale 重新驗證而停著的，重新開始即時更新);

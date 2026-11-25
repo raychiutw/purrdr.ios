@@ -792,23 +792,24 @@ public final class HostsModel {
         backgroundSince = date
     }
 
-    /// 回到前景：背景超過 60 秒就對已建立的連線跑喚醒探測，死掉的連線在 3 秒內被丟棄;有丟棄就讓每台主機的列表立刻重連。
+    /// 回到前景(#550):背景超過保留時間(`BackgroundRetention`)就當連線已被 iOS 關掉,直接丟棄重撥——
+    /// 不跑喚醒探測(等探測逾時比重撥慢);列表沿用最後的快照,立刻對每台主機預先撥號,不等第一個畫面請求。
+    /// 沒超過就沿用現有連線。
     public func sceneDidBecomeActive(at date: Date) async {
         guard let since = backgroundSince else { return }
         backgroundSince = nil
-        guard date.timeIntervalSince(since) > Double(WakeProbe.backgroundThreshold.components.seconds) else { return }
-        let probed = sshAdapter.liveChannels
-        let dead = await withTaskGroup(of: (UUID, Bool).self) { group in
-            for (id, channel) in probed { group.addTask { (id, await WakeProbe(channel: channel).run()) } }
-            var dead: [UUID] = []
-            for await (id, alive) in group where !alive { dead.append(id) }
-            return dead
+        let backgroundSeconds = date.timeIntervalSince(since)
+        let decision = ForegroundReconnectPolicy.decision(backgroundSeconds: backgroundSeconds)
+        // 診斷(#133、#550):實機量測回前景的重連走哪條路。
+        diagnostics.error(ForegroundReconnectPolicy.logLine(backgroundSeconds: backgroundSeconds, decision: decision))
+        guard decision == .redial else { return }
+        let disconnectors = sshAdapter.disconnectors() + httpsAdapter.disconnectors()
+        let prewarmers = sshAdapter.prewarmers() + httpsAdapter.prewarmers()
+        for disconnect in disconnectors { await disconnect() }
+        agentList.reconnectAfterForeground()
+        await withTaskGroup(of: Void.self) { group in
+            for prewarm in prewarmers { group.addTask { await prewarm() } }
         }
-        guard !dead.isEmpty else { return }
-        // 診斷(#133):喚醒探測失敗會丟棄那台主機的連線。
-        let backgroundSeconds = Int(date.timeIntervalSince(since))
-        for id in dead { diagnostics.error("Wake probe failed after \(backgroundSeconds)s in background: dropped the connection to host \(id)") }
-        agentList.retryNow()
     }
 
     private var networkPath: String?

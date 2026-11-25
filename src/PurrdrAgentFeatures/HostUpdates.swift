@@ -15,7 +15,21 @@ public final class HostUpdates {
     public private(set) var phase: Phase = .loading {
         didSet {
             if phase == .loading, oldValue != .loading { connectingSince = now() }
+            if phase != .loading { isQuietReconnect = false }
         }
+    }
+
+    /// 回前景重撥中且手上有快取(#550):列表的「連線中」前幾秒不顯示。
+    public private(set) var isQuietReconnect = false
+
+    /// 回前景、連線已被丟棄時呼叫(#550):有快照就留著它,狀態回到連線中但先不顯示;
+    /// 被丟掉的連線那次失敗不算讀不到。沒有快照時沒有東西可先顯示,照一般連線。
+    public func beginQuietReconnect() {
+        guard snapshot != nil else { return }
+        isQuietReconnect = true
+        isRestarting = true
+        phase = .loading
+        connectingSince = now()
     }
 
     /// 這次連線從什麼時候開始(`phase` 是 `.loading` 時才有意義;列表據此顯示「仍在連線」,#221)。
