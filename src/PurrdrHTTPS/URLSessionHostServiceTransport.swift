@@ -14,7 +14,7 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
     private let timeout: TimeInterval
 
     public init(timeout: TimeInterval = 15) {
-        session = URLSession(configuration: .ephemeral)
+        session = URLSession(configuration: .ephemeral, delegate: RedirectRefusingDelegate(), delegateQueue: nil)
         self.timeout = timeout
     }
 
@@ -67,6 +67,16 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
 
     private static func isMagicDNSName(_ hostName: String) -> Bool {
         hostName.lowercased().hasSuffix(".ts.net")
+    }
+}
+
+/// 拒絕所有重新導向(#574):請求帶著 Bearer 權杖，跟隨導向會把權杖送到別的主機。拒絕時呼叫端拿到 3xx 回應本身。
+private final class RedirectRefusingDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
     }
 }
 
