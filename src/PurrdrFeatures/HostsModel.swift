@@ -131,8 +131,6 @@ public final class HostsModel {
     private let hostIcons: any HostIconStore
     /// 已存主機的圖示(從 `hostIcons` 讀出)。是 observable 狀態：改了圖示，依賴它的畫面(主機清單、主機鈕)重新計算。
     private var icons: [UUID: HostIcon] = [:]
-    /// 已建立的主機通道(以主機 id)。
-    private var channels: [UUID: any HostChannel] = [:]
     /// 這支裝置還沒有裝置權杖的 HTTPS 主機(主機清單標示要配對)。
     private var unpairedHostIDs: Set<UUID> = []
     /// 以唯讀權杖配對的 HTTPS 主機(`refreshOverviewFacts` 讀到的,#392)。
@@ -147,8 +145,10 @@ public final class HostsModel {
     private var latestHostServiceVersion: String?
     /// 使用者關閉了更新提示的版本(從 `hostServiceUpdates` 的存放處讀出，observable)。
     private var dismissedHostServiceUpdates: [UUID: String] = [:]
-    /// 已建立的 HTTPS 主機連線(以主機 id)。
-    private var hostServiceConnections: [UUID: any HostConnection] = [:]
+    /// 三種連線方式的 adapter(#563):能力組、連線重用、流量計量與刪除收尾都在這裡。
+    private var sshAdapter: SSHHostAdapter!
+    private var httpsAdapter: HTTPSHostAdapter!
+    private var demoAdapter: DemoHostAdapter!
     /// 列表上每台主機的連線與 model(以主機身分)。
     private var members: [HostSelection: HostMember] = [:]
     /// 主機頁的 Codex 啟動器(#274):每台主機一份，主機刪除時丟掉。
@@ -233,6 +233,14 @@ public final class HostsModel {
         self.diagnostics = diagnostics
         self.publicModelCatalog = publicModelCatalog
         offlineQueueStore = offlineQueues
+        let environment = HostAdapterEnvironment(
+            makeChannel: makeChannel, credentials: credentials, hostService: hostService, pushService: pushService,
+            traffic: HostTrafficWiring(meter: { [weak self] in self?.trafficMeter }), diagnostics: diagnostics,
+            recordOperatingSystem: { [weak self] operatingSystem, id in self?.recordOperatingSystem(operatingSystem, for: id) },
+            consent: hostConsent)
+        sshAdapter = SSHHostAdapter(environment: environment)
+        httpsAdapter = HTTPSHostAdapter(environment: environment)
+        demoAdapter = DemoHostAdapter(channel: demoChannel, files: demoFiles, consent: demoConsent)
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
         agentList.enterDemo = { [weak self] in self?.enterDemo() }
@@ -319,10 +327,10 @@ public final class HostsModel {
             (channel, cost, hostID) = (demoChannel, .free, Self.demoID)
         case .host(let id):
             guard let configuration = hosts.first(where: { $0.id == id }) else { return nil }
-            if case .https(let address) = configuration.connection {
+            if case .https = configuration.connection {
                 // HTTPS 主機經主機服務讀(0.12.0 起,#392);還沒配對或不是真的主機服務連線(UI 測試)沒有來源。
                 guard agent.supportsHostService, !unpairedHostIDs.contains(id), !configuration.needsReconfirmation,
-                    let connection = hostServiceConnection(for: configuration, address: address) as? HTTPSHostConnection
+                    let connection = httpsAdapter.capabilities(for: configuration).hostServiceConnection.value
                 else { return nil }
                 return .hostService(
                     connection, agent: agent, hostID: id.uuidString, hostName: configuration.name, consent: hostConsent)
@@ -509,9 +517,7 @@ public final class HostsModel {
     /// 某台主機上的新增對話(#18;主機由新增聊天的主機挑選鈕決定，#245)。
     public func newChat(on host: HostSelection, preselectingWorkspace workspaceID: String? = nil) -> NewChatModel {
         let member = member(for: host)
-        // HTTPS 主機沒有主機通道：只收完整路徑(#287)。
-        let usesHostService = usesHostService(host)
-        let folders = usesHostService ? NewChatFolders.absolutePathsOnly : NewChatFolders(channel: member.channel)
+        let folders = member.capabilities.folders
         let model = NewChatModel(
             launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders,
             agents: HostAgentSettings.newChatAgents(enabled: enabledAgents(on: host)),
@@ -562,8 +568,8 @@ public final class HostsModel {
     /// 沒有已配對的 HTTPS 主機時不查最新版本。最新版本這次取不到時沿用上次取到的。
     public func checkHostServiceVersions() async {
         let targets = hosts.compactMap { host -> (UUID, any HostConnection)? in
-            guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id), !host.needsReconfirmation else { return nil }
-            return (host.id, hostServiceConnection(for: host, address: address))
+            guard !unpairedHostIDs.contains(host.id), !host.needsReconfirmation, let connection = httpsAdapter.connection(for: host) else { return nil }
+            return (host.id, connection)
         }
         guard !targets.isEmpty else { return }
         // 與讀主機版本同時查：GitHub 慢或被擋時不拖住主機版本(推播區塊也靠它判斷功能)。
@@ -576,10 +582,8 @@ public final class HostsModel {
 
     /// 主機編輯頁的主機服務與已配對裝置區塊(#290、#291)用的連線：已配對的 HTTPS 主機才有。
     public func hostStatusConnection(for id: UUID) -> (any HostConnection)? {
-        guard let host = hosts.first(where: { $0.id == id }), case .https(let address) = host.connection,
-            !unpairedHostIDs.contains(id), !host.needsReconfirmation
-        else { return nil }
-        return hostServiceConnection(for: host, address: address)
+        guard let host = hosts.first(where: { $0.id == id }), !unpairedHostIDs.contains(id), !host.needsReconfirmation else { return nil }
+        return httpsAdapter.connection(for: host)
     }
 
     /// 不再提示這台主機更新到目前提示的版本(有更新的 Release 時再提示)。
@@ -793,25 +797,19 @@ public final class HostsModel {
         try credentials.secrets.setSecret(nil, for: id)
         try hostService.tokens.setDeviceToken(nil, for: id)
         try store.delete(id)
-        // 還沒重新確認的主機不再連線:不對它(可能是被改掉的位址)送出密碼、私鑰或權杖(#572)。
-        if removed?.needsReconfirmation == true {
-            // 略過主機上的推播配對、公鑰與權杖清理。
-        } else if let removed, let settings = removed.ssh {
-            forgetPush(of: removed, settings: settings, secret: secret)
-            if hostConsent.isGranted(AuthorizedKeyInstaller.feature.id, host: id.uuidString) {
-                restoreDeviceKey(on: removed, settings: settings, secret: secret)
-            }
-        } else if let removed, let address = removed.hostService, let deviceToken {
-            // 先刪推播配對再撤銷權杖;主機離線時權杖留在主機上，可在主機上撤銷。
-            forgetHostServicePush(of: removed, address: address, deviceToken: deviceToken)
+        // 還沒重新確認的主機不再連線:不對它(可能是被改掉的位址)送出密碼、私鑰或權杖(#572);其餘由該連線方式的 adapter 收尾。
+        if let removed, !removed.needsReconfirmation {
+            adapter(for: removed).cleanUpAfterRemoval(
+                HostRemoval(
+                    configuration: removed, secret: secret, deviceToken: deviceToken,
+                    restoresDeviceKey: hostConsent.isGranted(AuthorizedKeyInstaller.feature.id, host: id.uuidString)))
         }
         hostConsent.revokeAll(host: id.uuidString)
         // 刪除主機也清掉它的離線佇列(#301)。
         offlineQueues[.host(id)] = nil
         offlineQueueStore.save([], host: HostSelection.host(id).storedValue)
         hosts.removeAll { $0.id == id }
-        let channel = channels.removeValue(forKey: id)
-        let connection = hostServiceConnections.removeValue(forKey: id)
+        let dropping = [sshAdapter.drop(id), httpsAdapter.drop(id)]
         members[.host(id)] = nil
         preferences.removeAll(for: .host(id))
         hostIcons.setIcon(nil, for: id)
@@ -821,8 +819,7 @@ public final class HostsModel {
         hostServiceUpdates.store.setDismissedVersion(nil, for: id)
         if selection == .host(id) { select(validSelection(nil)) } else { rebuildMembers() }
         await conversationCache.removeAll(chatKeyPrefix: HostScopedConversationCache.prefix(scope: HostSelection.host(id).storedValue))
-        await channel?.disconnect()
-        await connection?.disconnect()
+        for task in dropping { await task?.value }
     }
 
     /// 主機的分享連結(QR code 內容)。不含任何祕密。
@@ -954,14 +951,14 @@ public final class HostsModel {
         // 沒有網路時列表立刻顯示離線，不等連線逾時(#221)。
         agentList.isNetworkAvailable = !simulatesNoNetwork && signature.hasPrefix("satisfied")
         guard let previous = networkPath, previous != signature else { return nil }
-        let dropped = Array(channels.values) + [demoChannel]
-        let droppedConnections = Array(hostServiceConnections.values)
+        let demoChannel = demoChannel
+        let disconnectors = sshAdapter.disconnectors() + httpsAdapter.disconnectors() + [{ await demoChannel.disconnect() }]
+        let channelCount = sshAdapter.liveChannels.count
         // 診斷(#133):實機斷線時分辨是不是網路切換丟掉了連線。
-        diagnostics.error("Network path changed (\(previous) → \(signature)): dropping \(channels.count) host connection(s)")
+        diagnostics.error("Network path changed (\(previous) → \(signature)): dropping \(channelCount) host connection(s)")
         let agentList = agentList
         return Task {
-            for channel in dropped { await channel.disconnect() }
-            for connection in droppedConnections { await connection.disconnect() }
+            for disconnect in disconnectors { await disconnect() }
             agentList.retryNow()
         }
     }
@@ -975,7 +972,7 @@ public final class HostsModel {
         guard let since = backgroundSince else { return }
         backgroundSince = nil
         guard date.timeIntervalSince(since) > Double(WakeProbe.backgroundThreshold.components.seconds) else { return }
-        let probed = channels
+        let probed = sshAdapter.liveChannels
         let dead = await withTaskGroup(of: (UUID, Bool).self) { group in
             for (id, channel) in probed { group.addTask { (id, await WakeProbe(channel: channel).run()) } }
             var dead: [UUID] = []
@@ -1110,8 +1107,8 @@ public final class HostsModel {
     private func makeMemberConnections(_ host: HostSelection) -> HostMember {
         if case .host(let id) = host, let companion = companion(id) {
             return HostMember(
-                host: host, configuration: nil, channel: companion.channel, preferences: preferences.store(for: host),
-                push: pushService, consent: demoConsent)
+                host: host, hostID: Self.demoID, capabilities: demoAdapter.companionCapabilities(channel: companion.channel),
+                preferences: preferences.store(for: host), push: pushService)
         }
         let configuration: HostConfiguration? = switch host {
         case .demo: nil
@@ -1119,53 +1116,24 @@ public final class HostsModel {
         }
         guard let configuration else {
             return HostMember(
-                host: host, configuration: nil, channel: demoChannel, files: demoFiles, preferences: preferences.store(for: host),
-                push: pushService, consent: demoConsent)
+                host: host, hostID: Self.demoID, capabilities: demoAdapter.demoHostCapabilities(),
+                preferences: preferences.store(for: host), push: pushService)
         }
         // 同步改了位址或 host key、使用者還沒重新確認:不開任何連線(#572)。
-        if configuration.needsReconfirmation {
-            return HostMember(
-                host: host, configuration: configuration, channel: UnsupportedHostChannel(),
-                preferences: preferences.store(for: host), push: pushService, consent: hostConsent)
-        }
+        let capabilities = configuration.needsReconfirmation
+            ? SSHHostAdapter.blocked(configuration, consent: hostConsent)
+            : adapter(for: configuration).capabilities(for: configuration)
+        return HostMember(
+            host: host, hostID: configuration.id.uuidString, capabilities: capabilities,
+            preferences: preferences.store(for: host), push: pushService)
+    }
+
+    /// 連線方式 → adapter:全 app 唯一依連線方式分派的地方。
+    private func adapter(for configuration: HostConfiguration) -> any HostAdapter {
         switch configuration.connection {
-        case .https(let address):
-            let connection = hostServiceConnection(for: configuration, address: address)
-            return HostMember(
-                host: host, configuration: configuration, channel: UnsupportedHostChannel(), connection: connection,
-                // 主機取檔走同一條主機服務連線(#227);UI 測試的替身連線沒有取檔。
-                files: (connection as? any HostFileFetching) ?? UnsupportedHostFileFetcher(), uploads: connection as? any HostUploading,
-                // 變更頁走主機服務的 git.status／git.diff(#310);UI 測試的替身連線沒有。
-                git: (connection as? any GitChangesReading) ?? UnsupportedGitChanges(),
-                preferences: preferences.store(for: host),
-                push: pushService, consent: hostConsent)
-        case .tailscaleSSH(let settings), .openSSH(let settings, _):
-            return HostMember(
-                host: host, configuration: configuration, channel: channel(for: configuration, settings: settings),
-                preferences: preferences.store(for: host), push: pushService, consent: hostConsent)
+        case .https: httpsAdapter
+        case .tailscaleSSH, .openSSH: sshAdapter
         }
-    }
-
-    private func hostServiceConnection(for host: HostConfiguration, address: HostServiceAddress) -> any HostConnection {
-        if let connection = hostServiceConnections[host.id] { return connection }
-        let connection = hostService.connection(for: host, address: address)
-        if let meter = trafficMeter { (connection as? HTTPSHostConnection)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
-        hostServiceConnections[host.id] = connection
-        return connection
-    }
-
-    private func channel(for host: HostConfiguration, settings: HostConfiguration.SSHSettings) -> any HostChannel {
-        if let channel = channels[host.id] { return channel }
-        // Windows 主機的指令換成 PowerShell 方言(#26);其他原樣。作業系統未知(主機同步帶來的新主機)時先偵測，
-        // 不對可能是 Windows 的主機送 POSIX 指令。
-        let base = makeChannel(settings.endpoint, settings.hostKeyPin, credentials.provider(for: host))
-        if let meter = trafficMeter { (base as? SSHHostChannel)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
-        let id = host.id
-        let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { [weak self] operatingSystem in
-            await self?.recordOperatingSystem(operatingSystem, for: id)
-        }
-        channels[host.id] = channel
-        return channel
     }
 
     /// 存下偵測到的作業系統。不是使用者的修改，不通知主機同步(作業系統也不同步);連線不重建。
@@ -1180,65 +1148,9 @@ public final class HostsModel {
         }
     }
 
-    /// 推播配對：另開一條不放進 `channels` 的連線刪掉主機上的配對(刪除主機會關閉它原本的連線)。
-    private func forgetPush(of host: HostConfiguration, settings: HostConfiguration.SSHSettings, secret: HostSecret?) {
-        guard let pushService else { return }
-        let provider = credentials.provider(
-            method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
-        let channel = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
-        if let meter = trafficMeter { (channel as? SSHHostChannel)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
-        // 這條連線是刪除主機時另開的，不在任何地方重用：刪完配對就關閉。
-        pushService.forget(
-            hostID: host.id.uuidString, installer: pushService.sshInstaller(channel: channel, herdr: settings.herdr)
-        ) {
-            await channel.disconnect()
-        }
-    }
-
-    /// 用密碼加入的公鑰(#285):另開一條連線還原 `authorized_keys`(ADR-0002),不等待;主機離線時留在主機上。
-    private func restoreDeviceKey(on host: HostConfiguration, settings: HostConfiguration.SSHSettings, secret: HostSecret?) {
-        let deviceKey = credentials.deviceKey
-        let provider = credentials.provider(
-            method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
-        let base = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
-        if let meter = trafficMeter { (base as? SSHHostChannel)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
-        let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { _ in }
-        let diagnostics = diagnostics
-        Task {
-            do {
-                try await AuthorizedKeyInstaller(channel: channel).restore(try deviceKey.publicKey())
-            } catch {
-                diagnostics.error("Couldn’t remove this device’s key from host \(host.id): \(error)")
-            }
-            await base.disconnect()
-        }
-    }
-
-    /// HTTPS 主機的推播配對：以讀出的權杖另開一條連線刪掉配對，之後撤銷權杖並關閉連線。沒有配對時直接撤銷。
-    private func forgetHostServicePush(of host: HostConfiguration, address: HostServiceAddress, deviceToken: String) {
-        let pairing = hostService.pairing
-        let recorder = trafficMeter?.recorder(for: host.id.uuidString)
-        guard let pushService, pushService.store.keyHash(forHost: host.id.uuidString) != nil,
-              let connection = hostService.makeConnection(address, { deviceToken }) as? HTTPSHostConnection
-        else {
-            hostService.revokeWithoutWaiting(deviceToken, at: address, traffic: recorder)
-            return
-        }
-        connection.attachTraffic(recorder)
-        pushService.forget(hostID: host.id.uuidString, installer: pushService.hostServiceInstaller(connection: connection)) {
-            await connection.disconnect()
-            try? await pairing.revoke(address: address, deviceToken: deviceToken, traffic: recorder)
-        }
-    }
-
     private func dropChannel(of id: UUID) {
-        let channel = channels.removeValue(forKey: id)
-        let connection = hostServiceConnections.removeValue(forKey: id)
-        guard channel != nil || connection != nil else { return }
-        Task {
-            await channel?.disconnect()
-            await connection?.disconnect()
-        }
+        sshAdapter.drop(id)
+        httpsAdapter.drop(id)
     }
 }
 
@@ -1331,73 +1243,47 @@ final class HostMember {
     let antigravityStatus: (any ClaudeSessionStatusReading)?
     /// 主機上的 Send When Done 佇列(#305);只有 HTTPS 主機(主機服務)有，其他是 `nil`。
     let sendWhenDoneHost: (any SendWhenDoneHosting)?
+    /// 這台主機的能力組(adapter 交出,含每項沒有的原因)。
+    let capabilities: HostCapabilities
 
-    /// - Parameters:
-    ///   - connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
-    ///   - files: 主機取檔;`nil` 時經 `channel` 跑 SSH 的取檔腳本(主機跑不了時是 unsupported)。
-    ///   - git: 變更頁的 git 讀取;`nil` 時經 `channel` 跑唯讀 git 指令(#310)。
-    ///   - uploads: 上傳到主機;`nil` 時經 `channel` 的 exec＋stdin(Windows 主機由 `WindowsHostChannel` 換成 PowerShell 版，#68)。
-    init(
-        host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, connection: (any HostConnection)? = nil,
-        files: (any HostFileFetching)? = nil, uploads: (any HostUploading)? = nil, git: (any GitChangesReading)? = nil,
-        preferences: any ChatPreferencesStore, push pushService: PushService?,
-        consent: any HostWriteConsentStore
-    ) {
+    /// 成員只依能力組建立畫面 model(#563):不看連線方式。
+    init(host: HostSelection, hostID: String, capabilities: HostCapabilities, preferences: any ChatPreferencesStore, push pushService: PushService?) {
         self.host = host
+        let channel = capabilities.channel
         self.channel = channel
-        uploader = uploads ?? SSHHostUploader(channel: channel)
-        gitChanges = git ?? SSHGitChanges(channel: channel)
-        sendWhenDoneHost = configuration?.connectionMethod.usesHostService == true ? connection as? any SendWhenDoneHosting : nil
-        let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
-        let connection = connection ?? SSHHostConnection(
-            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))
+        self.capabilities = capabilities
+        uploader = capabilities.uploads
+        gitChanges = capabilities.git
+        sendWhenDoneHost = capabilities.sendWhenDone.value
+        let connection = capabilities.connection
         client = HerdrClient(connection: connection)
         transcripts = TranscriptReader(connection: connection)
         terminals = PaneTerminalClient(connection: connection)
         let list = AgentListModel(client: client, transcripts: transcripts, host: host)
         self.list = list
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
-        // HTTPS 主機經主機服務代裝(取不到主機服務連線就沒有，列上標成不支援);其他經 SSH。
-        let installer: (any PushPluginInstalling)? = if configuration?.connectionMethod.usesHostService == true {
-            (connection as? any PushPluginInstallerProviding)?.pushPluginInstallers().flatMap { makeInstaller in pushService?.installer(makeInstaller) }
-        } else {
-            pushService?.sshInstaller(channel: channel, herdr: herdr)
-        }
-        let push = PushModel(service: pushService, hostID: configuration?.id.uuidString, installer: installer) {
+        let installer = pushService.flatMap { service in capabilities.pushInstaller.value.map { $0(service) } }
+        let push = PushModel(service: pushService, hostID: hostID == HostsModel.demoID ? nil : hostID, installer: installer) {
             preferences.load().muted
         }
         self.push = push
         // 連上這台主機(建立成員)時,推播開著就檢查外掛版本(#432;有頻率上限，失敗不打擾)。
         if push.state == .on { Task { await push.updatePluginIfNeeded() } }
-        // 測試通知(#328):SSH 主機由主機上的腳本送(與外掛同一條路:主機 → 後台 → APNs);HTTPS 主機還沒有，Demo 主機沒有真的外掛。
-        // Windows 也有 PowerShell 版,所以不分作業系統。
-        if let configuration, let pushService, !configuration.connectionMethod.usesHostService {
-            push.testSender = SSHPushTestSender(service: pushService, channel: channel, hostName: configuration.name)
-        }
-        // HTTPS 主機經主機服務的 `push.test`(0.11.0 起;版本不足時列上不顯示按鈕,見 `HostPush.supportsTestNotification`)。
-        if let configuration, let pushService, configuration.connectionMethod.usesHostService, let https = connection as? HTTPSHostConnection {
-            push.testSender = HostServicePushTestSender(service: pushService, connection: https, hostName: configuration.name)
-        }
+        // 測試通知(#328):adapter 決定這台主機有沒有、怎麼送。
+        if let pushService, let makeSender = capabilities.pushTestSender.value { push.testSender = makeSender(pushService) }
         actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
-        let hostID = configuration?.id.uuidString ?? HostsModel.demoID
-        let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
+        let hostFiles = capabilities.hostFiles
         self.hostFiles = hostFiles
-        sessionStatus = configuration?.connectionMethod.usesHostService == true
-            ? (connection as? any ClaudeSessionStatusReading) ?? UnavailableSessionStatus()
-            : ClaudePlanUsageHost(channel: channel, files: hostFiles)
-        antigravityStatus = configuration?.connectionMethod.usesHostService == true ? nil : AntigravityPlanUsageHost(channel: channel, files: hostFiles)
+        sessionStatus = capabilities.sessionStatus
+        antigravityStatus = capabilities.antigravityStatus.value
         // 點開的檔案依主機分資料夾，刪除主機時一起清(#228)。
         agentFiles = AgentFileLoads(
-            fetcher: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")),
+            fetcher: capabilities.files,
             downloadDirectory: AgentFileLoads.defaultDownloadDirectory.appending(path: hostID, directoryHint: .isDirectory))
-        youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
-        hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
+        youShouldKnow = YouShouldKnowModel(
+            host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: capabilities.consent)
+        hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: capabilities.consent)
     }
-}
-
-/// 取不到主機服務連線(UI 測試的替身連線)時沒有 session 狀態,context 用對話紀錄算法(#388)。
-struct UnavailableSessionStatus: ClaudeSessionStatusReading {
-    func sessionStatuses(sessionIDs: [String]) async throws -> [String: ClaudeSessionStatus] { [:] }
 }
 
 /// 經 SSH 在主機上送測試通知(#328);每次才讀這支裝置的推播 id。
