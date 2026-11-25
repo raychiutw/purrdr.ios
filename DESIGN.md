@@ -78,7 +78,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 - 玻璃只用一個 regular 變體(見「Liquid Glass」);卡片圓角 22pt(與 sheet 圓角同心);section header 用 footnote 字級、不全大寫、用 `secondaryText`。
 - 字級全用 text style,不手寫 pt 數;tab 圖示用 filled SF Symbols。
 - 選單一律系統 `Menu`／`Picker`,勾選與圖示的位置交給系統(勾與圖示都在前,iOS 26 系統行為);sheet 內清單的勾在列尾。
-- **列尾 `>` 一律 push**(#619、spec #612):有 `>` 的列點了都從右滑進下一頁(`NavigationLink`,`>` 由系統給、不自己畫;列在自繪卡片裡、不是 `List` 時才自己放一個 `chevron.right`),左上系統返回「<」、可左緣滑回、有大標題,底部 tab bar 保留(聊天對話與 Pane 終端機維持隱藏)。不用 sheet、不就地換內容。入口:聊天列的版面圖(多 Pane 的 Tab 列與「顯示版面」)、流量頁點主機列的主機明細、Plus 頁功能列(推入通知、主機同步、通知裝置頁,不換成帳號 sheet)、Git 變更→檔案、子 Agent、Pane 終端機。**會開選單的列不用 `>`,列尾放 `ellipsis`**(例如通知裝置列)。守門:`ChevronPushUsageTests`。
+- **列尾 `>` 一律 push**(#619、spec #612):有 `>` 的列點了都從右滑進下一頁(`NavigationLink`,`>` 由系統給、不自己畫;列在自繪卡片裡、不是 `List` 時才自己放一個 `chevron.right`),左上系統返回「<」、可左緣滑回、有大標題,底部 tab bar 保留(聊天對話與 Pane 終端機維持隱藏)。不用 sheet、不就地換內容。入口:聊天列的版面圖(多 Pane 的 Tab 列與「顯示版面」)、流量頁點主機列的主機明細、Plus 頁功能列(推入通知、主機同步、通知裝置頁,不換成帳號 sheet)、Git 變更→檔案、子 Agent、Pane 終端機。**會開選單的列不用 `>`,列尾放 `ellipsis`**(例如通知裝置列)。**聊天 tab 的導覽機制**(#641):窄視窗是 `NavigationStack(path:)`,路徑 `TopNavigationModel.chatsPath` 放 `ChatsDestination`(聊天、版面圖),整個堆疊只註冊這一個型別的 `navigationDestination(for:)`;Tab 列是系統 `NavigationLink(value:)`,選單的「顯示版面」把一次性的 `layoutRoute` 轉成路徑上的一筆,不混用 `navigationDestination(item:)`。窄視窗的列表**不能帶 `List(selection:)`**(根因:`NavigationLink` 在有 selection 的 List 裡,push 後第一下返回會被吃掉);寬視窗的列表欄才是選取。守門:`ChevronPushUsageTests`。
 - 所有觸控目標 ≥ 44pt(頂列右上按鈕、輸入列 `+` 與送出、終端機按鍵、麵包屑、再試一次、停止、排隊「取消」都一樣);左右邊距統一 16pt。
 
 ### 狀態色(#237)
