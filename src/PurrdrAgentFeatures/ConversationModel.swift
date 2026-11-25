@@ -304,44 +304,28 @@ public final class ConversationModel {
     /// 這支裝置配對成唯讀(HTTPS):不能送 prompt、回答或中斷。
     public private(set) var isReadOnly = false
 
-    // MARK: 圖片(F7)
+    // MARK: 附件(F7、#286、#474;邏輯在 `ComposerAttachments`,#562)
 
     /// 一則最多幾個附件(圖片與檔案合計,#352)。
-    public static let maximumAttachments = 10
-    /// 輸入列上的圖片附件(送出被接受時才清)。
-    public private(set) var attachments: [ComposerAttachment] = []
-    @ObservationIgnored private let images: ComposerImages?
-    /// 這台主機能不能附加圖片(有上傳器;目前只有 Unix 主機)。
-    public var canAttachImages: Bool { images != nil }
-    public var remainingImageSlots: Int { max(0, Self.maximumAttachments - attachments.count) }
+    public static let maximumAttachments = ComposerAttachments.maximumCount
+    /// 附件 module:清單、準備、上傳、行動網路確認與草稿保存都在它裡面。聊天 model 只在送出時要路徑、依安全送出的結果收尾。
+    public let composerAttachments: ComposerAttachments
 
-    /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過 4 張的部分、原始大小超過單張上限的不加入並提示。
+    /// 輸入列上的附件(主機收下或可能收下時才清)。
+    public var attachments: [ComposerAttachment] { composerAttachments.items }
+    /// 這台主機能不能附加圖片(有上傳器;目前只有 Unix 主機)。
+    public var canAttachImages: Bool { composerAttachments.isAvailable }
+    public var remainingImageSlots: Int { composerAttachments.remainingSlots }
+
+    /// 拿走附件 module 剛產生的提示(沒有就不動既有提示)。
+    private func collectAttachmentNotice() {
+        if let attachmentNotice = composerAttachments.takeNotice() { notice = attachmentNotice }
+    }
+
+    /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過額度的部分、原始大小超過單張上限的不加入並提示。
     public func addImages(_ items: [Data]) async {
-        guard let images, !items.isEmpty else { return }
-        if items.count > remainingImageSlots { notice = .attachmentLimit }
-        for data in items.prefix(remainingImageSlots) {
-            // 單張上限以使用者挑的原始圖片判斷，不因縮小而改變(#76)。
-            guard data.count <= ImageUploadLimit.maximumSize else {
-                notice = .imageTooLarge
-                continue
-            }
-            let prepared = await Task.detached(priority: .userInitiated) { ImagePreparation.prepare(data) }.value
-            guard let prepared, remainingImageSlots > 0 else {
-                if prepared == nil { notice = .imageUnreadable }
-                continue
-            }
-            let name = images.makeName()
-            do {
-                try images.store.save(prepared.jpeg, as: name.value)
-            } catch {
-                notice = .imageUnreadable
-                continue
-            }
-            attachments.append(
-                ComposerAttachment(
-                    fileName: HostUploadName(name), byteCount: prepared.jpeg.count, pixelWidth: prepared.width, pixelHeight: prepared.height))
-            saveAttachments()
-        }
+        await composerAttachments.addImages(items)
+        collectAttachmentNotice()
     }
 
     /// 已滿時點「附加」:提示上限(F7)。
@@ -370,9 +354,7 @@ public final class ConversationModel {
     /// 移除附件。送出(上傳)中不能移除。
     public func removeAttachment(_ id: String) {
         guard !isSending else { return }
-        if let removed = attachments.first(where: { $0.id == id }), removed.kind == .file { removeStoredCopies(of: removed) }
-        attachments.removeAll { $0.id == id }
-        saveAttachments()
+        composerAttachments.remove(id)
     }
 
     /// 泡泡裡的主機圖片路徑 → 手機上的副本(依檔名;找不到就是 `nil`,畫面顯示「圖片」標籤)。
@@ -382,276 +364,60 @@ public final class ConversationModel {
     }
 
     public func localImage(named name: String) -> URL? {
-        images?.store.url(of: name)
+        composerAttachments.localImage(named: name)
     }
-
-    private func saveAttachments() {
-        drafts.saveAttachments(attachments, chatKey: chatKey)
-    }
-
-    // MARK: 檔案(#286)
 
     /// 正在讀取、準備加成附件的檔案(原始檔名);沒有時是 `nil`。
-    public private(set) var loadingFileName: String?
-    /// 能不能附加檔案：有上傳到主機、不是唯讀裝置。
-    public var canAttachFiles: Bool { images != nil && !isReadOnly }
+    public var loadingFileName: String? { composerAttachments.loadingFileName }
+    /// 能不能附加檔案:有上傳到主機、不是唯讀裝置。
+    public var canAttachFiles: Bool { composerAttachments.canAttachFiles(isReadOnly: isReadOnly) }
 
-    /// 附加一般檔案：讀進來存手機副本、在輸入列成一張附件卡，送出時才上傳(#352)。已知大小超過上限時不讀內容。
-    /// 圖片檔(副檔名 png、jpg…)走圖片附件，與相簿一致。
+    /// 附加一般檔案:讀進來存手機副本、在輸入列成一張附件卡,送出時才上傳(#352)。已知大小超過上限時不讀內容。
+    /// 圖片檔(副檔名 png、jpg…)走圖片附件,與相簿一致。
     public func addFile(named originalName: String, size: Int?, load: @Sendable () async throws -> Data) async {
-        guard let images, canAttachFiles, loadingFileName == nil else { return }
-        guard remainingImageSlots > 0 else {
-            notice = .attachmentLimit
-            return
-        }
-        let limit = HostUploadLimit.maximumFileSize
-        if let size, size > limit {
-            notice = .fileTooLarge(size: size, limit: limit)
-            return
-        }
-        loadingFileName = originalName
-        defer { loadingFileName = nil }
-        let data: Data
-        do {
-            data = try await load()
-        } catch {
-            notice = .fileUnreadable
-            return
-        }
-        guard data.count <= limit else {
-            notice = .fileTooLarge(size: data.count, limit: limit)
-            return
-        }
-        if UploadedImages.hasImageExtension(originalName) {
-            await addImages([data])
-            return
-        }
-        guard remainingImageSlots > 0 else {
-            notice = .attachmentLimit
-            return
-        }
-        let name = images.makeFileName(originalName)
-        do {
-            try images.store.save(data, as: name.value)
-        } catch {
-            notice = .fileUnreadable
-            return
-        }
-        attachments.append(ComposerAttachment(kind: .file, fileName: name, displayName: originalName, byteCount: data.count))
-        saveAttachments()
+        await composerAttachments.addFile(named: originalName, size: size, isReadOnly: isReadOnly, load: load)
+        collectAttachmentNotice()
     }
-
-    // MARK: 影片(#474)
 
     /// 影片準備中(取出、壓縮)的進度;沒有時是 `nil`。
-    public private(set) var videoPreparation: VideoPreparation?
-    /// 能不能附加影片：能附加檔案、又有壓縮器。
-    public var canAttachVideos: Bool { canAttachFiles && images?.videoCompressor != nil }
-
-    @ObservationIgnored private var videoTask: Task<VideoOutcome, Never>?
-    /// 目前這一次準備的識別;取消或換新一次後,舊的結果回來(挑選器不回應取消)就丟掉。
-    @ObservationIgnored private var videoToken: UUID?
-
-    private enum VideoOutcome: Sendable {
-        /// 已經搬進手機副本。
-        case ready(fileName: HostUploadName, displayName: String, byteCount: Int, duration: TimeInterval?, thumbnailFileName: String?)
-        case tooLong
-        case unreadable
-        case cancelled
-    }
+    public var videoPreparation: VideoPreparation? { composerAttachments.videoPreparation }
+    /// 能不能附加影片:能附加檔案、又有壓縮器。
+    public var canAttachVideos: Bool { composerAttachments.canAttachVideos(isReadOnly: isReadOnly) }
 
     /// 附加相簿影片(#474):`load` 取出影片檔(可能要從 iCloud 下載;檔案交給這裡，用完會刪)。
     public func addVideo(displayName: String, load: @escaping @Sendable () async throws -> URL) async {
         await addPickedVideo(displayName: displayName, load: { VideoSourceFile(try await load()) })
     }
 
-    /// 附加相簿影片(#474):沒超過上限就原樣加成附件卡;超過就由高到低壓縮，第一個放得下的畫質就是結果;
-    /// 壓到最小仍超過、或太長，提示後不加入。與檔案一樣先留在輸入列，送出才上傳。可用 `cancelVideoPreparation()` 取消。
-    /// 取出、壓縮與搬進手機副本都在背景做(最多 25 MiB 不佔主執行緒)，副檔名依實際格式。
+    /// 附加相簿影片(#474):壓縮階梯、上限與取消見 `ComposerAttachments.addPickedVideo`。
     public func addPickedVideo(displayName: String, load: @escaping @Sendable () async throws -> VideoSourceFile) async {
-        guard let images, let compressor = images.videoCompressor, canAttachFiles, videoPreparation == nil, loadingFileName == nil else { return }
-        guard remainingImageSlots > 0 else {
-            notice = .attachmentLimit
-            return
-        }
-        videoPreparation = VideoPreparation(displayName: displayName, phase: .loading, fraction: nil)
-        let token = UUID()
-        videoToken = token
-        let limit = HostUploadLimit.maximumFileSize
-        let task = Task.detached { [weak self] () -> VideoOutcome in
-            let picked: VideoSourceFile
-            do { picked = try await load() } catch { return Task.isCancelled ? .cancelled : .unreadable }
-            defer { try? FileManager.default.removeItem(at: picked.discard) }
-            // 挑選器不回應取消:回來時已經取消就整個丟掉。
-            if Task.isCancelled { return .cancelled }
-            let source = picked.url
-            do {
-                let sourceSize = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                if sourceSize <= limit {
-                    let ext = source.pathExtension.lowercased()
-                    return try await Self.storeVideo(source, displayName: displayName, fileExtension: ext.isEmpty ? nil : ext, images: images, compressor: compressor)
-                }
-                let candidates = VideoQuality.candidates(forDuration: try await compressor.duration(of: source), limit: limit)
-                await self?.setVideoPhase(.shrinking, token: token)
-                for quality in candidates {
-                    let output = FileManager.default.temporaryDirectory.appending(path: "purrdr-video-\(UUID().uuidString).mp4")
-                    defer { try? FileManager.default.removeItem(at: output) }
-                    try await compressor.compress(source, quality: quality, to: output) { fraction in
-                        Task { @MainActor in self?.setVideoFraction(fraction, token: token) }
-                    }
-                    let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? .max
-                    if size <= limit {
-                        if Task.isCancelled { return .cancelled }
-                        return try await Self.storeVideo(output, displayName: displayName, fileExtension: "mp4", images: images, compressor: compressor)
-                    }
-                }
-                return .tooLong
-            } catch {
-                return Task.isCancelled || error is CancellationError ? .cancelled : .unreadable
-            }
-        }
-        videoTask = task
-        let outcome = await task.value
-        // 取消(或已經換成新的一次)後回來的結果:不加入，已搬進副本的刪掉。
-        guard videoToken == token else {
-            if case .ready(let fileName, _, _, _, let thumbnail) = outcome {
-                images.store.remove(fileName.value)
-                if let thumbnail { images.store.remove(thumbnail) }
-            }
-            return
-        }
-        videoTask = nil
-        videoToken = nil
-        videoPreparation = nil
-        switch outcome {
-        case .cancelled: break
-        case .tooLong: notice = .videoTooLong
-        case .unreadable: notice = .videoUnreadable
-        case .ready(let fileName, let name, let byteCount, let duration, let thumbnail):
-            guard remainingImageSlots > 0 else {
-                images.store.remove(fileName.value)
-                if let thumbnail { images.store.remove(thumbnail) }
-                notice = .attachmentLimit
-                return
-            }
-            attachments.append(
-                ComposerAttachment(
-                    kind: .file, fileName: fileName, displayName: name, byteCount: byteCount, duration: duration, thumbnailFileName: thumbnail))
-            saveAttachments()
-        }
-    }
-
-    /// 把影片檔搬進手機副本(背景)。`fileExtension` 是實際格式,沒有就沿用顯示名稱的。
-    private nonisolated static func storeVideo(
-        _ file: URL, displayName: String, fileExtension: String?, images: ComposerImages, compressor: any VideoCompressing
-    ) async throws -> VideoOutcome {
-        var name = displayName
-        if let fileExtension { name = (displayName as NSString).deletingPathExtension + "." + fileExtension }
-        let byteCount = (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        let uploadName = images.makeFileName(name)
-        // 長度與縮圖在搬走檔案之前取(取不到就沒有,卡片照常顯示)。
-        let duration = try? await compressor.duration(of: file)
-        var thumbnailName: String?
-        if let thumbnail = await compressor.thumbnail(of: file) {
-            let stem = (uploadName.value as NSString).deletingPathExtension
-            if (try? images.store.save(thumbnail, as: stem + "-thumb.jpg")) != nil { thumbnailName = stem + "-thumb.jpg" }
-        }
-        do {
-            try images.store.save(movingFile: file, as: uploadName.value)
-        } catch {
-            if let thumbnailName { images.store.remove(thumbnailName) }
-            throw error
-        }
-        return .ready(fileName: uploadName, displayName: name, byteCount: byteCount, duration: duration, thumbnailFileName: thumbnailName)
-    }
-
-    private func setVideoPhase(_ phase: VideoPreparation.Phase, token: UUID) {
-        guard videoToken == token else { return }
-        videoPreparation?.phase = phase
-    }
-
-    private func setVideoFraction(_ fraction: Double, token: UUID) {
-        guard videoToken == token else { return }
-        videoPreparation?.fraction = fraction
+        await composerAttachments.addPickedVideo(displayName: displayName, isReadOnly: isReadOnly, load: load)
+        collectAttachmentNotice()
     }
 
     /// 取消影片準備(取出或壓縮中):立刻恢復輸入列;不加入、不提示，暫存檔刪掉。
-    public func cancelVideoPreparation() {
-        videoTask?.cancel()
-        videoTask = nil
-        videoToken = nil
-        videoPreparation = nil
-    }
-
-    /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
-    private static func uploadNotice(for error: any Error, otherwise: SendNotice) -> SendNotice {
-        guard case .hostServiceUpdateRequired(_, let installedVersion)? = error as? HostServiceError else { return otherwise }
-        return .hostServiceUpdateRequired(installedVersion: installedVersion)
-    }
+    public func cancelVideoPreparation() { composerAttachments.cancelVideoPreparation() }
 
     /// 影片大到行動網路上傳前要先提醒的大小(10 MiB)。
-    package nonisolated static let cellularWarningBytes = 10 * 1024 * 1024
+    package nonisolated static let cellularWarningBytes = ComposerAttachments.cellularWarningBytes
     /// 等使用者確認的行動網路上傳提醒(這次要上傳的影片位元組數);沒有提醒時是 `nil`。
-    public private(set) var cellularUploadWarning: Int?
-    @ObservationIgnored private var cellularConfirmed = false
-
-    private var needsCellularConfirmation: Bool {
-        guard !cellularConfirmed, let images, images.isOnCellular() else { return false }
-        return attachments.contains { $0.uploadedPath == nil && $0.duration != nil && $0.byteCount >= Self.cellularWarningBytes }
-    }
+    public var cellularUploadWarning: Int? { composerAttachments.cellularUploadWarning }
 
     /// 使用者確認用行動網路上傳:接著照常送出。
     public func confirmCellularUpload() async {
-        cellularUploadWarning = nil
-        cellularConfirmed = true
-        defer { cellularConfirmed = false }
+        composerAttachments.beginConfirmedUpload()
+        defer { composerAttachments.endConfirmedUpload() }
         await send()
     }
 
-    public func dismissCellularWarning() { cellularUploadWarning = nil }
-
-    /// 刪掉檔案附件的手機副本(影片連縮圖)。
-    private func removeStoredCopies(of attachment: ComposerAttachment) {
-        images?.store.remove(attachment.fileName.value)
-        if let thumbnail = attachment.thumbnailFileName { images?.store.remove(thumbnail) }
-    }
+    public func dismissCellularWarning() { composerAttachments.dismissCellularWarning() }
 
     /// 送出時上傳中的附件進度;沒有在上傳時是 `nil`。
-    public private(set) var uploadProgress: UploadProgress?
-    @ObservationIgnored private var uploadTask: Task<[String], any Error>?
+    public var uploadProgress: UploadProgress? { composerAttachments.uploadProgress }
 
     /// 取消送出時的上傳(使用者按取消):附件與草稿留著,不提示。SSH 主機上的暫存檔因連線提早結束而刪掉。
-    public func cancelUpload() { uploadTask?.cancel() }
+    public func cancelUpload() { composerAttachments.cancelUpload() }
 
-    /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗丟出那個錯誤：整則不送(F6.5)。
-    private func uploadAttachments() async throws -> [String] {
-        guard let images else {
-            guard attachments.isEmpty else { throw HostServiceError.unsupported("upload") }
-            return []
-        }
-        var paths: [String] = []
-        for index in attachments.indices {
-            if let path = attachments[index].uploadedPath {
-                paths.append(path)
-                continue
-            }
-            let name = attachments[index].fileName
-            guard let url = images.store.url(of: name.value) else { throw CocoaError(.fileReadNoSuchFile) }
-            // 分塊讀檔上傳(影片最多 25 MiB,不整份進記憶體),回報進度。
-            let source = try HostUploadSource.file(at: url)
-            uploadProgress = UploadProgress(displayName: attachments[index].displayName, fraction: 0)
-            defer { uploadProgress = nil }
-            let path = try await images.uploader.upload(source, named: name) { [weak self] fraction in
-                Task { @MainActor in self?.uploadProgress?.fraction = fraction }
-            }
-            if let current = attachments.firstIndex(where: { $0.fileName == name }) {
-                attachments[current].uploadedPath = path
-            }
-            paths.append(path)
-        }
-        saveAttachments()
-        return paths
-    }
     /// 還沒被對話紀錄確認的回音。
     public private(set) var echoes: [PromptEcho] = []
     /// 畫面上的列：對話紀錄的項目，加上依時間併入的回音。
@@ -910,7 +676,7 @@ public final class ConversationModel {
         openMaxBytes: Int = TranscriptReader.openingMaxBytes, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: @escaping @MainActor () -> String? = { nil },
-        images: ComposerImages? = nil,
+        images: ComposerAttachments.Dependencies? = nil,
         updates: HostUpdates? = nil,
         sendSteps: [any SendStep] = [],
         modelCatalog: (any ModelCatalogProviding)? = nil,
@@ -918,7 +684,7 @@ public final class ConversationModel {
     ) {
         self.modelCatalogProvider = modelCatalog
         self.updates = updates
-        self.images = images
+        composerAttachments = ComposerAttachments(dependencies: images, drafts: drafts, chatKey: paneID)
         self.client = client
         self.transcripts = transcripts
         self.paneID = paneID
@@ -939,7 +705,6 @@ public final class ConversationModel {
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
-        if images != nil { attachments = drafts.attachments(chatKey: paneID) }
         slash.loader = { [weak self] in await self?.slashCatalog() }
         slash.onPick = { [weak self] command in self?.pick(slash: command) }
         slash.update(draft: draft, caret: draftCaret)
@@ -1688,10 +1453,7 @@ public final class ConversationModel {
     public func send() async {
         guard canSend else { return }
         // 行動網路上要傳大影片:先提醒會用掉多少流量,使用者確認才送(#474)。
-        if needsCellularConfirmation {
-            cellularUploadWarning = attachments.filter { $0.uploadedPath == nil && $0.duration != nil }.reduce(0) { $0 + $1.byteCount }
-            return
-        }
+        if composerAttachments.requestCellularConfirmation() { return }
         if let typedAnswer {
             await sendTypedAnswer(typedAnswer)
             return
@@ -1779,11 +1541,8 @@ public final class ConversationModel {
         rebuildEntries()
         // 圖片先逐張上傳;任何一張失敗 → 整則不送，草稿與圖片保留(F6.5、F7)。
         let paths: [String]
-        let upload = Task { try await uploadAttachments() }
-        uploadTask = upload
-        defer { uploadTask = nil }
         do {
-            paths = try await withTaskCancellationHandler { try await upload.value } onCancel: { upload.cancel() }
+            paths = try await composerAttachments.upload()
         } catch is CancellationError {
             // 使用者取消上傳:什麼都沒送出,草稿與附件留著,不提示。
             removeEcho(echo.id)
@@ -1792,7 +1551,7 @@ public final class ConversationModel {
         } catch {
             removeEcho(echo.id)
             putBackInDraft(text)
-            notice = Self.uploadNotice(for: error, otherwise: .uploadFailed)
+            notice = ComposerAttachments.notice(forUploadError: error)
             return
         }
         if let index = echoes.firstIndex(where: { $0.id == echo.id }) {
@@ -1803,12 +1562,8 @@ public final class ConversationModel {
         let prompt = UploadedImages.prompt(text: text, paths: paths)
         let result = await safeSend.send(prompt, to: destination(expectedSession: outgoing.expectedSession))
         apply(result, toEcho: echo.id, text: text, isRetry: false)
-        // 附件只在主機收下(或可能收下)時清;什麼都沒送出時草稿放回、附件也留著,已上傳的不重傳。
-        if !result.sentNothing {
-            attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
-            for sent in sentImages where sent.kind == .file { removeStoredCopies(of: sent) }
-            saveAttachments()
-        }
+        // 附件收尾由附件 module 依安全送出的結果決定(沒送出就留著,已上傳的不重傳)。
+        composerAttachments.settle(sent: sentImages, after: result)
         if case .notSent(.needsAnswer(let agent)) = result {
             // 什麼都沒送出，因為 agent 在等回答：立刻找出問題(資料夾信任這類提示 herdr 可能回報 idle)。
             mutateAnswerFlow { $0.requestProbe() }

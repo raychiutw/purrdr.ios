@@ -40,42 +40,6 @@ public struct ComposerAttachment: Identifiable, Equatable, Sendable {
     }
 }
 
-/// 對話畫面的附加功能：上傳到主機、圖片的手機副本、檔名產生器。沒有它(`nil`)時輸入列不能附加圖片或檔案。
-public struct ComposerImages: Sendable {
-    public let uploader: any HostUploading
-    public let store: any AttachmentStore
-    public let makeName: @Sendable () -> UploadFileName
-    /// 一般檔案(#286):原始檔名 → 上傳檔名。
-    public let makeFileName: @Sendable (String) -> HostUploadName
-    /// 影片壓縮(#474);`nil` 時輸入列沒有「影片」。
-    public let videoCompressor: (any VideoCompressing)?
-    /// 目前是不是只能用行動網路(大影片上傳前提醒用,#474)。
-    public let isOnCellular: @Sendable () -> Bool
-
-    public init(
-        uploader: any HostUploading, store: any AttachmentStore, makeName: @escaping @Sendable () -> UploadFileName = ComposerImages.randomName,
-        makeFileName: @escaping @Sendable (String) -> HostUploadName = ComposerImages.randomFileName,
-        videoCompressor: (any VideoCompressing)? = nil, isOnCellular: @escaping @Sendable () -> Bool = { false }
-    ) {
-        self.isOnCellular = isOnCellular
-        self.videoCompressor = videoCompressor
-        self.uploader = uploader
-        self.store = store
-        self.makeName = makeName
-        self.makeFileName = makeFileName
-    }
-
-    public static let randomName: @Sendable () -> UploadFileName = {
-        var random = SystemRandomNumberGenerator()
-        return UploadFileName.make(date: Date(), random: &random)
-    }
-
-    public static let randomFileName: @Sendable (String) -> HostUploadName = { original in
-        var random = SystemRandomNumberGenerator()
-        return HostUploadName.make(original: original, date: Date(), random: &random)
-    }
-}
-
 /// 送出前在手機上處理圖片：長邊縮到 ≤ 2048px、重新編碼成 JPEG(行為規格 F7)。
 /// 超過目標大小時先依序降品質，仍超過再縮小長邊，到下限為止(#78)。
 public enum ImagePreparation {

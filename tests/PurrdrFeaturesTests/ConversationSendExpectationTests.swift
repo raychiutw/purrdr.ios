@@ -71,7 +71,7 @@ struct ConversationSendExpectationTests {
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,
             knownSessionID: Self.session, cache: InMemoryConversationCache(),
             clock: ConversationClock(now: { Date(timeIntervalSince1970: 1_794_614_400) }),
-            images: ComposerImages(uploader: FakeHostUploader(), store: store, makeFileName: { _ in fileName }))
+            images: ComposerAttachments.Dependencies(uploader: FakeHostUploader(), store: store, makeFileName: { _ in fileName }))
         await connection.expect(.snapshot, wire: Self.snapshot("idle"))
         await model.poll()
         await model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }

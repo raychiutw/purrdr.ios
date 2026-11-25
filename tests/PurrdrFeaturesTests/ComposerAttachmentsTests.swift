@@ -255,7 +255,7 @@ struct ComposerAttachmentsTests {
 
     // MARK: 與安全送出的契約
 
-    static let results: [SafeSend.Result] = [
+    nonisolated static let results: [SafeSend.Result] = [
         .delivered, .submittedCommand, .noResponse, .unconfirmed(.connectionLost),
         .notSent(.agentGone), .notSent(.conversationChanged), .notSent(.rejected("x")), .notSent(.readOnlyDevice),
     ]

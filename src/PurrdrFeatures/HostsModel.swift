@@ -473,7 +473,7 @@ public final class HostsModel {
             haptics: haptics,
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { [weak self] in self?.name(of: route.host) },
-            images: ComposerImages(
+            images: ComposerAttachments.Dependencies(
                 uploader: member.uploader, store: attachmentStore, videoCompressor: AVVideoCompressor(),
                 isOnCellular: { [meter = trafficMeter] in meter?.currentNetwork == .cellular }),
             updates: member.list.updates,
