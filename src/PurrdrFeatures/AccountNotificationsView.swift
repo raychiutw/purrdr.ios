@@ -25,7 +25,6 @@ struct AccountNotificationsView: View {
                 AddHostGuideScreen(
                     make: { (try? hosts.screens.makePairingGuide(for: host)) ?? hosts.screens.makeAddHostGuide() },
                     onSaved: { _ in pairingHost = nil },
-                    onCancel: { pairingHost = nil },
                     onAdded: { hosts.didSave($0) },
                     hostPush: { id in hosts.hostPushes.first { $0.host == .host(id) } })
             }

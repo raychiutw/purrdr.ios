@@ -10,8 +10,7 @@ import SwiftUI
 /// HTTPS 主機填位址、Port 與配對碼;配對碼旁的掃描鈕開 app 內相機掃主機配對指令的 QR code。
 struct HostEditorView: View {
     @State private var model: HostEditorModel
-    @State private var confirmingDiscard = false
-    @State private var scanning = false
+        @State private var scanning = false
     @State private var showsAdvanced = false
     /// 鍵盤焦點所在的欄位(#312):return 依畫面順序往下，「完成」與捲動收起鍵盤。
     @FocusState private var focus: HostEditorModel.InputField?
@@ -19,20 +18,17 @@ struct HostEditorView: View {
     @State private var privateKeyFrame = CGRect.null
     @Environment(\.pairingCodeScanSource) private var scanSource
     let onSaved: (HostConfiguration) -> Void
-    let onCancel: () -> Void
     /// 只改了圖示就儲存：主機設定沒變，不必重新連線。
     let onIconSaved: () -> Void
 
     init(
         model: HostEditorModel,
-        onSaved: @escaping (HostConfiguration) -> Void,
-        onCancel: @escaping () -> Void, onIconSaved: @escaping () -> Void
+        onSaved: @escaping (HostConfiguration) -> Void, onIconSaved: @escaping () -> Void
     ) {
         _model = State(initialValue: model)
         // 有自訂 herdr 設定的主機一打開就看得到。
         _showsAdvanced = State(initialValue: model.detailsExpandedInitially)
         self.onSaved = onSaved
-        self.onCancel = onCancel
         self.onIconSaved = onIconSaved
     }
 
@@ -106,9 +102,11 @@ struct HostEditorView: View {
         .navigationTitle(model.isEditing ? "Edit Host" : "Add Host")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
         #endif
-        .interactiveDismissDisabled(model.hasChanges)
+        // 左上是系統返回鈕;有沒存的修改時,離開前先問要不要放棄(#622)。
+        .discardChangesGuard(hasChanges: model.hasChanges, title: "Discard your changes to this host?")
+        // 離開畫面(返回、存好):配對拿到但沒存下的權杖請主機撤銷;存好的不受影響。
+        .onDisappear { model.discardUnsavedPairing() }
         .toolbar {
             #if os(iOS)
             ToolbarItemGroup(placement: .keyboard) {
@@ -117,15 +115,6 @@ struct HostEditorView: View {
                     .accessibilityIdentifier("hostEditor.keyboardDone")
             }
             #endif
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    if model.hasChanges { confirmingDiscard = true } else { cancel() }
-                }
-                .confirmationDialog("Discard your changes to this host?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
-                    Button("Discard Changes", role: .destructive) { cancel() }
-                    Button("Keep Editing", role: .cancel) {}
-                }
-            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     // 只改名稱或圖示:主機設定沒變,不必重新連線。
@@ -170,20 +159,25 @@ struct HostEditorView: View {
         }
     }
 
-    /// 取消：配對拿到但沒存下的權杖請主機撤銷。
-    private func cancel() {
-        model.discardUnsavedPairing()
-        onCancel()
-    }
-
     // MARK: - 連線方式(#250)
 
-    /// 三列攤開單選(#313:同「設定」app 的勾選列，選中的列尾打勾),各附一句說明;選了才出現下面的連線欄位。
+    /// 三列攤開單選(#313、#622:系統 `.inline` Picker,同「設定」app 的勾選列),各附一句說明;選了才出現下面的連線欄位。
     private var connectionMethodSection: some View {
         Section {
-            ForEach(HostConfiguration.ConnectionMethod.editorOrder, id: \.self) { method in
-                methodCard(method)
+            Picker("Connection", selection: $model.connectionMethod) {
+                ForEach(HostConfiguration.ConnectionMethod.editorOrder, id: \.self) { method in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: method.title)
+                        Text(method.summary)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondaryText)
+                    }
+                    .tag(Optional(method))
+                    .accessibilityIdentifier("hostEditor.method.\(method.rawValue)")
+                }
             }
+            .pickerStyle(.inline)
+            .labelsHidden()
         } header: {
             Text("Connection")
                 .foregroundStyle(.secondaryText)
@@ -193,36 +187,6 @@ struct HostEditorView: View {
                     .foregroundStyle(.secondaryText)
             }
         }
-    }
-
-    private func methodCard(_ method: HostConfiguration.ConnectionMethod) -> some View {
-        let isSelected = model.connectionMethod == method
-        return Button {
-            model.connectionMethod = method
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: method.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text(method.summary)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondaryText)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.tint)
-                        .accessibilityHidden(true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityIdentifier("hostEditor.method.\(method.rawValue)")
     }
 
     /// 位址、Port,SSH 另有帳號。

@@ -411,7 +411,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 10), "沒有沒有主機的空狀態")
             app.buttons["agentList.addHost"].tap()
             XCTAssertTrue(app.buttons["guide.option.ssh"].waitUntilExists(timeout: 5), "沒有開出新增主機引導")
-            app.buttons["guide.cancel"].tapWhenReady()
+            app.navigationBars.buttons.element(boundBy: 0).tap()  // 左上系統返回鈕離開引導,沒有另外的 Cancel(#622)
             // 引導開在主機 tab 裡：取消後回到主機清單，再回聊天 tab 看到空狀態。
             XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機清單")
             app.openTab(.chats)

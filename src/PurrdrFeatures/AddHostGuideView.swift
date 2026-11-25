@@ -5,7 +5,6 @@ import SwiftUI
 struct AddHostGuideScreen: View {
     @State private var model: AddHostGuideModel
     let onSaved: (HostConfiguration) -> Void
-    let onCancel: () -> Void
     /// 存好主機的當下(還在最後一頁):讓 app 先登記這台主機,最後一頁才拿得到它的通知開關。
     let onAdded: (HostConfiguration) -> Void
     /// 這台主機的推播開關(最後一頁用)。
@@ -13,7 +12,7 @@ struct AddHostGuideScreen: View {
     let onTryDemo: (() -> Void)?
 
     init(
-        make: () -> AddHostGuideModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void,
+        make: () -> AddHostGuideModel, onSaved: @escaping (HostConfiguration) -> Void,
         onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil },
         onTryDemo: (() -> Void)? = nil
     ) {
@@ -22,22 +21,23 @@ struct AddHostGuideScreen: View {
         self.onAdded = onAdded
         self.hostPush = hostPush
         self.onSaved = onSaved
-        self.onCancel = onCancel
     }
 
     var body: some View {
-        AddHostGuideView(
-            model: model, onSaved: onSaved, onCancel: onCancel, onAdded: onAdded, hostPush: hostPush, onTryDemo: onTryDemo)
+        AddHostGuideView(model: model, onSaved: onSaved, onAdded: onAdded, hostPush: hostPush, onTryDemo: onTryDemo)
+            // 第一頁離開畫面(系統返回鈕或左緣滑回)就是取消整個引導;疊上第二頁時第一頁只是被蓋住,不取消。
+            .onDisappear { if model.pages.count == 1 { model.cancel() } }
     }
 }
 
 /// 新增主機引導(#341,版面「2 底部玻璃面板」,DESIGN.md「新增主機引導」):
 /// 上方大圖示與問題，選項(玻璃膠囊)與主要按鈕在底部浮動的玻璃面板;步驟、指令、欄位是內容層，不用玻璃。
-/// 一頁只問一件事，可返回與取消;每個指令可拷貝與分享到電腦。
+/// 一頁只問一件事;每一步是 push 進來的一頁,左上是系統返回鈕(第一頁離開引導、之後回上一步),沒有另外的 Cancel;每個指令可拷貝與分享到電腦。
 struct AddHostGuideView: View {
     @Bindable var model: AddHostGuideModel
+    /// 這一頁是第幾頁(0 是第一頁):每一步是一頁 push,下一頁由這一頁推出,系統返回鈕對應 `model.back()`(#622)。
+    var page = 0
     let onSaved: (HostConfiguration) -> Void
-    let onCancel: () -> Void
     /// 這個引導接不了的路徑(目前是原生 SSH 與 HTTPS):換成主機編輯頁。
     var onAdded: (HostConfiguration) -> Void = { _ in }
     var hostPush: (UUID) -> HostPush? = { _ in nil }
@@ -94,18 +94,26 @@ struct AddHostGuideView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { bottomPanel }
+        .navigationTitle("Add Host")
+        .navigationSubtitle(Text("Step \(model.progress.position) of \(model.progress.total)"))
         #if os(iOS)
-        .navigationBarBackButtonHidden(true)
+        // 完成頁沒有上一步(主機已存好),只有「Done」。
+        .navigationBarBackButtonHidden(step == .finished)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        #if os(iOS)
         .toolbar { toolbar }
-        .interactiveDismissDisabled()
+        #endif
+        .navigationDestination(isPresented: nextPagePresented) {
+            AddHostGuideView(
+                model: model, page: page + 1, onSaved: onSaved, onAdded: onAdded, hostPush: hostPush, onTryDemo: onTryDemo)
+        }
         // 進到測試連線那頁就開始測;失敗後按「再試一次」。
-        .task(id: model.step) {
-            if model.step == .pair, !model.pairAddress.isEmpty { manualExpanded = true }
-            if model.step == .test, model.phase == .editing, !model.awaitsTestConfirmation { await model.testConnection() }
-            if model.step == .keySetup { await model.loadDeviceKey() }
-            if model.step == .finished { await model.loadNotificationOffer() }
+        .task(id: step) {
+            if step == .pair, !model.pairAddress.isEmpty { manualExpanded = true }
+            if step == .test, model.phase == .editing, !model.awaitsTestConfirmation { await model.testConnection() }
+            if step == .keySetup { await model.loadDeviceKey() }
+            if step == .finished { await model.loadNotificationOffer() }
         }
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
@@ -116,49 +124,41 @@ struct AddHostGuideView: View {
 
     // MARK: - 導覽
 
+    #if os(iOS)
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        #if os(iOS)
         // 數字鍵盤(Port)與多行私鑰沒有能收鍵盤的 return,所以鍵盤上方放「完成」(#312,同主機編輯頁)。
         ToolbarItemGroup(placement: .keyboard) {
             Spacer()
             Button("Done") { focus = nil }
                 .accessibilityIdentifier("guide.keyboardDone")
         }
-        #endif
-        ToolbarItem(placement: .cancellationAction) {
-            if model.canGoBack {
-                Button("Back", systemImage: "chevron.backward") { back() }
-                    .accessibilityIdentifier("guide.back")
-            } else {
-                Button("Cancel") { cancel() }
-                    .accessibilityIdentifier("guide.cancel")
-            }
-        }
-        ToolbarItem(placement: .principal) {
-            let progress = model.progress
-            Text("Step \(progress.position) of \(progress.total)")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondaryText)
-                .accessibilityIdentifier("guide.progress")
-        }
-        ToolbarItem(placement: .confirmationAction) {
-            if model.canGoBack {
-                Button("Cancel") { cancel() }
-                    .accessibilityIdentifier("guide.cancel")
-            }
-        }
+    }
+    #endif
+
+    /// 這一頁的下一頁是否疊著:疊著就是 `model.pages` 比這一頁多。系統返回(按鈕或左緣滑回)把它設成 false 時就是回上一步;
+    /// 完成頁沒有上一步,滑回等於按 Done。
+    private var nextPagePresented: Binding<Bool> {
+        Binding(
+            get: { model.pages.count > page + 1 },
+            set: { presented in
+                guard !presented else { return }
+                focus = nil
+                expandedHelp = nil
+                while model.pages.count > page + 1, model.canGoBack { model.back() }
+                if model.pages.count > page + 1, let host = model.savedHost { onSaved(host) }
+            })
+    }
+
+    /// 這一頁問的那一步(往上疊的頁不會因為 model 往前走而換內容)。
+    private var step: AddHostGuideModel.Step {
+        model.pages.indices.contains(page) ? model.pages[page] : model.step
     }
 
     private func back() {
         focus = nil
         expandedHelp = nil
         model.back()
-    }
-
-    private func cancel() {
-        model.cancel()
-        onCancel()
     }
 
     // MARK: - 標題與圖示
@@ -174,7 +174,7 @@ struct AddHostGuideView: View {
     }
 
     private var heroSymbol: String {
-        switch model.step {
+        switch step {
         case .kind: "link"
         case .tailscale: "network"
         case .install: "square.and.arrow.down"
@@ -193,7 +193,7 @@ struct AddHostGuideView: View {
     }
 
     private var title: LocalizedStringKey {
-        switch model.step {
+        switch step {
         case .kind: "How do you want to connect to your host?"
         case .tailscale: "Get Tailscale on both devices"
         case .system: "What kind of host is it?"
@@ -222,7 +222,7 @@ struct AddHostGuideView: View {
     }
 
     private var subtitle: LocalizedStringKey? {
-        switch model.step {
+        switch step {
         case .system: "Pick the host your agents run on."
         case .sshMethod where model.system == .windows: "It’s built into Windows. You only need to turn it on."
         case .finished: "\(model.savedHost?.name ?? "") was added."
@@ -234,7 +234,7 @@ struct AddHostGuideView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch model.step {
+        switch step {
         case .tailscale:
             instructions(model.tailscaleInstructions)
         case .install:
@@ -601,7 +601,7 @@ struct AddHostGuideView: View {
 
     @ViewBuilder
     private var panelContent: some View {
-        switch model.step {
+        switch step {
         case .kind:
             option("ssh", "SSH", detail: "Recommended · works on most hosts", symbol: "terminal") { model.choose(.ssh) }
             option(
@@ -673,20 +673,14 @@ struct AddHostGuideView: View {
             option("deviceKey", "Key", detail: "Use a key made by this device", symbol: "key") {
                 model.choose(authentication: .deviceKey)
             }
-            Button {
-                withAnimation { showOtherWays.toggle() }
-            } label: {
-                Label("Other Ways", systemImage: showOtherWays ? "chevron.down" : "chevron.forward")
-                    .font(.footnote)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("guide.otherWays")
-            if showOtherWays {
+            // 進階的登入方式預設收起,點開才顯示(HIG Disclosure controls)。
+            DisclosureGroup("Other Ways", isExpanded: $showOtherWays) {
                 Button("Import a Key You Already Have") { model.choose(authentication: .importedKey) }
                     .buttonStyle(.glass)
                     .accessibilityIdentifier("guide.option.importedKey")
             }
+            .font(.footnote)
+            .accessibilityIdentifier("guide.otherWays")
         case .credential, .keySetup:
             primary("Test Connection", id: "guide.next", enabled: model.canAdvance) { model.advance() }
         case .details:
