@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 // 診斷記錄檔(`hitch-log.jsonl`,JSON Lines;卡頓、閃退與 MetricKit 共用)的一筆、儲存介面、大小裁切與編碼。
 
@@ -30,6 +31,8 @@ public enum DiagnosticEntry: Equatable, Sendable {
     case crash(CrashRecord)
     /// MetricKit 在下次啟動交出的閃退報告。一律記錄。
     case crashReport(MetricKitCrashReport)
+    /// 操作計時(#635):新增聊天／續接的步驟與 SSH 關鍵請求的耗時;只有名稱與毫秒數。
+    case timing(OperationTiming)
     /// 匯出檔開頭的一筆:匯出時間與目前的系統狀態。
     case meta(HitchSystemState, at: Date)
 }
@@ -119,6 +122,12 @@ public enum DiagnosticLogEncoder {
             object["name"] = record.name
             object["reason"] = record.reason
             addEnvironment(record.environment, to: &object)
+        case .timing(let timing):
+            object["kind"] = "timing"
+            object["t"] = time(timing.at)
+            object["name"] = timing.name
+            object["ms"] = timing.milliseconds
+            if timing.failed { object["failed"] = true }
         case .crashReport(let report):
             object["kind"] = "crashReport"
             object["t"] = time(report.timestamp)

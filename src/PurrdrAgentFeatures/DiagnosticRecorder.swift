@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 /// 捲動卡頓記錄器的核心(只在聊天列表可見且 app 在前景時運作,否則零成本)。
 ///
@@ -204,6 +205,12 @@ public final class DiagnosticRecorder {
     public func recordMetrics(_ digest: HitchMetricsDigest) {
         guard isEnabled else { return }
         sink.append([.metrics(digest)])
+    }
+
+    /// 操作計時(#635):記錄開著才寫(不經緩衝)。
+    public func recordTiming(_ timing: OperationTiming) {
+        guard isEnabled else { return }
+        sink.append([.timing(timing)])
     }
 
     /// 閃退記錄:一律寫(不看開關、不經緩衝)。

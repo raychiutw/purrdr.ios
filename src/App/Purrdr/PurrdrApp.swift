@@ -214,6 +214,8 @@ struct PurrdrApp: App {
             : DiagnosticLogFile.applicationSupport()
         let hitchRecorder = DiagnosticRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
         self.hitchRecorder = hitchRecorder
+        // 新增聊天／續接各步驟與 SSH 關鍵請求的耗時(#635):記錄開著才寫進診斷記錄。計時可能來自任何執行緒。
+        hosts.operationTimings = { timing in Task { @MainActor in hitchRecorder.recordTiming(timing) } }
         if uiTesting {
             hitchMetrics = nil
         } else {
