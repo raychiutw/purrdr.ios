@@ -35,7 +35,6 @@ public struct TerminalSessionView: View {
     let model: any TerminalSessionModel
     /// 登入 Shell 的主機挑選鈕(#245);Pane 終端機沒有。
     let hostPicker: HostPickerModel?
-    @Environment(\.scenePhase) private var scenePhase
     @State private var screen = TerminalScreenHandle()
     @State private var isOnScreen = false
     @State private var clipboardRequests = ClipboardWriteRequests()
@@ -49,6 +48,18 @@ public struct TerminalSessionView: View {
     }
 
     public var body: some View {
+        terminalContent
+            .modifier(ClipboardRequestAlert(requests: clipboardRequests))
+            .alert("Can’t Paste", isPresented: Binding(get: { model.notice != nil }, set: { [model] in if !$0 { model.notice = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(model.notice ?? "")
+            }
+            .modifier(TerminalLifecycle(model: model, screen: screen, isOnScreen: $isOnScreen))
+    }
+
+    /// 終端機畫面與導覽列(拆出 body,避免型別推斷逾時)。
+    private var terminalContent: some View {
         VStack(spacing: 0) {
             if let banner = model.bannerText {
                 TerminalBanner(text: banner, model: model)
@@ -71,33 +82,38 @@ public struct TerminalSessionView: View {
         }
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .modifier(ClipboardRequestAlert(requests: clipboardRequests))
-        .alert("Can’t Paste", isPresented: Binding(get: { model.notice != nil }, set: { [model] in if !$0 { model.notice = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(model.notice ?? "")
-        }
-        // 只在畫面顯示時持有 Pane 的尺寸(#357):離開畫面、進背景或鎖定立刻放開控制(電腦上的 Pane 還原成原尺寸),
-        // 回到畫面再以手機的格數重新接上。
-        .onChange(of: scenePhase) { _, phase in
-            switch phase {
-            case .background: BackgroundRelease.hangUp(model)
-            case .active: if isOnScreen { model.resume() }
-            default: break
+    }
+}
+
+/// 只在畫面顯示時持有 Pane 的尺寸(#357):離開畫面、進背景或鎖定立刻放開控制(電腦上的 Pane 還原成原尺寸),
+/// 回到畫面再以手機的格數重新接上;接上後終端機取得焦點。
+private struct TerminalLifecycle: ViewModifier {
+    let model: any TerminalSessionModel
+    let screen: TerminalScreenHandle
+    @Binding var isOnScreen: Bool
+    @Environment(\.scenePhase) private var scenePhase
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .background: BackgroundRelease.hangUp(model)
+                case .active: if isOnScreen { model.resume() }
+                default: break
+                }
             }
-        }
-        .onAppear {
-            isOnScreen = true
-            if scenePhase == .active { model.resume() }
-        }
-        .onDisappear {
-            isOnScreen = false
-            BackgroundRelease.hangUp(model)
-        }
-        .onChange(of: model.status) { _, status in
-            // 接上後終端機取得焦點，鍵盤輸入直接送往遠端。
-            if status == .connected { screen.focus() }
-        }
+            .onAppear {
+                isOnScreen = true
+                if scenePhase == .active { model.resume() }
+            }
+            .onDisappear {
+                isOnScreen = false
+                BackgroundRelease.hangUp(model)
+            }
+            .onChange(of: model.status) { _, status in
+                // 接上後終端機取得焦點，鍵盤輸入直接送往遠端。
+                if status == .connected { screen.focus() }
+            }
     }
 }
 
