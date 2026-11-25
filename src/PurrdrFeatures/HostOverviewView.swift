@@ -82,12 +82,21 @@ struct HostOverviewView: View {
                 ForEach(picker.options) { option in
                     Button {
                         picker.select(option.id)
+                        // 需要重新確認的主機:開編輯頁走確認流程,不開連線(#572)。
+                        if option.needsReconfirmation, case .host(let id) = option.id { openRoute(.edit(id)) }
                     } label: {
                         HStack(spacing: 12) {
                             HostIconBadge(option.icon, diameter: 24)
-                            Text(verbatim: option.name)
-                                .font(.body)
-                                .foregroundStyle(Color.primary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(verbatim: option.name)
+                                    .font(.body)
+                                    .foregroundStyle(Color.primary)
+                                if option.needsReconfirmation {
+                                    Label("Check This Host Again", systemImage: "exclamationmark.triangle")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondaryText)
+                                }
+                            }
                             Spacer(minLength: 0)
                             if option.id == overview.host {
                                 Image(systemName: "checkmark")
@@ -238,21 +247,21 @@ struct HostOverviewView: View {
 
     private var showsNotifications: Bool {
         switch overview.status {
-        case .demo, .needsPairing, .herdrTooOld: false
+        case .demo, .needsPairing, .needsReconfirmation, .herdrTooOld: false
         case .connecting, .online, .readOnly, .offline: true
         }
     }
 
     private var showsShare: Bool {
         switch overview.status {
-        case .demo, .needsPairing, .herdrTooOld: false
+        case .demo, .needsPairing, .needsReconfirmation, .herdrTooOld: false
         case .connecting, .online, .readOnly, .offline: overview.canShare
         }
     }
 
     private var showsSettings: Bool {
         switch overview.status {
-        case .demo, .needsPairing, .herdrTooOld, .offline: false
+        case .demo, .needsPairing, .needsReconfirmation, .herdrTooOld, .offline: false
         case .connecting, .online, .readOnly: overview.hasHostSettings
         }
     }
@@ -398,7 +407,7 @@ struct HostStatusRow: View {
             Circle().fill(StatusTone.accent.style).frame(width: 8, height: 8).accessibilityHidden(true)
         case .connecting:
             ProgressView().controlSize(.small)
-        case .offline, .needsPairing, .herdrTooOld:
+        case .offline, .needsPairing, .needsReconfirmation, .herdrTooOld:
             // 狀態用圖示加文字，不只靠顏色。
             Image(systemName: ErrorLabel.symbolName)
                 .font(.caption)
@@ -415,6 +424,7 @@ struct HostStatusRow: View {
         case .readOnly: Text("Online · View Only")
         case .offline: Text("Can’t Reach This Host")
         case .needsPairing: Text("Not Paired on This Device")
+        case .needsReconfirmation: Text("Check This Host Again")
         case .herdrTooOld(let version): Text("herdr \(version) Is Too Old")
         }
     }
@@ -431,6 +441,7 @@ struct HostStatusRow: View {
                 Text(verbatim: message)
             }
         case .needsPairing: Text("This host came from another device. Enter its pairing code to use it here.")
+        case .needsReconfirmation: Text("Another device changed this host. Check it before connecting. Nothing is sent until you do.")
         case .herdrTooOld: Text("Purrdr needs herdr 0.9.5 or later.")
         }
     }
@@ -450,6 +461,10 @@ struct HostStatusRow: View {
             Button("Enter Pairing Code", action: pair)
                 .filledProminentButtonStyle()
                 .accessibilityIdentifier("hosts.status.pair")
+        case .needsReconfirmation:
+            Button("Check Host", action: update)
+                .filledProminentButtonStyle()
+                .accessibilityIdentifier("hosts.status.reconfirm")
         case .herdrTooOld:
             if overview.connection?.usesHostService == true {
                 Text("Update herdr on the host.")

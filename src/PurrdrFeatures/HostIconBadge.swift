@@ -35,18 +35,30 @@ public struct HostIconBadge: View {
     }
 }
 
-/// 主機名稱加主機圖示的選單項目(主機選單、方案用量的主機挑選);「無」只顯示名稱。
+/// 主機名稱加主機圖示的選單項目(主機選單、方案用量的主機挑選);「無」只顯示名稱。需要重新確認的主機(#572)名稱後加「請再確認這台主機」。
 public struct HostMenuLabel: View {
     let title: String
     let icon: HostIcon
+    let needsReconfirmation: Bool
 
-    public init(_ title: String, icon: HostIcon) {
+    public init(_ title: String, icon: HostIcon, needsReconfirmation: Bool = false) {
         self.title = title
         self.icon = icon
+        self.needsReconfirmation = needsReconfirmation
+    }
+
+    public init(_ option: HostOption) {
+        self.init(option.name, icon: option.icon, needsReconfirmation: option.needsReconfirmation)
     }
 
     public var body: some View {
-        if let symbol = icon.symbol {
+        if needsReconfirmation {
+            Label {
+                Text(verbatim: "\(title) · \(String(localized: "Check This Host Again"))")
+            } icon: {
+                Image(systemName: icon.symbol ?? "exclamationmark.triangle")
+            }
+        } else if let symbol = icon.symbol {
             Label(title, systemImage: symbol)
         } else {
             Text(verbatim: title)

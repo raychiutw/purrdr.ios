@@ -168,6 +168,33 @@ struct HostOverviewTests {
         #expect(model.overview?.status == .readOnly)
     }
 
+    @Test("同步改了位址、需要重新確認的 HTTPS 主機:不開主機服務連線，不顯示用量、主機服務與登入 Shell(#572)")
+    func needsReconfirmationHTTPS() async {
+        var pending = Self.buildBox
+        pending.needsReconfirmation = true
+        let store = MemoryHostStore()
+        store.hosts = [pending]
+        let connection = FakeHostConnection()
+        let connections = HostServiceConnections()
+        connections.connections = [connection]
+        let tokens = InMemoryDeviceTokenStore(tokens: [pending.id: "token"])
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens), makeChannel: ChannelFactory().make)
+        model.load()
+
+        await model.agentList.load()
+        await model.checkHostServiceVersions()
+        await model.refreshOverviewFacts()
+
+        let overview = model.overview
+        #expect(overview?.status == .needsReconfirmation)
+        #expect(overview?.showsUsage == false)
+        #expect(overview?.showsHostService == false)
+        #expect(overview?.showsLoginShell == false)
+        #expect(model.hostStatusConnection(for: pending.id) == nil)
+        #expect(connections.addresses.isEmpty, "確認前不用權杖開連線")
+    }
+
     @Test("herdr 低於 0.9.5:太舊,不顯示用量")
     func herdrTooOld() async {
         let connection = FakeHostConnection()

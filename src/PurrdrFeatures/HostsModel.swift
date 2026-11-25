@@ -15,6 +15,8 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var icon: HostIcon
     /// HTTPS 主機在這支裝置還沒有裝置權杖(例如主機同步帶來的):要先連線配對。
     public var needsPairing: Bool
+    /// 主機同步改了位址或 host key(#572):要使用者重新確認才連線。
+    public var needsReconfirmation: Bool
     /// HTTPS 主機目前的主機服務版本(讀到之前、SSH 主機是 `nil`,#362)。
     public var hostServiceVersion: String?
     /// HTTPS 主機的主機服務比最新 Release 舊：可更新到的版本(#198)。
@@ -24,7 +26,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
 
     public init(
         id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default,
-        needsPairing: Bool = false, hostServiceVersion: String? = nil, hostServiceUpdate: String? = nil,
+        needsPairing: Bool = false, needsReconfirmation: Bool = false, hostServiceVersion: String? = nil, hostServiceUpdate: String? = nil,
         hostServiceUpdateCommands: HostServiceUpdateCommands? = nil
     ) {
         self.id = id
@@ -34,6 +36,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
         self.isSelected = isSelected
         self.icon = icon
         self.needsPairing = needsPairing
+        self.needsReconfirmation = needsReconfirmation
         self.hostServiceVersion = hostServiceVersion
         self.hostServiceUpdate = hostServiceUpdate
         self.hostServiceUpdateCommands = hostServiceUpdateCommands
@@ -318,7 +321,7 @@ public final class HostsModel {
             guard let configuration = hosts.first(where: { $0.id == id }) else { return nil }
             if case .https(let address) = configuration.connection {
                 // HTTPS 主機經主機服務讀(0.12.0 起,#392);還沒配對或不是真的主機服務連線(UI 測試)沒有來源。
-                guard agent.supportsHostService, !unpairedHostIDs.contains(id),
+                guard agent.supportsHostService, !unpairedHostIDs.contains(id), !configuration.needsReconfirmation,
                     let connection = hostServiceConnection(for: configuration, address: address) as? HTTPSHostConnection
                 else { return nil }
                 return .hostService(
@@ -374,6 +377,8 @@ public final class HostsModel {
         let status: HostOverview.Status
         if configuration == nil {
             status = .demo
+        } else if configuration?.needsReconfirmation == true {
+            status = .needsReconfirmation
         } else if let id, unpairedHostIDs.contains(id) {
             status = .needsPairing
         } else {
@@ -390,17 +395,17 @@ public final class HostsModel {
                 }
             }
         }
-        let pairedHostService = usesHostService && status != .needsPairing
+        let pairedHostService = usesHostService && status != .needsPairing && status != .needsReconfirmation
         let hasUsageSource: Bool = switch status {
-        case .demo, .needsPairing, .herdrTooOld: false
+        case .demo, .needsPairing, .needsReconfirmation, .herdrTooOld: false
         case .connecting, .online, .readOnly, .offline: true
         }
         return HostOverview(
             host: selected, name: name(of: selected), icon: icon(of: selected), status: status, connection: method,
             herdrVersion: herdrVersion, address: configuration?.hostService?.description,
             showsUsage: hasUsageSource, showsHostService: pairedHostService,
-            showsLoginShell: (configuration?.supportsLoginShell ?? true) && status != .needsPairing,
-            canShare: configuration != nil, hasHostSettings: configuration != nil && status != .needsPairing,
+            showsLoginShell: (configuration?.supportsLoginShell ?? true) && status != .needsPairing && status != .needsReconfirmation,
+            canShare: configuration != nil, hasHostSettings: configuration != nil && status != .needsPairing && status != .needsReconfirmation,
             isSaved: configuration != nil)
     }
 
@@ -414,7 +419,7 @@ public final class HostsModel {
     public func refreshOverviewFacts() async {
         // 主機 tab 出現時(列表多半已讀到快照),補上還沒設定過的主機的 Agent 設定(#477)。
         for host in hosts where host.enabledAgents == nil { await initializeAgentSettings(for: host.id, isNewHost: false) }
-        guard let host = selectedHost, case .https = host.connection, !unpairedHostIDs.contains(host.id),
+        guard let host = selectedHost, case .https = host.connection, !unpairedHostIDs.contains(host.id), !host.needsReconfirmation,
             let connection = hostStatusConnection(for: host.id)
         else { return }
         if let readOnly = try? await connection.isReadOnlyDevice() {
@@ -442,7 +447,9 @@ public final class HostsModel {
     /// 已啟用的範例主機(#394)加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
     private func hostOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostOption] {
         (demoEntered ? [HostOption(id: .demo, name: name(of: .demo))] : [])
-            + hosts.filter(isIncluded).map { HostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
+            + hosts.filter(isIncluded).map {
+                HostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id), needsReconfirmation: $0.needsReconfirmation)
+            }
     }
 
     /// 某台主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
@@ -545,7 +552,7 @@ public final class HostsModel {
                 ?? host.hostService?.description ?? ""
             return HostRow(
                 id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
-                isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id),
+                isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id), needsReconfirmation: host.needsReconfirmation,
                 hostServiceVersion: hostServiceVersions[host.id], hostServiceUpdate: update,
                 hostServiceUpdateCommands: update.flatMap { _ in hostServiceVersions[host.id].map(HostServiceUpdates.commands(installed:)) })
         }
@@ -555,7 +562,7 @@ public final class HostsModel {
     /// 沒有已配對的 HTTPS 主機時不查最新版本。最新版本這次取不到時沿用上次取到的。
     public func checkHostServiceVersions() async {
         let targets = hosts.compactMap { host -> (UUID, any HostConnection)? in
-            guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id) else { return nil }
+            guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id), !host.needsReconfirmation else { return nil }
             return (host.id, hostServiceConnection(for: host, address: address))
         }
         guard !targets.isEmpty else { return }
@@ -570,7 +577,7 @@ public final class HostsModel {
     /// 主機編輯頁的主機服務與已配對裝置區塊(#290、#291)用的連線：已配對的 HTTPS 主機才有。
     public func hostStatusConnection(for id: UUID) -> (any HostConnection)? {
         guard let host = hosts.first(where: { $0.id == id }), case .https(let address) = host.connection,
-            !unpairedHostIDs.contains(id)
+            !unpairedHostIDs.contains(id), !host.needsReconfirmation
         else { return nil }
         return hostServiceConnection(for: host, address: address)
     }
@@ -786,7 +793,10 @@ public final class HostsModel {
         try credentials.secrets.setSecret(nil, for: id)
         try hostService.tokens.setDeviceToken(nil, for: id)
         try store.delete(id)
-        if let removed, let settings = removed.ssh {
+        // 還沒重新確認的主機不再連線:不對它(可能是被改掉的位址)送出密碼、私鑰或權杖(#572)。
+        if removed?.needsReconfirmation == true {
+            // 略過主機上的推播配對、公鑰與權杖清理。
+        } else if let removed, let settings = removed.ssh {
             forgetPush(of: removed, settings: settings, secret: secret)
             if hostConsent.isGranted(AuthorizedKeyInstaller.feature.id, host: id.uuidString) {
                 restoreDeviceKey(on: removed, settings: settings, secret: secret)
@@ -1016,6 +1026,7 @@ public final class HostsModel {
         guard case .host(let id) = host, let configuration = hosts.first(where: { $0.id == id }) else { return .demoHost }
         // 沒有裝置權杖連不上主機服務：先說明要配對(#295),配對後才看得到能不能裝。
         guard !unpairedHostIDs.contains(id) else { return .needsPairing }
+        guard !configuration.needsReconfirmation else { return .unsupported }
         guard members[host]?.push.isAvailable == true else { return .unsupported }
         // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
         guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
@@ -1051,6 +1062,11 @@ public final class HostsModel {
         return wanted
     }
 
+    private func needsReconfirmation(_ host: HostSelection) -> Bool {
+        guard case .host(let id) = host else { return false }
+        return hosts.first { $0.id == id }?.needsReconfirmation ?? false
+    }
+
     /// 依列表上的主機重建成員;已有的成員沿用(連線、列、草稿不重建)。
     private func rebuildMembers() {
         let wanted = listedHosts
@@ -1060,7 +1076,7 @@ public final class HostsModel {
             members[host].map { member in
                 MergedAgentListModel.Source(
                     host: host, name: name(of: host), icon: icon(of: host), list: member.list, actions: member.actions,
-                    notes: member.youShouldKnow)
+                    notes: member.youShouldKnow, needsReconfirmation: needsReconfirmation(host))
             }
         }
         agentList.isAwaitingFirstHost = hosts.isEmpty && !demoEntered
@@ -1105,6 +1121,12 @@ public final class HostsModel {
             return HostMember(
                 host: host, configuration: nil, channel: demoChannel, files: demoFiles, preferences: preferences.store(for: host),
                 push: pushService, consent: demoConsent)
+        }
+        // 同步改了位址或 host key、使用者還沒重新確認:不開任何連線(#572)。
+        if configuration.needsReconfirmation {
+            return HostMember(
+                host: host, configuration: configuration, channel: UnsupportedHostChannel(),
+                preferences: preferences.store(for: host), push: pushService, consent: hostConsent)
         }
         switch configuration.connection {
         case .https(let address):
@@ -1441,6 +1463,8 @@ public struct HostOverview: Equatable, Sendable {
         case offline(message: String, lastConnected: Date?)
         /// HTTPS 主機在這支裝置還沒有裝置權杖。
         case needsPairing
+        /// 主機同步改了位址或 host key(#572):使用者重新確認前不連線。
+        case needsReconfirmation
         /// herdr 低於 0.9.5。
         case herdrTooOld(version: String)
     }

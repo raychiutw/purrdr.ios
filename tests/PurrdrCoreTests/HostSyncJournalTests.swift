@@ -157,6 +157,7 @@ struct HostSyncJournalTests {
             $0.hostKeyPin = newer.hostKeyPin
         }
         expected.name = "Renamed on iPad"
+        expected.needsReconfirmation = true
         #expect(outcome == HostSyncOutcome(saves: [expected]))
         #expect(journal.pendingChanges(hosts: [expected], now: Self.t3).isEmpty, "採用後台的版本後不再上傳")
     }
@@ -309,5 +310,64 @@ struct HostSyncJournalTests {
         journal.recordSave(Self.studio.id, at: Self.t1.addingTimeInterval(0.000_7))
 
         #expect(journal.modified[Self.studio.id] == Self.t1)
+    }
+
+    // MARK: - 位址與 host key 改變要重新確認(#572)
+
+    private func reconcileChanged(_ edit: (inout SyncedHost) -> Void) -> HostConfiguration? {
+        var journal = HostSyncJournal()
+        var remote = Self.remote(at: Self.t2)
+        edit(&remote)
+        return journal.reconcile(hosts: [Self.studio], sent: [], snapshot: HostSyncSnapshot(hosts: [remote], deletedHostIDs: [])).saves.first
+    }
+
+    @Test("同步把既有 SSH 主機的位址改掉:保留新值，標成需要重新確認")
+    func changedAddressNeedsReconfirmation() throws {
+        let saved = try #require(reconcileChanged { $0.endpoint = SSHEndpoint(host: "attacker.example", username: "ray") })
+
+        #expect(saved.ssh?.endpoint.host == "attacker.example")
+        #expect(saved.needsReconfirmation)
+    }
+
+    @Test("同步把既有主機的 host key 指紋改掉:標成需要重新確認")
+    func changedHostKeyNeedsReconfirmation() throws {
+        let saved = try #require(reconcileChanged { $0.hostKeyPin = HostKeyFingerprint(stored: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA") })
+
+        #expect(saved.needsReconfirmation)
+    }
+
+    @Test("同步把既有 HTTPS 主機的主機服務位址改掉:標成需要重新確認")
+    func changedHostServiceAddressNeedsReconfirmation() throws {
+        var journal = HostSyncJournal()
+        let old = HostConfiguration(name: "Studio", hostService: try #require(HostServiceAddress("studio.tail1234.ts.net")))
+        let other = SyncedHost(HostConfiguration(id: old.id, name: "Studio", hostService: try #require(HostServiceAddress("evil.example"))), modifiedAt: Self.t2)
+
+        let saved = try #require(journal.reconcile(hosts: [old], sent: [], snapshot: HostSyncSnapshot(hosts: [other], deletedHostIDs: [])).saves.first)
+
+        #expect(saved.hostService?.description.contains("evil.example") == true)
+        #expect(saved.needsReconfirmation)
+    }
+
+    @Test("只改名稱不需要重新確認;新增的主機也不需要")
+    func renameAndNewHostNeedNoReconfirmation() throws {
+        let renamed = try #require(reconcileChanged { $0.name = "Renamed" })
+        #expect(!renamed.needsReconfirmation)
+
+        var journal = HostSyncJournal()
+        let added = journal.reconcile(hosts: [], sent: [], snapshot: HostSyncSnapshot(hosts: [Self.remote(at: Self.t2)], deletedHostIDs: []))
+        #expect(added.saves.first?.needsReconfirmation == false)
+    }
+
+    @Test("已標成需要重新確認的主機，之後只改名稱也不會自己解除")
+    func reconfirmationIsSticky() throws {
+        var journal = HostSyncJournal()
+        var pending = Self.studio
+        pending.needsReconfirmation = true
+        var remote = Self.remote(at: Self.t2)
+        remote.name = "Renamed"
+
+        let saved = try #require(journal.reconcile(hosts: [pending], sent: [], snapshot: HostSyncSnapshot(hosts: [remote], deletedHostIDs: [])).saves.first)
+
+        #expect(saved.needsReconfirmation)
     }
 }
