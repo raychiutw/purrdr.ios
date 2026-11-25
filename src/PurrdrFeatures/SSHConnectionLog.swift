@@ -7,15 +7,23 @@ import PurrdrSSH
 /// 實機上收集:Mac 的 Console.app 選 iPhone,篩選 `subsystem:com.raychiu.purrdr category:ssh`
 /// (網路切換與喚醒探測丟棄連線在 category `hosts`)。
 public enum SSHConnectionLog {
-    /// 以 `os.Logger` 記錄某台主機通道的事件。主機位址標成 private(Console 預設遮住),事件內容是 public。
+    /// 以 `os.Logger` 記錄某台主機通道的事件。主機位址標成 private(Console 預設遮住);帶錯誤描述的事件內容也是 private,只有連線成功是 public。
     public static func system(host: String) -> SSHConnectionDiagnostics {
         let logger = Logger(subsystem: "com.raychiu.purrdr", category: "ssh")
         return { event in
             let message = message(for: event)
             switch event {
             case .connected: logger.notice("\(host, privacy: .private): \(message, privacy: .public)")
-            case .dialFailed, .dropped: logger.error("\(host, privacy: .private): \(message, privacy: .public)")
+            case .dialFailed, .dropped: logger.error("\(host, privacy: .private): \(message, privacy: .private)")
             }
+        }
+    }
+
+    /// 事件帶錯誤描述或原因等動態內容時,系統紀錄標 private。
+    public static func isPrivate(_ event: SSHConnectionEvent) -> Bool {
+        switch event {
+        case .connected: false
+        case .dialFailed, .dropped: true
         }
     }
 

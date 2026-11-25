@@ -5569,6 +5569,17 @@
         }
       }
     },
+    "GitLab token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitLab token"
+          }
+        }
+      }
+    },
     "Go Back" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6041,6 +6052,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "如何安裝主機服務"
+          }
+        }
+      }
+    },
+    "Hugging Face token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hugging Face token"
           }
         }
       }
@@ -16798,6 +16820,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "my-mac.tailnet.ts.net"
+          }
+        }
+      }
+    },
+    "npm token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "npm token"
           }
         }
       }

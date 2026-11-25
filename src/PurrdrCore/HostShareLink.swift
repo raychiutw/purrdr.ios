@@ -66,7 +66,7 @@ public enum HostShareLink {
     public static func url(for host: SharedHost) -> URL {
         let wire = Wire(
             v: version, name: host.name, host: host.endpoint.host, port: host.endpoint.port, user: host.endpoint.username,
-            method: host.connectionMethod.rawValue, herdr: host.herdr.path == "herdr" ? nil : host.herdr.path,
+            method: host.connectionMethod.rawValue,
             session: host.herdr.session, pin: host.hostKeyPin?.stored,
             url: host.hostService?.description)
         let encoder = JSONEncoder()
@@ -106,7 +106,8 @@ public enum HostShareLink {
         }
         return SharedHost(
             name: name, endpoint: SSHEndpoint(host: host, port: wire.port, username: user), connectionMethod: method,
-            herdr: HerdrInstallation(path: wire.herdr ?? "herdr", session: wire.session),
+            // herdr 路徑是之後會當指令執行的字串:連結裡的一律不採用(舊版連結也一樣),匯入後用預設值。
+            herdr: HerdrInstallation(path: "herdr", session: wire.session),
             hostKeyPin: wire.pin.flatMap(HostKeyFingerprint.init(stored:)))
     }
 
@@ -124,7 +125,6 @@ public enum HostShareLink {
         var port: Int
         var user: String
         var method: String?
-        var herdr: String?
         var session: String?
         var pin: String?
         /// HTTPS 主機的主機服務位址。
