@@ -256,18 +256,62 @@ public final class MergedAgentListModel {
         return projection
     }
 
-    /// Spaces(#275、#501 起聊天唯一的呈現):每個「主機 · workspace」一段，段內每個 Tab 一列;套用目前主機與搜尋(主機、workspace、Tab 名稱,#391)。
-    public var spacesSections: [SpacesSection] {
-        AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats, query: query)
+    /// 一次投影的結果(#583):Spaces 段落、需要你段落與「離開期間」的列共用。
+    private struct Projection {
+        var spaces: [SpacesSection]
+        var needsYou: NeedsYouSection?
+        var away: [ChatRoute]
     }
+
+    private struct ProjectionKey: Equatable {
+        var sources: [AgentListProjection.Source]
+        var selected: HostSelection
+        var currentHost: HostSelection?
+        var query: String
+        var visible: Set<ChatRoute>
+        var order: [ChatRoute]
+        var justNow: ChatRoute?
+    }
+
+    @ObservationIgnored private var projectionCache: (key: ProjectionKey, value: Projection)?
+    /// 實際投影(重算)的次數;測試以它確認「一次 body 只投影一次、輸入沒變不重算」。
+    @ObservationIgnored package private(set) var projectionCount = 0
+
+    /// 以輸入(各主機的快照、預覽、偏好、搜尋、目前主機、需要你順序…)比對的投影快取:輸入沒變直接回上次結果。
+    /// 讀輸入仍會登記觀察,所以來源變了畫面照常更新。
+    private var projection: Projection {
+        let all = projectionSources
+        let key = ProjectionKey(
+            sources: all, selected: selected, currentHost: currentHost, query: query, visible: visibleChats,
+            order: needsYou.others.map(\.route), justNow: needsYou.latest?.route)
+        if let cache = projectionCache, cache.key == key { return cache.value }
+        projectionCount += 1
+        let filtered = currentHost.map { host in all.filter { $0.host == host } } ?? all
+        let spaces = AgentListProjection.spacesSections(sources: filtered, visible: key.visible, query: query)
+        // 沒有主機篩選時「需要你」與 Spaces 是同一批來源,共用同一份投影;有篩選才另外投影所有主機。
+        let needsYouTabs = currentHost == nil
+            ? spaces.flatMap(\.tabs)
+            : AgentListProjection.spacesSections(sources: all, visible: key.visible, query: query).flatMap(\.tabs)
+        let away = filtered.flatMap { source in
+            (source.snapshot?.agents ?? []).filter { ChatUnread.State(agent: $0, source: source, visible: key.visible).isAway }
+                .map { ChatRoute(host: source.host, paneID: $0.paneID) }
+        }
+        let value = Projection(
+            spaces: spaces, needsYou: AgentListProjection.needsYouSection(tabs: needsYouTabs, order: key.order, justNow: key.justNow),
+            away: away)
+        projectionCache = (key, value)
+        return value
+    }
+
+    /// Spaces(#275、#501 起聊天唯一的呈現):每個「主機 · workspace」一段，段內每個 Tab 一列;套用目前主機與搜尋(主機、workspace、Tab 名稱,#391)。
+    public var spacesSections: [SpacesSection] { projection.spaces }
 
     /// 列表最上面的「需要你」段落(#531):所有主機(不受主機篩選)需要你的聊天、套用搜尋;
     /// 排序與「剛剛」來自 `needsYou`(沒有人驅動它時照列表順序、沒有「剛剛」)。沒有時 `nil`。
-    public var needsYouSection: NeedsYouSection? {
-        AgentListProjection.needsYouSection(
-            sources: projectionSources, visible: visibleChats, query: query,
-            order: needsYou.others.map(\.route), justNow: needsYou.latest?.route)
-    }
+    public var needsYouSection: NeedsYouSection? { projection.needsYou }
+
+    /// 有「離開期間」徽章的聊天(套用目前主機);變動時才重算輪數(#308)。
+    public var awayRoutes: [ChatRoute] { projection.away }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。
     public var hasAgents: Bool { sources.contains { $0.list.hasAgents } }

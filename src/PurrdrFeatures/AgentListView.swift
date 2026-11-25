@@ -123,7 +123,7 @@ public struct AgentListView: View {
         }
         // 預先載入前幾個聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
         // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
-        .task(id: model.agentRows.filter(\.isAway).map(\.id)) {
+        .task(id: model.awayRoutes) {
             await model.refreshAwayTurns()
         }
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
