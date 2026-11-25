@@ -4,6 +4,11 @@ Purrdr 每個版本改了什麼，用一般使用者看得懂的話寫。最新�
 
 每個版本一段 `## <版本號>`,版本號與 App 的 `MARKETING_VERSION` 一致。發版時 GitHub Release 的「本版更新」就是從這裡取對應那一段(見 `.github/workflows/testflight.yml`),PR 的 CI 也會檢查目前版本號有沒有寫在這裡。寫的時候不寫內部實作、協定名稱或 issue 編號。
 
+## 0.52.1
+
+- 修正在既有的 Workspace 裡新增聊天或續接聊天時,Tab 編號到 10 以後一定失敗、還會留下只有終端機的空 Tab。
+- 新增聊天如果還沒啟動成功就取消、下滑關掉或切換主機,會自動關掉建到一半的 Workspace 或 Tab,不再留下孤兒。
+
 ## 0.52.0
 
 - 新增聊天:可以自己輸入 Workspace 與 Tab 的名稱;可以選擇在既有的 Workspace 裡新增一個 Tab;Workspace 標題的長按選單多了「在此新增聊天」。
