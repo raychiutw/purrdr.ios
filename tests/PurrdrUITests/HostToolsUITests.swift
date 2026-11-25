@@ -12,7 +12,7 @@ final class HostToolsUITests: XCTestCase {
         case "menu.files":
             app.openTab(.files)
         case "menu.newChat":
-            app.openNewChatSheet()
+            app.openNewChat()
         default:
             // 登入 Shell 在主機 tab。
             app.openHostsTab()
@@ -146,7 +146,7 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "換主機後沒有重新列出家目錄")
     }
 
-    /// 新增聊天標題列有主機挑選鈕：預設選取中主機(聊天列表篩選為所有主機),列出所有主機。
+    /// 新增聊天右上有電腦圖示的主機選單(#621)：預設選取中主機(聊天列表篩選為所有主機),列出所有主機。
     @MainActor
     func testNewChatPicksHost() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnpairedHTTPSHost"])
@@ -159,8 +159,8 @@ final class HostToolsUITests: XCTestCase {
         pickHost("Demo", with: "newChat.host", in: app)
 
         XCTAssertTrue(app.buttons["newChat.host"].firstMatch.label.contains("Demo"), "沒有換到 Demo")
-        // 新增對話是部分高度的 sheet(#425):資料夾欄在下方(lazy,不在 accessibility tree),拉到 large 才看得到。
-        for _ in 0..<4 where !app.textFields["newChat.folder"].exists { app.element("sheet.newChat").swipeUp() }
+        // 資料夾欄在下方(lazy,不在 accessibility tree),往上捲才看得到。
+        for _ in 0..<4 where !app.textFields["newChat.folder"].exists { app.element("newChat.page").swipeUp() }
         XCTAssertTrue(app.textFields["newChat.folder"].firstMatch.waitUntilExists(timeout: 5), "換主機後表單不見了")
     }
 }

@@ -103,8 +103,8 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testClosingNeedsYouTabKeepsAppRunning() {
         let app = XCUIApplication.launchUITesting()
-        app.openNewChatSheet()
-        let sheet = app.element("sheet.newChat")
+        app.openNewChat()
+        let sheet = app.element("newChat.page")
         XCTAssertTrue(sheet.waitUntilExists(timeout: 10))
         let weather = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'weather-app'")).firstMatch
         XCTAssertTrue(weather.waitUntilExists(timeout: 10), "沒有 weather-app")

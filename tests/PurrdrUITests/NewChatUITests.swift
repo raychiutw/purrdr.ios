@@ -1,7 +1,7 @@
 import XCTest
 
-/// 新增對話(#272,原型 purrdr-screens 定案版:主機、Agent、資料夾、第一則訊息),走 Demo 主機：資料夾瀏覽在同一個 sheet 內 push,
-/// Demo 拒絕開始並說明。
+/// 新增對話(#272,原型 purrdr-screens 定案版:主機、Agent、資料夾、第一則訊息),走 Demo 主機：新增聊天是 push(#621),
+/// 資料夾瀏覽每往下一層也是 push,Demo 拒絕開始並說明。
 final class NewChatUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -10,9 +10,9 @@ final class NewChatUITests: XCTestCase {
     @MainActor
     private func openNewChat() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
-        app.openNewChatSheet()
-        // 新增對話是部分高度的 sheet(#425):資料夾欄在列表下方(lazy,不在 accessibility tree),先往上拉到 large 才看得到。
-        let sheet = app.element("sheet.newChat")
+        app.openNewChat()
+        // 資料夾欄在列表下方(lazy,不在 accessibility tree),先往上捲才看得到。
+        let sheet = app.element("newChat.page")
         XCTAssertTrue(sheet.waitUntilExists(timeout: 10), "沒有開出新增對話")
         // 第一個欄位多了「放在哪裡」(#537):資料夾欄更靠下,往上拉到看得到為止。
         for _ in 0..<4 where !app.textFields["newChat.folder"].exists { sheet.swipeUp() }
@@ -35,8 +35,9 @@ final class NewChatUITests: XCTestCase {
         let ledger = app.buttons["folderPicker.row.ledger"]
         XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "資料夾瀏覽沒有列出家目錄的 ledger")
         XCTAssertTrue(app.buttons["folderPicker.row.notes"].exists)
-        // 同一個 sheet 內 push:表單的 Cancel 已被推走，左上是返回。
-        XCTAssertFalse(app.buttons["newChat.cancel"].exists, "資料夾瀏覽應該 push 在同一個 sheet 內")
+        // 資料夾瀏覽是 push:表單被推走,左上是系統返回。
+        XCTAssertFalse(app.textFields["newChat.folder"].exists, "資料夾瀏覽應該 push 在表單上")
+        XCTAssertFalse(app.buttons["newChat.back"].exists, "資料夾瀏覽左上是系統返回,不是表單的確認返回")
 
         ledger.tap()
         let reports = app.buttons["folderPicker.row.reports"]
@@ -49,12 +50,17 @@ final class NewChatUITests: XCTestCase {
         XCTAssertFalse(app.buttons["folderPicker.up"].exists)
         app.buttons["folderPicker.crumb.1"].tap()
         XCTAssertTrue(app.buttons["folderPicker.row.reports"].waitUntilExists(timeout: 5), "點麵包屑沒有回到 ledger")
+        // 系統返回也回到上一層(ledger → 家目錄 → ledger)。
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["folderPicker.row.ledger"].waitUntilExists(timeout: 5), "左上返回沒有回到家目錄")
+        ledger.tap()
+        XCTAssertTrue(app.buttons["folderPicker.row.reports"].waitUntilExists(timeout: 5))
         app.buttons["folderPicker.row.reports"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["folderPicker.empty"].firstMatch.waitUntilExists(timeout: 5))
         app.buttons["folderPicker.use"].tap()
 
         let folder = app.textFields["newChat.folder"]
-        XCTAssertTrue(app.buttons["newChat.cancel"].waitUntilExists(timeout: 5), "沒有回到表單")
+        XCTAssertTrue(folder.waitUntilExists(timeout: 5), "沒有回到表單")
         XCTAssertEqual(folder.value as? String, "/Users/demo/ledger/reports")
         // 回到表單後列表停在上方,「開始」在下面(lazy,不在 accessibility tree):先捲到看得到。
         app.scrollIntoView(start, search: .down)
@@ -67,8 +73,8 @@ final class NewChatUITests: XCTestCase {
     @MainActor
     func testStartInExistingWorkspaceAddsATab() {
         let app = XCUIApplication.launchUITesting()
-        app.openNewChatSheet()
-        let sheet = app.element("sheet.newChat")
+        app.openNewChat()
+        let sheet = app.element("newChat.page")
         XCTAssertTrue(sheet.waitUntilExists(timeout: 10), "沒有開出新增對話")
         // 選項是勾選列(#313 同做法),以標籤找:Workspace 名稱加資料夾。
         let ledger = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'ledger'")).firstMatch
@@ -92,7 +98,7 @@ final class NewChatUITests: XCTestCase {
         XCTAssertTrue(start.isEnabled)
         start.tap()
 
-        XCTAssertTrue(sheet.waitForNonExistence(timeout: 15), "開始後 sheet 沒有關閉")
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 15), "開始後新增聊天沒有收掉")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)[chatRowID("w1:p2")].firstMatch), "新 Tab 的 Agent 沒有出現在列表")
     }
@@ -127,6 +133,6 @@ final class NewChatUITests: XCTestCase {
         let error = app.descendants(matching: .any)["newChat.error"].firstMatch
         XCTAssertTrue(error.waitUntilExists(timeout: 10), "Demo 拒絕時沒有說明")
         XCTAssertTrue(error.label.contains("Demo"), "說明沒有提到 Demo:\(error.label)")
-        XCTAssertTrue(app.buttons["newChat.cancel"].exists, "失敗時 sheet 不該關閉")
+        XCTAssertTrue(app.element("newChat.page").exists, "失敗時新增聊天不該離開")
     }
 }

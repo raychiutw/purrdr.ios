@@ -4689,6 +4689,17 @@
         }
       }
     },
+    "Discard" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄"
+          }
+        }
+      }
+    },
     "Discard Changes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4696,6 +4707,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放棄變更"
+          }
+        }
+      }
+    },
+    "Discard this new chat?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要放棄這個新聊天嗎?"
           }
         }
       }
