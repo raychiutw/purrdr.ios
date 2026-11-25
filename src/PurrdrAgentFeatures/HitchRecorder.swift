@@ -225,6 +225,12 @@ public final class HitchRecorder {
     /// MetricKit 的閃退報告:一律寫(不看開關、不經緩衝)。
     public func recordCrashReport(_ report: MetricKitCrashReport) {
         sink.append([.crashReport(report)])
+        // 啟動提示用(Swift 執行期錯誤沒有中止前的標記,只有這份報告):以名稱與原因摘要通知。
+        let record = CrashRecord(
+            timestamp: report.timestamp, name: report.exceptionName ?? report.terminationReason ?? "crash",
+            reason: report.exceptionReason ?? "", app: report.app, os: report.os, device: report.device)
+        latestCrash = record
+        crashObserver?(record)
     }
 
     // MARK: - 設定頁
