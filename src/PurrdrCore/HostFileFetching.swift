@@ -204,10 +204,15 @@ public enum HostFileAccessPolicy {
         isExcluded(HostPathSyntax.components(path).map(String.init))
     }
 
+    /// 比 `lowercased()` 寬的折疊：相容分解再大寫轉小寫(`ſ`→`s`、`ﬅ`→`st`、`ß`→`ss`),APFS 會把這類名稱開到排除段落(#577)。
+    private static func caseFolded(_ text: String) -> String {
+        text.precomposedStringWithCompatibilityMapping.uppercased().lowercased()
+    }
+
     private static func isExcluded(_ segments: [String]) -> Bool {
-        let folded = segments.map { $0.lowercased() }
+        let folded = segments.map(caseFolded)
         return excludedLocations.contains { location in
-            let pattern = location.lowercased().split(separator: "/").map(String.init)
+            let pattern = caseFolded(location).split(separator: "/").map(String.init)
             guard pattern.count <= folded.count else { return false }
             return (0...(folded.count - pattern.count)).contains { start in
                 zip(pattern, folded[start...]).allSatisfy { expected, actual in

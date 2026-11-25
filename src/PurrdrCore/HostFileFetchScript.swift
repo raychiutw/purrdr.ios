@@ -46,6 +46,20 @@ package enum HostFileFetchScript {
         }.joined(separator: "|")
     }
 
+    /// APFS 不分大小寫時會開到 ASCII 名稱的 Unicode 字元，比對排除清單前先換掉(#577;app 端以相容分解涵蓋更多)。
+    static let caseFoldingLookalikes: KeyValuePairs<String, String> = [
+        "\u{17F}": "s", "\u{212A}": "k", "\u{DF}": "ss", "\u{1E9E}": "ss", "\u{FB00}": "ff", "\u{FB01}": "fi",
+        "\u{FB02}": "fl", "\u{FB03}": "ffi", "\u{FB04}": "ffl", "\u{FB05}": "st", "\u{FB06}": "st",
+    ]
+
+    /// `caseFoldingLookalikes` 的 sed 程式，UTF-8 bytes 寫成 printf 的八進位跳脫(以 `LC_ALL=C` 逐 byte 比對)。
+    static var caseFoldingProgram: String {
+        caseFoldingLookalikes.map { lookalike, replacement in
+            let bytes = lookalike.utf8.map { "\\" + String($0, radix: 8) }.joined()
+            return "s/\(bytes)/\(replacement)/g"
+        }.joined(separator: ";")
+    }
+
     /// 工作目錄以外可放行的系統暫存目錄(schema 的 `x-temporary-file-locations`),加引號。
     static var temporaryLocations: String {
         HostServiceProtocol.temporaryFileLocations.map(PosixShell.quote).joined(separator: " ")
@@ -61,6 +75,7 @@ package enum HostFileFetchScript {
         snapshot_path=
         no_root=\(noWorkingDirectory)
         uploads_only=\(userUploadOnly)
+        case_folding=$(printf '\(caseFoldingProgram)')
         tmp_resolved=
         if [ -n "${TMPDIR:-}" ]; then tmp_resolved=$(cd -P -- "$TMPDIR" 2> /dev/null && pwd -P) || tmp_resolved=; fi
         home_resolved=$(cd -P -- "$HOME" 2> /dev/null && pwd -P) || home_resolved=$HOME
@@ -75,7 +90,7 @@ package enum HostFileFetchScript {
           if [ "$resolved_folder" = / ]; then printf '/%s' "$resolved_name"; else printf '%s/%s' "$resolved_folder" "$resolved_name"; fi
         }
         excluded() {
-          lowered=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+          lowered=$(printf '%s' "$1" | LC_ALL=C sed "$case_folding" | tr '[:upper:]' '[:lower:]')
           case $lowered in
             \(excludedPatterns)) return 0 ;;
           esac
