@@ -11,7 +11,16 @@ public enum MemberLog {
         let message = message(for: event)
         switch event {
         case .signedIn, .refreshed, .cleared: logger.notice("\(message, privacy: .public)")
-        case .refreshRejected, .refreshUnavailable, .tokenStorageFailed: logger.error("\(message, privacy: .public)")
+        case .tokenStorageFailed: logger.error("\(message, privacy: .public)")
+        case .refreshRejected, .refreshUnavailable: logger.error("\(message, privacy: .private)")
+        }
+    }
+
+    /// 事件帶後台回傳碼或原因等動態內容時,系統紀錄標 private。
+    public static func isPrivate(_ event: MemberDiagnosticEvent) -> Bool {
+        switch event {
+        case .refreshRejected, .refreshUnavailable: true
+        case .signedIn, .refreshed, .tokenStorageFailed, .cleared: false
         }
     }
 
