@@ -24,10 +24,22 @@ struct ChevronPushUsageTests {
         #expect(list.contains(".navigationDestination(isPresented: $showsLayout)"))
         let actions = try Self.source("WorkspaceActionsViews.swift")
         #expect(!actions.contains("case layout("), "列表的版面圖不再走 sheet 列舉")
-        #expect(actions.contains("navigationDestination(item: $presentation.layoutRoute)"))
+        #expect(!actions.contains("navigationDestination(item:"), "版面圖與聊天只用路徑的單一目的地機制(#641)")
+        #expect(actions.contains("navigationDestination(for: ChatsDestination.self)"))
         let spaces = try Self.source("SpacesListView.swift")
         #expect(!spaces.contains("presentation.sheet = .layout"))
-        #expect(spaces.contains("presentation.layoutRoute = SpacesLayoutRoute("), "多 Pane 的 Tab 列設 layoutRoute 推入")
+        #expect(spaces.contains("NavigationLink(value: ChatsDestination.layout("), "多 Pane 的 Tab 列是系統 NavigationLink")
+        #expect(!spaces.contains("\"chevron.right\""), "列尾的 > 由 NavigationLink 給,不自己放")
+        #expect(!spaces.contains("presentation.layoutRoute"), "Tab 列不再用 Button 設 layoutRoute")
+    }
+
+    @Test("聊天 tab 窄視窗是 NavigationStack(path:),列表不帶 selection")
+    func chatsStackUsesPath() throws {
+        let top = try Self.source("TopNavigationView.swift")
+        #expect(top.contains("NavigationStack(path: $navigation.chatsPath)"))
+        #expect(!top.contains(".navigationDestination(item: $navigation.selectedChat)"), "item 與 value 不混用")
+        let list = try Self.source("AgentListView.swift")
+        #expect(list.contains("window != nil && listSizeClass != .compact"), "窄視窗的 List 不能有 selection(push 後第一下返回會被吃掉)")
     }
 
     @Test("流量主機明細是下一頁,不是 sheet")

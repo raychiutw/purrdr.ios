@@ -7,6 +7,16 @@ import PurrdrCore
 ///
 /// 頂層是 4 個 tab(聊天、檔案、主機、流量,#376;設定併進帳號 sheet,#503);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
+/// 聊天 tab 導覽堆疊的目的地(#641):整個堆疊只註冊這一個型別的 `navigationDestination(for:)`。
+enum ChatsDestination: Hashable {
+    case chat(ChatRoute)
+    case layout(SpacesLayoutRoute)
+
+    var chatRoute: ChatRoute? {
+        if case .chat(let route) = self { route } else { nil }
+    }
+}
+
 @MainActor
 @Observable
 public final class TopNavigationModel {
@@ -31,6 +41,22 @@ public final class TopNavigationModel {
     public var selectedChat: ChatRoute? {
         // 一次只有一個詳細(行為規格 F20):換聊天時，前一個聊天推入的終端機收起。
         didSet { if selectedChat != oldValue { openedTerminal = nil } }
+    }
+
+    /// 聊天 tab 導覽堆疊的路徑(#641):窄視窗是 `NavigationStack(path:)` 的路徑(聊天、版面圖);寬視窗只放列表欄推入的版面圖。
+    /// 列的 `NavigationLink(value:)`、選單的「Show Layout」、返回都改這一個陣列,不再混用 `navigationDestination(item:)`。
+    var chatsPath: [ChatsDestination] = []
+
+    /// 這個視窗已經回報給列表「開著」的聊天。列表的 `onChange(initial: true)` 在堆疊重建、路徑變動時會再觸發一次,
+    /// 所以開著與離開的計次以這裡為準,同一個聊天只計一次(#641:否則返回後聊天被當成還開著,「需要你」段落少一列)。
+    private var reportedChat: ChatRoute?
+
+    /// 把選取的聊天回報給列表(冪等):換了才記上一個離開、新的出現。
+    package func reportVisibleChat(_ chat: ChatRoute?, to list: MergedAgentListModel) {
+        guard chat != reportedChat else { return }
+        if let reportedChat { list.chatDisappeared(reportedChat) }
+        if let chat { list.chatAppeared(chat) }
+        reportedChat = chat
     }
 
     /// 搜尋欄是否有焦點(Command-F)。
