@@ -335,8 +335,6 @@ struct AccountView: View {
     @State private var offeringFeatureSetup = false
     /// 點了鎖定的功能列:說明原因與下一步。
     @State private var lockedFeature: AccountFeature?
-    /// Purrdr Plus 頁點功能列後捲到帳號頁對應的區塊(#323)。
-    @State private var featureScrollRequest: PlusFeature?
 
     private var signedInMember: Member? {
         if case .signedIn(let member) = model.phase { return member }
@@ -355,8 +353,11 @@ struct AccountView: View {
                 notifyingHostCount: notifyingHostNames.count,
                 isHostSyncOn: hostSync?.isEnabled ?? false,
                 deviceCount: pushDevices.flatMap { $0.hasLoaded ? $0.devices.count : nil }),
-            dismissesOnOpen: true,
-            open: { featureScrollRequest = $0 })
+            destination: { feature in
+                AnyView(PlusFeatureDestination(
+                    feature: feature, member: model, plus: plus, pushes: pushes, pushDevices: pushDevices,
+                    hostSync: hostSync, hosts: hosts, canRename: account.hasPlus))
+            })
     }
 
     private var progress: AccountSetupProgress? {
@@ -364,18 +365,7 @@ struct AccountView: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            list
-                .onChange(of: featureScrollRequest) { _, feature in
-                    guard let feature else { return }
-                    featureScrollRequest = nil
-                    if feature == .notifications, account.hasPlus {
-                        showingNotifications = true
-                    } else {
-                        withAnimation { proxy.scrollTo(feature, anchor: .top) }
-                    }
-                }
-        }
+        list
     }
 
     private var list: some View {
@@ -422,7 +412,6 @@ struct AccountView: View {
                         Text("Notification Devices")
                             .foregroundStyle(.secondaryText)
                     }
-                    .id(PlusFeature.devices)
                 }
             }
 
@@ -596,7 +585,6 @@ struct AccountView: View {
             Section {
                 if let hostSync {
                     HostSyncRows(model: hostSync, plus: plus, member: model)
-                        .id(PlusFeature.hostSync)
                 }
                 NavigationLink {
                     notificationsPage
@@ -606,7 +594,6 @@ struct AccountView: View {
                     }
                 }
                 .accessibilityIdentifier("account.notifications")
-                .id(PlusFeature.notifications)
             } header: {
                 Text("Plus Features")
                     .foregroundStyle(.secondaryText)

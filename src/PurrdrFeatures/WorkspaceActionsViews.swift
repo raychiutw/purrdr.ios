@@ -9,12 +9,10 @@ import SwiftUI
 final class WorkspacePresentation {
     enum Sheet: Identifiable {
         case worktree(workspaceID: String, label: String)
-        case layout(workspaceLabel: String, layout: SpacesLayout?)
 
         var id: String {
             switch self {
             case .worktree(let id, _): "worktree.\(id)"
-            case .layout(let label, _): "layout.\(label)"
             }
         }
     }
@@ -26,6 +24,8 @@ final class WorkspacePresentation {
     }
 
     var sheet: Sheet?
+    /// 要推入的版面圖(#619:列尾 > 與「顯示版面」是 push,不是 sheet)。
+    var layoutRoute: SpacesLayoutRoute?
     /// 重新命名提示框(#456):Workspace 與 Tab 共用,系統帶輸入框的 alert。
     var renameRequest: RenameRequest?
     /// 提示框裡的輸入;失敗後重新呈現時保留。
@@ -37,7 +37,7 @@ final class WorkspacePresentation {
     var closeTabRequest: TabTarget?
     /// 操作的是哪台主機(多主機合併列表，#39)。列設定 sheet 或確認時一併設定。
     var host: HostSelection = .demo
-    /// 版面圖裡點選的 Pane:先記下、關 sheet 之後才開(不能在關 sheet 的同一刻 push,行為規格 F4)。
+    /// 版面圖裡點選的 Pane:先記下、返回上一頁之後才開(不能在返回的同一刻 push,行為規格 F4)。
     var chosenTarget: PaneOpenTarget?
 }
 
@@ -166,10 +166,10 @@ extension View {
     /// 呈現 workspace 操作的 sheet、確認與錯誤。`actions` 依主機取得該主機的操作;
     /// `onOpen` 在版面圖選了 Pane 且 sheet 關閉之後呼叫(帶主機)。
     func workspaceActionsPresentation(
-        actions: @escaping (HostSelection) -> WorkspaceActionsModel?, presentation: WorkspacePresentation,
-        onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
+        actions: @escaping (HostSelection) -> WorkspaceActionsModel?, snapshot: @escaping (HostSelection) -> HostSnapshot?,
+        presentation: WorkspacePresentation, onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
     ) -> some View {
-        modifier(WorkspaceActionsPresenter(resolve: actions, presentation: presentation, onOpen: onOpen))
+        modifier(WorkspaceActionsPresenter(resolve: actions, snapshot: snapshot, presentation: presentation, onOpen: onOpen))
     }
 }
 
@@ -285,10 +285,9 @@ private struct WorkspaceButtons {
 
     func showLayout() -> some View {
         Button("Show Layout", systemImage: "rectangle.split.3x1") {
-            // 顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
+            // 版面在推入當下取 snapshot,不即時更新(行為規格 F4)。
             presentation.host = host
-            presentation.sheet = .layout(
-                workspaceLabel: target.label, layout: snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: target.workspaceID) })
+            presentation.layoutRoute = SpacesLayoutRoute(host: host, workspaceID: target.workspaceID, tabID: nil, title: target.label)
         }
     }
 
@@ -341,6 +340,7 @@ private struct HeaderPressBody: View {
 
 private struct WorkspaceActionsPresenter: ViewModifier {
     let resolve: (HostSelection) -> WorkspaceActionsModel?
+    let snapshot: (HostSelection) -> HostSnapshot?
     @Bindable var presentation: WorkspacePresentation
     let onOpen: (HostSelection, PaneOpenTarget) -> Void
 
@@ -352,6 +352,9 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
                 if let actions { sheetContent(sheet, actions: actions) }
             }
+            // 版面圖是下一頁(#619):Tab 列的 NavigationLink 與選單的「Show Layout」共用同一個目的地。
+            .navigationDestination(for: SpacesLayoutRoute.self) { layoutDestination($0) }
+            .navigationDestination(item: $presentation.layoutRoute) { layoutDestination($0) }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
                     .autocorrectionDisabled()
@@ -401,11 +404,24 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                     NewWorktreeSheet(actions: actions, workspaceID: workspaceID, workspaceLabel: label) { created in
                         presentation.chosenTarget = .terminal(paneID: created.rootPaneID)
                     }
-                case .layout(let label, let layout):
-                    SpacesLayoutSheet(workspaceLabel: label, layout: layout) { target in
-                        presentation.chosenTarget = target
-                    }
                 }
+    }
+
+    private func layoutDestination(_ route: SpacesLayoutRoute) -> some View {
+        SpacesLayoutDestination(route: route, snapshot: snapshot(route.host)) { host, target in
+            presentation.host = host
+            presentation.chosenTarget = target
+        }
+        // 返回上一頁之後才開選到的 Pane(不能在返回的同一刻 push)。
+        .onDisappear { openChosenTargetAfterPop() }
+    }
+
+    private func openChosenTargetAfterPop() {
+        guard presentation.chosenTarget != nil else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            openChosenTarget()
+        }
     }
 
     private var renameTitle: Text {

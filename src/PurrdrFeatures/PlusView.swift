@@ -70,6 +70,10 @@ public struct PlusView: View {
         .appGroupedList()
         .accessibilityIdentifier("plus.list")
         .disabled(model.isWorking)
+        // 功能列推入的頁面(#619)。
+        .navigationDestination(for: PlusFeature.self) { feature in
+            features?.destination(feature)
+        }
         .navigationTitle("Purrdr Plus")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -139,7 +143,7 @@ public struct PlusView: View {
         featuresSection(showsStatus: true)
         Section {
             PlusFeatureRow(symbol: "terminal", title: "Chat, Terminal, and the Demo Host",
-                detail: "Work without a member account or subscription.", value: nil, isLink: false)
+                detail: "Work without a member account or subscription.", value: nil)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("plus.free")
         } header: {
@@ -177,19 +181,14 @@ public struct PlusView: View {
     @ViewBuilder
     private func featureRow(_ feature: PlusFeature, showsStatus: Bool) -> some View {
         let value = showsStatus ? features?.status.value(for: feature) : nil
-        if showsStatus, let features {
-            Button {
-                if features.dismissesOnOpen { dismiss() }
-                features.open(feature)
-            } label: {
-                PlusFeatureRow(symbol: feature.symbol, title: feature.title,
-                    detail: feature.detail, value: value, isLink: true)
+        if showsStatus, features != nil {
+            // 往右 push 對應的頁面(#619);列尾的 > 由 NavigationLink 給。
+            NavigationLink(value: feature) {
+                PlusFeatureRow(symbol: feature.symbol, title: feature.title, detail: feature.detail, value: value)
             }
-            .buttonStyle(.pressableRow())
             .accessibilityIdentifier("plus.feature.\(feature.rawValue)")
         } else {
-            PlusFeatureRow(symbol: feature.symbol, title: feature.title,
-                detail: feature.detail, value: value, isLink: false)
+            PlusFeatureRow(symbol: feature.symbol, title: feature.title, detail: feature.detail, value: value)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier(feature == .notifications && !showsStatus ? "plus.benefits" : "plus.feature.\(feature.rawValue)")
         }
@@ -374,13 +373,12 @@ struct PlanRow: View {
     }
 }
 
-/// 一列 Plus 功能:主色線條圖示、名稱、一行說明,列尾是目前狀態與 ›(可點時)。
+/// 一列 Plus 功能:主色線條圖示、名稱、一行說明,列尾是目前狀態(可點時由 NavigationLink 在列尾加 >)。
 struct PlusFeatureRow: View {
     let symbol: String
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
     let value: String?
-    let isLink: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -399,12 +397,6 @@ struct PlusFeatureRow: View {
             if let value {
                 Text(value)
                     .foregroundStyle(.secondaryText)
-            }
-            if isLink {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
             }
         }
         .contentShape(Rectangle())

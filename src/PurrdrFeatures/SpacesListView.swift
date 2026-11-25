@@ -82,21 +82,9 @@ struct SpacesSectionsContent: View {
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
-            Button {
-                // 顯示開啟當下的 snapshot,只畫這個 Tab(行為規格 F4)。
-                presentation.host = host
-                let layout = model.snapshot(for: host).flatMap { SpacesLayout(snapshot: $0, workspaceID: workspaceID) }
-                presentation.sheet = .layout(workspaceLabel: tab.title, layout: layout?.onlyTab(tabID))
-            } label: {
-                HStack {
-                    ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
+            // 多 Pane 的 Tab:點列往下一層看版面圖(#619),列尾的 > 由 NavigationLink 給。
+            NavigationLink(value: SpacesLayoutRoute(host: host, workspaceID: workspaceID, tabID: tabID, title: tab.title)) {
+                ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
             }
             .listRowInsets(ChatRowView.rowInsets)
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))
