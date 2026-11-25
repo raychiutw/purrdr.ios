@@ -45,6 +45,8 @@ struct FilesTab: View {
     let openAccount: () -> Void
     let addHost: () -> Void
 
+    /// 資料夾的導覽路徑(#620):第一層是家目錄,每往下一層資料夾推一個 `FolderRoute`。
+    @State private var folderPath: [FolderRoute] = []
     @State private var unavailableQuery = ""
     @FocusState private var unavailableSearchFocused: Bool
 
@@ -53,7 +55,7 @@ struct FilesTab: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $folderPath) {
             if hosts.hasNoHostToShow {
                 TabUnavailableView(
                     title: "No Hosts", systemImage: "folder",
@@ -66,7 +68,7 @@ struct FilesTab: View {
                     identifier: "files.unsupported")
                     .topBarPage(unavailableContent(picker: hosts.screens.selectedHostPicker()))
             } else {
-                FilesScreen(hosts: hosts, picker: hosts.screens.selectedHostPicker(), actions: actions)
+                FilesScreen(hosts: hosts, picker: hosts.screens.selectedHostPicker(), actions: actions, path: $folderPath)
             }
         }
     }

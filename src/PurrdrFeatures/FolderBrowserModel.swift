@@ -44,6 +44,24 @@ public final class FolderBrowserModel {
         self.skeletonRowCounts = skeletonRowCounts
     }
 
+    /// 從指定資料夾開始的一層(push 進來的下一層,#620):沿用主機、家目錄與骨架列數,路徑一開始就有,麵包屑不必等載入。
+    private init(child path: String, of parent: FolderBrowserModel) {
+        folders = parent.folders
+        hostName = parent.hostName
+        skeletonRowCounts = parent.skeletonRowCounts
+        home = parent.home
+        self.path = path
+    }
+
+    /// 點資料夾推入的下一層。
+    package func child(at path: String) -> FolderBrowserModel { FolderBrowserModel(child: path, of: self) }
+
+    /// 點這個項目要推入的資料夾路徑;檔案與還沒列出時是 `nil`。
+    package func childPath(for entry: FolderEntry) -> String? {
+        guard entry.kind == .folder || entry.kind == .symlink else { return nil }
+        return navigation.child(entry.name)
+    }
+
     public var isSearching: Bool { !trimmedQuery.isEmpty }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }

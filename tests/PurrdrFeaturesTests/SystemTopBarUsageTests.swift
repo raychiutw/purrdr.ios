@@ -59,3 +59,29 @@ struct HostPickerSingleStyleTests {
         #expect(text.contains("reconfirm"), "需要重新確認的主機點了進編輯頁(#572)")
     }
 }
+
+/// 檔案 tab 的資料夾是 push(#620、spec #612):點資料夾推入下一層,不在原頁換內容。
+@Suite("檔案資料夾用 push")
+struct FilesPushUsageTests {
+    private func source(_ name: String) throws -> String {
+        try String(contentsOf: SystemTopBarUsageTests.featuresFolder.appending(path: name), encoding: .utf8)
+    }
+
+    @Test("資料夾瀏覽以 navigationDestination 推入下一層,不再直接 model.open 原地換內容")
+    func foldersArePushed() throws {
+        let view = try source("FolderBrowserView.swift")
+        #expect(!view.contains("model.open("), "點資料夾要 push,不要原地換內容")
+        #expect(view.contains("FolderRoute"), "每層資料夾是一個路由")
+        let host = try source("HostPickerViews.swift")
+        #expect(host.contains("navigationDestination(for: FolderRoute.self)"), "檔案 tab 的下一層要用 navigationDestination 推入")
+        let tabs = try source("TopLevelTabs.swift")
+        #expect(tabs.contains("NavigationStack(path:"), "檔案 tab 的 NavigationStack 要綁路徑,麵包屑才能跳層")
+    }
+
+    @Test("空資料夾與搜尋無結果用系統的 ContentUnavailableView")
+    func emptyStatesAreSystem() throws {
+        let view = try source("FolderBrowserView.swift")
+        #expect(view.contains("ContentUnavailableView.search("), "搜尋無結果用系統搜尋版本")
+        #expect(!view.contains("Text(\"This folder is empty.\")"), "空資料夾不要用純文字列")
+    }
+}

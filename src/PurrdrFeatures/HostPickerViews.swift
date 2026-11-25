@@ -96,15 +96,17 @@ private struct LoginShellContent: View {
     }
 }
 
-/// 檔案 tab 的檔案瀏覽:換主機就從那台的家目錄重新開始(#245)。
+/// 檔案 tab 的檔案瀏覽:換主機就從那台的家目錄重新開始(#245)。每一層資料夾是 push(#620),路徑由 `FilesTab` 的 `NavigationStack` 持有。
 struct FilesScreen: View {
     let hosts: HostsModel
     let picker: HostPickerModel
     let actions: TabTopBarActions
+    @Binding var path: [FolderRoute]
 
     var body: some View {
-        FilesContent(model: hosts.member(for: picker.selection).folderBrowser(), picker: picker, actions: actions)
+        FilesContent(model: hosts.member(for: picker.selection).folderBrowser(), picker: picker, actions: actions, path: $path)
             .id(picker.selection)
+            .onChange(of: picker.selection) { path = [] }
     }
 }
 
@@ -112,14 +114,36 @@ private struct FilesContent: View {
     @State private var model: FolderBrowserModel
     let picker: HostPickerModel
     let actions: TabTopBarActions
+    @Binding var path: [FolderRoute]
 
-    init(model: @autoclosure () -> FolderBrowserModel, picker: HostPickerModel, actions: TabTopBarActions) {
+    init(model: @autoclosure () -> FolderBrowserModel, picker: HostPickerModel, actions: TabTopBarActions, path: Binding<[FolderRoute]>) {
         _model = State(wrappedValue: model())
         self.picker = picker
         self.actions = actions
+        _path = path
     }
 
     var body: some View {
-        FolderBrowserView(model: model, hostPicker: picker, actions: actions)
+        FolderBrowserView(model: model, level: .root(hostPicker: picker, actions: actions), path: $path, rootPath: model.path)
+            .navigationDestination(for: FolderRoute.self) { route in
+                FolderLevelView(parent: model, route: route, path: $path)
+            }
+    }
+}
+
+/// push 進來的一層資料夾:自己一個 model(從那個資料夾開始),離開時系統丟掉。
+private struct FolderLevelView: View {
+    @State private var model: FolderBrowserModel
+    @Binding var path: [FolderRoute]
+    let rootPath: String?
+
+    init(parent: FolderBrowserModel, route: FolderRoute, path: Binding<[FolderRoute]>) {
+        _model = State(wrappedValue: parent.child(at: route.path))
+        _path = path
+        rootPath = parent.path
+    }
+
+    var body: some View {
+        FolderBrowserView(model: model, level: .pushed, path: $path, rootPath: rootPath)
     }
 }

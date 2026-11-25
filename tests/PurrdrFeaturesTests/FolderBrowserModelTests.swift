@@ -73,6 +73,26 @@ struct FolderBrowserModelTests {
         #expect(await host.unmetExpectations.isEmpty)
     }
 
+    @Test("資料夾是 push(#620):子層的 model 從那個資料夾開始、沿用家目錄,麵包屑立刻有完整路徑;route 來自項目名稱")
+    func childLevelStartsAtFolder() async throws {
+        let host = FakeHost()
+        await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        await host.expect(HostFolderCommand.list("/Users/demo/ledger"), reply: FakeReply(stdout: Data(Self.ledger.utf8)))
+        let root = Self.model(host)
+        await root.load()
+        #expect(root.childPath(for: FolderEntry(name: "export.csv", kind: .file, size: 1)) == nil, "檔案不能打開")
+        let path = try #require(root.childPath(for: FolderEntry(name: "ledger", kind: .folder, size: 96)))
+        #expect(path == "/Users/demo/ledger")
+
+        let child = root.child(at: path)
+        #expect(child.breadcrumbs.map(\.title) == ["~", "ledger"], "還沒載入也看得到路徑")
+        #expect(child.title == "ledger")
+        await child.load()
+        #expect(Self.listed(child) == ["export.csv"])
+        #expect(root.path == "/Users/demo", "子層不改動上一層")
+        #expect(await host.unmetExpectations.isEmpty)
+    }
+
     @Test("骨架(#496):第一次列資料夾時是載入中,骨架列數取上次列過的項目數;列完記住新的數量")
     func skeletonRowCountFollowsLastListing() async throws {
         let store = InMemorySkeletonRowCountStore()
