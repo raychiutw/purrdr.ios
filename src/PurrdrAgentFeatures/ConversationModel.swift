@@ -435,18 +435,32 @@ public final class ConversationModel {
         timeline.markdownBlocks(for: text)
     }
 
-    /// 列展開狀態每變一次遞增,讓讀 `isExpanded` 的畫面重畫。
-    private var expansionRevision = 0
+    /// 單一列(或列內子項)的展開版本:只有讀它的觀察者會因這一列展開而失效(#592)。
+    @Observable
+    final class ExpansionStamp {
+        var revision = 0
+    }
+
+    /// 以「列 id + 子項 id」為 key 的版本戳,不讓任一列展開就讓所有讀過的列失效。
+    @ObservationIgnored private var expansionStamps: [String: ExpansionStamp] = [:]
+
+    fileprivate func expansionStamp(rowID: String, partID: String?) -> ExpansionStamp {
+        let key = partID.map { "\(rowID)\u{0}\($0)" } ?? rowID
+        if let stamp = expansionStamps[key] { return stamp }
+        let stamp = ExpansionStamp()
+        expansionStamps[key] = stamp
+        return stamp
+    }
 
     /// 列(或列內以 `partID` 區分的子項)是否展開。狀態存在時間軸,跟著列走。
     public func isExpanded(rowID: String, partID: String? = nil) -> Bool {
-        _ = expansionRevision
+        _ = expansionStamp(rowID: rowID, partID: partID).revision
         return timeline.isExpanded(rowID: rowID, partID: partID)
     }
 
     public func setExpanded(_ expanded: Bool, rowID: String, partID: String? = nil) {
         timeline.setExpanded(expanded, rowID: rowID, partID: partID)
-        expansionRevision &+= 1
+        expansionStamp(rowID: rowID, partID: partID).revision &+= 1
     }
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
     public private(set) var notice: SendNotice?
