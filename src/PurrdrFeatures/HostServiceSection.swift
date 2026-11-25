@@ -27,7 +27,7 @@ struct HostServiceSection: View {
                     .foregroundStyle(.secondaryText)
                     .accessibilityIdentifier("hostStatus.hostService.notInstalled")
             case .failed(let message):
-                ErrorLabel(message)
+                ErrorLabel(message, area: "HostServiceSection")
                     .accessibilityIdentifier("hostStatus.hostService.error")
                 Button("Try Again") { Task { await model.refresh() } }
                     .accessibilityIdentifier("hostStatus.hostService.retry")
@@ -64,7 +64,7 @@ struct HostServiceSection: View {
             .disabled(!model.canChangeSettings)
             .accessibilityIdentifier("hostStatus.hostService.autoUpdate")
         if let error = model.autoUpdateError {
-            ErrorLabel(error)
+            ErrorLabel(error, area: "HostServiceSection")
                 .font(.footnote)
                 .accessibilityIdentifier("hostStatus.hostService.autoUpdateError")
         }
@@ -114,7 +114,7 @@ struct HostServiceSection: View {
                 Text("Couldn’t confirm the update to \(version). Pull to refresh to check again."), symbol: "questionmark.circle.fill",
                 tint: .orange)
         case .failed(let message):
-            ErrorLabel(message)
+            ErrorLabel(message, area: "HostServiceSection")
                 .accessibilityIdentifier("hostStatus.hostService.updateResult")
         }
     }

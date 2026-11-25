@@ -361,7 +361,7 @@ struct AddHostGuideView: View {
                     .focused($focus, equals: .privateKey)
                     .accessibilityIdentifier("guide.field.privateKey")
                 if let problem = model.privateKeyProblem {
-                    ErrorLabel(problem)
+                    ErrorLabel(problem, area: "AddHostGuideView")
                         .accessibilityIdentifier("guide.keyProblem")
                     if model.privateKeyOffersDeviceKey {
                         Button("Use This Device’s Key Instead") { model.useDeviceKeyInstead() }
@@ -387,7 +387,7 @@ struct AddHostGuideView: View {
     @ViewBuilder
     private var keySetup: some View {
         if let problem = model.deviceKeyProblem, model.devicePublicKey == nil {
-            ErrorLabel(problem)
+            ErrorLabel(problem, area: "AddHostGuideView")
                 .padding(.top, 24)
                 .accessibilityIdentifier("guide.deviceKeyProblem")
         } else if model.devicePublicKey == nil {
@@ -489,11 +489,11 @@ struct AddHostGuideView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppSurface.card, in: .rect(cornerRadius: 18))
         case .hostKeyChanged:
-            ErrorLabel(String(localized: "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself."))
+            ErrorLabel(String(localized: "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself."), area: "AddHostGuideView")
                 .accessibilityIdentifier("guide.result")
         case .failed(let message):
             VStack(alignment: .leading, spacing: 10) {
-                ErrorLabel(message)
+                ErrorLabel(message, area: "AddHostGuideView")
                     .accessibilityIdentifier("guide.result")
                 if let details = model.failureDetails {
                     DisclosureGroup("Details") {
@@ -514,10 +514,10 @@ struct AddHostGuideView: View {
                 .accessibilityIdentifier("guide.reminder")
             }
         case .needsUpdate:
-            ErrorLabel(String(localized: "herdr on that computer is too old. Update herdr there, then try again."))
+            ErrorLabel(String(localized: "herdr on that computer is too old. Update herdr there, then try again."), area: "AddHostGuideView")
                 .accessibilityIdentifier("guide.result")
         case .restartServerRequired:
-            ErrorLabel(String(localized: "herdr is updated. Restart herdr on that computer, then try again."))
+            ErrorLabel(String(localized: "herdr is updated. Restart herdr on that computer, then try again."), area: "AddHostGuideView")
                 .accessibilityIdentifier("guide.result")
         case .tested(let report):
             Text("herdr \(report.herdrVersion.description) · \(report.operatingSystem.displayName)")

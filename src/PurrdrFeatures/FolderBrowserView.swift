@@ -41,6 +41,7 @@ struct FolderBrowserView: View {
             } message: {
                 Text(model.notice ?? "")
             }
+            .reportsErrorDisplay(fingerprint: model.notice?.hashValue ?? 0, area: "FolderBrowser", isShowing: model.notice != nil)
             .task {
                 if case .loaded = model.phase { return }
                 await model.load()

@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrCore
 
-/// 對話標題列(#270、#618):系統標題(Tab 名稱 `capsuleName`)加系統副標題(主機名稱 · 狀態文字 `subtitle`)。
+/// 對話標題列(#270、#618):系統標題(Tab 名稱 `capsuleName`)加系統副標題(只有狀態文字 `subtitle`,不含主機名稱)。
 /// 只依輸入推導，不記任何狀態;權限模式不在標題(在「⋯」選單與面板),截斷與無障礙交給系統標題。
 public struct ConversationHeader: Equatable, Sendable {
     public enum Status: Equatable, Sendable {
@@ -52,11 +52,8 @@ public struct ConversationHeader: Equatable, Sendable {
     /// 系統標題(#476、#618):Tab 名稱;還沒讀到 snapshot 時退回 Workspace 名稱。
     public var capsuleName: String { tabName.isEmpty ? title : tabName }
 
-    /// 系統副標題(#618):主機名稱(每台各一個)· 狀態文字;沒有主機名稱時只有狀態。不帶圓點與權限模式。
-    public var subtitle: String {
-        let hosts = segments.filter { !$0.isEmpty }
-        return (hosts.isEmpty ? [status.title] : [hosts.joined(separator: ", "), status.title]).joined(separator: " · ")
-    }
+    /// 系統副標題(#618,使用者定案):只有狀態文字(離線是「Reconnecting…」);不含主機名稱、圓點與權限模式。
+    public var subtitle: String { status.title }
 
     package init(agent: Agent?, title: String, status: AgentStatus?, isOffline: Bool, hostName: String?, progress: AgentProgress = AgentProgress(), tabName: String = "") {
         self.tabName = tabName

@@ -106,10 +106,11 @@ private struct TopBarToolbar: ToolbarContent {
 private struct TopBarSearchModifier: ViewModifier {
     let search: TopBarContent.Search?
 
-    /// 搜尋欄放在導覽列大標題下面(iOS 26 的預設會移到底部工具列);往下滑時由系統收合。
+    /// 搜尋欄放在導覽列大標題下面(iOS 26 的預設會移到底部工具列);平常收起、往下拉才出現(與系統「訊息」「備忘錄」一致),
+    /// 所以聊天與其他 tab 一樣是正常大標題(#615)。
     private var searchPlacement: SearchFieldPlacement {
         #if os(iOS)
-        .navigationBarDrawer(displayMode: .always)
+        .navigationBarDrawer(displayMode: .automatic)
         #else
         .automatic
         #endif

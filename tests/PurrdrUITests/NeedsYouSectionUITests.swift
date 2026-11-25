@@ -34,7 +34,7 @@ final class NeedsYouSectionUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.element("needsYou.section").waitUntilExists(timeout: 15))
 
-        let search = app.chatSearch
+        let search = app.revealChatSearch()
         XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
         search.tap()
         search.typeEnglish("ledger")

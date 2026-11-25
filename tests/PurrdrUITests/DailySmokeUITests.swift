@@ -31,7 +31,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("spaces.section.demo/w1").exists, "沒有 workspace 段落標題")
         }
         step("搜尋篩選列表") {
-            let search = app.chatSearch
+            let search = app.revealChatSearch()
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
@@ -43,7 +43,7 @@ final class DailySmokeUITests: XCTestCase {
         }
         step("Spaces:搜尋 workspace、沒有檢視切換") {
             XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")), "Spaces 沒有 workspace 段落")
-            let search = app.chatSearch
+            let search = app.revealChatSearch()
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")

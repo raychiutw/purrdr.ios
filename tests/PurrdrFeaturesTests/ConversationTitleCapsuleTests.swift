@@ -5,7 +5,7 @@ import Testing
 
 @testable import PurrdrFeatures
 
-/// 聊天標題膠囊(#476):系統標題(Tab 名稱)與副標題(主機、狀態);內容由 model 產生(#618)。
+/// 聊天標題膠囊(#476):系統標題(Tab 名稱)與副標題(狀態);內容由 model 產生(#618)。
 @MainActor
 @Suite("聊天標題膠囊")
 struct ConversationTitleCapsuleTests {
@@ -16,12 +16,12 @@ struct ConversationTitleCapsuleTests {
         #expect(ConversationHeader(title: "ledger", status: .online, segments: [], tabName: "").capsuleName == "ledger")
     }
 
-    @Test("副標題:主機名稱 · 狀態文字;沒有主機只有狀態;多台主機每台都標(#618)")
+    @Test("副標題只有狀態文字,不含主機名稱(#618 使用者定案:標題 = Tab 名稱,副標題 = 狀態)")
     func subtitle() {
-        #expect(ConversationHeader(title: "ledger", status: .working, segments: ["Studio Mac"]).subtitle == "Studio Mac · Working")
+        #expect(ConversationHeader(title: "ledger", status: .working, segments: ["Studio Mac"]).subtitle == "Working")
         #expect(ConversationHeader(title: "t", status: .offline, segments: []).subtitle == "Reconnecting…")
-        #expect(ConversationHeader(title: "t", status: .online, segments: ["Studio Mac", "Build Box"]).subtitle == "Studio Mac, Build Box · Online")
-        #expect(ConversationHeader(title: "t", status: .done, segments: [""]).subtitle == "Done", "空的主機名稱不留下分隔點")
+        #expect(ConversationHeader(title: "t", status: .online, segments: ["Studio Mac", "Build Box"]).subtitle == "Online")
+        #expect(ConversationHeader(title: "t", status: .done, segments: [""]).subtitle == "Done")
     }
 
     @Test("副標題不帶權限模式(權限模式在「⋯」與面板裡)")

@@ -75,7 +75,7 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
     }
 
-    /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，標題列帶主機名。
+    /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，開出的聊天副標題是狀態。
     @MainActor
     func testSamePaneOnTwoHostsAreSeparateChats() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-selectDemo"])
@@ -88,7 +88,8 @@ final class MultiHostUITests: XCTestCase {
 
         studioRow.tap()
         XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
-        XCTAssertTrue(app.conversationSubtitle(containing: "Studio Mac").waitUntilExists(timeout: 10), "非選取中主機的聊天副標題沒有主機名")
+        // 副標題只有狀態(#618,不含主機名稱):以狀態文字確認開到的是那個「需要你」的聊天。
+        XCTAssertTrue(app.conversationSubtitle(containing: "Needs You").waitUntilExists(timeout: 10), "沒有開到非選取中主機的聊天")
     }
 
 }

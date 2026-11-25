@@ -71,6 +71,18 @@ extension XCUIApplication {
     /// 第一階 tab 頂列的搜尋欄(#615:系統 `searchable`,沒有自訂識別碼,一個畫面只有一個搜尋欄)。
     var chatSearch: XCUIElement { searchFields.firstMatch }
 
+    /// 聊天搜尋欄平常收起(`displayMode: .automatic`,與系統「訊息」一致):還沒出現就在列表往下拉,再回傳搜尋欄。
+    @MainActor
+    func revealChatSearch(timeout: TimeInterval = 5) -> XCUIElement {
+        if !chatSearch.waitUntilExists(timeout: 1) {
+            let list = collectionViews.firstMatch
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+                .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+        }
+        _ = chatSearch.waitUntilExists(timeout: timeout)
+        return chatSearch
+    }
+
     /// 第一階 tab 的大標題(#615:系統導覽列的大標題,識別碼 `topBar.title` 已不存在,以標題文字找)。
     func topBarTitle(_ title: String) -> XCUIElement { navigationBars.staticTexts[title].firstMatch }
 

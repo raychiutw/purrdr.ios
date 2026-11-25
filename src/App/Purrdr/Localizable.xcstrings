@@ -8784,6 +8784,17 @@
         }
       }
     },
+    "Operation Log" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作記錄"
+          }
+        }
+      }
+    },
     "Optional" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10133,17 +10144,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新連線中…"
-          }
-        }
-      }
-    },
-    "Record Scroll Stutters" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "記錄捲動卡頓"
           }
         }
       }
@@ -15988,17 +15988,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要 Agent 做什麼?"
-          }
-        }
-      }
-    },
-    "When Purrdr closes unexpectedly or scrolling feels rough, this iPhone notes down what happened. It never includes your conversations. You can share it with the developer." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Purrdr 意外關閉或捲動不順時，這支 iPhone 會記下發生了什麼事，不含你的對話。你可以分享給開發者。"
           }
         }
       }
