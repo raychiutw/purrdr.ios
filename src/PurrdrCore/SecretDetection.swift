@@ -39,6 +39,7 @@ public enum SecretDetection {
     }
 
     /// 一條規則：任一個正則比對到、且比對結果通過條件，就算這一類。
+    /// `@unchecked`:`NSRegularExpression` 沒標 Sendable,但建好後不可變、官方保證可跨執行緒比對;其餘都是 `let`。
     private struct Rule: @unchecked Sendable {
         let kind: SecretKind
         /// `NSRegularExpression` 建好後只讀，多執行緒共用安全。
