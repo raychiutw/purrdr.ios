@@ -175,9 +175,11 @@ struct OfflineQueueTests {
     @Test("存在本機：App 重開(新的佇列讀同一個 store)仍在")
     func persistsAcrossLaunches() {
         let blobs = ProtectedOfflineQueueStoreTests.MemoryBlobs()
-        let legacy = ProtectedOfflineQueueStoreTests.MemoryLegacy()
-        let first = Self.queue(store: ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy))
+        let legacy = ProtectedOfflineQueueStoreTests.initializedLegacy()
+        let firstStore = ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy)
+        let first = Self.queue(store: firstStore)
         first.enqueue(Self.prompt("重開也在"))
+        firstStore.flush()
 
         let relaunched = Self.queue(store: ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy))
 

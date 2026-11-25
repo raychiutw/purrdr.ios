@@ -163,8 +163,8 @@ struct PurrdrApp: App {
                 hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
                 skeletonRowCounts: UserDefaultsSkeletonRowCountStore(),
-                // 離線佇列存在本機，App 重開仍在(#301)。
-                offlineQueues: UserDefaultsOfflineQueueStore(),
+                // 離線佇列存在 Keychain(僅此裝置、不進備份),App 重開仍在(#301、#575)。
+                offlineQueues: ProtectedOfflineQueueStore.system(),
                 // 模型目錄的公開來源(#385);UI 測試不給,不連網路。
                 publicModelCatalog: URLSessionPublicModelCatalog()
             ) { endpoint, pin, credential in
