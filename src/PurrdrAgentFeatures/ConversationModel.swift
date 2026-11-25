@@ -1697,8 +1697,47 @@ public final class ConversationModel {
             return
         }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 問題卡開著、使用者不選選項直接打字送出:先結束題目選單，等 Agent 回到可輸入，再當一般 prompt 送出。
+        if let prompt, answerInFlight == nil, isQuestionCard(prompt) {
+            draft = ""
+            guard await dismissQuestionCard(prompt) else {
+                putBackInDraft(text)
+                notice = .needsAnswer
+                return
+            }
+            await submit(text)
+            return
+        }
         draft = ""
         await submit(text)
+    }
+
+    /// AskUserQuestion 的問題卡(有「Type something.」或「Chat about this」);權限提示這類選單不算——Esc 會替使用者拒絕。
+    private func isQuestionCard(_ prompt: BlockedPrompt) -> Bool {
+        prompt.typedAnswerOption(agentKind: answerAgentKind) != nil || prompt.chatOption != nil
+    }
+
+    /// 結束問題卡:有「Chat about this」就選它，沒有就送 Esc;再輪詢到 Agent 不再等回答(最多約 5 秒)。
+    private func dismissQuestionCard(_ prompt: BlockedPrompt) async -> Bool {
+        if let chat = prompt.chatOption, canAnswer(.option(chat)) {
+            await answer(.option(chat))
+            // 之後由這裡輪詢，不用 answer 排的兩次延後輪詢。
+            kickTask?.cancel()
+            guard answerInFlight != nil else { return false }
+        } else {
+            guard let keys = AnswerKeys.keys(for: .generic(.escape), agentKind: answerAgentKind) else { return false }
+            do {
+                try await client.sendKeys(paneID: paneID, keys: keys, expecting: SendExpectation(session: boundSessionID ?? knownSessionID))
+            } catch {
+                return false
+            }
+        }
+        for attempt in 0..<10 {
+            await poll()
+            if self.prompt == nil, agentStatus != .blocked { return true }
+            if attempt < 9 { try? await sleep(.milliseconds(500)) }
+        }
+        return false
     }
 
     /// 變更頁組好的評論訊息送給 Agent(#310):與輸入列同一條送出管線;輸入框裡打到一半的字留著，
@@ -1988,18 +2027,29 @@ public final class ConversationModel {
         }
     }
 
-    private func endTypedAnswer() {
+    /// `keepingText`:題目變了而結束時，打到一半的字留在輸入框(不蓋成原本的草稿)。
+    private func endTypedAnswer(keepingText: String? = nil) {
+        let restored = draftBeforeTypedAnswer
         typedAnswer = nil
         typedAnswerHasText = false
-        draft = draftBeforeTypedAnswer
         draftBeforeTypedAnswer = ""
+        if let keepingText, !keepingText.isEmpty {
+            draft = restored.isEmpty ? keepingText : restored + "\n" + keepingText
+        } else {
+            draft = restored
+        }
     }
 
     /// 送出自訂回答：數字 → 文字 → enter(`AnswerKeys.inputs`)。送不出去就回到自訂回答、保留打的字。
     private func sendTypedAnswer(_ option: PromptOption) async {
         let text = draft
         let answer = PromptAnswer.typed(option, text: text)
-        guard canAnswer(answer) else { return }
+        guard canAnswer(answer) else {
+            // 題目已經變了:不默默沒反應，文字留在輸入框並提示。
+            endTypedAnswer(keepingText: text)
+            answerNotice = .questionChanged
+            return
+        }
         endTypedAnswer()
         await self.answer(answer)
         if answerNotice == .sendFailed || answerNotice == .questionChanged, isTypedAnswerOption(option) {
@@ -2049,6 +2099,11 @@ public final class ConversationModel {
             agentStatus = .blocked
             return
         }
+        if blocked, parsed == nil, typedAnswer != nil, prompt != nil {
+            // 打自訂答案時畫面暫時看不出選單(重繪中途):維持原卡片與打的字，不換成通用鈕。
+            agentStatus = .blocked
+            return
+        }
         var next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
         if parsed != nil { staleBlockedUntil = nil }
         if blocked, parsed == nil {
@@ -2079,7 +2134,7 @@ public final class ConversationModel {
         }
         if next?.signature != prompt?.signature || (next == nil) != (prompt == nil) { prompt = next }
         // 提示換了或不見了(例如在終端機回答掉):自訂回答跟著結束。
-        if let typedAnswer, !isTypedAnswerOption(typedAnswer) { endTypedAnswer() }
+        if let typedAnswer, !isTypedAnswerOption(typedAnswer) { endTypedAnswer(keepingText: draft) }
     }
 
     private func checkAnswerDeadline() {
