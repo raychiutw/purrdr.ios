@@ -21,6 +21,7 @@ public struct PaneTerminalButton: View {
 #if canImport(UIKit)
 import SwiftTerm
 import UIKit
+import UniformTypeIdentifiers
 
 /// Pane 終端機。
 public typealias PaneTerminalView = TerminalSessionView
@@ -37,6 +38,7 @@ public struct TerminalSessionView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var screen = TerminalScreenHandle()
     @State private var isOnScreen = false
+    @State private var clipboardRequests = ClipboardWriteRequests()
     /// 主機主題的終端機配色(#23);`nil` 時用預設深色。
     @Environment(\.hostTheme) private var hostTheme
     @Environment(\.paneWindowTitle) private var paneWindowTitle
@@ -51,7 +53,7 @@ public struct TerminalSessionView: View {
             if let banner = model.bannerText {
                 TerminalBanner(text: banner, model: model)
             }
-            TerminalScreen(model: model, handle: screen, theme: hostTheme?.terminal)
+            TerminalScreen(model: model, handle: screen, theme: hostTheme?.terminal, clipboardRequests: clipboardRequests)
                 .padding(.horizontal, 4)
             TerminalKeyBar(model: model, screen: screen)
         }
@@ -69,6 +71,12 @@ public struct TerminalSessionView: View {
         }
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .alert("Copy to Clipboard?", isPresented: Binding(get: { clipboardRequests.hasPendingRequest }, set: { [clipboardRequests] in if !$0 { clipboardRequests.deny() } })) {
+            Button("Allow") { clipboardRequests.allow() }
+            Button("Don’t Allow", role: .cancel) { clipboardRequests.deny() }
+        } message: {
+            Text("The host wants to copy text to the clipboard.")
+        }
         .alert("Can’t Paste", isPresented: Binding(get: { model.notice != nil }, set: { [model] in if !$0 { model.notice = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -166,6 +174,26 @@ struct TerminalTitle: View {
                 .font(.caption)
                 .foregroundStyle(.secondaryText)
         }
+    }
+}
+
+/// 主機經 OSC 52 要寫剪貼簿的待確認請求(#578);邏輯在核心的 `ClipboardWriteGate`。
+@MainActor
+@Observable
+final class ClipboardWriteRequests {
+    private var gate = ClipboardWriteGate()
+
+    var hasPendingRequest: Bool { gate.hasPendingRequest }
+
+    func receive(_ content: Data) { gate.receive(content) }
+    func allow() { gate.allow(into: LocalOnlyClipboard()) }
+    func deny() { gate.deny() }
+}
+
+/// 只寫這支手機的剪貼簿,不經通用剪貼簿同步到 Mac 或其他裝置。
+struct LocalOnlyClipboard: LocalClipboardWriting {
+    func write(_ text: String) {
+        UIPasteboard.general.setItems([[UTType.utf8PlainText.identifier: text]], options: [.localOnly: true])
     }
 }
 
@@ -498,13 +526,14 @@ final class TerminalScreenHandle {
 struct TerminalScreen: UIViewRepresentable {
     let model: any TerminalSessionModel
     let handle: TerminalScreenHandle
+    let clipboardRequests: ClipboardWriteRequests
     /// 主機主題的配色;`nil` = 預設(黑底、淺灰字、SwiftTerm 的 ANSI 色)。
     var theme: TerminalTheme?
     /// 系統「粗體文字」:終端機字型是固定大小的等寬系統字(使用者用 `Aa` 調整),不會自動變粗，要自己跟著換(#35)。
     @Environment(\.legibilityWeight) private var legibilityWeight
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(model: model)
+        Coordinator(model: model, clipboardRequests: clipboardRequests)
     }
 
     func makeUIView(context: Context) -> TerminalScreenContainer {
@@ -601,8 +630,11 @@ struct TerminalScreen: UIViewRepresentable {
         private var pinchStartSize: Double = TerminalFontSize.default
         private var scrolledRows = 0
 
-        init(model: any TerminalSessionModel) {
+        let clipboardRequests: ClipboardWriteRequests
+
+        init(model: any TerminalSessionModel, clipboardRequests: ClipboardWriteRequests) {
             self.model = model
+            self.clipboardRequests = clipboardRequests
         }
 
         func install(on view: PurrdrTerminalView) {
@@ -674,11 +706,9 @@ struct TerminalScreen: UIViewRepresentable {
             }
         }
 
-        /// OSC 52 只能寫、不能讀(SwiftTerm 不支援讀)。herdr 的 control 串流目前不轉送 OSC 52(#4 spike),
-        /// 這裡只是保底:合法 UTF-8 才寫。
+        /// OSC 52 只能寫、不能讀。主機要寫剪貼簿先問使用者(#578),允許才寫、只寫這支手機。
         nonisolated func clipboardCopy(source: TerminalView, content: Data) {
-            guard let text = String(data: content, encoding: .utf8) else { return }
-            MainActor.assumeIsolated { UIPasteboard.general.string = text }
+            MainActor.assumeIsolated { clipboardRequests.receive(content) }
         }
 
         nonisolated func setTerminalTitle(source: TerminalView, title: String) {}
