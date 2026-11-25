@@ -116,6 +116,10 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let appLockEnabled: Bool
     public let pushTestFails: Bool
     public let hidesDebugOverlay: Bool
+    /// 預放一筆「上次異常結束」的閃退記錄(#632)。
+    public let recordsUITestingCrash: Bool
+    /// 沿用上一次啟動留下的閃退提示狀態(測重啟後不再出現)。
+    public let keepsCrashNotice: Bool
     /// `-uiTestingOwnedByOtherMember`:StoreKit 替身的目前交易屬於另一個會員(與會員情境優先順序獨立)。
     public let storeOwnedByOtherMember: Bool
     /// 登入頁用測試登入(只看原始旗標,不受會員情境優先順序影響)。
@@ -174,6 +178,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
         appLockEnabled = has("-uiTestingAppLock")
         pushTestFails = has("-uiTestingPushTestFails")
         hidesDebugOverlay = has("-uiTestingHidesDebugOverlay")
+        recordsUITestingCrash = isUITesting && has("-uiTestingCrashRecord")
+        keepsCrashNotice = has("-uiTestingKeepCrashNotice")
         storeOwnedByOtherMember = has("-uiTestingOwnedByOtherMember")
         usesTestingSignIn = isUITesting
             && (has("-uiTestingSignUp") || has("-uiTestingNoMember") || has("-uiTestingLinkMerge")

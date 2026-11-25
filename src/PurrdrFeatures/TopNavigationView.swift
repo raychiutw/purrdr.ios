@@ -29,6 +29,8 @@ public struct TopNavigationView: View {
     let welcome: WelcomeModel?
     /// App 鎖(#284);推播開啟的導航等解鎖後才執行。`nil` 時沒有 App 鎖。
     let appLock: AppLock?
+    /// 啟動提示「上次 Purrdr 意外關閉」(#632);`nil` 時不提示。
+    let crashNotice: CrashNoticeModel?
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -39,8 +41,10 @@ public struct TopNavigationView: View {
     public init(
         hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
         hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil,
-        appLock: AppLock? = nil, inspectorStore: any InspectorVisibilityStore = UserDefaultsInspectorVisibilityStore()
+        appLock: AppLock? = nil, inspectorStore: any InspectorVisibilityStore = UserDefaultsInspectorVisibilityStore(),
+        crashNotice: CrashNoticeModel? = nil
     ) {
+        self.crashNotice = crashNotice
         let navigation = TopNavigationModel(inspectorStore: inspectorStore)
         _navigation = State(initialValue: navigation)
         _actions = State(initialValue: RootActions(navigation: navigation, hosts: hosts))
@@ -61,6 +65,7 @@ public struct TopNavigationView: View {
             .environment(\.usageSections, UsageSectionContext(hosts: hosts))
             // 對話頂部的跨聊天「需要你」橫幅(#530):點了把目前的聊天換成那個聊天。
             .registersAsMainWindow()
+            .crashNotice(crashNotice, appLock: appLock)
             .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, open: actions.openBannerChat))
             // 「需要你」通知跟著合併列表的快照(整個 app 只有這一個接線點;背景不推進,#492)。
             .task(id: scenePhase == .active) {

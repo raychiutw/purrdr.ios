@@ -11,6 +11,14 @@ import UIKit
 /// 任何主機的通道也都是 Demo 主機、不連網路。各種測試情境由 `LaunchConfiguration` 的型別化值決定。
 @MainActor
 enum UITestingEnvironment {
+    /// 閃退提示「已提示」狀態:放在專用的 suite(不碰正式設定),預設每次啟動重置;`keeping` 沿用上一次啟動留下的(#632)。
+    private static func crashNoticeStore(keeping: Bool) -> any CrashNoticeStoring {
+        let name = "com.raychiu.purrdr.ui-testing.crash-notice"
+        let defaults = UserDefaults(suiteName: name) ?? .standard
+        if !keeping { defaults.removePersistentDomain(forName: name) }
+        return UserDefaultsCrashNoticeStore(defaults: defaults)
+    }
+
     static func make(_ configuration: LaunchConfiguration) -> LaunchEnvironment {
         // 清掉上一個測試留在 UserDefaults 的設定頁偏好,測試之間沒有順序依賴(#370)。
         if let domain = Bundle.main.bundleIdentifier {
@@ -40,7 +48,7 @@ enum UITestingEnvironment {
             forcesOpaqueGlass: UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency"),
             allowsTestingLinks: true, usesTestingSignIn: configuration.usesTestingSignIn,
             tracksReadingDrift: configuration.tracksReadingDrift, hidesDebugOverlay: configuration.hidesDebugOverlay)
-        let hitchLog = HitchLogFile(
+        let hitchLog = DiagnosticLogFile(
             directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
         return LaunchEnvironment(
             // 關掉動畫,XCTest 每次互動前等動畫結束的 1 秒左右就不用等(#374);要驗動畫本身的測試帶 `-uiTestingAnimations`。
@@ -68,6 +76,8 @@ enum UITestingEnvironment {
             // 每次啟動各用一個新資料夾:模擬器的 tmp 會跨測試保留,共用同一個資料夾會讓前面測試捲動留下的記錄
             // 殘留到「還沒有記錄」的測試(也會越積越大)。
             hitchLog: hitchLog,
+            crashNoticeStore: Self.crashNoticeStore(keeping: configuration.keepsCrashNotice),
+            recordsUITestingCrash: configuration.recordsUITestingCrash,
             subscribesToMetricKit: false,
             // 預設當作看過歡迎頁(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
             welcomeStore: InMemoryWelcomeStore(hasSeen: !configuration.showsWelcome),

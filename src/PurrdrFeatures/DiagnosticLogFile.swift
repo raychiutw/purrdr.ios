@@ -1,10 +1,10 @@
 import Foundation
 import PurrdrAgentFeatures
 
-/// 卡頓記錄檔(`hitch-log.jsonl`,JSON Lines):所有檔案 I/O 都在一條背景序列佇列上,呼叫端(含主執行緒與畫面回呼)不會被擋住。
+/// 診斷記錄檔(`hitch-log.jsonl`,JSON Lines;卡頓與閃退共用):所有檔案 I/O 都在一條背景序列佇列上,呼叫端(含主執行緒與畫面回呼)不會被擋住。
 /// 超過大小上限就丟最舊的行;排除備份,隨 app 刪除;不上傳任何地方。
 /// `@unchecked`:可變的 `knownSize` 只在序列佇列 `queue` 上讀寫,其餘是 `let`。
-public final class HitchLogFile: HitchLogStoring, @unchecked Sendable {
+public final class DiagnosticLogFile: DiagnosticLogStoring, @unchecked Sendable {
     public static let fileName = "hitch-log.jsonl"
 
     private let queue = DispatchQueue(label: "com.raychiu.purrdr.hitch-log", qos: .utility)
@@ -13,28 +13,28 @@ public final class HitchLogFile: HitchLogStoring, @unchecked Sendable {
     /// 只在 `queue` 上讀寫。
     private var knownSize: Int?
 
-    public init(directory: URL, maxBytes: Int = HitchLogTrimmer.defaultMaxBytes) {
+    public init(directory: URL, maxBytes: Int = DiagnosticLogTrimmer.defaultMaxBytes) {
         self.directory = directory
         self.maxBytes = maxBytes
     }
 
     /// 正式位置:Application Support 下的 `hitch-log.jsonl`。
-    public static func applicationSupport() -> HitchLogFile {
+    public static func applicationSupport() -> DiagnosticLogFile {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        return HitchLogFile(directory: base)
+        return DiagnosticLogFile(directory: base)
     }
 
     private var url: URL { directory.appendingPathComponent(Self.fileName) }
 
-    // MARK: - HitchLogStoring
+    // MARK: - DiagnosticLogStoring
 
-    public func append(_ entries: [HitchEntry]) {
+    public func append(_ entries: [DiagnosticEntry]) {
         guard !entries.isEmpty else { return }
-        queue.async { [self] in write(entries.map(HitchLogEncoder.line)) }
+        queue.async { [self] in write(entries.map(DiagnosticLogEncoder.line)) }
     }
 
-    public func exportFile(meta: HitchEntry?) async -> URL? {
+    public func exportFile(meta: DiagnosticEntry?) async -> URL? {
         await withCheckedContinuation { continuation in
             queue.async { [self] in continuation.resume(returning: makeExport(meta: meta)) }
         }
@@ -86,7 +86,7 @@ public final class HitchLogFile: HitchLogStoring, @unchecked Sendable {
     private func trimFile() {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-        let kept = HitchLogTrimmer.trim(lines, maxBytes: maxBytes)
+        let kept = DiagnosticLogTrimmer.trim(lines, maxBytes: maxBytes)
         let data = Data((kept.isEmpty ? "" : kept.joined(separator: "\n") + "\n").utf8)
         try? data.write(to: url, options: .atomic)
         knownSize = data.count
@@ -96,11 +96,11 @@ public final class HitchLogFile: HitchLogStoring, @unchecked Sendable {
         try? mutableURL.setResourceValues(excluded)
     }
 
-    private func makeExport(meta: HitchEntry?) -> URL? {
+    private func makeExport(meta: DiagnosticEntry?) -> URL? {
         guard let body = try? Data(contentsOf: url), !body.isEmpty else { return nil }
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("purrdr-hitch-log.jsonl")
         var data = Data()
-        if let meta { data.append(Data((HitchLogEncoder.line(meta) + "\n").utf8)) }
+        if let meta { data.append(Data((DiagnosticLogEncoder.line(meta) + "\n").utf8)) }
         data.append(body)
         do {
             try data.write(to: temporary, options: .atomic)

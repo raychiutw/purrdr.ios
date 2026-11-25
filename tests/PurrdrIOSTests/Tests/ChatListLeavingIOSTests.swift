@@ -22,7 +22,7 @@ struct ChatListLeavingIOSTests {
         try await Self.layoutTests.waitForFollow(mounted)
         try await Task.sleep(for: .milliseconds(600))
         let collection = try #require(ConversationLayoutTests.findCollectionView(mounted.window))
-        let controller = try #require(HitchRecorderIOSTests.controller(of: collection))
+        let controller = try #require(DiagnosticRecorderIOSTests.controller(of: collection))
         let before = collection.numberOfItems(inSection: 0)
         #expect(before > 0)
 

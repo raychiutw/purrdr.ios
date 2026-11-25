@@ -14,7 +14,9 @@ struct AppRoot {
     let hostSync: HostSyncModel
     let welcome: WelcomeModel
     let inspectorStore: any InspectorVisibilityStore
-    let hitchRecorder: HitchRecorder
+    let hitchRecorder: DiagnosticRecorder
+    /// 啟動提示「上次 Purrdr 意外關閉」(#632)。
+    let crashNotice: CrashNoticeModel
     /// 要活著的訂閱者與監看物件。
     let hitchMetrics: HitchMetricKitSubscriber?
     let trafficMeter: TrafficMeter
@@ -72,23 +74,27 @@ enum AppAssembly {
 
         let hostSync = HostSyncModel(session: session, plus: plus, hosts: hosts, store: environment.hostSyncStore)
         localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
-        let hitchRecorder = HitchRecorder(sink: environment.hitchLog, defaults: .standard, system: { HitchSystemState.current() })
+        let hitchRecorder = DiagnosticRecorder(sink: environment.hitchLog, defaults: .standard, system: { HitchSystemState.current() })
         var hitchMetrics: HitchMetricKitSubscriber?
         if environment.subscribesToMetricKit {
+            CrashExceptionHandler.installAtLaunch(recorder: hitchRecorder)
             let subscriber = HitchMetricKitSubscriber(recorder: hitchRecorder)
             subscriber.start()
             hitchMetrics = subscriber
         }
+        // `-uiTestingCrashRecord`:預放一筆「上次異常結束」的閃退記錄(#632)。
+        if environment.recordsUITestingCrash { hitchRecorder.recordUITestingCrash() }
+        let crashNotice = CrashNoticeModel(recorder: hitchRecorder, store: environment.crashNoticeStore)
         return AppRoot(
             hosts: hosts, member: member, plus: plus, settings: makeSettings(hosts: hosts, hitchRecorder: hitchRecorder),
             hostSync: hostSync, welcome: WelcomeModel(store: environment.welcomeStore), inspectorStore: environment.inspectorStore,
-            hitchRecorder: hitchRecorder, hitchMetrics: hitchMetrics, trafficMeter: trafficMeter, launchGate: launchGate, trafficNetwork: trafficNetwork,
+            hitchRecorder: hitchRecorder, crashNotice: crashNotice, hitchMetrics: hitchMetrics, trafficMeter: trafficMeter, launchGate: launchGate, trafficNetwork: trafficNetwork,
             appLock: environment.appLock, inputSources: environment.inputSources, viewFlags: environment.viewFlags,
             disablesAnimations: environment.disablesAnimations)
     }
 
     /// 設定頁。偏好存在 `UserDefaults.standard`(輸入列的 `@AppStorage` 讀同一個 key)。
-    private static func makeSettings(hosts: HostsModel, hitchRecorder: HitchRecorder) -> SettingsModel {
+    private static func makeSettings(hosts: HostsModel, hitchRecorder: DiagnosticRecorder) -> SettingsModel {
         let info = Bundle.main.infoDictionary ?? [:]
         let system = ProcessInfo.processInfo.operatingSystemVersion
         let app = AppInfo(

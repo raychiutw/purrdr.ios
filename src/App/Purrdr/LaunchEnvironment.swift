@@ -62,7 +62,11 @@ struct LaunchEnvironment {
     /// 送出可撤回的秒數;`nil` 沿用使用者的本機偏好。
     var undoSendSeconds: (@MainActor () -> Int)?
     var hostSyncStore: any HostSyncStore
-    var hitchLog: HitchLogFile
+    var hitchLog: DiagnosticLogFile
+    /// 啟動提示「上次 Purrdr 意外關閉」的已提示狀態(#632)。
+    var crashNoticeStore: any CrashNoticeStoring
+    /// UI 測試:預放一筆閃退記錄(#632)。
+    var recordsUITestingCrash: Bool
     /// 是否訂閱 MetricKit 每日摘要(只在真實啟動)。
     var subscribesToMetricKit: Bool
     var welcomeStore: any WelcomeStore

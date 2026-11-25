@@ -4667,6 +4667,17 @@
         }
       }
     },
+    "Diagnostic Log" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "診斷記錄"
+          }
+        }
+      }
+    },
     "Diagnostics include the app version, iOS version, and number of hosts — never host names, addresses, account names, or conversations." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9719,6 +9730,17 @@
         }
       }
     },
+    "Purrdr closed unexpectedly last time" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次 Purrdr 意外關閉"
+          }
+        }
+      }
+    },
     "Purrdr couldn’t be reached. You’re still signed in." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10808,17 +10830,6 @@
         }
       }
     },
-    "Scrolling Records" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "捲動記錄"
-          }
-        }
-      }
-    },
     "Search" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11182,6 +11193,17 @@
         }
       }
     },
+    "Share Diagnostic Log" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享診斷記錄"
+          }
+        }
+      }
+    },
     "Share Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11204,6 +11226,17 @@
         }
       }
     },
+    "Share Log" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享記錄"
+          }
+        }
+      }
+    },
     "Share Public Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11211,17 +11244,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享公鑰"
-          }
-        }
-      }
-    },
-    "Share Stutter Records" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分享卡頓記錄"
           }
         }
       }
@@ -16003,13 +16025,13 @@
         }
       }
     },
-    "When scrolling a chat feels rough, this iPhone notes down numbers. They never include your conversations. You can share them with the developer." : {
+    "When Purrdr closes unexpectedly or scrolling feels rough, this iPhone notes down what happened. It never includes your conversations. You can share it with the developer." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "聊天捲動不順時，這支手機會記下一些數字，不含你的對話內容。你可以分享給開發者。"
+            "value" : "Purrdr 意外關閉或捲動不順時，這支 iPhone 會記下發生了什麼事，不含你的對話。你可以分享給開發者。"
           }
         }
       }

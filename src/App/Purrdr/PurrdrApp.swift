@@ -47,7 +47,7 @@ struct PurrdrApp: App {
         WindowGroup(id: PurrdrCommands.mainWindowID) {
             TopNavigationView(
                 hosts: hosts, member: root.member, settings: root.settings, plus: root.plus, hostSync: root.hostSync, notifications: PushAppDelegate.router,
-                welcome: root.welcome, appLock: root.appLock, inspectorStore: root.inspectorStore)
+                welcome: root.welcome, appLock: root.appLock, inspectorStore: root.inspectorStore, crashNotice: root.crashNotice)
             .appAppearance()
             // 第一個 frame 排版完成後才做冷啟動可延後的寫入(#590)。
             .onAppear { DispatchQueue.main.async { root.launchGate.open() } }

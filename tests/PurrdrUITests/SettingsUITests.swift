@@ -154,7 +154,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有「記錄捲動卡頓」開關")
         XCTAssertEqual(toggle.value as? String, "1", "預設應該開啟")
         let share = app.buttons["settings.hitchLog.share"]
-        XCTAssertTrue(share.exists, "沒有「分享卡頓記錄」")
+        XCTAssertTrue(share.exists, "沒有「分享診斷記錄」")
         XCTAssertTrue(app.buttons["settings.hitchLog.clear"].exists, "沒有「清除記錄」")
 
         toggle.switches.firstMatch.tap()

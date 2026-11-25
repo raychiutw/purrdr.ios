@@ -99,7 +99,7 @@ struct ChatSelfSizingTests {
         let mounted = try await Self.layoutTests.open(window: lines, contentSizeCategory: Self.category, sceneActive: true, paged: paged)
         try await Self.layoutTests.waitForFollow(mounted)
         let scroll = try #require(ConversationLayoutTests.findCollectionView(mounted.window))
-        let controller = try #require(HitchRecorderIOSTests.controller(of: scroll))
+        let controller = try #require(DiagnosticRecorderIOSTests.controller(of: scroll))
         return Rig(mounted: mounted, scroll: scroll, controller: controller)
     }
 
@@ -155,7 +155,7 @@ struct ChatSelfSizingTests {
         meter.start()
         try await Self.layoutTests.waitForFollow(mounted)
         let scroll = try #require(ConversationLayoutTests.findCollectionView(mounted.window))
-        let controller = try #require(HitchRecorderIOSTests.controller(of: scroll))
+        let controller = try #require(DiagnosticRecorderIOSTests.controller(of: scroll))
         let rig = Rig(mounted: mounted, scroll: scroll, controller: controller)
         try await settle(rig)
         meter.stop()
