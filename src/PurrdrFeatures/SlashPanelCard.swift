@@ -2,200 +2,128 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// slash 指令開出的面板(`/model`、`/effort`…)在聊天內的原生卡片(#45、行為規格 F9.4;HIG 20.6、20.7)。
+/// slash 指令開出的 Claude 面板(`/model`、`/effort`…)的內容(#45、行為規格 F9.4;#624 版面 C「輸入框變成面板」)。
 ///
-/// - 內容層：和「需要你」的提示卡同樣的背景，不用 Liquid Glass。
-/// - 選項列：目前使用中以勾號 + 文字標示(不只靠顏色),游標所在列以填色高亮;點選項只移動游標(送方向鍵),
-///   由面板自己的動作鈕確認。**永不送數字**(數字在模型選擇器會直接存成預設)。
-/// - effort 層級攤開成直排的勾選列(#313),目前那層打勾;‹ › 調整送 ←/→。
-/// - 動作鈕取自面板的提示行(agent 的原文，不翻譯);確認鍵(Enter)是 prominent,取消(Esc)放最後且中性。
-struct SlashPanelCard: View {
+/// 全部用系統控制項:選項與 effort 層級是 系統 inline Picker 的勾選列,← / → 調整是 `Stepper`,其他動作是清單裡的按鈕。
+/// - 點選項只移動游標(送方向鍵),由面板的 ✓ 確定;**永不送數字**(數字在模型選擇器會直接存成預設)。
+/// - 目前使用中以「Current」文字標示(不只靠顏色),游標所在列由 Picker 打勾。
+/// - ✓ = 面板提示行的 Enter;左 X = Esc(取消)。其餘動作(例如 `s` 只用於此 session)是清單裡的按鈕,文字取自提示行原文。
+/// iPhone(窄視窗)面板取代輸入框、佔住鍵盤位置(`SlashPanelBar`);iPad 寬視窗仍是 sheet(`slashPanelSheet`),內容共用這個 view。
+struct SlashPanelContent: View {
     let model: ConversationModel
     let panel: SlashPanel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let title = panel.title {
-                Text(verbatim: title)
-                    .font(.headline)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-            }
+        List {
             if !panel.notes.isEmpty {
-                ScrollView {
+                Section {
                     Text(verbatim: panel.notes.joined(separator: "\n"))
                         .font(.footnote)
                         .foregroundStyle(.secondaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("panel.notes")
                 }
-                .frame(maxHeight: 180)
-                .fixedSize(horizontal: false, vertical: true)
             }
             if !panel.options.isEmpty {
-                options
+                Section { options }
             }
             if let slider = panel.slider {
-                levels(slider)
+                Section { levels(slider) }
             }
-            if let adjustment = panel.adjustment {
-                adjuster(adjustment)
+            if let adjustment = panel.adjustment, !adjustment.isEmpty, panel.slider == nil {
+                Section { adjuster(adjustment) }
             }
-            actions
+            if !extraActions.isEmpty {
+                Section {
+                    ForEach(extraActions, id: \.self) { action in
+                        Button(Self.title(of: action)) { operate(.action(action)) }
+                            .listAction()
+                            .accessibilityIdentifier("panel.action.\(action.key)")
+                    }
+                }
+            }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 16))
+        .appSheetList()
         .disabled(model.isOperatingPanel)
-        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("panel.card")
+    }
+
+    /// ✓ 與 X 以外的動作(例如 `s`)。
+    private var extraActions: [SlashPanelAction] {
+        panel.actions.filter { !$0.isCancel && $0.key != "enter" }
     }
 
     // MARK: - 選項
 
     private var options: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                ForEach(panel.options) { option in
-                    optionRow(option)
-                }
+        Picker(String(localized: "Options"), selection: Binding(
+            get: { panel.options.first(where: \.isCursor)?.index ?? -1 },
+            set: { index in
+                guard let option = panel.options.first(where: { $0.index == index }) else { return }
+                operate(.select(option))
             }
-        }
-        .frame(maxHeight: 240)
-        .fixedSize(horizontal: false, vertical: true)
-        .accessibilityIdentifier("panel.options")
-    }
-
-    private func optionRow(_ option: SlashPanelOption) -> some View {
-        Button {
-            operate(.select(option))
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: option.label)
-                        .foregroundStyle(.primary)
-                    if let detail = option.detail {
-                        Text(verbatim: detail)
+        )) {
+            ForEach(panel.options) { option in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: option.label)
+                        if let detail = option.detail {
+                            Text(verbatim: detail)
+                                .font(.footnote)
+                                .foregroundStyle(.secondaryText)
+                        }
+                    }
+                    Spacer(minLength: 8)
+                    if option.isCurrent {
+                        Text("Current")
                             .font(.footnote)
                             .foregroundStyle(.secondaryText)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if option.isCurrent {
-                    Label("Current", systemImage: "checkmark")
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(.tint)
-                }
+                .tag(option.index)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("panel.option.\(option.index)")
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
-            .background(option.isCursor ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.clear), in: RoundedRectangle(cornerRadius: 10))
         }
-        .buttonStyle(.plain)
-        .disabled(panel.keys(for: .select(option)) == nil)
-        .accessibilityLabel(Text(verbatim: [option.label, option.detail].compactMap { $0 }.joined(separator: ", ")))
-        .accessibilityValue(option.isCurrent ? Text("Current") : Text(verbatim: ""))
-        .accessibilityAddTraits(option.isCursor ? .isSelected : [])
-        .accessibilityHint(Text("Moves the panel’s selection to this option."))
-        .accessibilityIdentifier("panel.option.\(option.index)")
+        .pickerStyle(.inline)
+        .labelsHidden()
+        .disabled(!panel.options.contains(where: \.isCursor))
+        .accessibilityIdentifier("panel.options")
     }
 
     // MARK: - effort
 
-    /// 層級攤開成直排的勾選列(#313),樣式同上面的選項列;目前的層級打勾。
+    /// 層級攤開成直排的勾選列(#313);目前的層級打勾。
     private func levels(_ slider: SlashPanelSlider) -> some View {
-        VStack(spacing: 0) {
+        Picker(String(localized: "Level"), selection: Binding(
+            get: { slider.current ?? -1 },
+            set: { operate(.level($0)) }
+        )) {
             ForEach(Array(slider.levels.enumerated()), id: \.offset) { index, level in
-                levelRow(level, isCurrent: slider.current == index) { operate(.level(index)) }
+                Text(verbatim: level).tag(index)
             }
         }
+        .pickerStyle(.inline)
+        .labelsHidden()
         .disabled(slider.current == nil)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("Level"))
         .accessibilityIdentifier("panel.levels")
     }
 
-    private func levelRow(_ level: String, isCurrent: Bool, select: @escaping () -> Void) -> some View {
-        Button(action: select) {
-            HStack(spacing: 8) {
-                Text(verbatim: level)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if isCurrent {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(.tint)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: level))
-        .accessibilityAddTraits(isCurrent ? .isSelected : [])
-    }
-
+    /// ← / → 調整:只拿得到 agent 的一行文字,不知道有哪些值,所以用 Stepper 送方向鍵。
     private func adjuster(_ text: String) -> some View {
-        HStack(spacing: 8) {
-            adjustButton(.left)
+        Stepper {
             Text(verbatim: text)
-                .font(.subheadline)
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("panel.adjustment")
-            adjustButton(.right)
+        } onIncrement: {
+            operate(.adjust(.right))
+        } onDecrement: {
+            operate(.adjust(.left))
         }
-    }
-
-    private func adjustButton(_ direction: SlashPanel.Direction) -> some View {
-        Button {
-            operate(.adjust(direction))
-        } label: {
-            Image(systemName: direction == .left ? "chevron.left" : "chevron.right")
-                .frame(width: 30, height: 30)
-        }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.circle)
-        .frame(minWidth: 44, minHeight: 44)
-        .accessibilityLabel(direction == .left ? Text("Decrease") : Text("Increase"))
-        .accessibilityIdentifier(direction == .left ? "panel.adjust.left" : "panel.adjust.right")
+        .accessibilityIdentifier("panel.adjustment")
     }
 
     // MARK: - 動作
 
-    private var actions: some View {
-        // 取消(Esc)放最後。
-        let ordered = panel.actions.filter { !$0.isCancel } + panel.actions.filter(\.isCancel)
-        return ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { actionButtons(ordered) }
-            VStack(spacing: 8) { actionButtons(ordered) }
-        }
-    }
-
-    @ViewBuilder
-    private func actionButtons(_ actions: [SlashPanelAction]) -> some View {
-        ForEach(actions, id: \.self) { action in
-            let button = Button {
-                operate(.action(action))
-            } label: {
-                Text(verbatim: title(of: action))
-                    .frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .accessibilityIdentifier("panel.action.\(action.key)")
-            if action.key == "enter" {
-                button.filledProminentButtonStyle()
-            } else {
-                // 文字用主要色(取消要中性):bordered 預設是 tint 字配淡 tint 底，在卡片填色上對比不到 4.5:1(#67 audit)。
-                button.buttonStyle(.bordered)
-                    .foregroundStyle(Color.primary)
-            }
-        }
-    }
-
     /// 提示行的原文(首字大寫);面板沒有提示行時依按鍵給標籤。
-    private func title(of action: SlashPanelAction) -> String {
+    static func title(of action: SlashPanelAction) -> String {
         if let label = action.label, let first = label.first {
             return first.uppercased() + label.dropFirst()
         }
@@ -210,20 +138,141 @@ struct SlashPanelCard: View {
     }
 }
 
-/// slash 指令開出的面板(`/model`、`/effort`…)以底部 sheet 顯示(#366):對話最下面的卡片會被浮動的輸入框蓋住下半的按鈕。
-/// 面板關掉(選定或 Esc)時 sheet 跟著收起；使用者下滑關掉時按 Esc 取消，不改設定。從模型膠囊開的面板另有自己的 sheet(#350)。
+/// slash 面板在哪裡呈現(#624):窄視窗(iPhone)取代輸入框,寬視窗(iPad)是 sheet;模型膠囊自己的 sheet 開著時由它處理,這裡不呈現。
+package enum SlashPanelPresentation: Equatable {
+    case none, inline, sheet
+
+    package static func resolve(hasPanel: Bool, isChoosingModel: Bool, isRegularWidth: Bool) -> SlashPanelPresentation {
+        guard hasPanel, !isChoosingModel else { return .none }
+        return isRegularWidth ? .sheet : .inline
+    }
+}
+
+/// 輸入框位置的面板高度(#624):同鍵盤,看過鍵盤就用最近一次的高度;沒看過(例如實體鍵盤)用預設。
+enum SlashPanelLayout {
+    static let defaultHeight: CGFloat = 300
+    /// 小於這個高度的鍵盤框(快捷列、浮動鍵盤)不當作鍵盤高度。
+    static let minimumHeight: CGFloat = 200
+}
+
+/// 面板的左 X(取消 = Esc)與右 ✓(確定 = Enter);sheet 與輸入框位置的面板共用(#624)。
+package struct SlashPanelControls {
+    let model: ConversationModel
+    let panel: SlashPanel
+
+    package init(model: ConversationModel, panel: SlashPanel) {
+        self.model = model
+        self.panel = panel
+    }
+
+    package var confirmAction: SlashPanelAction? { panel.actions.first { $0.key == "enter" } }
+
+    /// 面板沒有 Enter 動作(例如只有「Esc to close」)時沒有 ✓。
+    package var hasConfirm: Bool { confirmAction != nil }
+
+    /// 左 X:按 Esc 取消,不改設定。
+    package func cancel() async { await model.dismissPanel() }
+
+    /// 右 ✓:按面板提示行的 Enter(不是 `s`、更不是數字)。回傳按鍵是否送出。
+    @discardableResult
+    package func confirm() async -> Bool {
+        guard let confirmAction else { return false }
+        return await model.operatePanel(.action(confirmAction))
+    }
+}
+
+/// iPhone(窄視窗)的 slash 面板(#624、spec #612 原型 C「輸入框變成面板」):面板出現時輸入框收起,
+/// 面板取代輸入框、佔住鍵盤的位置,對話在上方整段可見。頂列左 X = 取消(Esc)、右 ✓ = 確定(同 `ModalConfirmToolbar` 樣式)。
+/// 輸入框草稿保留在 model,面板收起後輸入框回來。
+struct SlashPanelBar: View {
+    let model: ConversationModel
+    let panel: SlashPanel
+    /// 面板高度(同鍵盤;`ComposerBar` 記住最近一次的鍵盤高度)。
+    let height: CGFloat
+
+    private var controls: SlashPanelControls { SlashPanelControls(model: model, panel: panel) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            SlashPanelContent(model: model, panel: panel)
+        }
+        .frame(height: height)
+        .floatingGlass(in: RoundedRectangle(cornerRadius: 28))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("panel.bar")
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Button {
+                Task { await controls.cancel() }
+            } label: {
+                Label("Cancel", systemImage: "xmark")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .accessibilityIdentifier("panel.cancel")
+
+            Text(verbatim: panel.title ?? "")
+                .font(.headline)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .accessibilityAddTraits(.isHeader)
+
+            if controls.hasConfirm {
+                Button {
+                    Task { await controls.confirm() }
+                } label: {
+                    Label("Confirm", systemImage: "checkmark")
+                        .labelStyle(.iconOnly)
+                }
+                .filledProminentButtonStyle()
+                .buttonBorderShape(.circle)
+                .disabled(model.isOperatingPanel)
+                .accessibilityIdentifier("panel.confirm")
+            } else {
+                // 沒有 ✓ 時留同寬的空位,標題才會置中。
+                Color.clear.frame(width: 44, height: 44)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+    }
+}
+
+/// iPad 寬視窗的 slash 面板仍是底部 sheet(#366):內容同上,左上 X = Esc、右上 ✓ = Enter(#613 modal 規則)。
+/// 面板關掉(選定或 Esc)時 sheet 跟著收起;使用者下滑關掉時按 Esc 取消,不改設定。從模型膠囊開的面板另有自己的 sheet(#350)。
 private struct SlashPanelSheet: ViewModifier {
     let model: ConversationModel
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     func body(content: Content) -> some View {
         content.sheet(isPresented: Binding(
-            get: { model.panel != nil && !model.isChoosingModel },
+            get: {
+                SlashPanelPresentation.resolve(
+                    hasPanel: model.panel != nil, isChoosingModel: model.isChoosingModel, isRegularWidth: sizeClass == .regular) == .sheet
+            },
             set: { shown in if !shown { Task { await model.dismissPanel() } } }
         )) {
             if let panel = model.panel {
-                ScrollView {
-                    SlashPanelCard(model: model, panel: panel)
-                        .padding()
+                let controls = SlashPanelControls(model: model, panel: panel)
+                NavigationStack {
+                    SlashPanelContent(model: model, panel: panel)
+                        .navigationTitle(Text(verbatim: panel.title ?? ""))
+                        #if os(iOS)
+                        .navigationBarTitleDisplayMode(.inline)
+                        #endif
+                        .toolbar {
+                            SheetCloseToolbar(identifier: "panel.cancel", action: { Task { await controls.cancel() } })
+                            if controls.hasConfirm {
+                                ModalConfirmToolbar(
+                                    title: "Confirm", identifier: "panel.confirm", isEnabled: !model.isOperatingPanel,
+                                    action: { Task { await controls.confirm() } })
+                            }
+                        }
                 }
                 .appSheet(detents: [.medium, .large])
                 .presentationDragIndicator(.visible)

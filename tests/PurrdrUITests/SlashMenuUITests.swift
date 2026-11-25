@@ -98,9 +98,10 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertFalse(app.element("composer.argumentHint").exists, "打了參數後提示應消失")
     }
 
-    /// 選定 `/model` 只填入、鍵盤不收起，按送出後聊天內出現面板卡片(#83);點選項移動游標(送方向鍵)、按「Set as default」選定後卡片消失(#45)。
+    /// 選定 `/model` 只填入、鍵盤不收起,按送出後輸入框變成面板(#624):輸入框不在、面板佔住鍵盤位置,左 X 與右 ✓ 可操作;
+    /// 點選項移動游標(送方向鍵)、調整 effort、按 ✓ 選定後面板收起、輸入框回來(#45)。
     @MainActor
-    func testModelPanelCard() {
+    func testModelPanelReplacesComposer() {
         let app = XCUIApplication.launchUITesting()
         let text = openLedger(app)
         text.typeEnglish("/model")
@@ -109,33 +110,53 @@ final class SlashMenuUITests: XCTestCase {
         row.tap()
         XCTAssertEqual(text.value as? String, "/model ")
         XCTAssertTrue(text.hasKeyboardFocus, "選定不該收起鍵盤")
-        XCTAssertFalse(app.element("panel.card").exists, "選定不該送出")
+        XCTAssertFalse(app.element("panel.bar").exists, "選定不該送出")
         app.element("composer.send").tap()
 
-        let card = app.element("panel.card")
-        XCTAssertTrue(card.waitUntilExists(timeout: 10), "送出 /model 後沒有出現面板卡片")
-        // 收起鍵盤：鍵盤開著時可見範圍很小，卡片上半部可能捲到導覽列底下，點擊會打在導覽列上。
-        // 送出就收起鍵盤(#329);還聚焦才點。
-        app.dismissKeyboard()
+        let bar = app.element("panel.bar")
+        XCTAssertTrue(bar.waitUntilExists(timeout: 10), "送出 /model 後輸入框沒有變成面板")
+        XCTAssertFalse(app.element("composer.text").exists, "面板出現時輸入框要收起")
+        XCTAssertTrue(app.buttons["panel.cancel"].exists, "沒有左 X")
+        XCTAssertTrue(app.buttons["panel.confirm"].exists, "沒有右 ✓")
         XCTAssertTrue(app.staticTexts["Select model"].waitUntilExists(timeout: 5))
         let first = app.element("panel.option.0")
         XCTAssertTrue(first.waitUntilExists(timeout: 5))
-        app.waitForSettledLayout([card, first], timeout: 3)
+        app.waitForSettledLayout([bar, first], timeout: 3)
         XCTAssertFalse(first.isSelected, "游標一開始在目前的模型(第二列)")
-        XCTAssertGreaterThanOrEqual(first.frame.height, 44)
+        // 面板佔住鍵盤位置:對話整段在面板上方,不被蓋住。
+        XCTAssertGreaterThan(bar.frame.height, 200, "面板高度應同鍵盤")
 
-        // 面板卡片在面板監看的輪詢期間可能吃掉點擊：重點到游標移過去。
+        // 面板在監看的輪詢期間可能吃掉點擊:重點到游標移過去。
         tap(first, until: { $0.isSelected }, on: first, "點第一列後游標沒有移過去")
 
-        tap(app.element("panel.adjust.right"), until: { $0.exists },
+        let stepper = app.steppers["panel.adjustment"]
+        XCTAssertTrue(stepper.waitUntilExists(timeout: 5), "沒有 ←/→ 調整")
+        tap(stepper.buttons.element(boundBy: 1), until: { $0.exists },
             on: app.staticTexts["◐ High effort"], "←/→ 調整沒有反映")
 
-        tap(app.element("panel.action.enter"), until: { !$0.exists }, on: card, "選定後卡片沒有消失")
+        tap(app.buttons["panel.confirm"], until: { !$0.exists }, on: bar, "選定後面板沒有消失")
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "面板收起後輸入框沒有回來")
     }
 
-    /// 選定 `/effort` 後按送出 → 面板卡片有攤開的層級列(#83、#313);點層級送方向鍵，按「confirm」後卡片消失(#34)。
+    /// 左 X = Esc:不改設定,面板收起、輸入框回來(#624)。
     @MainActor
-    func testEffortPanelCard() {
+    func testPanelCancelRestoresComposer() {
+        let app = XCUIApplication.launchUITesting()
+        let text = openLedger(app)
+        text.typeEnglish("/model")
+        app.element("slash.row.model").tap()
+        app.element("composer.send").tap()
+
+        let bar = app.element("panel.bar")
+        XCTAssertTrue(bar.waitUntilExists(timeout: 10))
+        XCTAssertFalse(app.element("composer.text").exists)
+        tap(app.buttons["panel.cancel"], until: { !$0.exists }, on: bar, "按 X 後面板沒有消失")
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "面板收起後輸入框沒有回來")
+    }
+
+    /// 選定 `/effort` 後按送出 → 面板有攤開的層級列(#83、#313);點層級送方向鍵,按 ✓ 後面板收起(#34)。
+    @MainActor
+    func testEffortPanel() {
         let app = XCUIApplication.launchUITesting()
         let text = openLedger(app)
         text.typeEnglish("/effort")
@@ -145,21 +166,20 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertEqual(text.value as? String, "/effort ")
         app.element("composer.send").tap()
 
-        let card = app.element("panel.card")
-        XCTAssertTrue(card.waitUntilExists(timeout: 10), "送出 /effort 後沒有出現面板卡片")
-        // 收起鍵盤：鍵盤開著時可見範圍很小，卡片上半部可能捲到導覽列底下，點擊會打在導覽列上。
-        // 送出就收起鍵盤(#329);還聚焦才點。
-        app.dismissKeyboard()
+        let bar = app.element("panel.bar")
+        XCTAssertTrue(bar.waitUntilExists(timeout: 10), "送出 /effort 後輸入框沒有變成面板")
+        XCTAssertFalse(app.element("composer.text").exists, "面板出現時輸入框要收起")
         XCTAssertTrue(app.staticTexts["Effort"].waitUntilExists(timeout: 5))
         let levels = app.element("panel.levels")
         XCTAssertTrue(levels.waitUntilExists(timeout: 5))
         let xhigh = levels.buttons["xhigh"]
         XCTAssertTrue(xhigh.waitUntilExists(timeout: 5))
-        app.waitForSettledLayout([card, xhigh], timeout: 3)
+        app.waitForSettledLayout([bar, xhigh], timeout: 3)
         XCTAssertFalse(xhigh.isSelected, "一開始是 medium")
 
         tap(xhigh, until: { $0.isSelected }, on: xhigh, "點層級沒有反映")
 
-        tap(app.element("panel.action.enter"), until: { !$0.exists }, on: card, "確認後卡片沒有消失")
+        tap(app.buttons["panel.confirm"], until: { !$0.exists }, on: bar, "確認後面板沒有消失")
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "面板收起後輸入框沒有回來")
     }
 }
