@@ -205,6 +205,14 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["files.upload"].firstMatch.waitUntilExists(timeout: 10), "檔案 tab 沒有上傳")
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "檔案 tab 沒有帳號鈕")
             XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "檔案 tab 不該有新增聊天")
+            // 資料夾是 push(#620):進一層、tab bar 還在、左上「<」回第一層。
+            let ledger = app.buttons["files.row.ledger"].firstMatch
+            XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "檔案 tab 沒有列出家目錄")
+            ledger.tap()
+            XCTAssertTrue(app.navigationBars["ledger"].waitUntilExists(timeout: 10), "沒有推進下一層")
+            XCTAssertTrue(app.tabBars.firstMatch.exists, "下一層沒有保留 tab bar")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "返回沒有回到第一層")
             app.openHostsTab()
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "主機 tab 沒有帳號鈕")
             // 沒有已存主機時主機 tab 是範例主機:只有範例狀態、登入 Shell 與「移除範例主機」(#392、#434)。
