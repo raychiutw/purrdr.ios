@@ -15,6 +15,8 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var icon: HostIcon
     /// HTTPS 主機在這支裝置還沒有裝置權杖(例如主機同步帶來的):要先連線配對。
     public var needsPairing: Bool
+    /// 主機同步改了位址或 host key(#572):要使用者重新確認才連線。
+    public var needsReconfirmation: Bool
     /// HTTPS 主機目前的主機服務版本(讀到之前、SSH 主機是 `nil`,#362)。
     public var hostServiceVersion: String?
     /// HTTPS 主機的主機服務比最新 Release 舊：可更新到的版本(#198)。
@@ -24,7 +26,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
 
     public init(
         id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default,
-        needsPairing: Bool = false, hostServiceVersion: String? = nil, hostServiceUpdate: String? = nil,
+        needsPairing: Bool = false, needsReconfirmation: Bool = false, hostServiceVersion: String? = nil, hostServiceUpdate: String? = nil,
         hostServiceUpdateCommands: HostServiceUpdateCommands? = nil
     ) {
         self.id = id
@@ -34,6 +36,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
         self.isSelected = isSelected
         self.icon = icon
         self.needsPairing = needsPairing
+        self.needsReconfirmation = needsReconfirmation
         self.hostServiceVersion = hostServiceVersion
         self.hostServiceUpdate = hostServiceUpdate
         self.hostServiceUpdateCommands = hostServiceUpdateCommands
@@ -545,7 +548,7 @@ public final class HostsModel {
                 ?? host.hostService?.description ?? ""
             return HostRow(
                 id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
-                isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id),
+                isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id), needsReconfirmation: host.needsReconfirmation,
                 hostServiceVersion: hostServiceVersions[host.id], hostServiceUpdate: update,
                 hostServiceUpdateCommands: update.flatMap { _ in hostServiceVersions[host.id].map(HostServiceUpdates.commands(installed:)) })
         }
