@@ -40,12 +40,8 @@ struct HostTrustView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: cancel).accessibilityIdentifier("hostTrust.cancel")
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Trust", action: trust).accessibilityIdentifier("hostTrust.trust")
-                }
+                SheetCloseToolbar(identifier: "hostTrust.cancel", action: cancel)
+                ModalConfirmToolbar(title: "Trust", identifier: "hostTrust.trust", action: trust)
             }
         }
         .appSheet(detents: [.medium, .large])

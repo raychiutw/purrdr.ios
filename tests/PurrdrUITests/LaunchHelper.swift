@@ -134,11 +134,26 @@ extension XCUIApplication {
             "沒有開出帳號與設定", file: file, line: line)
     }
 
-    /// 以右上角「X」關閉帳號與設定 sheet(#503)並等它消失。
+    /// modal 的關閉鈕在左上、確認 ✓ 在右上(#613):以按鈕中心相對視窗中線判斷。
+    @MainActor
+    func assertModalToolbar(close: String, confirm: String? = nil, file: StaticString = #filePath, line: UInt = #line) {
+        let midX = windows.firstMatch.frame.midX
+        let closeButton = buttons[close].firstMatch
+        XCTAssertTrue(closeButton.waitUntilExists(timeout: 5), "沒有關閉鈕 \(close)", file: file, line: line)
+        XCTAssertLessThan(closeButton.frame.midX, midX, "關閉鈕不在左上", file: file, line: line)
+        if let confirm {
+            let confirmButton = buttons[confirm].firstMatch
+            XCTAssertTrue(confirmButton.exists, "沒有確認 ✓ \(confirm)", file: file, line: line)
+            XCTAssertGreaterThan(confirmButton.frame.midX, midX, "確認 ✓ 不在右上", file: file, line: line)
+        }
+    }
+
+    /// 以左上角「X」關閉帳號與設定 sheet(#503、#613)並等它消失。
     @MainActor
     func closeAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
         let close = buttons["member.close"].exists ? buttons["member.close"] : buttons["member.signIn.cancel"]
-        XCTAssertTrue(close.waitUntilExists(timeout: 5), "帳號與設定沒有右上角 X", file: file, line: line)
+        XCTAssertTrue(close.waitUntilExists(timeout: 5), "帳號與設定沒有左上角 X", file: file, line: line)
+        XCTAssertLessThan(close.frame.midX, windows.firstMatch.frame.midX, "帳號與設定的 X 不在左上", file: file, line: line)
         close.tap()
         XCTAssertTrue(
             UITestWait.until(timeout: 5) { !self.element("sheet.account").exists && !self.element("account.signedOut").exists },

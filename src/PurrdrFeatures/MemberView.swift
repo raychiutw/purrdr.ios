@@ -46,7 +46,7 @@ public struct MemberView: View {
                 if entry.shownScreen(phase: model.phase, hasPlus: plus != nil) != nil {
                     AccountEntryToolbar(entry: $entry, onClose: { dismiss() })
                 } else {
-                    TrailingCloseToolbar(identifier: "member.close")
+                    SheetCloseToolbar(identifier: "member.close")
                 }
             }
         }
@@ -935,13 +935,7 @@ struct MergeConfirmView: View {
                             .accessibilityIdentifier("member.merge.blocked")
                     }
                 }
-                Section {
-                    Button("Combine Members") { Task { await model.confirmMerge() } }
-                        .disabled(!summary.canMerge || model.isWorking)
-                        .accessibilityIdentifier("member.merge.confirm")
-                    Button("Cancel", role: .cancel) { model.cancelMerge() }
-                        .accessibilityIdentifier("member.merge.cancel")
-                } footer: {
+                Section {} footer: {
                     Text("You’ll confirm it’s you before the members are combined.")
                 }
             }
@@ -950,6 +944,13 @@ struct MergeConfirmView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .toolbar {
+                SheetCloseToolbar(identifier: "member.merge.cancel") { model.cancelMerge() }
+                ModalConfirmToolbar(
+                    title: "Combine", identifier: "member.merge.confirm",
+                    isEnabled: summary.canMerge && !model.isWorking
+                ) { Task { await model.confirmMerge() } }
+            }
             .accessibilityIdentifier("sheet.merge")
         }
     }
@@ -1080,9 +1081,9 @@ struct AccountEntryToolbar: ToolbarContent {
                     .accessibilityIdentifier("member.entry.back")
             }
         case .close:
-            // 帳號與設定 sheet 的關閉在右上角「X」(#503)。
-            ToolbarItem(placement: .primaryAction) {
-                Button(role: .close, action: onClose)
+            // 所有 modal 的關閉都在左上角「X」(#613)。
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close", systemImage: "xmark", action: onClose)
                     .accessibilityLabel(entry.screen == .join ? Text("Close. Continue in Account Later") : Text("Close"))
                     .accessibilityIdentifier("member.signIn.cancel")
             }

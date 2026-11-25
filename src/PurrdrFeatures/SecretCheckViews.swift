@@ -23,6 +23,24 @@ struct SecretCheckSheet: View {
     let check: SecretCheck
 
     var body: some View {
+        NavigationStack {
+            content
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                // 左上 X 等於「返回編輯」(#613);頁內兩顆大按鈕維持。
+                .toolbar {
+                    SheetCloseToolbar(identifier: "secretCheck.close") { check.returnToEditing() }
+                }
+        }
+        .appSheet(detents: [.medium, .large])
+        .presentationDragIndicator(.visible)
+        // 容器自己一個 identifier,不蓋掉各列與按鈕的。
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("secretCheck.sheet")
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.shield.fill")
@@ -34,7 +52,7 @@ struct SecretCheckSheet: View {
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("secretCheck.title")
             }
-            .padding(.top, 24)
+            .padding(.top, 8)
             VStack(spacing: 0) {
                 ForEach(Array(review.findings.enumerated()), id: \.offset) { index, finding in
                     if index > 0 { Divider().padding(.leading, 44) }
@@ -69,11 +87,6 @@ struct SecretCheckSheet: View {
         }
         .padding(.horizontal)
         .padding(.bottom)
-        .appSheet(detents: [.medium, .large])
-        .presentationDragIndicator(.visible)
-        // 容器自己一個 identifier,不蓋掉各列與按鈕的。
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("secretCheck.sheet")
     }
 
     private func findingRow(_ finding: SecretFinding) -> some View {
