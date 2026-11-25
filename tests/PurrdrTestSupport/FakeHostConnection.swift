@@ -209,6 +209,11 @@ public actor FakeHostConnection: HostConnection {
         return try await HerdrClient(connection: self).wireWaitForAgent(target: target, until: until, timeout: timeout)
     }
 
+    public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        typedCalls.append("subscribeToEvents \(subscriptions.count)")
+        return try await HerdrClient(connection: self).wireSubscribe(subscriptions)
+    }
+
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
         let method = Self.method(of: request)
         let reply = try consume(request)

@@ -105,6 +105,11 @@ public struct HerdrClient: Sendable {
     /// 持續讀事件，直到主機那端結束、herdr 回錯誤(例如 `events_lost`),或呼叫端不再讀(此時關閉串流)。
     /// 串流第一項是 `.subscriptionStarted`;在它之前就結束算失敗(行為規格 §3.7)。
     public func subscribe(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        try await connection.subscribeToEvents(subscriptions)
+    }
+
+    /// `subscribe` 的 herdr NDJSON 實作(型別化操作預設實作用)。
+    package func wireSubscribe(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
         let lines = try await connection.herdrEvents(Self.requestLine(method: "events.subscribe", params: SubscribeParams(subscriptions: subscriptions)))
         let (events, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
         let reader = Task {

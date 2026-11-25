@@ -81,6 +81,18 @@ struct TypedCallerMigration2Tests {
         #expect(await connection.typedCalls == ["herdrVersion", "listIntegrations", "reportPresence w1:p1 - 7"])
     }
 
+    @Test("HerdrClient 訂閱事件經 subscribeToEvents,第一項是 subscriptionStarted")
+    func subscribeEvents() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect("events.subscribe", reply: Fixtures.data("events.subscribe.started.ndjson"))
+
+        let events = try await HerdrClient(connection: connection).subscribe([.init(.workspaceCreated)])
+        var iterator = events.makeAsyncIterator()
+
+        #expect(try await iterator.next() == .subscriptionStarted)
+        #expect(await connection.typedCalls == ["subscribeToEvents 1"])
+    }
+
     // MARK: - HTTPS 直接對應主機服務訊息
 
     private static func connection(to service: FakeHostService) -> HTTPSHostConnection {
@@ -102,6 +114,19 @@ struct TypedCallerMigration2Tests {
             _ = try await connection.waitForAgent(target: "w1:p1", until: [.idle], timeout: .seconds(1))
         }
         #expect(!service.log.messages.contains { $0.contains("integration.list") || $0.contains("agent.get") })
+    }
+
+    @Test("HTTPS 事件訂閱:直接送出 HerdrEvent(先 subscriptionStarted,再主機推的事件),不經 herdr 事件行")
+    func httpsSubscribeToEvents() async throws {
+        let service = try await FakeHostService.start(.init(hostServiceVersion: "0.15.0"))
+        defer { Task { await service.stop() } }
+
+        let events = try await Self.connection(to: service).subscribeToEvents([.agentStatusChanged(paneID: "w1:p6")])
+        service.pushEvent("pane_agent_status_changed", paneID: "w1:p6")
+        var iterator = events.makeAsyncIterator()
+
+        #expect(try await iterator.next() == .subscriptionStarted)
+        #expect(try await iterator.next() == .event(name: "pane_agent_status_changed", paneID: "w1:p6"))
     }
 
     @Test("HTTPS 建立 workspace:回 workspace 與 root pane,沒有 root tab id(呼叫端略過 tab 命名)")

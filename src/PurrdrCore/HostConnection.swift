@@ -106,6 +106,10 @@ public protocol HostConnection: Sendable {
     /// 等 agent 進入 `until` 其中一個狀態;herdr 自己逾時回 `false`。HTTPS 沒有這個操作,丟 `unsupported`。
     func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool
 
+    /// 訂閱事件:主機接受後第一項是 `.subscriptionStarted`,之後是事件;在它之前就結束算失敗。
+    /// 持續讀到主機那端結束、herdr 回錯誤(例如 `events_lost`)或呼叫端不再讀(此時關閉串流)。
+    func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error>
+
     /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
     func beginQuickDisconnectDetection() async
 
@@ -191,6 +195,9 @@ extension HostConnection {
     }
     public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
         try await HerdrClient(connection: self).wireWaitForAgent(target: target, until: until, timeout: timeout)
+    }
+    public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        try await HerdrClient(connection: self).wireSubscribe(subscriptions)
     }
 }
 
