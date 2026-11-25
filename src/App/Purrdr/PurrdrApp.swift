@@ -33,6 +33,8 @@ struct PurrdrApp: App {
     private let pairingCodeScanSource: PairingCodeScanSource
     /// 捲動卡頓記錄器(只記數字,存在這支手機;設定頁可關閉、分享、清除)。
     private let hitchRecorder: HitchRecorder
+    /// 啟動提示「上次 Purrdr 意外關閉」(#632)。
+    private let crashNotice: CrashNoticeModel
     /// MetricKit 每日摘要(只在真實啟動訂閱;UI 測試不接)。
     private let hitchMetrics: HitchMetricKitSubscriber?
     private let recentPhotoSource: RecentPhotoSource
@@ -220,6 +222,12 @@ struct PurrdrApp: App {
             subscriber.start()
             hitchMetrics = subscriber
         }
+        // `-uiTestingCrashRecord`:預放一筆「上次異常結束」的閃退記錄(#632)。提示的已讀狀態 UI 測試只放記憶體。
+        if uiTesting, arguments.contains("-uiTestingCrashRecord") {
+            hitchRecorder.recordUITestingCrash()
+        }
+        crashNotice = CrashNoticeModel(
+            recorder: hitchRecorder, store: uiTesting ? InMemoryCrashNoticeStore() : UserDefaultsCrashNoticeStore())
         settings = Self.makeSettings(hosts: hosts, hitchRecorder: hitchRecorder)
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
@@ -492,7 +500,7 @@ struct PurrdrApp: App {
         WindowGroup(id: PurrdrCommands.mainWindowID) {
             TopNavigationView(
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
-                welcome: welcome, appLock: appLock, inspectorStore: inspectorStore)
+                welcome: welcome, appLock: appLock, inspectorStore: inspectorStore, crashNotice: crashNotice)
             .appAppearance()
             .transaction { if Self.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
             .appLockCover(appLock)

@@ -9653,6 +9653,17 @@
         }
       }
     },
+    "Purrdr closed unexpectedly last time" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次 Purrdr 意外關閉"
+          }
+        }
+      }
+    },
     "Purrdr couldn’t be reached. You’re still signed in." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11134,6 +11145,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享連結"
+          }
+        }
+      }
+    },
+    "Share Log" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享記錄"
           }
         }
       }
