@@ -145,8 +145,8 @@ final class HostsUITests: XCTestCase {
             XCTAssertFalse(app.buttons["hosts.edit"].exists)
         }
 
-        // 掃 QR code／點分享連結(深層連結)→ 主機 tab 開出新增主機引導，資料已齊，直接到測試連線，通過後才能加入。
-        step("分享連結開引導直接到測試連線") {
+        // 掃 QR code／點分享連結(深層連結)→ 主機 tab 開出新增主機引導，資料已齊，停在測試連線的確認頁(顯示連線目標，#573);按下「Test Connection」才測試，通過後才能加入。
+        step("分享連結開引導停在確認頁，按下才測試") {
             XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 10))
             // HostShareLink:name Studio Mac、host studio-mac、port 22、user demo。
             let payload = #"{"host":"studio-mac","method":"tailscaleSSH","name":"Studio Mac","port":22,"user":"demo","v":1}"#
@@ -154,8 +154,14 @@ final class HostsUITests: XCTestCase {
                 .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
             app.open(URL(string: "purrdr://host?d=\(encoded)")!)
 
+            // #573:只到確認頁,顯示連線目標、還沒測試;按下才測試連線。
+            let confirm = app.buttons["guide.confirmTest"]
+            XCTAssertTrue(confirm.waitUntilExists(timeout: 15), "沒有停在測試連線的確認頁\n\(app.debugDescription)")
+            XCTAssertTrue(app.staticTexts["guide.target"].exists, "確認頁沒有顯示連線目標")
+            XCTAssertFalse(app.buttons["guide.save"].exists, "確認前不該已通過測試")
+            confirm.tap()
             let save = app.buttons["guide.save"]
-            XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有直接到測試連線\n\(app.debugDescription)")
+            XCTAssertTrue(save.waitUntilExists(timeout: 15), "按下測試後沒有通過連線測試\n\(app.debugDescription)")
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
             app.openHostsTab()
