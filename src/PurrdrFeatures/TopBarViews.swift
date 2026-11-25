@@ -133,7 +133,7 @@ private struct TopBarHostScopeMenu: View {
                     if content.hostScope.showsDot {
                         Circle()
                             .fill(Color.appAccent)
-                            .frame(width: TopBarMetrics.dotDiameter, height: TopBarMetrics.dotDiameter)
+                            .frame(maxWidth: TopBarMetrics.dotDiameter, maxHeight: TopBarMetrics.dotDiameter)
                             .offset(x: 3, y: -3)
                             .accessibilityHidden(true)
                             .accessibilityIdentifier("topBar.hostDot")

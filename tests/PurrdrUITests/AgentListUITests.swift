@@ -59,37 +59,33 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
     }
 
-    /// 聊天列表頂部(#499):共用頂列。左側大標題,右側 [電腦圖示｜＋] 與頭像(由左到右),搜尋欄在標題列下方;
-    /// 往下滑時標題列收起、搜尋欄仍可用並貼近頂端,回到頂端標題列回來。
+    /// 聊天列表頂部(#615):系統導覽列。大標題、右側 [電腦圖示｜＋] 與頭像(由左到右),系統搜尋欄;
+    /// 往下滑時系統收合大標題,搜尋欄仍可用,回到頂端大標題回來。
     @MainActor
     func testChatListTopBarCollapsesOnScroll() {
         // 字級調大讓 Spaces 的列夠多、列表高過畫面才捲得動(Demo 的列不多)。
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"], contentSize: "UICTContentSizeCategoryXXXL")
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
-        let title = app.staticTexts["topBar.title"]
+        let title = app.topBarTitle("Chats")
         XCTAssertTrue(title.waitUntilExists(timeout: 5), "沒有大標題")
         let host = app.buttons["toolbar.currentHost"].firstMatch
         let newChat = app.buttons["toolbar.newChat"].firstMatch
         let account = app.buttons["toolbar.account"].firstMatch
         XCTAssertTrue(host.exists && newChat.exists && account.exists, "頂列缺控制項")
-        XCTAssertLessThan(title.frame.minX, host.frame.minX, "標題不在電腦圖示左邊")
         XCTAssertLessThan(host.frame.minX, newChat.frame.minX, "電腦圖示不在＋左邊")
         XCTAssertLessThan(newChat.frame.minX, account.frame.minX, "＋不在頭像左邊")
-        let search = app.chatSearch
-        XCTAssertTrue(search.exists, "沒有搜尋欄")
-        XCTAssertGreaterThan(search.frame.minY, title.frame.maxY - 1, "搜尋欄不在標題下方")
-        let topY = search.frame.minY
+        XCTAssertTrue(app.chatSearch.exists, "沒有搜尋欄")
+        XCTAssertTrue(app.navigationBars.firstMatch.exists, "系統導覽列不見了")
 
         let list = app.collectionViews.firstMatch
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
-        XCTAssertTrue(title.waitUntilGone(timeout: 5), "往下滑後標題列沒有收起")
-        XCTAssertTrue(search.waitUntilExists(timeout: 5), "往下滑後搜尋欄不見了")
-        XCTAssertLessThan(search.frame.minY, topY, "搜尋欄沒有上移貼頂")
+        XCTAssertTrue(app.chatSearch.waitUntilExists(timeout: 5), "往下滑後搜尋欄不見了")
+        XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "往下滑後頭像不見了")
 
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)))
-        XCTAssertTrue(title.waitUntilExists(timeout: 5), "回到頂端後標題列沒有回來")
+        XCTAssertTrue(title.waitUntilExists(timeout: 5), "回到頂端後大標題沒有回來")
     }
 
     /// AX 字級下 4 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。

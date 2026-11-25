@@ -34,7 +34,7 @@ final class CrashNoticeUITests: XCTestCase {
         app.terminate()
 
         let relaunched = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord", "-uiTestingKeepCrashNotice"])
-        XCTAssertTrue(relaunched.element("topBar.title").waitUntilExists(timeout: 10), "app 沒有重新啟動")
+        XCTAssertTrue(relaunched.topBarTitle("Chats").waitUntilExists(timeout: 10), "app 沒有重新啟動")
         XCTAssertFalse(relaunched.otherElements["crashNotice.banner"].waitUntilExists(timeout: 3), "關閉過的提示重啟後又出現")
     }
 
@@ -46,7 +46,7 @@ final class CrashNoticeUITests: XCTestCase {
         app.terminate()
 
         let relaunched = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord", "-uiTestingKeepCrashNotice"])
-        XCTAssertTrue(relaunched.element("topBar.title").waitUntilExists(timeout: 10), "app 沒有重新啟動")
+        XCTAssertTrue(relaunched.topBarTitle("Chats").waitUntilExists(timeout: 10), "app 沒有重新啟動")
         XCTAssertFalse(relaunched.otherElements["crashNotice.banner"].waitUntilExists(timeout: 3), "顯示過的提示重啟後又出現")
     }
 

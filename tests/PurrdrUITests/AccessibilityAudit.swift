@@ -245,8 +245,8 @@ enum AccessibilityAuditExclusions {
             reason: "頂列搜尋欄(聊天 `agentList.search`、檔案 `files.search`)的文字上限 xxxLarge(欄高本來就有 1.45 倍上限，避免放大鏡圖示比膠囊大):"
                 + "DESIGN.md「文字一律用 text style」明列的封頂例外;audit 因此回報「部分不支援」。更大的字級靠 Large Content Viewer"
         ) { issue, _ in
-            guard let element = issue.element, element.elementType == .textField else { return false }
-            return ["agentList.search", "files.search"].contains(element.identifier)
+            guard let element = issue.element, element.elementType == .searchField else { return false }
+            return true
         },
         Rule(
             types: .textClipped,

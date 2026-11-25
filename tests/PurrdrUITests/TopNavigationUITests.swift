@@ -79,7 +79,7 @@ final class TopNavigationUITests: XCTestCase {
         var accountFrames: [(name: String, frame: CGRect)] = []
         for tab in tabs {
             tab.open()
-            let title = app.staticTexts["topBar.title"].firstMatch
+            let title = app.topBarTitle(tab.title)
             XCTAssertTrue(title.waitUntilExists(timeout: 10), "\(tab.name) tab 沒有大標題")
             XCTAssertEqual(title.label, tab.title, "\(tab.name) tab 的大標題不是 tab 名稱")
             let account = app.buttons["toolbar.account"].firstMatch

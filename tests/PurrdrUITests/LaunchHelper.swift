@@ -68,8 +68,11 @@ func chatRowID(_ paneID: String, host: String = "demo") -> String {
 }
 
 extension XCUIApplication {
-    /// 聊天 tab 共用頂列的搜尋欄(#499:自己畫的文字欄位,往下滑收成貼頂玻璃膠囊)。
-    var chatSearch: XCUIElement { textFields["agentList.search"].firstMatch }
+    /// 第一階 tab 頂列的搜尋欄(#615:系統 `searchable`,沒有自訂識別碼,一個畫面只有一個搜尋欄)。
+    var chatSearch: XCUIElement { searchFields.firstMatch }
+
+    /// 第一階 tab 的大標題(#615:系統導覽列的大標題,識別碼 `topBar.title` 已不存在,以標題文字找)。
+    func topBarTitle(_ title: String) -> XCUIElement { navigationBars.staticTexts[title].firstMatch }
 
     /// 聊天列表已經出現(取代舊的 Agents／Spaces 切換鈕:用來等列表載入完成;頂列的新增聊天鈕一直都在)。
     var chatListReady: XCUIElement { buttons["toolbar.newChat"].firstMatch }
