@@ -7,7 +7,7 @@ import PurrdrCore
 /// 之後的擴充點:Spaces 檢視(#40)是另一種投影。已釘選群組、未讀(#41)的規則在 `ChatUnread.swift`。
 package enum AgentListProjection {
     /// 一台主機的資料。
-    package struct Source {
+    package struct Source: Equatable {
         package var host: HostSelection
         /// 非選取中主機的名稱與圖示;選取中主機為 `nil`(列上不標示)。
         package var label: HostLabel?
@@ -23,6 +23,14 @@ package enum AgentListProjection {
         package var now = Date()
         /// 離開期間的輪數(pane id → 輪數;已算出才有，#308)。
         package var awayTurns: [String: Int] = [:]
+
+        /// 投影快取的輸入比對(#583):`now` 以分鐘為單位比較(離開期間門檻 15 分鐘,每次繪製的 `Date()` 不同不該讓快取失效)。
+        package static func == (lhs: Source, rhs: Source) -> Bool {
+            lhs.host == rhs.host && lhs.label == rhs.label && lhs.name == rhs.name && lhs.icon == rhs.icon
+                && lhs.snapshot == rhs.snapshot && lhs.previews == rhs.previews && lhs.preferences == rhs.preferences
+                && lhs.awayTurns == rhs.awayTurns
+                && Int(lhs.now.timeIntervalSince1970 / 60) == Int(rhs.now.timeIntervalSince1970 / 60)
+        }
     }
 
     package static func sections(

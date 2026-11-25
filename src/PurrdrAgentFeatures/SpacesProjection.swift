@@ -155,11 +155,18 @@ extension AgentListProjection {
             for id in snapshot.agents.map(\.workspaceID) + snapshot.panes.map(\.workspaceID) where !workspaceIDs.contains(id) {
                 workspaceIDs.append(id)
             }
+            // 先依 workspace 分組一次,各段只拿自己的 agent、pane 與 Tab(#583)。
+            let agentsByWorkspace = Dictionary(grouping: snapshot.agents, by: \.workspaceID)
+            let panesByWorkspace = Dictionary(grouping: snapshot.panes, by: \.workspaceID)
+            let tabsByWorkspace = Dictionary(grouping: snapshot.tabs, by: \.workspaceID)
+            let labels = Dictionary(snapshot.workspaces.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
             return workspaceIDs.compactMap { workspaceID in
-                let tabs = spacesTabs(workspaceID: workspaceID, source: source, snapshot: snapshot, visible: visible)
+                let tabs = spacesTabs(
+                    workspaceID: workspaceID, source: source, agents: agentsByWorkspace[workspaceID] ?? [],
+                    panes: panesByWorkspace[workspaceID] ?? [], snapshotTabs: tabsByWorkspace[workspaceID] ?? [], visible: visible)
                 guard !tabs.isEmpty else { return nil }
-                let agent = snapshot.agents.first { $0.workspaceID == workspaceID }
-                let label = snapshot.workspaces.first { $0.id == workspaceID }?.label ?? agent.map(AgentRowText.workspaceName) ?? workspaceID
+                let agent = agentsByWorkspace[workspaceID]?.first
+                let label = labels[workspaceID].flatMap { $0 } ?? agent.map(AgentRowText.workspaceName) ?? workspaceID
                 return SpacesSection(
                     host: source.host, hostName: source.name, hostIcon: source.icon, workspaceID: workspaceID, workspace: label, tabs: tabs)
             }
@@ -167,25 +174,27 @@ extension AgentListProjection {
     }
 
     /// 一個 workspace 的 Tab 列：herdr 回報的 Tab(有 pane 的才列),加上沒有 Tab 的 pane(各自一列)。
-    private static func spacesTabs(workspaceID: String, source: Source, snapshot: HostSnapshot, visible: Set<ChatRoute>) -> [SpacesTab] {
+    private static func spacesTabs(
+        workspaceID: String, source: Source, agents: [Agent], panes initialPanes: [Pane], snapshotTabs: [Tab], visible: Set<ChatRoute>
+    ) -> [SpacesTab] {
         let host = source.host
-        let agents = snapshot.agents.filter { $0.workspaceID == workspaceID }
-        var panes = snapshot.panes.filter { $0.workspaceID == workspaceID }
+        var panes = initialPanes
+        let agentByPane = Dictionary(agents.map { ($0.paneID, $0) }, uniquingKeysWith: { first, _ in first })
         // 只出現在 agents 的 pane(舊版 herdr 的 panes 不含 agent)也算。
         for agent in agents where !panes.contains(where: { $0.id == agent.paneID }) {
             panes.append(Pane(id: agent.paneID, workspaceID: workspaceID, tabID: agent.tabID ?? ""))
         }
         func tabID(of pane: Pane) -> String? {
-            let id = pane.tabID.isEmpty ? agents.first { $0.paneID == pane.id }?.tabID : pane.tabID
+            let id = pane.tabID.isEmpty ? agentByPane[pane.id]?.tabID : pane.tabID
             return id.flatMap { $0.isEmpty ? nil : $0 }
         }
-        let tabs = snapshot.tabs.filter { $0.workspaceID == workspaceID }.sorted { $0.number < $1.number }
+        let tabs = snapshotTabs.sorted { $0.number < $1.number }
         var rows: [SpacesTab] = tabs.enumerated().compactMap { index, tab in
             let tabPanes = panes.filter { tabID(of: $0) == tab.id }
             guard let first = tabPanes.first else { return nil }
             let target: SpacesTab.Target = tabPanes.count == 1
                 ? .pane(ChatRoute(host: host, paneID: first.id)) : .layout(workspaceID: workspaceID, tabID: tab.id)
-            let tabAgents = tabPanes.compactMap { pane in agents.first { $0.paneID == pane.id } }
+            let tabAgents = tabPanes.compactMap { agentByPane[$0.id] }
             let contents = tabAgents.first.map { agent in
                 let title = AgentRowText.title(for: agent, siblings: agents)
                 return tabAgents.count > 1 ? "\(title) +\(tabAgents.count - 1)" : title
@@ -200,15 +209,16 @@ extension AgentListProjection {
         }
         let known = Set(tabs.map(\.id))
         for pane in panes where tabID(of: pane).map({ !known.contains($0) }) ?? true {
-            let title = agents.first { $0.paneID == pane.id }.map { AgentRowText.title(for: $0, siblings: agents) }
+            let title = agentByPane[pane.id].map { AgentRowText.title(for: $0, siblings: agents) }
                 ?? TerminalRow(pane: pane, host: host, hostLabel: nil).program
+            let paneAgents = agents.filter { $0.paneID == pane.id }
             rows.append(SpacesTab(
                 host: host, key: pane.id, title: title, target: .pane(ChatRoute(host: host, paneID: pane.id)),
-                avatar: avatar(for: agents.filter { $0.paneID == pane.id }, source: source, visible: visible),
-                searchTerms: agents.filter { $0.paneID == pane.id }.map { AgentRowText.title(for: $0, siblings: agents) },
-                agent: agents.first { $0.paneID == pane.id }.map { representative($0, siblings: agents, source: source, visible: visible) },
-                chatSessionIDs: agents.filter { $0.paneID == pane.id }.compactMap(\.sessionID),
-                blockedPaneIDs: agents.filter { $0.paneID == pane.id && $0.effectiveStatus == .blocked }.map(\.paneID)))
+                avatar: avatar(for: paneAgents, source: source, visible: visible),
+                searchTerms: paneAgents.map { AgentRowText.title(for: $0, siblings: agents) },
+                agent: paneAgents.first.map { representative($0, siblings: agents, source: source, visible: visible) },
+                chatSessionIDs: paneAgents.compactMap(\.sessionID),
+                blockedPaneIDs: paneAgents.filter { $0.effectiveStatus == .blocked }.map(\.paneID)))
         }
         return rows
     }
