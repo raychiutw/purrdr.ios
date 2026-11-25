@@ -80,6 +80,58 @@ public actor FakeHostConnection: HostConnection {
     /// 還沒被送出的預期請求(method)。
     public var unmetExpectations: [String] { expectations.map(\.method) }
 
+    // MARK: - 型別化操作(ADR-0015、#594)
+
+    private var snapshotStubs: [HostSnapshot] = []
+    private var paneScreenStubs: [String] = []
+    private var transcriptFileStubs: [TranscriptFile] = []
+    private var transcriptChunkStubs: [TranscriptChunk] = []
+    /// 型別化操作的呼叫紀錄(依序;只記操作名稱與主要參數，文字內容照原樣)。
+    public private(set) var typedCalls: [String] = []
+
+    /// 下一次 `readSnapshot()` 直接回這個值(依序消耗)。用完或沒設定就退回 herdr 請求回放(`expect("session.snapshot", …)`)。
+    public func stub(snapshot: HostSnapshot) { snapshotStubs.append(snapshot) }
+    /// 下一次 `readPaneScreen` 直接回這段畫面文字。
+    public func stub(paneScreen: String) { paneScreenStubs.append(paneScreen) }
+    /// 下一次 `locateTranscript` 直接回這個檔案。
+    public func stub(transcriptFile: TranscriptFile) { transcriptFileStubs.append(transcriptFile) }
+    /// 下一次 `readTranscriptWindow` 直接回這段。
+    public func stub(transcriptChunk: TranscriptChunk) { transcriptChunkStubs.append(transcriptChunk) }
+
+    public func readSnapshot() async throws -> HostSnapshot {
+        typedCalls.append("readSnapshot")
+        if !snapshotStubs.isEmpty { return snapshotStubs.removeFirst() }
+        return try await HerdrClient(connection: self).snapshot()
+    }
+
+    public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
+        typedCalls.append("sendKeys \(paneID) \(keys.joined(separator: ","))")
+        try await HerdrClient(connection: self).sendKeys(paneID: paneID, keys: keys, expecting: expecting)
+    }
+
+    public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
+        typedCalls.append("sendText \(paneID) \(text)")
+        try await HerdrClient(connection: self).sendText(paneID: paneID, text: text, expecting: expecting)
+    }
+
+    public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
+        typedCalls.append("readPaneScreen \(paneID) \(lines) \(format == .ansi ? "ansi" : "text")")
+        if !paneScreenStubs.isEmpty { return paneScreenStubs.removeFirst() }
+        return try await HerdrClient(connection: self).readPane(paneID: paneID, lines: lines, format: format)
+    }
+
+    public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile {
+        typedCalls.append("locateTranscript")
+        if !transcriptFileStubs.isEmpty { return transcriptFileStubs.removeFirst() }
+        return try await TranscriptReader(connection: self).locate(location)
+    }
+
+    public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
+        typedCalls.append("readTranscriptWindow \(path) \(end) \(lines) \(maxBytes)")
+        if !transcriptChunkStubs.isEmpty { return transcriptChunkStubs.removeFirst() }
+        return try await TranscriptReader(connection: self).window(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
+    }
+
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
         let method = Self.method(of: request)
         let reply = try consume(request)
