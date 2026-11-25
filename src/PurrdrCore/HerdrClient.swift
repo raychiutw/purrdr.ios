@@ -38,6 +38,11 @@ public struct HerdrClient: Sendable {
 
     /// 讀主機目前的全量狀態(`session.snapshot`)。
     public func snapshot() async throws -> HostSnapshot {
+        try await connection.readSnapshot()
+    }
+
+    /// `snapshot()` 的 herdr NDJSON 實作(連線的型別化操作預設實作用;ADR-0015)。
+    package func wireSnapshot() async throws -> HostSnapshot {
         let result = try await request(method: "session.snapshot", as: SnapshotResult.self)
         return result.snapshot.hostSnapshot
     }
@@ -73,6 +78,11 @@ public struct HerdrClient: Sendable {
     /// `format` 預設 `.text`(不帶 `format`,herdr 去掉 ANSI);`.ansi` 保留 SGR 等跳脫序列，行尾是 `\r\n`
     /// (#122:建議提示詞只能從 dim 屬性認出來)。
     public func readPane(paneID: String, lines: Int = 40, format: PaneReadFormat = .text) async throws -> String {
+        try await connection.readPaneScreen(paneID: paneID, lines: lines, format: format)
+    }
+
+    /// `readPane` 的 herdr NDJSON 實作(型別化操作預設實作用)。
+    package func wireReadPane(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
         let params = PaneReadParams(paneID: paneID, source: "visible", lines: lines, format: format == .ansi ? "ansi" : nil)
         let result = try await request(method: "pane.read", params: params, as: PaneReadResult.self)
         return result.read.text
@@ -247,11 +257,21 @@ public struct HerdrClient: Sendable {
 
     /// `pane.send_keys`(herdr 鍵名語法：`enter`、`esc`、`ctrl+c`,§3.4)。
     public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation = .none) async throws {
+        try await connection.sendKeys(paneID: paneID, keys: keys, expecting: expecting)
+    }
+
+    /// `sendKeys` 的 herdr NDJSON 實作(型別化操作預設實作用)。
+    package func wireSendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
         _ = try await request(method: "pane.send_keys", params: Expecting(SendKeysParams(paneID: paneID, keys: keys), await checked(expecting)), as: TypedResult.self)
     }
 
     /// `pane.send_text`:把文字原樣打進 pane(不含 Enter)。用在 Claude 問題卡「Type something.」的自訂回答(#120)。
     public func sendText(paneID: String, text: String, expecting: SendExpectation = .none) async throws {
+        try await connection.sendText(paneID: paneID, text: text, expecting: expecting)
+    }
+
+    /// `sendText` 的 herdr NDJSON 實作(型別化操作預設實作用)。
+    package func wireSendText(paneID: String, text: String, expecting: SendExpectation) async throws {
         _ = try await request(method: "pane.send_text", params: Expecting(SendTextParams(paneID: paneID, text: text), await checked(expecting)), as: TypedResult.self)
     }
 

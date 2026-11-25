@@ -101,35 +101,35 @@ public actor FakeHostConnection: HostConnection {
     public func readSnapshot() async throws -> HostSnapshot {
         typedCalls.append("readSnapshot")
         if !snapshotStubs.isEmpty { return snapshotStubs.removeFirst() }
-        return try await HerdrClient(connection: self).snapshot()
+        return try await HerdrClient(connection: self).wireSnapshot()
     }
 
     public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
         typedCalls.append("sendKeys \(paneID) \(keys.joined(separator: ","))")
-        try await HerdrClient(connection: self).sendKeys(paneID: paneID, keys: keys, expecting: expecting)
+        try await HerdrClient(connection: self).wireSendKeys(paneID: paneID, keys: keys, expecting: expecting)
     }
 
     public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
         typedCalls.append("sendText \(paneID) \(text)")
-        try await HerdrClient(connection: self).sendText(paneID: paneID, text: text, expecting: expecting)
+        try await HerdrClient(connection: self).wireSendText(paneID: paneID, text: text, expecting: expecting)
     }
 
     public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
         typedCalls.append("readPaneScreen \(paneID) \(lines) \(format == .ansi ? "ansi" : "text")")
         if !paneScreenStubs.isEmpty { return paneScreenStubs.removeFirst() }
-        return try await HerdrClient(connection: self).readPane(paneID: paneID, lines: lines, format: format)
+        return try await HerdrClient(connection: self).wireReadPane(paneID: paneID, lines: lines, format: format)
     }
 
     public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile {
         typedCalls.append("locateTranscript")
         if !transcriptFileStubs.isEmpty { return transcriptFileStubs.removeFirst() }
-        return try await TranscriptReader(connection: self).locate(location)
+        return try await TranscriptReader(connection: self).wireLocate(location)
     }
 
     public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
         typedCalls.append("readTranscriptWindow \(path) \(end) \(lines) \(maxBytes)")
         if !transcriptChunkStubs.isEmpty { return transcriptChunkStubs.removeFirst() }
-        return try await TranscriptReader(connection: self).window(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
+        return try await TranscriptReader(connection: self).wireWindow(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
     }
 
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {

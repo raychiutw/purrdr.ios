@@ -83,7 +83,7 @@ public struct TranscriptReader: Sendable {
     ///   - windowChunkBytes: 視窗讀取每次往前取的區塊大小(測試用小值驗證「放大區塊重數」)。
     ///   - marker: 列表預覽的分隔標記產生器(每次呼叫隨機;測試注入固定值)。
     public init(
-        connection: any HostConnection, windowChunkBytes: Int = 4 << 20,
+        connection: any HostConnection, windowChunkBytes: Int = TranscriptReader.defaultWindowChunkBytes,
         marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString }
     ) {
         self.connection = connection
@@ -108,6 +108,11 @@ public struct TranscriptReader: Sendable {
     }
 
     package func locate(_ location: TranscriptLocation) async throws -> TranscriptFile {
+        try await connection.locateTranscript(location)
+    }
+
+    /// `locate` 的腳本輸出實作(連線的型別化操作預設實作用;ADR-0015)。
+    package func wireLocate(_ location: TranscriptLocation) async throws -> TranscriptFile {
         guard location.isSafe else { throw TranscriptReadError.invalidReference }
         return try Self.locatedFile(lines: try await run(.locate(location)).lines, for: location)
     }
@@ -131,6 +136,18 @@ public struct TranscriptReader: Sendable {
     /// `maxBytes` 有值時範圍最多往前取那麼多 bytes(只含完整的行，可能少於 `lines` 行，也可能一行都放不下而是空的;
     /// 呼叫端自己決定要不要放寬)。HTTPS 主機服務 0.11.0 起的 `transcript.window` 有 `max_bytes`(`HostServiceFeature.transcriptWindowMaxBytes`),更舊的只照行數。
     public func window(path: String, endingAt end: Int, lines: Int, maxBytes: Int? = nil) async throws -> TranscriptChunk {
+        guard Self.isValidPath(path), end >= 0, lines > 0, (maxBytes ?? 1) > 0 else { throw TranscriptReadError.invalidReference }
+        // 只有測試會縮小區塊(驗證放大區塊重數);型別化操作沒有區塊參數，非預設值時直接走腳本實作。
+        if windowChunkBytes != Self.defaultWindowChunkBytes {
+            return try await wireWindow(path: path, endingAt: end, lines: lines, maxBytes: maxBytes)
+        }
+        return try await connection.readTranscriptWindow(path: path, end: end, lines: lines, maxBytes: maxBytes ?? 0)
+    }
+
+    public static let defaultWindowChunkBytes = 4 << 20
+
+    /// `window` 的腳本輸出實作(型別化操作預設實作用)。
+    package func wireWindow(path: String, endingAt end: Int, lines: Int, maxBytes: Int?) async throws -> TranscriptChunk {
         guard Self.isValidPath(path), end >= 0, lines > 0, (maxBytes ?? 1) > 0 else { throw TranscriptReadError.invalidReference }
         let output = try await run(.window(path: path, end: end, lines: lines, chunkBytes: windowChunkBytes, maxBytes: maxBytes ?? 0))
         guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }

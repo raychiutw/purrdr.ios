@@ -40,3 +40,7 @@ Expand 批不改 AGENTS.md 的行為描述,只在遷移進度到哪時補一行�
 - 新增操作的成本從「兩種格式各寫一次」降成「領域型別一個,SSH 預設實作一個,HTTPS 一個直接對應」。
 - Expand 期間 HTTPS 同時有舊的組回格式路徑與新的型別化路徑,測試以「型別化結果等於舊路徑解出的結果」守住兩者一致(`TypedHostConnectionTests`)。
 - Contract 前舊程式碼仍在,所以多出一段過渡期的重複。
+
+## 遷移進度
+
+- Migrate(#595):`HerdrClient` 的 snapshot／送鍵／送文字／讀畫面與 `TranscriptReader` 的定位／讀視窗改經連線的型別化操作;原本的 herdr NDJSON／腳本實作改名 `wire*`，只留給 SSH 預設實作與 `FakeHostConnection` 的回放。其餘 `Data` 操作(prompt、workspace、事件、預覽等)留給 Contract 批(#596)。
