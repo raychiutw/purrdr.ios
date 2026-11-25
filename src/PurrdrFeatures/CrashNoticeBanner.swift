@@ -46,7 +46,12 @@ struct CrashNoticeBanner: View {
         .accessibilityAction(.escape) { model.dismiss() }
         .accessibilityIdentifier("crashNotice.banner")
         // 出現時念出來。
-        .onAppear { AccessibilityNotification.Announcement(String(localized: "Purrdr closed unexpectedly last time")).post() }
+        .onAppear {
+            model.didShow()
+            AccessibilityNotification.Announcement(String(localized: "Purrdr closed unexpectedly last time")).post()
+        }
+        // 提示開著時又換成另一筆閃退,也在顯示時記下。
+        .onChange(of: model.pending) { _, _ in model.didShow() }
     }
 }
 

@@ -18,10 +18,12 @@ public struct MetricKitCrashReport: Equatable, Sendable {
     public var app: String
     public var os: String
     public var device: String
+    /// payload 時間區間的開頭(`timestamp` 是尾端)。
+    public var periodStart: Date?
 
     public init(
         timestamp: Date, exceptionType: Int?, signal: Int?, terminationReason: String?, exceptionName: String?,
-        exceptionReason: String?, frames: [String], app: String, os: String, device: String
+        exceptionReason: String?, frames: [String], app: String, os: String, device: String, periodStart: Date? = nil
     ) {
         self.timestamp = timestamp
         self.exceptionType = exceptionType
@@ -33,6 +35,7 @@ public struct MetricKitCrashReport: Equatable, Sendable {
         self.app = app
         self.os = os
         self.device = device
+        self.periodStart = periodStart
     }
 
     /// 去重用的鍵:報告時間與內容(類型、訊號、例外、堆疊)。
@@ -65,10 +68,11 @@ public enum MetricKitCrashParser {
             let diagnostics = root["crashDiagnostics"] as? [[String: Any]]
         else { return [] }
         let timestamp = date(root["timeStampEnd"]) ?? date(root["timeStampBegin"]) ?? Date(timeIntervalSince1970: 0)
-        return diagnostics.map { report(from: $0, timestamp: timestamp) }
+        let start = date(root["timeStampBegin"])
+        return diagnostics.map { report(from: $0, timestamp: timestamp, periodStart: start) }
     }
 
-    private static func report(from diagnostic: [String: Any], timestamp: Date) -> MetricKitCrashReport {
+    private static func report(from diagnostic: [String: Any], timestamp: Date, periodStart: Date?) -> MetricKitCrashReport {
         let meta = diagnostic["diagnosticMetaData"] as? [String: Any] ?? [:]
         let objc = meta["objectiveCexceptionReason"] as? [String: Any]
         let version = meta["appVersion"] as? String ?? "?"
@@ -81,7 +85,8 @@ public enum MetricKitCrashParser {
             exceptionName: text(objc?["exceptionName"]),
             exceptionReason: text(objc?["composedMessage"] ?? objc?["message"]),
             frames: frames(from: diagnostic["callStackTree"] as? [String: Any]),
-            app: "\(version) (\(build))", os: os(meta["osVersion"] as? String), device: meta["deviceType"] as? String ?? "?")
+            app: "\(version) (\(build))", os: os(meta["osVersion"] as? String), device: meta["deviceType"] as? String ?? "?",
+            periodStart: periodStart)
     }
 
     private static func text(_ value: Any?) -> String? {

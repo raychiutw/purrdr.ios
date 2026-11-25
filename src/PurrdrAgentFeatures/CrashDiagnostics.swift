@@ -4,21 +4,43 @@ import Foundation
 // 下次啟動把標記轉成一筆閃退記錄並刪除標記。只記例外名稱與原因字串,不含使用者內容。
 
 /// 一筆閃退記錄。
-public struct CrashRecord: Equatable, Sendable {
+public struct CrashRecord: Equatable, Sendable, Codable {
     public var timestamp: Date
     public var name: String
     public var reason: String
     public var app: String
     public var os: String
     public var device: String
+    /// 只有 MetricKit 報告才有:整份 payload 涵蓋的時間區間(`timestamp` 是區間尾端,不是閃退的時間)。
+    public var reportPeriod: ClosedRange<Date>?
+    /// `name` 是不是真的例外名稱(MetricKit 的 Swift 執行期錯誤沒有例外名稱,`name` 只是備用文字)。
+    public var nameIsKnown: Bool
 
-    public init(timestamp: Date, name: String, reason: String, app: String, os: String, device: String) {
+    public init(
+        timestamp: Date, name: String, reason: String, app: String, os: String, device: String,
+        reportPeriod: ClosedRange<Date>? = nil, nameIsKnown: Bool = true
+    ) {
         self.timestamp = timestamp
         self.name = name
         self.reason = reason
         self.app = app
         self.os = os
         self.device = device
+        self.reportPeriod = reportPeriod
+        self.nameIsKnown = nameIsKnown
+    }
+
+    /// 是不是同一次閃退:中止前標記是一個時間點;MetricKit 報告是一段區間,
+    /// 區間內有同 app 版本、(有例外名稱時)同例外名稱的記錄就算同一次。
+    func isSameCrash(as other: CrashRecord) -> Bool {
+        guard app == other.app else { return false }
+        if let period = reportPeriod {
+            return period.contains(other.timestamp) && (!nameIsKnown || name == other.name)
+        }
+        if let period = other.reportPeriod {
+            return period.contains(timestamp) && (!other.nameIsKnown || name == other.name)
+        }
+        return timestamp == other.timestamp && name == other.name
     }
 }
 

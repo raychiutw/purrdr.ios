@@ -7,6 +7,7 @@ public enum CrashExceptionHandler {
     nonisolated(unsafe) private static var reporter: CrashReporter?
     nonisolated(unsafe) private static var previous: (@convention(c) (NSException) -> Void)?
 
+    @MainActor
     public static func install(_ reporter: CrashReporter) {
         guard Self.reporter == nil else { return }
         Self.reporter = reporter

@@ -9,8 +9,17 @@ import Testing
 struct CrashNoticeTests {
     nonisolated static let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
-    static func record(at time: Date = t0, name: String = "NSRangeException") -> CrashRecord {
-        CrashRecord(timestamp: time, name: name, reason: "r", app: "a", os: "o", device: "d")
+    static func record(at time: Date = t0, name: String = "NSRangeException", app: String = "a") -> CrashRecord {
+        CrashRecord(timestamp: time, name: name, reason: "r", app: app, os: "o", device: "d")
+    }
+
+    /// MetricKit 報告:時間是整份 payload 區間的尾端,區間預設 24 小時。
+    static func report(
+        end: Date, hours: Double = 24, name: String? = "NSRangeException", app: String = "a"
+    ) -> MetricKitCrashReport {
+        MetricKitCrashReport(
+            timestamp: end, exceptionType: nil, signal: 6, terminationReason: nil, exceptionName: name,
+            exceptionReason: nil, frames: [], app: app, os: "o", device: "d", periodStart: end.addingTimeInterval(-hours * 3_600))
     }
 
     static func make(store: InMemoryCrashNoticeStore = InMemoryCrashNoticeStore()) -> (CrashNoticeModel, HitchRecorder, InMemoryCrashNoticeStore) {
@@ -45,15 +54,79 @@ struct CrashNoticeTests {
         #expect(next.pending == nil)
     }
 
-    @Test("同一次閃退的第二筆記錄(標記加 MetricKit 報告)不再提示第二次")
-    func sameCrashSecondRecordDoesNotPromptAgain() {
-        let (model, recorder, _) = Self.make()
+    @Test("同一次閃退:MetricKit 報告的 24 小時區間涵蓋中止前標記、同版本同例外名稱,就不再提示第二次(仍寫入記錄)")
+    func reportWhosePeriodCoversMarkerIsSameCrash() {
+        let sink = RecordingHitchSink()
+        let defaults = UserDefaults(suiteName: "crashnotice-\(UUID().uuidString)")!
+        let recorder = HitchRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { Self.t0 })
+        let model = CrashNoticeModel(recorder: recorder, store: InMemoryCrashNoticeStore())
         recorder.recordCrash(Self.record())
-        recorder.recordCrash(Self.record(at: Self.t0.addingTimeInterval(30), name: "metrickit"))
+        // 報告的時間是區間尾端(標記之後 3 小時),和標記差遠超過 10 分鐘。
+        recorder.recordCrashReport(Self.report(end: Self.t0.addingTimeInterval(3 * 3_600)))
         #expect(model.pending == Self.record())
         model.dismiss()
-        recorder.recordCrash(Self.record(at: Self.t0.addingTimeInterval(60), name: "metrickit"))
+        recorder.recordCrashReport(Self.report(end: Self.t0.addingTimeInterval(3 * 3_600)))
         #expect(model.pending == nil)
+        #expect(sink.entries.count == 3, "三筆都要寫進記錄")
+    }
+
+    @Test("標記已提示過(上一次啟動),這次啟動才收到的 MetricKit 報告也算同一次")
+    func reportInLaterLaunchMatchesNoticedMarker() {
+        let store = InMemoryCrashNoticeStore()
+        let (first, recorder, _) = Self.make(store: store)
+        recorder.recordCrash(Self.record())
+        first.didShow()
+        let (second, secondRecorder, _) = Self.make(store: store)
+        secondRecorder.recordCrashReport(Self.report(end: Self.t0.addingTimeInterval(20 * 3_600)))
+        #expect(second.pending == nil)
+    }
+
+    @Test("MetricKit 報告:版本不同、例外名稱不同、區間沒涵蓋標記,都是另一次閃退")
+    func reportThatDoesNotMatchPromptsAgain() {
+        for report in [
+            Self.report(end: Self.t0.addingTimeInterval(3_600), app: "b"),
+            Self.report(end: Self.t0.addingTimeInterval(3_600), name: "NSInvalidArgumentException"),
+            Self.report(end: Self.t0.addingTimeInterval(48 * 3_600)),
+            Self.report(end: Self.t0.addingTimeInterval(-3_600)),
+        ] {
+            let (model, recorder, _) = Self.make()
+            recorder.recordCrash(Self.record())
+            model.dismiss()
+            recorder.recordCrashReport(report)
+            #expect(model.pending != nil, "\(report.app) \(report.exceptionName ?? "-") \(report.timestamp)")
+        }
+    }
+
+    @Test("MetricKit 報告沒有例外名稱(Swift 執行期錯誤):只比區間與版本")
+    func reportWithoutExceptionNameMatchesOnPeriodAndApp() {
+        let (model, recorder, _) = Self.make()
+        recorder.recordCrash(Self.record())
+        model.dismiss()
+        recorder.recordCrashReport(Self.report(end: Self.t0.addingTimeInterval(3_600), name: nil))
+        #expect(model.pending == nil)
+    }
+
+    @Test("真實形狀的 payload(24 小時區間)經 MetricKitCrashIntake 進來,和同一次的標記不重複提示")
+    func intakeFixtureDoesNotDuplicateMarker() {
+        let defaults = UserDefaults(suiteName: "crashnotice-\(UUID().uuidString)")!
+        let recorder = HitchRecorder(sink: RecordingHitchSink(), defaults: defaults, system: { .sample }, wallClock: { Self.t0 })
+        let model = CrashNoticeModel(recorder: recorder, store: InMemoryCrashNoticeStore())
+        let end = Date(timeIntervalSince1970: 1_795_593_600)
+        recorder.recordCrash(Self.record(at: end.addingTimeInterval(-3 * 3_600), name: "NSInternalInconsistencyException", app: "0.52.2 (7)"))
+        model.dismiss()
+        MetricKitCrashIntake(recorder: recorder, defaults: defaults).ingest(payloadJSON: MetricKitCrashFixtures.full)
+        #expect(model.pending == nil)
+    }
+
+    @Test("提示顯示時就記下已提示(不必按關閉):下次啟動不再提示")
+    func noticedWhenShownNotOnlyWhenDismissed() {
+        let store = InMemoryCrashNoticeStore()
+        let (model, recorder, _) = Self.make(store: store)
+        recorder.recordCrash(Self.record())
+        model.didShow()
+        let (next, nextRecorder, _) = Self.make(store: store)
+        nextRecorder.recordCrash(Self.record())
+        #expect(next.pending == nil)
     }
 
     @Test("另一次閃退(間隔夠久)再提示一次")
