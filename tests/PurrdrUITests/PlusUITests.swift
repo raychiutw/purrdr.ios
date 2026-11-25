@@ -131,7 +131,15 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.scrollIntoView(notifications, search: .up, limit: 8), "捲不回通知功能列")
 
         notifications.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.account"].firstMatch.waitUntilExists(timeout: 10), "點功能列沒有到帳號頁")
+        // 往右 push 對應的頁面(#619),不換成帳號 sheet。
+        XCTAssertTrue(app.descendants(matching: .any)["account.notifications.page"].firstMatch.waitUntilExists(timeout: 10), "點功能列沒有推入通知頁")
+        XCTAssertFalse(app.descendants(matching: .any)["sheet.account"].firstMatch.exists, "點功能列不該換成帳號 sheet")
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "左上沒有返回鈕")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let devices2 = app.descendants(matching: .any)["plus.feature.devices"].firstMatch
+        XCTAssertTrue(app.scrollIntoView(devices2, search: .down, limit: 8), "返回後沒有回到 Plus 頁")
+        devices2.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["account.pushDevices"].firstMatch.waitUntilExists(timeout: 10), "點通知裝置沒有推入裝置頁")
     }
 
 

@@ -56,6 +56,11 @@ final class WorkspaceActionsUITests: XCTestCase {
         XCTAssertTrue(agentBlock.label.contains("Codex"), "agent 方塊沒有念出 agent:\(agentBlock.label)")
         XCTAssertTrue(shellBlock.label.contains("npm run dev"), "shell 方塊沒有念出程式名:\(shellBlock.label)")
         XCTAssertLessThan(agentBlock.frame.minX, shellBlock.frame.minX, "左右切分的位置不對")
+        // 版面圖是下一頁(#619):左上返回、tab bar 保留,不是有關閉鈕的 sheet。
+        XCTAssertTrue(app.element("layout.page").exists, "版面圖不是推入的頁面")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "版面圖不該有關閉鈕")
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "左上沒有返回鈕")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "版面圖沒有保留 tab bar")
 
         shellBlock.tap()
         XCTAssertTrue(shellBlock.waitUntilGone(timeout: 5), "點方塊後版面圖沒有關閉")
