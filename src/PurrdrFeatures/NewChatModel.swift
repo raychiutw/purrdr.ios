@@ -32,6 +32,21 @@ public final class FolderPickerModel {
         requested = start
     }
 
+    private init(folders: NewChatFolders, start: String, home: String?) {
+        self.folders = folders
+        startPath = start
+        requested = start
+        self.home = home
+    }
+
+    /// 這個資料夾底下 `name` 的路徑(往下一層 push 用);名稱不合法時為 `nil`。
+    public func childPath(_ name: String) -> String? { navigation.child(name) }
+
+    /// 往下一層 push 的資料夾瀏覽:從 `path` 開始,家目錄沿用(麵包屑仍以「~」起頭)。
+    public func child(at path: String) -> FolderPickerModel {
+        FolderPickerModel(folders: folders, start: path, home: home)
+    }
+
     /// 「使用這個資料夾」的值：目前列出的資料夾;還沒讀到或讀失敗時為 `nil`。
     public var chosenPath: String? {
         if case .loaded(let listing) = state { return listing.path }
@@ -171,6 +186,11 @@ public final class NewChatModel {
         self.folders = folders
         availableAgents = agents
         agent = agents.first ?? .claude
+    }
+
+    /// 有沒有使用者打了、還沒送出的輸入(資料夾、名稱、第一則訊息):離開新增聊天前要先確認。只有空白不算。
+    public var hasUnsentInput: Bool {
+        [folder, workspaceName, tabName, message].contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
     private var trimmedFolder: String {

@@ -185,7 +185,7 @@ extension XCUIApplication {
 
     /// 聊天 tab 右上的新增聊天(`square.and.pencil`)。
     @MainActor
-    func openNewChatSheet(file: StaticString = #filePath, line: UInt = #line) {
+    func openNewChat(file: StaticString = #filePath, line: UInt = #line) {
         openTab(.chats, file: file, line: line)
         let button = buttons["toolbar.newChat"].firstMatch
         XCTAssertTrue(button.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天", file: file, line: line)

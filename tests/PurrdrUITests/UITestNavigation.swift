@@ -366,3 +366,17 @@ extension XCUIApplication {
         return false
     }
 }
+
+extension XCUIApplication {
+    /// 終端機的標題與副標題(系統導覽列的標題＋副標題,#621):名稱與連線狀態,以「 | 」連起來。
+    @MainActor
+    var terminalHeader: String {
+        navigationBars.firstMatch.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " | ")
+    }
+
+    /// 等終端機的標題或狀態含指定文字。
+    @MainActor
+    func waitForTerminalHeader(containing text: String, timeout: TimeInterval) -> Bool {
+        UITestWait.until(timeout: timeout) { terminalHeader.contains(text) }
+    }
+}

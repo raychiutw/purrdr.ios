@@ -6,28 +6,41 @@ import SwiftUI
 /// 新增對話(#272,原型 purrdr-screens 定案版):標題列中間是主機挑選鈕，下面是 Agent(攤開的勾選列,#313)、資料夾、第一則訊息，
 /// 最下方「開始」。名稱由 herdr 用資料夾名，權限沿用 agent 自己的設定。
 ///
-/// 以 sheet 開啟;資料夾瀏覽在同一個 sheet 內 push(HIG 檢核清單 20.3「多步驟在同一個 sheet 內 push」)。
-/// 開始中不能滑掉 sheet(主機上正在建立 workspace)。
+/// 從聊天 tab 往右 push 進來(#621,spec #612):左上系統「<」離開、有大標題,選主機是右上電腦圖示選單。
+/// 資料夾瀏覽每往下一層也是 push。有未送出的輸入時離開先確認;開始中不能離開(主機上正在建立 workspace)。
 public struct NewChatView: View {
     @Bindable var model: NewChatModel
-    /// 標題列中間的主機挑選鈕(#245)。
+    /// 右上電腦圖示選單的主機選擇(#245、#621)。
     let hostPicker: HostPickerModel?
-    let onCancel: () -> Void
+    /// 離開新增聊天(左上「<」、確認放棄後)。
+    let onLeave: () -> Void
     /// 開始了：新 workspace 與沒送出的第一則訊息(agent 停在啟動問題時)。
     let onStarted: (CreatedWorkspace, String?) -> Void
 
     public init(
-        model: NewChatModel, hostPicker: HostPickerModel? = nil, onCancel: @escaping () -> Void,
+        model: NewChatModel, hostPicker: HostPickerModel? = nil, onLeave: @escaping () -> Void,
         onStarted: @escaping (CreatedWorkspace, String?) -> Void
     ) {
         self.model = model
         self.hostPicker = hostPicker
-        self.onCancel = onCancel
+        self.onLeave = onLeave
         self.onStarted = onStarted
     }
 
+    @State private var confirmingLeave = false
+
+    /// 有輸入或正在開始時系統返回鈕換成會確認的「<」(同時關掉左緣滑動返回)。
+    private var interceptsBack: Bool { model.hasUnsentInput || model.isStarting }
+
     public var body: some View {
-        NavigationStack {
+        form
+            // 離開(返回、確認放棄、開好聊天後被收掉):agent 沒啟動成功時建了一半的 Workspace／Tab 關掉(成功時沒有東西要關)。
+            // 往下推資料夾瀏覽時也會經過這裡:此時只會關掉上次開始失敗留下的半成品,下一次開始本來就會重建,沒有副作用。
+            .onDisappear { [model] in Task { await model.discardUnstarted() } }
+    }
+
+    private var form: some View {
+        Group {
             Form {
                 if model.canChooseExistingWorkspace {
                     placementSection
@@ -65,7 +78,7 @@ public struct NewChatView: View {
                         .accessibilityIdentifier("newChat.folder")
                     if model.canBrowseFolders {
                         NavigationLink {
-                            FolderPickerView(model: model.makeFolderPicker()) { model.choose($0) }
+                            FolderPickerRoot(model: model)
                         } label: {
                             Label("Choose Folder on Host", systemImage: "folder")
                         }
@@ -149,13 +162,13 @@ public struct NewChatView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            .appSheetList()
-            .accessibilityIdentifier("sheet.newChat")
+            .appGroupedList()
+            .accessibilityIdentifier("newChat.page")
             .navigationTitle("New Chat")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
+            .navigationBarBackButtonHidden(interceptsBack)
             #endif
-            .interactiveDismissDisabled(model.isStarting)
             .task(id: ObjectIdentifier(model)) { await model.loadAccess() }
             .task(id: ObjectIdentifier(model)) { await model.loadWorkspaces() }
             // 資料夾或 agent 變了就重讀過去的 session;打字時等一下再讀(#309)。
@@ -165,25 +178,27 @@ public struct NewChatView: View {
                 await model.refreshSessions()
             }
             .toolbar {
+                if interceptsBack {
+                    ToolbarItem(placement: .navigation) {
+                        Button { confirmingLeave = true } label: { Image(systemName: "chevron.left") }
+                            .disabled(model.isStarting)
+                            .accessibilityLabel(Text("Back"))
+                            .accessibilityIdentifier("newChat.back")
+                    }
+                }
                 if let hostPicker {
-                    // 主機挑選鈕佔標題位置(原型);頁面只顯示標題，不放說明。
-                    ToolbarItem(placement: .principal) {
-                        SheetHostPicker(model: hostPicker, identifier: "newChat.host")
+                    ToolbarItem(placement: .primaryAction) {
+                        HostMenuButton(model: hostPicker, identifier: "newChat.host")
                             .disabled(model.isStarting)
                     }
                 }
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                        .disabled(model.isStarting)
-                        .accessibilityIdentifier("newChat.cancel")
-                }
             }
+            .confirmationDialog("Discard this new chat?", isPresented: $confirmingLeave, titleVisibility: .visible) {
+                Button("Discard", role: .destructive, action: onLeave)
+                Button("Keep Editing", role: .cancel) {}
+            }
+
         }
-        // 取消、下滑關掉或開好聊天後關閉:agent 沒啟動成功時建了一半的 Workspace／Tab 關掉(成功時沒有東西要關)。
-        .onDisappear { [model] in Task { await model.discardUnstarted() } }
-        // 部分高度的系統 sheet,系統自動套玻璃(#425);鍵盤升起或內容多時系統自動拉到 large。
-        .appSheet(detents: [.medium, .large])
-        .presentationDragIndicator(.visible)
     }
 
     /// 放在哪裡(#537):新的 Workspace,或這台主機目前開著的 Workspace(在裡面新增一個 Tab)。
@@ -302,46 +317,155 @@ public struct NewChatView: View {
     }
 }
 
-/// 新增對話的資料夾瀏覽(行為規格 F3.3):只列子資料夾;錯誤與空資料夾分開顯示。
-/// 樣式比照檔案頁(實機回報 2026-11-20):上方路徑麵包屑(每段可點回那一層，取代「上一層」)、資料夾列同檔案頁。
-struct FolderPickerView: View {
-    let model: FolderPickerModel
+/// 資料夾瀏覽這一串 push 共用的狀態:每一層出現時登記自己的路徑與「退出這一層」的動作。
+/// 系統導覽只有「退出最上面這一層」(`dismiss` 對被蓋住的層沒有作用),所以:
+/// 麵包屑跳回前面某一層 = 從上往下一層一層退(`pop(toDepth:)`),「Use This Folder」= 退光整串(`unwind`);
+/// 每退一層,露出來的那一層看到 `unwinding` 就接著退自己。
+@MainActor
+@Observable
+final class FolderPickerFlow {
+    private(set) var paths: [Int: String] = [:]
+    /// 退回到這一層為止(它之上的都退掉);`nil` 沒有在退。-1 是整串退光(回到新增聊天表單)。
+    private(set) var unwindTarget: Int?
+    @ObservationIgnored private var exits: [Int: DismissAction] = [:]
+
+    func register(depth: Int, path: String?, exit: DismissAction) {
+        if let path { paths[depth] = path }
+        exits[depth] = exit
+    }
+
+    /// 前面走過、路徑是 `path` 的那一層(比 `depth` 淺)。
+    func depth(ofPath path: String, below depth: Int) -> Int? {
+        paths.filter { $0.key < depth && $0.value == path }.keys.max()
+    }
+
+    /// 退回 `target` 層:從目前最上面這一層(`from`)開始退。
+    func pop(toDepth target: Int, from depth: Int) {
+        guard depth > target else { return }
+        unwindTarget = target
+        exits[depth]?()
+    }
+
+    /// 退光整串(使用資料夾後回到表單)。
+    func unwind(from depth: Int) { pop(toDepth: -1, from: depth) }
+
+    /// 一層露出來了:還在退而且它在目標之上就接著退自己;退到目標層就結束。
+    func didReveal(depth: Int) {
+        guard let target = unwindTarget else { return }
+        if depth > target {
+            exits[depth]?()
+        } else {
+            unwindTarget = nil
+        }
+    }
+
+    /// 整串退光、第一層也離開時清掉狀態。
+    func didLeaveRoot() { unwindTarget = nil }
+}
+
+/// 新增對話的資料夾瀏覽第一層:自己持有一個 model(從表單已填的資料夾或家目錄開始),使用資料夾後整串 push 一起收掉。
+private struct FolderPickerRoot: View {
+    let model: NewChatModel
+    @State private var picker: FolderPickerModel
+    @State private var flow = FolderPickerFlow()
+
+    init(model: NewChatModel) {
+        self.model = model
+        _picker = State(wrappedValue: model.makeFolderPicker())
+    }
+
+    var body: some View {
+        FolderPickerLevelView(model: picker, depth: 0, flow: flow, onChoose: { model.choose($0) })
+            .onDisappear { if flow.unwindTarget == -1 { flow.didLeaveRoot() } }
+    }
+}
+
+/// 資料夾瀏覽的一層(#621、#620 的 push 規則):點子資料夾 push 下一層(系統 `NavigationLink`;新增聊天本身是 isPresented 的 push,
+/// 裡面用「值的導覽」會讓系統把新增聊天又推一次,所以這裡的連結都是帶目的地的 NavigationLink)、左上系統「<」回上一層、
+/// 每層有大標題,路徑麵包屑留著當快速跳層;「Use This Folder」在任何一層都能用,選了就把整串收掉。
+struct FolderPickerLevelView: View {
+    @State var model: FolderPickerModel
+    let depth: Int
+    let flow: FolderPickerFlow
     let onChoose: (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        FolderPickerView(
+            model: model, title: title, flow: flow, depth: depth, onChoose: onChoose, jump: jump,
+            choose: { path in
+                onChoose(path)
+                flow.unwind(from: depth)
+            }
+        )
+        .onAppear {
+            flow.register(depth: depth, path: model.chosenPath, exit: dismiss)
+            flow.didReveal(depth: depth)
+        }
+        .onChange(of: model.chosenPath) { _, path in flow.register(depth: depth, path: path, exit: dismiss) }
+    }
+
+    private var title: LocalizedStringKey {
+        depth == 0 ? "Choose Folder" : LocalizedStringKey(model.chosenPath.map { ($0 as NSString).lastPathComponent } ?? "Choose Folder")
+    }
+
+    /// 點麵包屑:退回前面走過的那一層。
+    private func jump(_ crumb: FolderBreadcrumb) {
+        guard crumb.path != model.chosenPath, let target = flow.depth(ofPath: crumb.path, below: depth) else { return }
+        flow.pop(toDepth: target, from: depth)
+    }
+}
+
+/// 新增對話的資料夾瀏覽(行為規格 F3.3):只列子資料夾;錯誤與空資料夾分開顯示。
+/// 樣式比照檔案頁(實機回報 2026-11-20):上方路徑麵包屑(每段可點回那一層，取代「上一層」)、資料夾列同檔案頁。
+struct FolderPickerView: View {
+    let model: FolderPickerModel
+    let title: LocalizedStringKey
+    let flow: FolderPickerFlow
+    let depth: Int
+    let onChoose: (String) -> Void
+    let jump: (FolderBreadcrumb) -> Void
+    let choose: (String) -> Void
+
+    var body: some View {
         content
-            .navigationTitle("Choose Folder")
+            .appPageContentWidth()
+            .navigationTitle(title)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             #endif
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if !model.breadcrumbs.isEmpty {
-                    FolderBreadcrumbBar(crumbs: model.breadcrumbs, identifierPrefix: "folderPicker.crumb.") { crumb in
-                        Task { await model.go(to: crumb) }
-                    }
+            .safeAreaBar(edge: .top) {
+                // 只列走過的層(點了退回那一層)與目前這一層。
+                let crumbs = model.breadcrumbs.filter { $0.path == model.chosenPath || flow.depth(ofPath: $0.path, below: depth) != nil }
+                if !crumbs.isEmpty {
+                    FolderBreadcrumbBar(crumbs: crumbs, identifierPrefix: "folderPicker.crumb.", go: jump)
                 }
             }
+            // 完成動作在右上 ✓(同有確認動作的畫面;tab bar 保留著,所以不放在底部工具列,會與 tab bar 重疊)。
             .toolbar {
-                ToolbarItem(placement: Self.usePlacement) {
-                    Button("Use This Folder") {
-                        guard let path = model.chosenPath else { return }
-                        onChoose(path)
-                        dismiss()
-                    }
-                    .filledGlassProminentButtonStyle()
-                    .disabled(model.chosenPath == nil)
-                    .accessibilityIdentifier("folderPicker.use")
+                ModalConfirmToolbar(title: "Use This Folder", identifier: "folderPicker.use", isEnabled: model.chosenPath != nil) {
+                    guard let path = model.chosenPath else { return }
+                    choose(path)
                 }
             }
             .task { await model.load() }
     }
 
-    #if os(iOS)
-    private static let usePlacement = ToolbarItemPlacement.bottomBar
-    #else
-    private static let usePlacement = ToolbarItemPlacement.automatic
-    #endif
+    @ViewBuilder
+    private func folderRow(_ name: String) -> some View {
+        let entry = FolderEntry(name: name, kind: .folder, size: 0)
+        if let child = model.childPath(name) {
+            NavigationLink {
+                FolderPickerLevelView(model: model.child(at: child), depth: depth + 1, flow: flow, onChoose: onChoose)
+            } label: {
+                FolderEntryLabel(entry: entry)
+            }
+            .accessibilityIdentifier("folderPicker.row.\(name)")
+        } else {
+            FolderEntryLabel(entry: entry)
+                .accessibilityIdentifier("folderPicker.row.\(name)")
+        }
+    }
 
     @ViewBuilder
     private var content: some View {
@@ -353,7 +477,7 @@ struct FolderPickerView: View {
                     FolderSkeletonRows(count: SkeletonLoading.defaultRowCount, identifier: "folderPicker.loading", label: "Loading folders…")
                 }
             }
-            .appSheetList()
+            .appGroupedList()
         case .failed(let message):
             ContentUnavailableView {
                 Label("Can’t Open Folder", systemImage: "exclamationmark.triangle")
@@ -365,22 +489,20 @@ struct FolderPickerView: View {
             }
             .accessibilityIdentifier("folderPicker.error")
         case .loaded(let listing):
-            List {
-                Section {
-                    if listing.folders.isEmpty {
-                        Text("No folders inside this one. You can still use it.")
-                            .foregroundStyle(.secondaryText)
-                            .accessibilityIdentifier("folderPicker.empty")
-                    }
-                    ForEach(listing.folders, id: \.self) { name in
-                        FolderEntryRow(entry: FolderEntry(name: name, kind: .folder, size: 0), identifierPrefix: "folderPicker.row.") {
-                            Task { await model.open(name) }
+            if listing.folders.isEmpty {
+                ContentUnavailableView("No Folders", systemImage: "folder", description: Text("You can still use this folder."))
+                    .accessibilityIdentifier("folderPicker.empty")
+            } else {
+                List {
+                    Section {
+                        ForEach(listing.folders, id: \.self) { name in
+                            folderRow(name)
                         }
                     }
                 }
+                .appGroupedList()
+                .accessibilityIdentifier("folderPicker.list")
             }
-            .appSheetList()
-            .accessibilityIdentifier("folderPicker.list")
         }
     }
 }

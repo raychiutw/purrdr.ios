@@ -35,15 +35,19 @@ final class TopNavigationUITests: XCTestCase {
     func testNewChatButtonOpensNewChat() {
         let app = XCUIApplication.launchUITesting()
 
-        app.openNewChatSheet()
-        // 新增對話是表單：左上「Cancel」,不是「完成」(HIG 檢核清單 20.3)。
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.newChat"].firstMatch.waitUntilExists(timeout: 10), "沒有開出新增對話")
-        let cancel = app.buttons["newChat.cancel"]
-        XCTAssertTrue(cancel.exists, "新增對話沒有「Cancel」")
-        XCTAssertFalse(app.buttons["sheet.close"].exists, "新增對話不該同時有關閉鈕")
+        app.openNewChat()
+        // 新增聊天是 push(#621):左上系統「<」,不是 sheet 的 X;tab bar 還在;右上是電腦圖示選單。
+        let page = app.descendants(matching: .any)["newChat.page"].firstMatch
+        XCTAssertTrue(page.waitUntilExists(timeout: 10), "沒有開出新增對話")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "新增聊天是 push,不該有關閉鈕")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "新增聊天 push 後 tab bar 要保留")
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertTrue(back.exists, "新增聊天左上沒有返回")
+        XCTAssertTrue(app.buttons["newChat.host"].firstMatch.exists, "新增聊天右上沒有主機選單")
+        XCTAssertFalse(app.buttons["newChat.cancel"].exists, "不再有 Cancel")
 
-        cancel.tap()
-        XCTAssertTrue(cancel.waitUntilGone(timeout: 5), "sheet 沒有關閉")
+        back.tap()
+        XCTAssertTrue(page.waitUntilGone(timeout: 5), "返回後新增聊天沒有收掉")
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch), "沒有回到 Agent 列表")
     }
 

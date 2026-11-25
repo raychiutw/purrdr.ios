@@ -4678,6 +4678,17 @@
         }
       }
     },
+    "Discard" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄"
+          }
+        }
+      }
+    },
     "Discard Changes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4685,6 +4696,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放棄變更"
+          }
+        }
+      }
+    },
+    "Discard this new chat?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要放棄這個新聊天嗎?"
           }
         }
       }
@@ -7596,6 +7618,17 @@
         }
       }
     },
+    "No Folders" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有資料夾"
+          }
+        }
+      }
+    },
     "No Hosts" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7713,17 +7746,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有裝置會收到通知。"
-          }
-        }
-      }
-    },
-    "No folders inside this one. You can still use it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這裡沒有子資料夾。仍然可以使用這個資料夾。"
           }
         }
       }
@@ -16223,6 +16245,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一則訊息最多附加 10 個項目。"
+          }
+        }
+      }
+    },
+    "You can still use this folder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍然可以使用這個資料夾。"
           }
         }
       }

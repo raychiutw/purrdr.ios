@@ -172,7 +172,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     private func openMenu(_ item: String, in app: XCUIApplication) {
         switch item {
         case "menu.hosts": app.openHostsTab()
-        case "menu.newChat": app.openNewChatSheet()
+        case "menu.newChat": app.openNewChat()
         default: XCTFail("沒有這個入口 \(item)")
         }
     }
@@ -263,7 +263,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchAuditing(contentSize: size)
             openMenu("menu.newChat", in: app)
-            XCTAssertTrue(app.element("sheet.newChat").waitUntilExists(timeout: 10))
+            XCTAssertTrue(app.element("newChat.page").waitUntilExists(timeout: 10))
             try audit(app, "新增對話", contentSize: size)
             app.terminate()
         }

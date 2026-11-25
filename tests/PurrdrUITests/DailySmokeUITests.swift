@@ -234,10 +234,28 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "關閉後沒有回到 tab")
         }
         step("新增聊天") {
-            app.openNewChatSheet()
-            XCTAssertTrue(app.element("sheet.newChat").waitUntilExists(timeout: 10), "沒有開出新增聊天")
-            app.swipeDown(velocity: .fast)
-            XCTAssertTrue(app.element("sheet.newChat").waitUntilGone(timeout: 5), "新增聊天沒有關閉")
+            app.openNewChat()
+            let page = app.element("newChat.page")
+            XCTAssertTrue(page.waitUntilExists(timeout: 10), "沒有開出新增聊天")
+            XCTAssertTrue(app.tabBars.firstMatch.exists, "新增聊天是 push,tab bar 要保留")
+            XCTAssertTrue(app.buttons["newChat.host"].firstMatch.exists, "新增聊天右上沒有主機選單")
+            // 有輸入時離開先確認(action sheet):留在頁面;確認放棄才離開。
+            let folder = app.textFields["newChat.folder"]
+            for _ in 0..<4 where !folder.exists { page.swipeUp() }
+            folder.tap()
+            folder.typeEnglish("~/ledger")
+            app.buttons["newChat.back"].tap()
+            let discard = app.buttons["Discard"].firstMatch
+            XCTAssertTrue(discard.waitUntilExists(timeout: 5), "有輸入時離開沒有先確認")
+            // 從工具列按鈕展開的確認是錨在按鈕上的選單(系統不放取消鈕):點旁邊等於繼續編輯;有取消鈕時點它。
+            let keep = app.buttons["Keep Editing"].firstMatch
+            if keep.exists { keep.tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.45)).tap() }
+            XCTAssertTrue(discard.waitUntilGone(timeout: 5), "確認沒有收起")
+            XCTAssertTrue(page.exists, "選了繼續編輯還是離開了")
+            app.buttons["newChat.back"].tap()
+            XCTAssertTrue(discard.waitUntilExists(timeout: 5))
+            discard.tap()
+            XCTAssertTrue(page.waitUntilGone(timeout: 5), "確認放棄後新增聊天沒有離開")
         }
         step("對話隱藏 tab bar,返回後回來") {
             app.openConversation(paneID: "w1:p1")

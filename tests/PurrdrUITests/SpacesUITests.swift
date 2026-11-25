@@ -64,9 +64,7 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "再點 Tab 沒有開版面圖")
         shellBlock.tap()
 
-        let status = app.element("terminal.status")
-        XCTAssertTrue(status.waitUntilExists(timeout: 10), "點終端機方塊沒有開 Pane 終端機")
-        XCTAssertTrue(status.label.contains("npm run dev"), "終端機標題不是程式名:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "npm run dev", timeout: 10), "點終端機方塊沒有開 Pane 終端機,或標題不是程式名:\(app.terminalHeader)")
     }
 
     /// 長按選單與左滑都能關閉 Tab,關之前先確認;Demo 每個 Workspace 只有一個 Tab,所以確認文字是「連 Workspace 一起關」(#534)。
@@ -103,8 +101,8 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testClosingNeedsYouTabKeepsAppRunning() {
         let app = XCUIApplication.launchUITesting()
-        app.openNewChatSheet()
-        let sheet = app.element("sheet.newChat")
+        app.openNewChat()
+        let sheet = app.element("newChat.page")
         XCTAssertTrue(sheet.waitUntilExists(timeout: 10))
         let weather = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'weather-app'")).firstMatch
         XCTAssertTrue(weather.waitUntilExists(timeout: 10), "沒有 weather-app")
