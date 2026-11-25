@@ -85,3 +85,72 @@ struct FilesPushUsageTests {
         #expect(!view.contains("Text(\"This folder is empty.\")"), "空資料夾不要用純文字列")
     }
 }
+
+/// 新增聊天與登入 Shell:新增聊天是 push、選主機是右上電腦圖示選單,沒有標題膠囊(#621、spec #612)。
+@Suite("新增聊天 push 與選主機選單")
+struct NewChatPushUsageTests {
+    private func source(_ name: String) throws -> String {
+        try String(contentsOf: SystemTopBarUsageTests.featuresFolder.appending(path: name), encoding: .utf8)
+    }
+
+    @Test("標題膠囊 SheetHostPicker 不存在,新增聊天與登入 Shell 用右上電腦圖示選單")
+    func hostPickerIsToolbarMenu() throws {
+        for (name, text) in SystemTopBarUsageTests.featureFiles {
+            #expect(!text.contains("SheetHostPicker"), "\(name) 還在用標題膠囊選主機")
+        }
+        #expect(try source("HostPickerViews.swift").contains("struct HostMenuButton"))
+        let chat = try source("NewChatView.swift")
+        #expect(chat.contains("HostMenuButton("))
+        #expect(!chat.contains("placement: .principal"), "新增聊天標題用系統大標題,不放自畫的主機鈕")
+        #expect(try source("PaneTerminalView.swift").contains("HostMenuButton("))
+    }
+
+    @Test("新增聊天不是 sheet:沒有 NavigationStack、presentationDetents,由導覽 push")
+    func newChatIsPushed() throws {
+        let view = try source("NewChatView.swift")
+        for pattern in ["NavigationStack", "appSheet(", "presentationDragIndicator", "interactiveDismissDisabled"] {
+            #expect(!view.contains(pattern), "新增聊天是 push,不該有 \(pattern)")
+        }
+        let top = try source("TopNavigationView.swift")
+        #expect(top.contains(".navigationDestination(isPresented: $navigation.isNewChatOpen)"))
+        #expect(!top.contains("case .newChat:"), "新增聊天不再是 sheet 的一種")
+        #expect(!(try source("TopNavigationModel.swift")).contains("case newChat\n"), "TopLevelSheet 沒有 newChat")
+    }
+
+    @Test("新增聊天的資料夾瀏覽每往下一層是 push,頁面用 appGroupedList")
+    func folderPickerIsPushed() throws {
+        let view = try source("NewChatView.swift")
+        #expect(view.contains("FolderPickerRoot(model: model)"))
+        #expect(view.contains("FolderPickerLevelView"))
+        #expect(!view.contains("NavigationLink(value:"), "新增聊天本身是 isPresented 的 push,裡面不用「值的導覽」(會讓系統把新增聊天又推一次)")
+        #expect(!view.contains("navigationDestination(item:") && !view.contains("navigationDestination(for:"))
+        #expect(!view.contains(".appSheetList()"), "pushed 頁面用 appGroupedList")
+    }
+
+    @Test("資料夾列是系統 NavigationLink,不自放 chevron、不用 plain 按鈕(#621)")
+    func folderRowsUseNavigationLink() throws {
+        let text = try source("FolderBrowserView.swift")
+        let start = try #require(text.range(of: "struct FolderEntryRow"))
+        let end = try #require(text.range(of: "struct FolderEntryLabel", range: start.upperBound..<text.endIndex))
+        let row = String(text[start.lowerBound..<end.lowerBound])
+        #expect(row.contains("NavigationLink(value: route)"))
+        #expect(!row.contains("chevron"), "列尾 > 由 NavigationLink 給")
+        #expect(!row.contains(".buttonStyle(.plain)"))
+        #expect(!text.contains("Rectangle().fill(.bar)"), "麵包屑不自鋪 .bar 材質")
+        #expect(!text.contains(".alert(\"Can’t Upload\""), "上傳失敗寫在頁面上,不彈對話框")
+        let chat = try source("NewChatView.swift")
+        #expect(chat.contains(".safeAreaBar(edge: .top)"), "資料夾瀏覽頂部固定列用系統 safeAreaBar")
+        #expect(chat.contains("ContentUnavailableView(\"No Folders\""), "空資料夾用系統空狀態")
+    }
+
+    @Test("終端機標題用系統標題＋副標題,不自畫;TopBarMetrics 不留不用的常數")
+    func terminalTitleAndMetrics() throws {
+        let terminal = try source("PaneTerminalView.swift")
+        #expect(terminal.contains(".navigationSubtitle("))
+        #expect(!terminal.contains("struct TerminalTitle"), "終端機標題不自畫兩行 principal")
+        #expect(!terminal.contains("placement: .principal"))
+        for (name, text) in SystemTopBarUsageTests.featureFiles {
+            #expect(!text.contains("controlHeight"), "\(name) 還在用 TopBarMetrics.controlHeight")
+        }
+    }
+}

@@ -62,6 +62,7 @@ struct HostNotificationsPage: View {
                 } label: {
                     HostRowLabel(title: "Pair This Host First", subtitle: "Notifications can be turned on after this device pairs with the host.")
                 }
+                .listAction()
                 .accessibilityIdentifier("hosts.notifications.pair")
             } else {
                 Toggle(isOn: Binding(get: { isOnOrPending(model) }, set: { change(model, to: $0) })) {

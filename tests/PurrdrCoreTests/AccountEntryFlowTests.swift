@@ -151,3 +151,76 @@ struct AccountEntryFlowTests {
         #expect(flow.screen == .choose, "沒有在登入或加入頁，不接收登入結果")
     }
 }
+
+/// 帳號與設定改滿版 modal、下一頁一律 push(#623):沒登入流程的頁面堆疊由流程狀態推導,
+/// 系統返回(堆疊變短)再回寫成流程狀態。
+@Suite("登入與加入的頁面堆疊")
+struct AccountEntryPathTests {
+    @Test("選擇頁是根,沒有推入的頁")
+    func chooseHasNoPushedPages() {
+        #expect(AccountEntryFlow().path.isEmpty)
+    }
+
+    @Test("登入頁與加入的第 1 步各推入一頁")
+    func signInAndJoinPushOnePage() {
+        var flow = AccountEntryFlow()
+        flow.chooseSignIn()
+        #expect(flow.path == [.signIn])
+        flow.switchToJoin()
+        #expect(flow.path == [.join])
+    }
+
+    @Test("加入第 2 步起每一步再推入一頁,略過 Plus 後直接是通知步驟")
+    func joinStepsAccumulate() {
+        var flow = AccountEntryFlow()
+        flow.chooseJoin()
+        flow.signedIn(memberCreated: true)
+        #expect(flow.path == [.join, .joinStep(.activatePlus)])
+        flow.skipPlus()
+        #expect(flow.path == [.join, .joinStep(.activatePlus), .joinStep(.turnOnNotifications)])
+        flow.advance()
+        #expect(flow.path.last == .joinStep(.finished))
+    }
+
+    @Test("離開流程(進帳號頁)後堆疊清空")
+    func accountClearsPath() {
+        var flow = AccountEntryFlow()
+        flow.chooseSignIn()
+        flow.signedIn(memberCreated: false)
+        #expect(flow.path.isEmpty)
+    }
+
+    @Test("系統返回把堆疊清空:登入頁與加入第 1 步回到選擇頁")
+    func poppingToRootGoesBack() {
+        var flow = AccountEntryFlow()
+        flow.chooseSignIn()
+        flow.apply(path: [])
+        #expect(flow.screen == .choose)
+
+        flow.chooseJoin()
+        flow.apply(path: [])
+        #expect(flow.screen == .choose)
+    }
+
+    @Test("選擇頁點列推入登入頁或加入頁,流程跟著走")
+    func pushingFromChooseSelectsPage() {
+        var flow = AccountEntryFlow()
+        flow.apply(path: [.signIn])
+        #expect(flow.screen == .signIn)
+
+        var other = AccountEntryFlow()
+        other.apply(path: [.join])
+        #expect(other.screen == .join)
+        #expect(other.join.step == .createMember)
+    }
+
+    @Test("第 2 步起不能用返回回到已建立的會員:堆疊變短不改流程")
+    func poppingJoinStepsIsIgnored() {
+        var flow = AccountEntryFlow()
+        flow.chooseJoin()
+        flow.signedIn(memberCreated: true)
+        flow.apply(path: [.join])
+        #expect(flow.join.step == .activatePlus)
+        #expect(flow.path == [.join, .joinStep(.activatePlus)])
+    }
+}

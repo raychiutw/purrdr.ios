@@ -234,10 +234,28 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "關閉後沒有回到 tab")
         }
         step("新增聊天") {
-            app.openNewChatSheet()
-            XCTAssertTrue(app.element("sheet.newChat").waitUntilExists(timeout: 10), "沒有開出新增聊天")
-            app.swipeDown(velocity: .fast)
-            XCTAssertTrue(app.element("sheet.newChat").waitUntilGone(timeout: 5), "新增聊天沒有關閉")
+            app.openNewChat()
+            let page = app.element("newChat.page")
+            XCTAssertTrue(page.waitUntilExists(timeout: 10), "沒有開出新增聊天")
+            XCTAssertTrue(app.tabBars.firstMatch.exists, "新增聊天是 push,tab bar 要保留")
+            XCTAssertTrue(app.buttons["newChat.host"].firstMatch.exists, "新增聊天右上沒有主機選單")
+            // 有輸入時離開先確認(action sheet):留在頁面;確認放棄才離開。
+            let folder = app.textFields["newChat.folder"]
+            for _ in 0..<4 where !folder.exists { page.swipeUp() }
+            folder.tap()
+            folder.typeEnglish("~/ledger")
+            app.buttons["newChat.back"].tap()
+            let discard = app.buttons["Discard"].firstMatch
+            XCTAssertTrue(discard.waitUntilExists(timeout: 5), "有輸入時離開沒有先確認")
+            // 從工具列按鈕展開的確認是錨在按鈕上的選單(系統不放取消鈕):點旁邊等於繼續編輯;有取消鈕時點它。
+            let keep = app.buttons["Keep Editing"].firstMatch
+            if keep.exists { keep.tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.45)).tap() }
+            XCTAssertTrue(discard.waitUntilGone(timeout: 5), "確認沒有收起")
+            XCTAssertTrue(page.exists, "選了繼續編輯還是離開了")
+            app.buttons["newChat.back"].tap()
+            XCTAssertTrue(discard.waitUntilExists(timeout: 5))
+            discard.tap()
+            XCTAssertTrue(page.waitUntilGone(timeout: 5), "確認放棄後新增聊天沒有離開")
         }
         step("對話隱藏 tab bar,返回後回來") {
             app.openConversation(paneID: "w1:p1")
@@ -251,6 +269,15 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["account.entry.signIn"].exists, "沒有「登入」")
             XCTAssertTrue(app.buttons["account.entry.join"].exists, "沒有「加入會員」")
             XCTAssertFalse(app.buttons["member.signIn.apple"].exists, "選擇前不該先看到 Apple 登入鈕")
+            // 帳號與設定是滿版 modal(#623):蓋住 tab bar,左上 X。
+            XCTAssertFalse(app.tabBars.firstMatch.isHittable, "帳號與設定沒有蓋滿畫面")
+            app.assertModalToolbar(close: "member.signIn.cancel")
+        }
+        step("列尾 > 推入登入頁,系統返回第一下就回到選擇頁") {
+            app.buttons["account.entry.signIn"].tap()
+            XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒有推入登入頁")
+            app.buttons["BackButton"].firstMatch.tap()
+            XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 5), "第一下返回沒有回到選擇頁")
         }
         step("登入頁查無會員:擋下並問要不要加入,確認才進加入流程") {
             app.buttons["account.entry.signIn"].tap()
@@ -265,12 +292,12 @@ final class DailySmokeUITests: XCTestCase {
             // 上一步按了「加入」已在加入第 1 步(不再回選擇頁)。
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "加入第 1 步沒有 Apple 註冊鈕")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
-            XCTAssertTrue(app.buttons["member.entry.back"].exists, "第 1 步左上應是返回")
+            XCTAssertTrue(app.buttons["BackButton"].firstMatch.exists, "第 1 步左上應是系統返回")
             app.buttons["member.signIn.apple"].tap()
 
             XCTAssertTrue(app.element("account.join.paywall").waitUntilExists(timeout: 10), "建立會員後沒有進開通 Plus")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 2 of 4")
-            XCTAssertFalse(app.buttons["member.entry.back"].exists, "第 2 步起左上不是返回")
+            XCTAssertFalse(app.buttons["BackButton"].firstMatch.isHittable, "第 2 步起左上不是返回")
             XCTAssertTrue(app.buttons["member.signIn.cancel"].exists, "第 2 步起左上應是關閉")
             app.buttons["account.join.secondary"].tap()
 
@@ -282,6 +309,11 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("account.join.doneCreated").waitUntilExists(timeout: 5), "略過 Plus 的完成頁不是「會員已建立」")
             app.buttons["account.join.primary"].tap()
             XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 10), "開始使用後沒有回到帳號頁")
+        }
+        step("以左上 X 關閉帳號與設定,回到 tab bar") {
+            app.assertModalToolbar(close: "member.close")
+            app.closeAccountSheet()
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "關閉後 tab bar 沒有回來")
         }
     }
 

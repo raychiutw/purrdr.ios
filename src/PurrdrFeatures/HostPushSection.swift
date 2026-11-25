@@ -42,7 +42,7 @@ struct HostPushSection: View {
 
 /// 一台主機的通知列：圖示、名稱、狀態與開關。VoiceOver 念「主機名稱，通知已開啟／未開啟」。
 ///
-/// 還沒配對的 HTTPS 主機(#295,原型 B):開關照樣顯示但停用，副標以強調色寫「先配對這台主機 ›」,點整列開配對。
+/// 還沒配對的 HTTPS 主機(#295,原型 B):開關照樣顯示但停用，副標是「先配對這台主機」按鈕(系統 `.borderless` 按鈕),點它開配對。
 struct HostPushRow: View {
     let push: HostPush
     let pair: (UUID) -> Void
@@ -56,13 +56,11 @@ struct HostPushRow: View {
                 Text(verbatim: push.name)
                     .accessibilityHidden(true)
                 if let pairingHost {
-                    Text("Pair This Host First \(Image(systemName: "chevron.forward"))")
+                    // 系統按鈕(#623):不用手勢加 trait 模擬按鈕。
+                    Button("Pair This Host First") { pair(pairingHost) }
+                        .buttonStyle(.borderless)
                         .font(.subheadline)
-                        .foregroundStyle(.tint)
-                        .accessibilityLabel(Text("Pair This Host First"))
                         .accessibilityHint(Text("Notifications can be turned on after this device pairs with the host."))
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { pair(pairingHost) }
                         .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
                 } else {
                     status
@@ -81,9 +79,6 @@ struct HostPushRow: View {
             .accessibilityValue(isOnOrPending ? Text("Notifications On") : Text("Notifications Off"))
             .accessibilityIdentifier("account.push.\(push.host.storedValue)")
         }
-        // 要先配對時整列可點(開關停用，點到開關也開配對);其他列不加手勢，開關照常回應。
-        .contentShape(.rect)
-        .gesture(TapGesture().onEnded { if let pairingHost { pair(pairingHost) } }, isEnabled: pairingHost != nil)
         .task {
             // 只查已開啟的主機：未開啟的不為了顯示裝置數另開連線。
             if push.support == .supported, model.state == .on { await model.refreshStatus() }

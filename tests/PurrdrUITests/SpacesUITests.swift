@@ -64,9 +64,7 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "再點 Tab 沒有開版面圖")
         shellBlock.tap()
 
-        let status = app.element("terminal.status")
-        XCTAssertTrue(status.waitUntilExists(timeout: 10), "點終端機方塊沒有開 Pane 終端機")
-        XCTAssertTrue(status.label.contains("npm run dev"), "終端機標題不是程式名:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "npm run dev", timeout: 10), "點終端機方塊沒有開 Pane 終端機,或標題不是程式名:\(app.terminalHeader)")
     }
 
     /// 版面圖是系統 NavigationLink 推入的頁面(#641):連續三次進去,第一下點返回鈕就要回到列表;最後再用左緣滑動返回一次。
@@ -124,8 +122,8 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testClosingNeedsYouTabKeepsAppRunning() {
         let app = XCUIApplication.launchUITesting()
-        app.openNewChatSheet()
-        let sheet = app.element("sheet.newChat")
+        app.openNewChat()
+        let sheet = app.element("newChat.page")
         XCTAssertTrue(sheet.waitUntilExists(timeout: 10))
         let weather = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'weather-app'")).firstMatch
         XCTAssertTrue(weather.waitUntilExists(timeout: 10), "沒有 weather-app")

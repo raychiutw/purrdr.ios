@@ -12,12 +12,12 @@ struct AlertUsageTests {
         "PlusView.swift": 1,  // 要先登入、購買失敗等需確認的訂閱結果
         "HostEditorView.swift": 2,  // 主機身分變了、更新 herdr
         "PaneTerminalView.swift": 1,  // 終端機要寫入剪貼簿的同意
-        "AccountEntryViews.swift": 1,  // 加入流程的購買失敗等
+        "AccountEntryViews.swift": 3,  // 加入流程的購買失敗、找不到會員、帳號結果通知(後兩者掛在 NavigationStack 外層,#623)
         "HostThemeViews.swift": 1,  // 主機主題同意
         "PlanUsageView.swift": 1,  // 方案用量同意
         "PushDevicesSection.swift": 1,  // 重新命名(輸入文字)
         "SendWhenDoneViews.swift": 1,  // 由別張票處理
-        "MemberView.swift": 6,  // 找不到會員、結果通知、訂閱結果、鎖定提示、Plus 已開啟、刪除會員、重新命名
+        "MemberView.swift": 4,  // 訂閱結果、鎖定提示、Plus 已開啟、刪除會員、重新命名
         "WorkspaceActionsViews.swift": 2,  // 重新命名(輸入文字)、關閉失敗
         "CodexLauncherSection.swift": 1,  // Codex 啟動器同意
     ]

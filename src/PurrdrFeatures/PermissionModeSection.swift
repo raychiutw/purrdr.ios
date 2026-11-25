@@ -58,6 +58,7 @@ struct PermissionModeSection: View {
                     Button("Try Again") {
                         Task { await model.retryPermissionMode() }
                     }
+                    .listAction()
                     .disabled(model.isSwitchingPermissionMode)
                     .accessibilityIdentifier("permissionMode.retry")
                 }

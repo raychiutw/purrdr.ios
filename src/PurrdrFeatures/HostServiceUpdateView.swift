@@ -22,6 +22,7 @@ struct HostServiceUpdateView: View {
                 }
                 .accessibilityIdentifier("hostServiceUpdate.guide")
                 Button("Don’t Remind Me About This Version", action: dismissUpdate)
+                    .listAction()
                     .accessibilityIdentifier("hostServiceUpdate.dismiss")
             }
         }

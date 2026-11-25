@@ -127,9 +127,10 @@ public struct PlusView: View {
                         .accessibilityIdentifier("plus.summary")
                 }
                 Spacer(minLength: 8)
+                // 不能點的狀態:不用主色(像按鈕);主要色加粗。
                 Text("In Use")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(Color.primary)
             }
             .accessibilityElement(children: .combine)
             if subscription.store == .appStore {
@@ -216,6 +217,7 @@ public struct PlusView: View {
             Section {
                 Text("Couldn’t load subscription options. Check your connection and try again.")
                 Button("Try Again") { Task { await model.loadPlans() } }
+                    .listAction()
             }
         case .available:
             Section {

@@ -23,10 +23,12 @@ public final class TopNavigationModel {
     /// 目前選的 tab。
     public var tab = TopLevelTab.chats
     /// 目前開著的 sheet;`nil` 表示沒有 sheet。
-    public var sheet: TopLevelSheet? {
-        didSet { if sheet != .newChat { newChatPreselection = nil } }
+    public var sheet: TopLevelSheet?
+    /// 新增聊天是不是推入在聊天 tab 上(#621:push,不是 sheet;左上「<」離開)。
+    public var isNewChatOpen = false {
+        didSet { if !isNewChatOpen { newChatPreselection = nil } }
     }
-    /// 新增聊天 sheet 要預先選好的位置(Spaces 的「在此新增聊天」,#537);sheet 不是新增聊天時為 `nil`。
+    /// 新增聊天要預先選好的位置(Spaces 的「在此新增聊天」,#537);新增聊天沒開著時為 `nil`。
     public var newChatPreselection: NewChatPreselection?
     /// 等著匯入的主機分享連結(`purrdr://host?d=…`)或主機配對連結(`purrdr://pair?…`)。主機 tab 出現時帶入新增主機編輯器，之後清掉。
     public var pendingHostImport: URL?
@@ -126,9 +128,15 @@ public final class TopNavigationModel {
         sheet = nil
     }
 
-    /// Workspace 標題選單的「在此新增聊天」:開新增聊天 sheet,預選那台主機與 Workspace。
+    /// 「＋」與快捷鍵:切到聊天 tab,把新增聊天推進來(#621)。
+    public func openNewChat() {
+        tab = .chats
+        isNewChatOpen = true
+    }
+
+    /// Workspace 標題選單的「在此新增聊天」:推入新增聊天,預選那台主機與 Workspace。
     public func startNewChat(inWorkspace workspaceID: String, on host: HostSelection) {
-        sheet = .newChat
+        openNewChat()
         newChatPreselection = NewChatPreselection(host: host, workspaceID: workspaceID)
     }
 
@@ -139,7 +147,7 @@ public final class TopNavigationModel {
         case .previousAgent: selectAdjacentAgent(offset: -1, in: visibleAgents)
         case .search: isSearchFocused = true
         case .openTerminal: if let selectedChat { openedTerminal = selectedChat }
-        case .newChat: sheet = .newChat
+        case .newChat: openNewChat()
         case .settings:
             // 設定併進帳號 sheet(#503)。
             sheet = .member
@@ -212,7 +220,6 @@ public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable 
 
 /// 以 sheet 開啟的畫面(不是 tab)。
 public enum TopLevelSheet: String, Identifiable, Sendable {
-    case newChat
     /// 帳號與設定頁(#246、#503;右上角帳號鈕):會員、Purrdr Plus 開通步驟、設定(外觀、App 鎖…)、登入方式、刪除會員。
     case member
     /// Purrdr Plus 的付費牆與訂閱摘要(#28)。

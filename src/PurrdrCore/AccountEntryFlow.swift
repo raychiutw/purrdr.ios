@@ -80,6 +80,60 @@ public struct AccountEntryFlow: Equatable, Sendable {
         return AccountStepIndicator(current: index + 1, total: steps.count)
     }
 
+    // MARK: - 頁面堆疊(#623)
+
+    /// 選擇頁之上推入的頁面。每往下一層都是 push(左上系統返回「<」),所以頁面堆疊由流程狀態推導。
+    public enum Page: Hashable, Sendable {
+        case signIn
+        /// 加入的第 1 步(建立會員)。
+        case join
+        /// 加入的第 2 步起;每一步再推入一頁。
+        case joinStep(AccountJoinFlow.Step)
+    }
+
+    /// 目前推入的頁面(選擇頁與帳號頁是根,沒有)。
+    public var path: [Page] {
+        switch screen {
+        case .choose, .account:
+            return []
+        case .signIn:
+            return [.signIn]
+        case .join:
+            let order: [AccountJoinFlow.Step] = [.activatePlus, .turnOnNotifications, .syncHosts, .finished]
+            var pages: [Page] = [.join]
+            for step in order {
+                // 略過 Plus 或略過同步時,沒走過的步驟不在堆疊裡。
+                guard join.step != .createMember, reached(step) else { continue }
+                pages.append(.joinStep(step))
+            }
+            return pages
+        }
+    }
+
+    /// 這一步是否已走到(或剛好在)目前的步驟。
+    private func reached(_ step: AccountJoinFlow.Step) -> Bool {
+        let sequence: [AccountJoinFlow.Step] = [.createMember, .activatePlus, .turnOnNotifications, .syncHosts, .finished]
+        guard let target = sequence.firstIndex(of: step), let current = sequence.firstIndex(of: join.step) else { return false }
+        guard target <= current else { return false }
+        // 略過 Plus 就沒有同步步驟(通知步驟直接到完成)。
+        return !(step == .syncHosts && join.skippedPlus)
+    }
+
+    /// 系統堆疊改變(使用者點「<」或從左緣滑回,或在選擇頁點了一列)後回寫成流程狀態。
+    /// 堆疊變短只有登入頁與加入的第 1 步有效(回到選擇頁);第 2 步起不能回到已建立的會員,忽略。
+    public mutating func apply(path newPath: [Page]) {
+        switch newPath.first {
+        case nil:
+            back()
+        case .signIn:
+            if screen == .choose { chooseSignIn() }
+        case .join:
+            if screen == .choose { chooseJoin() }
+        case .joinStep:
+            break
+        }
+    }
+
     // MARK: - 選擇與切換
 
     public mutating func chooseSignIn() {
