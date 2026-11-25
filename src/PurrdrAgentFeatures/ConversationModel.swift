@@ -92,13 +92,6 @@ public final class ConversationModel {
     /// 各 Agent 種類自己的 session 狀態來源(Antigravity 的 statusline 包裝,#448);沒有的種類用 `sessionStatusReader`。
     public var agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:]
 
-    /// 有狀態列的 Agent(Antigravity)裝了 statusline 包裝時,從 session 檔讀到的模式、模型與 effort(優先於畫面狀態列,#448);沒有是 `nil`。
-    private var statusFileLine: AgentStatusLine? {
-        guard screenDialect.statusLine != nil, let status = sessionStatus else { return nil }
-        return AgentStatusLine(
-            mode: status.cycleMode.flatMap { AgentPermissionMode(antigravityCycleMode: $0) }, model: status.antigravityModelName,
-            effort: status.effort)
-    }
     @ObservationIgnored private var sessionStatusReadAt: Date?
     /// 追蹤事件觸發的快取寫入最短間隔(秒);離開聊天時一定補寫(#510)。
     package static let cacheSaveInterval: TimeInterval = 5
@@ -2274,40 +2267,33 @@ public final class ConversationModel {
 
     // MARK: - 模型膠囊(#350)
 
-    /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
-    public var modelName: String? { statusFileLine?.model ?? screenStatusLine?.model ?? metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+    /// Agent 控制(#561):模型、effort、權限模式的目前值、可選項與停用原因,標題列、膠囊與面板都讀這一份。
+    /// 三個來源(status line 檔、畫面狀態列、對話紀錄)的優先序只寫在 `AgentControls`。
+    public var controls: AgentControls {
+        AgentControls(
+            dialect: screenDialect, metadata: metadata, sessionStatus: sessionStatus, observations: controlObservations,
+            link: AgentControls.Link(isReadOnly: isReadOnly, isOffline: isOffline, agentStatus: agentStatus ?? .unknown))
+    }
 
-    /// 目前的 effort 原值:畫面狀態列優先(使用者在電腦上改了也跟著),沒有就取對話紀錄。
-    private var effortLevel: String? { statusFileLine?.effort ?? screenStatusLine?.effort ?? metadata.effort }
+    /// 這個聊天看過的控制來源(畫面狀態列、畫面認出的權限模式、看過的模式)。
+    public private(set) var controlObservations = AgentControlObservations()
+
+    /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
+    public var modelName: String? { controls.modelName }
 
     /// 面板「模型」列的值:「Opus 5.5 · 中」;沒有 effort 時只有模型名,還沒讀到是 `nil`。
-    public var modelSummary: String? {
-        guard let name = modelName else { return nil }
-        guard let effort = effortLevel.flatMap(Self.effortName(of:)) else { return name }
-        return "\(name) · \(effort)"
-    }
+    public var modelSummary: String? { controls.modelSummary }
 
     /// 目前的 effort 顯示名稱(「中」);還沒讀到是 `nil`。
-    public var effortDisplayName: String? { effortLevel.flatMap(Self.effortName(of:)) }
+    public var effortDisplayName: String? { controls.effortDisplayName }
 
-    public static func effortName(of level: String) -> String? {
-        switch level.lowercased() {
-        case "low": String(localized: "Low")
-        case "medium": String(localized: "Medium")
-        case "high": String(localized: "High")
-        case "xhigh": String(localized: "Extra High")
-        case "max": String(localized: "Max")
-        default: level.isEmpty ? nil : level
-        }
-    }
+    public static func effortName(of level: String) -> String? { AgentControls.effortName(of: level) }
 
     /// 模型選擇 sheet 開著(從送出 `/model` 到選定或取消)。畫面據此不在對話裡重複畫同一張面板卡片。
     public private(set) var isChoosingModel = false
 
     /// 模型膠囊要顯示:Claude(可切換),或 Codex 有讀到目前模型(只顯示、說明不能在 app 內切換,#384)。
-    public var showsModelCapsule: Bool {
-        supportsPermissionMode || (screenDialect.showsModelName && modelName != nil)
-    }
+    public var showsModelCapsule: Bool { controls.showsModelCapsule }
 
     /// 能開模型選擇:只有 Claude(`/model` 面板一步選定)、閒置、沒有問題在等、沒有別的面板、
     /// 非唯讀與離線。工作中時 `/model` 會排進佇列,所以不開放。
@@ -2555,10 +2541,10 @@ public final class ConversationModel {
     // MARK: - 畫面狀態列(#446)
 
     /// 這個 Agent 的畫面有可讀的狀態列(Antigravity):模式、模型、effort 只顯示、不能在 app 切換。
-    public var readsStatusLine: Bool { screenDialect.statusLine != nil }
+    public var readsStatusLine: Bool { controls.readsStatusLine }
 
     /// 畫面最底下狀態列讀到的模式、模型與 effort(Antigravity,#446);還沒讀到或這個 Agent 沒有狀態列是 `nil`。
-    public private(set) var screenStatusLine: AgentStatusLine?
+    public var screenStatusLine: AgentStatusLine? { controlObservations.screenStatusLine }
     @ObservationIgnored private var statusLineReadStatus: AgentStatus?
     @ObservationIgnored private var pollsSinceStatusLine = 0
 
@@ -2576,7 +2562,7 @@ public final class ConversationModel {
         guard screenDialect.statusLine != nil, !isOffline, let screen = await readScreen(for: .statusLine) else { return }
         pollsSinceStatusLine = 0
         statusLineReadStatus = agentStatus
-        if let line = screenDialect.readStatusLine(in: screen) { screenStatusLine = line }
+        if let line = screenDialect.readStatusLine(in: screen) { controlObservations.observeStatusLine(line) }
     }
 
     /// 輪詢迴圈每輪呼叫:第一次、Agent 狀態變了或隔了一段時間才讀(指令預算:平常的輪詢不讀畫面)。
@@ -2590,64 +2576,30 @@ public final class ConversationModel {
 
     // MARK: - 權限模式(#306、#383)
 
-    /// 畫面讀到的模式與當時對話紀錄的原文。紀錄沒變就用畫面補「剛切換、紀錄尚未寫入」的空檔;紀錄一更新就以紀錄為準。
-    private struct ScreenObservation {
-        var mode: AgentPermissionMode
-        var transcriptValue: String?
-    }
-
-    private var screenObservation: ScreenObservation?
-    /// 這個聊天看過的模式(畫面標示、對話紀錄),用來決定輪替裡有沒有略過權限與自動。
-    private var observedPermissionModes: Set<AgentPermissionMode> = []
-
     /// Claude 目前的權限模式:對話紀錄尾端最後一筆為準(電腦端改了也會同步),畫面只補空檔;都沒有是 `nil`。
-    public var permissionMode: AgentPermissionMode? {
-        // Antigravity 的對話紀錄沒有權限模式,以畫面狀態列為準(#446)。
-        if screenDialect.statusLine != nil, let mode = statusFileLine?.mode ?? screenStatusLine?.mode { return mode }
-        let fromTranscript = metadata.permissionMode.flatMap { AgentPermissionMode(transcriptValue: $0) }
-        if let seen = screenObservation, seen.transcriptValue == metadata.permissionMode { return seen.mode }
-        return fromTranscript ?? screenObservation?.mode
-    }
+    public var permissionMode: AgentPermissionMode? { controls.permissionMode }
 
     /// Shift+Tab 輪替裡有哪些模式:預設一般、接受編輯、Plan;看過略過權限或自動才加入。
-    public var permissionModeAvailability: PermissionModeAvailability {
-        var availability = PermissionModeAvailability()
-        for mode in observedPermissionModes { availability.observe(mode) }
-        if let permissionMode { availability.observe(permissionMode) }
-        return availability
-    }
+    public var permissionModeAvailability: PermissionModeAvailability { controls.permissionModeAvailability }
 
     /// 面板上的模式選項(依輪替順序);目前是 `dontAsk` 時多一列只顯示的它。
     /// 有自己輪替的 Agent(Antigravity)固定是它輪替裡的幾種。
-    public var permissionModeOptions: [AgentPermissionMode] {
-        screenDialect.switchablePermissionModes ?? permissionModeAvailability.options(current: permissionMode)
-    }
+    public var permissionModeOptions: [AgentPermissionMode] { controls.permissionModeOptions }
 
     /// Codex 的核准政策原文(例:`on-request`);只顯示,不能在手機切換。其他 Agent 是 `nil`。
-    public var approvalPolicy: String? {
-        screenDialect.showsApprovalPolicy ? metadata.approvalPolicy : nil
-    }
+    public var approvalPolicy: String? { controls.approvalPolicy }
 
     private func noteTranscriptPermissionMode() {
-        if let mode = metadata.permissionMode.flatMap({ AgentPermissionMode(transcriptValue: $0) }) {
-            observedPermissionModes.insert(mode)
-        }
+        controlObservations.noteTranscript(permissionMode: metadata.permissionMode)
     }
 
     /// 一批對話紀錄行裡出現過的權限模式都記下(同一批有多次切換時,中間的模式也算看過)。
     private func notePermissionModes(in lines: [String]) {
-        for line in lines where line.contains("\"permissionMode\"") {
-            var scratch = TranscriptMetadata()
-            scratch.update(with: line)
-            if let mode = scratch.permissionMode.flatMap({ AgentPermissionMode(transcriptValue: $0) }) {
-                observedPermissionModes.insert(mode)
-            }
-        }
+        controlObservations.noteTranscript(lines: lines)
     }
 
     private func observeScreen(_ mode: AgentPermissionMode) {
-        observedPermissionModes.insert(mode)
-        screenObservation = ScreenObservation(mode: mode, transcriptValue: metadata.permissionMode)
+        controlObservations.observeScreen(mode: mode, transcriptValue: metadata.permissionMode)
     }
     /// 正在切到這個模式(膠囊顯示進行中)。
     public private(set) var switchingPermissionMode: AgentPermissionMode?
@@ -2655,30 +2607,15 @@ public final class ConversationModel {
     @ObservationIgnored private var permissionModeProbed = false
 
     /// 只有畫面方言有權限模式(Claude Code)且驗證過才開放切換。
-    public var supportsPermissionMode: Bool { screenDialect.switchesPermissionMode }
+    public var supportsPermissionMode: Bool { controls.supportsPermissionMode }
 
     /// 膠囊可以操作:讀到目前模式、沒在切換、沒離線;唯讀裝置不行(畫面說明)。
-    public var canSwitchPermissionMode: Bool {
-        supportsPermissionMode && permissionMode != nil && !isSwitchingPermissionMode && permissionModeLock == nil
-    }
+    public var canSwitchPermissionMode: Bool { controls.canSwitchPermissionMode(isSwitching: isSwitchingPermissionMode) }
+
+    public typealias PermissionModeLock = AgentControls.PermissionModeLock
 
     /// 面板的權限選項為什麼停用(#380);可切換時是 `nil`。
-    public enum PermissionModeLock: Equatable, Sendable {
-        case readOnlyDevice
-        case offline
-        /// Agent 在工作:這個 Agent 的切換只驗證過閒置時(Antigravity)。
-        case working
-        /// Agent 在等使用者回覆:這時 Shift+Tab 會變成「核准」。
-        case waitingForYou
-    }
-
-    public var permissionModeLock: PermissionModeLock? {
-        if isReadOnly { return .readOnlyDevice }
-        if isOffline { return .offline }
-        if agentStatus == .blocked { return .waitingForYou }
-        if agentStatus == .working, screenDialect.switchesPermissionModeOnlyWhenIdle { return .working }
-        return nil
-    }
+    public var permissionModeLock: PermissionModeLock? { controls.permissionModeLock }
 
     /// 讀一次畫面:對話紀錄還沒有模式時用它當目前模式,紀錄有值就以紀錄為準(畫面只用來記錄看過哪些模式);認不出沿用上次。
     public func refreshPermissionMode() async {
@@ -2691,7 +2628,7 @@ public final class ConversationModel {
         if metadata.permissionMode == nil {
             observeScreen(mode)
         } else {
-            observedPermissionModes.insert(mode)
+            controlObservations.noteSeen(mode: mode)
         }
     }
 
@@ -2783,7 +2720,7 @@ public final class ConversationModel {
     private func readPermissionMode(verifying: Bool = false) async -> AgentPermissionMode? {
         guard let screen = await readScreen(for: verifying ? .permissionModeVerify : .permissionMode) else { return nil }
         if screenDialect.statusLine != nil, let line = screenDialect.readStatusLine(in: screen) {
-            screenStatusLine = line
+            controlObservations.observeStatusLine(line)
             return line.mode
         }
         return screenDialect.readPermissionMode(in: screen)
@@ -2849,7 +2786,7 @@ public final class ConversationModel {
     public var header: ConversationHeader {
         ConversationHeader(
             agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress,
-            permissionMode: supportsPermissionMode || screenDialect.statusLine != nil ? permissionMode : nil, tabName: tabName)
+            permissionMode: controls.headerPermissionMode, tabName: tabName)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
