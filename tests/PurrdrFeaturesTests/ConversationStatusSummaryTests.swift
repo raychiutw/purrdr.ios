@@ -97,7 +97,7 @@ struct ConversationStatusSummaryTests {
         let summary = Self.summary(progress: progress)
 
         #expect(summary.header.progressText == "62%")
-        #expect(summary.header.displayVariants.allSatisfy { !$0.contains("Todo") })
+        #expect(!summary.header.subtitle.contains("Todo"))
         #expect(summary.sheet.progress.todos.count == 2)
     }
 

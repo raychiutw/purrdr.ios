@@ -75,7 +75,7 @@ final class ConversationLayoutUITests: XCTestCase {
         let row = app.descendants(matching: .any)[chatRowID("w1:p1")].firstMatch
         XCTAssertTrue(app.reveal(row))
         row.tap()
-        XCTAssertTrue(app.element("conversation.header").waitUntilExistsAndSettled(timeout: 15))
+        XCTAssertTrue(app.conversationBar.waitUntilExistsAndSettled(timeout: 15))
         XCTAssertTrue(tabBar.waitUntilGone(timeout: 5), "對話裡不該有 tab bar")
         expectTabBarReturnsWithBack(app, tabBar, "chat")
     }

@@ -87,9 +87,8 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertTrue(app.scrollIntoView(studioRow, search: .down, timeout: 15), "另一台主機同一個 pane 沒有自己的列")
 
         studioRow.tap()
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 10))
-        XCTAssertTrue(header.label.contains("Studio Mac"), "非選取中主機的聊天標題列沒有主機名:\(header.label)")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.conversationSubtitle(containing: "Studio Mac").waitUntilExists(timeout: 10), "非選取中主機的聊天副標題沒有主機名")
     }
 
 }

@@ -74,7 +74,7 @@ final class NeedsYouBannerUITests: XCTestCase {
 
         // 標題可能是 Tab 名稱而不是 workspace 名稱,所以以「橫幅消失」判斷開到的是橫幅指的那個(notes):
         // 若開到 weather-app,橫幅仍會指向 notes。
-        XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10), "沒有開出聊天")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10), "沒有開出聊天")
         XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "沒有進到橫幅指的最新聊天(橫幅仍在)")
     }
 

@@ -6,18 +6,19 @@ final class ConversationHeaderUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 標題列(#270、#514):第一行 Tab 名稱，第二行主機名與狀態(context 百分比在用量 sheet);右邊只有終端機鈕，
+    /// 標題列(#270、#618):系統標題是 Tab 名稱，系統副標題是主機名與狀態(context 百分比在用量面板);
     /// 沒有重新載入(改成下拉重新整理)。不在工作中沒有停止列。
     @MainActor
     func testHeaderShowsWorkspaceStatusAndHost() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))
 
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 5), "沒有標題膠囊")
-        // 兩行膠囊(#514):Tab 名稱、主機、狀態、權限模式都在 VoiceOver 標籤裡。
-        XCTAssertTrue(header.label.contains("Done"), "標籤沒有狀態:\(header.label)")
-        XCTAssertTrue(header.label.contains("Demo"), "標籤沒有主機名:\(header.label)")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 5), "沒有聊天頂列")
+        // 系統副標題(#618):「主機 · 狀態」;沒有自畫的標題膠囊。
+        let subtitle = app.conversationSubtitle(containing: "Done")
+        XCTAssertTrue(subtitle.waitUntilExists(timeout: 5), "副標題沒有狀態")
+        XCTAssertTrue(subtitle.label.contains("Demo"), "副標題沒有主機名:\(subtitle.label)")
+        XCTAssertFalse(app.element("conversation.header").exists, "不該再有自畫的標題膠囊")
         XCTAssertFalse(app.element("conversation.reload").exists, "標題列不該再有重新載入")
         XCTAssertFalse(app.element("stopBar").exists, "不在工作中不該有停止列")
 
@@ -36,7 +37,7 @@ final class ConversationHeaderUITests: XCTestCase {
 
         let working = app.element("conversation.working")
         XCTAssertTrue(working.waitUntilExists(timeout: 10), "工作中沒有指示")
-        XCTAssertTrue(app.element("conversation.header").label.contains("Working"))
+        XCTAssertTrue(app.conversationSubtitle(containing: "Working").waitUntilExists(timeout: 5), "副標題沒有工作中")
         XCTAssertFalse(app.element("conversation.stop").exists, "標題列不該再有停止")
         XCTAssertTrue(app.element("composer.send").exists, "送出鈕應該維持原樣")
 
@@ -82,8 +83,8 @@ final class ConversationHeaderUITests: XCTestCase {
     @MainActor
     func testNeedsYouAgentHasNoStopBar() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
-        XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10))
-        XCTAssertTrue(app.element("conversation.header").label.contains("Needs"), "應該是需要你")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.conversationSubtitle(containing: "Needs").waitUntilExists(timeout: 5), "應該是需要你")
         XCTAssertFalse(app.element("stopBar").exists, "需要你不該有停止列")
     }
 

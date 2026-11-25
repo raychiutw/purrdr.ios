@@ -31,7 +31,7 @@ final class SendWhenDoneUITests: XCTestCase {
         row.tap()
         // 開關在「⋯」→ 做完再送的 sheet(#515),不在輸入列。
         XCTAssertFalse(app.element("composer.sendWhenDone").exists, "輸入列不該再有做完再送開關")
-        let header = app.element("conversation.header")
+        let header = app.conversationBar
         XCTAssertTrue(header.waitUntilExists(timeout: 10))
         app.conversationMoreItem("menu.sendWhenDone").tap()
         let toggle = app.element("status.sendWhenDone")

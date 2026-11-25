@@ -68,7 +68,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         let message = app.element("conversation.user")
-        XCTAssertTrue(app.element("conversation.header").waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面")
+        XCTAssertTrue(app.conversationBar.waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面")
         XCTAssertTrue(message.waitUntilExists(timeout: 10), "第一次開啟後沒有出現訊息")
 
         // 返回再開第二次(快取命中)。
@@ -80,7 +80,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
         var sawLoading = false
         var positions: [CGFloat] = []
         var hadMessageWhenHeaderAppeared: Bool?
-        let header = app.element("conversation.header")
+        let header = app.conversationBar
         let deadline = Date().addingTimeInterval(4)
         while Date() < deadline {
             if loading.exists { sawLoading = true }

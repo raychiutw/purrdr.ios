@@ -196,6 +196,14 @@ extension XCUIApplication {
         scrollIntoView(target, in: element(sheetIdentifier), search: search, limit: limit, timeout: timeout)
     }
 
+    /// 聊天頂列右上的用量環(#618:標題是系統導覽列標題,沒有識別碼;以這顆鈕當「聊天畫面已出現」的錨點)。
+    var conversationBar: XCUIElement { buttons["conversation.usage"].firstMatch }
+
+    /// 聊天頂列的系統副標題(「主機 · 狀態」):導覽列裡含指定文字的靜態文字。
+    func conversationSubtitle(containing text: String) -> XCUIElement {
+        navigationBars.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
     /// 從聊天列表(Spaces)點開某台主機某個 Agent 的聊天(Tab 列 `spaces.tab.<主機身分>/<tab>`,見 `chatRowID`;Demo 主機身分是 `demo`)。
     /// Tab 有多個 Pane(Demo 的 `w3`)時先開版面圖、再點 Agent 方塊。
     @MainActor
@@ -206,7 +214,7 @@ extension XCUIApplication {
         let block = buttons["layout.block.\(paneID)"]
         if block.waitUntilExists(timeout: 2) { block.tap() }
         // 推進聊天畫面的轉場中，標題列的按鈕已經存在但點不到：等標題列停下。
-        XCTAssertTrue(element("conversation.header").waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面", file: file, line: line)
+        XCTAssertTrue(conversationBar.waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面", file: file, line: line)
     }
 
     /// 以 UI 測試模式啟動並進入某個 Demo 主機 Agent 的聊天。

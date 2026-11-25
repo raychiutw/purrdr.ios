@@ -13,8 +13,7 @@ final class PermissionModeUITests: XCTestCase {
         let row = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10), "沒有聊天頂列")
         XCTAssertFalse(app.element("composer.permissionMode").exists, "輸入列不再有權限模式膠囊")
 
         app.conversationMoreItem("menu.permissionMode").tap()
@@ -64,12 +63,11 @@ final class PermissionModeUITests: XCTestCase {
         let row = app.element("spaces.tab.demo/w4:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 的 Antigravity Agent")
         row.tap()
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
-        XCTAssertTrue(
-            header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "標題沒有顯示畫面狀態列的 Accept Edits")
-
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10), "沒有聊天頂列")
+        // 權限模式不在標題(#618),在「⋯」的權限模式項目上看得到畫面狀態列的 Accept Edits。
         let modelItem = app.conversationMoreItem("menu.model")
+        let modeItem = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Permission Mode,")).firstMatch
+        XCTAssertTrue(modeItem.exists && modeItem.label.contains("Accept Edits"), "「⋯」沒有顯示畫面狀態列的 Accept Edits:\(modeItem.label)")
         XCTAssertTrue(modelItem.label.contains("Gemini 4 Neon"), "「⋯」的模型與思考深度項目沒有顯示目前模型")
         modelItem.tap()
         XCTAssertTrue(app.element("model.current").waitUntilExists(timeout: 15), "Antigravity 的模型 sheet 應只顯示目前模型")

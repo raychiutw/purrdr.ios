@@ -10,7 +10,7 @@ final class ConversationStatusSheetUITests: XCTestCase {
     @MainActor
     func testMoreMenuListsItemsAndOpensPermissionSheet() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
 
         let permission = app.conversationMoreItem("menu.permissionMode")
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Usage & Context")).firstMatch.exists, "「⋯」沒有用量與 Context")
@@ -26,9 +26,10 @@ final class ConversationStatusSheetUITests: XCTestCase {
     @MainActor
     func testTitleIsNotAButton() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 10))
-        header.tap()
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
+        let subtitle = app.conversationSubtitle(containing: "Done")
+        XCTAssertTrue(subtitle.waitUntilExists(timeout: 10), "沒有系統副標題")
+        subtitle.tap()
         XCTAssertFalse(app.element("menu.sheet.permissionMode").exists)
         XCTAssertFalse(app.element("conversation.panel").exists)
     }

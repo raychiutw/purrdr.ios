@@ -16,6 +16,20 @@ struct ChatToolbarUsageTests {
         }
     }
 
+    @Test("聊天標題是系統標題加副標題,不自畫標題膠囊、狀態點與權限盾牌(#618)")
+    func systemTitleAndSubtitle() throws {
+        let view = try GlassLevelUsageTests.source("ConversationView.swift")
+        #expect(!view.contains("placement: .principal"), "聊天頂列不放自畫的 principal 標題")
+        let title = try GlassLevelUsageTests.source("ConversationListContentBuilder.swift")
+        #expect(title.contains(".navigationSubtitle("), "狀態文字用系統副標題")
+        for name in GlassLevelUsageTests.featureFiles {
+            let text = try GlassLevelUsageTests.source(name)
+            #expect(!text.contains("ConversationTitleView"), "\(name) 不該再有標題膠囊")
+            #expect(!text.contains("titleCapsuleHeight"), "\(name) 不該有標題膠囊尺寸")
+            #expect(!text.contains("\"exclamationmark.shield\""), "\(name) 不該有橘色權限盾牌")
+        }
+    }
+
     @Test("沒有 Inspector 開關鈕,也沒有 sidebar.trailing")
     func noInspectorToggle() throws {
         for name in GlassLevelUsageTests.featureFiles {

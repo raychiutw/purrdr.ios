@@ -23,10 +23,9 @@ final class NeedsYouSectionUITests: XCTestCase {
         XCTAssertTrue(app.element("spaces.tab.demo/w2:t1").exists, "原本的段落少了這一列")
 
         row.tap()
-        let conversation = app.element("conversation.header")
-        XCTAssertTrue(conversation.waitUntilExists(timeout: 10), "點段落裡的列沒有開聊天")
-        // 標題是 Tab 名稱(不是 workspace 名稱),以「需要你」狀態確認開到的是 weather-app。
-        XCTAssertTrue(conversation.wait(for: NSPredicate(format: "label CONTAINS 'Needs You'"), timeout: 10), "開到別的聊天:\(conversation.label)")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10), "點段落裡的列沒有開聊天")
+        // 標題是 Tab 名稱(不是 workspace 名稱),以副標題的「需要你」狀態確認開到的是 weather-app。
+        XCTAssertTrue(app.conversationSubtitle(containing: "Needs You").waitUntilExists(timeout: 10), "開到別的聊天")
     }
 
     /// 搜尋時這段也套用搜尋:不符合就整段消失。

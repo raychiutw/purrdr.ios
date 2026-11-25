@@ -108,8 +108,7 @@ final class DailySmokeUITests: XCTestCase {
             app.dismissKeyboard()
         }
         step("用量環與「⋯」→ 權限模式") {
-            let header = app.element("conversation.header")
-            XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
+            XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10), "沒有聊天頂列")
             app.buttons["conversation.usage"].firstMatch.tap()
             XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
             XCTAssertTrue(app.element("usage.sheet.context").waitUntilExists(timeout: 5), "面板沒有 Context 卡片")
@@ -159,8 +158,8 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(open.waitUntilExists(timeout: 20), "別的聊天變成需要你後沒有橫幅")
             XCTAssertTrue(open.label.hasPrefix("notes"), "橫幅沒有寫出 notes:\(open.label)")
             open.tap()
-            let header = app.element("conversation.header")
-            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Needs You'"), timeout: 10), "點橫幅後沒有換成需要你的 notes 聊天(標題在這條流程裡是 Tab 名稱,看狀態):\(header.label)")
+            let subtitle = app.conversationSubtitle(containing: "Needs You")
+            XCTAssertTrue(subtitle.waitUntilExists(timeout: 10), "點橫幅後沒有換成需要你的 notes 聊天(標題在這條流程裡是 Tab 名稱,看副標題的狀態)")
             XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "已經在那個聊天,橫幅該消失")
         }
         step("返回後列表最上面有「需要你」段落") {
