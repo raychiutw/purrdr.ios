@@ -222,12 +222,12 @@ struct PurrdrApp: App {
             subscriber.start()
             hitchMetrics = subscriber
         }
-        // `-uiTestingCrashRecord`:預放一筆「上次異常結束」的閃退記錄(#632)。提示的已讀狀態 UI 測試只放記憶體。
+        // `-uiTestingCrashRecord`:預放一筆「上次異常結束」的閃退記錄(#632)。已提示狀態見 `uiTestingCrashNoticeStore`。
         if uiTesting, arguments.contains("-uiTestingCrashRecord") {
             hitchRecorder.recordUITestingCrash()
         }
         crashNotice = CrashNoticeModel(
-            recorder: hitchRecorder, store: uiTesting ? InMemoryCrashNoticeStore() : UserDefaultsCrashNoticeStore())
+            recorder: hitchRecorder, store: uiTesting ? Self.uiTestingCrashNoticeStore(arguments) : UserDefaultsCrashNoticeStore())
         settings = Self.makeSettings(hosts: hosts, hitchRecorder: hitchRecorder)
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
@@ -263,6 +263,15 @@ struct PurrdrApp: App {
     private static func recentPhotoSource(_ arguments: [String]) -> RecentPhotoSource {
         arguments.contains("-uiTestingManyRecentPhotos") ? .simulated(count: 80)
             : arguments.contains("-uiTestingRecentPhotos") ? .simulated(count: 6) : .simulatedDenied
+    }
+
+    /// UI 測試的閃退提示「已提示」狀態:放在專用的 suite(不碰正式設定),預設每次啟動重置;
+    /// `-uiTestingKeepCrashNotice` 沿用上一次啟動留下的(測「關閉或顯示過的提示重啟後不再出現」)。
+    private static func uiTestingCrashNoticeStore(_ arguments: [String]) -> any CrashNoticeStoring {
+        let name = "com.raychiu.purrdr.ui-testing.crash-notice"
+        let defaults = UserDefaults(suiteName: name) ?? .standard
+        if !arguments.contains("-uiTestingKeepCrashNotice") { defaults.removePersistentDomain(forName: name) }
+        return UserDefaultsCrashNoticeStore(defaults: defaults)
     }
 
     /// `-uiTestingPairingScan`:掃描畫面一開就像掃到配對 QR code;`-uiTestingCameraDenied`:沒有相機權限。

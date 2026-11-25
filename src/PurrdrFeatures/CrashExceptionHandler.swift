@@ -59,9 +59,10 @@ extension CrashExceptionHandler {
 
 extension DiagnosticRecorder {
     /// UI 測試旗標 `-uiTestingCrashRecord`:預放一筆「上次異常結束」的閃退記錄。
+    /// 時間固定,重新啟動後還是同一筆(才測得出「已提示過就不再提示」)。
     public func recordUITestingCrash() {
         recordCrash(CrashRecord(
-            timestamp: Date(), name: "NSInternalInconsistencyException", reason: "UI testing",
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000), name: "NSInternalInconsistencyException", reason: "UI testing",
             environment: .current))
     }
 }
