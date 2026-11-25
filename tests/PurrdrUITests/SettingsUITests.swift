@@ -176,7 +176,7 @@ final class SettingsUITests: XCTestCase {
 
         // 聊天頂列:新增聊天鈕在,搜尋欄提示是繁體中文(#501)。
         XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有看到列表")
-        XCTAssertEqual(app.chatSearch.placeholderValue, "搜尋 Tab、Workspace、主機", "列表不是繁體中文")
+        XCTAssertEqual(app.revealChatSearch().placeholderValue, "搜尋 Tab、Workspace、主機", "列表不是繁體中文")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["帳號"].waitUntilExists(timeout: 5), "帳號與設定頁標題不是繁體中文")
         XCTAssertTrue(app.staticTexts["用量顯示"].waitUntilExists(timeout: 5), "設定沒有「用量顯示」")
