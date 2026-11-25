@@ -1920,6 +1920,8 @@ public final class ConversationModel {
         answerSent = nil
         staleBlockedUntil = nil
         answerNotice = nil
+        // 正在回答:先前「請先回答」的提示已不適用(只清這一種)。
+        if notice == .needsAnswer { notice = nil }
         haptics.play(.selection)
         let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
         do {
@@ -2133,6 +2135,8 @@ public final class ConversationModel {
             }
         }
         if next?.signature != prompt?.signature || (next == nil) != (prompt == nil) { prompt = next }
+        // Agent 不再等回答:「請先回答」的提示收掉(只清這一種)。
+        if next == nil, notice == .needsAnswer { notice = nil }
         // 提示換了或不見了(例如在終端機回答掉):自訂回答跟著結束。
         if let typedAnswer, !isTypedAnswerOption(typedAnswer) { endTypedAnswer(keepingText: draft) }
     }

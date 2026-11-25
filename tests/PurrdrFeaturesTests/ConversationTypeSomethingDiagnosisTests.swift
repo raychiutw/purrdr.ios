@@ -152,4 +152,39 @@ struct ConversationTypeSomethingDiagnosisTests {
         #expect(setup.model.prompt == nil)
         #expect(setup.model.answerInFlight == nil)
     }
+
+    // MARK: needsAnswer 提示隨回答清掉
+
+    /// 重現使用者錄影:直接送出被擋(提示 needsAnswer)→ 用 Type something 回答成功 → 提示仍留著,要手動按 ✕。
+    @Test("直接送出被擋後用 Type something 回答成功:needsAnswer 提示自動清掉")
+    func needsAnswerNoticeClearsAfterTypedAnswer() async throws {
+        let (setup, typed) = try await Self.asking("claude-ask-question")
+        setup.model.draft = "Teal"
+        await setup.model.send() // Esc 沒有回應 = 沒能結束問題卡
+        #expect(setup.model.notice == .needsAnswer)
+
+        setup.model.beginTypedAnswer(typed)
+        setup.model.draft = "測試"
+        for _ in 0..<3 { await setup.host.bridge.expect(Answer.bridge, reply: PromptReplies.keysAccepted) }
+        await setup.model.send()
+
+        #expect(setup.model.answerInFlight != nil)
+        #expect(setup.model.notice == nil, "提示還在:\(String(describing: setup.model.notice))")
+    }
+
+    @Test("needsAnswer 提示:下次輪詢 Agent 不再 blocked 就清掉;其他提示不動")
+    func needsAnswerNoticeClearsWhenNoLongerBlocked() async throws {
+        let (setup, _) = try await Self.asking("claude-ask-question")
+        setup.model.draft = "Teal"
+        await setup.model.send()
+        #expect(setup.model.notice == .needsAnswer)
+        await Answer.expectPoll(setup, status: "working", screen: nil)
+        await setup.model.poll()
+        #expect(setup.model.notice == nil)
+
+        setup.model.noteImageLimit()
+        await Answer.expectPoll(setup, status: "working", screen: nil)
+        await setup.model.poll()
+        #expect(setup.model.notice == .attachmentLimit)
+    }
 }
