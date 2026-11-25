@@ -208,8 +208,11 @@ public final class MergedAgentListModel {
 
     /// 以列表看到的 session 記開啟時間;沒有 session 時不記(行為規格 F2.6:否則下一個用這個 pane 的聊天會被當成讀過)。
     private func markOpened(_ route: ChatRoute) {
-        guard let session = snapshot(for: route.host)?.agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return }
-        actions(for: route.host)?.markOpened(sessionID: session, seen: list(for: route.host)?.previews[route.paneID]?.date)
+        guard let agents = snapshot(for: route.host)?.agents,
+              let session = agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return }
+        actions(for: route.host)?.markOpened(
+            sessionID: session, seen: list(for: route.host)?.previews[route.paneID]?.date,
+            liveSessions: Set(agents.compactMap(\.sessionID)))
     }
 
     /// 需要處理的 workspace 數(導覽入口的數字;不設 app 圖示徽章)。
