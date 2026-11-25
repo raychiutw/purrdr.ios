@@ -6,9 +6,18 @@ public struct URLSessionBackendTransport: BackendTransport {
     private let baseURL: URL
     private let session: URLSession
 
-    public init(baseURL: URL, session: URLSession = .shared) {
+    public init(baseURL: URL, session: URLSession = URLSessionBackendTransport.makeSession()) {
         self.baseURL = baseURL
         self.session = session
+    }
+
+    /// 預設 session:ephemeral、不用 URL 快取與憑證儲存,回應(含權杖)不落地。
+    static func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCredentialStorage = nil
+        return URLSession(configuration: configuration)
     }
 
     public func send(_ request: BackendRequest) async throws -> BackendResponse {
