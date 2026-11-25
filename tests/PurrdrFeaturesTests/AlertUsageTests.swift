@@ -17,7 +17,7 @@ struct AlertUsageTests {
         "PlanUsageView.swift": 1,  // 方案用量同意
         "PushDevicesSection.swift": 1,  // 重新命名(輸入文字)
         "SendWhenDoneViews.swift": 1,  // 由別張票處理
-        "MemberView.swift": 7,  // 找不到會員、結果通知、訂閱結果、鎖定提示、Plus 已開啟、刪除會員、重新命名
+        "MemberView.swift": 6,  // 找不到會員、結果通知、訂閱結果、鎖定提示、Plus 已開啟、刪除會員、重新命名
         "WorkspaceActionsViews.swift": 2,  // 重新命名(輸入文字)、關閉失敗
         "CodexLauncherSection.swift": 1,  // Codex 啟動器同意
     ]

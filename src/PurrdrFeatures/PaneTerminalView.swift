@@ -50,18 +50,25 @@ public struct TerminalSessionView: View {
     public var body: some View {
         terminalContent
             .modifier(ClipboardRequestAlert(requests: clipboardRequests))
-            .alert("Can’t Paste", isPresented: Binding(get: { model.notice != nil }, set: { [model] in if !$0 { model.notice = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(model.notice ?? "")
-            }
-            .reportsErrorDisplay(fingerprint: model.notice?.hashValue ?? 0, area: "PaneTerminal", isShowing: model.notice != nil)
             .modifier(TerminalLifecycle(model: model, screen: screen, isOnScreen: $isOnScreen))
     }
 
     /// 終端機畫面與導覽列(拆出 body,避免型別推斷逾時)。
     private var terminalContent: some View {
         VStack(spacing: 0) {
+            if let notice = model.notice {
+                // 純告知不彈 alert(#625):貼上失敗等直接顯示在終端機上方。
+                HStack {
+                    ErrorLabel(notice, area: "PaneTerminal")
+                    Spacer(minLength: 8)
+                    Button("Dismiss") { model.notice = nil }
+                        .buttonStyle(.borderless)
+                }
+                .font(.footnote)
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .accessibilityIdentifier("terminal.notice")
+            }
             if let banner = model.bannerText {
                 TerminalBanner(text: banner, model: model)
             }

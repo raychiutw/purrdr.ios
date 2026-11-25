@@ -42,6 +42,7 @@ public struct PlusView: View {
 
     public var body: some View {
         List {
+            SubscriptionNoticeSection(plus: model)
             if let subscription = model.subscription, subscription.isActive {
                 subscribedSections(subscription)
             } else if model.isPlusProvisional {
@@ -93,15 +94,17 @@ public struct PlusView: View {
         .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
             if notice == .signInRequired {
                 Button("Sign In") { signingIn = true }
+                Button("Not Now", role: .cancel) {}
+            } else {
+                Button("OK", role: .cancel) {}
             }
-            Button("OK", role: .cancel) {}
         } message: { notice in
             Text(notice.message)
         }
     }
 
     private var noticePresented: Binding<Bool> {
-        Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
+        Binding(get: { model.notice.map { !$0.isInformational } ?? false }, set: { if !$0 { model.notice = nil } })
     }
 
     // MARK: - 區塊
@@ -549,6 +552,33 @@ extension SubscriptionNotice {
             String(localized: "Purrdr couldn’t confirm it’s you, so the subscription wasn’t moved.")
         case .failed:
             String(localized: "Something went wrong. Try again.")
+        }
+    }
+}
+
+
+/// 純告知的訂閱結果(#625、spec #612):顯示在頁內,不彈 alert;可關閉。需要決定或出錯的仍用 alert。
+struct SubscriptionNoticeSection: View {
+    let plus: SubscriptionModel
+
+    var body: some View {
+        if let notice = plus.notice, notice.isInformational {
+            Section {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(notice.title).font(.headline)
+                        Text(notice.message)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondaryText)
+                    }
+                    Spacer(minLength: 8)
+                    Button("Dismiss") { plus.notice = nil }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("subscription.notice.dismiss")
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("subscription.notice")
+            }
         }
     }
 }

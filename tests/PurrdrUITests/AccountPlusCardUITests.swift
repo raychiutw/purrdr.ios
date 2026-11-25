@@ -69,9 +69,9 @@ final class AccountPlusCardUITests: XCTestCase {
         XCTAssertEqual(transfer.label, "Move to This Member")
         transfer.tap()
 
-        let done = app.alerts.firstMatch
-        XCTAssertTrue(done.waitUntilExists(timeout: 10), "轉移完成沒有提示")
-        done.buttons["OK"].tap()
+        // 轉移完成是純告知:顯示在頁內,不彈 alert(#625)。
+        XCTAssertTrue(app.element("subscription.notice").waitUntilExists(timeout: 10), "轉移完成沒有頁內提示")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "純告知不該彈 alert")
         XCTAssertTrue(status(app).wait(for: NSPredicate(format: "label CONTAINS 'Active'"), timeout: 10), "轉移後 Plus 沒有生效")
         XCTAssertFalse(app.buttons["account.plusCard.primary"].exists)
     }

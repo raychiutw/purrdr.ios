@@ -150,6 +150,7 @@ public final class WorkspaceActionsModel {
         let closed = await perform {
             try await client.closeWorkspace(workspaceID)
         } onError: {
+            actionErrorTitle = String(localized: "Couldn’t Close Workspace")
             actionError = $0
         }
         guard closed else { return }
@@ -190,6 +191,7 @@ public final class WorkspaceActionsModel {
             }
             closedTabs[tabID] = now()
         } onError: {
+            actionErrorTitle = String(localized: "Couldn’t Close Tab")
             actionError = $0
         }
         guard closed else { return }

@@ -384,6 +384,10 @@ struct AccountView: View {
                 AccountHeader(member: signedInMember)
             }
 
+            if let plus, !showingPlus {
+                SubscriptionNoticeSection(plus: plus)
+            }
+
             if model.isConnectionLimited {
                 // 後台暫時連不上(#406):登入仍然有效,不是被登出。
                 Section {
@@ -493,8 +497,14 @@ struct AccountView: View {
             default:
                 EmptyView()
             }
-            Button("OK", role: .cancel) {}
-                .accessibilityIdentifier("account.locked.ok")
+            switch reason {
+            case .plusRequired, .subscriptionEnded:
+                Button("Not Now", role: .cancel) {}
+                    .accessibilityIdentifier("account.locked.ok")
+            default:
+                Button("OK", role: .cancel) {}
+                    .accessibilityIdentifier("account.locked.ok")
+            }
         } message: { reason in
             Text(verbatim: reason.explanation)
         }
@@ -505,7 +515,7 @@ struct AccountView: View {
         } message: {
             Text("Turn on notifications and host sync now? You can change them later.")
         }
-        .alert("Sign Out?", isPresented: $confirmingSignOut) {
+        .confirmationDialog("Sign Out?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
             Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
                 .accessibilityIdentifier("member.signOut.confirm")
             Button("Cancel", role: .cancel) {}
@@ -557,7 +567,7 @@ struct AccountView: View {
     /// 付費牆(PlusView)開著時它自己顯示提示,帳號頁不重複顯示。
     private var subscriptionNoticePresented: Binding<Bool> {
         Binding(
-            get: { plus?.notice != nil && !showingPlus },
+            get: { (plus?.notice.map { !$0.isInformational } ?? false) && !showingPlus },
             set: { if !$0 { plus?.notice = nil } })
     }
 

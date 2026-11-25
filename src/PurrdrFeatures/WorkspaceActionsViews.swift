@@ -387,7 +387,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                     Text("Everything running in this tab will stop, including its agents. Chat history stays on the host.")
                 }
             }
-            .alert("Couldn’t Finish", isPresented: errorShown, presenting: actions?.actionError) { _ in
+            .alert(Text(verbatim: actions?.actionErrorTitle ?? ""), isPresented: errorShown, presenting: actions?.actionError) { _ in
                 Button("OK", role: .cancel) {}
             } message: { message in
                 Text(message)
