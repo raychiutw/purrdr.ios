@@ -258,7 +258,7 @@ final class DailySmokeUITests: XCTestCase {
         step("列尾 > 推入登入頁,系統返回第一下就回到選擇頁") {
             app.buttons["account.entry.signIn"].tap()
             XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒有推入登入頁")
-            app.navigationBars.buttons["Account"].tap()
+            app.buttons["BackButton"].firstMatch.tap()
             XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 5), "第一下返回沒有回到選擇頁")
         }
         step("登入頁查無會員:擋下並問要不要加入,確認才進加入流程") {
@@ -274,12 +274,12 @@ final class DailySmokeUITests: XCTestCase {
             // 上一步按了「加入」已在加入第 1 步(不再回選擇頁)。
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "加入第 1 步沒有 Apple 註冊鈕")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
-            XCTAssertTrue(app.navigationBars.buttons["Account"].exists, "第 1 步左上應是系統返回")
+            XCTAssertTrue(app.buttons["BackButton"].firstMatch.exists, "第 1 步左上應是系統返回")
             app.buttons["member.signIn.apple"].tap()
 
             XCTAssertTrue(app.element("account.join.paywall").waitUntilExists(timeout: 10), "建立會員後沒有進開通 Plus")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 2 of 4")
-            XCTAssertFalse(app.navigationBars.buttons["Account"].exists, "第 2 步起左上不是返回")
+            XCTAssertFalse(app.buttons["BackButton"].firstMatch.isHittable, "第 2 步起左上不是返回")
             XCTAssertTrue(app.buttons["member.signIn.cancel"].exists, "第 2 步起左上應是關閉")
             app.buttons["account.join.secondary"].tap()
 

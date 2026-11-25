@@ -84,14 +84,6 @@ public struct MemberContent: View {
 
     public var body: some View {
         content
-            // 登入頁查無這個帳號的會員:擋下並問要不要加入,確認才進加入流程(#434)。掛在 content 上,與下面的 notice alert 分開。
-            .alert("No Member Found", isPresented: Binding(get: { model.memberNotFound }, set: { if !$0 { model.dismissMemberNotFound() } })) {
-                Button("Join") { entry.switchToJoin() }
-                    .accessibilityIdentifier("member.notFound.join")
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("We couldn’t find a member for this account. Do you want to join?")
-            }
             // 根頁永遠是「Account」(推入的登入、加入頁自己有標題,系統返回鈕寫「Account」)。
             .navigationTitle("Account")
             #if os(iOS)
@@ -107,20 +99,6 @@ public struct MemberContent: View {
         }
         .onChange(of: model.phase) { _, phase in
             if phase == .signedOut { entry.reset() }
-        }
-        .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
-            if notice == .deleted {
-                Link("Manage Subscriptions", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
-            }
-            if notice == .signOutBackendUnreachable {
-                Button("Sign Out Anyway", role: .destructive) { Task { await model.signOut(force: true) } }
-                    .accessibilityIdentifier("member.signOutAnyway")
-                Button("Cancel", role: .cancel) {}
-            } else {
-                Button("OK", role: .cancel) {}
-            }
-        } message: { notice in
-            Text(notice.message)
         }
     }
 
@@ -153,10 +131,6 @@ public struct MemberContent: View {
         } else {
             AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts, settings: settings)
         }
-    }
-
-    private var noticePresented: Binding<Bool> {
-        Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
     }
 
     private var signedInMember: Member? {

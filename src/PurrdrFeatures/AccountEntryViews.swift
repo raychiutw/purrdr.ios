@@ -34,6 +34,29 @@ struct AccountEntryStack<Root: View>: View {
                     destination(page)
                 }
         }
+        // 對話框掛在最外層(NavigationStack 之外):掛在根頁上,推入登入頁後根頁不在畫面上,對話框不會出現。
+        // 登入頁查無這個帳號的會員:擋下並問要不要加入,確認才進加入流程(#434)。
+        .alert("No Member Found", isPresented: Binding(get: { model.memberNotFound }, set: { if !$0 { model.dismissMemberNotFound() } })) {
+            Button("Join") { entry.switchToJoin() }
+                .accessibilityIdentifier("member.notFound.join")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("We couldn’t find a member for this account. Do you want to join?")
+        }
+        .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
+            if notice == .deleted {
+                Link("Manage Subscriptions", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
+            }
+            if notice == .signOutBackendUnreachable {
+                Button("Sign Out Anyway", role: .destructive) { Task { await model.signOut(force: true) } }
+                    .accessibilityIdentifier("member.signOutAnyway")
+                Button("Cancel", role: .cancel) {}
+            } else {
+                Button("OK", role: .cancel) {}
+            }
+        } message: { notice in
+            Text(notice.message)
+        }
         // 流程 → 堆疊:登入結果、前進、略過。
         .onChange(of: shownPath) { _, path in
             if pages != path { pages = path }
@@ -44,6 +67,10 @@ struct AccountEntryStack<Root: View>: View {
             entry.apply(path: new)
             if pages != shownPath { pages = shownPath }
         }
+    }
+
+    private var noticePresented: Binding<Bool> {
+        Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
     }
 
     private var shownPath: [AccountEntryFlow.Page] {

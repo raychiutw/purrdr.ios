@@ -51,6 +51,15 @@ struct AccountFullScreenUsageTests {
         #expect(!views.contains("switch entry.screen"), "各頁由推入的 destination 決定,不看 entry.screen 原地換")
     }
 
+    @Test("登入的對話框掛在 NavigationStack 外層,不掛在會被推入頁蓋住的根頁")
+    func entryAlertsLiveOutsideTheStack() throws {
+        let views = try Self.source("AccountEntryViews.swift")
+        #expect(views.contains(".alert(\"No Member Found\""), "查無會員的對話框要在 AccountEntryStack")
+        #expect(views.contains("presenting: model.notice"), "帳號通知對話框要在 AccountEntryStack")
+        let member = try Self.source("MemberView.swift")
+        #expect(!member.contains(".alert(\"No Member Found\""), "根頁推入登入頁後看不到,不能掛在根頁")
+    }
+
     @Test("底部固定區用 safeAreaBar,不自鋪 .bar 底")
     func bottomBarsUseSafeAreaBar() throws {
         let views = try Self.source("AccountEntryViews.swift")
