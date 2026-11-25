@@ -244,7 +244,7 @@ struct HostOverviewView: View {
             } label: {
                 HostRowLabel(title: "Add Your Own Host")
             }
-            .buttonStyle(.plain)
+            .listAction()
             .accessibilityIdentifier("hosts.demo.addOwn")
             // 設計稿(#392)範例主機沒有登入 Shell;刻意保留:App Review 要能開 Demo 的模擬終端機(#434,App 內建、不連真電腦)。
             if overview.showsLoginShell {
@@ -293,24 +293,26 @@ struct HostRowLabel: View {
     var subtitle: LocalizedStringKey?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
+        // 右側說明用系統的 `LabeledContent`(大字級自動換行);標題下的副標是上下兩行。
+        if let detail {
+            LabeledContent {
+                detail
+                    .multilineTextAlignment(.trailing)
+            } label: {
                 Text(title)
-                if let detail {
-                    Spacer(minLength: 8)
-                    detail
-                        .multilineTextAlignment(.trailing)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.footnote)
                         .foregroundStyle(.secondaryText)
                 }
             }
-            if let subtitle {
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-            }
+            // 列高交給 List 的標準列高(再疊 minHeight 44 會讓主機 tab 的列比設定 tab 高約 22pt,設計稿 Host 是標準列高)。
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // 列高交給 List 的標準列高(再疊 minHeight 44 會讓主機 tab 的列比設定 tab 高約 22pt,設計稿 Host 是標準列高)。
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

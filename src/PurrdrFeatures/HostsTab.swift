@@ -109,8 +109,6 @@ struct HostsTab: View {
             case .add:
                 AddHostGuideScreen(make: hosts.screens.makeAddHostGuide) { _ in
                     finish()  // 主機在存好時已登記(onAdded)
-                } onCancel: {
-                    flow.path.removeLast()
                 } onAdded: { hosts.didSave($0) } hostPush: { id in
                     hosts.hostPushes.first { $0.host == .host(id) }
                 } onTryDemo: {
@@ -122,8 +120,6 @@ struct HostsTab: View {
             case .importGuide(let url):
                 AddHostGuideScreen(make: { (try? hosts.screens.makeImportGuide(url)) ?? hosts.screens.makeAddHostGuide() }) { _ in
                     finish()
-                } onCancel: {
-                    flow.path.removeLast()
                 } onAdded: { hosts.didSave($0) } hostPush: { id in
                     hosts.hostPushes.first { $0.host == .host(id) }
                 }
@@ -134,8 +130,6 @@ struct HostsTab: View {
                     }
                 ) { _ in
                     finish()
-                } onCancel: {
-                    flow.path.removeLast()
                 } onAdded: { hosts.didSave($0) } hostPush: { id in
                     hosts.hostPushes.first { $0.host == .host(id) }
                 }
@@ -146,8 +140,6 @@ struct HostsTab: View {
                 ) { host in
                     hosts.didSave(host)
                     finish()
-                } onCancel: {
-                    flow.path.removeLast()
                 } onIconSaved: {
                     finish()
                 }

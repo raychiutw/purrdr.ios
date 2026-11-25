@@ -165,6 +165,8 @@ public final class AddHostGuideModel {
     /// 匯入的原生 SSH 連結:選完電腦種類直接到登入方式。
     @ObservationIgnored private var continuesAtLogin = false
     @ObservationIgnored private var history: [Step] = []
+    /// 儲存時 `history` 會清空,完成頁之前疊著的頁留在這裡給 `pages`。
+    @ObservationIgnored private var archivedPages: [Step] = []
 
     public init(
         store: any HostStore, credentials: HostCredentials = HostCredentials(), hostService: HostServiceAccess = HostServiceAccess(),
@@ -253,6 +255,12 @@ public final class AddHostGuideModel {
     // MARK: - 進度
 
     public var canGoBack: Bool { !history.isEmpty && step != .finished }
+
+    /// 畫面上疊著的頁(#622:每一步是一頁 push,系統返回鈕對應 `back()`):從第一頁到目前這一步。
+    /// 儲存後到完成頁時,前面的頁照舊留著(完成頁沒有上一步,返回鈕隱藏)。
+    public var pages: [Step] {
+        step == .finished ? archivedPages + [.finished] : history + [step]
+    }
 
     /// 目前第幾步、共幾步(VoiceOver 與進度點)。
     public var progress: (position: Int, total: Int) {
@@ -563,6 +571,7 @@ public final class AddHostGuideModel {
     public func save() -> HostConfiguration? {
         guard let host = flow.save(draft) else { return nil }
         savedHost = host
+        archivedPages = history + [step]
         history.removeAll()
         step = .finished
         return host
