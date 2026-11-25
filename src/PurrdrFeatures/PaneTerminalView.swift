@@ -64,7 +64,7 @@ public struct TerminalSessionView: View {
             if let banner = model.bannerText {
                 TerminalBanner(text: banner, model: model)
             }
-            TerminalScreen(model: model, handle: screen, theme: hostTheme?.terminal, clipboardRequests: clipboardRequests)
+            TerminalScreen(model: model, handle: screen, clipboardRequests: clipboardRequests, theme: hostTheme?.terminal)
                 .padding(.horizontal, 4)
             TerminalKeyBar(model: model, screen: screen)
         }
