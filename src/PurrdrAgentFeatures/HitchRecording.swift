@@ -181,6 +181,8 @@ public enum HitchEntry: Equatable, Sendable {
     case metrics(HitchMetricsDigest)
     /// 閃退(中止前寫下的例外原因,下次啟動轉成記錄)。一律記錄,不受卡頓開關影響。
     case crash(CrashRecord)
+    /// MetricKit 在下次啟動交出的閃退報告。一律記錄。
+    case crashReport(MetricKitCrashReport)
     /// 匯出檔開頭的一筆:匯出時間與目前的系統狀態。
     case meta(HitchSystemState, at: Date)
 }
@@ -297,6 +299,18 @@ public enum HitchLogEncoder {
             object["app"] = record.app
             object["os"] = record.os
             object["device"] = record.device
+        case .crashReport(let report):
+            object["kind"] = "crashReport"
+            object["t"] = time(report.timestamp)
+            if let value = report.exceptionType { object["exceptionType"] = value }
+            if let value = report.signal { object["signal"] = value }
+            if let value = report.terminationReason { object["terminationReason"] = value }
+            if let value = report.exceptionName { object["name"] = value }
+            if let value = report.exceptionReason { object["reason"] = value }
+            object["frames"] = report.frames
+            object["app"] = report.app
+            object["os"] = report.os
+            object["device"] = report.device
         case .meta(let system, let date):
             object["kind"] = "meta"
             object["t"] = time(date)
