@@ -3,6 +3,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrDemo
 import PurrdrFeatures
+import PurrdrNotificationContent
 import PurrdrSSH
 import StoreKit
 import SwiftUI

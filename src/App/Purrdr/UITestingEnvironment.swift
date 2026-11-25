@@ -21,6 +21,27 @@ enum UITestingEnvironment {
         let partition = MemberPartition()
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let usesFakeBackend = configuration.member.usesFakeBackend
+        let seedTraffic: (@MainActor (TrafficMeter) -> Void)? = configuration.seedsDataUsage ? { @MainActor meter in UITestingEnvironment.seedLaunchTraffic(meter) } : nil
+        let undoSendSeconds: @MainActor () -> Int = { configuration.undoSendCountdown ? 10 : 0 }
+        let pushParts = LaunchEnvironment.PushParts(
+            platform: UITestingPushPlatform(isAuthorized: usesFakeBackend), store: InMemoryPushPairingStore(partition: partition),
+            loadDevice: {
+                let model: PushDeviceModel = UIDevice.current.userInterfaceIdiom == .pad ? .iPad : .iPhone
+                return PushDeviceIdentity(id: PushDeviceID(rawValue: UITestingBackendTransport.thisDeviceID)!, name: model.rawValue, model: model)
+            },
+            hostNames: nil,
+            testSender: UITestingPushTestSender(fails: configuration.pushTestFails))
+        let inputSources = LaunchEnvironment.InputSources(
+            pairingCodeScan: pairingCodeScanSource(configuration.pairingScan),
+            recentPhotos: recentPhotoSource(configuration.recentPhotos),
+            // `-uiTestingSimulatedVideo`:「影片」不開相簿挑選器(XCUITest 操作不了)(#474)。
+            video: configuration.simulatesVideo ? .simulated : .system)
+        let viewFlags = LaunchEnvironment.ViewFlags(
+            forcesOpaqueGlass: UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency"),
+            allowsTestingLinks: true, usesTestingSignIn: configuration.usesTestingSignIn,
+            tracksReadingDrift: configuration.tracksReadingDrift, hidesDebugOverlay: configuration.hidesDebugOverlay)
+        let hitchLog = HitchLogFile(
+            directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
         return LaunchEnvironment(
             // 關掉動畫,XCTest 每次互動前等動畫結束的 1 秒左右就不用等(#374);要驗動畫本身的測試帶 `-uiTestingAnimations`。
             disablesAnimations: configuration.disablesAnimations,
@@ -30,44 +51,29 @@ enum UITestingEnvironment {
             deviceOwner: UITestingDeviceOwnerAuthenticator(hasPasscode: !configuration.hasNoPasscode),
             plusStore: UITestingPlusStore(hasCurrentTransaction: configuration.storeOwnedByOtherMember),
             // 推播(#29):不請求權限、不註冊 APNs、配對只在記憶體;假後台的會員把通知權限當作已允許。
-            push: LaunchEnvironment.PushParts(
-                platform: UITestingPushPlatform(isAuthorized: usesFakeBackend), store: InMemoryPushPairingStore(partition: partition),
-                loadDevice: {
-                    let model: PushDeviceModel = UIDevice.current.userInterfaceIdiom == .pad ? .iPad : .iPhone
-                    return PushDeviceIdentity(id: PushDeviceID(rawValue: UITestingBackendTransport.thisDeviceID)!, name: model.rawValue, model: model)
-                },
-                hostNames: nil,
-                testSender: UITestingPushTestSender(fails: configuration.pushTestFails)),
+            push: pushParts,
             makeHosts: { push in hosts(configuration, demo: demo, tailscaleCheck: tailscaleCheck, push: push) },
             // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
             simulatesNoNetwork: configuration.simulatesNoNetwork,
             // UI 測試預設直接列 Demo,`-uiTestingNoHosts` 才看空狀態(#332);不留紀錄。
             demoEntry: LaunchEnvironment.DemoEntry(initial: !configuration.hasNoHosts, didChange: nil),
             trafficStore: InMemoryTrafficStore(days: configuration.seedsDataUsage ? seededTrafficDays() : []),
-            seedTraffic: configuration.seedsDataUsage ? { seedLaunchTraffic($0) } : nil,
+            seedTraffic: seedTraffic,
             // 只在記憶體計數、不叫出系統的評分對話框(會擋住後面的操作)。
             reviewPrompt: ReviewPrompt(store: InMemoryReviewPromptStore(), appVersion: version) {},
             // 送出可撤回(#300):預設關閉(其他測試送出不等倒數);`-uiTestingUndoSend` 開 10 秒倒數。
-            undoSendSeconds: { configuration.undoSendCountdown ? 10 : 0 },
+            undoSendSeconds: undoSendSeconds,
             // 主機同步:不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
             hostSyncStore: InMemoryHostSyncStore(partition: partition),
             // 每次啟動各用一個新資料夾:模擬器的 tmp 會跨測試保留,共用同一個資料夾會讓前面測試捲動留下的記錄
             // 殘留到「還沒有記錄」的測試(也會越積越大)。
-            hitchLog: HitchLogFile(
-                directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)")),
+            hitchLog: hitchLog,
             subscribesToMetricKit: false,
             // 預設當作看過歡迎頁(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
             welcomeStore: InMemoryWelcomeStore(hasSeen: !configuration.showsWelcome),
             inspectorStore: InMemoryInspectorVisibilityStore(isShown: configuration.inspectorShown),
-            inputSources: LaunchEnvironment.InputSources(
-                pairingCodeScan: pairingCodeScanSource(configuration.pairingScan),
-                recentPhotos: recentPhotoSource(configuration.recentPhotos),
-                // `-uiTestingSimulatedVideo`:「影片」不開相簿挑選器(XCUITest 操作不了)(#474)。
-                video: configuration.simulatesVideo ? .simulated : .system),
-            viewFlags: LaunchEnvironment.ViewFlags(
-                forcesOpaqueGlass: UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency"),
-                allowsTestingLinks: true, usesTestingSignIn: configuration.usesTestingSignIn,
-                tracksReadingDrift: configuration.tracksReadingDrift, hidesDebugOverlay: configuration.hidesDebugOverlay),
+            inputSources: inputSources,
+            viewFlags: viewFlags,
             appLock: appLock(configuration))
     }
 
@@ -223,7 +229,7 @@ enum UITestingEnvironment {
     }
 
     /// 今天與這次開啟:Studio Mac 行動網路 2 MB(送出 0.5、收到 1.5)加 Wi-Fi 收到 8 MB,共 10 MB。
-    private static func seedLaunchTraffic(_ meter: TrafficMeter) {
+    fileprivate static func seedLaunchTraffic(_ meter: TrafficMeter) {
         let id = seededHost.id.uuidString
         meter.setNetwork(.cellular)
         meter.record(hostID: id, direction: .sent, bytes: 500_000)
