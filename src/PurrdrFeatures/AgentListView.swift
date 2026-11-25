@@ -38,6 +38,7 @@ public struct AgentListView: View {
     @Bindable var model: MergedAgentListModel
     @State private var presentation = WorkspacePresentation()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var listSizeClass
     /// 建立某台主機上某個 Agent 的對話 model(列表看到的 session)。由 composition root 提供。
     private let makeConversation: @MainActor (ChatRoute, String?) -> ConversationModel
     /// 建立某台主機上某個 Pane 的終端機 model(標題)。由 composition root 提供。
@@ -47,6 +48,8 @@ public struct AgentListView: View {
     /// 所在視窗的導覽狀態(#31)。有的話：列是 split view 的選取(對話顯示在對話欄)、套用側欄的 workspace 篩選;
     /// 沒有的話列表自己推入對話。
     private let window: TopNavigationModel?
+    /// 路徑上聊天目的地的畫面(窄視窗的堆疊給;寬視窗聊天顯示在對話欄,不給)。
+    private let chatDestination: (ChatRoute) -> AnyView
     /// 把 Agent 對話或終端機開在新視窗(支援多視窗時才有)。
     private let openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
     /// 共用頂列的動作(#499):新增聊天、新增主機與帳號鈕。
@@ -59,6 +62,7 @@ public struct AgentListView: View {
         model: MergedAgentListModel, window: TopNavigationModel? = nil,
         openInNewWindow: ((_ kind: PaneWindow.Kind, _ route: ChatRoute, _ title: String) -> Void)? = nil,
         topBar: ChatTopBarActions,
+        chatDestination: @escaping (ChatRoute) -> AnyView = { _ in AnyView(EmptyView()) },
         prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
@@ -70,6 +74,7 @@ public struct AgentListView: View {
         self.window = window
         self.openInNewWindow = openInNewWindow
         self.topBarActions = topBar
+        self.chatDestination = chatDestination
     }
 
     private static let prefetchCount = 8
@@ -260,6 +265,7 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
+        .environment(\.pushesChatsByPath, window != nil && listSizeClass == .compact)
         .accessibilityIdentifier("agentList.loading")
     }
 
@@ -290,7 +296,9 @@ public struct AgentListView: View {
         let prefetchRoutes = AgentListProjection.prefetchRoutes(from: sections, limit: Self.prefetchCount)
         return Group {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
-            if window != nil {
+            // 寬視窗(split view 的內容欄)的列是選取;窄視窗的堆疊是推入,List 不能有 selection
+            // (NavigationLink 在有 selection 的 List 裡,push 後第一下返回會被吃掉,#641 查出的根因)。
+            if window != nil && listSizeClass != .compact {
                 List(selection: selection) {
                     hostStatusRows
                     listRows(sections)
@@ -320,7 +328,9 @@ public struct AgentListView: View {
         }
         // 版面圖選的 Pane:聊天推入對話(或在對話欄打開);Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
         .workspaceActionsPresentation(
-            actions: { model.actions(for: $0) }, snapshot: { model.snapshot(for: $0) }, presentation: presentation) { host, target in
+            actions: { model.actions(for: $0) }, snapshot: { model.snapshot(for: $0) }, presentation: presentation,
+            path: Binding { window?.chatsPath ?? [] } set: { window?.chatsPath = $0 },
+            chatDestination: chatDestination) { host, target in
             // 版面圖選的 Pane:Agent 開對話，終端機方塊開它的 Pane 終端機(兩者都以 pane 指定，見 `conversationScreen`)。
             switch target {
             case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
@@ -346,11 +356,14 @@ public struct AgentListView: View {
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
            sections.isEmpty {
             // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。
+            // 系統空狀態(ContentUnavailableView)放在列裡,與下面的「連線中斷」區塊同時出現時也不疊在一起。
             Section {
-                Text("No agents on \(filtered.name).")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
+                ContentUnavailableView(
+                    "No Agents", systemImage: "bubble.left.and.bubble.right",
+                    description: Text("No agents on \(filtered.name)."))
                     .accessibilityIdentifier("agentList.filterEmpty")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         }
         if !failures.isEmpty, !searchHasNoMatch(sections) {
@@ -658,6 +671,8 @@ extension AgentStatus {
 }
 
 extension EnvironmentValues {
+    /// 列以導覽路徑推入(窄視窗的 `NavigationStack(path:)`);`false` 時列是 split view 的選取。
+    @Entry var pushesChatsByPath = false
     /// iPad split view 列表目前選取的聊天(`selectionFill(for:)` 用);獨立的 NavigationStack 沒有選取。
     @Entry var selectedChatRoute: ChatRoute?
 }

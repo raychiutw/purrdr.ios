@@ -185,24 +185,44 @@ public struct TopNavigationView: View {
     /// 窄視窗:Agent 列表為根,選到的聊天(對話或 Pane 終端機)推入;返回時選取清成 `nil`。
     private var compactStack: some View {
         @Bindable var navigation = navigation
-        return NavigationStack {
+        return NavigationStack(path: $navigation.chatsPath) {
             agentList
-                .navigationDestination(item: $navigation.selectedChat) { route in
-                    WindowDetailContent(hosts: hosts, navigation: navigation, route: route)
-                        .appNavigationBackground()
-                        // 換一個聊天(鍵盤切換、版面圖選 Pane)就整個重建(對話 model、推入的終端機)。
-                        .id(route)
-                }
         }
+        // 路徑與選取的聊天雙向對齊(#641):路徑上最後一個聊天就是選取的聊天(返回時清成 `nil`);
+        // 外部設定選取(推播、新增聊天、版面圖選 Pane)時把聊天放進路徑。
+        .onChange(of: navigation.chatsPath) { _, path in
+            let chat = path.last(where: { $0.chatRoute != nil })?.chatRoute
+            if navigation.selectedChat != chat { navigation.selectedChat = chat }
+        }
+        .onChange(of: navigation.selectedChat, initial: true) { _, chat in
+            var path = navigation.chatsPath.filter { $0.chatRoute == nil }
+            if let chat { path.append(.chat(chat)) }
+            if path != navigation.chatsPath { navigation.chatsPath = path }
+        }
+    }
+
+    /// 窄視窗路徑上的聊天內容。
+    private func compactChatDestination(_ route: ChatRoute) -> AnyView {
+        AnyView(
+            WindowDetailContent(hosts: hosts, navigation: navigation, route: route)
+                .appNavigationBackground()
+                // 換一個聊天(鍵盤切換、版面圖選 Pane)就整個重建(對話 model、推入的終端機)。
+                .id(route))
     }
 
     /// 兩欄(寬視窗)。
     private var splitView: some View {
-        let navigation = navigation
+        @Bindable var navigation = navigation
         return NavigationSplitView(columnVisibility: $columns) {
             // 所有主機合併的 Agent 列表(#39)。換選取中主機不重建列表，只改排序與主機名標示。
-            agentList
-                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
+            // 列表欄自己的堆疊只推版面圖(#641);聊天顯示在對話欄,不進路徑。
+            NavigationStack(path: $navigation.chatsPath) {
+                agentList
+            }
+            .onChange(of: navigation.chatsPath, initial: true) { _, path in
+                if path.contains(where: { $0.chatRoute != nil }) { navigation.chatsPath = path.filter { $0.chatRoute == nil } }
+            }
+            .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
             WindowDetail(
                 hosts: hosts, navigation: navigation,
@@ -220,6 +240,7 @@ public struct TopNavigationView: View {
     /// 所有主機合併的 Agent 列表(#39)。
     private var agentList: some View {
         let hosts = hosts
+        let chatDestination: (ChatRoute) -> AnyView = sizeClass == .compact ? { compactChatDestination($0) } : { _ in AnyView(EmptyView()) }
         var open: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
         if supportsMultipleWindows {
             open = { kind, route, title in openInNewWindow(kind, route, title) }
@@ -231,7 +252,7 @@ public struct TopNavigationView: View {
             addHost: actions.addHost,
             account: AccountButtonPlacement.showsInTopBar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
         return AgentListView(
-            model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
+            model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar, chatDestination: chatDestination,
             prefetchConversations: actions.prefetchConversations
         ) { route, sessionID in
             hosts.member(for: route.host).conversation(route, sessionID: sessionID)

@@ -17,6 +17,7 @@ struct SpacesSectionsContent: View {
     /// 標題選單的「在此新增聊天」(#537)。
     var newChatInWorkspace: ((HostSelection, String) -> Void)?
     var canNewChatInWorkspace: ((HostSelection) -> Bool)?
+    @Environment(\.pushesChatsByPath) private var pushesByPath
 
     var body: some View {
         if let needsYou {
@@ -71,32 +72,30 @@ struct SpacesSectionsContent: View {
         WorkspaceTarget(workspaceID: section.workspaceID, label: section.workspace, snapshot: model.snapshot(for: section.host))
     }
 
+    private func chatRow(_ tab: SpacesTab, justNow: Bool) -> some View {
+        ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
+    }
+
     @ViewBuilder
     private func tabRow(_ tab: SpacesTab, host: HostSelection, justNow: Bool = false) -> some View {
         switch tab.target {
         case .pane(let route):
-            NavigationLink(value: route) {
-                ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
+            // 窄視窗的堆疊以路徑推入(`ChatsDestination`);寬視窗的列是 List 的選取(`ChatRoute`,對話顯示在對話欄)。
+            Group {
+                if pushesByPath {
+                    NavigationLink(value: ChatsDestination.chat(route)) { chatRow(tab, justNow: justNow) }
+                } else {
+                    NavigationLink(value: route) { chatRow(tab, justNow: justNow) }
+                }
             }
             .listRowInsets(ChatRowView.rowInsets)
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
-            // 多 Pane 的 Tab:點列往右 push 版面圖頁(#619)。用 `navigationDestination(item:)` 推入(列表的 `presentation.layoutRoute`):
-            // 以 `NavigationLink(value:)` 推入時,UI 測試實測第一下點「<」不會返回,所以列尾的 > 自己放一個。
-            Button {
-                presentation.host = host
-                presentation.layoutRoute = SpacesLayoutRoute(host: host, workspaceID: workspaceID, tabID: tabID, title: tab.title)
-            } label: {
-                HStack {
-                    ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
+            // 多 Pane 的 Tab:點列往右 push 版面圖頁(#619、#641):系統 NavigationLink,列尾的 > 由系統給。
+            NavigationLink(value: ChatsDestination.layout(
+                SpacesLayoutRoute(host: host, workspaceID: workspaceID, tabID: tabID, title: tab.title))) {
+                chatRow(tab, justNow: justNow)
             }
             .listRowInsets(ChatRowView.rowInsets)
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))

@@ -7,6 +7,16 @@ import PurrdrCore
 ///
 /// 頂層是 4 個 tab(聊天、檔案、主機、流量,#376;設定併進帳號 sheet,#503);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
+/// 聊天 tab 導覽堆疊的目的地(#641):整個堆疊只註冊這一個型別的 `navigationDestination(for:)`。
+enum ChatsDestination: Hashable {
+    case chat(ChatRoute)
+    case layout(SpacesLayoutRoute)
+
+    var chatRoute: ChatRoute? {
+        if case .chat(let route) = self { route } else { nil }
+    }
+}
+
 @MainActor
 @Observable
 public final class TopNavigationModel {
@@ -30,6 +40,10 @@ public final class TopNavigationModel {
         // 一次只有一個詳細(行為規格 F20):換聊天時，前一個聊天推入的終端機收起。
         didSet { if selectedChat != oldValue { openedTerminal = nil } }
     }
+
+    /// 聊天 tab 導覽堆疊的路徑(#641):窄視窗是 `NavigationStack(path:)` 的路徑(聊天、版面圖);寬視窗只放列表欄推入的版面圖。
+    /// 列的 `NavigationLink(value:)`、選單的「Show Layout」、返回都改這一個陣列,不再混用 `navigationDestination(item:)`。
+    var chatsPath: [ChatsDestination] = []
 
     /// 搜尋欄是否有焦點(Command-F)。
     public var isSearchFocused = false
