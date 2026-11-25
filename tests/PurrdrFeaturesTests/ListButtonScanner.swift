@@ -51,6 +51,7 @@ enum ListButtonScanner {
     static func scan(name: String, lines: [String]) -> [ListButton] {
         var buttons: [ListButton] = []
         var stack: [Frame] = []
+        var pendingSystem = false
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("//") { continue }
@@ -61,13 +62,17 @@ enum ListButtonScanner {
             }
             let opens = line.filter { $0 == "{" }.count
             let closes = line.filter { $0 == "}" }.count
+            let namesSystemContainer = systemDrawn.contains { trimmed.contains($0) }
             if opens > 0 {
                 // 同一行第一個 `{` 代表該行的角色,其餘視為一般。
+                // 參數寫成多行的 `.confirmationDialog(` / `.alert(` 等,內容閉包的 `{` 在後面幾行:靠 pendingSystem 接續。
                 stack.append(Frame(
                     opensList: listOpeners.contains { trimmed.contains($0) },
-                    systemDrawn: systemDrawn.contains { trimmed.contains($0) }))
+                    systemDrawn: namesSystemContainer || (pendingSystem && opens > closes)))
+                if opens > closes { pendingSystem = false }
                 for _ in 1 ..< max(opens, 1) { stack.append(Frame(opensList: false, systemDrawn: false)) }
             }
+            if opens == 0, namesSystemContainer, trimmed.hasSuffix("(") { pendingSystem = true }
             for _ in 0 ..< closes where !stack.isEmpty { stack.removeLast() }
         }
         return buttons

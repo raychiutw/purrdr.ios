@@ -126,7 +126,8 @@ enum UITestingEnvironment {
                 hostServiceUpdates: HostServiceUpdates(releases: FixedHostServiceReleases.uiTesting, store: InMemoryHostServiceUpdateStore()),
                 tailscaleCheck: tailscaleCheck,
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境:一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
-                makeChannel: { endpoint, _, _ in
+                makeChannel: { endpoint, pin, _ in
+                    if configuration.promptsHostKey, pin == nil { return DemoHostKeyPromptChannel() as any HostChannel }
                     if endpoint.host == unreachableHost.ssh?.endpoint.host { return DemoUnreachableChannel() as any HostChannel }
                     if endpoint.host == slowHost.ssh?.endpoint.host { return DemoUnreachableChannel(hangs: true) as any HostChannel }
                     return demo

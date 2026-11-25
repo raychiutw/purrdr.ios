@@ -174,6 +174,7 @@ struct FolderBrowserView: View {
                             ErrorLabel(notice, area: "FolderBrowser")
                             Spacer(minLength: 8)
                             Button("Dismiss") { model.notice = nil }
+                                .listAction()
                                 .buttonStyle(.borderless)
                         }
                         .accessibilityIdentifier("files.uploadNotice")

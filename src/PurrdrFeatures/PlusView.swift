@@ -570,6 +570,7 @@ struct SubscriptionNoticeSection: View {
                     }
                     Spacer(minLength: 8)
                     Button("Dismiss") { plus.notice = nil }
+                        .listAction()
                         .buttonStyle(.borderless)
                         .accessibilityIdentifier("subscription.notice.dismiss")
                 }

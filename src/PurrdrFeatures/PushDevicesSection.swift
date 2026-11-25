@@ -4,7 +4,7 @@ import SwiftUI
 /// 「通知裝置」子頁(#411,設計稿第 28 組):會員名下收通知的裝置，標出這支;點一列選改名或只關閉通知(不登出)。
 /// 遠端關閉訂閱到期也可以,有 Purrdr Plus 才能改名。登出另一支裝置在「登入中的裝置」,與這裡分開。
 ///
-/// 這支裝置在各主機的開關仍在「通知」區塊。對話框掛在 List 上(`pushDevicesDialogs`),不掛在 Section 上(List 會把 Section 的修飾套到每一列)。
+/// 這支裝置在各主機的開關仍在「通知」區塊。改名 alert 掛在 List 上(`pushDevicesDialogs`);關閉通知的確認對話框掛在各列上。
 struct PushDevicesView: View {
     let model: PushDevicesModel
     /// 有效的 Purrdr Plus 才能改名。
@@ -26,7 +26,13 @@ struct PushDevicesView: View {
                         .accessibilityIdentifier("account.pushDevices.empty")
                 }
                 ForEach(model.devices) { device in
-                    PushDeviceRow(device: device, isBusy: model.busyDeviceIDs.contains(device.id), canRename: canRename) {
+                    PushDeviceRow(
+                        device: device, isBusy: model.busyDeviceIDs.contains(device.id), canRename: canRename,
+                        isConfirmingTurnOff: Binding(
+                            get: { if case .turnOff(let pending) = model.pendingAction { pending.id == device.id } else { false } },
+                            set: { if !$0, case .turnOff(let pending) = model.pendingAction, pending.id == device.id { model.pendingAction = nil } }),
+                        confirmTurnOff: { Task { await model.turnOff(device) } }
+                    ) {
                         model.pendingAction = .rename(device)
                     } turnOff: {
                         model.pendingAction = .turnOff(device)
@@ -103,21 +109,6 @@ private struct PushDevicesDialogs: ViewModifier {
             } message: { _ in
                 Text("Up to 64 characters.")
             }
-            .confirmationDialog(
-                Text("Turn Off Notifications for “\(turningOff?.displayName ?? "")”?"),
-                isPresented: Binding(get: { turningOff != nil }, set: { if !$0 { model.pendingAction = nil } }),
-                titleVisibility: .visible,
-                presenting: turningOff
-            ) { device in
-                Button("Turn Off Notifications", role: .destructive) { Task { await model.turnOff(device) } }
-                    .accessibilityIdentifier("account.pushDevices.confirmTurnOff")
-            } message: { device in
-                if device.isCurrent {
-                    Text("This device stops receiving notifications from all hosts. You can turn hosts back on under Notifications.")
-                } else {
-                    Text("That device stops receiving notifications from all hosts. To get them again, turn notifications back on from that device.")
-                }
-            }
     }
 }
 
@@ -126,11 +117,29 @@ private struct PushDeviceRow: View {
     let device: PushDevice
     let isBusy: Bool
     let canRename: Bool
+    /// 關閉通知的確認對話框掛在這一列上,錨定在觸發的列或選單(#625)。
+    @Binding var isConfirmingTurnOff: Bool
+    let confirmTurnOff: () -> Void
     let rename: () -> Void
     let turnOff: () -> Void
 
     var body: some View {
         content
+            // confirmationDialog:anchor 由列的選單或滑動觸發,對話框錨定在那一列
+            .confirmationDialog(
+                Text("Turn Off Notifications for “\(device.displayName)”?"),
+                isPresented: $isConfirmingTurnOff, titleVisibility: .visible
+            ) {
+                Button("Turn Off Notifications", role: .destructive, action: confirmTurnOff)
+                    .accessibilityIdentifier("account.pushDevices.confirmTurnOff")
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if device.isCurrent {
+                    Text("This device stops receiving notifications from all hosts. You can turn hosts back on under Notifications.")
+                } else {
+                    Text("That device stops receiving notifications from all hosts. To get them again, turn notifications back on from that device.")
+                }
+            }
             // 左滑與選單同一組動作(#626)。不用 destructive role:關閉要先確認,確認前列不該被移走(0.52.1 閃退的教訓)。
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 if !isBusy {

@@ -422,6 +422,14 @@ struct AccountView: View {
                     Button("Sign Out") { confirmingSignOut = true }
                         .listAction()
                         .accessibilityIdentifier("member.signOut")
+                        // 確認對話框掛在觸發的按鈕上,錨定在按鈕(#625)。
+                        .confirmationDialog("Sign Out?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
+                            Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
+                                .accessibilityIdentifier("member.signOut.confirm")
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("Signing out turns off notifications for this device and pauses host sync. Hosts and chats keep working — they don’t need a member account.")
+                        }
                     Button("Delete Member", role: .destructive) { startDeletion() }
                         .destructiveListAction()
                         .accessibilityIdentifier("member.delete")
@@ -481,13 +489,6 @@ struct AccountView: View {
                 .accessibilityIdentifier("account.turnOnAll")
         } message: {
             Text("Turn on notifications and host sync now? You can change them later.")
-        }
-        .confirmationDialog("Sign Out?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
-            Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
-                .accessibilityIdentifier("member.signOut.confirm")
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Signing out turns off notifications for this device and pauses host sync. Hosts and chats keep working — they don’t need a member account.")
         }
         .navigationDestination(isPresented: $showingDeletionSubscription) {
             if let deletionSubscription {
@@ -666,7 +667,13 @@ struct SignInDevicesView: View {
             Section {
                 if let devices = model.devices {
                     ForEach(devices) { device in
-                        SignInDeviceRow(device: device, isBusy: model.busyDeviceIDs.contains(device.id)) {
+                        SignInDeviceRow(
+                            device: device, isBusy: model.busyDeviceIDs.contains(device.id),
+                            isConfirming: Binding(
+                                get: { model.pendingRevoke?.id == device.id },
+                                set: { if !$0, model.pendingRevoke?.id == device.id { model.pendingRevoke = nil } }),
+                            confirm: { Task { await model.revoke(device) } }
+                        ) {
                             model.pendingRevoke = device
                         }
                     }
@@ -692,22 +699,15 @@ struct SignInDevicesView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task { await model.load() }
-        .confirmationDialog(
-            Text(verbatim: model.pendingRevoke.map { String(localized: "Sign out \($0.displayName)?") } ?? ""),
-            isPresented: Binding(get: { model.pendingRevoke != nil }, set: { if !$0 { model.pendingRevoke = nil } }),
-            titleVisibility: .visible, presenting: model.pendingRevoke
-        ) { device in
-            Button("Sign Out", role: .destructive) { Task { await model.revoke(device) } }
-                .accessibilityIdentifier("account.signInDevices.confirm")
-        } message: { _ in
-            Text("This device will have to sign in again.")
-        }
     }
 }
 
 private struct SignInDeviceRow: View {
     let device: SignInDevice
     let isBusy: Bool
+    /// 登出確認對話框掛在這一列上,錨定在觸發的列(#625)。
+    @Binding var isConfirming: Bool
+    let confirm: () -> Void
     let signOut: () -> Void
 
     var body: some View {
@@ -742,6 +742,16 @@ private struct SignInDeviceRow: View {
         .frame(minHeight: 44)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("account.signInDevice.\(device.id)")
+        // confirmationDialog:anchor 登出由列的滑動或長按選單觸發,對話框錨定在那一列
+        .confirmationDialog(
+            Text("Sign out \(device.displayName)?"), isPresented: $isConfirming, titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive, action: confirm)
+                .accessibilityIdentifier("account.signInDevices.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This device will have to sign in again.")
+        }
         // 左滑與長按選單與列上的「Sign Out」同一個動作(#626);目前這支不能登出。不用 destructive role:登出要先確認。
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if !device.isCurrent, !isBusy {
@@ -856,6 +866,21 @@ struct SignInMethodsView: View {
                     }
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("member.identity.\(identity.method.rawValue)")
+                    // 確認對話框掛在各列上,錨定在觸發的列(#625)。
+                    // confirmationDialog:anchor 移除由列的滑動或列尾按鈕觸發,對話框錨定在那一列
+                    .confirmationDialog(
+                        Text("Remove \(identity.method.displayName)?"),
+                        isPresented: Binding(
+                            get: { removing == identity.method },
+                            set: { if !$0, removing == identity.method { removing = nil } }),
+                        titleVisibility: .visible
+                    ) {
+                        Button("Remove", role: .destructive) { Task { await model.unlink(identity.method) } }
+                            .accessibilityIdentifier("member.identity.remove.confirm")
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("You won’t be able to sign in with \(identity.method.displayName) anymore. You’ll confirm it’s you next.")
+                    }
                     // 可移除的列一律有左滑(#626);至少保留一種,所以只剩一種時沒有。不用 destructive role:移除要先確認身分。
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if member.identities.count > 1 {
@@ -887,15 +912,6 @@ struct SignInMethodsView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .confirmationDialog(
-            removing.map { Text("Remove \($0.displayName)?") } ?? Text(verbatim: ""),
-            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible, presenting: removing
-        ) { method in
-            Button("Remove", role: .destructive) { Task { await model.unlink(method) } }
-                .accessibilityIdentifier("member.identity.remove.confirm")
-        } message: { method in
-            Text("You won’t be able to sign in with \(method.displayName) anymore. You’ll confirm it’s you next.")
-        }
         .sheet(isPresented: Binding(get: { model.pendingMerge != nil }, set: { if !$0 { model.cancelMerge() } })) {
             if let proposal = model.pendingMerge {
                 MergeConfirmView(model: model, summary: proposal.summary)

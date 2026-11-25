@@ -122,9 +122,10 @@ extension View {
     /// 改名改的是這個 Tab;Workspace 名稱在段落標題的長按選單(`workspaceHeaderMenu`,#456)。`tab` 為 nil(沒有 Tab 的 pane)時沒有改名項目。
     func workspaceActionsMenu(
         _ target: WorkspaceTarget, tab: TabTarget?, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation,
-        chats: TabChatActions? = nil, openInNewWindow: (() -> Void)? = nil
+        chats: TabChatActions? = nil, openInNewWindow: (() -> Void)? = nil, actions: WorkspaceActionsModel? = nil
     ) -> some View {
-        contextMenu {
+        modifier(CloseTabDialog(presentation: presentation, tab: tab, actions: actions))
+        .contextMenu {
             let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
             let level = WorkspaceMenuLevel.tab(hasNewWindow: openInNewWindow != nil, hasChats: chats != nil, hasTab: tab != nil)
             // 項目由 `WorkspaceMenuLevel` 一處決定(#536);「版面圖」前的分隔線只在前面有新視窗或釘選靜音時出現。
@@ -146,7 +147,7 @@ extension View {
     /// VoiceOver 另有「重新命名 Workspace…」自訂動作。唯讀裝置的改動項目停用。
     func workspaceHeaderMenu(
         _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, isReadOnly: Bool, presentation: WorkspacePresentation,
-        newChatHere: (() -> Void)? = nil
+        newChatHere: (() -> Void)? = nil, actions: WorkspaceActionsModel? = nil
     ) -> some View {
         let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: isReadOnly)
         return Menu {
@@ -158,6 +159,7 @@ extension View {
         } label: {
             self
         } primaryAction: {}
+        .modifier(CloseWorkspaceDialog(presentation: presentation, target: target, actions: actions))
         .buttonStyle(HeaderPressStyle())
         .accessibilityHint(Text("Double-tap and hold to show Workspace actions"))
         .accessibilityAction(named: Text("Rename Workspace…")) { if !isReadOnly { buttons.askWorkspaceName() } }
@@ -379,32 +381,6 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             } message: { request in
                 Text(renameMessage(request))
             }
-            .confirmationDialog(
-                closeTitle, isPresented: closeDialogShown, titleVisibility: .visible, presenting: presentation.closeRequest
-            ) { request in
-                Button("Close Workspace", role: .destructive) {
-                    Task { await actions?.close(workspaceID: request.workspaceID, sessionIDs: request.sessionIDs) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { _ in
-                Text("Everything running in this workspace will stop, including its agents. Chat history stays on the host.")
-            }
-            .confirmationDialog(
-                closeTabTitle, isPresented: closeTabDialogShown, titleVisibility: .visible, presenting: presentation.closeTabRequest
-            ) { request in
-                Button(request.isLastInWorkspace ? "Close Tab and Workspace" : "Close Tab", role: .destructive) {
-                    Task { await actions?.closeTab(tabID: request.tabID, sessionIDs: request.sessionIDs) }
-                }
-                .accessibilityIdentifier("closeTab.confirm")
-                Button("Cancel", role: .cancel) {}
-                    .accessibilityIdentifier("closeTab.cancel")
-            } message: { request in
-                if request.isLastInWorkspace {
-                    Text("This is the last tab in “\(request.workspaceLabel)”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host.")
-                } else {
-                    Text("Everything running in this tab will stop, including its agents. Chat history stays on the host.")
-                }
-            }
             .alert(Text(verbatim: actions?.actionErrorTitle ?? ""), isPresented: errorShown, presenting: actions?.actionError) { _ in
                 Button("OK", role: .cancel) {}
             } message: { message in
@@ -489,22 +465,6 @@ private struct WorkspaceActionsPresenter: ViewModifier {
         Binding { presentation.renameRequest != nil } set: { if !$0 { presentation.renameRequest = nil } }
     }
 
-    private var closeTitle: Text {
-        Text("Close “\(presentation.closeRequest?.label ?? "")”?")
-    }
-
-    private var closeTabTitle: Text {
-        Text("Close tab “\(presentation.closeTabRequest?.label ?? "")”?")
-    }
-
-    private var closeTabDialogShown: Binding<Bool> {
-        Binding { presentation.closeTabRequest != nil } set: { if !$0 { presentation.closeTabRequest = nil } }
-    }
-
-    private var closeDialogShown: Binding<Bool> {
-        Binding { presentation.closeRequest != nil } set: { if !$0 { presentation.closeRequest = nil } }
-    }
-
     private var errorShown: Binding<Bool> {
         Binding { actions?.actionError != nil } set: { if !$0 { actions?.actionError = nil } }
     }
@@ -582,6 +542,62 @@ struct NewWorktreeSheet: View {
             if let created = await actions.createWorktree(from: workspaceID, branch: branch) {
                 onCreated(created)
                 dismiss()
+            }
+        }
+    }
+}
+
+/// 關閉 Workspace 的確認(#625):掛在觸發的段落標題上,錨定在標題;只有發出請求的那個 Workspace 的標題顯示。
+private struct CloseWorkspaceDialog: ViewModifier {
+    @Bindable var presentation: WorkspacePresentation
+    let target: WorkspaceTarget
+    let actions: WorkspaceActionsModel?
+
+    func body(content: Content) -> some View {
+        // confirmationDialog:anchor 由段落標題的長按選單觸發,對話框錨定在那個標題
+        content.confirmationDialog(
+            Text("Close “\(presentation.closeRequest?.label ?? "")”?"),
+            isPresented: Binding(
+                get: { presentation.closeRequest?.workspaceID == target.workspaceID },
+                set: { if !$0, presentation.closeRequest?.workspaceID == target.workspaceID { presentation.closeRequest = nil } }),
+            titleVisibility: .visible, presenting: presentation.closeRequest
+        ) { request in
+            Button("Close Workspace", role: .destructive) {
+                Task { await actions?.close(workspaceID: request.workspaceID, sessionIDs: request.sessionIDs) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Everything running in this workspace will stop, including its agents. Chat history stays on the host.")
+        }
+    }
+}
+
+/// 關閉 Tab 的確認(#534、#625):掛在觸發的 Tab 列上,錨定在那一列。
+private struct CloseTabDialog: ViewModifier {
+    @Bindable var presentation: WorkspacePresentation
+    let tab: TabTarget?
+    let actions: WorkspaceActionsModel?
+
+    func body(content: Content) -> some View {
+        // confirmationDialog:anchor 由 Tab 列的長按選單或左滑觸發,對話框錨定在那一列
+        content.confirmationDialog(
+            Text("Close tab “\(presentation.closeTabRequest?.label ?? "")”?"),
+            isPresented: Binding(
+                get: { tab != nil && presentation.closeTabRequest?.tabID == tab?.tabID },
+                set: { if !$0, presentation.closeTabRequest?.tabID == tab?.tabID { presentation.closeTabRequest = nil } }),
+            titleVisibility: .visible, presenting: presentation.closeTabRequest
+        ) { request in
+            Button(request.isLastInWorkspace ? "Close Tab and Workspace" : "Close Tab", role: .destructive) {
+                Task { await actions?.closeTab(tabID: request.tabID, sessionIDs: request.sessionIDs) }
+            }
+            .accessibilityIdentifier("closeTab.confirm")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("closeTab.cancel")
+        } message: { request in
+            if request.isLastInWorkspace {
+                Text("This is the last tab in “\(request.workspaceLabel)”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host.")
+            } else {
+                Text("Everything running in this tab will stop, including its agents. Chat history stays on the host.")
             }
         }
     }

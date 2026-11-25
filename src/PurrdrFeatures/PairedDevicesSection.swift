@@ -53,6 +53,20 @@ struct PairedDevicesSection: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("pairedDevices.row.\(device.id)")
+        // confirmationDialog:anchor 撤銷由列的滑動或長按選單觸發,對話框錨定在那一列
+        .confirmationDialog(
+            Text("Revoke “\(device.name)”?"),
+            isPresented: Binding(
+                get: { model.confirmingRevocation?.id == device.id },
+                set: { if !$0, model.confirmingRevocation?.id == device.id { model.cancelRevocation() } }),
+            titleVisibility: .visible
+        ) {
+            Button("Revoke", role: .destructive) { Task { await model.confirmRevocation(of: device) } }
+                .accessibilityIdentifier("pairedDevices.confirmRevoke")
+            Button("Cancel", role: .cancel) { model.cancelRevocation() }
+        } message: {
+            Text("That device can’t connect to this host until it’s paired again.")
+        }
         .swipeActions {
             // 不用 destructive role:確認前列不該被移走(同主機清單的滑動刪除)。
             if model.canRevoke(device) {
@@ -94,29 +108,12 @@ struct PairedDevicesSection: View {
 
 }
 
-/// 已配對裝置的載入與撤銷確認，掛在主機頁的 `Form`:List 會把 Section 的修飾套到每一列，掛在 Section 上每列各有一個對話框。
+/// 已配對裝置的載入,掛在主機頁的 `Form`。撤銷確認對話框掛在各列上(錨定在那一列,#625)。
 struct PairedDevicesDialogs: ViewModifier {
     let model: PairedDevicesModel?
 
     func body(content: Content) -> some View {
         content
             .task { await model?.load() }
-            .confirmationDialog(
-                confirmationTitle, isPresented: confirmingBinding, titleVisibility: .visible, presenting: model?.confirmingRevocation
-            ) { device in
-                Button("Revoke", role: .destructive) { Task { await model?.confirmRevocation(of: device) } }
-                    .accessibilityIdentifier("pairedDevices.confirmRevoke")
-                Button("Cancel", role: .cancel) { model?.cancelRevocation() }
-            } message: { _ in
-                Text("That device can’t connect to this host until it’s paired again.")
-            }
-    }
-
-    private var confirmationTitle: String {
-        model?.confirmingRevocation.map { String(localized: "Revoke “\($0.name)”?") } ?? ""
-    }
-
-    private var confirmingBinding: Binding<Bool> {
-        Binding(get: { model?.confirmingRevocation != nil }, set: { if !$0 { model?.cancelRevocation() } })
     }
 }

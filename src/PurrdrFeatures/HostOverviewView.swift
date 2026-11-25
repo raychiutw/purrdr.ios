@@ -10,8 +10,11 @@ struct HostOverviewView: View {
     let openPlus: () -> Void
     let statusCache: HostStatusCache
     let actionError: String?
-    let removeHost: (UUID) -> Void
-    let removeDemo: () -> Void
+    /// 移除主機的確認狀態與動作;確認對話框掛在「Remove Host」按鈕上,讓它錨定在觸發的按鈕(#625)。
+    let flow: HostListFlow
+    let confirmRemoval: (HostDeletionRequest) -> Void
+    @Binding var confirmingRemoveDemo: Bool
+    let confirmRemoveDemo: () -> Void
     let openAddHost: () -> Void
     let openRoute: (HostRoute) -> Void
 
@@ -39,10 +42,21 @@ struct HostOverviewView: View {
                     thisHostSection
                     if let hostID {
                         Section {
-                            Button("Remove Host", role: .destructive) { removeHost(hostID) }
+                            Button("Remove Host", role: .destructive) { flow.requestDeletion(of: hostID, name: overview.name) }
                                 .destructiveListAction()
                                 .frame(maxWidth: .infinity)
                                 .accessibilityIdentifier("hosts.delete")
+                                .confirmationDialog(
+                                    Text("Remove “\(flow.pendingDeletion?.name ?? "")” from This Device?"),
+                                    isPresented: Binding { flow.pendingDeletion != nil } set: { if !$0 { flow.cancelDeletion() } },
+                                    titleVisibility: .visible, presenting: flow.pendingDeletion
+                                ) { request in
+                                    Button("Remove Host", role: .destructive) { confirmRemoval(request) }
+                                        .accessibilityIdentifier("hosts.delete.confirm")
+                                    Button("Cancel", role: .cancel) { flow.cancelDeletion() }
+                                } message: { _ in
+                                    Text("This only removes the host from Purrdr. The host itself and the agents on it aren’t affected. Anything Purrdr added for this device on the host is put back.")
+                                }
                         }
                     }
                 }
@@ -258,10 +272,17 @@ struct HostOverviewView: View {
                 .foregroundStyle(.secondaryText)
         }
         Section {
-            Button("Remove Demo Host", role: .destructive, action: removeDemo)
+            Button("Remove Demo Host", role: .destructive) { confirmingRemoveDemo = true }
                 .destructiveListAction()
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("hosts.demo.remove")
+                .confirmationDialog("Remove the Demo Host?", isPresented: $confirmingRemoveDemo, titleVisibility: .visible) {
+                    Button("Remove Demo Host", role: .destructive, action: confirmRemoveDemo)
+                        .accessibilityIdentifier("hosts.demo.remove.confirm")
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("The demo conversations disappear from the list. You can bring them back anytime from Add Host or Welcome in Settings.")
+                }
         }
     }
 

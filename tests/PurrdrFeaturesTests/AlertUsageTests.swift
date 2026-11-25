@@ -51,11 +51,87 @@ struct AlertUsageTests {
     func destructiveConfirmationsUseDialog() throws {
         let hosts = try Self.source("HostsTab.swift")
         #expect(!hosts.contains(".alert("))
-        #expect(hosts.contains(".confirmationDialog("))
+        // 移除主機的確認對話框掛在「Remove Host」按鈕上(HostOverviewView,#625)。
+        let overview = try Self.source("HostOverviewView.swift")
+        #expect(overview.contains(".confirmationDialog("))
         let member = try Self.source("MemberView.swift")
         #expect(!member.contains(#".alert("Sign Out?""#))
         #expect(member.contains(#".confirmationDialog("Sign Out?""#))
         #expect(member.contains(#".alert("Delete Member?""#), "刪除會員後果最嚴重,保留 alert")
+    }
+
+    /// `.confirmationDialog(` 所在修飾鏈的起頭(往上找第一個縮排較淺、或同縮排但不是 `.`／`}` 開頭的行)。
+    static func chainHead(_ lines: [String], dialogAt index: Int) -> String {
+        func indent(_ line: String) -> Int { line.prefix { $0 == " " }.count }
+        let level = indent(lines[index])
+        var i = index - 1
+        while i >= 0 {
+            let line = lines[i]
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed.hasPrefix("//") { i -= 1; continue }
+            let current = indent(line)
+            if current > level { i -= 1; continue }
+            if current == level, trimmed.hasPrefix(".") || trimmed.hasPrefix("}") { i -= 1; continue }
+            return trimmed
+        }
+        return ""
+    }
+
+    /// 違規:`.confirmationDialog(` 的修飾鏈起頭不是 Button／Menu,上面也沒有 `// confirmationDialog:anchor <原因>`(#625)。
+    static func unanchoredDialogs(file: String, lines: [String]) -> [String] {
+        var result: [String] = []
+        for (index, line) in lines.enumerated() where line.contains(".confirmationDialog(") && !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
+            let head = chainHead(lines, dialogAt: index)
+            let anchoredToButton = head.hasPrefix("Button(") || head.hasPrefix("Button {") || head.hasPrefix("Menu")
+            let attested = lines[max(0, index - 2) ... index].contains { $0.contains("confirmationDialog:anchor") }
+            if !anchoredToButton, !attested { result.append("\(file):\(index + 1)(起頭:\(head))") }
+        }
+        return result
+    }
+
+    @Test("確認對話框掛在觸發的 Button／Menu 上,不掛整個畫面(#625,iOS 26 錨定在按鈕)")
+    func confirmationDialogsAnchorToTrigger() throws {
+        let enumerator = try #require(FileManager.default.enumerator(at: Self.featuresFolder, includingPropertiesForKeys: nil))
+        var violations: [String] = []
+        var dialogs = 0
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let lines = text.components(separatedBy: "\n")
+            dialogs += lines.filter { $0.contains(".confirmationDialog(") }.count
+            violations += Self.unanchoredDialogs(file: url.lastPathComponent, lines: lines)
+        }
+        #expect(dialogs >= 10, "掃不到確認對話框(掃描規則壞了?)")
+        #expect(violations.isEmpty, "確認對話框要掛在觸發的 Button/Menu 上;從滑動或選單觸發的,掛在那一列並在上面寫 // confirmationDialog:anchor 原因:\n\(violations.joined(separator: "\n"))")
+    }
+
+    @Test("掃描:掛在整個畫面的確認對話框會被抓到,掛在 Button 或有註記的會過")
+    func scannerCatchesScreenLevelDialog() {
+        let screen = """
+        var body: some View {
+            List {
+                Button("Remove") { go() }
+            }
+            .appGroupedList()
+            .confirmationDialog("Sure?", isPresented: $p) {
+                Button("Yes") {}
+            }
+        }
+        """.components(separatedBy: "\n")
+        #expect(!Self.unanchoredDialogs(file: "S.swift", lines: screen).isEmpty)
+        let button = """
+        Button("Remove") { go() }
+            .accessibilityIdentifier("x")
+            .confirmationDialog("Sure?", isPresented: $p) {
+                Button("Yes") {}
+            }
+        """.components(separatedBy: "\n")
+        #expect(Self.unanchoredDialogs(file: "B.swift", lines: button).isEmpty)
+        let attested = """
+        Row()
+            // confirmationDialog:anchor 由滑動觸發
+            .confirmationDialog("Sure?", isPresented: $p) {}
+        """.components(separatedBy: "\n")
+        #expect(Self.unanchoredDialogs(file: "A.swift", lines: attested).isEmpty)
     }
 
     @Test("被取代的籠統標題與純告知 alert 已移除")
