@@ -79,6 +79,8 @@ final class TopNavigationUITests: XCTestCase {
         var accountFrames: [(name: String, frame: CGRect)] = []
         for tab in tabs {
             tab.open()
+            // 聊天列表載入完才量(載入骨架換成列表的瞬間,系統大標題會暫時收成 inline 大小)。
+            if tab.title == "Chats" { XCTAssertTrue(app.element(chatRowID("w1:p1")).waitUntilExists(timeout: 10)) }
             let title = app.topBarTitle(tab.title)
             XCTAssertTrue(title.waitUntilExists(timeout: 10), "\(tab.name) tab 沒有大標題")
             XCTAssertEqual(title.label, tab.title, "\(tab.name) tab 的大標題不是 tab 名稱")

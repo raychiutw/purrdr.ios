@@ -106,12 +106,13 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(signIn.waitUntilExists(timeout: 5), "大字級下找不到「登入」")
     }
 
-    /// 右上角的帳號圓圈跟新增聊天的玻璃鈕看起來一樣大(實機回報 2026-11-20):工具列玻璃鈕畫出來 44pt(XCUI 的 frame 只報內容 36pt)。
+    /// 右上角的帳號圓圈與同列的系統工具列鈕一樣高(#615:都是系統玻璃鈕,不自加尺寸;XCUI 的 frame 只報內容 36pt)。
     @MainActor
     func testAccountButtonMatchesMoreButton() {
         let app = XCUIApplication.launchUITesting()
         let account = app.buttons["toolbar.account"].firstMatch
         XCTAssertTrue(account.waitUntilExists(timeout: 10))
-        XCTAssertEqual(account.frame.height, 44, accuracy: 1, "帳號圓圈 \(account.frame) 應與玻璃鈕一樣 44pt")
+        let newChat = app.buttons["toolbar.newChat"].firstMatch
+        XCTAssertEqual(account.frame.height, newChat.frame.height, accuracy: 1, "帳號圓圈 \(account.frame) 與工具列鈕 \(newChat.frame) 不一樣高")
     }
 }
