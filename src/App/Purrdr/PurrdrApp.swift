@@ -163,8 +163,8 @@ struct PurrdrApp: App {
                 hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
                 skeletonRowCounts: UserDefaultsSkeletonRowCountStore(),
-                // 離線佇列存在本機，App 重開仍在(#301)。
-                offlineQueues: UserDefaultsOfflineQueueStore(),
+                // 離線佇列存在 Keychain(僅此裝置、不進備份),App 重開仍在(#301、#575)。
+                offlineQueues: ProtectedOfflineQueueStore.system(),
                 // 模型目錄的公開來源(#385);UI 測試不給,不連網路。
                 publicModelCatalog: URLSessionPublicModelCatalog()
             ) { endpoint, pin, credential in
@@ -207,7 +207,9 @@ struct PurrdrApp: App {
         self.hostSync = hostSync
         localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
         let hitchStore = uiTesting
-            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch"))
+            // 每次啟動各用一個新資料夾:模擬器的 tmp 會跨測試保留,共用同一個資料夾會讓前面測試捲動留下的記錄
+            // 殘留到「還沒有記錄」的測試(也會越積越大)。
+            ? HitchLogFile(directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
             : HitchLogFile.applicationSupport()
         let hitchRecorder = HitchRecorder(sink: hitchStore, defaults: .standard, system: { HitchSystemState.current() })
         self.hitchRecorder = hitchRecorder

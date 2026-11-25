@@ -11,15 +11,26 @@ public struct SSHHostConnection: HostConnection {
     private let sleep: Sleep
     /// 對話紀錄追蹤的長駐通道(#166);這個連線的複本共用。
     private let follower: SSHTranscriptFollower
+    /// 列表預覽輸出的分隔標記產生器(每次呼叫隨機;測試注入固定值)。
+    let previewMarker: @Sendable () -> String
+    /// 視窗讀取每次往前取的區塊大小(測試用小值驗證「放大區塊重數」)。
+    let windowChunkBytes: Int
 
-    /// - Parameter followDiagnostics: 對話紀錄追蹤退回輪詢時的原因(交給系統紀錄)。
+    /// - Parameters:
+    ///   - followDiagnostics: 對話紀錄追蹤退回輪詢時的原因(交給系統紀錄)。
+    ///   - previewMarker: 列表預覽的分隔標記產生器(測試注入固定值)。
+    ///   - windowChunkBytes: 視窗讀取每次往前取的區塊大小(測試用小值)。
     public init(
         channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(), sleep: @escaping Sleep = Sleeping.task,
-        followDiagnostics: (@Sendable (String) -> Void)? = nil
+        followDiagnostics: (@Sendable (String) -> Void)? = nil,
+        previewMarker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString },
+        windowChunkBytes: Int = TranscriptReader.defaultWindowChunkBytes
     ) {
         self.channel = channel
         self.herdr = herdr
         self.sleep = sleep
+        self.previewMarker = previewMarker
+        self.windowChunkBytes = windowChunkBytes
         follower = SSHTranscriptFollower(channel: channel, sleep: sleep, diagnostics: followDiagnostics)
     }
 

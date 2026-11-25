@@ -75,20 +75,10 @@ extension TranscriptReadError {
 /// 增量讀取用輪詢：每次以 `tail(path:from:)` 讀游標之後新增的完整行。落後太多時改讀新視窗
 /// (`window`),不逐行重播大量積壓(R-B08)。
 public struct TranscriptReader: Sendable {
-    private let connection: any HostConnection
-    private let windowChunkBytes: Int
-    private let marker: @Sendable () -> String
+    let connection: any HostConnection
 
-    /// - Parameters:
-    ///   - windowChunkBytes: 視窗讀取每次往前取的區塊大小(測試用小值驗證「放大區塊重數」)。
-    ///   - marker: 列表預覽的分隔標記產生器(每次呼叫隨機;測試注入固定值)。
-    public init(
-        connection: any HostConnection, windowChunkBytes: Int = 4 << 20,
-        marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString }
-    ) {
+    public init(connection: any HostConnection) {
         self.connection = connection
-        self.windowChunkBytes = windowChunkBytes
-        self.marker = marker
     }
 
     /// 找出 Claude Code session 的對話紀錄並取得大小(含 worktree 後備)。
@@ -107,10 +97,13 @@ public struct TranscriptReader: Sendable {
         try await locate(target.location)
     }
 
-    func locate(_ location: TranscriptLocation) async throws -> TranscriptFile {
-        guard location.isSafe else { throw TranscriptReadError.invalidReference }
+    package func locate(_ location: TranscriptLocation) async throws -> TranscriptFile {
+        try await connection.locateTranscript(location)
+    }
+
+    /// 定位結果(路徑、大小，再接 header 行)的檢查與解析;SSH 腳本輸出與 HTTPS 的 `transcript.locate` 共用。
+    package static func locatedFile(lines: [String], for location: TranscriptLocation) throws -> TranscriptFile {
         let locator = location.locator
-        let lines = try await run(.locate(location)).lines
         guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]) else { throw TranscriptReadError.changed }
         if case .id(let id) = location.reference, let pathCheck = locator.pathCheck, !pathCheck(lines[0], id) {
             throw TranscriptReadError.changed
@@ -128,15 +121,10 @@ public struct TranscriptReader: Sendable {
     /// 呼叫端自己決定要不要放寬)。HTTPS 主機服務 0.11.0 起的 `transcript.window` 有 `max_bytes`(`HostServiceFeature.transcriptWindowMaxBytes`),更舊的只照行數。
     public func window(path: String, endingAt end: Int, lines: Int, maxBytes: Int? = nil) async throws -> TranscriptChunk {
         guard Self.isValidPath(path), end >= 0, lines > 0, (maxBytes ?? 1) > 0 else { throw TranscriptReadError.invalidReference }
-        let output = try await run(.window(path: path, end: end, lines: lines, chunkBytes: windowChunkBytes, maxBytes: maxBytes ?? 0))
-        guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
-        let header = String(decoding: output.stdout[..<newline], as: UTF8.self).split(separator: " ").compactMap { Int($0) }
-        guard header.count == 2, header[0] <= header[1], header[1] <= end else { throw TranscriptReadError.changed }
-        let records = try Self.records(output.stdout[output.stdout.index(after: newline)...])
-        // 回應範圍與每行原始長度加總不合 → 讀取中檔案變了，重試。
-        guard records.bytes == header[1] - header[0] else { throw TranscriptReadError.changed }
-        return TranscriptChunk(start: header[0], end: header[1], lines: records.lines)
+        return try await connection.readTranscriptWindow(path: path, end: end, lines: lines, maxBytes: maxBytes ?? 0)
     }
+
+    public static let defaultWindowChunkBytes = 4 << 20
 
     /// 檔案目前的大小(開啟視窗的上限)。用追蹤指令、游標放在檔尾之後:主機只印大小。
     public func size(path: String) async throws -> Int {
@@ -173,19 +161,28 @@ public struct TranscriptReader: Sendable {
     /// 同 `tail`,另外回報主機上的檔案大小。
     func tailReportingSize(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> (tail: TranscriptTail, size: Int) {
         guard Self.isValidPath(path), cursor >= 0 else { throw TranscriptReadError.invalidReference }
-        let output: Output
-        do {
-            output = try await run(.tail(path: path, from: cursor, limit: limit))
-        } catch TranscriptReadError.replaced(let size) {
-            return (.shrank(size: size), size)
+        let read = try await connection.readTranscriptTail(path: path, from: cursor, limit: limit, catchUp: false)
+        return (read.tail, read.size)
+    }
+
+    /// 追蹤讀取的結果判讀:主機回報的檔案大小與游標之後的完整行(`records` 在需要時才解析);SSH 腳本輸出與 HTTPS 的推送共用。
+    package static func interpretTail(
+        size: Int, cursor: Int, limit: Int, catchUp: Bool, records parse: () throws -> (lines: [String], bytes: Int)
+    ) throws -> TranscriptTailRead {
+        if size < cursor { return TranscriptTailRead(tail: .shrank(size: size), size: size) }
+        if !catchUp, size - cursor > limit { return TranscriptTailRead(tail: .tooFarBehind(size: size), size: size) }
+        let records = try parse()
+        if catchUp {
+            // 一行都沒拿到卻落後超過上限：主機不能分段接著讀(#173 之前的主機服務落後太多就結束追蹤),
+            // 回報落後太多讓呼叫端讀新視窗，不卡在同一個游標。SSH 的主機腳本與 #173 起的主機服務會把超大單行截短後送出，
+            // 只有那一行還沒寫完時會走到這裡。
+            if records.lines.isEmpty, size - cursor > limit { return TranscriptTailRead(tail: .tooFarBehind(size: size), size: size) }
+            guard !records.lines.isEmpty else { return TranscriptTailRead(tail: .unchanged, size: size) }
+            guard cursor + records.bytes <= size else { throw TranscriptReadError.changed }
         }
-        guard let newline = output.stdout.firstIndex(of: 0x0A),
-              let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
-        if size < cursor { return (.shrank(size: size), size) }
-        if size - cursor > limit { return (.tooFarBehind(size: size), size) }
-        let records = try Self.records(output.stdout[output.stdout.index(after: newline)...])
-        guard !records.lines.isEmpty else { return (.unchanged, size) }
-        return (.appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines)), size)
+        guard !records.lines.isEmpty else { return TranscriptTailRead(tail: .unchanged, size: size) }
+        return TranscriptTailRead(
+            tail: .appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines)), size: size)
     }
 
     /// 即時追蹤的單次上限(#130)。
@@ -211,24 +208,8 @@ public struct TranscriptReader: Sendable {
     /// 同 `catchUp`,另外回報主機上的檔案大小。
     func catchUpReportingSize(path: String, from cursor: Int, limit: Int) async throws -> (tail: TranscriptTail, size: Int) {
         guard Self.isValidPath(path), cursor >= 0, limit > 0 else { throw TranscriptReadError.invalidReference }
-        let output: Output
-        do {
-            output = try await run(.catchUp(path: path, from: cursor, limit: limit))
-        } catch TranscriptReadError.replaced(let size) {
-            // 主機服務(HTTPS)回報檔案被換掉：與 SSH 的「變小」同樣是真正的斷層。
-            return (.shrank(size: size), size)
-        }
-        guard let newline = output.stdout.firstIndex(of: 0x0A),
-              let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
-        if size < cursor { return (.shrank(size: size), size) }
-        let records = try Self.records(output.stdout[output.stdout.index(after: newline)...])
-        // 一行都沒拿到卻落後超過上限：主機不能分段接著讀(#173 之前的主機服務落後太多就結束追蹤),
-        // 回報落後太多讓呼叫端讀新視窗，不卡在同一個游標。SSH 的主機腳本與 #173 起的主機服務會把超大單行截短後送出，
-        // 只有那一行還沒寫完時會走到這裡。
-        if records.lines.isEmpty, size - cursor > limit { return (.tooFarBehind(size: size), size) }
-        guard !records.lines.isEmpty else { return (.unchanged, size) }
-        guard cursor + records.bytes <= size else { throw TranscriptReadError.changed }
-        return (.appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines)), size)
+        let read = try await connection.readTranscriptTail(path: path, from: cursor, limit: limit, catchUp: true)
+        return (read.tail, read.size)
     }
 
     /// 即時追蹤讀一次(#130、F5.3 第 3 點、R-B08)。
@@ -254,16 +235,6 @@ public struct TranscriptReader: Sendable {
     }
 
     // MARK: - 輸出
-
-    struct Output {
-        var stdout: Data
-        var lines: [String] { String(decoding: stdout, as: UTF8.self).split(separator: "\n").map(String.init) }
-    }
-
-    /// 經主機連線讀一次;主機回報的失敗丟 `TranscriptReadError`。
-    func run(_ request: TranscriptRequest) async throws -> Output {
-        Output(stdout: try await connection.readTranscript(request))
-    }
 
     /// 「原始 byte 長度 TAB 行」的紀錄。回傳行與原始 byte 總數(含換行)。
     package static func records(_ data: Data.SubSequence) throws -> (lines: [String], bytes: Int) {
@@ -296,10 +267,142 @@ public struct TranscriptReader: Sendable {
 
     /// 主機回報的路徑：必須是絕對路徑(POSIX `/…` 或 Windows `C:\…`)、以 `.jsonl` 結尾、沒有 `..` 段、
     /// 沒有 NUL／CR／LF(行為規格 §4.0)。
-    static func isValidPath(_ path: String) -> Bool {
+    package static func isValidPath(_ path: String) -> Bool {
         HostPathSyntax.isSafeAbsolute(path) && path.hasSuffix(".jsonl")
     }
 }
+
+/// 對話紀錄的腳本輸出實作(SSH 連線方式用,ADR-0015):送 `TranscriptRequest`、解析主機腳本的輸出。HTTPS 直接對應主機服務訊息,不經這裡。
+package struct TranscriptWireReader: Sendable {
+    private let wire: any HerdrWire
+    private let windowChunkBytes: Int
+    private let marker: @Sendable () -> String
+
+    /// - Parameters:
+    ///   - windowChunkBytes: 視窗讀取每次往前取的區塊大小(測試用小值驗證「放大區塊重數」)。
+    ///   - marker: 列表預覽的分隔標記產生器(每次呼叫隨機;測試注入固定值)。
+    package init(
+        wire: any HerdrWire, windowChunkBytes: Int = TranscriptReader.defaultWindowChunkBytes,
+        marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString }
+    ) {
+        self.wire = wire
+        self.windowChunkBytes = windowChunkBytes
+        self.marker = marker
+    }
+
+    /// `locate` 的腳本輸出實作。
+    package func locate(_ location: TranscriptLocation) async throws -> TranscriptFile {
+        guard location.isSafe else { throw TranscriptReadError.invalidReference }
+        return try TranscriptReader.locatedFile(lines: try await run(.locate(location)).lines, for: location)
+    }
+
+    /// `window` 的腳本輸出實作。
+    package func window(path: String, endingAt end: Int, lines: Int, maxBytes: Int?) async throws -> TranscriptChunk {
+        guard TranscriptReader.isValidPath(path), end >= 0, lines > 0, (maxBytes ?? 1) > 0 else { throw TranscriptReadError.invalidReference }
+        let output = try await run(.window(path: path, end: end, lines: lines, chunkBytes: windowChunkBytes, maxBytes: maxBytes ?? 0))
+        guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
+        let header = String(decoding: output.stdout[..<newline], as: UTF8.self).split(separator: " ").compactMap { Int($0) }
+        guard header.count == 2, header[0] <= header[1], header[1] <= end else { throw TranscriptReadError.changed }
+        let records = try TranscriptReader.records(output.stdout[output.stdout.index(after: newline)...])
+        // 回應範圍與每行原始長度加總不合 → 讀取中檔案變了，重試。
+        guard records.bytes == header[1] - header[0] else { throw TranscriptReadError.changed }
+        return TranscriptChunk(start: header[0], end: header[1], lines: records.lines)
+    }
+
+    /// `tail`／`catchUp` 的腳本輸出實作。
+    package func tail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
+        guard TranscriptReader.isValidPath(path), cursor >= 0, limit > 0 else { throw TranscriptReadError.invalidReference }
+        let output: Output
+        do {
+            output = try await run(catchUp ? .catchUp(path: path, from: cursor, limit: limit) : .tail(path: path, from: cursor, limit: limit))
+        } catch TranscriptReadError.replaced(let size) {
+            // 主機服務(HTTPS)回報檔案被換掉：與 SSH 的「變小」同樣是真正的斷層。
+            return TranscriptTailRead(tail: .shrank(size: size), size: size)
+        }
+        guard let newline = output.stdout.firstIndex(of: 0x0A),
+              let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
+        return try TranscriptReader.interpretTail(size: size, cursor: cursor, limit: limit, catchUp: catchUp) {
+            try TranscriptReader.records(output.stdout[output.stdout.index(after: newline)...])
+        }
+    }
+
+    struct Output {
+        var stdout: Data
+        var lines: [String] { String(decoding: stdout, as: UTF8.self).split(separator: "\n").map(String.init) }
+    }
+
+    /// 經主機連線讀一次;主機回報的失敗丟 `TranscriptReadError`。
+    func run(_ request: TranscriptRequest) async throws -> Output {
+        Output(stdout: try await wire.readTranscript(request))
+    }
+
+    /// `previewReadings` 的腳本輸出實作:分段解析腳本輸出成每個聊天的原始內容。
+    package func previews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
+        let marker = marker()
+        let output = try await run(.previews(marker: marker, requests: requests))
+        var bodies: [String: [String]] = [:]
+        var headers: [String: [String]] = [:]
+        var ranges: [String: PreviewRangeLine] = [:]
+        var current: (key: String, isHeader: Bool)?
+        let bodyPrefix = marker + " "
+        let headerPrefix = marker + "! "
+        let rangePrefix = marker + "@ "
+        for line in String(decoding: output.stdout, as: UTF8.self).split(separator: "\n") {
+            if line.hasPrefix(rangePrefix) {
+                guard let range = PreviewRangeLine(line.dropFirst(rangePrefix.count)) else {
+                    current = nil
+                    continue
+                }
+                ranges[range.key] = range
+                current = (range.key, false)
+                bodies[range.key] = []
+            } else if line.hasPrefix(headerPrefix) {
+                let key = String(line.dropFirst(headerPrefix.count))
+                current = (key, true)
+                headers[key] = []
+            } else if line.hasPrefix(bodyPrefix) {
+                let key = String(line.dropFirst(bodyPrefix.count))
+                current = (key, false)
+                bodies[key] = []
+            } else if let current {
+                if current.isHeader { headers[current.key, default: []].append(String(line)) } else { bodies[current.key, default: []].append(String(line)) }
+            }
+        }
+        var result: [String: TranscriptPreviewBody] = [:]
+        for (key, lines) in bodies {
+            result[key] = TranscriptPreviewBody(lines: lines, header: headers[key], change: ranges[key]?.change, version: ranges[key]?.version)
+        }
+        return result
+    }
+
+    /// `locateSubagent` 的腳本輸出實作。
+    package func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
+        let output = try await run(.findSubagent(sessionFolder: sessionFolder, callID: callID))
+        let lines = output.lines
+        var matches: [String] = []
+        for pair in stride(from: 0, to: lines.count - 1, by: 2) {
+            let metaPath = lines[pair]
+            guard metaPath.hasSuffix(".meta.json"),
+                  let meta = ClaudeTranscriptParser.jsonObject(lines[pair + 1]),
+                  meta["toolUseId"] as? String == callID else { continue }
+            let transcript = String(metaPath.dropLast(".meta.json".count)) + ".jsonl"
+            if TranscriptReader.isValidPath(transcript) { matches.append(transcript) }
+        }
+        guard !matches.isEmpty else { throw TranscriptReadError.absent }
+        guard matches.count == 1 else { throw TranscriptReadError.changed }
+        return matches[0]
+    }
+
+    /// `delegationLines` 的腳本輸出實作。
+    package func delegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
+        let output = try await run(.delegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum ?? ""))
+        guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
+        let checksum = String(decoding: output.stdout[..<newline], as: UTF8.self)
+        if checksum == knownChecksum { return DelegationRead(checksum: checksum, lines: nil) }
+        return DelegationRead(checksum: checksum, lines: try TranscriptReader.records(output.stdout[output.stdout.index(after: newline)...]).lines)
+    }
+}
+
 
 /// 一個要讀預覽的聊天。
 public struct PreviewRequest: Sendable, Equatable {
@@ -360,46 +463,21 @@ extension TranscriptReader {
     /// session id 或路徑不安全的請求略過。回傳 key → 讀取結果;沒有檔案、有歧義或 header 不符(Pi／OMP、Codex)的聊天不在結果裡。
     public func previewReadings(of requests: [PreviewRequest]) async throws -> [String: PreviewReading] {
         guard requests.contains(where: { TranscriptCommand.PreviewEntry($0) != nil }) else { return [:] }
-        let marker = marker()
-        let output = try await run(.previews(marker: marker, requests: requests))
-        var bodies: [String: [String]] = [:]
-        var headers: [String: [String]] = [:]
-        var ranges: [String: PreviewRangeLine] = [:]
-        var current: (key: String, isHeader: Bool)?
-        let bodyPrefix = marker + " "
-        let headerPrefix = marker + "! "
-        let rangePrefix = marker + "@ "
-        for line in String(decoding: output.stdout, as: UTF8.self).split(separator: "\n") {
-            if line.hasPrefix(rangePrefix) {
-                guard let range = PreviewRangeLine(line.dropFirst(rangePrefix.count)) else {
-                    current = nil
-                    continue
-                }
-                ranges[range.key] = range
-                current = (range.key, false)
-                bodies[range.key] = []
-            } else if line.hasPrefix(headerPrefix) {
-                let key = String(line.dropFirst(headerPrefix.count))
-                current = (key, true)
-                headers[key] = []
-            } else if line.hasPrefix(bodyPrefix) {
-                let key = String(line.dropFirst(bodyPrefix.count))
-                current = (key, false)
-                bodies[key] = []
-            } else if let current {
-                if current.isHeader { headers[current.key, default: []].append(String(line)) } else { bodies[current.key, default: []].append(String(line)) }
-            }
-        }
+        return Self.readings(of: requests, from: try await connection.readTranscriptPreviews(requests))
+    }
+
+    /// 每個聊天的原始預覽內容換成讀取結果(header 檢查、最後一則可讀訊息與進度);SSH 與 HTTPS 共用。
+    package static func readings(of requests: [PreviewRequest], from bodies: [String: TranscriptPreviewBody]) -> [String: PreviewReading] {
         var readings: [String: PreviewReading] = [:]
         for request in requests {
-            guard let lines = bodies[request.key] else { continue }
-            let range = ranges[request.key]
-            let change = range?.change ?? .whole
+            guard let body = bodies[request.key] else { continue }
+            let lines = body.lines
+            let change = body.change ?? .whole
             // 附加與沒變沿用上次整段讀取時的 header 檢查(錨點相同才算同一個檔)。
             if change == .whole {
                 if let headerCheck = request.target.location.locator.headerCheck {
                     let expectedID: String? = if case .id(let id) = request.target.location.reference { id } else { nil }
-                    guard headerCheck(headers[request.key] ?? [], expectedID) else { continue }
+                    guard headerCheck(body.header ?? [], expectedID) else { continue }
                 }
             }
             // 檔尾的第一行多半被切在中間，解析時自然略過。
@@ -408,7 +486,7 @@ extension TranscriptReader {
                 let progress = AgentProgress.latest(in: lines, dialect: request.target.dialect)
                 preview?.progress = progress.isEmpty ? nil : progress
             }
-            readings[request.key] = PreviewReading(version: range?.version, change: change, preview: preview)
+            readings[request.key] = PreviewReading(version: body.version, change: change, preview: preview)
         }
         return readings
     }
@@ -440,21 +518,9 @@ extension TranscriptReader {
         guard ClaudeTranscript.isSafeDelegationID(callID), ClaudeTranscript.isValidFolder(sessionFolder) else {
             throw TranscriptReadError.invalidReference
         }
-        let output = try await run(.findSubagent(sessionFolder: sessionFolder, callID: callID))
-        let lines = output.lines
-        var matches: [String] = []
-        for pair in stride(from: 0, to: lines.count - 1, by: 2) {
-            let metaPath = lines[pair]
-            guard metaPath.hasSuffix(".meta.json"),
-                  let meta = ClaudeTranscriptParser.jsonObject(lines[pair + 1]),
-                  meta["toolUseId"] as? String == callID else { continue }
-            let transcript = String(metaPath.dropLast(".meta.json".count)) + ".jsonl"
-            if Self.isValidPath(transcript) { matches.append(transcript) }
-        }
-        guard !matches.isEmpty else { throw TranscriptReadError.absent }
-        guard matches.count == 1 else { throw TranscriptReadError.changed }
-        return matches[0]
+        return try await connection.locateSubagent(sessionFolder: sessionFolder, callID: callID)
     }
+
 }
 
 extension TranscriptReader {
@@ -463,12 +529,10 @@ extension TranscriptReader {
     public func delegationLines(path: String, callID: String, agentID: String?, knownChecksum: String?) async throws -> (checksum: String, lines: [String]?) {
         guard Self.isValidPath(path), ClaudeTranscript.isSafeDelegationID(callID),
               agentID.map(ClaudeTranscript.isSafeDelegationID) ?? true else { throw TranscriptReadError.invalidReference }
-        let output = try await run(.delegationLines(path: path, callID: callID, agentID: agentID ?? callID, knownChecksum: knownChecksum ?? ""))
-        guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
-        let checksum = String(decoding: output.stdout[..<newline], as: UTF8.self)
-        if checksum == knownChecksum { return (checksum, nil) }
-        return (checksum, try Self.records(output.stdout[output.stdout.index(after: newline)...]).lines)
+        let read = try await connection.readDelegationLines(path: path, callID: callID, agentID: agentID ?? callID, knownChecksum: knownChecksum)
+        return (read.checksum, read.lines)
     }
+
 }
 
 
@@ -501,5 +565,43 @@ public struct TranscriptFollow: Sendable, Equatable {
     /// 下一次分段追趕的上限。
     public var limit: Int {
         backlog > TranscriptReader.catchUpLimit ? TranscriptReader.catchUpBacklogLimit : TranscriptReader.catchUpLimit
+    }
+}
+
+/// 追蹤讀取的結果:判讀後的尾端與主機上的檔案大小。
+public struct TranscriptTailRead: Sendable, Equatable {
+    public var tail: TranscriptTail
+    public var size: Int
+
+    public init(tail: TranscriptTail, size: Int) {
+        self.tail = tail
+        self.size = size
+    }
+}
+
+/// 列表預覽時一個聊天讀到的原始內容(還沒判讀成預覽):檔尾的行、要檢查的 header、讀取範圍與版本。
+/// 沒有 `change` 與 `version` 表示主機沒回報範圍(視為整段)。
+public struct TranscriptPreviewBody: Sendable, Equatable {
+    package var lines: [String]
+    package var header: [String]?
+    package var change: PreviewReading.Change?
+    package var version: PreviewVersion?
+
+    package init(lines: [String], header: [String]? = nil, change: PreviewReading.Change? = nil, version: PreviewVersion? = nil) {
+        self.lines = lines
+        self.header = header
+        self.change = change
+        self.version = version
+    }
+}
+
+/// 父對話紀錄中指名某個委派的行;內容的 checksum 與已知的相同時 `lines` 是 `nil`。
+public struct DelegationRead: Sendable, Equatable {
+    public var checksum: String
+    public var lines: [String]?
+
+    public init(checksum: String, lines: [String]?) {
+        self.checksum = checksum
+        self.lines = lines
     }
 }

@@ -11,7 +11,7 @@ struct HostOverviewLastConnectedTests {
     @Test("讀到快照就記下時間")
     func remembersLastLoadedTime() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: HostUpdatesTests.snapshot)
+        await connection.expect(.snapshot, wire: HostUpdatesTests.snapshot)
         let moment = Date(timeIntervalSince1970: 1_000)
         let updates = HostUpdates(client: HerdrClient(connection: connection), now: { moment })
         #expect(updates.lastLoadedAt == nil)

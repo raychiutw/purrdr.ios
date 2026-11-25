@@ -2,61 +2,17 @@ import Foundation
 import PurrdrCore
 
 /// HTTPS 的對話紀錄(#59):定位與視窗是單次請求;尾端由主機服務推送(`transcript.follow`),
-/// `tail` 從推送累積的行回答，不必每次輪詢都經網路。回傳的格式與 SSH 的腳本輸出相同，`TranscriptReader` 照原樣解析。
+/// `tail` 從推送累積的行回答，不必每次輪詢都經網路。型別化操作在 `HTTPSTypedOperations.swift`。
 extension HTTPSHostConnection {
-    func transcript(_ request: TranscriptRequest) async throws -> Data {
-        switch request {
-        case .locate(let location):
-            return try await withDeadline(HostCommandDeadline.standard) {
-                try await self.locate(location.sessionReference, header: location.locator.readsHeader)
-            }
-        case .window(let path, let end, let lines, _, let maxBytes):
-            return try await withDeadline(HostCommandDeadline.maximumRead) {
-                try await self.window(path: path, end: end, lines: lines, maxBytes: maxBytes)
-            }
-        case .tail(let path, let cursor, let limit), .catchUp(let path, let cursor, let limit):
-            // 主機服務(#173 起)落後超過上限時從游標分段送出，與 SSH 的分段接著讀相同;#173 之前的主機服務落後超過上限
-            // 就以 too_far_behind 結束、只回大小，`TranscriptReader.catchUp` 改回報落後太多(讀新視窗)。
-            // 行從推送累積的緩衝回答，不必依上限放寬期限。
-            return try await withDeadline(HostCommandDeadline.standard) {
-                try await self.tail(path: path, from: cursor, limit: limit)
-            }
-        case .previews(let marker, let requests):
-            return try await previews(marker: marker, requests: requests)
-        case .findSubagent(let sessionFolder, let callID):
-            return try await findSubagent(sessionFolder: sessionFolder, callID: callID)
-        case .readWorkflow(let sessionFolder, let runID, let knownChecksum):
-            return try await readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
-        case .delegationLines(let path, let callID, let agentID, let knownChecksum):
-            return try await delegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
-        }
-    }
-
-    /// 「路徑、大小、header 各一行」。
-    private func locate(_ session: HostServiceProtocol.SessionReference, header: Bool) async throws -> Data {
-        let result = try await locateResult(session, header: header)
-        return Data(([result.path, String(result.size)] + (result.header ?? [])).map { $0 + "\n" }.joined().utf8)
-    }
-
     func locateResult(_ session: HostServiceProtocol.SessionReference, header: Bool) async throws -> HostServiceProtocol.TranscriptLocateResult {
         let reply = try await send { .transcriptLocate(.init(requestId: $0, session: session, header: header)) }
         guard case .transcriptLocateResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
         return result
     }
 
-    /// 「起點 終點」一行，再接範圍內的行。
-    /// `maxBytes` 大於 0 且主機服務有 `max_bytes`(0.11.0 起)時帶上，傳輸量有上限(#356);更舊的主機服務只限行數。
-    private func window(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> Data {
-        let installed = maxBytes > 0 ? ((try? await hostServiceVersion()) ?? nil) : nil
-        let limit: Int? = HostServiceFeature.transcriptWindowMaxBytes.isAvailable(onHostServiceVersion: installed) ? maxBytes : nil
-        let reply = try await send { .transcriptWindow(.init(requestId: $0, path: path, end: end, lines: lines, maxBytes: limit)) }
-        guard case .transcriptWindowResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
-        return Data("\(result.start) \(result.end)\n".utf8) + Self.recordLines(result.records)
-    }
-
-    /// 「大小」一行，再接游標之後的完整行。追蹤中且游標在已收到的範圍內時不經網路;否則(第一次、換了游標、
+    /// 游標之後的完整行與檔案大小。追蹤中且游標在已收到的範圍內時不經網路;否則(第一次、換了游標、
     /// 重新連線、主機結束追蹤之後)開始新的追蹤。
-    private func tail(path: String, from cursor: Int, limit: Int) async throws -> Data {
+    func tail(path: String, from cursor: Int, limit: Int) async throws -> TailAnswer {
         if var follow = transcriptFollows.removeValue(forKey: path) {
             if await follow.session.isOpen, let pushed = await follow.session.takeBufferedMessages(follow.streamID) {
                 follow.apply(pushed)
@@ -89,7 +45,7 @@ extension HTTPSHostConnection {
     }
 
     /// 回答這次讀取;主機已結束追蹤就丟掉這個追蹤(下次重新開始),否則留著並丟掉游標之前的行。
-    private func answer(_ follow: TranscriptFollow, path: String, cursor: Int) async throws -> Data {
+    private func answer(_ follow: TranscriptFollow, path: String, cursor: Int) async throws -> TailAnswer {
         let output = follow.output(from: cursor)
         guard let ended = follow.ended else {
             var kept = follow
@@ -177,9 +133,12 @@ extension HTTPSHostConnection {
         if transcriptStreams[path]?.id == stream.id { transcriptStreams[path] = nil }
     }
 
-    static func recordLines(_ records: [HostServiceProtocol.TranscriptRecord]) -> Data {
-        Data(records.map { "\($0.length)\t\($0.text)\n" }.joined().utf8)
-    }
+}
+
+/// 一次尾端讀取的內容:檔案大小與游標之後的完整行。
+struct TailAnswer {
+    var size: Int
+    var records: [HostServiceProtocol.TranscriptRecord]
 }
 
 /// 一個追蹤中的對話紀錄：主機服務推送的完整行，從 `bufferStart` 起相連。
@@ -232,9 +191,9 @@ struct TranscriptFollow {
         return cursor == bufferEnd || records.contains { $0.offset == cursor }
     }
 
-    /// 與 SSH 追蹤腳本相同的輸出：大小一行，再接游標之後的完整行。
-    func output(from cursor: Int) -> Data {
-        Data("\(size)\n".utf8) + HTTPSHostConnection.recordLines(records.filter { $0.offset >= cursor }.map(\.record))
+    /// 主機上的檔案大小與游標之後的完整行。
+    func output(from cursor: Int) -> TailAnswer {
+        TailAnswer(size: size, records: records.filter { $0.offset >= cursor }.map(\.record))
     }
 
     /// 丟掉游標之前已讀過的行。

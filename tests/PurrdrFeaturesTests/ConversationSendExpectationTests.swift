@@ -32,7 +32,7 @@ struct ConversationSendExpectationTests {
         let model = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: paneID,
             knownSessionID: session, cache: InMemoryConversationCache(), clock: ConversationClock(now: { Date(timeIntervalSince1970: 1_794_614_400) }))
-        await connection.expect("session.snapshot", reply: snapshot(status))
+        await connection.expect(.snapshot, wire: snapshot(status))
         return (connection, model)
     }
 
@@ -46,8 +46,8 @@ struct ConversationSendExpectationTests {
     func paneChangedRestoresDraft() async throws {
         let (connection, model) = await Self.opened()
         await model.poll()
-        await connection.expect("session.snapshot", reply: Self.snapshot("idle"))
-        await connection.expect("agent.prompt", failure: HostServiceError.paneChanged)
+        await connection.expect(.snapshot, wire: Self.snapshot("idle"))
+        await connection.stub(.agentPrompt, failure: HostServiceError.paneChanged)
         model.draft = "給原本的對話"
 
         await model.send()
@@ -64,10 +64,10 @@ struct ConversationSendExpectationTests {
     func answerCarriesSessionOnly() async throws {
         let (connection, model) = await Self.opened(status: "blocked")
         let screen = PaneScreens.text("claude-bash")
-        await connection.expect("pane.read", reply: Self.paneRead(text: screen))
+        await connection.expect(.paneRead, wire: Self.paneRead(text: screen))
         await model.poll()
         let option = try #require(model.prompt?.options.first)
-        await connection.expect("pane.send_keys", reply: Data(#"{"id":"purrdr:pane.send_keys","result":{"type":"ok"}}"#.utf8))
+        await connection.expect(.sendKeys, wire: Data(#"{"id":"purrdr:pane.send_keys","result":{"type":"ok"}}"#.utf8))
 
         await model.answer(.option(option))
 
@@ -79,12 +79,12 @@ struct ConversationSendExpectationTests {
     @Test("回答時題目已變：解鎖選項、提示題目已變更，並立刻重讀畫面")
     func answerToChangedQuestion() async throws {
         let (connection, model) = await Self.opened(status: "blocked")
-        await connection.expect("pane.read", reply: Self.paneRead(text: PaneScreens.text("claude-bash")))
+        await connection.expect(.paneRead, wire: Self.paneRead(text: PaneScreens.text("claude-bash")))
         await model.poll()
         let option = try #require(model.prompt?.options.first)
-        await connection.expect("pane.send_keys", failure: HostServiceError.paneChanged)
-        await connection.expect("session.snapshot", reply: Self.snapshot("blocked"))
-        await connection.expect("pane.read", reply: Self.paneRead(text: PaneScreens.text("claude-bash")))
+        await connection.stub(.sendKeys, failure: HostServiceError.paneChanged)
+        await connection.expect(.snapshot, wire: Self.snapshot("blocked"))
+        await connection.expect(.paneRead, wire: Self.paneRead(text: PaneScreens.text("claude-bash")))
 
         await model.answer(.option(option))
 
@@ -99,8 +99,8 @@ struct ConversationSendExpectationTests {
         let (connection, model) = await Self.opened()
         await model.poll()
         let ok = Data(#"{"id":"purrdr:pane.send_keys","result":{"type":"ok"}}"#.utf8)
-        await connection.expect("pane.read", reply: Self.paneRead(text: "> \n  ? for shortcuts\n"))
-        await connection.expect("pane.send_keys", failure: HostServiceError.paneChanged)
+        await connection.expect(.paneRead, wire: Self.paneRead(text: "> \n  ? for shortcuts\n"))
+        await connection.stub(.sendKeys, failure: HostServiceError.paneChanged)
 
         await model.setPermissionMode(.plan)
 

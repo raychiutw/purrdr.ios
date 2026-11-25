@@ -22,7 +22,7 @@ struct ConversationFastLoadTests {
 
     static func connection(extraExpectations: Int = 0) async -> FakeHostConnection {
         let connection = FakeHostConnection()
-        for _ in 0..<(1 + extraExpectations) { await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson")) }
+        for _ in 0..<(1 + extraExpectations) { await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson")) }
         await Source.answering(connection)
         return connection
     }
@@ -56,9 +56,7 @@ struct ConversationFastLoadTests {
 
         await model.poll()
 
-        let windows = await connection.transcriptRequests.compactMap { request -> (lines: Int, maxBytes: Int?)? in
-            if case .window(_, _, let lines, _, let maxBytes) = request { (lines, maxBytes) } else { nil }
-        }
+        let windows = await connection.transcriptWindowReads
         #expect(windows.count == 1)
         #expect(windows.first?.lines == 40)
         #expect(windows.first?.maxBytes == 64 << 10)
@@ -71,7 +69,7 @@ struct ConversationFastLoadTests {
     @Test("Pane 畫面還沒讀回來，對話已經顯示")
     func paneReadDoesNotBlockFirstScreen() async throws {
         let connection = await Self.connection()
-        await connection.expect("pane.read", reply: Fixtures.data("pane.read.ansi.suggestion.ndjson"))
+        await connection.expect(.paneRead, wire: Fixtures.data("pane.read.ansi.suggestion.ndjson"))
         await connection.hold("pane.read")
         let model = Self.model(connection, cache: InMemoryConversationCache())
         let run = Task { await model.run(sleep: RecordingSleeper().sleep) }

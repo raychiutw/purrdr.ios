@@ -119,9 +119,9 @@ struct AgentListPreviewTests {
     @Test("預覽讀取很慢：不擋住快照與訂閱(「需要你」不被延遲)")
     func slowPreviewsDoNotDelaySnapshots() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
-        await connection.expect("events.subscribe", reply: Fixtures.data("events.subscribe.started.ndjson"))
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expectSubscription(wire: Fixtures.data("events.subscribe.started.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await connection.holdTranscripts()
         let model = AgentListModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), sleep: RecordingSleeper().sleep)
@@ -131,7 +131,7 @@ struct AgentListPreviewTests {
             Task { await connection.releaseTranscripts() }
         }
 
-        try await waitUntil { await !connection.transcriptRequests.isEmpty }
+        try await waitUntil { await connection.typedCalls.contains { $0.hasPrefix("readTranscriptPreviews") } }
         try await waitUntil { await connection.requests.count == 3 }
         #expect(await connection.unmetExpectations.isEmpty)
     }

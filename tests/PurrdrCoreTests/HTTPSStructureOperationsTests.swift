@@ -353,20 +353,6 @@ struct HTTPSStructureOperationsTests {
         }
     }
 
-    @Test(
-        "結構操作都是寫入類(schema 的 x-write)",
-        arguments: [
-            #"{"id":"1","method":"workspace.create","params":{"cwd":"/tmp","focus":false}}"#,
-            #"{"id":"1","method":"workspace.rename","params":{"workspace_id":"w1","label":"a"}}"#,
-            #"{"id":"1","method":"tab.rename","params":{"tab_id":"w1:t1","label":"a"}}"#,
-            #"{"id":"1","method":"workspace.close","params":{"workspace_id":"w1"}}"#,
-            #"{"id":"1","method":"worktree.create","params":{"workspace_id":"w1","branch":"b"}}"#,
-            #"{"id":"1","method":"agent.start","params":{"name":"a","kind":"claude","pane_id":"w1:p1","timeout_ms":1000}}"#,
-        ])
-    func structureOperationsAreWrites(request: String) throws {
-        #expect(try HTTPSHostConnection.isWriteRequest(Data(request.utf8)))
-    }
-
     // MARK: - 新增聊天
 
     @Test("新增聊天：絕對路徑直接用，依序建立 workspace、啟動 Agent、送第一則訊息")

@@ -164,7 +164,7 @@ private struct UITestingHostServiceHTTP: HostServiceHTTPSending {
 }
 
 /// UI 測試的 HTTPS 主機連線：轉給 Demo 主機;唯讀權杖時像主機服務一樣回報唯讀並拒絕寫入類操作。
-private struct UITestingHostServiceConnection: HostConnection {
+private struct UITestingHostServiceConnection: ForwardingHostConnection {
     static let token = "ui-testing-token"
     static let readOnlyPairingCode = "R3AD-0NLY"
     static let readOnlyToken = "ui-testing-read-only-token"
@@ -183,28 +183,64 @@ private struct UITestingHostServiceConnection: HostConnection {
         try deviceToken() == Self.readOnlyToken
     }
 
-    func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-        // 寫入與否照協定(schema 的 x-write),與主機服務相同。
-        if (try? HTTPSHostConnection.isWriteRequest(request)) == true, try await isReadOnlyDevice() {
-            throw HostServiceError.readOnlyDevice
-        }
-        return try await base.herdrRequest(request, deadline: deadline)
+    /// 寫入類操作(schema 的 `x-write`)在唯讀權杖下與主機服務一樣被拒絕。
+    private func requireWritable() async throws {
+        if try await isReadOnlyDevice() { throw HostServiceError.readOnlyDevice }
     }
 
-    func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-        try await base.herdrEvents(request)
+    func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
+        try await requireWritable()
+        try await base.sendKeys(paneID: paneID, keys: keys, expecting: expecting)
     }
 
-    func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        try await base.readTranscript(request)
+    func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
+        try await requireWritable()
+        try await base.sendText(paneID: paneID, text: text, expecting: expecting)
     }
 
-    func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-        try await base.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
+    func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
+        try await requireWritable()
+        return try await base.sendPrompt(target: target, text: text, wait: wait, expecting: expecting)
     }
 
-    func disconnect() async {
-        await base.disconnect()
+    func renameWorkspace(_ workspaceID: String, to label: String) async throws {
+        try await requireWritable()
+        try await base.renameWorkspace(workspaceID, to: label)
+    }
+
+    func renameTab(_ tabID: String, to label: String) async throws {
+        try await requireWritable()
+        try await base.renameTab(tabID, to: label)
+    }
+
+    func closeTab(_ tabID: String) async throws {
+        try await requireWritable()
+        try await base.closeTab(tabID)
+    }
+
+    func closeWorkspace(_ workspaceID: String) async throws {
+        try await requireWritable()
+        try await base.closeWorkspace(workspaceID)
+    }
+
+    func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
+        try await requireWritable()
+        return try await base.createWorktree(from: workspaceID, branch: branch)
+    }
+
+    func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
+        try await requireWritable()
+        return try await base.createWorkspace(cwd: cwd, label: label)
+    }
+
+    func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
+        try await requireWritable()
+        return try await base.createTab(in: workspaceID, label: label)
+    }
+
+    func startAgent(_ request: AgentStartRequest) async throws -> Bool {
+        try await requireWritable()
+        return try await base.startAgent(request)
     }
 }
 

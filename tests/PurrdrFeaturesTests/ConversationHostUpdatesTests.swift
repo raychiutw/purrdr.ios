@@ -33,10 +33,10 @@ struct ConversationHostUpdatesTests {
     static func liveUpdates(
         _ connection: FakeHostConnection, initial status: String, later snapshots: [String] = []
     ) async throws -> (HostUpdates, Task<Void, Never>) {
-        await connection.expect("session.snapshot", reply: snapshot(status))
-        await connection.expect("events.subscribe", reply: started)
-        await connection.expect("session.snapshot", reply: snapshot(status))
-        for later in snapshots { await connection.expect("session.snapshot", reply: snapshot(later)) }
+        await connection.expect(.snapshot, wire: snapshot(status))
+        await connection.expectSubscription(wire: started)
+        await connection.expect(.snapshot, wire: snapshot(status))
+        for later in snapshots { await connection.expect(.snapshot, wire: snapshot(later)) }
         let updates = HostUpdates(client: HerdrClient(connection: connection), sleep: RecordingSleeper().sleep)
         let task = Task { await updates.liveUpdates.attach() }
         try await waitUntil { await connection.requests.count == 3 }
@@ -91,7 +91,7 @@ struct ConversationHostUpdatesTests {
         let connection = FakeHostConnection()
         let (updates, updatesTask) = try await Self.liveUpdates(connection, initial: "idle", later: ["blocked"])
         defer { updatesTask.cancel() }
-        for _ in 0..<5 { await connection.expect("pane.read", reply: Self.paneRead(screen: "claude-ask-question")) }
+        for _ in 0..<5 { await connection.expect(.paneRead, wire: Self.paneRead(screen: "claude-ask-question")) }
         let model = Self.conversation(connection, updates: updates)
         let neverFires = RecordingSleeper()
         let chat = Task { await model.run(sleep: neverFires.sleep) }
@@ -111,7 +111,7 @@ struct ConversationHostUpdatesTests {
         let connection = FakeHostConnection()
         let (updates, updatesTask) = try await Self.liveUpdates(connection, initial: "blocked")
         defer { updatesTask.cancel() }
-        for _ in 0..<40 { await connection.expect("pane.read", reply: Self.paneRead(screen: "claude-ask-question")) }
+        for _ in 0..<40 { await connection.expect(.paneRead, wire: Self.paneRead(screen: "claude-ask-question")) }
         let model = Self.conversation(connection, updates: updates)
         let ticks = TickSleeper()
 
@@ -132,7 +132,7 @@ struct ConversationHostUpdatesTests {
         let connection = FakeHostConnection()
         let (updates, updatesTask) = try await Self.liveUpdates(connection, initial: "working", later: ["idle"])
         defer { updatesTask.cancel() }
-        for _ in 0..<60 { await connection.expect("pane.read", reply: Fixtures.data("pane.read.agents-pane.ndjson")) }
+        for _ in 0..<60 { await connection.expect(.paneRead, wire: Fixtures.data("pane.read.agents-pane.ndjson")) }
         let model = Self.conversation(connection, updates: updates)
         let ticks = TickSleeper()
         let chat = Task { await model.run(sleep: ticks.sleep) }
@@ -154,7 +154,7 @@ struct ConversationHostUpdatesTests {
     @Test("主機更新來源沒有在訂閱(還沒連上或斷線)時，自己讀快照")
     func readsSnapshotItselfWhenUpdatesAreNotLive() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Self.snapshot("idle"))
+        await connection.expect(.snapshot, wire: Self.snapshot("idle"))
         let updates = HostUpdates(client: HerdrClient(connection: connection), sleep: RecordingSleeper().sleep)
         let model = Self.conversation(connection, updates: updates)
 
