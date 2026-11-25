@@ -79,6 +79,7 @@ extension View {
     }
 }
 
+#if os(iOS)
 extension HitchRecorder {
     /// UI 測試旗標 `-uiTestingCrashRecord`:預放一筆「上次異常結束」的閃退記錄。
     public func recordUITestingCrash() {
@@ -87,3 +88,4 @@ extension HitchRecorder {
             app: HitchSystemState.appText, os: HitchSystemState.osText, device: HitchSystemState.deviceIdentifier))
     }
 }
+#endif
