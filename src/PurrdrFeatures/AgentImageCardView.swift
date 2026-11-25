@@ -211,7 +211,7 @@ struct AgentImageCardView: View {
 
     private func load(userRequested: Bool) async {
         guard let loads = context.loads else { return }
-        await loads.load(card.file.path, scope: context.scope(), userRequested: userRequested)
+        await loads.load(card.file.path, scope: context.scope(), userRequested: userRequested, decodesWithImageIO: true)
     }
 
     private func decodeThumbnail() async {

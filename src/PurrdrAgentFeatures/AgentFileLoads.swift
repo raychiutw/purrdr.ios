@@ -98,12 +98,14 @@ public final class AgentFileLoads {
     }
 
     /// 載入一張圖。已載入的照樣先查狀態(版本沒變用快取、不傳內容)。
-    /// - Parameter userRequested: 使用者點了「載入」:上限放寬到 25 MiB。
-    public func load(_ path: String, scope: HostFileAccessScope, userRequested: Bool = false) async {
+    /// - Parameters:
+    ///   - userRequested: 使用者點了「載入」:上限放寬到 25 MiB,也不限圖片格式。
+    ///   - decodesWithImageIO: 內容會交給 ImageIO 解碼(Agent 寫出的圖片):不是 PNG／JPEG／HEIC／GIF／WebP 的要點擊才載入(#579)。
+    public func load(_ path: String, scope: HostFileAccessScope, userRequested: Bool = false, decodesWithImageIO: Bool = false) async {
         // 已顯示縮圖時不換回載入中，版本變了才換圖。
         let isShowing = if case .loaded = states[path] { true } else { false }
         if !isShowing || userRequested { states[path] = .loading }
-        let result = await loader.load(path, scope: scope, userRequested: userRequested)
+        let result = await loader.load(path, scope: scope, userRequested: userRequested, automaticImageFormatsOnly: decodesWithImageIO)
         switch result {
         case .loaded(let data, let version): states[path] = .loaded(data, version: version)
         case .overAutomaticLimit(let size): states[path] = .overAutomaticLimit(size: size)
