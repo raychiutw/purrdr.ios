@@ -40,6 +40,19 @@ struct HostFileAccessPolicyTests {
         #expect(excluded.filter { HostFileAccessPolicy.decision(for: $0, in: Self.scope) != .denied } == [])
     }
 
+    @Test("排除清單：case folding 後等於排除段落的 Unicode 字元也拒絕(APFS 上 `.ſsh` 開到 `.ssh`,#577)")
+    func excludedAfterUnicodeCaseFolding() {
+        let scope = HostFileAccessScope(workingDirectories: ["/Users/demo/ledger"], mentionedPaths: [])
+        let lookalikes = [
+            "/Users/demo/ledger/.\u{17F}sh/id_ed25519", "/Users/demo/ledger/.\u{17F}SH/config",
+            "/Users/demo/ledger/.git-credential\u{17F}", "/Users/demo/ledger/.purrdr/host-\u{17F}ervice/devices.json",
+            "/Users/demo/ledger/.\u{212A}ube/config", "/Users/demo/ledger/.password-\u{FB05}ore/a.gpg",
+            "/Users/demo/ledger/.pa\u{DF}word-store/a.gpg", "/Users/demo/ledger/.con\u{FB01}g/gcloud/credentials.db",
+        ]
+        #expect(lookalikes.filter { HostFileAccessPolicy.decision(for: $0, in: scope) != .denied } == [])
+        #expect(lookalikes.filter { !HostFileAccessPolicy.isExcluded($0) } == [])
+    }
+
     @Test("Purrdr 上傳的圖片不在排除清單(Agent 常讀使用者附的圖)")
     func uploadsAreNotExcluded() {
         let scope = HostFileAccessScope(workingDirectories: [], mentionedPaths: ["/Users/demo/.purrdr/uploads/a1.jpg"])
