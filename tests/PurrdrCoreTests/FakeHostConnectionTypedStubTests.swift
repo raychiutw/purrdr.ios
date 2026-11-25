@@ -35,6 +35,7 @@ struct FakeHostConnectionTypedStubTests {
     @Test("送出類操作:成功、失敗與比對欄位都進請求行")
     func sendOperations() async throws {
         let connection = FakeHostConnection()
+        await connection.setChecksSendExpectations(true)
         await connection.stub(.sendKeys)
         await connection.stub(.sendText, failure: HostServiceError.paneChanged)
 
@@ -50,6 +51,16 @@ struct FakeHostConnectionTypedStubTests {
         #expect(requests[0].contains(#""pane_id":"w1:p1""#))
         #expect(!requests[1].contains("expected_session"))
         #expect(await connection.typedCalls == ["sendKeys w1:p1 down,enter", "sendText w1:p1 hi"])
+    }
+
+    @Test("主機不比對時(SSH、舊版主機服務),請求行不帶 expected_session")
+    func noExpectationFieldsWhenHostDoesNotCheck() async throws {
+        let connection = FakeHostConnection()
+        await connection.stub(.sendKeys)
+
+        try await connection.sendKeys(paneID: "w1:p1", keys: ["enter"], expecting: SendExpectation(session: "s1"))
+
+        #expect(await connection.requests.first?.contains("expected_session") == false)
     }
 
     @Test("stub 的值型別和操作不符時明確失敗,不是靜默略過")

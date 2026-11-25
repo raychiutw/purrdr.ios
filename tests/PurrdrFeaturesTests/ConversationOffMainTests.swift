@@ -19,7 +19,7 @@ struct ConversationOffMainTests {
     @Test("開啟視窗與推送新訊息時，解析不在主執行緒，訊息仍依序出現")
     func parsingRunsOffMainThread() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await TranscriptFollowViewTests.answering(connection)
         let model = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection),

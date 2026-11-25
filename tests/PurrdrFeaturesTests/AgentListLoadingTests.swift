@@ -36,7 +36,7 @@ struct AgentListLoadingTests {
     /// 讀得到快照的主機。
     static func healthy() async -> FakeHostConnection {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: snapshot)
+        await connection.expect(.snapshot, wire: snapshot)
         return connection
     }
 
@@ -46,7 +46,7 @@ struct AgentListLoadingTests {
     /// 一直連不上(快照讀取不回應)的主機。
     static func hanging() async -> FakeHostConnection {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: snapshot)
+        await connection.expect(.snapshot, wire: snapshot)
         await connection.hold("session.snapshot")
         return connection
     }
@@ -88,7 +88,7 @@ struct AgentListLoadingTests {
     func selectedFailureStaysInItsRowWhenOtherHostLoaded() async throws {
         let clock = Clock()
         let studio = FakeHostConnection()
-        await studio.expect("session.snapshot", reply: Self.emptySnapshot)
+        await studio.expect(.snapshot, wire: Self.emptySnapshot)
         let model = MergedAgentListModel()
         model.update(sources: [
             Self.source(Self.lab, name: "Lab", connection: Self.failing(), clock: clock),

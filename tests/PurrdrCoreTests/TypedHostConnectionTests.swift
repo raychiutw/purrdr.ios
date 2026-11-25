@@ -204,8 +204,8 @@ struct TypedHostConnectionTests {
 
         #expect(try await connection.readSnapshot() == snapshot)
         let ok = Data(#"{"id":"purrdr:x","result":{"type":"ok"}}"#.utf8)
-        await connection.expect("pane.send_keys", reply: ok)
-        await connection.expect("pane.send_text", reply: ok)
+        await connection.expect(.sendKeys, wire: ok)
+        await connection.expect(.sendText, wire: ok)
         try await connection.sendKeys(paneID: "w1:p1", keys: ["enter"], expecting: .none)
         try await connection.sendText(paneID: "w1:p1", text: "hi", expecting: SendExpectation(session: "s"))
         #expect(try await connection.readPaneScreen(paneID: "w1:p1", lines: 10, format: .ansi) == "screen")
@@ -219,7 +219,7 @@ struct TypedHostConnectionTests {
         ])
 
         // 沒設定型別化的值:退回 herdr 請求回放(既有測試的做法)。
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         let replayed = try await connection.readSnapshot()
         #expect(replayed.version == "0.9.5")
     }

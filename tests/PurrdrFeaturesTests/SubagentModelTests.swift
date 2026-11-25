@@ -168,9 +168,8 @@ struct SubagentModelTests {
     @Test("HTTPS 主機的主機服務太舊：顯示需要更新主機服務，不再找檔案")
     func outdatedHostServiceShowsUpdateNeeded() async throws {
         let connection = FakeHostConnection()
-        await connection.answerTranscripts { _ in
-            throw HostServiceError.hostServiceUpdateRequired(.transcriptPreviewsAndDelegations, installedVersion: "0.6.2")
-        }
+        await connection.stub(
+            .subagentLocate, failure: HostServiceError.hostServiceUpdateRequired(.transcriptPreviewsAndDelegations, installedVersion: "0.6.2"))
         let model = SubagentModel(
             transcripts: TranscriptReader(connection: connection), parentTranscript: "/Users/demo/s.jsonl", card: Self.card([0, 1]))
 

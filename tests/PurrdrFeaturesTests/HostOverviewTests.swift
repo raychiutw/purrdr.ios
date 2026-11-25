@@ -141,7 +141,7 @@ struct HostOverviewTests {
     @Test("已配對的 HTTPS 主機:有主機服務區塊,沒有登入 Shell;用量區留著(主機服務 0.12.0 起支援)")
     func pairedHTTPS() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         let model = Self.httpsModel(connection: connection)
         await model.agentList.load()
         let overview = model.overview
@@ -160,7 +160,7 @@ struct HostOverviewTests {
     @Test("唯讀裝置配對的 HTTPS 主機:線上·唯讀")
     func readOnlyHTTPS() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await connection.setReadOnlyDevice(true)
         let model = Self.httpsModel(connection: connection)
         await model.agentList.load()
@@ -178,7 +178,7 @@ struct HostOverviewTests {
             result["snapshot"] = snapshot
             line["result"] = result
         }
-        await connection.expect("session.snapshot", reply: old)
+        await connection.expect(.snapshot, wire: old)
         let model = Self.httpsModel(connection: connection)
         await model.agentList.load()
         #expect(model.overview?.status == .herdrTooOld(version: "0.9.3"))

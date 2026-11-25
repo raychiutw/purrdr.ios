@@ -68,7 +68,7 @@ struct ConversationFollowTests {
     @Test("離開對話畫面(run 結束):停止追蹤目前的對話紀錄")
     func leavingConversationStopsFollowing() async throws {
         let setup = try await Self.setup()
-        await setup.herdr.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await setup.herdr.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
 
         await setup.model.run(sleep: { _ in throw CancellationError() })
 
@@ -84,8 +84,8 @@ struct ConversationFollowTests {
         let snapshot = Fixtures.data("session.snapshot.ndjson")
         let rotated = Data(String(decoding: snapshot, as: UTF8.self)
             .replacingOccurrences(of: Self.sessionID, with: "00000000-0000-0000-0000-0000000000f1").utf8)
-        await setup.herdr.expect("session.snapshot", reply: snapshot)
-        await setup.herdr.expect("session.snapshot", reply: rotated)
+        await setup.herdr.expect(.snapshot, wire: snapshot)
+        await setup.herdr.expect(.snapshot, wire: rotated)
         await setup.model.poll()
         #expect(await setup.transcripts.stoppedPaths.isEmpty)
 

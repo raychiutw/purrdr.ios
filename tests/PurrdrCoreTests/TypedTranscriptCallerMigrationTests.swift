@@ -13,17 +13,12 @@ struct TypedTranscriptCallerMigrationTests {
     @Test("TranscriptReader 的尾端讀取、預覽、subagent、workflow、委派都經連線的型別化操作")
     func transcriptReadsGoThroughTypedOperations() async throws {
         let connection = FakeHostConnection()
-        await connection.answerTranscripts { request in
-            switch request {
-            case .tail, .catchUp: Data("10\n".utf8)
-            case .previews(let marker, _): Data("\(marker) k\n".utf8)
-            case .findSubagent:
-                Data("\(TypedTranscriptCallerMigrationTests.folder)/subagents/agent-1.meta.json\n{\"toolUseId\":\"toolu_1\"}\n".utf8)
-            case .readWorkflow: Data("run abc\n{}".utf8)
-            case .delegationLines: Data("sum\n".utf8)
-            default: throw FakeHostConnectionError.unsupported
-            }
-        }
+        await connection.stub(.transcriptTail, TranscriptTailRead(tail: .unchanged, size: 10))
+        await connection.stub(.transcriptTail, TranscriptTailRead(tail: .unchanged, size: 10))
+        await connection.stub(.transcriptPreviews, ["k": TranscriptPreviewBody(lines: [])])
+        await connection.stub(.subagentLocate, Self.folder + "/subagents/agent-1.jsonl")
+        await connection.stub(.workflow, WorkflowRead.run(checksum: "run abc", data: Data("{}".utf8)))
+        await connection.stub(.delegation, DelegationRead(checksum: "sum", lines: []))
         let reader = TranscriptReader(connection: connection)
         let preview = PreviewRequest(key: "k", sessionID: "00000000-0000-0000-0000-000000000001", cwd: "/Users/demo/p")
 

@@ -43,13 +43,12 @@ struct ConversationLayoutTests {
         contentSizeCategory: UIContentSizeCategory? = nil, sceneActive: Bool = false, paged: Bool = false
     ) async throws -> Mounted {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         let total = Self.bytes(lines)
-        await connection.answerTranscripts { request in
-            switch request {
-            case .locate:
-                return Data("\(Self.path)\n\(total)\n".utf8)
-            case .window(_, let end, let count, _, let maxBytes) where paged:
+        await connection.serveTranscript(.init(
+            locate: { _ in TranscriptFile(path: Self.path, size: total) },
+            window: { _, end, count, maxBytes in
+                guard paged else { return TranscriptChunk(start: 0, end: total, lines: lines) }
                 // 照要求的終點、行數與 byte 上限回最後一段(跟真主機一樣,舊頁才會一頁一頁讀)。
                 var ends: [Int] = []
                 var running = 0
@@ -64,15 +63,12 @@ struct ConversationLayoutTests {
                 }
                 let start = (picked.first ?? 0) == 0 ? 0 : ends[picked.first! - 1]
                 let stop = picked.last.map { ends[$0] } ?? start
-                return Data(("\(start) \(stop)\n" + picked.map { "\(lines[$0].utf8.count)\t\(lines[$0])\n" }.joined()).utf8)
-            case .window:
-                return Data(("0 \(total)\n" + lines.map { "\($0.utf8.count)\t\($0)\n" }.joined()).utf8)
-            case .tail(_, let cursor, _) where cursor == TranscriptReader.probeCursor:
-                return Data("\(total)\n".utf8)
-            default:
-                throw FakeHostConnectionError.unsupported
-            }
-        }
+                return TranscriptChunk(start: start, end: stop, lines: picked.map { lines[$0] })
+            },
+            tail: { _, cursor, _, _ in
+                guard cursor == TranscriptReader.probeCursor else { throw FakeHostConnectionError.unsupported }
+                return TranscriptTailRead(tail: .shrank(size: total), size: total)
+            }))
         let model = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,
             knownSessionID: Self.sessionID, cache: InMemoryConversationCache())

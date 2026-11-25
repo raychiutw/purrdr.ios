@@ -56,7 +56,7 @@ final class HostServiceConnections {
 
     static func healthy() async -> FakeHostConnection {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         return connection
     }
 }
@@ -235,7 +235,7 @@ struct HTTPSHostEditorTests {
         let outdated = FakeHostConnection()
         let snapshot = String(decoding: Fixtures.data("session.snapshot.ndjson"), as: UTF8.self)
             .replacingOccurrences(of: #""version":"0.9.5""#, with: #""version":"0.9.4""#)
-        await outdated.expect("session.snapshot", reply: Data(snapshot.utf8))
+        await outdated.expect(.snapshot, wire: Data(snapshot.utf8))
         let connections = HostServiceConnections()
         connections.connections = [outdated]
         let model = HostEditorModel(store: MemoryHostStore(), hostService: connections.access(), makeChannel: ChannelFactory().make)

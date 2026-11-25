@@ -25,8 +25,8 @@ struct TypedCallerMigrationTests {
     func sends() async throws {
         let connection = FakeHostConnection()
         let ok = Data(#"{"id":"x","result":{"type":"ok"}}"#.utf8)
-        await connection.expect("pane.send_keys", reply: ok)
-        await connection.expect("pane.send_text", reply: ok)
+        await connection.expect(.sendKeys, wire: ok)
+        await connection.expect(.sendText, wire: ok)
         let client = HerdrClient(connection: connection)
         try await client.sendKeys(paneID: "w1:p1", keys: ["enter"], expecting: SendExpectation(session: "s1"))
         try await client.sendText(paneID: "w1:p1", text: "hi")
