@@ -221,6 +221,25 @@ struct HostUpdatesTests {
         #expect(await sleeper.requested.isEmpty)
     }
 
+    @Test("版面限速的等待中,其他事件一到就讀,不被限速拖到間隔結束(#587)")
+    func nonLayoutEventInterruptsLayoutThrottle() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect(.snapshot, wire: Self.snapshot)
+        await connection.expectSubscription(wire: Self.started)
+        await Self.expectSnapshots(connection, count: 10)
+        let sleeper = RecordingSleeper { _ in false }  // 限速的等待永遠不結束
+        let (_, task) = Self.start(connection, sleep: sleeper.sleep)
+        defer { task.cancel() }
+        try await waitUntil { await connection.requests.count == 3 }
+        await connection.send(event: Self.layoutUpdated, toSubscription: 0)
+        try await waitUntil { await connection.requests.count == 4 }
+        try await waitUntil { await sleeper.requested == [HostUpdates.layoutMinimumInterval] }
+
+        await connection.send(event: Self.statusChanged(), toSubscription: 0)
+
+        try await waitUntil { await connection.requests.count == 5 }
+    }
+
     /// 第一次連上之後的(重)訂閱：以手上快照的 pane 訂閱，訂閱開始時讀一次快照對帳，不先讀。
     static func expectResubscription(_ connection: FakeHostConnection) async {
         await connection.expectSubscription(wire: Self.started)

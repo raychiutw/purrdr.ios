@@ -9,8 +9,14 @@ import PurrdrSSH
 @MainActor
 public protocol HostStore: AnyObject {
     func loadHosts() throws -> [HostConfiguration]
+    /// 冷啟動用:不阻塞主執行緒的讀取(#590)。預設就在呼叫端讀;Keychain 實作改在背景讀。
+    func loadHostsInBackground() async throws -> [HostConfiguration]
     func save(_ host: HostConfiguration) throws
     func delete(_ id: UUID) throws
+}
+
+extension HostStore {
+    public func loadHostsInBackground() async throws -> [HostConfiguration] { try loadHosts() }
 }
 
 /// 新增／編輯主機畫面的 model(行為規格 F1.2、§8.1–8.3)。
