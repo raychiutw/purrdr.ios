@@ -33,7 +33,7 @@ final class IPadConversationPanelUITests: XCTestCase {
         ring.tap()
 
         XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
-        XCTAssertTrue(app.element("panel.usage").waitUntilExists(timeout: 5), "面板沒有用量")
+        XCTAssertTrue(app.element("usage.sheet.context").waitUntilExists(timeout: 5), "面板沒有用量")
         XCTAssertTrue(app.buttons["Accept Edits"].firstMatch.waitUntilExists(timeout: 20), "面板沒有權限模式")
     }
 

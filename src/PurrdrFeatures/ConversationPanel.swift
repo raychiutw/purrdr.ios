@@ -26,7 +26,6 @@ struct ConversationPanelView: View {
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 }
-                .accessibilityIdentifier("panel.usage")
                 if model.showsModelCapsule {
                     Section {
                         NavigationLink(value: PanelPage.model) {
@@ -115,15 +114,23 @@ extension ConversationPanelView {
 }
 
 extension View {
-    /// 把用量環的面板掛在按鈕上(#617):iPad／寬視窗 popover(系統寬度)、compact 自動改 sheet(medium／large,左上 X);
-    /// 掛在工具列的按鈕上,系統從按鈕展開。
-    func conversationPanel(
+    /// regular(iPad／寬視窗):把面板掛在用量環按鈕上,以 popover(系統寬度)從按鈕展開(#617)。
+    /// compact 改走 `conversationPanelSheet`(掛在聊天畫面上),兩者由畫面以 size class 決定哪一個開。
+    func conversationPanelPopover(
         isPresented: Binding<Bool>, model: ConversationModel, usageSection: UsageSectionModel?, display: PlanUsageModel.Display
     ) -> some View {
         popover(isPresented: isPresented) {
             ConversationPanelView(model: model, usageSection: usageSection, display: display)
-                .presentationCompactAdaptation(.sheet)
                 .presentationSizing(.form)
+        }
+    }
+
+    /// compact(iPhone、窄視窗、分割視窗):面板是 sheet(medium／large、左上 X)。
+    func conversationPanelSheet(
+        isPresented: Binding<Bool>, model: ConversationModel, usageSection: UsageSectionModel?, display: PlanUsageModel.Display
+    ) -> some View {
+        sheet(isPresented: isPresented) {
+            ConversationPanelView(model: model, usageSection: usageSection, display: display)
                 .appSheet(detents: [.medium, .large])
         }
     }

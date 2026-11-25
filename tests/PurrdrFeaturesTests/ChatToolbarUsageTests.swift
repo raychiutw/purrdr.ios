@@ -37,7 +37,7 @@ struct ChatToolbarUsageTests {
     func panelPresentation() throws {
         let text = try GlassLevelUsageTests.source("ConversationPanel.swift")
         #expect(text.contains("popover(isPresented"))
-        #expect(text.contains("presentationCompactAdaptation(.sheet)"))
+        #expect(text.contains("sheet(isPresented"))
         #expect(text.contains("appSheet(detents: [.medium, .large])"))
         #expect(text.contains("SheetCloseToolbar("))
     }

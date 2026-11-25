@@ -6,19 +6,21 @@ import SwiftUI
 /// 不自加寬度(交給系統排版);永遠顯示,沒有用量資料時是空環。點了開面板(iPad popover、iPhone sheet),從按鈕展開。
 struct UsageRingButton: View {
     let summary: UsageSummary?
-    @Binding var isPresented: Bool
+    /// regular 寬度才用的 popover 開關(compact 的 sheet 掛在聊天畫面上)。
+    let showsPopover: Binding<Bool>
+    let tap: () -> Void
     let model: ConversationModel
     let usageSection: UsageSectionModel?
     let display: PlanUsageModel.Display
 
     var body: some View {
-        Button { isPresented = true } label: {
+        Button(action: tap) {
             UsageRingView(summary: summary)
         }
         .accessibilityLabel(Text(verbatim: summary?.accessibilityText ?? String(localized: "Usage")))
         .accessibilityHint(Text("Shows usage and details."))
         .accessibilityIdentifier("conversation.usage")
-        .conversationPanel(isPresented: $isPresented, model: model, usageSection: usageSection, display: display)
+        .conversationPanelPopover(isPresented: showsPopover, model: model, usageSection: usageSection, display: display)
     }
 }
 

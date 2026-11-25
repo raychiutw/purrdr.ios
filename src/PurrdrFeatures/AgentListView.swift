@@ -403,6 +403,7 @@ struct ConversationScreen: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var usageSection: UsageSectionModel?
     @State private var showsUsage = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// 「⋯」選單開的 sheet(#515):權限模式、做完再送、待辦、背景子 Agent;模型與思考深度另用 `isChoosingModel`(同輸入框的模型膠囊)。
     @State private var menuSheet: ConversationMenuSheetKind?
     @State private var isChoosingModel = false
@@ -427,8 +428,8 @@ struct ConversationScreen: View {
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItemGroup(placement: .primaryAction) {
                     UsageRingButton(
-                        summary: usageSummary, isPresented: $showsUsage, model: model, usageSection: usageSection,
-                        display: usageContext?.display.display ?? .used)
+                        summary: usageSummary, showsPopover: panelBinding(compact: false), tap: { showsUsage = true },
+                        model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used)
                     ConversationMoreMenu(
                         model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
                         canShowLayout: layoutSnapshot != nil, select: selectMenuItem)
@@ -436,6 +437,9 @@ struct ConversationScreen: View {
             }
             .task(id: UsageLifecycleKey(active: scenePhase == .active, agentKind: model.agentKind)) { startUsage() }
             .onChange(of: model.modelName) { _, name in usageSection?.activeGroup = name.flatMap(PlanUsage.Group.init(modelName:)) }
+            .conversationPanelSheet(
+                isPresented: panelBinding(compact: true), model: model, usageSection: usageSection,
+                display: usageContext?.display.display ?? .used)
             .onChange(of: window?.conversationPanelToggleCount) { showsUsage.toggle() }
             .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model) }
             .sheet(isPresented: $isChoosingModel, onDismiss: { Task { await model.finishChoosingModel() } }) {
@@ -493,6 +497,13 @@ struct ConversationScreen: View {
     private struct UsageLifecycleKey: Hashable {
         var active: Bool
         var agentKind: String?
+    }
+
+    /// 聊天面板的開關(#617):compact 是 sheet、regular 是 popover,只有符合目前 size class 的那個開。
+    private func panelBinding(compact: Bool) -> Binding<Bool> {
+        Binding(
+            get: { showsUsage && (horizontalSizeClass == .compact) == compact },
+            set: { showsUsage = $0 })
     }
 
     /// 頂列用量環的內容:context 與這台主機的方案用量取最高的一項。
