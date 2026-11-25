@@ -209,7 +209,18 @@ public final class HitchRecorder {
     /// 閃退記錄:一律寫(不看開關、不經緩衝)。
     public func recordCrash(_ record: CrashRecord) {
         sink.append([.crash(record)])
+        latestCrash = record
+        crashObserver?(record)
     }
+
+    /// 閃退記錄出現時通知(啟動提示用);登記時若這次啟動已有記錄,立刻補送最近一筆。
+    public func observeCrashes(_ handler: @escaping @MainActor (CrashRecord) -> Void) {
+        crashObserver = handler
+        if let latestCrash { handler(latestCrash) }
+    }
+
+    private var latestCrash: CrashRecord?
+    private var crashObserver: (@MainActor (CrashRecord) -> Void)?
 
     // MARK: - 設定頁
 
