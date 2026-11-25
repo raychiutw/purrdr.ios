@@ -246,7 +246,7 @@ struct OfflineQueueTests {
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-                clock: TestClock().clock, drafts: drafts, sendSteps: [OfflineQueueStep(queue: queue)], sleep: RecordingSleeper().sleep)
+                clock: TestClock().clock, drafts: drafts, sendStages: SendStages(offlineQueue: OfflineQueueStep(queue: queue)), sleep: RecordingSleeper().sleep)
         }
     }
 
@@ -285,7 +285,7 @@ struct OfflineQueueTests {
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-                clock: TestClock().clock, drafts: drafts, sendSteps: [countdown, OfflineQueueStep(queue: queue)],
+                clock: TestClock().clock, drafts: drafts, sendStages: SendStages(undo: countdown, offlineQueue: OfflineQueueStep(queue: queue)),
                 sleep: RecordingSleeper().sleep)
         }
         setup.model.draft = "倒數中斷線"

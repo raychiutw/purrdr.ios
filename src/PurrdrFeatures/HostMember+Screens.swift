@@ -50,29 +50,23 @@ extension HostMember {
             // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300),
             // 倒數結束時離線就排進這台主機的離線佇列(#301)。
             // 「做完再送」開著時排進主機的佇列(#305),不經撤回倒數與離線佇列。
-            sendSteps: [
-                SecretCheck(),
-                SendWhenDoneStep(model: SendWhenDoneModel(host: sendWhenDoneHost, paneID: route.paneID)),
-                UndoSendCountdown(seconds: { environment.undoSendSeconds() }),
-                OfflineQueueStep(queue: environment.offlineQueue(host)),
-            ],
+            sendStages: SendStages(
+                secretCheck: SecretCheck(),
+                sendWhenDone: SendWhenDoneStep(model: SendWhenDoneModel(host: sendWhenDoneHost, paneID: route.paneID)),
+                undo: UndoSendCountdown(seconds: { environment.undoSendSeconds() }),
+                offlineQueue: OfflineQueueStep(queue: environment.offlineQueue(host))),
+            // 註記屬於聊天所在的主機(#23)、圖片縮圖讀這台(#225)、變更頁讀這台的 git(#310)、
+            // context 取自這台 status line 檔(#388;Antigravity 的包裝只有 SSH 主機,#448)、
+            // 對話紀錄認不得的行記到診斷紀錄(#449)、離開期間摘要用上次離開的時間(#308)。
+            links: ConversationModel.HostLinks(
+                youShouldKnow: youShouldKnow, agentFiles: agentFiles, gitChanges: gitChanges,
+                sessionStatusReader: sessionStatus,
+                agentSessionStatusReaders: antigravityStatus.map { [.agy: $0] } ?? [:],
+                onTranscriptSkips: TranscriptSkipLog.shared.report,
+                onPromptDelivered: { environment.reviewPrompt()?.promptDelivered() },
+                awayStart: { environment.awayStart(route) }),
             // 模型目錄(#385):主機快取 → 公開目錄 → 內建對照表。
             modelCatalog: ModelCatalogResolver(host: SSHModelCatalogReader(channel: channel), publicCatalog: environment.publicModelCatalog))
-        // 註記屬於聊天所在的主機(#23):寫回也寫到這台。
-        model.youShouldKnow = youShouldKnow
-        // 圖片縮圖讀聊天所在的主機(#225)。
-        model.agentFiles = agentFiles
-        // 變更頁讀聊天所在主機的 git(#310)。
-        model.gitChanges = gitChanges
-        // context 取自聊天所在主機的 status line 檔(#388)。
-        model.sessionStatusReader = sessionStatus
-        // Antigravity 裝了 statusline 包裝時,context、模型、effort 與權限模式取自它(#448;只有 SSH 主機)。
-        if let antigravityStatus { model.agentSessionStatusReaders = [.agy: antigravityStatus] }
-        // 對話紀錄認不得的行記到診斷紀錄(#449)。
-        model.onTranscriptSkips = TranscriptSkipLog.shared.report
-        model.onPromptDelivered = { environment.reviewPrompt()?.promptDelivered() }
-        // 離開期間摘要(#308):上次離開這個聊天的時間。
-        model.awayStart = { environment.awayStart(route) }
         return model
     }
 

@@ -493,8 +493,11 @@ public final class PushModel {
     ///   - hostID: 主機 id;Demo 主機是 `nil`。
     ///   - installer: 這支裝置在這台主機的推播外掛安裝;`nil` 時這台主機沒有推播。
     ///   - muted: 目前靜音的聊天(session 值,存在本機的聊天偏好),配對時寫進主機。
+    ///   - testSender: 這台主機自己的測試通知送出管道;`nil` 時沒有(`PushService.testNotifications` 有值時以它為準)。
     public init(service: PushService?, hostID: String?, installer: (any PushPluginInstalling)?,
+                testSender: (any PushTestNotificationSending)? = nil,
                 muted: @escaping @MainActor () -> Set<String>) {
+        self.testSender = testSender
         self.service = service
         self.hostID = hostID
         self.installer = installer
@@ -544,7 +547,7 @@ public final class PushModel {
     public private(set) var testNotification: TestNotification = .idle
 
     /// 這台主機自己的測試通知送出管道(SSH 主機由 `HostsModel` 接上);`PushService.testNotifications` 有值時以它為準。
-    public var testSender: (any PushTestNotificationSending)?
+    public let testSender: (any PushTestNotificationSending)?
 
     private var testNotificationSender: (any PushTestNotificationSending)? { service?.testNotifications ?? testSender }
 
