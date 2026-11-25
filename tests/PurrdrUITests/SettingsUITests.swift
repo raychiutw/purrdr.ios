@@ -126,7 +126,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(signOut.waitUntilExists(timeout: 10))
         signOut.tap()
         XCTAssertTrue(app.sheets["Sign Out?"].waitForExistence(timeout: 5), "登出前沒有說明")
-        app.sheets["Sign Out?"].buttons["Cancel"].tap()
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
         XCTAssertTrue(signOut.exists, "取消後仍在帳號頁")
     }
 

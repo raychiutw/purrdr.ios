@@ -136,7 +136,7 @@ final class HostsUITests: XCTestCase {
             XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "移除主機要先確認")
             XCTAssertFalse(app.alerts.firstMatch.exists, "移除主機的確認是底部選項,不是中央對話框")
             XCTAssertTrue(app.sheets.firstMatch.exists, "移除主機沒有出現 action sheet")
-            app.sheets.firstMatch.buttons["Cancel"].tap()
+            app.otherElements["PopoverDismissRegion"].firstMatch.tap()
             XCTAssertTrue(confirm.waitUntilGone(timeout: 5))
             XCTAssertTrue(app.overviewRow("hosts.edit").exists, "取消後主機還在")
 
