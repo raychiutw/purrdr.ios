@@ -302,7 +302,9 @@ public final class ConversationModel {
     public let slash: SlashMenuModel
     public private(set) var isSending = false
     /// 這支裝置配對成唯讀(HTTPS):不能送 prompt、回答或中斷。
-    public private(set) var isReadOnly = false
+    public var isReadOnly: Bool { readOnlyState.isReadOnly }
+    /// 唯讀的唯一切換入口:輪詢、回答被拒、送出被拒都經 `readOnlyState.observe(_:)`。
+    private var readOnlyState = ReadOnlyDeviceState()
 
     // MARK: 附件(F7、#286、#474;邏輯在 `ComposerAttachments`,#562)
 
@@ -940,7 +942,7 @@ public final class ConversationModel {
         // 重連後的 Agent 列表交給離線佇列比對、補送(#301;主機更新來源讀到的也會交給它)。
         offlineQueue?.receive(snapshot)
         // 送出時被拒過就維持唯讀。
-        if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
+        readOnlyState.observe(.reported((try? await client.isReadOnlyDevice()) == true))
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
         guard let agent = currentAgent else {
             clearSuggestion()
@@ -1709,7 +1711,7 @@ public final class ConversationModel {
         let follow = mutateAnswerFlow { $0.finish(answer, result: result) }
         if let haptic = follow.haptic { haptics.play(haptic) }
         // 卡片改顯示唯讀說明,不另外提示。
-        if follow.marksReadOnly { isReadOnly = true }
+        if follow.marksReadOnly { readOnlyState.observe(.answerRejected) }
         if follow.rereadsScreen {
             await poll()
             return
@@ -1846,7 +1848,7 @@ public final class ConversationModel {
             notice = .unconfirmed(reason)
         case .notSent(let reason):
             notice = Self.notice(for: reason)
-            if reason == .readOnlyDevice { isReadOnly = true }
+            if reason == .readOnlyDevice { readOnlyState.observe(.sendRejected) }
             if isRetry {
                 setEcho(id, state: .failed(previousFailure ?? .noResponse))
             } else {
