@@ -10,6 +10,9 @@ public enum SecretKind: String, Sendable, Equatable, CaseIterable {
     case googleAPIKey
     case jwt
     case password
+    case gitLabToken
+    case npmToken
+    case huggingFaceToken
 }
 
 /// 一處像機密的內容：類別與在第幾行(從 1 起算)。刻意不帶比對到的文字，避免內容被顯示或記錄。
@@ -83,6 +86,12 @@ public enum SecretDetection {
                 #"(?<![A-Za-z0-9])(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Za-z0-9])"#,
                 #"(?i)aws_secret_access_key["']?\s*[=:]\s*["']?[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])"#,
             ]),
+            // GitLab personal access token:glpat- 加 20 字以上。
+            Rule(.gitLabToken, [#"(?<![A-Za-z0-9_-])glpat-[A-Za-z0-9_-]{20,}"#]),
+            // npm access token:npm_ 加剛好 36 個英數字。
+            Rule(.npmToken, [#"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])"#]),
+            // Hugging Face token:hf_ 加 34 字以上的英文字母。
+            Rule(.huggingFaceToken, [#"(?<![A-Za-z0-9_])hf_[A-Za-z]{34,}(?![A-Za-z0-9_])"#]),
             // Slack:xoxb／xoxp 等 token 與 incoming webhook 網址。
             Rule(.slackToken, [
                 #"(?<![A-Za-z0-9])xox[abposr]-[A-Za-z0-9-]{10,}"#,
