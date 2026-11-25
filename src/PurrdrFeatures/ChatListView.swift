@@ -90,11 +90,14 @@ struct ChatListView: UIViewControllerRepresentable {
     let onVisibleHeightChanged: (Double) -> Void
     /// 捲動卡頓記錄器(沒注入時不記錄)。
     var hitchRecorder: HitchRecorder?
+    /// 驗收用:量測閱讀位移(UI 測試;由 app 依啟動設定注入)。
+    var tracksReadingDrift = false
 
     func makeUIViewController(context: Context) -> ChatListViewController {
         let controller = ChatListViewController()
         controller.model = model
         controller.hitchRecorder = hitchRecorder
+        controller.tracksReadingDrift = tracksReadingDrift
         handle.jumpToLatestAction = { [weak controller] in controller?.jumpToLatest() }
         handle.inputBarArrangedAction = { [weak controller] in controller?.inputBarArranged() }
         model.onTimelineUpdate = { [weak controller] update in controller?.receive(update) }
@@ -136,6 +139,8 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
     var onVisibleHeightChanged: (Double) -> Void = { _ in }
     /// 捲動卡頓記錄器(診斷用,只記數字;列表可見且 app 在前景時才量測)。
     var hitchRecorder: HitchRecorder?
+    /// 驗收用:量測閱讀位移(UI 測試;由 `ChatListView` 注入)。
+    var tracksReadingDrift = false
     private var hitchMonitor: ChatHitchMonitor?
     private var contentSizeObservation: NSKeyValueObservation?
 
@@ -693,7 +698,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
     #if DEBUG
     /// 驗收用量測(UI 測試讀 `conversation.list` 的 value):閱讀中停下後基準列離可見頂端的最大位移,實際上下 inset 與列數(測試用來等內容真的接上,不靠固定秒數)。
     private func trackReadingDrift() {
-        guard ProcessInfo.processInfo.arguments.contains("-uiTesting") else { return }
+        guard tracksReadingDrift else { return }
         if isUserDriven || decider.isFollowingLatest {
             driftTracker.clear()
         } else if driftTracker.baselineRowID == nil {

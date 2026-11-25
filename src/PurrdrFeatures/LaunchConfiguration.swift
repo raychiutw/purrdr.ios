@@ -105,6 +105,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let selectsDemo: Bool
     public let hostServiceIsOutdated: Bool
     public let hasNoHosts: Bool
+    /// `-demoNoNetwork`:裝置一直沒有網路(#221)。只看原始旗標,與情境優先順序獨立。
+    public let simulatesNoNetwork: Bool
     public let seedsDataUsage: Bool
     public let undoSendCountdown: Bool
     public let inspectorShown: Bool
@@ -162,6 +164,7 @@ public struct LaunchConfiguration: Equatable, Sendable {
         selectsDemo = has("-selectDemo")
         hostServiceIsOutdated = has("-demoOutdatedHostService")
         hasNoHosts = has("-uiTestingNoHosts")
+        simulatesNoNetwork = has("-demoNoNetwork")
         seedsDataUsage = has("-seedDataUsage")
         undoSendCountdown = has("-uiTestingUndoSend")
         inspectorShown = has("-uiTestingInspectorShown")

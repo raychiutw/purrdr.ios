@@ -19,11 +19,11 @@ final class ScrollSmoothnessProbe: ScrollSmoothnessReporting {
 struct ScrollSmoothnessOverlay: View {
     let probe: ScrollSmoothnessProbe
     /// 無障礙稽核(UI 測試旗標 `-uiTestingHidesDebugOverlay`)不該把除錯層自己的文字當成畫面內容稽核;Release 本來就沒有這一層。
-    private static let isHiddenForAudit = ProcessInfo.processInfo.arguments.contains("-uiTestingHidesDebugOverlay")
+    @Environment(\.hidesDebugOverlay) private var isHiddenForAudit
 
     @ViewBuilder
     var body: some View {
-        if !Self.isHiddenForAudit { content }
+        if !isHiddenForAudit { content }
     }
 
     private var content: some View {

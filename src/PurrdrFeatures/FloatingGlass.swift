@@ -30,6 +30,10 @@ extension EnvironmentValues {
     @Entry public var forcesOpaqueGlass = false
     /// UI 測試用:處理 `purrdr://testing-…` 測試連結(不重啟換字級)。由 composition root 依 `-uiTesting` 注入。
     @Entry public var allowsTestingLinks = false
+    /// UI 測試用:聊天列表量測閱讀位移(驗收用)。由 composition root 依 `LaunchConfiguration.tracksReadingDrift` 注入。
+    @Entry public var tracksReadingDrift = false
+    /// UI 測試用:無障礙稽核時隱藏除錯層。由 composition root 依 `LaunchConfiguration.hidesDebugOverlay` 注入。
+    @Entry public var hidesDebugOverlay = false
 }
 
 extension View {

@@ -15,6 +15,7 @@ public struct ConversationView: View {
     @Bindable var model: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.hitchRecorder) private var hitchRecorder
+    @Environment(\.tracksReadingDrift) private var tracksReadingDrift
     @Environment(\.hostTheme) private var hostTheme
     @Environment(\.forcesOpaqueGlass) private var forcesOpaqueGlass
     /// 列表的呼叫口(「跳到最新」、輸入列重排)與最近量到的可見高度。
@@ -360,7 +361,7 @@ public struct ConversationView: View {
                 smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
                 onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
                 onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) },
-                hitchRecorder: hitchRecorder
+                hitchRecorder: hitchRecorder, tracksReadingDrift: tracksReadingDrift
             )
             .ignoresSafeArea(.container, edges: .vertical)
         }

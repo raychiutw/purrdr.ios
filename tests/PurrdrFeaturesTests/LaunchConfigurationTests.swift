@@ -57,6 +57,14 @@ struct LaunchConfigurationTests {
         }
     }
 
+    @Test("-demoNoNetwork 的斷網只看原始旗標,即使情境被優先順序更前面的旗標佔走")
+    func noNetworkIndependentOfScenario() {
+        let config = parse("-demoPaneInUse", "-demoNoNetwork")
+        #expect(config.demoScenario == .paneInUse)
+        #expect(config.simulatesNoNetwork)
+        #expect(!parse("-demoPaneInUse").simulatesNoNetwork)
+    }
+
     @Test("已存主機旗標可以並存")
     func seededHostsCombine() {
         let config = parse("-seedHost", "-seedSlowHost", "-seedPairedHTTPSHost")

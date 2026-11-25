@@ -179,7 +179,7 @@ public final class HostsModel {
     ///   - demoCompanions: Demo 的示範主機(#34);Demo 主機出現在列表時一起出現。
     ///   - diagnostics: 不給使用者看的紀錄(例如偵測到的作業系統存不進這支裝置)。
     ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
-    public init(
+    package init(
         store: any HostStore, demoChannel: any HostChannel, demoFiles: any HostFileFetching = UnsupportedHostFileFetcher(),
         demoCompanions: [DemoCompanionHost] = [],
         conversationCache: any ConversationCache = InMemoryConversationCache(),
