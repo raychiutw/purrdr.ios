@@ -135,7 +135,7 @@ struct SettingsSections: View {
     }
 }
 
-/// 「記錄捲動卡頓」:聊天捲動不順時只在這支手機記下數字,使用者可分享給開發者。
+/// 「診斷記錄」:閃退(一律記)與聊天捲動卡頓(開關控制)只存在這支手機,使用者可分享給開發者、整份清除。
 struct HitchLogSection: View {
     @Bindable var model: SettingsModel
 
@@ -143,7 +143,7 @@ struct HitchLogSection: View {
         Section {
             Toggle("Record Scroll Stutters", isOn: $model.recordsHitches)
                 .accessibilityIdentifier("settings.hitchLog")
-            Button("Share Stutter Records", systemImage: "square.and.arrow.up") {
+            Button("Share Diagnostic Log", systemImage: "square.and.arrow.up") {
                 Task {
                     guard let url = await model.exportHitchLog() else { return }
                     #if os(iOS)
@@ -157,11 +157,11 @@ struct HitchLogSection: View {
             }
             .accessibilityIdentifier("settings.hitchLog.clear")
         } header: {
-            Text("Scrolling Records")
+            Text("Diagnostic Log")
                 .foregroundStyle(.secondaryText)
         } footer: {
             VStack(alignment: .leading, spacing: 4) {
-                Text("When scrolling a chat feels rough, this iPhone notes down numbers. They never include your conversations. You can share them with the developer.")
+                Text("When Purrdr closes unexpectedly or scrolling feels rough, this iPhone notes down what happened. It never includes your conversations. You can share it with the developer.")
                 if model.hitchLogIsEmpty {
                     Text("Nothing recorded yet.")
                         .accessibilityIdentifier("settings.hitchLog.empty")

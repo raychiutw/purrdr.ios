@@ -179,6 +179,8 @@ public enum HitchEntry: Equatable, Sendable {
     case hitch(HitchEvent)
     case scroll(ScrollSummary)
     case metrics(HitchMetricsDigest)
+    /// 閃退(中止前寫下的例外原因,下次啟動轉成記錄)。一律記錄,不受卡頓開關影響。
+    case crash(CrashRecord)
     /// 匯出檔開頭的一筆:匯出時間與目前的系統狀態。
     case meta(HitchSystemState, at: Date)
 }
@@ -287,6 +289,14 @@ public enum HitchLogEncoder {
             object["longestHangSeconds"] = round1(digest.longestHangSeconds)
             object["app"] = digest.app
             object["os"] = digest.os
+        case .crash(let record):
+            object["kind"] = "crash"
+            object["t"] = time(record.timestamp)
+            object["name"] = record.name
+            object["reason"] = record.reason
+            object["app"] = record.app
+            object["os"] = record.os
+            object["device"] = record.device
         case .meta(let system, let date):
             object["kind"] = "meta"
             object["t"] = time(date)

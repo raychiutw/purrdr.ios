@@ -1,7 +1,33 @@
 import Foundation
 import PurrdrAgentFeatures
 
-/// 卡頓記錄檔(`hitch-log.jsonl`,JSON Lines):所有檔案 I/O 都在一條背景序列佇列上,呼叫端(含主執行緒與畫面回呼)不會被擋住。
+/// 待處理閃退標記檔(`pending-crash.json`):中止前的處理器直接同步寫,不經佇列(下次啟動即刪除)。
+public final class FileCrashMarkerStore: CrashMarkerStoring, @unchecked Sendable {
+    public static let fileName = "pending-crash.json"
+    /// 安裝時先建好資料夾與路徑字串,處理器裡只做一次寫檔。
+    private let path: String
+
+    public init(directory: URL) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        path = directory.appendingPathComponent(Self.fileName).path
+    }
+
+    public static func applicationSupport() -> FileCrashMarkerStore {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return FileCrashMarkerStore(directory: base)
+    }
+
+    public func write(_ data: Data) {
+        _ = FileManager.default.createFile(atPath: path, contents: data)
+    }
+
+    public func read() -> Data? { FileManager.default.contents(atPath: path) }
+
+    public func remove() { try? FileManager.default.removeItem(atPath: path) }
+}
+
+/// 診斷記錄檔(`hitch-log.jsonl`,JSON Lines;卡頓與閃退共用):所有檔案 I/O 都在一條背景序列佇列上,呼叫端(含主執行緒與畫面回呼)不會被擋住。
 /// 超過大小上限就丟最舊的行;排除備份,隨 app 刪除;不上傳任何地方。
 public final class HitchLogFile: HitchLogStoring, @unchecked Sendable {
     public static let fileName = "hitch-log.jsonl"

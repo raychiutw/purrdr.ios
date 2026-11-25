@@ -130,6 +130,20 @@ private final class DisplayLinkTarget: NSObject {
     }
 }
 
+// MARK: - 閃退診斷
+
+extension CrashExceptionHandler {
+    /// 啟動時呼叫:先把上次留下的待處理閃退標記轉成記錄,再安裝例外處理器。
+    @MainActor
+    public static func installAtLaunch(recorder: HitchRecorder) {
+        let reporter = CrashReporter(
+            store: FileCrashMarkerStore.applicationSupport(), app: HitchSystemState.appText, os: HitchSystemState.osText,
+            device: HitchSystemState.deviceIdentifier)
+        reporter.recoverPending(into: recorder)
+        install(reporter)
+    }
+}
+
 // MARK: - 系統狀態
 
 extension HitchSystemState {

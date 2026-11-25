@@ -206,6 +206,11 @@ public final class HitchRecorder {
         sink.append([.metrics(digest)])
     }
 
+    /// 閃退記錄:一律寫(不看開關、不經緩衝)。
+    public func recordCrash(_ record: CrashRecord) {
+        sink.append([.crash(record)])
+    }
+
     // MARK: - 設定頁
 
     public func exportFile() async -> URL? {
