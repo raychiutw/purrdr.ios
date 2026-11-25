@@ -111,7 +111,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 - **內容從玻璃底下捲過去**:畫面以內容為主，玻璃控制浮在內容上，內容延伸到螢幕上下邊緣(不在頂列與輸入列下面留實心色塊),讓可視區域盡量大;捲動內容的上下留白等於玻璃控制的高度，最後一則不被遮住。
 - **可讀性**:暗化層只用在**自訂浮動控制**(輸入列、工作中膠囊、浮動橫幅、浮在內容上的按鈕)——玻璃後面的內容太亮或太花時,在玻璃下加淡出漸層或暗化層(HIG:內容明亮時可加約 35% 的暗化層);**標準工具列、tab bar 與系統元件不疊加**(系統自己處理 scroll edge 與可讀性,疊了會變成 glass on glass);玻璃上的字與符號維持 HIG 對比。
 - **少而集中**:同一個畫面的玻璃控制越少越好;一組相關按鈕放在同一個容器(`GlassEffectContainer`),不要每顆各自一片玻璃(避免 glass on glass)。
-- **sheet 底色一律不透明**(#533,取代 #425 的「部分高度 sheet 透出系統玻璃」):全 app 的 sheet 不分 detent(`.medium`／`.large`)、不分淺色深色,底色都是 `AppSurface.sheet`(淺色 `#F2F2F7`、深色 `#1C1C1E`,列用 `groupedRow`),不讓系統在 medium 畫半透明玻璃。每個 sheet 的內容套 `appSheetBackground()`,有 detent 的用 `appSheet(detents:)`(內含 `presentationDetents` 與同一個底色),**不直接呼叫 `presentationBackground`／`presentationDetents`**;sheet 內的清單用 `appSheetList()`(只設列底,頁面底由 sheet 提供);全頁的清單仍用 `appGroupedList()`。iPad 的 Inspector 是欄不是 sheet,維持系統樣式;窄視窗改成 sheet 時與其他 sheet 一致。跳到最新鈕與離線橫幅走 `floatingGlass`(減少透明度時不透明底加細邊),不直接用 `.glass` 按鈕樣式。`GlassLevelUsageTests` 守門。
+- **sheet 用系統 Liquid Glass**(#614,推翻 #533 的「sheet 一律不透明」):全 app 的 sheet 不自訂底色,半高(`.medium`)透出系統玻璃、拉到全高由系統變不透明,跟系統 App 一致;**不呼叫 `presentationBackground`**、不另鋪不透明底。有 detent 的 sheet 用 `appSheet(detents:)`(只設 `presentationDetents`),**不直接呼叫 `presentationDetents`**;sheet 內的清單用 `appSheetList()`(只隱藏清單預設頁面底,列底用系統預設);全頁的清單仍用 `appGroupedList()`。可讀性與「減少透明度」交給系統處理,不自己加底色或暗化層。iPad 的 Inspector 是欄不是 sheet,欄底維持不透明 `AppSurface.sheet`(#547),窄視窗改成 sheet 時內容不鋪底、與其他 sheet 一致。跳到最新鈕與離線橫幅走 `floatingGlass`(減少透明度時不透明底加細邊),不直接用 `.glass` 按鈕樣式。`GlassLevelUsageTests` 守門。
 - 自訂玻璃只用 regular 變體;系統元件(工具列、`.glass` 按鈕樣式、標準 toolbar)優先，它們會自動套用。
 
 ## 畫面重點

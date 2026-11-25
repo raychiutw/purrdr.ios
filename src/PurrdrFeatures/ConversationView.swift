@@ -78,7 +78,7 @@ public struct ConversationView: View {
             .environment(\.inlineSlashNames, model.inlineSlashNames)
             .imageViewer(item: $viewerItem)
             .quickLookPreview($previewFile)
-            .sheet(item: $presentedSheet) { $0.content.appSheetBackground() }
+            .sheet(item: $presentedSheet) { $0.content }
             .navigationDestination(item: $openedRoute) { [model] route in
                 DelegationDestination(route: route, conversation: model)
             }

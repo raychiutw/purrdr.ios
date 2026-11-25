@@ -899,7 +899,6 @@ struct SignInMethodsView: View {
         .sheet(isPresented: Binding(get: { model.pendingMerge != nil }, set: { if !$0 { model.cancelMerge() } })) {
             if let proposal = model.pendingMerge {
                 MergeConfirmView(model: model, summary: proposal.summary)
-                    .appSheetBackground()
             }
         }
     }

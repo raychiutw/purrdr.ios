@@ -232,7 +232,6 @@ struct ChangesFileView: View {
             .task(id: path) { await model.loadDiff(of: path) }
             .sheet(item: $editing) { comment in
                 ChangesCommentEditor(model: model, path: path, line: comment.line)
-                    .appSheetBackground()
             }
     }
 

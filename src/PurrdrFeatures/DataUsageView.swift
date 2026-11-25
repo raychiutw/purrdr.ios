@@ -61,11 +61,9 @@ public struct DataUsageView: View {
         .topBarPage(topBarContent)
         .sheet(item: $optionsSheet) { sheet in
             DataUsageOptionsSheet(model: model, sheet: sheet)
-                .appSheetBackground()
         }
         .sheet(item: Binding(get: { detailHostID.map(HostDetailID.init) }, set: { detailHostID = $0?.id })) { item in
             DataUsageHostSheet(model: model, hostID: item.id)
-                .appSheetBackground()
         }
         .confirmationDialog("Reset Statistics?", isPresented: $confirmsReset, titleVisibility: .visible) {
             Button("Reset Statistics", role: .destructive) { model.reset() }

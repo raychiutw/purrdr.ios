@@ -350,7 +350,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     func body(content: Content) -> some View {
         content
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
-                if let actions { sheetContent(sheet, actions: actions).appSheetBackground() }
+                if let actions { sheetContent(sheet, actions: actions) }
             }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
