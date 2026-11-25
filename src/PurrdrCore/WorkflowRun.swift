@@ -178,8 +178,11 @@ extension TranscriptReader {
         return try await connection.readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
     }
 
-    /// `readWorkflow` 的腳本輸出實作(連線的型別化操作預設實作用)。
-    package func wireWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
+}
+
+extension TranscriptWireReader {
+    /// `readWorkflow` 的腳本輸出實作。
+    package func workflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
         let output = try await run(.readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum ?? ""))
         guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
         let checksum = String(decoding: output.stdout[..<newline], as: UTF8.self)
@@ -190,3 +193,4 @@ extension TranscriptReader {
         return .journal(checksum: checksum, lines: String(decoding: content, as: UTF8.self).split(separator: "\n").map(String.init))
     }
 }
+

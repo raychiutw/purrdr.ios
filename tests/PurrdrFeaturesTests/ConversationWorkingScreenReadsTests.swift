@@ -52,8 +52,8 @@ struct ConversationWorkingScreenReadsTests {
         let connection = FakeHostConnection()
         let clock = Clock()
         let model = Self.model(connection, clock: clock)
-        for _ in 0..<6 { await connection.expect("session.snapshot", reply: Self.snapshot("working")) }
-        for _ in 0..<2 { await connection.expect("pane.read", reply: Fixtures.data("pane.read.agents-pane.ndjson")) }
+        for _ in 0..<6 { await connection.expect(.snapshot, wire: Self.snapshot("working")) }
+        for _ in 0..<2 { await connection.expect(.paneRead, wire: Fixtures.data("pane.read.agents-pane.ndjson")) }
 
         for _ in 0..<6 {
             await model.poll()
@@ -70,8 +70,8 @@ struct ConversationWorkingScreenReadsTests {
         let connection = FakeHostConnection()
         let clock = Clock()
         let model = Self.model(connection, clock: clock)
-        for _ in 0..<3 { await connection.expect("session.snapshot", reply: Self.snapshot("working")) }
-        await connection.expect("pane.read", reply: Self.paneRead(text: Self.writingScreen))
+        for _ in 0..<3 { await connection.expect(.snapshot, wire: Self.snapshot("working")) }
+        await connection.expect(.paneRead, wire: Self.paneRead(text: Self.writingScreen))
 
         await model.poll()
         let preview = try #require(model.livePreview)
@@ -89,10 +89,10 @@ struct ConversationWorkingScreenReadsTests {
         let connection = FakeHostConnection()
         let clock = Clock()
         let model = Self.model(connection, clock: clock)
-        await connection.expect("session.snapshot", reply: Self.snapshot("working"))
-        await connection.expect("pane.read", reply: Self.paneRead(text: Self.writingScreen))
-        await connection.expect("session.snapshot", reply: Self.snapshot("blocked"))
-        await connection.expect("pane.read", reply: Self.paneRead(text: PaneScreens.text("claude-bash")))
+        await connection.expect(.snapshot, wire: Self.snapshot("working"))
+        await connection.expect(.paneRead, wire: Self.paneRead(text: Self.writingScreen))
+        await connection.expect(.snapshot, wire: Self.snapshot("blocked"))
+        await connection.expect(.paneRead, wire: Self.paneRead(text: PaneScreens.text("claude-bash")))
 
         await model.poll()
         clock.now += 2

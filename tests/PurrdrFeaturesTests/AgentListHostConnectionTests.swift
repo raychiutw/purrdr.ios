@@ -18,7 +18,7 @@ struct AgentListHostConnectionTests {
     @Test("以主機連線讀出 Agent 列表")
     func listsAgentsFromHostConnection() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await connection.expect(.snapshot, wire: Self.snapshot)
         let model = AgentListModel(client: HerdrClient(connection: connection))
 
         await model.load()
@@ -30,11 +30,11 @@ struct AgentListHostConnectionTests {
     @Test("Agent 狀態變成 blocked 的事件到達後，那個 Agent 出現在「需要你」")
     func agentBecomesNeedsYouAfterEvent() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Self.snapshot)
-        await connection.expect("events.subscribe", reply: Self.started)
-        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await connection.expect(.snapshot, wire: Self.snapshot)
+        await connection.expectSubscription(wire: Self.started)
+        await connection.expect(.snapshot, wire: Self.snapshot)
         // 錄製期間主機上沒有 Agent 變成 blocked:以真實回應為底，只改 w1:pB 的狀態。
-        await connection.expect("session.snapshot", reply: Fixtures.modifiedLine("session.snapshot.ndjson") {
+        await connection.expect(.snapshot, wire: Fixtures.modifiedLine("session.snapshot.ndjson") {
             SnapshotEdit.agent("w1:pB", in: &$0) { $0["agent_status"] = "blocked" }
         })
         let model = AgentListModel(client: HerdrClient(connection: connection), sleep: Sleeper(blockAfter: 1).sleep)

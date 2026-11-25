@@ -18,7 +18,7 @@ extension TranscriptReader {
         sleep: @escaping Sleep = Sleeping.task
     ) {
         self.init(
-            connection: SSHHostConnection(channel: channel, sleep: sleep, previewMarker: marker), windowChunkBytes: windowChunkBytes, marker: marker)
+            connection: SSHHostConnection(channel: channel, sleep: sleep, previewMarker: marker, windowChunkBytes: windowChunkBytes))
     }
 }
 

@@ -6,7 +6,7 @@ import PurrdrCore
 /// - 第一個操作時才撥號並握手(`hello`);斷線後下一個操作重新撥號，進行中的請求不重送。
 /// - 心跳(`heartbeat`)逾時視同斷線：進行中的請求與事件串流以 `connectionLost` 結束。
 /// - 權杖被拒(無效、已撤銷)後，同一個權杖不再撥號，直到存了新的權杖(重新配對):不會無限重連。
-/// - 支援的 herdr method 見 `herdrRequest`;其他丟 `HostServiceError.unsupported`(後續票依協定逐一加入)。
+/// - 型別化操作直接對應主機服務訊息(`HTTPSTypedOperations.swift`);協定沒有對應的操作丟 `HostServiceError.unsupported`。
 /// - Pane 終端機是同一條 WSS 上的串流(`openPaneTerminal`)。
 public actor HTTPSHostConnection: HostConnection {
     private let address: HostServiceAddress
@@ -71,29 +71,6 @@ public actor HTTPSHostConnection: HostConnection {
         return welcome
     }
 
-    // MARK: - herdr 單次請求
-
-    /// 支援的 method 見 `HerdrOperation`;期限到丟 `HerdrError.deadlineExceeded`(含撥號與握手)。
-    public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-        let line = try HerdrRequestLine(request)
-        let operation = try HerdrOperation(line)
-        if let feature = HerdrMethod(rawValue: line.method)?.requiredFeature { try await requireHostService(feature) }
-        return try await withDeadline(deadline) {
-            let welcome = try await self.hostServiceInfo()
-            switch operation {
-            case .ping:
-                return try HerdrResponseLine.ping(id: line.id, herdr: welcome.herdr)
-            case .request(let make, let response):
-                return try response(line.id, try await self.send(on: self.liveSession(), make, herdrMethod: line.method), welcome)
-            }
-        }
-    }
-
-    /// 這個 herdr 請求換成的主機服務訊息是否是寫入類(schema 的 `x-write`);不支援的 method 丟 `unsupported`。
-    public static func isWriteRequest(_ request: Data) throws -> Bool {
-        try HerdrOperation(HerdrRequestLine(request)).isWrite
-    }
-
     /// 握手時主機服務回報的唯讀。
     public func isReadOnlyDevice() async throws -> Bool {
         try await hostServiceInfo().readOnly
@@ -120,35 +97,7 @@ public actor HTTPSHostConnection: HostConnection {
 
     // MARK: - Agent 事件串流
 
-    /// `events.subscribe` → 主機服務的事件串流(herdr 接受後才回 ack)。事件換成 herdr 的事件行;
-    /// 主機端結束串流(`events_lost` 是 `HerdrError.herdr`)或連線結束(含心跳逾時)時串流跟著結束，上層據此重連對帳。
-    /// 呼叫端不再讀時通知主機服務關掉那條串流，連線留給其他操作。
-    public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-        let line = try HerdrRequestLine(request)
-        guard line.method == HerdrMethod.eventsSubscribe.rawValue else { throw HostServiceError.unsupported(line.method) }
-        let subscriptions = try JSONDecoder().decode(SubscribeParams.self, from: line.params).subscriptions.compactMap { subscription in
-            PurrdrCore.EventSubscription.EventType(rawValue: subscription.type).map { PurrdrCore.EventSubscription($0, paneID: subscription.paneID) }
-        }
-        let events = try await subscribeToEvents(subscriptions)
-        let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
-        let relay = Task {
-            do {
-                for try await event in events {
-                    switch event {
-                    case .subscriptionStarted: continuation.yield(try HerdrResponseLine.subscriptionStarted(id: line.id))
-                    case .event(let name, let paneID): continuation.yield(try HerdrResponseLine.event(name: name, paneID: paneID))
-                    }
-                }
-                continuation.finish()
-            } catch {
-                continuation.finish(throwing: error)
-            }
-        }
-        continuation.onTermination = { _ in relay.cancel() }
-        return lines
-    }
-
-    /// 型別化的事件訂閱(ADR-0015、#595):主機接受後第一項是 `.subscriptionStarted`,之後是事件;
+    /// 事件訂閱(`events.subscribe`):主機接受後第一項是 `.subscriptionStarted`,之後是事件;
     /// 主機端結束串流(`events_lost` 是 `HerdrError.herdr`)或連線結束(含心跳逾時)時串流跟著結束，上層據此重連對帳。
     /// 呼叫端不再讀時通知主機服務關掉那條串流，連線留給其他操作。
     public func subscribeToEvents(_ subscriptions: [PurrdrCore.EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
@@ -218,11 +167,6 @@ public actor HTTPSHostConnection: HostConnection {
     }
 
     // MARK: - 對話紀錄
-
-    /// 定位、視窗與尾端追蹤(#59);列表預覽、subagent、workflow、委派的讀取丟 `unsupported`。
-    public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        try await transcript(request)
-    }
 
     /// 請主機服務停止追蹤這個對話紀錄。
     public func stopFollowingTranscript(path: String) async {
@@ -477,21 +421,6 @@ public actor HTTPSHostConnection: HostConnection {
         }
         return try outcome.get()
     }
-
-    /// herdr `events.subscribe` 的 params。
-    private struct SubscribeParams: Decodable {
-        var subscriptions: [Subscription]
-
-        struct Subscription: Decodable {
-            var type: String
-            var paneID: String?
-
-            enum CodingKeys: String, CodingKey {
-                case type
-                case paneID = "pane_id"
-            }
-        }
-    }
 }
 
 /// `withDeadline` 裡先結束的一方。
@@ -545,244 +474,6 @@ enum PaneTerminalStreamEvent {
             }
         default:
             return nil
-        }
-    }
-}
-
-/// app 送出的一行 herdr 請求(`HerdrClient` 的 wire format)。
-struct HerdrRequestLine {
-    var id: String?
-    var method: String
-    /// `params` 的原始 JSON(沒有時是 `{}`)。
-    var params: Data
-
-    init(_ line: Data) throws {
-        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any], let method = object["method"] as? String
-        else { throw HerdrError.malformedResponse }
-        id = object["id"] as? String
-        self.method = method
-        params = try JSONSerialization.data(withJSONObject: object["params"] ?? [String: Any]())
-    }
-}
-
-/// 把主機服務的回應換成 herdr 的回應行，`HerdrClient` 照原本的方式解析。
-enum HerdrResponseLine {
-    static func snapshot(id: String?, version: String, result: HostServiceProtocol.AgentsListResult) throws -> Data {
-        let snapshot = Snapshot(
-            version: version,
-            workspaces: result.workspaces.map { Snapshot.Workspace(workspaceID: $0.workspaceId, label: $0.label) },
-            agents: result.agents.map { agent in
-                Snapshot.Agent(
-                    paneID: agent.paneId, workspaceID: agent.workspaceId, tabID: agent.tabId, agent: agent.agent,
-                    agentStatus: agent.status.rawValue, terminalTitleStripped: agent.title, cwd: agent.cwd,
-                    agentSession: agent.session.map { Snapshot.Session(kind: $0.kind, value: $0.value) })
-            })
-        return try encode(Envelope(id: id, result: SnapshotResult(snapshot: snapshot)))
-    }
-
-    static func ping(id: String?, herdr: HostServiceProtocol.HerdrServer) throws -> Data {
-        try encode(Envelope(id: id, result: Ping(version: herdr.version, protocol: herdr.protocol)))
-    }
-
-    static func ok(id: String?) throws -> Data {
-        try encode(Envelope(id: id, result: Typed(type: "ok")))
-    }
-
-    /// `workspace.create`／`worktree.create` 成功:`HerdrClient` 只讀 workspace id 與 root pane id。
-    static func created(id: String?, type: String, workspaceID: String, rootPaneID: String) throws -> Data {
-        try encode(Envelope(id: id, result: Created(
-            type: type, workspace: .init(workspaceID: workspaceID), rootPane: .init(paneID: rootPaneID))))
-    }
-
-    private struct Created: Encodable {
-        var type: String
-        var workspace: Workspace
-        var rootPane: RootPane
-
-        struct Workspace: Encodable {
-            var workspaceID: String
-
-            enum CodingKeys: String, CodingKey {
-                case workspaceID = "workspace_id"
-            }
-        }
-
-        struct RootPane: Encodable {
-            var paneID: String
-
-            enum CodingKeys: String, CodingKey {
-                case paneID = "pane_id"
-            }
-        }
-
-        enum CodingKeys: String, CodingKey {
-            case type, workspace
-            case rootPane = "root_pane"
-        }
-    }
-
-    /// `tab.create` 成功:`HerdrClient` 讀 tab id 與 root pane id。
-    static func tabCreated(id: String?, tabID: String, rootPaneID: String) throws -> Data {
-        try encode(Envelope(id: id, result: TabCreated(type: "tab_created", tab: .init(tabID: tabID), rootPane: .init(paneID: rootPaneID))))
-    }
-
-    private struct TabCreated: Encodable {
-        var type: String
-        var tab: Tab
-        var rootPane: Created.RootPane
-
-        struct Tab: Encodable {
-            var tabID: String
-
-            enum CodingKeys: String, CodingKey {
-                case tabID = "tab_id"
-            }
-        }
-
-        enum CodingKeys: String, CodingKey {
-            case type, tab
-            case rootPane = "root_pane"
-        }
-    }
-
-    /// `agent.start` 成功:`HerdrClient.startAgent` 只讀 `agent.launch_pending`(true 是還沒就緒,呼叫端不送第一則訊息)。
-    static func agentStarted(id: String?, launchPending: Bool) throws -> Data {
-        try encode(Envelope(id: id, result: AgentStarted(type: "agent_started", agent: .init(launchPending: launchPending))))
-    }
-
-    private struct AgentStarted: Encodable {
-        var type: String
-        var agent: Agent
-
-        struct Agent: Encodable {
-            var launchPending: Bool
-
-            enum CodingKeys: String, CodingKey {
-                case launchPending = "launch_pending"
-            }
-        }
-    }
-
-    /// `agent.prompt` 成功;`delivery` 照主機回報(沒有就省略)。
-    static func prompted(id: String?, delivery: String?) throws -> Data {
-        try encode(Envelope(id: id, result: Prompted(type: "agent_prompted", delivery: delivery)))
-    }
-
-    /// `pane.read` 的結果:`HerdrClient` 只讀 `read.text`。
-    static func paneRead(id: String?, text: String) throws -> Data {
-        try encode(Envelope(id: id, result: PaneRead(type: "pane_read", read: .init(text: text))))
-    }
-
-    private struct PaneRead: Encodable {
-        var type: String
-        var read: Read
-
-        struct Read: Encodable {
-            var text: String
-        }
-    }
-
-    /// `sessions.list` 的結果(#309):`HerdrClient` 讀 `sessions` 的 id、modified、summary。
-    static func sessionsList(id: String?, sessions: [HostServiceProtocol.HistorySession]) throws -> Data {
-        try encode(Envelope(id: id, result: SessionsListed(type: "sessions_list", sessions: sessions)))
-    }
-
-    private struct SessionsListed: Encodable {
-        var type: String
-        var sessions: [HostServiceProtocol.HistorySession]
-    }
-
-    static func subscriptionStarted(id: String?) throws -> Data {
-        try encode(Envelope(id: id, result: Typed(type: "subscription_started")))
-    }
-
-    /// herdr 的事件行(`{"event": …, "data": {"pane_id": …}}`)。
-    static func event(name: String, paneID: String?) throws -> Data {
-        try encode(EventLine(event: name, data: EventLine.EventData(paneID: paneID)))
-    }
-
-    private struct EventLine: Encodable {
-        var event: String
-        var data: EventData
-
-        struct EventData: Encodable {
-            var paneID: String?
-
-            enum CodingKeys: String, CodingKey {
-                case paneID = "pane_id"
-            }
-        }
-    }
-
-    private static func encode(_ value: some Encodable) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(value)
-    }
-
-    private struct Envelope<Result: Encodable>: Encodable {
-        var id: String?
-        var result: Result
-    }
-
-    private struct Typed: Encodable {
-        var type: String
-    }
-
-    private struct Prompted: Encodable {
-        var type: String
-        var delivery: String?
-    }
-
-    private struct Ping: Encodable {
-        var version: String
-        var `protocol`: Int
-    }
-
-    private struct SnapshotResult: Encodable {
-        var snapshot: Snapshot
-    }
-
-    private struct Snapshot: Encodable {
-        var version: String
-        var workspaces: [Workspace]
-        var agents: [Agent]
-
-        struct Workspace: Encodable {
-            var workspaceID: String
-            var label: String
-
-            enum CodingKeys: String, CodingKey {
-                case workspaceID = "workspace_id"
-                case label
-            }
-        }
-
-        struct Agent: Encodable {
-            var paneID: String
-            var workspaceID: String
-            var tabID: String
-            var agent: String?
-            var agentStatus: String
-            var terminalTitleStripped: String?
-            var cwd: String?
-            var agentSession: Session?
-
-            enum CodingKeys: String, CodingKey {
-                case paneID = "pane_id"
-                case workspaceID = "workspace_id"
-                case tabID = "tab_id"
-                case agent
-                case agentStatus = "agent_status"
-                case terminalTitleStripped = "terminal_title_stripped"
-                case cwd
-                case agentSession = "agent_session"
-            }
-        }
-
-        struct Session: Encodable {
-            var kind: String
-            var value: String
         }
     }
 }

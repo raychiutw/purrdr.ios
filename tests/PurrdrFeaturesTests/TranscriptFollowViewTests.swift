@@ -18,18 +18,13 @@ struct TranscriptFollowViewTests {
 
     /// 定位回報 `path`;視窗(與探測大小的尾端讀取)回整個 fixture。
     static func answering(_ connection: FakeHostConnection) async {
-        await connection.answerTranscripts { request in
-            switch request {
-            case .locate:
-                return Data("\(path)\n\(size)\n".utf8)
-            case .window:
-                return Data(("0 \(size)\n" + lines.map { "\($0.utf8.count)\t\($0)\n" }.joined()).utf8)
-            case .tail(_, let cursor, _) where cursor == TranscriptReader.probeCursor:
-                return Data("\(size)\n".utf8)
-            default:
-                throw FakeHostConnectionError.unsupported
-            }
-        }
+        await connection.serveTranscript(.init(
+            locate: { _ in TranscriptFile(path: path, size: size) },
+            window: { _, _, _, _ in TranscriptChunk(start: 0, end: size, lines: lines) },
+            tail: { _, cursor, _, _ in
+                guard cursor == TranscriptReader.probeCursor else { throw FakeHostConnectionError.unsupported }
+                return TranscriptTailRead(tail: .shrank(size: size), size: size)
+            }))
     }
 
     /// Agent 工作中寫出的新訊息(使用者打的字)。
@@ -37,24 +32,18 @@ struct TranscriptFollowViewTests {
     static let addedChunk = TranscriptChunk(start: size, end: size + addedLine.utf8.count + 1, lines: [addedLine])
 
     static func windowReads(_ connection: FakeHostConnection) async -> Int {
-        await connection.transcriptRequests.filter { if case .window = $0 { true } else { false } }.count
+        await connection.transcriptWindowReads.count
     }
 
     /// 開啟時探測大小之外的尾端讀取(輪詢形狀的讀法)。
     static func tailReads(_ connection: FakeHostConnection) async -> Int {
-        await connection.transcriptRequests.filter {
-            switch $0 {
-            case .tail(_, let cursor, _): cursor != TranscriptReader.probeCursor
-            case .catchUp: true
-            default: false
-            }
-        }.count
+        await connection.transcriptTailReads.filter { $0.catchUp || $0.cursor != TranscriptReader.probeCursor }.count
     }
 
     @Test("聊天：開啟後從游標追蹤，推送的新訊息不等輪詢就顯示，畫面不讀尾端")
     func conversationShowsPushedLinesWithoutPolling() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection)
         let model = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,
@@ -74,7 +63,7 @@ struct TranscriptFollowViewTests {
     @Test("聊天：追蹤送 replaced 後重讀視窗，並從新游標再追蹤")
     func conversationReopensWindowWhenReplaced() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection)
         let model = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,
@@ -94,8 +83,8 @@ struct TranscriptFollowViewTests {
     @Test("聊天：場景非作用中再回來，舊的 run 晚於新的 run 結束時，不關掉新的追蹤(#219)")
     func lateEndingOldRunKeepsNewRunFollowing() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection)
         let model = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,

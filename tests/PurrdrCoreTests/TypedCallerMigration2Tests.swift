@@ -16,8 +16,8 @@ struct TypedCallerMigration2Tests {
     @Test("HerdrClient 的 workspace／tab 操作經型別化操作,參數原樣交給連線")
     func structureOperations() async throws {
         let connection = FakeHostConnection()
-        for method in ["workspace.rename", "tab.rename", "tab.close", "workspace.close"] {
-            await connection.expect(method, reply: Self.ok)
+        for operation in [FakeHostConnection.Operation.workspaceRename, .tabRename, .tabClose, .workspaceClose] {
+            await connection.stub(operation)
         }
         let client = HerdrClient(connection: connection)
         try await client.renameWorkspace("w1", to: "garden")
@@ -32,8 +32,8 @@ struct TypedCallerMigration2Tests {
         let connection = FakeHostConnection()
         let created = Data(
             #"{"id":"x","result":{"type":"workspace_created","workspace":{"workspace_id":"w9"},"root_pane":{"pane_id":"w9:p1","tab_id":"w9:t1"}}}"#.utf8)
-        await connection.expect("workspace.create", reply: created)
-        await connection.expect("tab.rename", reply: Self.ok)
+        await connection.expect(.workspaceCreate, wire: created)
+        await connection.expect(.tabRename, wire: Self.ok)
 
         let workspace = try await HerdrClient(connection: connection).createWorkspace(cwd: "/Users/demo/p", label: "p", tabLabel: "chat")
 
@@ -44,11 +44,11 @@ struct TypedCallerMigration2Tests {
     @Test("prompt、啟動 agent、續接清單、等待與就緒狀態經型別化操作")
     func agentOperations() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("agent.prompt", reply: Data(#"{"id":"x","result":{"type":"agent_prompted","delivery":"written_to_pty"}}"#.utf8))
-        await connection.expect("agent.start", reply: Data(#"{"id":"x","result":{"type":"agent_started","agent":{"launch_pending":true}}}"#.utf8))
-        await connection.expect("agent.get", reply: Data(#"{"id":"x","result":{"agent":{"agent_status":"idle","launch_pending":false}}}"#.utf8))
-        await connection.expect("sessions.list", reply: Data(#"{"id":"x","result":{"sessions":[{"id":"s1","modified":"2026-11-25T01:02:03Z"}]}}"#.utf8))
-        await connection.expect("agent.wait", reply: Self.ok)
+        await connection.expect(.agentPrompt, wire: Data(#"{"id":"x","result":{"type":"agent_prompted","delivery":"written_to_pty"}}"#.utf8))
+        await connection.expect(.agentStart, wire: Data(#"{"id":"x","result":{"type":"agent_started","agent":{"launch_pending":true}}}"#.utf8))
+        await connection.expect(.agentLaunchState, wire: Data(#"{"id":"x","result":{"agent":{"agent_status":"idle","launch_pending":false}}}"#.utf8))
+        await connection.expect(.sessionsList, wire: Data(#"{"id":"x","result":{"sessions":[{"id":"s1","modified":"2026-11-25T01:02:03Z"}]}}"#.utf8))
+        await connection.expect(.agentWait, wire: Self.ok)
         let client = HerdrClient(connection: connection)
 
         let reply = try await client.prompt(target: "w1:p1", text: "hi", wait: nil)
@@ -70,9 +70,9 @@ struct TypedCallerMigration2Tests {
     @Test("ping、整合清單與在場回報經型別化操作")
     func miscOperations() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("ping", reply: Data(#"{"id":"x","result":{"version":"0.9.5","protocol":1}}"#.utf8))
-        await connection.expect("integration.list", reply: Data(#"{"id":"x","result":{"integrations":[]}}"#.utf8))
-        await connection.expect("pane.report_metadata", reply: Self.ok)
+        await connection.expect(.ping, wire: Data(#"{"id":"x","result":{"version":"0.9.5","protocol":1}}"#.utf8))
+        await connection.expect(.integrations, wire: Data(#"{"id":"x","result":{"integrations":[]}}"#.utf8))
+        await connection.expect(.reportPresence, wire: Self.ok)
         let client = HerdrClient(connection: connection)
 
         #expect(try await client.ping() == "0.9.5")
@@ -84,7 +84,7 @@ struct TypedCallerMigration2Tests {
     @Test("HerdrClient 訂閱事件經 subscribeToEvents,第一項是 subscriptionStarted")
     func subscribeEvents() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("events.subscribe", reply: Fixtures.data("events.subscribe.started.ndjson"))
+        await connection.expectSubscription(wire: Fixtures.data("events.subscribe.started.ndjson"))
 
         let events = try await HerdrClient(connection: connection).subscribe([.init(.workspaceCreated)])
         var iterator = events.makeAsyncIterator()

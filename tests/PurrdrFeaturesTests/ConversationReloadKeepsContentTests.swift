@@ -9,7 +9,7 @@ import Testing
 @Suite("重新載入保留畫面上的訊息")
 struct ConversationReloadKeepsContentTests {
     static func makeModel(_ connection: FakeHostConnection) async -> ConversationModel {
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await TranscriptFollowViewTests.answering(connection)
         return ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection),
@@ -26,7 +26,7 @@ struct ConversationReloadKeepsContentTests {
         #expect(shown > 0)
         #expect(!model.isRefreshing)
 
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await connection.holdTranscripts()
         let reloading = Task { await model.reload() }
         try await waitUntil { await MainActor.run { model.isRefreshing } }
@@ -46,8 +46,8 @@ struct ConversationReloadKeepsContentTests {
         await model.poll()
         let shown = model.items.count
 
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
-        await connection.answerTranscripts { _ in throw FakeHostConnectionError.unsupported }
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
+        await connection.serveTranscript(.init())
         await model.reload()
 
         #expect(model.items.count == shown)

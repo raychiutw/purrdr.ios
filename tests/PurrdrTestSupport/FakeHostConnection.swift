@@ -2,16 +2,16 @@ import Foundation
 import PurrdrCore
 import PurrdrSSH
 
-/// 假的主機連線：對預期的 herdr 請求(以 method 比對)回放錄製的真實回應，並記錄 app 送出的請求。
-/// 上層功能的測試用它，就不必知道連線方式。
+/// 假的主機連線：型別化操作直接回 stub 的值或失敗，並記錄 app 送出的操作。上層功能的測試用它，就不必知道連線方式。
 ///
 /// ```swift
 /// let connection = FakeHostConnection()
-/// await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+/// await connection.stub(.snapshot, snapshot)                                          // 型別化的值
+/// await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))  // 錄製的 herdr 回應,由 SSH 解析層判讀
 /// let model = AgentListModel(client: HerdrClient(connection: connection))
 /// ```
 ///
-/// 沒有預期的請求一律以 `FakeHostConnectionError.unexpectedRequest` 失敗。
+/// 沒有 stub 的操作一律以 `FakeHostConnectionError.unexpectedRequest` 失敗。
 public actor FakeHostConnection: HostConnection {
     /// app 送出的 herdr 請求行(含 `events.subscribe`),依送出順序。
     public private(set) var requests: [String] = []
@@ -19,8 +19,6 @@ public actor FakeHostConnection: HostConnection {
     public private(set) var subscriptionsClosed: [Bool] = []
     public private(set) var disconnectCount = 0
 
-    private var expectations: [(method: String, reply: Result<Data, any Error>)] = []
-    private var subscriptions: [AsyncThrowingStream<Data, any Error>.Continuation] = []
 
     /// `hostServiceVersion()` 回報的版本(#198);`nil` 像 SSH 一樣沒有主機服務。
     private var reportedHostServiceVersion: String?
@@ -66,191 +64,418 @@ public actor FakeHostConnection: HostConnection {
 
     public func checksSendExpectations() async -> Bool { checksExpectations }
 
-    /// 預期 app 會送出 `method` 的請求，以 `reply`(錄製的回應)回應。同一 method 可預期多次，依序消耗。
-    /// `events.subscribe` 的回應送完後串流保持開著，之後用 `send(event:toSubscription:)` 推事件。
-    public func expect(_ method: String, reply: Data) {
-        expectations.append((method, .success(reply)))
+    /// 還沒被用掉的預期(stub 與事件訂閱)。
+    public var unmetExpectations: [String] {
+        unmetStubs + subscriptionExpectations.map { _ in "events.subscribe" }
     }
 
-    /// 預期 app 會送出 `method` 的請求，以 `failure` 失敗(例如主機服務的 `HostServiceError.paneChanged`)。
-    public func expect(_ method: String, failure: any Error) {
-        expectations.append((method, .failure(failure)))
-    }
+    // MARK: - 型別化操作(ADR-0015)
 
-    /// 還沒被送出的預期請求(method)。
-    public var unmetExpectations: [String] { expectations.map(\.method) }
-
-    // MARK: - 型別化操作(ADR-0015、#594)
-
-    private var snapshotStubs: [HostSnapshot] = []
-    private var paneScreenStubs: [String] = []
-    private var transcriptFileStubs: [TranscriptFile] = []
-    private var transcriptChunkStubs: [TranscriptChunk] = []
     /// 型別化操作的呼叫紀錄(依序;只記操作名稱與主要參數，文字內容照原樣)。
     public private(set) var typedCalls: [String] = []
 
-    /// 下一次 `readSnapshot()` 直接回這個值(依序消耗)。用完或沒設定就退回 herdr 請求回放(`expect("session.snapshot", …)`)。
-    public func stub(snapshot: HostSnapshot) { snapshotStubs.append(snapshot) }
+    /// 型別化 stub 的操作種類。raw value 沿用 herdr 的 method 名稱(`expect`／`hold` 也用同一組字串)。
+    public enum Operation: String, Sendable {
+        case snapshot = "session.snapshot"
+        case sendKeys = "pane.send_keys"
+        case sendText = "pane.send_text"
+        case paneRead = "pane.read"
+        case ping
+        case integrations = "integration.list"
+        case reportPresence = "pane.report_metadata"
+        case workspaceRename = "workspace.rename"
+        case tabRename = "tab.rename"
+        case tabClose = "tab.close"
+        case workspaceClose = "workspace.close"
+        case worktreeCreate = "worktree.create"
+        case workspaceCreate = "workspace.create"
+        case tabCreate = "tab.create"
+        case agentStart = "agent.start"
+        case agentLaunchState = "agent.get"
+        case sessionsList = "sessions.list"
+        case agentPrompt = "agent.prompt"
+        case agentWait = "agent.wait"
+        case transcriptLocate = "transcript.locate"
+        case transcriptWindow = "transcript.window"
+        case transcriptTail = "transcript.tail"
+        case transcriptPreviews = "transcript.previews"
+        case subagentLocate = "transcript.subagent"
+        case workflow = "transcript.workflow"
+        case delegation = "transcript.delegation"
+    }
+
+    private var stubs: [Operation: [Result<any Sendable, any Error>]] = [:]
+
+    /// 下一次 `operation` 直接回 `value`(同一操作依序消耗)。沒有 stub 的操作走既有的 herdr／對話紀錄回放。
+    public func stub(_ operation: Operation, _ value: some Sendable) {
+        stubs[operation, default: []].append(.success(value))
+    }
+
+    /// 下一次 `operation` 直接成功(沒有回傳值的操作:送鍵、送文字、重新命名、關閉、在場回報)。
+    public func stub(_ operation: Operation) {
+        stubs[operation, default: []].append(.success(()))
+    }
+
+    /// 下一次 `operation` 以 `failure` 失敗(例如主機服務的 `HostServiceError.paneChanged`)。
+    public func stub(_ operation: Operation, failure: any Error) {
+        stubs[operation, default: []].append(.failure(failure))
+    }
+
+    /// 下一次 `readSnapshot()` 直接回這個值(依序消耗)。
+    public func stub(snapshot: HostSnapshot) { stub(.snapshot, snapshot) }
     /// 下一次 `readPaneScreen` 直接回這段畫面文字。
-    public func stub(paneScreen: String) { paneScreenStubs.append(paneScreen) }
+    public func stub(paneScreen: String) { stub(.paneRead, paneScreen) }
     /// 下一次 `locateTranscript` 直接回這個檔案。
-    public func stub(transcriptFile: TranscriptFile) { transcriptFileStubs.append(transcriptFile) }
+    public func stub(transcriptFile: TranscriptFile) { stub(.transcriptLocate, transcriptFile) }
     /// 下一次 `readTranscriptWindow` 直接回這段。
-    public func stub(transcriptChunk: TranscriptChunk) { transcriptChunkStubs.append(transcriptChunk) }
+    public func stub(transcriptChunk: TranscriptChunk) { stub(.transcriptWindow, transcriptChunk) }
 
-    public func readSnapshot() async throws -> HostSnapshot {
-        typedCalls.append("readSnapshot")
-        if !snapshotStubs.isEmpty { return snapshotStubs.removeFirst() }
-        return try await HerdrClient(connection: self).wireSnapshot()
+    /// 還沒被用掉的 stub(操作名稱)。
+    public var unmetStubs: [String] {
+        stubs.flatMap { operation, results in results.map { _ in operation.rawValue } }.sorted()
     }
 
-    public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
-        typedCalls.append("sendKeys \(paneID) \(keys.joined(separator: ","))")
-        try await HerdrClient(connection: self).wireSendKeys(paneID: paneID, keys: keys, expecting: expecting)
+    /// 取出 `operation` 的下一個 stub;沒有時回 `nil`。記錄呼叫與請求行,有 `hold` 時先停住。
+    private func takeStub<Value: Sendable>(
+        _ operation: Operation, as type: Value.Type, call: String, params: [String: Any] = [:]
+    ) async throws -> Value? {
+        guard stubs[operation]?.isEmpty == false else { return nil }
+        typedCalls.append(call)
+        requests.append(Self.requestLine(operation.rawValue, params))
+        await holdIfRequested(operation.rawValue)
+        return try popStub(operation, as: type)
     }
 
-    public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
-        typedCalls.append("sendText \(paneID) \(text)")
-        try await HerdrClient(connection: self).wireSendText(paneID: paneID, text: text, expecting: expecting)
+    /// 取出 `operation` 的下一個 stub(不記錄、不停住);沒有時回 `nil`。
+    private func popStub<Value: Sendable>(_ operation: Operation, as type: Value.Type) throws -> Value? {
+        guard var queue = stubs[operation], !queue.isEmpty else { return nil }
+        let result = queue.removeFirst()
+        stubs[operation] = queue
+        switch result {
+        case .failure(let error): throw error
+        case .success(let value):
+            guard let typed = value as? Value else { throw FakeHostConnectionError.stubTypeMismatch(operation.rawValue) }
+            return typed
+        }
     }
 
-    public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
-        typedCalls.append("readPaneScreen \(paneID) \(lines) \(format == .ansi ? "ansi" : "text")")
-        if !paneScreenStubs.isEmpty { return paneScreenStubs.removeFirst() }
-        return try await HerdrClient(connection: self).wireReadPane(paneID: paneID, lines: lines, format: format)
-    }
-
-    public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile {
-        typedCalls.append("locateTranscript")
-        if !transcriptFileStubs.isEmpty { return transcriptFileStubs.removeFirst() }
-        return try await TranscriptReader(connection: self).wireLocate(location)
-    }
-
-    public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
-        typedCalls.append("readTranscriptWindow \(path) \(end) \(lines) \(maxBytes)")
-        if !transcriptChunkStubs.isEmpty { return transcriptChunkStubs.removeFirst() }
-        return try await TranscriptReader(connection: self).wireWindow(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
-    }
-
-    // herdr 的結構與 Agent 操作(#595 第二批):記錄呼叫後走既有的 herdr 回放(`expect(method, reply:)`)。
-
-    public func herdrVersion() async throws -> String {
-        typedCalls.append("herdrVersion")
-        return try await HerdrClient(connection: self).wirePing()
-    }
-
-    public func listIntegrations() async throws -> [AgentIntegration] {
-        typedCalls.append("listIntegrations")
-        return try await HerdrClient(connection: self).wireIntegrations()
-    }
-
-    public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
-        typedCalls.append("reportPresence \(paneID) \(model ?? "-") \(seq)")
-        try await HerdrClient(connection: self).wireReportPresence(paneID: paneID, model: model, seq: seq)
-    }
-
-    public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
-        typedCalls.append("renameWorkspace \(workspaceID) \(label)")
-        try await HerdrClient(connection: self).wireRenameWorkspace(workspaceID, to: label)
-    }
-
-    public func renameTab(_ tabID: String, to label: String) async throws {
-        typedCalls.append("renameTab \(tabID) \(label)")
-        try await HerdrClient(connection: self).wireRenameTab(tabID, to: label)
-    }
-
-    public func closeTab(_ tabID: String) async throws {
-        typedCalls.append("closeTab \(tabID)")
-        try await HerdrClient(connection: self).wireCloseTab(tabID)
-    }
-
-    public func closeWorkspace(_ workspaceID: String) async throws {
-        typedCalls.append("closeWorkspace \(workspaceID)")
-        try await HerdrClient(connection: self).wireCloseWorkspace(workspaceID)
-    }
-
-    public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
-        typedCalls.append("createWorktree \(workspaceID) \(branch)")
-        return try await HerdrClient(connection: self).wireCreateWorktree(from: workspaceID, branch: branch)
-    }
-
-    public func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
-        typedCalls.append("createWorkspace \(cwd) \(label ?? "-")")
-        return try await HerdrClient(connection: self).wireCreateWorkspace(cwd: cwd, label: label)
-    }
-
-    public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
-        typedCalls.append("createTab \(workspaceID) \(label ?? "-")")
-        return try await HerdrClient(connection: self).wireCreateTab(in: workspaceID, label: label)
-    }
-
-    public func startAgent(_ request: AgentStartRequest) async throws -> Bool {
-        typedCalls.append("startAgent \(request.kind) \(request.paneID)")
-        return try await HerdrClient(connection: self).wireStartAgent(request)
-    }
-
-    public func agentLaunchState(target: String) async throws -> AgentLaunchState {
-        typedCalls.append("agentLaunchState \(target)")
-        return try await HerdrClient(connection: self).wireAgentLaunchState(target: target)
-    }
-
-    public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
-        typedCalls.append("listSessions \(cwd) \(agent)")
-        return try await HerdrClient(connection: self).wireListSessions(cwd: cwd, agent: agent)
-    }
-
-    public func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
-        typedCalls.append("sendPrompt \(target) \(text)")
-        return try await HerdrClient(connection: self).wirePrompt(target: target, text: text, wait: wait, expecting: expecting)
-    }
-
-    public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
-        typedCalls.append("waitForAgent \(target)")
-        return try await HerdrClient(connection: self).wireWaitForAgent(target: target, until: until, timeout: timeout)
-    }
-
-    public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
-        typedCalls.append("subscribeToEvents \(subscriptions.count)")
-        return try await HerdrClient(connection: self).wireSubscribe(subscriptions)
-    }
-
-    // 對話紀錄的追蹤讀取、預覽、subagent、workflow、委派(#595 第二批 C):記錄呼叫後走既有的對話紀錄回放(`answerTranscripts`)。
-
-    public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
-        typedCalls.append("readTranscriptTail \(path) \(cursor) \(limit) \(catchUp)")
-        return try await TranscriptReader(connection: self).wireTail(path: path, from: cursor, limit: limit, catchUp: catchUp)
-    }
-
-    public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
-        typedCalls.append("readTranscriptPreviews \(requests.map(\.key).joined(separator: ","))")
-        return try await TranscriptReader(connection: self).wirePreviews(requests)
-    }
-
-    public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
-        typedCalls.append("locateSubagent \(callID)")
-        return try await TranscriptReader(connection: self).wireLocateSubagent(sessionFolder: sessionFolder, callID: callID)
-    }
-
-    public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
-        typedCalls.append("readWorkflow \(runID)")
-        return try await TranscriptReader(connection: self).wireWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
-    }
-
-    public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
-        typedCalls.append("readDelegationLines \(callID)")
-        return try await TranscriptReader(connection: self).wireDelegationLines(
-            path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
-    }
-
-    public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-        let method = Self.method(of: request)
-        let reply = try consume(request)
+    private func holdIfRequested(_ method: String) async {
         if let index = heldMethods.firstIndex(of: method) {
             heldMethods.remove(at: index)
             await withCheckedContinuation { held.append($0) }
         }
-        return reply.firstIndex(of: 0x0A).map { reply[reply.startIndex..<$0] } ?? reply
     }
+
+    private static func requestLine(_ method: String, _ params: [String: Any]) -> String {
+        let object: [String: Any] = ["method": method, "params": params]
+        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// 主機會比對時才帶比對欄位(同真正的連線:SSH 與舊版主機服務不帶)。
+    private func expectationParams(_ expecting: SendExpectation) -> [String: Any] {
+        guard checksExpectations, let session = expecting.session else { return [:] }
+        return ["expected_session": session]
+    }
+
+    public func readSnapshot() async throws -> HostSnapshot {
+        if let snapshot = try await takeStub(.snapshot, as: HostSnapshot.self, call: "readSnapshot") { return snapshot }
+        typedCalls.append("readSnapshot")
+        throw FakeHostConnectionError.unexpectedRequest("readSnapshot")
+    }
+
+    public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
+        let call = "sendKeys \(paneID) \(keys.joined(separator: ","))"
+        let params: [String: Any] = ["pane_id": paneID, "keys": keys].merging(expectationParams(expecting)) { $1 }
+        if try await takeStub(.sendKeys, as: Void.self, call: call, params: params) != nil { return }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
+        let call = "sendText \(paneID) \(text)"
+        let params: [String: Any] = ["pane_id": paneID, "text": text].merging(expectationParams(expecting)) { $1 }
+        if try await takeStub(.sendText, as: Void.self, call: call, params: params) != nil { return }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
+        let call = "readPaneScreen \(paneID) \(lines) \(format == .ansi ? "ansi" : "text")"
+        if let screen = try await takeStub(.paneRead, as: String.self, call: call, params: ["pane_id": paneID, "lines": lines]) { return screen }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile {
+        try await transcriptOperation(
+            .transcriptLocate, call: "locateTranscript", served: { try $0.locate(location) })
+    }
+
+    public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
+        transcriptWindowReads.append(TranscriptWindowRead(path: path, end: end, lines: lines, maxBytes: maxBytes))
+        return try await transcriptOperation(
+            .transcriptWindow, call: "readTranscriptWindow \(path) \(end) \(lines) \(maxBytes)",
+            served: { try $0.window(path, end, lines, maxBytes) })
+    }
+
+    // herdr 的結構與 Agent 操作:有 stub 就直接回,沒有就記錄呼叫後丟 `unexpectedRequest`。
+
+    public func herdrVersion() async throws -> String {
+        if let version = try await takeStub(.ping, as: String.self, call: "herdrVersion") { return version }
+        typedCalls.append("herdrVersion")
+        throw FakeHostConnectionError.unexpectedRequest("herdrVersion")
+    }
+
+    public func listIntegrations() async throws -> [AgentIntegration] {
+        if let list = try await takeStub(.integrations, as: [AgentIntegration].self, call: "listIntegrations") { return list }
+        typedCalls.append("listIntegrations")
+        throw FakeHostConnectionError.unexpectedRequest("listIntegrations")
+    }
+
+    public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
+        let call = "reportPresence \(paneID) \(model ?? "-") \(seq)"
+        if try await takeStub(.reportPresence, as: Void.self, call: call, params: ["pane_id": paneID]) != nil { return }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
+        let call = "renameWorkspace \(workspaceID) \(label)"
+        if try await takeStub(.workspaceRename, as: Void.self, call: call, params: ["workspace_id": workspaceID, "label": label]) != nil { return }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func renameTab(_ tabID: String, to label: String) async throws {
+        let call = "renameTab \(tabID) \(label)"
+        if try await takeStub(.tabRename, as: Void.self, call: call, params: ["tab_id": tabID, "label": label]) != nil { return }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func closeTab(_ tabID: String) async throws {
+        let call = "closeTab \(tabID)"
+        if try await takeStub(.tabClose, as: Void.self, call: call, params: ["tab_id": tabID]) != nil { return }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func closeWorkspace(_ workspaceID: String) async throws {
+        let call = "closeWorkspace \(workspaceID)"
+        if try await takeStub(.workspaceClose, as: Void.self, call: call, params: ["workspace_id": workspaceID]) != nil { return }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
+        let call = "createWorktree \(workspaceID) \(branch)"
+        if let created = try await takeStub(.worktreeCreate, as: CreatedWorkspace.self, call: call, params: ["workspace_id": workspaceID, "branch": branch]) {
+            return created
+        }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
+        let call = "createWorkspace \(cwd) \(label ?? "-")"
+        if let created = try await takeStub(.workspaceCreate, as: NewWorkspace.self, call: call, params: ["cwd": cwd]) { return created }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
+        let call = "createTab \(workspaceID) \(label ?? "-")"
+        if let created = try await takeStub(.tabCreate, as: CreatedTab.self, call: call, params: ["workspace_id": workspaceID]) { return created }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func startAgent(_ request: AgentStartRequest) async throws -> Bool {
+        let call = "startAgent \(request.kind) \(request.paneID)"
+        if let ready = try await takeStub(.agentStart, as: Bool.self, call: call, params: agentStartParams(request)) { return ready }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    private func agentStartParams(_ request: AgentStartRequest) -> [String: Any] {
+        var params: [String: Any] = ["name": request.name, "kind": request.kind, "pane_id": request.paneID, "args": request.arguments]
+        if let resume = request.resumeSession { params["resume_session"] = resume }
+        return params
+    }
+
+    public func agentLaunchState(target: String) async throws -> AgentLaunchState {
+        let call = "agentLaunchState \(target)"
+        if let state = try await takeStub(.agentLaunchState, as: AgentLaunchState.self, call: call, params: ["target": target]) { return state }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
+        let call = "listSessions \(cwd) \(agent)"
+        if let list = try await takeStub(.sessionsList, as: [ResumableSession].self, call: call, params: ["cwd": cwd, "agent_kind": agent]) { return list }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
+        let call = "sendPrompt \(target) \(text)"
+        let params: [String: Any] = ["target": target, "text": text].merging(expectationParams(expecting)) { $1 }
+        if let reply = try await takeStub(.agentPrompt, as: PromptReply.self, call: call, params: params) { return reply }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
+        let call = "waitForAgent \(target)"
+        if let reached = try await takeStub(.agentWait, as: Bool.self, call: call, params: ["target": target]) { return reached }
+        typedCalls.append(call)
+        throw FakeHostConnectionError.unexpectedRequest(call)
+    }
+
+    // 對話紀錄的追蹤讀取、預覽、subagent、workflow、委派:有 stub 就直接回,其次是 `serveTranscript` 設的伺服器,
+    // 都沒有就丟 `unsupported`。
+
+    public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
+        transcriptTailReads.append(TranscriptTailReadRequest(path: path, cursor: cursor, limit: limit, catchUp: catchUp))
+        return try await transcriptOperation(
+            .transcriptTail, call: "readTranscriptTail \(path) \(cursor) \(limit) \(catchUp)",
+            served: { try $0.tail(path, cursor, limit, catchUp) })
+    }
+
+    public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
+        try await transcriptOperation(
+            .transcriptPreviews, call: "readTranscriptPreviews \(requests.map(\.key).joined(separator: ","))", served: nil)
+    }
+
+    public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
+        try await transcriptOperation(
+            .subagentLocate, call: "locateSubagent \(callID)", served: nil)
+    }
+
+    public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
+        try await transcriptOperation(
+            .workflow, call: "readWorkflow \(runID)", served: nil)
+    }
+
+    public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
+        try await transcriptOperation(
+            .delegation, call: "readDelegationLines \(callID)", served: nil)
+    }
+
+    /// app 送出的視窗讀取(依送出順序)。`maxBytes` 為 0 表示不限。
+    public private(set) var transcriptWindowReads: [TranscriptWindowRead] = []
+    /// app 送出的尾端讀取(依送出順序)。
+    public private(set) var transcriptTailReads: [TranscriptTailReadRequest] = []
+
+    /// 對話紀錄操作的共同流程:記錄呼叫、(有 `holdTranscripts` 時)停住,然後 stub → 伺服器;都沒有就 `unsupported`。
+    private func transcriptOperation<Value: Sendable>(
+        _ operation: Operation, call: String, served: (@Sendable (TranscriptServer) throws -> Value)?
+    ) async throws -> Value {
+        typedCalls.append(call)
+        if holdsTranscripts { await withCheckedContinuation { heldTranscripts.append($0) } }
+        if let stubbed = try popStub(operation, as: Value.self) { return stubbed }
+        if let served, let transcriptServer { return try served(transcriptServer) }
+        throw FakeHostConnectionError.unsupported
+    }
+
+    /// 型別化的對話紀錄伺服器:定位、視窗與尾端讀取各自以閉包回答(沒給的操作丟 `unsupported`)。
+    public struct TranscriptServer: Sendable {
+        public var locate: @Sendable (TranscriptLocation) throws -> TranscriptFile
+        public var window: @Sendable (_ path: String, _ end: Int, _ lines: Int, _ maxBytes: Int) throws -> TranscriptChunk
+        public var tail: @Sendable (_ path: String, _ cursor: Int, _ limit: Int, _ catchUp: Bool) throws -> TranscriptTailRead
+
+        public init(
+            locate: @escaping @Sendable (TranscriptLocation) throws -> TranscriptFile = { _ in throw FakeHostConnectionError.unsupported },
+            window: @escaping @Sendable (String, Int, Int, Int) throws -> TranscriptChunk = { _, _, _, _ in throw FakeHostConnectionError.unsupported },
+            tail: @escaping @Sendable (String, Int, Int, Bool) throws -> TranscriptTailRead = { _, _, _, _ in throw FakeHostConnectionError.unsupported }
+        ) {
+            self.locate = locate
+            self.window = window
+            self.tail = tail
+        }
+    }
+
+    private var transcriptServer: TranscriptServer?
+
+    /// 之後的定位、視窗與尾端讀取由 `server` 回答(`stub` 優先)。
+    public func serveTranscript(_ server: TranscriptServer) {
+        transcriptServer = server
+    }
+
+    // MARK: 事件訂閱
+
+    /// 型別化的事件訂閱預期:`subscribeToEvents` 時依序送出 `events`(預設只有 `.subscriptionStarted`),之後保持開著,
+    /// 用 `send(_:toSubscription:)` 推事件。`failure` 有值時訂閱直接失敗。
+    private var subscriptionExpectations: [(events: [HerdrEvent], failure: (any Error)?, endsWith: (any Error)?)] = []
+    /// app 送出的訂閱內容(依送出順序;只計型別化的訂閱)。
+    public private(set) var subscribeRequests: [[EventSubscription]] = []
+
+    public func expectSubscription(events: [HerdrEvent] = [.subscriptionStarted]) {
+        subscriptionExpectations.append((events, nil, nil))
+    }
+
+    /// 送完 `events` 後串流以 `endingWith` 結束(沒有就保持開著)。
+    public func expectSubscription(events: [HerdrEvent], endingWith error: (any Error)?) {
+        subscriptionExpectations.append((events, nil, error))
+    }
+
+    public func expectSubscription(failure: any Error) {
+        subscriptionExpectations.append(([], failure, nil))
+    }
+
+    public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        typedCalls.append("subscribeToEvents \(subscriptions.count)")
+        guard !subscriptionExpectations.isEmpty else { throw FakeHostConnectionError.unexpectedRequest("events.subscribe") }
+        let expectation = subscriptionExpectations.removeFirst()
+        subscribeRequests.append(subscriptions)
+        requests.append(Self.requestLine("events.subscribe", [
+            "subscriptions": subscriptions.map { subscription -> [String: Any] in
+                var entry: [String: Any] = ["event": subscription.type.rawValue]
+                if let paneID = subscription.paneID { entry["pane_id"] = paneID }
+                return entry
+            },
+        ]))
+        await holdIfRequested("events.subscribe")
+        if let failure = expectation.failure { throw failure }
+        let (stream, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
+        for event in expectation.events { continuation.yield(event) }
+        if let end = expectation.endsWith { continuation.finish(throwing: end) }
+        let index = subscriptionHandles.count
+        subscriptionHandles.append(SubscriptionHandle(
+            sendLine: { line in
+                do {
+                    if let event = try HerdrWireClient.decodeEventLine(line) { continuation.yield(event) }
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            },
+            send: { continuation.yield($0) },
+            finish: { error in
+                if let error { continuation.finish(throwing: error) } else { continuation.finish() }
+            }))
+        subscriptionsClosed.append(false)
+        continuation.onTermination = { _ in Task { await self.closeSubscription(index) } }
+        return stream
+    }
+
+    /// 對第 `index` 條 Agent 事件串流(從 0 起算)推一個事件。
+    public func send(_ event: HerdrEvent, toSubscription index: Int) {
+        subscriptionHandles[index].send(event)
+    }
+
+    /// 主機那端以 `error` 結束第 `index` 條 Agent 事件串流(例如 herdr 的 `events_lost`)。
+    public func finish(subscription index: Int, throwing error: any Error) {
+        subscriptionHandles[index].finish(error)
+    }
+
+    private struct SubscriptionHandle: Sendable {
+        var sendLine: @Sendable (Data) -> Void
+        var send: @Sendable (HerdrEvent) -> Void
+        var finish: @Sendable ((any Error)?) -> Void
+    }
+
+    private var subscriptionHandles: [SubscriptionHandle] = []
 
     private var heldMethods: [String] = []
     private var held: [CheckedContinuation<Void, Never>] = []
@@ -272,39 +497,12 @@ public actor FakeHostConnection: HostConnection {
 
     /// 主機那端結束第 `index` 條 Agent 事件串流(斷線)。
     public func finish(subscription index: Int) {
-        subscriptions[index].finish()
+        subscriptionHandles[index].finish(nil)
     }
 
-    public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-        let reply = try consume(request)
-        let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
-        for line in reply.split(separator: 0x0A) { continuation.yield(Data(line)) }
-        let index = subscriptions.count
-        subscriptions.append(continuation)
-        subscriptionsClosed.append(false)
-        continuation.onTermination = { _ in Task { await self.closeSubscription(index) } }
-        return lines
-    }
-
-    /// 對第 `index` 條 Agent 事件串流(從 0 起算)送出一行事件。
+    /// 對第 `index` 條 Agent 事件串流(從 0 起算)送出 herdr 的一行事件(JSON);錯誤 envelope 讓串流以錯誤結束。
     public func send(event: Data, toSubscription index: Int) {
-        for line in event.split(separator: 0x0A) { subscriptions[index].yield(Data(line)) }
-    }
-
-    /// app 送出的對話紀錄讀取，依送出順序。
-    public private(set) var transcriptRequests: [TranscriptRequest] = []
-    private var transcriptAnswer: (@Sendable (TranscriptRequest) throws -> Data)?
-
-    /// 之後的對話紀錄讀取以 `answer` 回應(格式同主機腳本的輸出)。沒設定時一律 `unsupported`。
-    public func answerTranscripts(_ answer: @escaping @Sendable (TranscriptRequest) throws -> Data) {
-        transcriptAnswer = answer
-    }
-
-    public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        transcriptRequests.append(request)
-        if holdsTranscripts { await withCheckedContinuation { heldTranscripts.append($0) } }
-        guard let transcriptAnswer else { throw FakeHostConnectionError.unsupported }
-        return try transcriptAnswer(request)
+        for line in event.split(separator: 0x0A) { subscriptionHandles[index].sendLine(Data(line)) }
     }
 
     private var holdsTranscripts = false
@@ -421,19 +619,6 @@ public actor FakeHostConnection: HostConnection {
         quickDetectionRequests -= 1
     }
 
-    private static func method(of request: Data) -> String {
-        (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
-    }
-
-    private func consume(_ request: Data) throws -> Data {
-        let method = Self.method(of: request)
-        requests.append(String(decoding: request, as: UTF8.self))
-        guard let index = expectations.firstIndex(where: { $0.method == method }) else {
-            throw FakeHostConnectionError.unexpectedRequest(method)
-        }
-        return try expectations.remove(at: index).reply.get()
-    }
-
     private func closeSubscription(_ index: Int) {
         subscriptionsClosed[index] = true
     }
@@ -443,6 +628,24 @@ public enum FakeHostConnectionError: Error, Equatable {
     case unexpectedRequest(String)
     /// 這個假連線還沒有對話紀錄;Pane 終端機沒有預期(`expectPaneTerminal`)。
     case unsupported
+    /// `stub` 給的值型別與操作要回的不符。
+    case stubTypeMismatch(String)
+}
+
+/// 一次對話紀錄視窗讀取的參數。
+public struct TranscriptWindowRead: Sendable, Equatable {
+    public var path: String
+    public var end: Int
+    public var lines: Int
+    public var maxBytes: Int
+}
+
+/// 一次對話紀錄尾端讀取的參數。
+public struct TranscriptTailReadRequest: Sendable, Equatable {
+    public var path: String
+    public var cursor: Int
+    public var limit: Int
+    public var catchUp: Bool
 }
 
 /// 一次開對話紀錄追蹤的參數。

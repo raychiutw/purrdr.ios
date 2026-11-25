@@ -15,19 +15,18 @@ struct ConversationReadableMessageTests {
     static func answering(_ connection: FakeHostConnection, lines: [String]) async {
         let offsets = lines.reduce(into: [0]) { $0.append($0.last! + $1.utf8.count + 1) }
         let size = offsets.last!
-        await connection.answerTranscripts { request in
-            switch request {
-            case .locate: return Data("\(W.path)\n\(size)\n".utf8)
-            case .window(_, let end, let count, _, let maxBytes):
+        await connection.serveTranscript(.init(
+            locate: { _ in TranscriptFile(path: W.path, size: size) },
+            window: { _, end, count, maxBytes in
                 let last = offsets.lastIndex { $0 <= end }!
                 var first = max(0, last - count)
                 while maxBytes > 0, first < last - 1, offsets[last] - offsets[first] > maxBytes { first += 1 }
-                let body = lines[first..<last].map { "\($0.utf8.count)\t\($0)\n" }.joined()
-                return Data("\(offsets[first]) \(offsets[last])\n\(body)".utf8)
-            case .tail(_, let cursor, _) where cursor == TranscriptReader.probeCursor: return Data("\(size)\n".utf8)
-            default: throw FakeHostConnectionError.unsupported
-            }
-        }
+                return TranscriptChunk(start: offsets[first], end: offsets[last], lines: Array(lines[first..<last]))
+            },
+            tail: { _, cursor, _, _ in
+                guard cursor == TranscriptReader.probeCursor else { throw FakeHostConnectionError.unsupported }
+                return TranscriptTailRead(tail: .shrank(size: size), size: size)
+            }))
     }
 
     static func model(_ connection: FakeHostConnection, cache: any ConversationCache = InMemoryConversationCache()) -> ConversationModel {
@@ -37,7 +36,7 @@ struct ConversationReadableMessageTests {
     }
 
     static func windowRequests(_ connection: FakeHostConnection) async -> Int {
-        await connection.transcriptRequests.filter { if case .window = $0 { true } else { false } }.count
+        await connection.transcriptWindowReads.count
     }
 
     /// 開啟後等到第一輪讀取結束(追蹤已開)。
@@ -55,7 +54,7 @@ struct ConversationReadableMessageTests {
         // fixture 第 15–17 行是 Skill 呼叫、結果與載入;前面 15 行有使用者與 Agent 文字,中間接很多工具步驟,最後是 skill。
         let lines = Array(Self.fixture[0..<15]) + (0..<60).flatMap { W.toolPair($0) } + Array(Self.fixture[15...17])
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection, lines: lines)
         let model = Self.model(connection)
         let chat = try await Self.open(model, connection)
@@ -69,7 +68,7 @@ struct ConversationReadableMessageTests {
     func finishedChatReadsOneWindow() async throws {
         let lines = Array(Self.fixture[0..<28])
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection, lines: lines)
         let model = Self.model(connection)
         let chat = try await Self.open(model, connection)
@@ -82,7 +81,7 @@ struct ConversationReadableMessageTests {
     func backfillIsBounded() async throws {
         let lines = (0..<1_500).flatMap { W.toolPair($0) }
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection, lines: lines)
         let model = Self.model(connection)
         let chat = try await Self.open(model, connection)
@@ -94,7 +93,7 @@ struct ConversationReadableMessageTests {
     @Test("補讀回來的可讀訊息:follow 持續追加工具步驟也不會被丟掉")
     func followAppendsKeepBackfilledMessages() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection, lines: W.lines)
         let model = Self.model(connection)
         let chat = try await Self.open(model, connection)
@@ -150,7 +149,7 @@ struct ConversationReadableMessageTests {
     @Test("#508 尾端一千行都是工具步驟:補讀往返次數要少(逐頁 200 行會讀 6 次,每次往返都是使用者等待)")
     func backfillNeedsFewRoundTrips() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection, lines: Self.longToolTail)
         let model = Self.model(connection)
         let chat = try await Self.open(model, connection)
@@ -165,7 +164,7 @@ struct ConversationReadableMessageTests {
     func backfilledMessagesArePersistedForNextOpen() async throws {
         let cache = InMemoryConversationCache()
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection, lines: Self.longToolTail)
         let first = Self.model(connection, cache: cache)
         let chat = try await Self.open(first, connection)
@@ -181,7 +180,7 @@ struct ConversationReadableMessageTests {
     @Test("#508 開啟補讀不當成往上翻:時間軸原因是整份取代(跟隨最新時維持在底部,不跳位置)")
     func backfillDoesNotReportOlderLoaded() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection, lines: Self.longToolTail)
         let model = Self.model(connection)
         var causes: [ConversationTimeline.Cause] = []

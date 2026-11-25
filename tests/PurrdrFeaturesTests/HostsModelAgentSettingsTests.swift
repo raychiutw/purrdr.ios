@@ -98,7 +98,7 @@ struct HostsModelAgentSettingsTests {
     @Test("HTTPS 主機:以列表讀到的快照裡出現過的種類偵測,不另外搶讀快照;還沒讀到就不寫")
     func httpsDetectsFromSnapshot() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         let model = HostOverviewTests.httpsModel(connection: connection)
         let id = HostOverviewTests.buildBox.id
         await model.initializeAgentSettings(for: id, isNewHost: true)
@@ -112,7 +112,7 @@ struct HostsModelAgentSettingsTests {
     @Test("HTTPS 主機:快照裡當下沒有任何 Agent 時不寫入空集合,維持還沒設定(新增聊天仍有預設的 Agent)")
     func httpsEmptySnapshotDoesNotInitialize() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.modifiedLine("session.snapshot.ndjson") {
+        await connection.expect(.snapshot, wire: Fixtures.modifiedLine("session.snapshot.ndjson") {
             SnapshotEdit.removeAgents(in: &$0)
         })
         let model = HostOverviewTests.httpsModel(connection: connection)
@@ -126,7 +126,7 @@ struct HostsModelAgentSettingsTests {
     @Test("HTTPS 偵測重試每秒一次、最多 10 次,等待用注入的 sleep(不真的等)")
     func httpsDetectionRetriesUseInjectedSleep() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.modifiedLine("session.snapshot.ndjson") { SnapshotEdit.removeAgents(in: &$0) })
+        await connection.expect(.snapshot, wire: Fixtures.modifiedLine("session.snapshot.ndjson") { SnapshotEdit.removeAgents(in: &$0) })
         let sleeper = RecordingSleeper(fires: { _ in true })
         let model = HostOverviewTests.httpsModel(connection: connection, sleep: sleeper.sleep)
         await model.agentList.load()
@@ -140,7 +140,7 @@ struct HostsModelAgentSettingsTests {
     @Test("HTTPS 偵測第一次就成功:不等待")
     func httpsDetectionSucceedsWithoutSleeping() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         let sleeper = RecordingSleeper(fires: { _ in true })
         let model = HostOverviewTests.httpsModel(connection: connection, sleep: sleeper.sleep)
         await model.agentList.load()
