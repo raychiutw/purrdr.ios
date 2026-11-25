@@ -69,11 +69,13 @@ enum AppAssembly {
         hosts.trafficMeter = trafficMeter
         hosts.reviewPrompt = environment.reviewPrompt
         if let undoSendSeconds = environment.undoSendSeconds { hosts.undoSendSeconds = undoSendSeconds }
+        let hitchRecorder = DiagnosticRecorder(sink: environment.hitchLog, defaults: .standard, system: { HitchSystemState.current() })
+        // 新增聊天／續接各步驟與 SSH 關鍵請求的耗時(#635):記錄開著才寫進診斷記錄;計時可能來自任何執行緒。要在載入主機(建立連線)前設定。
+        hosts.operationTimings = { timing in Task { @MainActor in hitchRecorder.recordTiming(timing) } }
         hosts.load()
 
         let hostSync = HostSyncModel(session: session, plus: plus, hosts: hosts, store: environment.hostSyncStore)
         localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
-        let hitchRecorder = DiagnosticRecorder(sink: environment.hitchLog, defaults: .standard, system: { HitchSystemState.current() })
         var hitchMetrics: HitchMetricKitSubscriber?
         if environment.subscribesToMetricKit {
             CrashExceptionHandler.installAtLaunch(recorder: hitchRecorder)

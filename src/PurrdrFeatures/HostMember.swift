@@ -18,6 +18,8 @@ struct HostMemberEnvironment {
     var haptics: @MainActor () -> any Haptics = { SilentHaptics() }
     var attachmentStore: any AttachmentStore = FileAttachmentStore.app()
     var trafficMeter: @MainActor () -> TrafficMeter? = { nil }
+    /// 新增聊天／續接的步驟耗時(#635)。
+    var operationTimings: @MainActor () -> OperationTimingSink? = { nil }
     var undoSendSeconds: @MainActor () -> Int = { 0 }
     var publicModelCatalog: (any PublicModelCatalogFetching)?
     var reviewPrompt: @MainActor () -> ReviewPrompt? = { nil }
