@@ -346,7 +346,8 @@ struct AgentFileCardView: View {
                 open()
             } else {
                 let scope = context.scope()
-                Task { await loads.load(path, scope: scope, userRequested: false) }
+                let decodesWithImageIO = card.file.kind == .image
+                Task { await loads.load(path, scope: scope, userRequested: false, decodesWithImageIO: decodesWithImageIO) }
             }
         }
     }
