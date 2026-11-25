@@ -352,6 +352,12 @@ public struct ConversationView: View {
                 .accessibilityIdentifier("conversation.beginning")
         case .available:
             Color.clear.frame(height: 1)
+        case .scrollbackLimitReached:
+            Text("Scroll down to the latest message to read earlier ones again.")
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("conversation.scrollbackLimit")
         }
     }
 

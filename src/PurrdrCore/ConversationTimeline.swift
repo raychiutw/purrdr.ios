@@ -38,7 +38,7 @@ public struct ConversationTimeline: Sendable {
     }
 
     /// 目前的項目(只含對話紀錄的項目,依序)。
-    public private(set) var items: [ConversationItem] = []
+    public var items: [ConversationItem] { builder.items.values }
     /// 目前的列(對話紀錄的項目加上還沒確認的回音),依序。列的 `id` 分配後不變。
     public private(set) var rows: [ConversationRow] = []
     /// 還沒被對話紀錄確認的回音。
@@ -47,6 +47,9 @@ public struct ConversationTimeline: Sendable {
     package private(set) var markdownParseCount = 0
     /// 送進建構器的訊息總數(測試用:往上翻只建構新頁、補讀完只重建一次,#586)。
     package private(set) var builtMessageCount = 0
+
+    /// 重算過的列數總計(測試用:附加新訊息只重算被改動的那一段,#586)。
+    package private(set) var recomputedRowCount = 0
 
     /// 畫面列的建構輸入(不是讀取與快取的真相:那在 `ConversationModel` 的 `recent`／`olderMessages`;這裡依 id 去重自保)。
     private var messages: [TranscriptMessage] = []
@@ -69,11 +72,16 @@ public struct ConversationTimeline: Sendable {
         let freshMessages = newMessages.filter { knownMessageIDs.insert($0.id).inserted }
         guard !freshMessages.isEmpty else { return Update(cause: .agentReply, changes: []) }
         messages += freshMessages
+        builder.items.resetTouched()
+        let previousCount = builder.items.count
         for message in freshMessages where !message.isSidechain {
             builder.add(message)
         }
         builtMessageCount += freshMessages.count
-        items = builder.items
+        // 沒有回音要合併時,列就是項目逐一換成列:只重算被改動的那一段,不走訪全部(#586)。
+        if pendingEchoes.isEmpty, rows.count == previousCount {
+            return refreshTail(from: min(builder.items.lowestTouched, previousCount))
+        }
         return refreshRows(cause: nil, prepending: false)
     }
 
@@ -85,7 +93,6 @@ public struct ConversationTimeline: Sendable {
         builtMessageCount += freshMessages.count
         if builder.prepend(Self.build(freshMessages)) {
             messages = freshMessages + messages
-            items = builder.items
             return refreshRows(cause: .olderLoaded, prepending: true)
         }
         return rebuild(from: freshMessages + messages, cause: .olderLoaded, prepending: true)
@@ -154,9 +161,10 @@ public struct ConversationTimeline: Sendable {
         knownMessageIDs = Set(newMessages.map(\.id))
         builtMessageCount += newMessages.count
         var freshBuilder = Self.build(newMessages)
-        Self.adoptIdentities(of: items, into: &freshBuilder.items)
+        var adopted = freshBuilder.items.values
+        Self.adoptIdentities(of: items, into: &adopted)
+        freshBuilder.items = Conversation.TrackedItems(adopted)
         builder = freshBuilder
-        items = builder.items
         return refreshRows(cause: cause, prepending: prepending)
     }
 
@@ -170,10 +178,29 @@ public struct ConversationTimeline: Sendable {
         return builder
     }
 
+    /// 附加新訊息後的增量更新(沒有回音待合併):只重算 `start` 之後的列與差異,其餘列原封不動。
+    private mutating func refreshTail(from start: Int) -> Update {
+        let all = builder.items.values
+        let previousTail = Array(rows[start...])
+        let newTail: [ConversationRow] = all[start...].map { item in
+            ConversationRow(id: rowIDByConfirmedItemID[item.id] ?? item.id, entry: .item(item))
+        }
+        rows.replaceSubrange(start..., with: newTail)
+        recomputedRowCount += newTail.count
+        let changes = Self.changes(from: previousTail, to: newTail, prepending: false, offset: start)
+        // 有列被移除才需要清狀態;單純附加或原地更新不必走訪全部。
+        if changes.contains(where: { if case .removed = $0 { true } else { false } }) { pruneState() }
+        let sentByUser = changes.contains { change in
+            if case .inserted(let row, _) = change, row.isUserSent { true } else { false }
+        }
+        return Update(cause: sentByUser ? .userSent : .agentReply, changes: changes)
+    }
+
     /// 依目前的項目與回音確認回音、重算列,回傳與上一版列的差異。`cause` 為 `nil` 時依內容推斷。
     private mutating func refreshRows(cause: Cause?, prepending: Bool) -> Update {
         let confirmedNow = confirmEchoes()
         let previousRows = rows
+        defer { recomputedRowCount += rows.count }
         rows = EchoTimeline.merge(items: items, echoes: pendingEchoes).map { entry in
             switch entry {
             case .item(let item): ConversationRow(id: rowIDByConfirmedItemID[item.id] ?? item.id, entry: entry)
@@ -247,7 +274,7 @@ public struct ConversationTimeline: Sendable {
         }
     }
 
-    private static func changes(from previousRows: [ConversationRow], to newRows: [ConversationRow], prepending: Bool) -> [Change] {
+    private static func changes(from previousRows: [ConversationRow], to newRows: [ConversationRow], prepending: Bool, offset: Int = 0) -> [Change] {
         var previousByID: [String: ConversationRow] = [:]
         for row in previousRows {
             previousByID[row.id] = row
@@ -256,9 +283,9 @@ public struct ConversationTimeline: Sendable {
         var changes: [Change] = previousRows.filter { !newIDs.contains($0.id) }.map { .removed(id: $0.id) }
         for (index, row) in newRows.enumerated() {
             if let previous = previousByID[row.id] {
-                if previous != row { changes.append(.updated(row, at: index)) }
+                if previous != row { changes.append(.updated(row, at: index + offset)) }
             } else {
-                changes.append(prepending ? .prepended(row, at: index) : .inserted(row, at: index))
+                changes.append(prepending ? .prepended(row, at: index + offset) : .inserted(row, at: index + offset))
             }
         }
         return changes

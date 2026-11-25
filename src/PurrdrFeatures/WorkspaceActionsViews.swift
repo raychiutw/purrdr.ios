@@ -410,7 +410,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             } message: { message in
                 Text(message)
             }
-            .reportsErrorDisplay(fingerprint: actions?.actionError?.hashValue ?? 0, area: "WorkspaceActions", isShowing: actions?.actionError != nil)
+            .reportsErrorDisplay(fingerprint: actions?.actionError?.hashValue ?? 0, message: actions?.actionError, area: "WorkspaceActions", isShowing: actions?.actionError != nil)
     }
 
     @ViewBuilder

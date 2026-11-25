@@ -71,3 +71,34 @@ struct ErrorRecordTests {
         #expect(off.sink.entries.count == 1)
     }
 }
+
+/// 顯示字串 → 錯誤類別與錯誤碼(#637):畫面只有字串時,記錄仍有真正的類別與錯誤碼。
+@MainActor
+struct ErrorMessageRegistryTests {
+    @Test("HostErrorText 轉出的說明,以字串查回錯誤的類別與 case 名稱")
+    func lookupAfterConversion() {
+        ErrorMessageRegistry.reset()
+        let text = HostErrorText.message(for: HostServiceError.paneChanged)
+        #expect(ErrorMessageRegistry.descriptor(for: text) == ErrorDescriptor(category: "HostServiceError", code: "paneChanged"))
+        let herdr = HostErrorText.message(for: HerdrError.herdr(code: "pane_not_found", message: "studio /Users/ray/secret"))
+        #expect(ErrorMessageRegistry.descriptor(for: herdr)?.code == "pane_not_found")
+    }
+
+    @Test("沒轉換過的固定文字查不到,記成 Message;登錄只存類別與碼、不含原文")
+    func unknownAndNoLeak() {
+        ErrorMessageRegistry.reset()
+        #expect(ErrorMessageRegistry.descriptor(for: "Unknown text") == nil)
+        let secret = "studio.tail1234.ts.net"
+        let text = HostErrorText.message(for: HerdrError.herdr(code: "x", message: secret))
+        let found = ErrorMessageRegistry.descriptor(for: text)
+        #expect(found.map { !$0.category.contains("studio") && !$0.code.contains("studio") } == true)
+    }
+
+    @Test("登錄只留最近 64 筆")
+    func bounded() {
+        ErrorMessageRegistry.reset()
+        for i in 0..<100 { ErrorMessageRegistry.note("m\(i)", .message) }
+        #expect(ErrorMessageRegistry.descriptor(for: "m0") == nil)
+        #expect(ErrorMessageRegistry.descriptor(for: "m99") != nil)
+    }
+}

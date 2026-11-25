@@ -273,6 +273,15 @@ public final class MergedAgentListModel {
         return projection
     }
 
+    /// 下一個「開啟紀錄跨過離開期間門檻」的時刻(沒有時 `nil`):畫面在那一刻重算,徽章不必等下一次無關的更新(#583)。
+    public func nextAwayTransition(after now: Date) -> Date? {
+        sources.compactMap { source in
+            source.actions.preferences.opened.values
+                .map { $0.addingTimeInterval(AwaySummary.threshold) }
+                .filter { $0 > now }.min()
+        }.min()
+    }
+
     /// 一次投影的結果(#583):Spaces 段落、需要你段落與「離開期間」的列共用。
     private struct Projection {
         var spaces: [SpacesSection]
@@ -293,6 +302,8 @@ public final class MergedAgentListModel {
     @ObservationIgnored private var projectionCache: (key: ProjectionKey, value: Projection)?
     /// 實際投影(重算)的次數;測試以它確認「一次 body 只投影一次、輸入沒變不重算」。
     @ObservationIgnored package private(set) var projectionCount = 0
+    /// 基礎投影(所有主機的 Spaces 段落)實際計算的次數;有主機篩選時一次重算也只算一次(#583)。
+    @ObservationIgnored package private(set) var basePassCount = 0
 
     /// 以輸入(各主機的快照、預覽、偏好、搜尋、目前主機、需要你順序…)比對的投影快取:輸入沒變直接回上次結果。
     /// 讀輸入仍會登記觀察,所以來源變了畫面照常更新。
@@ -304,11 +315,11 @@ public final class MergedAgentListModel {
         if let cache = projectionCache, cache.key == key { return cache.value }
         projectionCount += 1
         let filtered = currentHost.map { host in all.filter { $0.host == host } } ?? all
-        let spaces = AgentListProjection.spacesSections(sources: filtered, visible: key.visible, query: query)
-        // 沒有主機篩選時「需要你」與 Spaces 是同一批來源,共用同一份投影;有篩選才另外投影所有主機。
-        let needsYouTabs = currentHost == nil
-            ? spaces.flatMap(\.tabs)
-            : AgentListProjection.spacesSections(sources: all, visible: key.visible, query: query).flatMap(\.tabs)
+        // 基礎投影只算一次:Spaces(依主機篩選)與「需要你」(所有主機)各自在它上面過濾(#583)。
+        basePassCount += 1
+        let base = AgentListProjection.allSpacesSections(sources: all, visible: key.visible)
+        let spaces = AgentListProjection.filter(currentHost.map { host in base.filter { $0.host == host } } ?? base, query: query)
+        let needsYouTabs = (currentHost == nil ? spaces : AgentListProjection.filter(base, query: query)).flatMap(\.tabs)
         let away = filtered.flatMap { source in
             (source.snapshot?.agents ?? []).filter { ChatUnread.State(agent: $0, source: source, visible: key.visible).isAway }
                 .map { ChatRoute(host: source.host, paneID: $0.paneID) }

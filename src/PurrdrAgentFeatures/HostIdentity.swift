@@ -185,10 +185,12 @@ public final class InMemoryHostChatPreferencesStore: HostChatPreferencesStore {
     public func removeAll(for host: HostSelection) { byHost[host.storedValue] = nil }
 }
 
-/// 存在 `UserDefaults`,一個 key 存所有主機(`主機身分 → ChatPreferences`)。
+/// 存在 `UserDefaults`,每台主機一個 key(`<key>.<主機身分>` → `ChatPreferences`):改一台只編碼、寫入那一台,
+/// 其他主機的資料不動(#588)。
 ///
 /// 舊版(#39 之前)的 `chatPreferences` 沒有主機身分，無法判斷屬於哪台主機，第一次使用時**明確丟棄**:
 /// 套到每台主機會讓路徑型 session 在別台誤中，套到選取中主機則可能是錯的那台。#39 時 app 還沒上架，只影響開發裝置。
+/// 一個 key 存全部主機的版本(`chatPreferencesByHost`,0.52 以前)第一次使用時拆成每台一個 key 再移除。
 @MainActor
 public final class UserDefaultsHostChatPreferencesStore: HostChatPreferencesStore {
     private let defaults: UserDefaults
@@ -198,47 +200,53 @@ public final class UserDefaultsHostChatPreferencesStore: HostChatPreferencesStor
         self.defaults = defaults
         self.key = key
         defaults.removeObject(forKey: legacyKey)
+        migrateSingleBlob()
     }
 
     public func store(for host: HostSelection) -> any ChatPreferencesStore {
         ScopedChatPreferencesStore(scope: host.storedValue) { [unowned self] in
-            all[$0] ?? ChatPreferences()
+            preferences(for: $0)
         } save: { [unowned self] scope, preferences in
-            var all = all
-            all[scope] = preferences
-            self.all = all
+            write(preferences, for: scope)
         }
     }
 
     public func removeAll(for host: HostSelection) {
-        var all = all
-        all[host.storedValue] = nil
-        self.all = all
+        cache[host.storedValue] = nil
+        defaults.removeObject(forKey: storageKey(host.storedValue))
     }
 
-    /// 解碼結果留在記憶體,只解碼一次;寫入時更新記憶體再編碼存檔。
-    private var cache: [String: ChatPreferences]?
-    /// 解碼次數(測試守「只解碼一次」)。
+    /// 每台主機的解碼結果留在記憶體,各解碼一次;寫入時更新記憶體再只編碼那一台。
+    private var cache: [String: ChatPreferences] = [:]
+    /// 解碼與編碼次數(測試守「只解碼一次」「只寫變動的那一台」)。
     package private(set) var decodeCount = 0
+    package private(set) var encodeCount = 0
 
-    private var all: [String: ChatPreferences] {
-        get {
-            if let cache { return cache }
-            decodeCount += 1
-            let decoded: [String: ChatPreferences]
-            if let data = defaults.data(forKey: key),
-               let all = try? JSONDecoder().decode([String: ChatPreferences].self, from: data) {
-                decoded = all
-            } else {
-                decoded = [:]
+    private func storageKey(_ scope: String) -> String { "\(key).\(scope)" }
+
+    private func preferences(for scope: String) -> ChatPreferences {
+        if let cached = cache[scope] { return cached }
+        decodeCount += 1
+        let decoded = defaults.data(forKey: storageKey(scope)).flatMap { try? JSONDecoder().decode(ChatPreferences.self, from: $0) }
+            ?? ChatPreferences()
+        cache[scope] = decoded
+        return decoded
+    }
+
+    private func write(_ preferences: ChatPreferences, for scope: String) {
+        cache[scope] = preferences
+        encodeCount += 1
+        defaults.set(try? JSONEncoder().encode(preferences), forKey: storageKey(scope))
+    }
+
+    private func migrateSingleBlob() {
+        guard let data = defaults.data(forKey: key) else { return }
+        if let all = try? JSONDecoder().decode([String: ChatPreferences].self, from: data) {
+            for (scope, preferences) in all {
+                defaults.set(try? JSONEncoder().encode(preferences), forKey: storageKey(scope))
             }
-            cache = decoded
-            return decoded
         }
-        set {
-            cache = newValue
-            defaults.set(try? JSONEncoder().encode(newValue), forKey: key)
-        }
+        defaults.removeObject(forKey: key)
     }
 }
 

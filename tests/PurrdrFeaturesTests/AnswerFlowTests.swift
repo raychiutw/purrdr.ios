@@ -40,6 +40,19 @@ struct AnswerFlowTests {
 
     // MARK: 提示出現與消失
 
+    @Test("先解析再 observe(parsed:) 與直接 observe(screen:) 結果相同(#585)")
+    func parsedObserveEqualsScreenObserve() {
+        for screen in [Self.permission, Self.question, Self.idle] {
+            var direct = AnswerFlow()
+            var split = AnswerFlow()
+            let a = direct.observe(screen: screen, dialect: Self.dialect, Self.observation())
+            let parsed = AnswerFlow.parse(screen: screen, dialect: Self.dialect)
+            let b = split.observe(parsed: .some(parsed), Self.observation())
+            #expect(a == b)
+            #expect(direct == split)
+        }
+    }
+
     @Test("blocked 且畫面是選單:卡片出現、標記 Agent 在等")
     func menuAppears() {
         var flow = AnswerFlow(agentKind: "claude")

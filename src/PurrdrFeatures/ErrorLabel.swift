@@ -14,7 +14,7 @@ struct ErrorLabel: View {
     init(_ message: String, area: String, error: (any Error)? = nil) {
         self.message = message
         self.area = area
-        descriptor = error.map(ErrorDescriptor.init) ?? .message
+        descriptor = error.map(ErrorDescriptor.init) ?? ErrorMessageRegistry.descriptor(for: message) ?? .message
     }
 
     /// 錯誤圖示;停止列的送不出也用它(#220)。
@@ -34,8 +34,10 @@ struct ErrorLabel: View {
 extension View {
     /// 這個畫面元件顯示錯誤時記進操作記錄(見 `ErrorLabel`);alert 也用它。
     /// `isShowing` 為 false(沒有錯誤)時不記、並視為已消失。
-    func reportsErrorDisplay(fingerprint: Int, descriptor: ErrorDescriptor = .message, area: String, isShowing: Bool = true) -> some View {
-        modifier(ErrorDisplayReporting(fingerprint: fingerprint, descriptor: descriptor, area: area, isShowing: isShowing))
+    /// `message`:顯示的說明文字;沒有 `descriptor` 時以它查回產生它的錯誤的類別與錯誤碼(`ErrorMessageRegistry`)。
+    func reportsErrorDisplay(fingerprint: Int, descriptor: ErrorDescriptor? = nil, message: String? = nil, area: String, isShowing: Bool = true) -> some View {
+        let resolved = descriptor ?? message.flatMap(ErrorMessageRegistry.descriptor(for:)) ?? .message
+        return modifier(ErrorDisplayReporting(fingerprint: fingerprint, descriptor: resolved, area: area, isShowing: isShowing))
     }
 }
 
