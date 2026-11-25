@@ -1083,6 +1083,7 @@ private actor DemoBridgeSession: ExecSession {
 }
 
 /// 上傳到主機(圖片與一般檔案):收 stdin 到 EOF,大小相符就回上傳資料夾的路徑(內容不保存)。大小不符(上傳中斷)時失敗。
+/// `@unchecked`:可變的 `received`、`finished` 只在 `lock` 內讀寫,其餘是 `let`。
 private final class DemoHostUploadSession: ExecSession, @unchecked Sendable {
     let output: AsyncThrowingStream<ExecOutput, any Error>
     private let continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation

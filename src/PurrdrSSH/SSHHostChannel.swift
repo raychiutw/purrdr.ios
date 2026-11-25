@@ -458,8 +458,8 @@ enum SSHCallbackQueue {
 
 /// 連線結束的原因：先記下的為準(關閉的一方在關閉前記下;closeFuture 觸發時讀取)。
 /// 網路錯誤只存錯誤本身,組成描述字串(可能很吃 stack)留給背景佇列(`RawReason.resolved`)。
-final class DropReasonBox: @unchecked Sendable {
-    enum RawReason: @unchecked Sendable {
+final class DropReasonBox: @unchecked Sendable {  // 唯一可變狀態 `stored` 由 `lock` 保護
+    enum RawReason: Sendable {
         case reason(SSHDropReason)
         case networkError(any Error)
 
@@ -495,7 +495,7 @@ struct KeepaliveRounds: Sendable {
 }
 
 /// 目前要不要快速偵測斷線(主機通道設定，連線的 keepalive 讀取並在改變時重排)。
-final class KeepaliveCadence: @unchecked Sendable {
+final class KeepaliveCadence: @unchecked Sendable {  // `quick`、`changeHandler` 都由 `lock` 保護
     private let lock = NSLock()
     private var quick = false
     private var changeHandler: (@Sendable () async -> Void)?
@@ -518,7 +518,7 @@ final class KeepaliveCadence: @unchecked Sendable {
 }
 
 /// 上次 `reset()` 之後主機是否傳來過資料(keepalive 據此判斷連線最近有沒有活著的證據)。
-final class InboundActivityBox: @unchecked Sendable {
+final class InboundActivityBox: @unchecked Sendable {  // `received` 由 `lock` 保護
     private let lock = NSLock()
     private var received = false
 

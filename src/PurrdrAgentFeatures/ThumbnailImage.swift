@@ -2,7 +2,7 @@ import CoreGraphics
 import PurrdrCore
 
 /// 主機圖片解碼後的縮圖(#482),放在 `AgentFileLoads.thumbnails` 的記憶體快取。
-public struct ThumbnailImage: @unchecked Sendable {
+public struct ThumbnailImage: Sendable {
     public let image: CGImage
 
     public init(image: CGImage) { self.image = image }

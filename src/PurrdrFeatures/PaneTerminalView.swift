@@ -101,7 +101,8 @@ public struct TerminalSessionView: View {
 /// 放開控制要在 App 被系統凍結前送出:進背景時向系統要一小段執行時間,等 release 送完再還給系統。
 @MainActor
 enum BackgroundRelease {
-    private final class Token: @unchecked Sendable {
+    /// 只在主執行緒讀寫,所以標 `@MainActor`(自動是 Sendable)。
+    @MainActor private final class Token {
         var identifier = UIBackgroundTaskIdentifier.invalid
     }
 

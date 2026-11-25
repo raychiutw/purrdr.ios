@@ -84,7 +84,7 @@ private final class FirstCompletion: Sendable {
 }
 
 /// `URLSessionWebSocketTask` 的包裝。task 本身可跨執行緒使用。
-final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
+final class URLSessionWebSocket: WebSocketSession, Sendable {
     private let task: URLSessionWebSocketTask
     private let hostName: String?
 

@@ -46,6 +46,7 @@ public protocol PushHostNameSharing: Sendable {
 }
 
 /// 存在 `UserDefaults` 套件(正式是 App Group)的對應表。
+/// `@unchecked`:唯一的儲存屬性是 `let defaults`,`UserDefaults` 官方文件保證執行緒安全(只是型別沒標 Sendable);沒有其他可變狀態。
 public struct UserDefaultsPushHostNames: PushHostNameSharing, @unchecked Sendable {
     public static let appGroupID = "group.com.raychiu.purrdr"
     static let key = "push.hostNames"
