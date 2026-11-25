@@ -25,6 +25,38 @@ struct NewChatModelTests {
         FakeReply(stdout: Data(#"{"id":"purrdr:\#(method)","error":{"code":"\#(code)","message":"\#(message)"}}"#.utf8) + [0x0A], trigger: .afterStdinLine)
     }
 
+    // MARK: - 離開前確認(#621)
+
+    @Test("有未送出的輸入(資料夾、名稱、第一則訊息)才要在離開前確認;空白不算")
+    func unsentInputNeedsConfirmation() {
+        let model = Self.model(FakeHost())
+        #expect(!model.hasUnsentInput)
+        model.message = "   \n"
+        #expect(!model.hasUnsentInput, "只有空白不算輸入")
+        for edit: (NewChatModel) -> Void in [{ $0.folder = "~/app" }, { $0.workspaceName = "w" }, { $0.tabName = "t" }, { $0.message = "fix it" }] {
+            let fresh = Self.model(FakeHost())
+            edit(fresh)
+            #expect(fresh.hasUnsentInput)
+        }
+    }
+
+    @Test("資料夾瀏覽往下一層:子資料夾的路徑與家目錄沿用到下一層的 model")
+    func pickerChildLevelKeepsHome() async throws {
+        let host = FakeHost()
+        await host.expect(NewChatFolders.command(for: ""), reply: Self.listing("/Users/demo", ["ledger"]))
+        await host.expect(NewChatFolders.command(for: "/Users/demo/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: nil)
+        await picker.load()
+        let childPath = try #require(picker.childPath("ledger"))
+        #expect(childPath == "/Users/demo/ledger")
+
+        let child = picker.child(at: childPath)
+        #expect(child.startPath == "/Users/demo/ledger")
+        await child.load()
+        #expect(child.chosenPath == "/Users/demo/ledger")
+        #expect(child.breadcrumbs.first?.title == "~", "下一層仍以家目錄為 ~ 起點")
+    }
+
     // MARK: - 資料夾瀏覽
 
     @Test("一開始列出家目錄;點資料夾進去;上一層回到上層，在 / 不能再往上")

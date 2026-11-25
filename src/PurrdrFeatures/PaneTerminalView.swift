@@ -75,9 +75,10 @@ public struct TerminalSessionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                TerminalTitle(title: model.title, status: model.status, statusText: model.statusText, hostPicker: hostPicker)
+                TerminalTitle(title: model.title, status: model.status, statusText: model.statusText)
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if let hostPicker { HostMenuButton(model: hostPicker, identifier: "loginShell.host") }
                 FontSizeMenu(model: model)
             }
         }
@@ -170,28 +171,16 @@ struct TerminalTitle: View {
     let title: String
     let status: TerminalStatus
     let statusText: String
-    var hostPicker: HostPickerModel?
 
     var body: some View {
-        if let hostPicker {
-            // 主機挑選鈕是自己的按鈕;狀態另成一個元素，念出主機與狀態。
-            VStack(spacing: 2) {
-                SheetHostPicker(model: hostPicker, identifier: "loginShell.host")
-                statusRow
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "\(title), \(statusText)"))
-                    .accessibilityIdentifier("terminal.status")
-            }
-        } else {
-            VStack(spacing: 0) {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(1)
-                statusRow
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("terminal.status")
+        VStack(spacing: 0) {
+            Text(title)
+                .font(.headline)
+                .lineLimit(1)
+            statusRow
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("terminal.status")
     }
 
     private var statusRow: some View {

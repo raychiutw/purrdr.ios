@@ -31,9 +31,9 @@ struct HostSelectionMenu: View {
     }
 }
 
-/// sheet 與全螢幕畫面標題列中間的主機挑選鈕(新增聊天、登入 Shell;DESIGN.md「主機挑選鈕」):主機圖示＋名稱＋▾,
-/// 點了選另一台主機。頂層 tab 的主機選擇在共用頂列(`TopBarContent.hostMenu`),不用這個。
-struct SheetHostPicker: View {
+/// 新增聊天與登入 Shell 右上的電腦圖示選單(#621):選這個畫面用哪一台主機。全 app 選主機只有這一種長相
+/// (同頂列的電腦圖示),系統工具列按鈕、不自畫膠囊。
+struct HostMenuButton: View {
     let model: HostPickerModel
     let identifier: String
 
@@ -41,24 +41,8 @@ struct SheetHostPicker: View {
         Menu {
             HostSelectionMenu(model: model)
         } label: {
-            HStack(spacing: 6) {
-                HostIconBadge(model.selectedOption?.icon ?? .default, diameter: 24)
-                Text(verbatim: name)
-                    .font(.headline)
-                    .foregroundStyle(Color.primary)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityHidden(true)
-            }
-            .padding(.leading, 6)
-            .padding(.trailing, 10)
-            .frame(minHeight: TopBarMetrics.controlHeight)
-            .background { Capsule().fill(.fill.tertiary) }
-            .contentShape(Capsule())
+            Image(systemName: "desktopcomputer")
         }
-        .buttonStyle(.plain)
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label。
         .accessibilityLabel(Text("Host: \(name)"))
         .accessibilityIdentifier(identifier)

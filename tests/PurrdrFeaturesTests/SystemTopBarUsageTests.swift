@@ -85,3 +85,43 @@ struct FilesPushUsageTests {
         #expect(!view.contains("Text(\"This folder is empty.\")"), "空資料夾不要用純文字列")
     }
 }
+
+/// 新增聊天與登入 Shell:新增聊天是 push、選主機是右上電腦圖示選單,沒有標題膠囊(#621、spec #612)。
+@Suite("新增聊天 push 與選主機選單")
+struct NewChatPushUsageTests {
+    private func source(_ name: String) throws -> String {
+        try String(contentsOf: SystemTopBarUsageTests.featuresFolder.appending(path: name), encoding: .utf8)
+    }
+
+    @Test("標題膠囊 SheetHostPicker 不存在,新增聊天與登入 Shell 用右上電腦圖示選單")
+    func hostPickerIsToolbarMenu() throws {
+        for (name, text) in SystemTopBarUsageTests.featureFiles {
+            #expect(!text.contains("SheetHostPicker"), "\(name) 還在用標題膠囊選主機")
+        }
+        #expect(try source("HostPickerViews.swift").contains("struct HostMenuButton"))
+        let chat = try source("NewChatView.swift")
+        #expect(chat.contains("HostMenuButton("))
+        #expect(!chat.contains("placement: .principal"), "新增聊天標題用系統大標題,不放自畫的主機鈕")
+        #expect(try source("PaneTerminalView.swift").contains("HostMenuButton("))
+    }
+
+    @Test("新增聊天不是 sheet:沒有 NavigationStack、presentationDetents,由導覽 push")
+    func newChatIsPushed() throws {
+        let view = try source("NewChatView.swift")
+        for pattern in ["NavigationStack", "appSheet(", "presentationDragIndicator", "interactiveDismissDisabled"] {
+            #expect(!view.contains(pattern), "新增聊天是 push,不該有 \(pattern)")
+        }
+        let top = try source("TopNavigationView.swift")
+        #expect(top.contains(".navigationDestination(isPresented: $navigation.isNewChatOpen)"))
+        #expect(!top.contains("case .newChat:"), "新增聊天不再是 sheet 的一種")
+        #expect(!(try source("TopNavigationModel.swift")).contains("case newChat\n"), "TopLevelSheet 沒有 newChat")
+    }
+
+    @Test("新增聊天的資料夾瀏覽每往下一層是 push,頁面用 appGroupedList")
+    func folderPickerIsPushed() throws {
+        let view = try source("NewChatView.swift")
+        #expect(view.contains(".navigationDestination(for: NewChatFolderRoute.self)"))
+        #expect(view.contains("FolderPickerLevelView"))
+        #expect(!view.contains(".appSheetList()"), "pushed 頁面用 appGroupedList")
+    }
+}

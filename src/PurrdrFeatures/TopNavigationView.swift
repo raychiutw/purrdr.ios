@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 一個視窗的頂層導覽(#37 故事 21、#31)。
 ///
-/// 底部 4 個 tab:聊天、檔案、主機、流量(#376;設定併進帳號 sheet,#503);帳號與設定、新增聊天、付費牆與歡迎頁以 sheet 開啟。
+/// 底部 4 個 tab:聊天、檔案、主機、流量(#376;設定併進帳號 sheet,#503);帳號與設定、付費牆與歡迎頁以 sheet 開啟,新增聊天(#621)從聊天 tab 推入。
 /// 聊天 tab 依可用寬度排版(size class,不看裝置):寬視窗是兩欄 `NavigationSplitView`:Agent 列表(Spaces)→ 對話(#518;主機只看列表頂列的電腦圖示);
 /// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)是 `NavigationStack`,從 Agent 列表開始，點列推入對話(對話與終端機隱藏 tab bar)。
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
@@ -104,19 +104,6 @@ public struct TopNavigationView: View {
                         settings.rateApp()
                     } done: {
                         navigation.sheet = nil
-                    }
-                case .newChat:
-                    NewChatSheet(
-                        hosts: hosts, picker: hosts.screens.newChatHostPicker(preferring: navigation.newChatPreselection?.host),
-                        preselection: navigation.newChatPreselection
-                    ) {
-                        navigation.sheet = nil
-                    } onStarted: { workspace, host, unsentMessage in
-                        // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
-                        navigation.sheet = nil
-                        // agent 停在啟動問題時沒送的第一則訊息：放進聊天的輸入框，回答後自己送(#272)。
-                        if let unsentMessage { hosts.member(for: host).keepDraft(unsentMessage, paneID: workspace.rootPaneID) }
-                        Task { await hosts.openStartedChat(workspace, on: host) }
                     }
                 }
                 }
@@ -230,6 +217,7 @@ public struct TopNavigationView: View {
             canNewChatInWorkspace: actions.canNewChatInWorkspace,
             addHost: actions.addHost,
             account: AccountButtonPlacement.showsInTopBar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
+        @Bindable var navigation = navigation
         return AgentListView(
             model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
             prefetchConversations: actions.prefetchConversations
@@ -237,6 +225,21 @@ public struct TopNavigationView: View {
             hosts.member(for: route.host).conversation(route, sessionID: sessionID)
         } terminal: { route, title in
             hosts.member(for: route.host).terminal(paneID: route.paneID, title: title)
+        }
+        // 新增聊天從右推入(#621):左上「<」離開;開好後先退回列表再開新聊天。
+        .navigationDestination(isPresented: $navigation.isNewChatOpen) {
+            NewChatPage(
+                hosts: hosts, picker: hosts.screens.newChatHostPicker(preferring: navigation.newChatPreselection?.host),
+                preselection: navigation.newChatPreselection
+            ) {
+                navigation.isNewChatOpen = false
+            } onStarted: { workspace, host, unsentMessage in
+                navigation.isNewChatOpen = false
+                // agent 停在啟動問題時沒送的第一則訊息：放進聊天的輸入框，回答後自己送(#272)。
+                if let unsentMessage { hosts.member(for: host).keepDraft(unsentMessage, paneID: workspace.rootPaneID) }
+                Task { await hosts.openStartedChat(workspace, on: host) }
+            }
+            .appNavigationBackground()
         }
     }
 
@@ -347,7 +350,7 @@ final class RootActions {
 
     init(navigation: TopNavigationModel, hosts: HostsModel) {
         openBannerChat = { [weak navigation] in navigation?.selectedChat = $0 }
-        newChat = { [weak navigation] in navigation?.sheet = .newChat }
+        newChat = { [weak navigation] in navigation?.openNewChat() }
         newChatInWorkspace = { [weak navigation] in navigation?.startNewChat(inWorkspace: $1, on: $0) }
         canNewChatInWorkspace = { [weak hosts] in hosts?.supportsNewChatInWorkspace($0) ?? false }
         addHost = { [weak navigation] in navigation?.openAddHost() }
@@ -355,22 +358,22 @@ final class RootActions {
     }
 }
 
-/// 新增對話的 sheet:主機挑選鈕在 sheet 開啟時建立一次;換主機就在那台主機重建表單(#245)。
-private struct NewChatSheet: View {
+/// 新增對話頁:主機選單在頁面推入時建立一次;換主機就在那台主機重建表單(#245、#621)。
+private struct NewChatPage: View {
     let hosts: HostsModel
     @State private var picker: HostPickerModel
     let preselection: NewChatPreselection?
-    let onCancel: () -> Void
+    let onLeave: () -> Void
     let onStarted: (CreatedWorkspace, HostSelection, String?) -> Void
 
     init(
-        hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, preselection: NewChatPreselection?, onCancel: @escaping () -> Void,
+        hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, preselection: NewChatPreselection?, onLeave: @escaping () -> Void,
         onStarted: @escaping (CreatedWorkspace, HostSelection, String?) -> Void
     ) {
         self.hosts = hosts
         _picker = State(wrappedValue: picker())
         self.preselection = preselection
-        self.onCancel = onCancel
+        self.onLeave = onLeave
         self.onStarted = onStarted
     }
 
@@ -378,7 +381,7 @@ private struct NewChatSheet: View {
         let host = picker.selection
         // 預選只在主機沒被改掉時有效。
         let preselected = preselection.flatMap { $0.host == host ? $0.workspaceID : nil }
-        NewChatForm(model: hosts.member(for: host).newChat(preselectingWorkspace: preselected), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
+        NewChatForm(model: hosts.member(for: host).newChat(preselectingWorkspace: preselected), picker: picker, onLeave: onLeave) { onStarted($0, host, $1) }
             .id(host)
     }
 }
@@ -387,21 +390,21 @@ private struct NewChatSheet: View {
 private struct NewChatForm: View {
     @State private var model: NewChatModel
     let picker: HostPickerModel
-    let onCancel: () -> Void
+    let onLeave: () -> Void
     let onStarted: (CreatedWorkspace, String?) -> Void
 
     init(
-        model: @autoclosure () -> NewChatModel, picker: HostPickerModel, onCancel: @escaping () -> Void,
+        model: @autoclosure () -> NewChatModel, picker: HostPickerModel, onLeave: @escaping () -> Void,
         onStarted: @escaping (CreatedWorkspace, String?) -> Void
     ) {
         _model = State(wrappedValue: model())
         self.picker = picker
-        self.onCancel = onCancel
+        self.onLeave = onLeave
         self.onStarted = onStarted
     }
 
     var body: some View {
-        NewChatView(model: model, hostPicker: picker, onCancel: onCancel, onStarted: onStarted)
+        NewChatView(model: model, hostPicker: picker, onLeave: onLeave, onStarted: onStarted)
     }
 }
 

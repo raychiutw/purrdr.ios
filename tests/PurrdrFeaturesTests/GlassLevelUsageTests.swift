@@ -32,7 +32,8 @@ struct GlassLevelUsageTests {
 
     @Test("sheet 內的清單只隱藏預設底,不鋪不透明頁面底或列底")
     func sheetListsKeepSystemSurface() throws {
-        for name in ["ModelCapsule.swift", "NewChatView.swift"] {
+        // 新增聊天(#621)已是 push 的頁面,不是 sheet,不在這裡。
+        for name in ["ModelCapsule.swift"] {
             let text = try Self.source(name)
             #expect(!text.contains(".appGroupedList()"), "\(name) 的 sheet 清單改用 appSheetList()")
             #expect(text.contains(".appSheetList()"), "\(name) 找不到 appSheetList()")
@@ -50,10 +51,10 @@ struct GlassLevelUsageTests {
         #expect(!text.contains(".background("), "面板不鋪自訂底色")
     }
 
-    @Test("新增聊天 sheet 是部分高度")
-    func newChatIsPartialHeight() throws {
-        #expect(try Self.source("TopNavigationView.swift").contains("NewChatSheet"))
-        #expect(try Self.source("NewChatView.swift").contains("appSheet(detents: [.medium, .large])"))
+    @Test("新增聊天是 push 的頁面(#621),不是部分高度的 sheet")
+    func newChatIsPushedPage() throws {
+        #expect(try Self.source("TopNavigationView.swift").contains("NewChatPage"))
+        #expect(!(try Self.source("NewChatView.swift")).contains("appSheet(detents:"))
     }
 
     @Test("跳到最新鈕走 floatingGlass(減少透明度時不透明),不直接用 .glass 按鈕樣式")
