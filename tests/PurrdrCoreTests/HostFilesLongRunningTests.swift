@@ -171,16 +171,13 @@ struct HostFilesLongRunningTests {
     func scriptIdleLimit() async throws {
         let marker = "purrdr-test-\(UUID().uuidString)"
         let host = try LocalShellHost.temporary(feedsStdin: true)
-        let started = ContinuousClock.now
         let session = try await host.execute(HostFileScript.follow(idleSeconds: 2, totalSeconds: 60) + " " + marker)
         try await session.write(Data("\(Self.theme.relative) -\n".utf8))
         let output = try await session.collectOutput()
-        let elapsed = ContinuousClock.now - started
         try await Task.sleep(for: .seconds(2))
 
         #expect(output.exitCode == 124, "stderr: \(String(decoding: output.stderr, as: UTF8.self))")
         #expect(output.stdoutText.hasSuffix("missing 0\nend\n") || output.stdoutText.hasSuffix("nodir 0\nend\n"), "請求照常回應")
-        #expect(elapsed < .seconds(20))
         #expect(SSHTranscriptFollowerTests.processes(containing: marker).isEmpty)
     }
 

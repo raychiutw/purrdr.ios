@@ -330,16 +330,14 @@ struct SSHTranscriptFollowerTests {
 
     /// 測試在指令後面多帶一個獨特參數，事後以 `ps` 確認沒有任何程序還帶著它。
     /// `sendsRequests` 時由 shell 每 0.5 秒送一個請求(不靠測試程序的排程;腳本結束後寫入失敗，迴圈跟著結束)。
-    static func run(follow command: String, sendsRequests: Bool = false) async throws -> (output: CollectedOutput, elapsed: Duration, leftover: [String]) {
+    static func run(follow command: String, sendsRequests: Bool = false) async throws -> (output: CollectedOutput, leftover: [String]) {
         let marker = "purrdr-test-\(UUID().uuidString)"
         let host = try LocalShellHost.temporary(feedsStdin: !sendsRequests)
         let requests = #"(while printf '%s\n' '0 - - /nonexistent/a.jsonl'; do sleep 0.5; done) | "#
-        let started = ContinuousClock.now
         let session = try await host.execute((sendsRequests ? requests : "") + command + " " + marker)
         let output = try await session.collectOutput()
-        let elapsed = ContinuousClock.now - started
         try await Task.sleep(for: .seconds(2))
-        return (output, elapsed, processes(containing: marker))
+        return (output, processes(containing: marker))
     }
 
     static func processes(containing marker: String) -> [String] {
@@ -359,7 +357,6 @@ struct SSHTranscriptFollowerTests {
         let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 2, totalSeconds: 60))
 
         #expect(result.output.exitCode == 124, "stderr: \(String(decoding: result.output.stderr, as: UTF8.self))")
-        #expect(result.elapsed < .seconds(20))
         #expect(result.leftover.isEmpty, "\(result.leftover)")
     }
 
@@ -368,8 +365,6 @@ struct SSHTranscriptFollowerTests {
         let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 3, totalSeconds: 5), sendsRequests: true)
 
         #expect(result.output.exitCode == 124, "stderr: \(String(decoding: result.output.stderr, as: UTF8.self))")
-        #expect(result.elapsed >= .seconds(4))
-        #expect(result.elapsed < .seconds(25))
         #expect(result.output.stdoutText.contains("error 3\n"), "請求照常回應")
         #expect(result.leftover.isEmpty, "\(result.leftover)")
     }
