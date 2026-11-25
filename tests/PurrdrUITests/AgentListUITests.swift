@@ -46,7 +46,7 @@ final class AgentListUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
 
-        let search = app.chatSearch
+        let search = app.revealChatSearch()
         XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
         search.tap()
         search.typeEnglish("weather")

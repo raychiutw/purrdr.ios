@@ -199,7 +199,7 @@ extension XCUIApplication {
     /// 聊天頂列右上的用量環(#618:標題是系統導覽列標題,沒有識別碼;以這顆鈕當「聊天畫面已出現」的錨點)。
     var conversationBar: XCUIElement { buttons["conversation.usage"].firstMatch }
 
-    /// 聊天頂列的系統副標題(「主機 · 狀態」):導覽列裡含指定文字的靜態文字。
+    /// 聊天頂列的系統副標題(只有狀態文字):導覽列裡含指定文字的靜態文字。
     func conversationSubtitle(containing text: String) -> XCUIElement {
         navigationBars.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
