@@ -314,6 +314,11 @@ public final class NewChatModel {
         }
     }
 
+    /// 放棄新增聊天(取消或關掉畫面):主機上建了一半、agent 沒啟動的 Workspace 或 Tab 關掉，不留只有 shell 的 Tab。
+    public func discardUnstarted() async {
+        await launcher.discardUnstarted()
+    }
+
     private static func optional(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed

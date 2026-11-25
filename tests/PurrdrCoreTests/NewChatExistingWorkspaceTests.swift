@@ -67,6 +67,30 @@ struct NewChatExistingWorkspaceTests {
         #expect(executions[2].stdinText.contains(#""target":"w1:p3""#))
     }
 
+    @Test("Tab 編號到 10 以後是大寫字母(herdr 實測 w1:tA、w1:tG):agent 名稱轉成小寫,herdr 才接受")
+    func uppercaseTabIDIsLowercased() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.tabCreated(tab: "tG"))
+        await host.expect(Self.bridge, reply: NewChatLaunchTests.agentStarted(pane: "w1:p3"))
+
+        _ = try await NewChatLaunchTests.launcher(host).start(Self.request(tabLabel: "Test"))
+
+        let executions = await host.executions
+        #expect(executions[1].stdinText.contains(#""name":"test-tg""#))
+    }
+
+    @Test("Tab 名稱很長:加上 Tab 編號後仍在 32 字內")
+    func longLabelStaysWithinLimit() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.tabCreated(tab: "t1F"))
+        await host.expect(Self.bridge, reply: NewChatLaunchTests.agentStarted(pane: "w1:p3"))
+
+        _ = try await NewChatLaunchTests.launcher(host).start(Self.request(tabLabel: String(repeating: "x", count: 40)))
+
+        let executions = await host.executions
+        #expect(executions[1].stdinText.contains(#""name":"\#(String(repeating: "x", count: 28))-t1f""#))
+    }
+
     @Test("Workspace 已被桌機關掉:丟 workspace_not_found,不啟動 agent、不留下待關閉的東西")
     func workspaceGone() async throws {
         let host = FakeHost()
@@ -93,6 +117,36 @@ struct NewChatExistingWorkspaceTests {
         let executions = await host.executions
         #expect(executions.count == 3)
         #expect(executions[2].stdinText.contains(#""pane_id":"w1:p3""#))
+    }
+
+    @Test("agent 啟動失敗後放棄:關掉建了一半的 Tab,不留只有 shell 的 Tab;之後再放棄不重複關")
+    func abandoningClosesTheCreatedTab() async throws {
+        let host = FakeHost()
+        let launcher = NewChatLaunchTests.launcher(host)
+        await host.expect(Self.bridge, reply: Self.tabCreated(tab: "tG"))
+        await host.expect(Self.bridge, reply: NewChatLaunchTests.error("agent.start", code: "invalid_params"))
+        await #expect(throws: HerdrError.self) { try await launcher.start(Self.request()) }
+
+        await host.expect(Self.bridge, reply: Self.ok("tab.close"))
+        await launcher.discardUnstarted()
+        await launcher.discardUnstarted()
+
+        let executions = await host.executions
+        #expect(executions.count == 3)
+        #expect(executions.last?.stdinText == #"{"id":"purrdr:tab.close","method":"tab.close","params":{"tab_id":"w1:tG"}}"# + "\n")
+    }
+
+    @Test("成功後放棄(畫面關掉):什麼都不關")
+    func abandoningAfterSuccessClosesNothing() async throws {
+        let host = FakeHost()
+        let launcher = NewChatLaunchTests.launcher(host)
+        await host.expect(Self.bridge, reply: Self.tabCreated())
+        await host.expect(Self.bridge, reply: NewChatLaunchTests.agentStarted(pane: "w1:p3"))
+        _ = try await launcher.start(Self.request())
+
+        await launcher.discardUnstarted()
+
+        #expect(await host.executions.count == 2)
     }
 
     @Test("換目標:只關掉自己建立的 Tab(tab.close),絕不 workspace.close 使用者原本的 Workspace")

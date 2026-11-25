@@ -355,12 +355,25 @@ struct NewChatLaunchTests {
         #expect(executions[7].stdinText == Self.createLine(cwd: "/Users/demo/notes"))
     }
 
-    @Test("agent 名稱:NFKD 去掉組合符號、小寫、非英數變 -、最長 40 字;空的用 chat")
+    @Test("agent 名稱:NFKD 去掉組合符號、小寫、非英數變 -、最長 32 字(herdr 的規則);空的用 chat")
     func agentNameSlug() {
         #expect(NewChatRequest.agentName(for: "Café Ledger!") == "cafe-ledger")
         #expect(NewChatRequest.agentName(for: "  --Weather__App--  ") == "weather-app")
         #expect(NewChatRequest.agentName(for: "記帳") == "chat")
-        #expect(NewChatRequest.agentName(for: String(repeating: "a", count: 50)) == String(repeating: "a", count: 40))
-        #expect(NewChatRequest.agentName(for: String(repeating: "a", count: 39) + " b") == String(repeating: "a", count: 39))
+        #expect(NewChatRequest.agentName(for: String(repeating: "a", count: 50)) == String(repeating: "a", count: 32))
+        #expect(NewChatRequest.agentName(for: String(repeating: "a", count: 31) + " b") == String(repeating: "a", count: 31))
+    }
+
+    @Test("agent 名稱一律符合 herdr 的規則:小寫字母開頭、只有小寫英數與 - _、1 到 32 字(數字開頭的名稱前面加 chat-)")
+    func agentNameAlwaysValid() {
+        #expect(NewChatRequest.agentName(for: "2024 Plan") == "chat-2024-plan")
+        for label in ["2024 Plan", "123", "Test", String(repeating: "9", count: 50), "記帳 2", "-_-", "A" + String(repeating: "b", count: 40)] {
+            #expect(Self.isValidHerdrAgentName(NewChatRequest.agentName(for: label)), "\(label)")
+        }
+    }
+
+    /// herdr 的錯誤訊息:agent name must start with a lowercase letter and contain only lowercase letters, digits, '-' or '_' (1-32 characters)。
+    static func isValidHerdrAgentName(_ name: String) -> Bool {
+        name.wholeMatch(of: /[a-z][a-z0-9_-]{0,31}/) != nil
     }
 }

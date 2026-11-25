@@ -179,6 +179,8 @@ public struct NewChatView: View {
                 }
             }
         }
+        // 取消、下滑關掉或開好聊天後關閉:agent 沒啟動成功時建了一半的 Workspace／Tab 關掉(成功時沒有東西要關)。
+        .onDisappear { [model] in Task { await model.discardUnstarted() } }
         // 部分高度的系統 sheet,系統自動套玻璃(#425);鍵盤升起或內容多時系統自動拉到 large。
         .appSheet(detents: [.medium, .large])
         .presentationDragIndicator(.visible)
