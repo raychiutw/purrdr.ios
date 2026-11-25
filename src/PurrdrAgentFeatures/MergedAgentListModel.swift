@@ -248,10 +248,24 @@ public final class MergedAgentListModel {
 
     private var projectionSources: [AgentListProjection.Source] { sources.map(projectionSource(of:)) }
 
+    /// 剛關閉的 Tab 先從快照拿掉(連同它的 pane、Agent 與版面),不等重讀列表追上。
+    private static func withoutRecentlyClosedTabs(_ snapshot: HostSnapshot, actions: WorkspaceActionsModel) -> HostSnapshot {
+        let closed = Set(snapshot.tabs.map(\.id).filter { actions.isRecentlyClosed(tabID: $0) })
+        guard !closed.isEmpty else { return snapshot }
+        var trimmed = snapshot
+        let closedPanes = Set(snapshot.panes.filter { closed.contains($0.tabID) }.map(\.id))
+        trimmed.tabs.removeAll { closed.contains($0.id) }
+        trimmed.panes.removeAll { closed.contains($0.tabID) }
+        trimmed.agents.removeAll { agent in agent.tabID.map(closed.contains) ?? closedPanes.contains(agent.paneID) }
+        trimmed.layouts = trimmed.layouts?.filter { !closed.contains($0.tabID) }
+        return trimmed
+    }
+
     package func projectionSource(of source: Source) -> AgentListProjection.Source {
         var projection = AgentListProjection.Source(
             host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
-            name: source.name, icon: source.icon, snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
+            name: source.name, icon: source.icon, snapshot: source.list.snapshot.map { Self.withoutRecentlyClosedTabs($0, actions: source.actions) },
+            previews: source.list.previews, preferences: source.actions.preferences)
         for (route, count) in awayTurnCounts where route.host == source.host {
             let session = source.list.snapshot?.agents.first { $0.paneID == route.paneID }?.sessionID
             if let session, source.actions.preferences.opened[session] == count.openedAt { projection.awayTurns[route.paneID] = count.turns }

@@ -165,13 +165,17 @@ public actor NewChatLauncher {
 
     private var pending: Pending?
 
+    /// 各步驟的耗時(#635,寫進診斷記錄);`nil` 時不記。
+    private let timings: OperationTimingSink?
+
     public init(
         client: HerdrClient, folders: NewChatFolders,
-        sleep: @escaping Sleep = Sleeping.task
+        sleep: @escaping Sleep = Sleeping.task, timings: OperationTimingSink? = nil
     ) {
         self.client = client
         self.folders = folders
         self.sleep = sleep
+        self.timings = timings
     }
 
     /// 這支裝置是否配對成唯讀(HTTPS 主機;唯讀時不能新增聊天)。讀不到算不是。
@@ -211,16 +215,28 @@ public actor NewChatLauncher {
 
     /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)與第一則訊息送了沒有。
     public func start(_ request: NewChatRequest) async throws -> NewChatStarted {
+        // 每一步的耗時寫進診斷記錄(#635):續接與新增聊天分開命名，找出慢在哪一步。
+        let prefix = request.resumeSession == nil ? "newChat" : "resume"
+        return try await OperationTimer.measure("\(prefix).total", sink: timings) {
+            try await performStart(request, prefix: prefix)
+        }
+    }
+
+    private func step<T>(_ prefix: String, _ name: String, _ body: () async throws -> T) async throws -> T {
+        try await OperationTimer.measure("\(prefix).\(name)", sink: timings, body)
+    }
+
+    private func performStart(_ request: NewChatRequest, prefix: String) async throws -> NewChatStarted {
         let workspace: CreatedWorkspace
         let name: String
         switch request.target {
         case .newWorkspace:
-            let folder = try await folders.resolve(request.folder)
+            let folder = try await step(prefix, "resolveFolder") { try await folders.resolve(request.folder) }
             if case .workspace(let pendingFolder, let created)? = pending, pendingFolder == folder {
                 workspace = created
             } else {
                 await discardPending()
-                workspace = try await client.createWorkspace(cwd: folder, label: request.label, tabLabel: request.tabLabel)
+                workspace = try await step(prefix, "createWorkspace") { try await client.createWorkspace(cwd: folder, label: request.label, tabLabel: request.tabLabel) }
                 pending = .workspace(folder: folder, workspace)
             }
             name = NewChatRequest.agentName(for: request.label ?? Self.lastComponent(of: folder))
@@ -231,25 +247,25 @@ public actor NewChatLauncher {
                 tab = created
             } else {
                 await discardPending()
-                tab = try await client.createTab(in: id, label: request.tabLabel)
+                tab = try await step(prefix, "createTab") { try await client.createTab(in: id, label: request.tabLabel) }
                 pending = .tab(tab)
             }
             workspace = CreatedWorkspace(workspaceID: tab.workspaceID, rootPaneID: tab.rootPaneID)
             name = Self.agentName(forTab: tab, label: request.tabLabel, folder: request.folder)
         }
-        let outcome = try await startAgent(request, name: name, in: workspace)
+        let outcome = try await step(prefix, "startAgent") { try await startAgent(request, name: name, in: workspace) }
         // agent 已經啟動(不論是否就緒):不再是「建了卻沒啟動」的殘留,重試不該關掉或重建它。
         pending = nil
         var ready = outcome == .ready
         // HTTPS 主機服務已在主機端等過 agent 就緒(`launch_pending` 是等完的結果),不再輪詢 `agent.get`(那是 herdr 0.9.5 socket 的做法)。
         if outcome == .launchPending, try await client.hostServiceVersion() == nil {
-            ready = try await waitUntilInteractive(workspace.rootPaneID)
+            ready = try await step(prefix, "waitReady") { try await waitUntilInteractive(workspace.rootPaneID) }
         }
         let message = request.message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard ready, !message.isEmpty else { return NewChatStarted(workspace: workspace, sentMessage: false) }
         // 不等 agent 開始工作：送出後聊天畫面自己跟上(送不到時丟錯誤，不重送，§7.3)。
         do {
-            _ = try await client.prompt(target: workspace.rootPaneID, text: message, wait: nil)
+            _ = try await step(prefix, "prompt") { try await client.prompt(target: workspace.rootPaneID, text: message, wait: nil) }
         } catch HerdrError.herdr(code: "agent_not_ready", _), HerdrError.herdr(code: "agent_blocked", _) {
             // agent 還沒就緒(herdr:agent … is not an active named agent)或停在問題上:什麼都沒送出，訊息留給聊天輸入框。
             return NewChatStarted(workspace: workspace, sentMessage: false)

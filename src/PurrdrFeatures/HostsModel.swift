@@ -100,6 +100,8 @@ public final class HostsModel {
     public var haptics: any Haptics = SilentHaptics()
     /// 數據用量的流量計量(#353):建立主機連線時接上(之後建的連線才算;app 啟動時就設好)。
     public var trafficMeter: TrafficMeter?
+    /// 新增聊天／續接的步驟與 SSH 關鍵請求的耗時(#635);由 composition root 接到診斷記錄，在載入主機(建立連線)前設定。
+    public var operationTimings: OperationTimingSink?
     /// 成功送出幾次 prompt 後請求評分(#34);`nil` 時不請求。所有主機、所有聊天共用一份計數。
     public var reviewPrompt: ReviewPrompt?
     /// 送出可撤回的秒數(#300),每次送出時讀;預設讀本機偏好(設定頁改的那一個)。
@@ -235,7 +237,7 @@ public final class HostsModel {
             makeChannel: makeChannel, credentials: credentials, hostService: hostService, pushService: pushService,
             traffic: HostTrafficWiring(meter: { [weak self] in self?.trafficMeter }), diagnostics: diagnostics,
             recordOperatingSystem: { [weak self] operatingSystem, id in self?.recordOperatingSystem(operatingSystem, for: id) },
-            consent: hostConsent)
+            consent: hostConsent, operationTimings: { [weak self] in self?.operationTimings })
         sshAdapter = SSHHostAdapter(environment: environment)
         httpsAdapter = HTTPSHostAdapter(environment: environment)
         demoAdapter = DemoHostAdapter(channel: demoChannel, files: demoFiles, consent: demoConsent)
@@ -247,6 +249,7 @@ public final class HostsModel {
             haptics: { [weak self] in self?.haptics ?? SilentHaptics() },
             attachmentStore: attachmentStore,
             trafficMeter: { [weak self] in self?.trafficMeter },
+            operationTimings: { [weak self] in self?.operationTimings },
             undoSendSeconds: { [weak self] in self?.undoSendSeconds() ?? 0 },
             publicModelCatalog: publicModelCatalog,
             reviewPrompt: { [weak self] in self?.reviewPrompt },
