@@ -21,13 +21,13 @@ struct CrashDiagnosticsTests {
     nonisolated static let now = Date(timeIntervalSince1970: 1_800_000_000)
 
     static func reporter(_ store: MemoryCrashMarkerStore) -> CrashReporter {
-        CrashReporter(store: store, app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1", clock: { now })
+        CrashReporter(store: store, environment: DiagnosticEnvironment(app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1"), clock: { now })
     }
 
-    static func recorder(_ sink: RecordingHitchSink, enabled: Bool = true) -> HitchRecorder {
+    static func recorder(_ sink: RecordingDiagnosticSink, enabled: Bool = true) -> DiagnosticRecorder {
         let defaults = UserDefaults(suiteName: "crash-\(UUID().uuidString)")!
         defaults.set(enabled, forKey: HitchLogSettings.enabledKey)
-        return HitchRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { now })
+        return DiagnosticRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { now })
     }
 
     @Test("中止前同步寫一個標記:例外名稱、原因、時間、app 版本、iOS 版本、機型")
@@ -56,14 +56,14 @@ struct CrashDiagnosticsTests {
     func recoversPendingMarker() throws {
         let store = MemoryCrashMarkerStore()
         Self.reporter(store).exceptionWillTerminate(name: "NSRangeException", reason: "index 3 beyond bounds")
-        let sink = RecordingHitchSink()
+        let sink = RecordingDiagnosticSink()
         let recorder = Self.recorder(sink)
         Self.reporter(store).recoverPending(into: recorder)
 
         #expect(store.current == nil)
         #expect(sink.entries == [.crash(CrashRecord(
             timestamp: Self.now, name: "NSRangeException", reason: "index 3 beyond bounds",
-            app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1"))])
+            environment: DiagnosticEnvironment(app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1")))])
         // 再啟動一次不會重複記。
         Self.reporter(store).recoverPending(into: recorder)
         #expect(sink.entries.count == 1)
@@ -73,7 +73,7 @@ struct CrashDiagnosticsTests {
     func recordsCrashWhenHitchLoggingIsOff() {
         let store = MemoryCrashMarkerStore()
         Self.reporter(store).exceptionWillTerminate(name: "N", reason: "r")
-        let sink = RecordingHitchSink()
+        let sink = RecordingDiagnosticSink()
         let recorder = Self.recorder(sink, enabled: false)
         #expect(!recorder.isEnabled)
         Self.reporter(store).recoverPending(into: recorder)
@@ -84,7 +84,7 @@ struct CrashDiagnosticsTests {
     func discardsCorruptMarker() {
         let store = MemoryCrashMarkerStore()
         store.write(Data("not json".utf8))
-        let sink = RecordingHitchSink()
+        let sink = RecordingDiagnosticSink()
         Self.reporter(store).recoverPending(into: Self.recorder(sink))
         #expect(sink.entries.isEmpty)
         #expect(store.current == nil)
@@ -92,8 +92,8 @@ struct CrashDiagnosticsTests {
 
     @Test("編碼成 JSON Lines 的 crash 一行")
     func encodesCrashLine() throws {
-        let line = HitchLogEncoder.line(.crash(CrashRecord(
-            timestamp: Self.now, name: "N", reason: "r", app: "a", os: "o", device: "d")))
+        let line = DiagnosticLogEncoder.line(.crash(CrashRecord(
+            timestamp: Self.now, name: "N", reason: "r", environment: DiagnosticEnvironment(app: "a", os: "o", device: "d"))))
         let object = try #require(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
         #expect(object["kind"] as? String == "crash")
         #expect(object["name"] as? String == "N")
@@ -120,10 +120,10 @@ struct CrashDiagnosticsTests {
     func exportsAndClearsWithHitchLog() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("crash-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
-        let file = HitchLogFile(directory: directory)
-        file.append([.crash(CrashRecord(timestamp: Self.now, name: "N", reason: "r", app: "a", os: "o", device: "d")), HitchLogFileTests.entry(50)])
+        let file = DiagnosticLogFile(directory: directory)
+        file.append([.crash(CrashRecord(timestamp: Self.now, name: "N", reason: "r", environment: DiagnosticEnvironment(app: "a", os: "o", device: "d"))), DiagnosticLogFileTests.entry(50)])
         let url = try #require(await file.exportFile(meta: nil))
-        let lines = try HitchLogFileTests.lines(url)
+        let lines = try DiagnosticLogFileTests.lines(url)
         #expect(lines.count == 2)
         #expect(lines[0].contains("\"kind\":\"crash\""))
         await file.clear()

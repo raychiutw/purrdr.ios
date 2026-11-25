@@ -4,6 +4,7 @@ import Testing
 
 /// fixture 依 Apple 文件的 MXDiagnosticPayload／MXCrashDiagnostic `jsonRepresentation()` 形狀手寫
 /// (沒有真實裝置樣本;欄位名稱照文件,二進位 UUID 與位址為編造,不含個人資料)。
+/// TODO: 第一份 TestFlight 真實閃退報告回來後,以真實 payload 取代(或補上)這裡的 fixture。
 enum MetricKitCrashFixtures {
     static let full = Data("""
     {"timeStampBegin":"2026-11-24 08:00:00","timeStampEnd":"2026-11-25 08:00:00",
@@ -44,9 +45,9 @@ struct MetricKitCrashReportTests {
         #expect(report.terminationReason == "Namespace SIGNAL, Code 6 Abort trap: 6")
         #expect(report.exceptionName == "NSInternalInconsistencyException")
         #expect(report.exceptionReason == "invalid number of items in section 0")
-        #expect(report.app == "0.52.2 (7)")
-        #expect(report.os == "iOS 27.0.1")
-        #expect(report.device == "iPhone18,1")
+        #expect(report.environment.app == "0.52.2 (7)")
+        #expect(report.environment.os == "iOS 27.0.1")
+        #expect(report.environment.device == "iPhone18,1")
         // 只取被歸責的執行緒,由外往內
         #expect(report.frames == [
             "UIKitCore 11111111-2222-3333-4444-555555555555 +4096",
@@ -65,6 +66,29 @@ struct MetricKitCrashReportTests {
         #expect(report.frames.isEmpty)
     }
 
+    @Test("轉成閃退記錄:名稱用例外名稱;區間是 payload 的開頭到尾端")
+    func convertsToCrashRecordWithPeriod() throws {
+        let report = try #require(MetricKitCrashParser.parse(payloadJSON: MetricKitCrashFixtures.full).first)
+        let record = report.crashRecord
+        #expect(record.name == "NSInternalInconsistencyException")
+        #expect(record.nameIsKnown)
+        #expect(record.reason == "invalid number of items in section 0")
+        #expect(record.environment == report.environment)
+        #expect(record.timestamp == Date(timeIntervalSince1970: 1_795_593_600))
+        #expect(record.reportPeriod == Date(timeIntervalSince1970: 1_795_507_200)...Date(timeIntervalSince1970: 1_795_593_600))
+    }
+
+    @Test("轉成閃退記錄:沒有例外名稱時用終止原因、再沒有就是 crash,而且標成名稱不明")
+    func convertsToCrashRecordWithoutExceptionName() throws {
+        let runtime = try #require(MetricKitCrashParser.parse(payloadJSON: MetricKitCrashFixtures.swiftRuntime).first)
+        #expect(runtime.crashRecord.name == "crash")
+        #expect(!runtime.crashRecord.nameIsKnown)
+        var withReason = runtime
+        withReason.terminationReason = "Namespace SIGNAL, Code 4"
+        #expect(withReason.crashRecord.name == "Namespace SIGNAL, Code 4")
+        #expect(!withReason.crashRecord.nameIsKnown)
+    }
+
     @Test("沒有閃退診斷或不是 JSON:回空")
     func nothingToParse() {
         #expect(MetricKitCrashParser.parse(payloadJSON: MetricKitCrashFixtures.noCrash).isEmpty)
@@ -81,17 +105,17 @@ struct MetricKitCrashReportTests {
     }
 
     @MainActor
-    @Test("轉成記錄:寫進診斷記錄,同一份報告重複送來只記一次(跨重啟)")
+    @Test("轉成記錄:寫進診斷記錄,同一份報告重複送來只記一次(跨重啟:同一份已見過的鍵)")
     func deduplicates() throws {
-        let suite = "mkcrash-\(UUID().uuidString)"
-        let sink = RecordingHitchSink()
-        let defaults = UserDefaults(suiteName: suite)!
-        let recorder = HitchRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { Date() })
-        let first = MetricKitCrashIntake(recorder: recorder, defaults: defaults)
+        let sink = RecordingDiagnosticSink()
+        let defaults = UserDefaults(suiteName: "mkcrash-\(UUID().uuidString)")!
+        let recorder = DiagnosticRecorder(sink: sink, defaults: defaults, system: { .sample }, wallClock: { Date() })
+        // 重啟以同一份儲存模擬:新的 intake 讀同一份已見過的鍵。
+        let seen = InMemoryMetricKitCrashSeenStore()
+        let first = MetricKitCrashIntake(recorder: recorder, seen: seen)
         first.ingest(payloadJSON: MetricKitCrashFixtures.full)
         first.ingest(payloadJSON: MetricKitCrashFixtures.full)
-        // 重啟:新的 intake 讀同一份 defaults
-        MetricKitCrashIntake(recorder: recorder, defaults: defaults).ingest(payloadJSON: MetricKitCrashFixtures.full)
+        MetricKitCrashIntake(recorder: recorder, seen: seen).ingest(payloadJSON: MetricKitCrashFixtures.full)
         let crashes = sink.entries.compactMap { entry -> MetricKitCrashReport? in
             if case .crashReport(let report) = entry { report } else { nil }
         }
@@ -101,10 +125,22 @@ struct MetricKitCrashReportTests {
         #expect(sink.entries.count == 2)
     }
 
+    @Test("已見過的鍵:UserDefaults 版跨實例保留,只留最近 50 筆")
+    func userDefaultsSeenStoreKeepsRecentKeys() {
+        let defaults = UserDefaults(suiteName: "mkseen-\(UUID().uuidString)")!
+        let first = UserDefaultsMetricKitCrashSeenStore(defaults: defaults)
+        #expect(first.keys.isEmpty)
+        first.keys = (0..<60).map { "k\($0)" }
+        let second = UserDefaultsMetricKitCrashSeenStore(defaults: defaults)
+        #expect(second.keys.count == MetricKitCrashIntake.maxSeen)
+        #expect(second.keys.first == "k10")
+        #expect(second.keys.last == "k59")
+    }
+
     @Test("匯出的一行 JSON 帶 kind、時間與版本,能與標記檔記錄對上")
     func encodesLine() throws {
         let report = try #require(MetricKitCrashParser.parse(payloadJSON: MetricKitCrashFixtures.full).first)
-        let line = HitchLogEncoder.line(.crashReport(report))
+        let line = DiagnosticLogEncoder.line(.crashReport(report))
         let object = try #require(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
         #expect(object["kind"] as? String == "crashReport")
         #expect(object["app"] as? String == "0.52.2 (7)")

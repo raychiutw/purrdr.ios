@@ -15,13 +15,13 @@ public struct MetricKitCrashReport: Equatable, Sendable {
     public var exceptionReason: String?
     /// 被歸責執行緒的呼叫堆疊,由外往內,每列 `二進位名稱 UUID +位移`。
     public var frames: [String]
-    public var app: String
-    public var os: String
-    public var device: String
+    public var environment: DiagnosticEnvironment
+    /// payload 時間區間的開頭(`timestamp` 是尾端)。
+    public var periodStart: Date?
 
     public init(
         timestamp: Date, exceptionType: Int?, signal: Int?, terminationReason: String?, exceptionName: String?,
-        exceptionReason: String?, frames: [String], app: String, os: String, device: String
+        exceptionReason: String?, frames: [String], environment: DiagnosticEnvironment, periodStart: Date? = nil
     ) {
         self.timestamp = timestamp
         self.exceptionType = exceptionType
@@ -30,9 +30,17 @@ public struct MetricKitCrashReport: Equatable, Sendable {
         self.exceptionName = exceptionName
         self.exceptionReason = exceptionReason
         self.frames = frames
-        self.app = app
-        self.os = os
-        self.device = device
+        self.environment = environment
+        self.periodStart = periodStart
+    }
+
+    /// 轉成診斷記錄裡的閃退記錄(啟動提示比對用):名稱優先用例外名稱,沒有就用終止原因;
+    /// 區間是 payload 的開頭到尾端(`timestamp` 是尾端,不是閃退當下)。
+    public var crashRecord: CrashRecord {
+        CrashRecord(
+            timestamp: timestamp, name: exceptionName ?? terminationReason ?? "crash", reason: exceptionReason ?? "",
+            environment: environment, reportPeriod: min(periodStart ?? timestamp, timestamp)...timestamp,
+            nameIsKnown: exceptionName != nil)
     }
 
     /// 去重用的鍵:報告時間與內容(類型、訊號、例外、堆疊)。
@@ -65,10 +73,11 @@ public enum MetricKitCrashParser {
             let diagnostics = root["crashDiagnostics"] as? [[String: Any]]
         else { return [] }
         let timestamp = date(root["timeStampEnd"]) ?? date(root["timeStampBegin"]) ?? Date(timeIntervalSince1970: 0)
-        return diagnostics.map { report(from: $0, timestamp: timestamp) }
+        let start = date(root["timeStampBegin"])
+        return diagnostics.map { report(from: $0, timestamp: timestamp, periodStart: start) }
     }
 
-    private static func report(from diagnostic: [String: Any], timestamp: Date) -> MetricKitCrashReport {
+    private static func report(from diagnostic: [String: Any], timestamp: Date, periodStart: Date?) -> MetricKitCrashReport {
         let meta = diagnostic["diagnosticMetaData"] as? [String: Any] ?? [:]
         let objc = meta["objectiveCexceptionReason"] as? [String: Any]
         let version = meta["appVersion"] as? String ?? "?"
@@ -81,7 +90,9 @@ public enum MetricKitCrashParser {
             exceptionName: text(objc?["exceptionName"]),
             exceptionReason: text(objc?["composedMessage"] ?? objc?["message"]),
             frames: frames(from: diagnostic["callStackTree"] as? [String: Any]),
-            app: "\(version) (\(build))", os: os(meta["osVersion"] as? String), device: meta["deviceType"] as? String ?? "?")
+            environment: DiagnosticEnvironment(
+                app: "\(version) (\(build))", os: os(meta["osVersion"] as? String), device: meta["deviceType"] as? String ?? "?"),
+            periodStart: periodStart)
     }
 
     private static func text(_ value: Any?) -> String? {
@@ -124,29 +135,48 @@ public enum MetricKitCrashParser {
     }
 }
 
+/// 已記過的 MetricKit 閃退報告鍵(最近 `MetricKitCrashIntake.maxSeen` 筆)。
+public protocol MetricKitCrashSeenStoring: AnyObject {
+    var keys: [String] { get set }
+}
+
+public final class InMemoryMetricKitCrashSeenStore: MetricKitCrashSeenStoring {
+    public var keys: [String]
+    public init(keys: [String] = []) { self.keys = keys }
+}
+
+public final class UserDefaultsMetricKitCrashSeenStore: MetricKitCrashSeenStoring {
+    static let defaultsKey = "diagnostics.metricKitCrashSeen"
+    private let defaults: UserDefaults
+    public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    public var keys: [String] {
+        get { defaults.stringArray(forKey: Self.defaultsKey) ?? [] }
+        set { defaults.set(Array(newValue.suffix(MetricKitCrashIntake.maxSeen)), forKey: Self.defaultsKey) }
+    }
+}
+
 /// 把 MetricKit 的閃退報告寫進診斷記錄(一律記,不看卡頓開關),並以「報告時間＋內容」去重。
-/// 已記過的鍵存在 `defaults`(最近 50 筆),MetricKit 重送或 app 重啟後再收到也不重複。
+/// 已記過的鍵存在 `seen`(最近 50 筆),MetricKit 重送或 app 重啟後再收到也不重複。
 @MainActor
 public final class MetricKitCrashIntake {
-    static let seenKey = "diagnostics.metricKitCrashSeen"
-    static let maxSeen = 50
+    nonisolated static let maxSeen = 50
 
-    private let recorder: HitchRecorder
-    private let defaults: UserDefaults
+    private let recorder: DiagnosticRecorder
+    private let seen: any MetricKitCrashSeenStoring
 
-    public init(recorder: HitchRecorder, defaults: UserDefaults = .standard) {
+    public init(recorder: DiagnosticRecorder, seen: any MetricKitCrashSeenStoring = UserDefaultsMetricKitCrashSeenStore()) {
         self.recorder = recorder
-        self.defaults = defaults
+        self.seen = seen
     }
 
     public func ingest(payloadJSON: Data) {
-        var seen = defaults.stringArray(forKey: Self.seenKey) ?? []
+        var keys = seen.keys
         for report in MetricKitCrashParser.parse(payloadJSON: payloadJSON) {
             let key = report.dedupKey
-            guard !seen.contains(key) else { continue }
-            seen.append(key)
+            guard !keys.contains(key) else { continue }
+            keys.append(key)
             recorder.recordCrashReport(report)
         }
-        defaults.set(Array(seen.suffix(Self.maxSeen)), forKey: Self.seenKey)
+        seen.keys = Array(keys.suffix(Self.maxSeen))
     }
 }

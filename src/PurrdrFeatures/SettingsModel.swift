@@ -109,12 +109,12 @@ public final class SettingsModel {
     private let defaults: UserDefaults
     private let platform: any PlatformServices
     private let links: SettingsLinks
-    private let hitchRecorder: HitchRecorder?
+    private let hitchRecorder: DiagnosticRecorder?
 
     public init(
         app: AppInfo, hostCount: @escaping @MainActor () -> Int, defaults: UserDefaults,
         platform: any PlatformServices, links: SettingsLinks, usageDisplay: UsageDisplaySetting = UsageDisplaySetting(),
-        hitchRecorder: HitchRecorder? = nil
+        hitchRecorder: DiagnosticRecorder? = nil
     ) {
         self.hitchRecorder = hitchRecorder
         recordsHitches = hitchRecorder?.isEnabled ?? false

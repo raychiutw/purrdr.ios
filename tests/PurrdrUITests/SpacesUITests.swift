@@ -119,9 +119,13 @@ final class SpacesUITests: XCTestCase {
         let confirm = app.buttons["closeTab.confirm"].firstMatch
         XCTAssertTrue(confirm.waitUntilExists(timeout: 5))
         confirm.tap()
-        sleep(3)
+        // 等列消失(或 app 閃退)就停,不用固定等待;閃退時 `app.state` 不再是前景,下面的斷言會失敗。
+        _ = UITestWait.until(timeout: 10) { app.state != .runningForeground || !first.existsWithoutIdle }
         XCTAssertEqual(app.state, .runningForeground, "關掉需要你的 Tab 後 app 閃退了")
-        XCTAssertTrue(first.waitUntilGone(timeout: 10), "關閉後 Tab 還在")
+        XCTAssertFalse(first.existsWithoutIdle, "關閉後 Tab 還在")
+        // 列表更新後 app 還要能回應(閃退時取不到畫面);頂列的帳號鈕在才算活著。
+        XCTAssertTrue(app.element("toolbar.account").waitUntilExists(timeout: 5), "關掉 Tab 後畫面沒有回應")
+        XCTAssertEqual(app.state, .runningForeground, "關掉需要你的 Tab 後 app 閃退了")
     }
 
     /// 長按 Tab 列改的是那個 Tab;長按 Workspace 標題改 Workspace(#456)。

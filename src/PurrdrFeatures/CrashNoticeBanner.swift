@@ -46,11 +46,17 @@ struct CrashNoticeBanner: View {
         .accessibilityAction(.escape) { model.dismiss() }
         .accessibilityIdentifier("crashNotice.banner")
         // 出現時念出來。
-        .onAppear { AccessibilityNotification.Announcement(String(localized: "Purrdr closed unexpectedly last time")).post() }
+        .onAppear {
+            model.didShow()
+            AccessibilityNotification.Announcement(String(localized: "Purrdr closed unexpectedly last time")).post()
+        }
+        // 提示開著時又換成另一筆閃退,也在顯示時記下。
+        .onChange(of: model.pending) { _, _ in model.didShow() }
     }
 }
 
-/// 把橫幅掛在視窗頂端:只在 `CrashNoticeModel` 指定的那個視窗顯示;App 鎖定中等解鎖後才 `reveal`。
+/// 把橫幅掛在視窗頂端:只在 `CrashNoticeModel` 指定的那個視窗顯示;App 鎖定中不顯示,解鎖後出現。
+/// 直接觀察 `AppLock.isLocked`,不經 `whenUnlocked`(那只留一個等待導航,會和推播點擊導航互相覆蓋)。
 struct CrashNoticeModifier: ViewModifier {
     let model: CrashNoticeModel?
     let appLock: AppLock?
@@ -59,17 +65,13 @@ struct CrashNoticeModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay(alignment: .top) {
-                if let model, model.isShown(in: window) {
+                if let model, model.isShown(in: window, appLocked: appLock?.isLocked ?? false) {
                     CrashNoticeBanner(model: model)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .onAppear { model?.attach(window: window) }
             .onDisappear { model?.detach(window: window) }
-            .onChange(of: model?.pending, initial: true) { _, pending in
-                guard pending != nil, let model else { return }
-                if let appLock { appLock.whenUnlocked { model.reveal() } } else { model.reveal() }
-            }
     }
 }
 
@@ -78,14 +80,3 @@ extension View {
         modifier(CrashNoticeModifier(model: model, appLock: appLock))
     }
 }
-
-#if os(iOS)
-extension HitchRecorder {
-    /// UI 測試旗標 `-uiTestingCrashRecord`:預放一筆「上次異常結束」的閃退記錄。
-    public func recordUITestingCrash() {
-        recordCrash(CrashRecord(
-            timestamp: Date(), name: "NSInternalInconsistencyException", reason: "UI testing",
-            app: HitchSystemState.appText, os: HitchSystemState.osText, device: HitchSystemState.deviceIdentifier))
-    }
-}
-#endif

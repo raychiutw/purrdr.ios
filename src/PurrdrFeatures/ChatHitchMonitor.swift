@@ -4,7 +4,7 @@ import SwiftUI
 
 extension EnvironmentValues {
     /// 捲動卡頓記錄器(app 的 composition root 注入;沒注入時聊天列表不記錄)。
-    @Entry public var hitchRecorder: HitchRecorder?
+    @Entry public var hitchRecorder: DiagnosticRecorder?
 }
 
 #if os(iOS)
@@ -15,9 +15,9 @@ import UIKit
 @MainActor
 final class HitchFitTimer {
     var isActive = false
-    private weak var recorder: HitchRecorder?
+    private weak var recorder: DiagnosticRecorder?
 
-    init(recorder: HitchRecorder) { self.recorder = recorder }
+    init(recorder: DiagnosticRecorder) { self.recorder = recorder }
 
     func record(startNanoseconds: UInt64) {
         let elapsed = DispatchTime.now().uptimeNanoseconds &- startNanoseconds
@@ -29,7 +29,7 @@ final class HitchFitTimer {
 /// 回呼裡只讀幾個數字交給記錄器累加,不做 I/O(寫檔由記錄器定時交給背景佇列)。
 @MainActor
 final class ChatHitchMonitor {
-    let recorder: HitchRecorder
+    let recorder: DiagnosticRecorder
     let fitTimer: HitchFitTimer
     private weak var scrollView: UIScrollView?
     private let visibleCells: () -> Int
@@ -38,7 +38,7 @@ final class ChatHitchMonitor {
     private var previousOffset: (y: Double, timestamp: Double)?
     private var owner: ObjectIdentifier { ObjectIdentifier(self) }
 
-    init(recorder: HitchRecorder, scrollView: UIScrollView, visibleCells: @escaping () -> Int) {
+    init(recorder: DiagnosticRecorder, scrollView: UIScrollView, visibleCells: @escaping () -> Int) {
         self.recorder = recorder
         self.scrollView = scrollView
         self.visibleCells = visibleCells
@@ -130,20 +130,6 @@ private final class DisplayLinkTarget: NSObject {
     }
 }
 
-// MARK: - 閃退診斷
-
-extension CrashExceptionHandler {
-    /// 啟動時呼叫:先把上次留下的待處理閃退標記轉成記錄,再安裝例外處理器。
-    @MainActor
-    public static func installAtLaunch(recorder: HitchRecorder) {
-        let reporter = CrashReporter(
-            store: FileCrashMarkerStore.applicationSupport(), app: HitchSystemState.appText, os: HitchSystemState.osText,
-            device: HitchSystemState.deviceIdentifier)
-        reporter.recoverPending(into: recorder)
-        install(reporter)
-    }
-}
-
 // MARK: - 系統狀態
 
 extension HitchSystemState {
@@ -159,14 +145,26 @@ extension HitchSystemState {
         case .critical: thermal = "critical"
         @unknown default: thermal = "unknown"
         }
+        let environment = DiagnosticEnvironment.current
         return HitchSystemState(
             thermal: thermal, lowPower: info.isLowPowerModeEnabled,
             reduceTransparency: UIAccessibility.isReduceTransparencyEnabled, reduceMotion: UIAccessibility.isReduceMotionEnabled,
-            device: deviceIdentifier, os: osText, app: appText, textSize: "", maxFramesPerSecond: 0)
+            device: environment.device, os: environment.os, app: environment.app, textSize: "", maxFramesPerSecond: 0)
+    }
+}
+
+extension DiagnosticEnvironment {
+    /// 這支裝置、這個 app 目前的版本與機型。
+    public static var current: DiagnosticEnvironment {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let info = Bundle.main.infoDictionary ?? [:]
+        return DiagnosticEnvironment(
+            app: "\(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))",
+            os: "iOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)", device: deviceIdentifier)
     }
 
     /// 機型代碼(模擬器用它模擬的機型),不是裝置名稱。
-    static var deviceIdentifier: String {
+    private static var deviceIdentifier: String {
         if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] { return simulated }
         var system = utsname()
         uname(&system)
@@ -174,27 +172,17 @@ extension HitchSystemState {
             $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) { String(cString: $0) }
         }
     }
-
-    static var osText: String {
-        let version = ProcessInfo.processInfo.operatingSystemVersion
-        return "iOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
-    }
-
-    static var appText: String {
-        let info = Bundle.main.infoDictionary ?? [:]
-        return "\(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))"
-    }
 }
 
 // MARK: - MetricKit
 
 /// 訂閱 MetricKit 的每日 payload,把 `scrollHitchTimeRatio` 與當機掛起(hang)診斷的摘要寫進同一份記錄(只有數字)。
 public final class HitchMetricKitSubscriber: NSObject, MXMetricManagerSubscriber {
-    private let recorder: HitchRecorder
+    private let recorder: DiagnosticRecorder
     private let crashIntake: MetricKitCrashIntake
 
     @MainActor
-    public init(recorder: HitchRecorder) {
+    public init(recorder: DiagnosticRecorder) {
         self.recorder = recorder
         crashIntake = MetricKitCrashIntake(recorder: recorder)
         super.init()
