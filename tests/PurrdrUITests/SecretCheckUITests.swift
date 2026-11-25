@@ -31,6 +31,12 @@ final class SecretCheckUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'hunter2024'")).firstMatch.exists,
                        "說明不應顯示內容本身")
 
+        app.assertModalToolbar(close: "secretCheck.close")
+        app.buttons["secretCheck.close"].tap()
+        XCTAssertTrue(sheet.waitUntilGone(timeout: 5), "左上 X 應等於返回編輯")
+        XCTAssertEqual(text.value as? String, message, "左上 X 應把文字放回輸入框")
+        send.tap()
+        XCTAssertTrue(sheet.waitUntilExists(timeout: 5))
         app.element("secretCheck.backToEditing").tap()
         XCTAssertTrue(sheet.waitUntilGone(timeout: 5), "返回編輯後 sheet 應關閉")
         XCTAssertEqual(text.value as? String, message, "返回編輯應把文字放回輸入框")

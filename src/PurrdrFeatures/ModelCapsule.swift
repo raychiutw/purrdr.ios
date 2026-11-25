@@ -52,7 +52,6 @@ struct ModelCapsule: View {
         .accessibilityIdentifier("composer.model")
         .sheet(isPresented: $isPresented, onDismiss: { Task { await model.finishChoosingModel() } }) {
             ModelSheet(model: model)
-                .appSheetBackground()
         }
     }
 }

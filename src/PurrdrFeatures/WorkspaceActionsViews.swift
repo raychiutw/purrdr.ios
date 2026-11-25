@@ -350,7 +350,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     func body(content: Content) -> some View {
         content
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
-                if let actions { sheetContent(sheet, actions: actions).appSheetBackground() }
+                if let actions { sheetContent(sheet, actions: actions) }
             }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
@@ -531,13 +531,10 @@ struct NewWorktreeSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(actions.isWorking ? "Creating…" : "Create", action: create)
-                        .disabled(!canCreate)
-                }
+                SheetCloseToolbar()
+                ModalConfirmToolbar(
+                    title: actions.isWorking ? "Creating…" : "Create", identifier: "workspace.worktree.create",
+                    isEnabled: canCreate, action: create)
             }
         }
         .appSheet(detents: [.medium, .large])

@@ -3149,13 +3149,13 @@
         }
       }
     },
-    "Combine Members" : {
+    "Combine" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "合併會員"
+            "value" : "合併"
           }
         }
       }

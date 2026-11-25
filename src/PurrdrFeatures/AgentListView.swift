@@ -438,14 +438,12 @@ struct ConversationScreen: View {
             .onChange(of: model.modelName) { _, name in usageSection?.activeGroup = name.flatMap(PlanUsage.Group.init(modelName:)) }
             .sheet(isPresented: $showsUsage) {
                 ConversationUsageSheet(model: model, section: usageSection, display: usageContext?.display.display ?? .used)
-                    .appSheetBackground()
             }
             .modifier(ConversationInspectorModifier(
                 window: window, model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used))
-            .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model).appSheetBackground() }
+            .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model) }
             .sheet(isPresented: $isChoosingModel, onDismiss: { Task { await model.finishChoosingModel() } }) {
                 ModelSheet(model: model)
-                    .appSheetBackground()
             }
             // 工作中膠囊的子 Agent 數被點了:開背景子 Agent sheet。
             .onChange(of: model.showsBackgroundAgentsSheet) { _, shown in
@@ -463,7 +461,6 @@ struct ConversationScreen: View {
                         onChoose: { pendingLayoutTarget = $0 })
                 }
                 }
-                .appSheetBackground()
             }
             .onChange(of: showsLayout) { _, shown in
                 // sheet 關閉後才開選到的 Pane(不能在關 sheet 的同一刻 push)。

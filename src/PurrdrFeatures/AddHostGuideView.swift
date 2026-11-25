@@ -109,7 +109,6 @@ struct AddHostGuideView: View {
         }
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
-                .appSheetBackground()
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("guide")

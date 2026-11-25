@@ -116,7 +116,6 @@ public struct TopNavigationView: View {
                     }
                 }
                 }
-                .appSheetBackground()
             }
             // 第一次開啟 app:開出歡迎頁(#34)。
             .task { if let welcome { navigation.launched(welcome: welcome) } }

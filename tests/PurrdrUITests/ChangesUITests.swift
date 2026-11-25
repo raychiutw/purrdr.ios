@@ -44,7 +44,10 @@ final class ChangesUITests: XCTestCase {
         line.tap()
         let field = app.textFields["changes.comment.field"].firstMatch
         XCTAssertTrue(field.waitUntilExists(timeout: 5), "沒有評論輸入框")
+        app.assertModalToolbar(close: "sheet.close", confirm: "changes.comment.save")
+        XCTAssertFalse(app.buttons["changes.comment.save"].firstMatch.isEnabled, "沒有內容時 ✓ 應停用")
         field.typeText("Count carriage returns too")
+        XCTAssertTrue(app.buttons["changes.comment.save"].firstMatch.isEnabled, "有內容後 ✓ 應可按")
         app.buttons["changes.comment.save"].firstMatch.tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["changes.comment.5"].firstMatch.waitUntilExists(timeout: 5), "評論卡片沒有出現")

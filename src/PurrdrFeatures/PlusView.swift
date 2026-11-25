@@ -83,7 +83,6 @@ public struct PlusView: View {
         }
         .sheet(isPresented: $signingIn) {
             SignInSheet(model: member)
-                .appSheetBackground()
         }
         #if os(iOS)
         .offerCodeRedemption(isPresented: $redeeming) { _ in

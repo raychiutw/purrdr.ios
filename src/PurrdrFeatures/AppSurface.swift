@@ -25,7 +25,7 @@ enum AppSurface {
     static let card = dynamic(dark: darkCard, light: .secondarySystemBackground)
     /// grouped 清單的列(取代 `secondarySystemGroupedBackground`)。
     static let groupedRow = dynamic(dark: darkCard, light: .secondarySystemGroupedBackground)
-    /// sheet 的底色(#533):全 app 的 sheet 一律不透明、不分 detent,淺色 `#F2F2F7`、深色 `#1C1C1E`(列用 `groupedRow`)。
+    /// iPad Inspector 欄的底色(#547):欄不是 sheet,維持不透明;sheet 本身用系統 Liquid Glass(#614)。
     static let sheet = groupedPage
     /// 卡片或列裡再內一層。
     static let inner = dynamic(dark: darkInner, light: .tertiarySystemBackground)
@@ -72,23 +72,15 @@ extension View {
 }
 
 extension View {
-    /// sheet 內的清單(#425、#533):頁面底由 sheet 本身(`appSheet`／`appSheetBackground`)提供,列用 `AppSurface.groupedRow`。
-    /// 全頁的清單用 `appGroupedList()`。
+    /// sheet 內的清單(#614):隱藏清單預設的頁面底,讓 sheet 的系統 Liquid Glass 透出來(半高透出、全高由系統變不透明);
+    /// 列底用系統預設,不自訂不透明底色。可讀性交給系統,「減少透明度」也由系統處理。
     func appSheetList() -> some View {
         scrollContentBackground(.hidden)
-            .listRowBackground(AppSurface.groupedRow)
     }
 
-    /// 所有 sheet 的底色(#533):統一不透明的 `AppSurface.sheet`,不分 detent、淺色深色都一樣(不讓系統在 medium 畫半透明玻璃)。
-    /// 套在 sheet 的內容上;不直接呼叫 `presentationBackground`(`GlassLevelUsageTests` 守門)。
-    func appSheetBackground() -> some View {
-        presentationBackground(AppSurface.sheet)
-    }
-
-    /// 有 detent 的 sheet:`presentationDetents` 加上統一的不透明底色。
+    /// 有 detent 的 sheet:只設 `presentationDetents`,不蓋 sheet 的系統玻璃(`GlassLevelUsageTests` 守門)。
     func appSheet(detents: Set<PresentationDetent>) -> some View {
         presentationDetents(detents)
-            .appSheetBackground()
     }
 
     /// NavigationStack 內容的底色用 `AppSurface.page`(沒有自己底色的空狀態、對話)。
