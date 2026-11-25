@@ -75,10 +75,10 @@ struct ConversationHeaderTests {
         #expect(header.title == "garden-journal")
         #expect(header.status == .online)
         #expect(header.segments == [])
-        #expect(header.accessibilityText == "Tab 1, Online, Bypass Permissions", "fixture 的對話紀錄最後的權限模式是 bypassPermissions")
+        #expect(header.subtitle == "Online")
     }
 
-    @Test("標題列：副標是狀態與主機名;VoiceOver 念 workspace、狀態、主機")
+    @Test("標題列：系統副標題是主機名與狀態")
     func headerWithHost() async throws {
         let setup = try Self.setup(hostName: "studio")
         await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.snapshot {
@@ -90,7 +90,7 @@ struct ConversationHeaderTests {
 
         #expect(setup.model.header.status == .done)
         #expect(setup.model.header.segments == ["studio"])
-        #expect(setup.model.header.accessibilityText == "Tab 1, studio, Done, Bypass Permissions")
+        #expect(setup.model.header.subtitle == "studio · Done")
     }
 
     @Test("標題列：還沒讀到 Agent 時標題退回聊天標題")
@@ -555,12 +555,5 @@ struct ConversationHeaderTests {
         #expect(WorkingElapsed.text(seconds: 12) == "12s")
         #expect(WorkingElapsed.text(seconds: 11 * 60 + 43) == "11m 43s")
         #expect(WorkingElapsed.text(seconds: 3600 + 5 * 60 + 59) == "1h 5m")
-    }
-
-    /// HIG 20.4/20.2:Reduce Motion 時停用指示動畫(點陣固定不動，仍看得出是指示)。
-    @Test("標題列放不下時從後面整段拿掉：最長的在前，最短的只剩狀態")
-    func headerVariantsDropWholeSegments() {
-        let header = ConversationHeader(title: "garden-journal", status: .working, segments: ["studio"])
-        #expect(header.displayVariants == ["Working · studio", "Working"])
     }
 }

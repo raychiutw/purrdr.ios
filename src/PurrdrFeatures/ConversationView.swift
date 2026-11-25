@@ -53,13 +53,6 @@ public struct ConversationView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                // 標題是 workspace 名稱，副標是狀態與主機名(#270);右邊只有終端機鈕，重新載入改成下拉。
-                ToolbarItem(placement: .principal) {
-                    ConversationTitleContainer(model: model)
-                }
-                .sharedBackgroundVisibility(.hidden)    // 標題自己是玻璃膠囊，不讓工具列再疊一層(glass on glass)
-            }
             .safeAreaBar(edge: .top) {
                 // 狀態橫幅(斷線等)在上、跨聊天「需要你」橫幅在它下面(#530),兩者上下排列不互相蓋住。
                 VStack(spacing: 0) {

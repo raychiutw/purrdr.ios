@@ -41,7 +41,7 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["terminal.key.esc"].firstMatch.isHittable, "按鍵列沒有出現")
     }
 
-    /// 檔案頁(#273,原型):路徑麵包屑「~ › ledger」每段可點回那一層;右上「＋」上傳;沒有「上一層」按鈕與說明段落。
+    /// 檔案頁(#273,原型):資料夾是 push(#620):進兩層、左上「<」返回、麵包屑「~ › ledger」當快速跳層;右上「＋」上傳;沒有「上一層」按鈕。
     @MainActor
     func testFilesBrowseFoldersWithBreadcrumbs() {
         let app = XCUIApplication.launchUITesting()
@@ -55,12 +55,30 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["files.up"].exists, "不該再有「上一層」按鈕")
         XCTAssertEqual(app.buttons["files.crumb.0"].firstMatch.label, "Home Folder")
 
+        // 進兩層(#620):資料夾是 push,左上「<」回上一層,tab bar 保留,大標題是資料夾名稱。
         ledger.tap()
         XCTAssertTrue(app.descendants(matching: .any)["files.row.export.csv"].firstMatch.waitUntilExists(timeout: 10), "沒有打開資料夾")
         XCTAssertEqual(app.buttons["files.crumb.1"].firstMatch.label, "ledger")
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).isHittable, "下一層左上沒有返回鈕")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "下一層沒有保留 tab bar")
+        XCTAssertTrue(app.navigationBars["ledger"].exists, "下一層的大標題不是資料夾名稱")
 
+        let reports = app.buttons["files.row.reports"].firstMatch
+        XCTAssertTrue(reports.waitUntilExists(timeout: 10), "ledger 底下沒有 reports")
+        reports.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["files.empty"].firstMatch.waitUntilExists(timeout: 10), "空資料夾沒有系統空狀態")
+        XCTAssertTrue(app.navigationBars["reports"].exists, "第二層的大標題不是資料夾名稱")
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["ledger"].waitUntilExists(timeout: 10), "返回沒有回到 ledger")
+        XCTAssertTrue(app.descendants(matching: .any)["files.row.export.csv"].firstMatch.exists)
+
+        // 麵包屑當快速跳層:再進 reports,直接點「~」回到第一層。
+        app.buttons["files.row.reports"].firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["files.empty"].firstMatch.waitUntilExists(timeout: 10))
         app.buttons["files.crumb.0"].firstMatch.tap()
         XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "點「~」沒有回到家目錄")
+        XCTAssertEqual(app.topBarTitle("Files").label, "Files")
     }
 
     // MARK: - 主機挑選鈕(#245)

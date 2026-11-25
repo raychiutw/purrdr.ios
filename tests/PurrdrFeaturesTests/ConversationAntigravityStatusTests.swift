@@ -34,7 +34,7 @@ struct ConversationAntigravityStatusTests {
         #expect(setup.model.modelSummary == "Gemini 4 Neon · Medium")
     }
 
-    @Test("讀畫面:plan 模式顯示在標題的徽章,模型膠囊顯示,但不能切換權限模式或模型")
+    @Test("讀畫面:plan 模式讀得到,模型膠囊顯示,但不能切換權限模式或模型")
     func planModeShownReadOnly() async throws {
         let setup = try await Self.opened()
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("agy-idle-plan"))
@@ -42,7 +42,6 @@ struct ConversationAntigravityStatusTests {
         await setup.model.refreshStatusLine()
 
         #expect(setup.model.permissionMode == .plan)
-        #expect(setup.model.header.permissionBadge?.mode == .plan)
         #expect(setup.model.showsModelCapsule)
         #expect(setup.model.supportsPermissionMode)
         #expect(setup.model.canSwitchPermissionMode)
@@ -50,7 +49,7 @@ struct ConversationAntigravityStatusTests {
         #expect(setup.model.modelChoiceLock == .notVerified(documentedFor: "Antigravity CLI 1.5.14"))
     }
 
-    @Test("default 模式(狀態列沒有模式那一段)是一般模式,標題沒有徽章")
+    @Test("default 模式(狀態列沒有模式那一段)是一般模式")
     func defaultModeHasNoBadge() async throws {
         let setup = try await Self.opened()
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("agy-idle-default"))
@@ -58,7 +57,6 @@ struct ConversationAntigravityStatusTests {
         await setup.model.refreshStatusLine()
 
         #expect(setup.model.permissionMode == .normal)
-        #expect(setup.model.header.permissionBadge == nil)
     }
 
     @Test("畫面讀不出狀態列(讀不到或被蓋住)沿用上次的值")

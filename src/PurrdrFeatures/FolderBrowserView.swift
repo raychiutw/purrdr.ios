@@ -4,25 +4,34 @@ import PurrdrSSH
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// 檔案瀏覽(行為規格 F13):檔案 tab 的頁面。共用頂列(#500):大標題「檔案」、右側 [電腦圖示｜＋](電腦圖示選看哪台主機、
-/// 「＋」上傳到這裡)與頭像;搜尋欄篩目前資料夾的項目。目前在哪一層看列表最上面的路徑麵包屑(#273)。
+/// 檔案瀏覽中一層資料夾的路由(#620):點資料夾 push 一層,路徑是那一層的資料夾。
+struct FolderRoute: Hashable {
+    var path: String
+}
+
+/// 檔案瀏覽(行為規格 F13):檔案 tab 的頁面。第一層是共用頂列(#500):大標題「檔案」、右側 [電腦圖示｜＋](電腦圖示選看哪台主機、
+/// 「＋」上傳到這裡)與頭像;搜尋欄篩目前資料夾的項目。點資料夾 push 下一層(#620,spec #612):左上系統「<」回上一層、
+/// 保留 tab bar,每層的大標題是資料夾名稱,右上「＋」上傳到那一層。列表最上面的路徑麵包屑(#273)留著當快速跳層。
 /// 資料夾在前,點資料夾或 symlink 打開,檔案只顯示大小與修改時間;下拉重新整理。
-public struct FolderBrowserView: View {
+struct FolderBrowserView: View {
+    enum Level {
+        /// 檔案 tab 的第一層(家目錄):完整的第一階頂列。
+        case root(hostPicker: HostPickerModel, actions: TabTopBarActions)
+        /// push 進來的下一層:系統返回鈕、資料夾名稱大標題。
+        case pushed
+    }
+
     let model: FolderBrowserModel
-    let hostPicker: HostPickerModel
-    let actions: TabTopBarActions
+    let level: Level
+    /// 導覽路徑(第一層之後每一層一個 `FolderRoute`)。
+    @Binding var path: [FolderRoute]
+    /// 第一層(家目錄)的路徑:點麵包屑的這一段就是清空導覽路徑。
+    let rootPath: String?
     @State private var importing = false
     @FocusState private var searchFocused: Bool
 
-    init(model: FolderBrowserModel, hostPicker: HostPickerModel, actions: TabTopBarActions) {
-        self.model = model
-        self.hostPicker = hostPicker
-        self.actions = actions
-    }
-
-    public var body: some View {
-        content
-            .topBarPage(topBarContent)
+    var body: some View {
+        page
             .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in
                 guard case .success(let url) = result else { return }
                 Task { await model.upload(fileAt: url) }
@@ -33,11 +42,51 @@ public struct FolderBrowserView: View {
                 Text(model.notice ?? "")
             }
             .task {
-                if model.path == nil { await model.load() }
+                if case .loaded = model.phase { return }
+                await model.load()
             }
     }
 
-    private var topBarContent: TopBarContent {
+    @ViewBuilder
+    private var page: some View {
+        switch level {
+        case .root(let hostPicker, let actions):
+            content.topBarPage(topBarContent(hostPicker: hostPicker, actions: actions))
+        case .pushed:
+            @Bindable var model = model
+            content
+                .appPageContentWidth()
+                .background(AppSurface.groupedPage)
+                .navigationTitle(Text(verbatim: model.title))
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.large)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: Self.uploadPlacement) { uploadControl }
+                }
+                .searchable(text: $model.query, placement: Self.searchPlacement, prompt: Text("Search"))
+                .searchFocused($searchFocused)
+        }
+    }
+
+    private static var uploadPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .automatic
+        #endif
+    }
+
+    /// 搜尋欄放在導覽列大標題下面,往下滑時由系統收合(同第一階頂列)。
+    private static var searchPlacement: SearchFieldPlacement {
+        #if os(iOS)
+        .navigationBarDrawer(displayMode: .always)
+        #else
+        .automatic
+        #endif
+    }
+
+    private func topBarContent(hostPicker: HostPickerModel, actions: TabTopBarActions) -> TopBarContent {
         @Bindable var model = model
         return TopBarContent(
             tab: .files, title: "Files",
@@ -61,15 +110,31 @@ public struct FolderBrowserView: View {
         }
     }
 
-    /// 路徑麵包屑(#273):列表最上面、第一個區段的標頭,每段可點回那一層。
+    /// 路徑麵包屑(#273):列表最上面、第一個區段的標頭,每段可點跳到那一層(退回已經 push 的那一層,或推入沒走過的那一層)。
     @ViewBuilder
     private var breadcrumbBar: some View {
         if !model.breadcrumbs.isEmpty {
-            FolderBreadcrumbBar(crumbs: model.breadcrumbs, showsBar: false) { crumb in Task { await model.go(to: crumb) } }
+            FolderBreadcrumbBar(crumbs: model.breadcrumbs, showsBar: false) { crumb in jump(to: crumb) }
                 .frame(height: 44)
                 .textCase(nil)
                 .listRowInsets(EdgeInsets())
         }
+    }
+
+    private func jump(to crumb: FolderBreadcrumb) {
+        guard crumb.path != model.path else { return }
+        if crumb.path == rootPath {
+            path = []
+        } else if let index = path.firstIndex(where: { $0.path == crumb.path }) {
+            path = Array(path[...index])
+        } else {
+            path.append(FolderRoute(path: crumb.path))
+        }
+    }
+
+    private func open(_ entry: FolderEntry) {
+        guard let child = model.childPath(for: entry) else { return }
+        path.append(FolderRoute(path: child))
     }
 
     @ViewBuilder
@@ -103,21 +168,23 @@ public struct FolderBrowserView: View {
         case .loaded(let listing):
             List {
                 Section {
-                    if listing.entries.isEmpty {
-                        Text("This folder is empty.")
-                            .foregroundStyle(.secondaryText)
-                            .accessibilityIdentifier("files.empty")
-                    } else if model.visibleEntries.isEmpty {
-                        Text("No Results")
-                            .foregroundStyle(.secondaryText)
-                            .accessibilityIdentifier("files.noResults")
-                    }
                     ForEach(model.visibleEntries, id: \.name) { entry in
-                        FolderEntryRow(entry: entry) {
-                            Task { await model.open(entry) }
-                        }
+                        FolderEntryRow(entry: entry) { open(entry) }
                     }
                 } header: { breadcrumbBar }
+                if listing.entries.isEmpty {
+                    ContentUnavailableView("This Folder Is Empty", systemImage: "folder")
+                        .accessibilityIdentifier("files.empty")
+                        .frame(maxWidth: .infinity)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } else if model.visibleEntries.isEmpty {
+                    ContentUnavailableView.search(text: model.query)
+                        .accessibilityIdentifier("files.noResults")
+                        .frame(maxWidth: .infinity)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
             }
             .appGroupedList()
             .refreshable { await model.load() }

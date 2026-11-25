@@ -2369,8 +2369,7 @@ public final class ConversationModel {
     /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
         ConversationHeader(
-            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress,
-            permissionMode: controls.headerPermissionMode, tabName: tabName)
+            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress, tabName: tabName)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。

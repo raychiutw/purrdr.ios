@@ -74,7 +74,7 @@ extension HostMember {
     package func newChat(preselectingWorkspace workspaceID: String? = nil) -> NewChatModel {
         let folders = capabilities.folders
         let model = NewChatModel(
-            launcher: NewChatLauncher(client: client, folders: folders), folders: folders,
+            launcher: NewChatLauncher(client: client, folders: folders, timings: environment.operationTimings()), folders: folders,
             agents: HostAgentSettings.newChatAgents(enabled: environment.enabledAgents(host)),
             // HTTPS 主機服務要 0.15.0 起才有 tab.create。
             supportsExistingWorkspaces: environment.supportsNewChatInWorkspace(host))

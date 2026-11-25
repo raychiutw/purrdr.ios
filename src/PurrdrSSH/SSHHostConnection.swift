@@ -9,6 +9,8 @@ public struct SSHHostConnection: HostConnection {
     private let herdr: HerdrInstallation
     /// 期限計時用(測試注入)。
     private let sleep: Sleep
+    /// 關鍵 herdr 請求的耗時(#635);`nil` 時不記。
+    private let timings: OperationTimingSink?
     /// 對話紀錄追蹤的長駐通道(#166);這個連線的複本共用。
     private let follower: SSHTranscriptFollower
     /// 列表預覽輸出的分隔標記產生器(每次呼叫隨機;測試注入固定值)。
@@ -24,8 +26,10 @@ public struct SSHHostConnection: HostConnection {
         channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(), sleep: @escaping Sleep = Sleeping.task,
         followDiagnostics: (@Sendable (String) -> Void)? = nil,
         previewMarker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString },
-        windowChunkBytes: Int = TranscriptReader.defaultWindowChunkBytes
+        windowChunkBytes: Int = TranscriptReader.defaultWindowChunkBytes,
+        timings: OperationTimingSink? = nil
     ) {
+        self.timings = timings
         self.channel = channel
         self.herdr = herdr
         self.sleep = sleep
@@ -63,13 +67,39 @@ public struct SSHHostConnection: HostConnection {
             return try SSHResumeRequest.sessionsListResponse(requestID: requestID, sessions: sessions)
         }
         do {
-            return try await channel.runOnce(HerdrCommand.bridge(herdr), deadline: deadline, sleep: sleep) { session in
-                try await session.write(request)
-                return try await Self.firstLine(of: session)
+            // 關鍵請求記下開通道與整個請求的耗時(#635);快照輪詢這類頻繁的讀取不記。
+            guard let timings, let method = Self.method(of: original), Self.timedMethods.contains(method) else {
+                return try await channel.runOnce(HerdrCommand.bridge(herdr), deadline: deadline, sleep: sleep) { session in
+                    try await session.write(request)
+                    return try await Self.firstLine(of: session)
+                }
+            }
+            let clock = ContinuousClock()
+            let start = clock.now
+            let begunAt = Date()
+            return try await OperationTimer.measure("ssh.request \(method)", sink: timings) {
+                try await channel.runOnce(HerdrCommand.bridge(herdr), deadline: deadline, sleep: sleep) { session in
+                    timings(OperationTiming(name: "ssh.open \(method)", milliseconds: Self.milliseconds(clock.now - start), at: begunAt))
+                    try await session.write(request)
+                    return try await Self.firstLine(of: session)
+                }
             }
         } catch HostCommandError.deadlineExceeded {
             throw HerdrError.deadlineExceeded
         }
+    }
+
+    /// 記耗時的 herdr 請求：新增聊天／續接與關閉會用到的(#635)。
+    static let timedMethods: Set<String> = ["workspace.create", "tab.create", "agent.start", "agent.get", "agent.prompt", "tab.close", "workspace.close"]
+
+    private struct MethodEnvelope: Decodable { var method: String? }
+
+    static func method(of request: Data) -> String? {
+        (try? JSONDecoder().decode(MethodEnvelope.self, from: request))?.method
+    }
+
+    static func milliseconds(_ duration: Duration) -> Int {
+        Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
     }
 
     /// 讀到 stdout 的第一行就停。stdout 沒有任何內容就結束時，帶上 exit code 與 stderr 回報。

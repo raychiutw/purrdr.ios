@@ -67,26 +67,27 @@ enum ConversationListContentBuilder {
     }
 }
 
-/// 導覽列標題:自己讀狀態摘要,標題變化只重畫這個修飾,不波及列表。
+/// 系統導覽列的標題與副標題(#618):標題是 Tab 名稱,副標題是「主機 · 狀態」。自己讀狀態摘要,變化只重畫這個修飾,不波及列表。
+/// 名稱過長、大字級與 VoiceOver 都交給系統標題處理;不自畫標題膠囊。
 struct ConversationNavigationTitle: ViewModifier {
     let model: ConversationModel
     @Environment(\.paneWindowTitle) private var paneWindowTitle
 
     func body(content: Content) -> some View {
-        content.navigationTitle(paneWindowTitle ?? ConversationTitleContainer.displayTitle(model))
+        content
+            .navigationTitle(paneWindowTitle ?? ConversationTitle.display(model))
+            #if os(iOS)
+            .navigationSubtitle(model.statusSummary.header.subtitle)
+            #endif
     }
 }
 
-/// 工具列中央的標題膠囊(#270)。
-struct ConversationTitleContainer: View {
-    let model: ConversationModel
-
-    static func displayTitle(_ model: ConversationModel) -> String {
-        model.statusSummary.header.title.isEmpty ? String(localized: "Chat") : model.statusSummary.header.title
-    }
-
-    var body: some View {
-        ConversationTitleView(title: Self.displayTitle(model), header: model.statusSummary.header)
+@MainActor
+enum ConversationTitle {
+    /// Tab 名稱;還沒讀到 snapshot 退回 Workspace 名稱,再沒有就是「Chat」。
+    static func display(_ model: ConversationModel) -> String {
+        let header = model.statusSummary.header
+        return header.capsuleName.isEmpty ? String(localized: "Chat") : header.capsuleName
     }
 }
 
@@ -97,7 +98,7 @@ struct ConversationAnnouncement: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: ConversationAnnouncer.Input(items: model.items, status: model.agentStatus, title: ConversationTitleContainer.displayTitle(model)), initial: true) { _, input in
+            .onChange(of: ConversationAnnouncer.Input(items: model.items, status: model.agentStatus, title: ConversationTitle.display(model)), initial: true) { _, input in
                 announce(announcer.observe(input, now: .now))
             }
             // 節流期間留著的公告：時間到再念。

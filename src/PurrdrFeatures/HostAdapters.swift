@@ -98,6 +98,8 @@ struct HostAdapterEnvironment {
     var recordOperatingSystem: @MainActor (HostOperatingSystem, UUID) async -> Void
     /// 這台主機要用的同意紀錄。
     var consent: any HostWriteConsentStore
+    /// 新增聊天／續接的步驟與 SSH 關鍵請求的耗時(#635);建立連線時讀。
+    var operationTimings: @MainActor () -> OperationTimingSink? = { nil }
 }
 
 /// 刪除主機時,adapter 收尾要用的資料(祕密與權杖在刪掉前先讀出來)。
@@ -169,11 +171,11 @@ enum ChannelCapabilities {
     @MainActor
     static func make(
         channel: any HostChannel, herdr: HerdrInstallation, files: (any HostFileFetching)? = nil, hostName: String?,
-        consent: any HostWriteConsentStore
+        consent: any HostWriteConsentStore, timings: OperationTimingSink? = nil
     ) -> HostCapabilities {
         let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
         let connection = SSHHostConnection(
-            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))
+            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"), timings: timings)
         return HostCapabilities(
             connection: connection, channel: channel, hostFiles: hostFiles,
             files: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")),
@@ -212,7 +214,7 @@ final class SSHHostAdapter: HostAdapter {
         guard let settings = configuration.ssh else { return Self.blocked(configuration, consent: environment.consent) }
         return ChannelCapabilities.make(
             channel: channel(for: configuration, settings: settings), herdr: settings.herdr, hostName: configuration.name,
-            consent: environment.consent)
+            consent: environment.consent, timings: environment.operationTimings())
     }
 
     /// 還沒重新確認的主機(#572):不開任何連線。

@@ -7695,17 +7695,6 @@
         }
       }
     },
-    "No Results" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有結果"
-          }
-        }
-      }
-    },
     "No Subscription Needed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13527,6 +13516,17 @@
         }
       }
     },
+    "This Folder Is Empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾是空的"
+          }
+        }
+      }
+    },
     "This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13952,17 +13952,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上不能使用這個檔名。"
-          }
-        }
-      }
-    },
-    "This folder is empty." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這個資料夾是空的。"
           }
         }
       }
