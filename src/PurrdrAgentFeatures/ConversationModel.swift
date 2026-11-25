@@ -725,6 +725,7 @@ public final class ConversationModel {
     private let knownSessionID: String?
     private let drafts: DraftStore
     private let delivery: PromptDelivery
+    private let safeSend: SafeSend
     /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
     private let sendPipeline: SendPipeline
     /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
@@ -932,6 +933,7 @@ public final class ConversationModel {
         self.hostName = hostName
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
+        safeSend = SafeSend(client: client, sleep: sleep)
         sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
@@ -1806,26 +1808,18 @@ public final class ConversationModel {
             rebuildEntries()
         }
         let prompt = UploadedImages.prompt(text: text, paths: paths)
-        switch await freshTarget() {
-        case .success(let agent):
-            apply(
-                await delivery.send(prompt, to: agent, expectedSession: outgoing.expectedSession), toEcho: echo.id, text: text,
-                isRetry: false)
-            // 附件只在送出被接受時清(什麼都沒送出時草稿放回、圖片也留著，已上傳的不重傳)。
-            if !Self.nothingSent(notice) {
-                attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
-                for sent in sentImages where sent.kind == .file { removeStoredCopies(of: sent) }
-                saveAttachments()
-            }
-            if notice == .needsAnswer {
-                // 什麼都沒送出，因為 agent 在等回答：立刻找出問題(資料夾信任這類提示 herdr 可能回報 idle)。
-                probeScreen = true
-                await refreshPrompt(agent)
-            }
-        case .failure(let failure):
-            removeEcho(echo.id)
-            putBackInDraft(text)
-            notice = failure.notice
+        let result = await safeSend.send(prompt, to: destination(expectedSession: outgoing.expectedSession))
+        apply(result, toEcho: echo.id, text: text, isRetry: false)
+        // 附件只在主機收下(或可能收下)時清;什麼都沒送出時草稿放回、附件也留著,已上傳的不重傳。
+        if !result.sentNothing {
+            attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
+            for sent in sentImages where sent.kind == .file { removeStoredCopies(of: sent) }
+            saveAttachments()
+        }
+        if case .notSent(.needsAnswer(let agent)) = result {
+            // 什麼都沒送出，因為 agent 在等回答：立刻找出問題(資料夾信任這類提示 herdr 可能回報 idle)。
+            probeScreen = true
+            await refreshPrompt(agent)
         }
     }
 
@@ -1838,15 +1832,8 @@ public final class ConversationModel {
         echoes[index].state = .sending
         rebuildEntries()
         notice = nil
-        switch await freshTarget() {
-        case .success(let agent):
-            apply(
-                await delivery.send(prompt, to: agent, expectedSession: boundSessionID ?? knownSessionID), toEcho: echoID, text: text,
-                isRetry: true)
-        case .failure(let targetFailure):
-            setEcho(echoID, state: .failed(failure))
-            notice = targetFailure.notice
-        }
+        let result = await safeSend.send(prompt, to: destination(expectedSession: boundSessionID ?? knownSessionID))
+        apply(result, toEcho: echoID, text: text, isRetry: true, previousFailure: failure)
     }
 
     /// 停止(F6.7):一個 Esc,3 秒內確認離開 working;結果顯示在停止列(#220)。
@@ -2171,78 +2158,47 @@ public final class ConversationModel {
 
     // MARK: - 送出(內部)
 
-    private enum TargetFailure: Error {
-        case agentGone
-        case superseded
+    /// 送出目標:app 目前看到的 session 與輪詢得到的 Agent(讀不到新鮮快照時退回用)。
+    private func destination(expectedSession: String?) -> SafeSend.Destination {
+        SafeSend.Destination(paneID: paneID, expectedSession: expectedSession, fallback: currentAgent)
+    }
 
-        var notice: SendNotice {
-            switch self {
-            case .agentGone: .agentGone
-            case .superseded: .superseded
-            }
+    /// 什麼都沒送出的原因對應的畫面提示。
+    private static func notice(for reason: SafeSend.NotSent) -> SendNotice? {
+        switch reason {
+        case .agentGone: .agentGone
+        case .conversationChanged: .superseded
+        case .needsAnswer: .needsAnswer
+        case .rejected(let message): .rejected(message)
+        case .readOnlyDevice: .readOnlyDevice
         }
     }
 
-    /// 送出當下的目標：重讀新鮮的 snapshot(不共用輪詢那份);讀不到就用輪詢得到的 agent(F6.5)。
-    /// session 換了 = pane 被回收成另一個聊天，原本的對象已不在(F5.1)。
-    private func freshTarget() async -> Result<Agent, TargetFailure> {
-        let agent: Agent?
-        if let snapshot = try? await client.snapshot() {
-            agent = snapshot.agents.first { $0.paneID == paneID }
-        } else {
-            agent = currentAgent
-        }
-        guard let agent else { return .failure(.agentGone) }
-        if let expected = boundSessionID ?? knownSessionID, let session = agent.session?.value, session != expected {
-            return .failure(.superseded)
-        }
-        return .success(agent)
-    }
-
-    private func apply(_ outcome: PromptOutcome, toEcho id: String, text: String, isRetry: Bool) {
-        let nothingSent: SendNotice?
-        switch outcome {
+    /// 依送出結果更新回音、提示與唯讀狀態。附件與草稿由 `SafeSend.Result.sentNothing` 決定,不看提示。
+    /// `previousFailure`:重試時什麼都沒送出,回音維持原本的失敗原因。
+    private func apply(_ result: SafeSend.Result, toEcho id: String, text: String, isRetry: Bool, previousFailure: EchoFailure? = nil) {
+        switch result {
         case .delivered:
             setEcho(id, state: .sent)
             onPromptDelivered?()
-            return
         case .submittedCommand:
             setEcho(id, state: .sent)
             watchForPanel()
-            return
         case .noResponse:
             setEcho(id, state: .failed(.noResponse))
             notice = .noResponse
-            return
         case .unconfirmed(let reason):
             setEcho(id, state: .failed(.unconfirmed(reason)))
             notice = .unconfirmed(reason)
-            return
-        case .needsAnswer:
-            nothingSent = .needsAnswer
-        case .rejected(let message):
-            nothingSent = .rejected(message)
-        case .readOnlyDevice:
-            isReadOnly = true
-            nothingSent = .readOnlyDevice
-        case .paneChanged:
-            // 主機送出前比對發現對話已變更(#304):與送前重讀 snapshot 發現 session 換了相同。
-            nothingSent = .superseded
-        }
-        notice = nothingSent
-        if isRetry {
-            setEcho(id, state: .failed(.noResponse))
-        } else {
-            removeEcho(id)
-            putBackInDraft(text)
-        }
-    }
-
-    /// 什麼都沒送出的提示(草稿放回)。
-    private static func nothingSent(_ notice: SendNotice?) -> Bool {
-        switch notice {
-        case .needsAnswer?, .rejected?, .readOnlyDevice?: true
-        default: false
+        case .notSent(let reason):
+            notice = Self.notice(for: reason)
+            if reason == .readOnlyDevice { isReadOnly = true }
+            if isRetry {
+                setEcho(id, state: .failed(previousFailure ?? .noResponse))
+            } else {
+                removeEcho(id)
+                putBackInDraft(text)
+            }
         }
     }
 
@@ -2613,20 +2569,17 @@ public final class ConversationModel {
 
     private func sendModelCommand() async {
         panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
-        switch await freshTarget() {
-        case .success(let agent):
-            let outcome = await delivery.send("/model", to: agent, expectedSession: boundSessionID ?? knownSessionID)
-            switch outcome {
-            case .submittedCommand:
-                watchForPanel()
-            case .noResponse:
-                notice = .noResponse
-                isChoosingModel = false
-            default:
-                isChoosingModel = false
-            }
-        case .failure(let failure):
-            notice = failure.notice
+        let result = await safeSend.send("/model", to: destination(expectedSession: boundSessionID ?? knownSessionID))
+        switch result {
+        case .submittedCommand:
+            watchForPanel()
+        case .noResponse:
+            notice = .noResponse
+            isChoosingModel = false
+        case .notSent(let reason):
+            if let target = Self.notice(for: reason) { notice = target }
+            isChoosingModel = false
+        default:
             isChoosingModel = false
         }
     }
@@ -2700,18 +2653,12 @@ public final class ConversationModel {
 
     private func sendEffortCommand() async {
         panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
-        switch await freshTarget() {
-        case .success(let agent):
-            let outcome = await delivery.send("/effort", to: agent, expectedSession: boundSessionID ?? knownSessionID)
-            if outcome == .submittedCommand {
-                watchForPanel()
-            } else {
-                if outcome == .noResponse { notice = .noResponse }
-                panelWatchUntil = nil
-                updatePanelReadability()
-            }
-        case .failure(let failure):
-            notice = failure.notice
+        let result = await safeSend.send("/effort", to: destination(expectedSession: boundSessionID ?? knownSessionID))
+        if result == .submittedCommand {
+            watchForPanel()
+        } else {
+            if result == .noResponse { notice = .noResponse }
+            if case .notSent(let reason) = result, let target = Self.notice(for: reason) { notice = target }
             panelWatchUntil = nil
             updatePanelReadability()
         }
