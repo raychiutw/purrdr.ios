@@ -109,7 +109,6 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let simulatesNoNetwork: Bool
     public let seedsDataUsage: Bool
     public let undoSendCountdown: Bool
-    public let inspectorShown: Bool
     public let showsWelcome: Bool
     public let simulatesVideo: Bool
     public let hasNoPasscode: Bool
@@ -171,7 +170,6 @@ public struct LaunchConfiguration: Equatable, Sendable {
         simulatesNoNetwork = has("-demoNoNetwork")
         seedsDataUsage = has("-seedDataUsage")
         undoSendCountdown = has("-uiTestingUndoSend")
-        inspectorShown = has("-uiTestingInspectorShown")
         showsWelcome = has("-showWelcome")
         simulatesVideo = has("-uiTestingSimulatedVideo")
         hasNoPasscode = has("-uiTestingNoPasscode")

@@ -120,11 +120,11 @@ struct LaunchConfigurationTests {
     func booleanFlags() {
         let config = parse(
             "-uiTesting", "-demoCompanions", "-selectDemo", "-demoOutdatedHostService", "-uiTestingNoHosts", "-seedDataUsage",
-            "-uiTestingUndoSend", "-uiTestingInspectorShown", "-showWelcome", "-uiTestingSimulatedVideo", "-uiTestingNoPasscode",
+            "-uiTestingUndoSend", "-showWelcome", "-uiTestingSimulatedVideo", "-uiTestingNoPasscode",
             "-uiTestingAppLock", "-uiTestingPushTestFails", "-uiTestingHidesDebugOverlay", "-uiTestingOwnedByOtherMember",
             "-seedPairedHTTPSHost", "-seedReadOnlyHTTPSHost")
         #expect(config.showsDemoCompanions && config.selectsDemo && config.hostServiceIsOutdated && config.hasNoHosts)
-        #expect(config.seedsDataUsage && config.undoSendCountdown && config.inspectorShown && config.showsWelcome)
+        #expect(config.seedsDataUsage && config.undoSendCountdown && config.showsWelcome)
         #expect(config.simulatesVideo && config.hasNoPasscode && config.appLockEnabled && config.pushTestFails)
         #expect(config.hidesDebugOverlay && config.storeOwnedByOtherMember)
         #expect(config.seededHosts.contains(.pairedHTTPS) && config.seededHosts.contains(.readOnlyHTTPS))

@@ -43,12 +43,11 @@ struct GlassLevelUsageTests {
         #expect(!window.contains("listRowBackground"), "appSheetList 不再設不透明列底")
     }
 
-    @Test("iPad 對話右側 Inspector 欄用不透明的 AppSurface.sheet 底色(#547);內容本身不鋪底,窄視窗 sheet 版才透出系統玻璃(#614)")
-    func inspectorUsesOpaqueSheetSurface() throws {
-        let text = try Self.source("ConversationInspector.swift")
-        #expect(!text.contains(".background(AppSurface.sheet)"), "Inspector 內容不鋪不透明底(sheet 版要透出玻璃)")
-        #expect(text.contains(".background(AppSurface.sheet.ignoresSafeArea())"), "右側欄本身也鋪 AppSurface.sheet")
-        #expect(!text.contains("AppSurface.groupedPage"), "Inspector 底色統一走 AppSurface.sheet")
+    @Test("聊天面板(#617)不鋪自己的底色:iPhone sheet 透出系統玻璃,popover 用系統底")
+    func conversationPanelKeepsSystemSurface() throws {
+        let text = try Self.source("ConversationPanel.swift")
+        #expect(!text.contains("AppSurface."), "面板不鋪自訂底色")
+        #expect(!text.contains(".background("), "面板不鋪自訂底色")
     }
 
     @Test("新增聊天 sheet 是部分高度")

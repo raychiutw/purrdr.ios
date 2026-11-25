@@ -2,88 +2,57 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 頂列用量環按鈕(#513,原型 Main):和「⋯」放在同一個 `ToolbarItemGroup`,系統把它們合成一顆玻璃膠囊 [用量環｜⋯]。
-/// 觸控目標 ≥ 44pt;點了開用量 sheet。
+/// 頂列用量環按鈕(#513、#617):和「⋯」放在同一個 `ToolbarItemGroup`,系統把它們合成一顆玻璃膠囊 [用量環｜⋯]。
+/// 不自加寬度(交給系統排版);永遠顯示,沒有用量資料時是空環。點了開面板(iPad popover、iPhone sheet),從按鈕展開。
 struct UsageRingButton: View {
-    let summary: UsageSummary
-    let action: () -> Void
+    let summary: UsageSummary?
+    /// regular 寬度才用的 popover 開關(compact 的 sheet 掛在聊天畫面上)。
+    let showsPopover: Binding<Bool>
+    let tap: () -> Void
+    let model: ConversationModel
+    let usageSection: UsageSectionModel?
+    let display: PlanUsageModel.Display
 
     var body: some View {
-        Button(action: action) {
+        Button(action: tap) {
             UsageRingView(summary: summary)
-                .frame(minWidth: TopBarMetrics.circleDiameter, minHeight: TopBarMetrics.controlHeight)
-                .contentShape(Rectangle())
         }
-        .accessibilityLabel(Text(verbatim: summary.accessibilityText))
-        .accessibilityHint(Text("Shows usage details."))
+        .accessibilityLabel(Text(verbatim: summary?.accessibilityText ?? String(localized: "Usage")))
+        .accessibilityHint(Text("Shows usage and details."))
         .accessibilityIdentifier("conversation.usage")
+        .conversationPanelPopover(isPresented: showsPopover, model: model, usageSection: usageSection, display: display)
     }
 }
 
-/// 用量環:一個小圓環,填滿比例是顯示的數字,顏色依等級(一般、70% 起橙、85% 起紅);數字另在 VoiceOver 與用量 sheet。
+/// 用量環:一個小圓環,填滿比例是顯示的數字,顏色依等級(一般、70% 起橙、85% 起紅);數字另在 VoiceOver 與面板。
+/// 沒有用量資料(`summary` 為 `nil`)時只畫軌道(空環)。
 struct UsageRingView: View {
-    let summary: UsageSummary
+    let summary: UsageSummary?
     @ScaledMetric(relativeTo: .body) private var diameter: CGFloat = 24
     @ScaledMetric(relativeTo: .body) private var lineWidth: CGFloat = 3
 
     var body: some View {
         ZStack {
             Circle().stroke(.quaternary, lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: summary.fraction)
-                .stroke(summary.level.tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
+            if let summary {
+                Circle()
+                    .trim(from: 0, to: summary.fraction)
+                    .stroke(summary.level.tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
         }
         .frame(width: diameter, height: diameter)
         .accessibilityHidden(true)
     }
 }
 
-/// 用量 sheet(#513,原型 Usage):左上 X、右上重新整理;內容是可單獨嵌入的 `UsageContentView`(#517 的 iPad 右側 inspector 也放它)。
-struct ConversationUsageSheet: View {
-    let model: ConversationModel
-    /// 這台主機的方案用量(`nil`:這種 Agent 沒有方案用量來源)。
-    let section: UsageSectionModel?
-    let display: PlanUsageModel.Display
-    @State private var isRefreshing = false
-
-    var body: some View {
-        NavigationStack {
-            UsageContentView(model: model, section: section, display: display)
-                .navigationTitle("Usage")
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar {
-                    SheetCloseToolbar(identifier: "usage.sheet.close")
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Refresh", systemImage: "arrow.clockwise") { refresh() }
-                            .disabled(isRefreshing || section == nil)
-                            .accessibilityIdentifier("usage.sheet.refresh")
-                    }
-                }
-        }
-        .appSheet(detents: [.large])
-        .accessibilityIdentifier("usage.sheet")
-    }
-
-    private func refresh() {
-        guard let section else { return }
-        isRefreshing = true
-        Task {
-            await section.refresh()
-            isRefreshing = false
-        }
-    }
-}
-
 /// 用量內容(#513):「這個聊天」的 Context 卡片、「方案用量 · 主機名」的目前工作階段與每週卡片、更新時間。
-/// 不含 NavigationStack、關閉與重新整理(由容器的 toolbar 放),sheet 與 #517 的 inspector 共用。
+/// 不含 NavigationStack、關閉與重新整理(由面板的 toolbar 放),面板(`ConversationPanelView`)用。
 struct UsageContentView: View {
     let model: ConversationModel
     let section: UsageSectionModel?
     let display: PlanUsageModel.Display
-    /// `false`:不自己捲動也不鋪底(放進 Inspector 的 List 裡,#521)。
+    /// `false`:不自己捲動也不鋪底(放進面板的 List 裡)。
     var scrolls = true
 
     private var hostName: String { section?.hostName ?? "" }

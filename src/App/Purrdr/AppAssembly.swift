@@ -13,7 +13,6 @@ struct AppRoot {
     let settings: SettingsModel
     let hostSync: HostSyncModel
     let welcome: WelcomeModel
-    let inspectorStore: any InspectorVisibilityStore
     let hitchRecorder: DiagnosticRecorder
     /// 啟動提示「上次 Purrdr 意外關閉」(#632)。
     let crashNotice: CrashNoticeModel
@@ -87,7 +86,7 @@ enum AppAssembly {
         let crashNotice = CrashNoticeModel(recorder: hitchRecorder, store: environment.crashNoticeStore)
         return AppRoot(
             hosts: hosts, member: member, plus: plus, settings: makeSettings(hosts: hosts, hitchRecorder: hitchRecorder),
-            hostSync: hostSync, welcome: WelcomeModel(store: environment.welcomeStore), inspectorStore: environment.inspectorStore,
+            hostSync: hostSync, welcome: WelcomeModel(store: environment.welcomeStore),
             hitchRecorder: hitchRecorder, crashNotice: crashNotice, hitchMetrics: hitchMetrics, trafficMeter: trafficMeter, launchGate: launchGate, trafficNetwork: trafficNetwork,
             appLock: environment.appLock, inputSources: environment.inputSources, viewFlags: environment.viewFlags,
             disablesAnimations: environment.disablesAnimations)

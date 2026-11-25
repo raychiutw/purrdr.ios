@@ -81,7 +81,6 @@ enum UITestingEnvironment {
             subscribesToMetricKit: false,
             // 預設當作看過歡迎頁(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
             welcomeStore: InMemoryWelcomeStore(hasSeen: !configuration.showsWelcome),
-            inspectorStore: InMemoryInspectorVisibilityStore(isShown: configuration.inspectorShown),
             inputSources: inputSources,
             viewFlags: viewFlags,
             appLock: appLock(configuration))

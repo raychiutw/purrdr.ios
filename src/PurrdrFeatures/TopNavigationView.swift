@@ -41,11 +41,11 @@ public struct TopNavigationView: View {
     public init(
         hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
         hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil,
-        appLock: AppLock? = nil, inspectorStore: any InspectorVisibilityStore = UserDefaultsInspectorVisibilityStore(),
+        appLock: AppLock? = nil,
         crashNotice: CrashNoticeModel? = nil
     ) {
         self.crashNotice = crashNotice
-        let navigation = TopNavigationModel(inspectorStore: inspectorStore)
+        let navigation = TopNavigationModel()
         _navigation = State(initialValue: navigation)
         _actions = State(initialValue: RootActions(navigation: navigation, hosts: hosts))
         _badge = State(initialValue: NeedsYouBadge(merged: hosts.agentList))
@@ -314,7 +314,7 @@ private struct WindowCommandsModifier: ViewModifier {
         let openWindow = openWindow
         let context = KeyboardCommandContext(
             hasSelectedChat: opening != nil, hasSelectedConversation: target.hasConversation, tab: navigation.tab,
-            isWideWindow: sizeClass != .compact, isInspectorShown: navigation.isInspectorShown,
+            isWideWindow: sizeClass != .compact,
             supportsMultipleWindows: supportsMultipleWindows)
         return WindowCommands(perform: { command in
             if command == .openInNewWindow {

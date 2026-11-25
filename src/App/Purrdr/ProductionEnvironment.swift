@@ -114,7 +114,6 @@ enum ProductionEnvironment {
             recordsUITestingCrash: false,
             subscribesToMetricKit: true,
             welcomeStore: UserDefaultsWelcomeStore(),
-            inspectorStore: UserDefaultsInspectorVisibilityStore(),
             inputSources: LaunchEnvironment.InputSources(pairingCodeScan: .camera, recentPhotos: .system, video: .system),
             viewFlags: LaunchEnvironment.ViewFlags(
                 forcesOpaqueGlass: false, allowsTestingLinks: false, usesTestingSignIn: false, tracksReadingDrift: false,

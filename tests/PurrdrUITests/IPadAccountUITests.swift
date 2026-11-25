@@ -1,6 +1,6 @@
 import XCTest
 
-/// iPad 帳號頭像在視窗右上角(#520、spec #517):寬視窗掛在最右邊那一欄,四個 tab 一致,Inspector 開著仍在最右上。
+/// iPad 帳號頭像在視窗右上角(#520、spec #517):寬視窗掛在最右邊那一欄,四個 tab 一致。
 /// 只在 iPad 模擬器跑(完整組)。窄視窗收成一疊(頭像回列表頂列)在 XCUITest 裡縮不了視窗,
 /// 決策由 `AccountButtonPlacementTests` 守住,畫面靠手動驗證。
 final class IPadAccountUITests: XCTestCase {
@@ -42,7 +42,7 @@ final class IPadAccountUITests: XCTestCase {
         XCTAssertLessThan(newChat.frame.maxX, app.buttons["toolbar.account"].frame.minX, "頭像與列表頂列的「＋」重疊")
     }
 
-    /// 開了對話之後頭像還在最右上(對話頂列的標題與 Inspector 鈕不把它擠走)。
+    /// 開了對話之後頭像還在最右上(對話頂列的標題與用量環、「⋯」不把它擠走)。
     @MainActor
     func testAccountStaysAtTopRightWhenChatIsOpen() {
         let app = launch()
@@ -51,20 +51,6 @@ final class IPadAccountUITests: XCTestCase {
         row.tap()
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 15), "對話沒有開在對話欄")
         assertAtWindowTopRight(app, "聊天 tab(對話開著)")
-    }
-
-    /// Inspector 開著:頭像仍在視窗最右上,在 Inspector 欄的上方(不被收進對話欄裡)。
-    @MainActor
-    func testAccountStaysAtTopRightWithInspectorOpen() {
-        let app = launch(flags: ["-uiTestingInspectorShown"])
-        let row = app.element("spaces.tab.demo/w1:t1")
-        XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
-        row.tap()
-        XCTAssertTrue(app.element("inspector").waitUntilExists(timeout: 15), "Inspector 沒有開著")
-        assertAtWindowTopRight(app, "Inspector 開著")
-        XCTAssertGreaterThan(
-            app.buttons["toolbar.account"].frame.minX, app.element("inspector").frame.minX - 1,
-            "頭像在 Inspector 欄的左邊,不是視窗最右上")
     }
 
     /// 四個 tab 的頭像位置一致(都在視窗右上)。

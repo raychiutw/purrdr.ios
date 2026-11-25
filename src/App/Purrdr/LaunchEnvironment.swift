@@ -70,7 +70,6 @@ struct LaunchEnvironment {
     /// 是否訂閱 MetricKit 每日摘要(只在真實啟動)。
     var subscribesToMetricKit: Bool
     var welcomeStore: any WelcomeStore
-    var inspectorStore: any InspectorVisibilityStore
     var inputSources: InputSources
     var viewFlags: ViewFlags
     var appLock: AppLock

@@ -30,7 +30,7 @@ final class ConversationStatusSheetUITests: XCTestCase {
         XCTAssertTrue(header.waitUntilExists(timeout: 10))
         header.tap()
         XCTAssertFalse(app.element("menu.sheet.permissionMode").exists)
-        XCTAssertFalse(app.element("usage.sheet").exists)
+        XCTAssertFalse(app.element("conversation.panel").exists)
     }
 
     /// 工作中只有一顆膠囊(同一資訊只出現一處);背景 agents 列已移除，清單在「⋯」→ 背景子 Agent。
