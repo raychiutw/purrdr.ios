@@ -147,7 +147,7 @@ struct FolderBrowserView: View {
                 } description: {
                     Text(message)
                 } actions: {
-                    Button("Try Again") { Task { await model.load() } }
+                    Button("Try Again") { Task { await model.load() } } // listAction:exempt ContentUnavailableView 的 actions 由系統樣式畫
                         .accessibilityIdentifier("files.retry")
                 }
                 .accessibilityIdentifier("files.error")
@@ -158,13 +158,16 @@ struct FolderBrowserView: View {
             .appGroupedList()
         case .loaded(let listing):
             List {
-                // 上傳失敗直接寫在頁面上(不彈對話框、不必按「OK」):錯誤加「Dismiss」。
                 if let notice = model.notice {
+                    // 上傳失敗不彈 alert(#625):顯示在列表最上面,可關閉。
                     Section {
-                        ErrorLabel(notice, area: "FolderBrowser")
-                            .accessibilityIdentifier("files.uploadError")
-                        Button("Dismiss") { model.notice = nil }
-                            .accessibilityIdentifier("files.uploadError.dismiss")
+                        HStack {
+                            ErrorLabel(notice, area: "FolderBrowser")
+                            Spacer(minLength: 8)
+                            Button("Dismiss") { model.notice = nil }
+                                .buttonStyle(.borderless)
+                        }
+                        .accessibilityIdentifier("files.uploadNotice")
                     }
                 }
                 Section {

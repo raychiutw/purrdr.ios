@@ -271,6 +271,7 @@ public struct NewChatView: View {
                 ErrorLabel(message, area: "NewChatView")
                     .accessibilityIdentifier("newChat.sessions.error")
                 Button("Try Again") { Task { await model.refreshSessions() } }
+                    .listAction()
                     .accessibilityIdentifier("newChat.sessions.retry")
             } header: {
                 Text("Chat").foregroundStyle(.secondaryText)

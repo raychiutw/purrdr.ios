@@ -49,6 +49,9 @@ public struct TopNavigationView: View {
         _navigation = State(initialValue: navigation)
         _actions = State(initialValue: RootActions(navigation: navigation, hosts: hosts))
         _badge = State(initialValue: NeedsYouBadge(merged: hosts.agentList))
+        #if canImport(UIKit)
+        UnreadBadgeAppearance.apply()
+        #endif
         self.welcome = welcome
         self.appLock = appLock
         self.hostSync = hostSync

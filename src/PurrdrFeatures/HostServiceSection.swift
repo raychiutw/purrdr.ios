@@ -30,6 +30,7 @@ struct HostServiceSection: View {
                 ErrorLabel(message, area: "HostServiceSection")
                     .accessibilityIdentifier("hostStatus.hostService.error")
                 Button("Try Again") { Task { await model.refresh() } }
+                    .listAction()
                     .accessibilityIdentifier("hostStatus.hostService.retry")
             }
         } header: {

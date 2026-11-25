@@ -143,7 +143,7 @@ public struct MemberContent: View {
                         } description: {
                             Text("Your sign-in is kept on this device. Try again when you’re online.")
                         } actions: {
-                            Button("Try Again") { Task { await model.restore() } }
+                            Button("Try Again") { Task { await model.restore() } } // listAction:exempt ContentUnavailableView 的 actions 由系統樣式畫
                         }
                         .listRowBackground(Color.clear)
                     }
@@ -374,6 +374,10 @@ struct AccountView: View {
                 AccountHeader(member: signedInMember)
             }
 
+            if let plus, !showingPlus {
+                SubscriptionNoticeSection(plus: plus)
+            }
+
             if model.isConnectionLimited {
                 // 後台暫時連不上(#406):登入仍然有效,不是被登出。
                 Section {
@@ -381,6 +385,7 @@ struct AccountView: View {
                         Label("Can’t reach Purrdr for now. You’re still signed in.", systemImage: "wifi.exclamationmark")
                             .foregroundStyle(.secondaryText)
                         Button("Try Again") { Task { await model.restore() } }
+                            .listAction()
                             .accessibilityIdentifier("account.connectionLimited.retry")
                     }
                     .accessibilityElement(children: .contain)
@@ -440,8 +445,10 @@ struct AccountView: View {
                 }
                 Section {
                     Button("Sign Out") { confirmingSignOut = true }
+                        .listAction()
                         .accessibilityIdentifier("member.signOut")
                     Button("Delete Member", role: .destructive) { startDeletion() }
+                        .destructiveListAction()
                         .accessibilityIdentifier("member.delete")
                 }
             }
@@ -482,8 +489,14 @@ struct AccountView: View {
             default:
                 EmptyView()
             }
-            Button("OK", role: .cancel) {}
-                .accessibilityIdentifier("account.locked.ok")
+            switch reason {
+            case .plusRequired, .subscriptionEnded:
+                Button("Not Now", role: .cancel) {}
+                    .accessibilityIdentifier("account.locked.ok")
+            default:
+                Button("OK", role: .cancel) {}
+                    .accessibilityIdentifier("account.locked.ok")
+            }
         } message: { reason in
             Text(verbatim: reason.explanation)
         }
@@ -494,7 +507,7 @@ struct AccountView: View {
         } message: {
             Text("Turn on notifications and host sync now? You can change them later.")
         }
-        .alert("Sign Out?", isPresented: $confirmingSignOut) {
+        .confirmationDialog("Sign Out?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
             Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
                 .accessibilityIdentifier("member.signOut.confirm")
             Button("Cancel", role: .cancel) {}
@@ -546,7 +559,7 @@ struct AccountView: View {
     /// 付費牆(PlusView)開著時它自己顯示提示,帳號頁不重複顯示。
     private var subscriptionNoticePresented: Binding<Bool> {
         Binding(
-            get: { plus?.notice != nil && !showingPlus },
+            get: { (plus?.notice.map { !$0.isInformational } ?? false) && !showingPlus },
             set: { if !$0 { plus?.notice = nil } })
     }
 
@@ -689,6 +702,7 @@ struct SignInDevicesView: View {
                     ErrorLabel(problem, area: "MemberView")
                         .accessibilityIdentifier("account.signInDevices.problem")
                     Button("Try Again") { Task { await model.load() } }
+                        .listAction()
                 }
             } footer: {
                 Text("Signing out another device means it has to sign in again. To sign out this device, use Sign Out on the account page.")
@@ -841,6 +855,7 @@ struct SignInMethodsView: View {
                     LabeledContent {
                         if member.identities.count > 1 {
                             Button("Remove", role: .destructive) { removing = identity.method }
+                                .destructiveListAction()
                                 .accessibilityLabel(Text("Remove \(identity.method.displayName)"))
                                 .accessibilityIdentifier("member.identity.remove.\(identity.method.rawValue)")
                         }
@@ -1110,11 +1125,13 @@ struct DeletionSubscriptionView: View {
             if notice == .appStore {
                 Section {
                     Button("Manage Subscription", action: manage)
+                        .listAction()
                         .accessibilityIdentifier("member.deleteSubscription.manage")
                 }
             }
             Section {
                 Button("Continue Deleting Member", role: .destructive, action: proceed)
+                    .destructiveListAction()
                     .accessibilityIdentifier("member.deleteSubscription.continue")
             }
         }

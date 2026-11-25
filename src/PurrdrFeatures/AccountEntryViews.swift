@@ -190,6 +190,7 @@ struct JoinFlowPages: View {
 
     private var paywallPage: some View {
         List {
+            SubscriptionNoticeSection(plus: plus)
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Activate Purrdr Plus").font(.title2.bold())
@@ -212,6 +213,7 @@ struct JoinFlowPages: View {
                 Section {
                     Text("Couldn’t load subscription options. Check your connection and try again.")
                     Button("Try Again") { Task { await plus.loadPlans() } }
+                        .listAction()
                 }
             case .available:
                 Section {
@@ -264,7 +266,7 @@ struct JoinFlowPages: View {
     }
 
     private var noticePresented: Binding<Bool> {
-        Binding(get: { plus.notice != nil }, set: { if !$0 { plus.notice = nil } })
+        Binding(get: { plus.notice.map { !$0.isInformational } ?? false }, set: { if !$0 { plus.notice = nil } })
     }
 
     private func subscribe() {

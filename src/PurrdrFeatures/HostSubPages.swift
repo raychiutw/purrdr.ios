@@ -62,6 +62,7 @@ struct HostNotificationsPage: View {
                 } label: {
                     HostRowLabel(title: "Pair This Host First", subtitle: "Notifications can be turned on after this device pairs with the host.")
                 }
+                .listAction()
                 .accessibilityIdentifier("hosts.notifications.pair")
             } else {
                 Toggle(isOn: Binding(get: { isOnOrPending(model) }, set: { change(model, to: $0) })) {
@@ -173,6 +174,7 @@ struct HostNotificationsPage: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Sign in to use notifications.", systemImage: "person.crop.circle")
                 Button("Sign In", action: openAccount)
+                    .listAction()
                     .accessibilityIdentifier("hosts.notifications.signIn")
             }
             .accessibilityIdentifier("settings.push.problem")

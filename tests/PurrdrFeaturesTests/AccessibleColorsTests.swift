@@ -26,6 +26,22 @@ struct AccessibleColorsTests {
         Self.expectReadable(AccessibleColors.destructiveText)
     }
 
+    @Test("未讀徽章:白字對徽章底色深淺色 ≥ 4.5:1,高對比 ≥ 7:1;系統紅(#FF3B30／#FF453A)不足所以不用(#639)")
+    func unreadBadgeContrast() {
+        let white = ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)
+        let palette = AccessibleColors.unreadBadge
+        for (name, background, minimum) in [
+            ("淺色", palette.light, 4.5), ("深色", palette.dark, 4.5),
+            ("淺色高對比", palette.lightHighContrast, 7), ("深色高對比", palette.darkHighContrast, 7),
+        ] {
+            let ratio = white.contrastRatio(with: background)
+            #expect(ratio >= minimum, "\(name) 白字對 \(background) 只有 \(ratio)")
+        }
+        // 記下為什麼要換:系統紅底白字不到 4.5:1。
+        #expect(white.contrastRatio(with: ThemeColor(red: 0xFF, green: 0x3B, blue: 0x30)) < 4.5)
+        #expect(white.contrastRatio(with: ThemeColor(red: 0xFF, green: 0x45, blue: 0x3A)) < 4.5)
+    }
+
     @Test("次要文字：深淺色對主要與 grouped 背景 ≥ 4.5:1,高對比 ≥ 7:1")
     func secondaryTextContrast() {
         Self.expectReadable(AccessibleColors.secondaryText)

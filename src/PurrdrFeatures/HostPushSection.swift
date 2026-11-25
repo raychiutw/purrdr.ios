@@ -163,51 +163,38 @@ struct HostPushRow: View {
     }
 }
 
-/// 通知開著的主機:「傳送測試通知」(#328),結果以提示說明,失敗附原因。
+/// 通知開著的主機:「傳送測試通知」(#328),結果直接顯示在列上(#625,不彈 alert),失敗附原因。
 struct HostPushTestRow: View {
     let push: HostPush
 
     private var model: PushModel { push.model }
 
     var body: some View {
-        Button {
-            Task { await model.sendTestNotification() }
-        } label: {
-            HStack {
-                Text("Send Test Notification")
-                Spacer()
-                if model.testNotification == .sending { ProgressView() }
-            }
-        }
-        .disabled(model.testNotification == .sending)
-        .accessibilityIdentifier("account.push.\(push.host.storedValue).test")
-        .alert(resultTitle, isPresented: resultPresented) {
-            Button("OK", role: .cancel) { model.dismissTestNotification() }
-        } message: {
-            Text(resultMessage)
-        }
-    }
-
-    private var resultPresented: Binding<Bool> {
-        Binding(
-            get: {
-                switch model.testNotification {
-                case .sent, .failed: true
-                case .idle, .sending: false
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                Task { await model.sendTestNotification() }
+            } label: {
+                HStack {
+                    Text("Send Test Notification")
+                    Spacer()
+                    if model.testNotification == .sending { ProgressView() }
                 }
-            },
-            set: { if !$0 { model.dismissTestNotification() } })
-    }
-
-    private var resultTitle: LocalizedStringKey {
-        if case .failed = model.testNotification { return "Couldn’t Send Test Notification" }
-        return "Test Notification Sent"
-    }
-
-    private var resultMessage: String {
-        switch model.testNotification {
-        case .failed(let message): message
-        default: String(localized: "It should arrive on this device in a moment.")
+            }
+            .disabled(model.testNotification == .sending)
+            .accessibilityIdentifier("account.push.\(push.host.storedValue).test")
+            switch model.testNotification {
+            case .sent:
+                Label("Sent. It should arrive on this device in a moment.", systemImage: "checkmark.circle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("account.push.\(push.host.storedValue).test.result")
+            case .failed(let message):
+                ErrorLabel(message, area: "PushTest")
+                    .font(.footnote)
+                    .accessibilityIdentifier("account.push.\(push.host.storedValue).test.result")
+            case .idle, .sending:
+                EmptyView()
+            }
         }
     }
 }
@@ -307,6 +294,7 @@ struct PushProblemRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Notifications need Purrdr Plus.", systemImage: "bell.badge")
                 Button("See Purrdr Plus", action: openPlus)
+                    .listAction()
                     .accessibilityIdentifier("settings.push.plus")
             }
             .accessibilityIdentifier("settings.push.problem")
@@ -314,6 +302,7 @@ struct PushProblemRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Notifications are off for Purrdr in iOS Settings.", systemImage: "bell.slash")
                 Button("Open Settings") { model.openSystemSettings() }
+                    .listAction()
                     .accessibilityIdentifier("settings.push.openSettings")
             }
             .accessibilityIdentifier("settings.push.problem")
@@ -356,6 +345,7 @@ struct HostServicePushUpdateRow: View {
                 .textSelection(.enabled)
             Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
                 .buttonStyle(.borderless)
+                .listAction()
         }
     }
 }

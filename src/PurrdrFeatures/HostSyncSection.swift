@@ -44,6 +44,7 @@ struct HostSyncRows: View {
                 Text(verbatim: message)
                     .foregroundStyle(.secondaryText)
                 Button("Try Again") { Task { await model.sync() } }
+                    .listAction()
                     .accessibilityIdentifier("settings.hostSync.retry")
             }
             .accessibilityIdentifier("settings.hostSync.problem")

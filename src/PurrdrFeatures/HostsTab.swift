@@ -42,8 +42,8 @@ struct HostsTab: View {
                 .topBarPage(topBarContent)
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }
-        .alert(
-            deletionTitle, isPresented: deletionBinding, presenting: flow.pendingDeletion
+        .confirmationDialog(
+            deletionTitle, isPresented: deletionBinding, titleVisibility: .visible, presenting: flow.pendingDeletion
         ) { request in
             Button("Remove Host", role: .destructive) { confirmDeletion(request) }
                 .accessibilityIdentifier("hosts.delete.confirm")
@@ -51,7 +51,7 @@ struct HostsTab: View {
         } message: { _ in
             Text("This only removes the host from Purrdr. The host itself and the agents on it aren’t affected. Anything Purrdr added for this device on the host is put back.")
         }
-        .alert("Remove the Demo Host?", isPresented: $confirmingRemoveDemo) {
+        .confirmationDialog("Remove the Demo Host?", isPresented: $confirmingRemoveDemo, titleVisibility: .visible) {
             Button("Remove Demo Host", role: .destructive) { hosts.removeDemo() }
                 .accessibilityIdentifier("hosts.demo.remove.confirm")
             Button("Cancel", role: .cancel) {}

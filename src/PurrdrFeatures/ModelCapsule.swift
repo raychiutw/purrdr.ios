@@ -110,7 +110,7 @@ struct ModelContentView: View {
                     .accessibilityIdentifier("model.picker")
                 }
                 Section {
-                    Button {
+                    Button { // listAction:exempt label 內每個元素都明確指定顏色
                         Task { await model.openEffortPage() }
                     } label: {
                         HStack {

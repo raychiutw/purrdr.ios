@@ -129,6 +129,7 @@ struct YouShouldKnowSettingsSection: View {
                 Button("Undo Purrdr’s Changes to Notes", systemImage: "arrow.uturn.backward") {
                     Task { await model.undoChanges() }
                 }
+                .listAction()
                 .disabled(model.isWorking)
                 .accessibilityIdentifier("settings.youShouldKnow.undo")
             } header: {
