@@ -299,15 +299,22 @@ struct PosixWords {
                 if let word = current { words.append(word) }
                 current = nil
             case "'", "\"":
-                guard let end = rest.firstIndex(of: character) else { return nil }
-                let content = String(rest[..<end])
-                rest = rest[rest.index(after: end)...]
-                if character == "\"", content == "$HOME", current == nil, rest.first == "/" {
-                    rest = rest.dropFirst()
-                    current = Word(text: "", quoted: true, homeRelative: true)
-                    continue
+                let content: String
+                if character == "'" {
+                    guard let end = rest.firstIndex(of: character) else { return nil }
+                    content = String(rest[..<end])
+                    rest = rest[rest.index(after: end)...]
+                } else {
+                    // 已知的 `"$HOME"/` 前綴;其餘雙引號是 `PosixShell.quote` 為含反斜線的字串產生的(`\\`、`\"`、`\$` 跳脫)。
+                    if rest.hasPrefix("$HOME\"/"), current == nil {
+                        rest = rest.dropFirst("$HOME\"/".count)
+                        current = Word(text: "", quoted: true, homeRelative: true)
+                        continue
+                    }
+                    guard let (decoded, remainder) = PosixShell.doubleQuotedContent(rest) else { return nil }
+                    content = decoded
+                    rest = remainder
                 }
-                guard character == "'" || !content.contains(where: { "$`\\".contains($0) }) else { return nil }
                 var word = current ?? Word(text: "", quoted: true, homeRelative: false)
                 word.text += content
                 word.quoted = true

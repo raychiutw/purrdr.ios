@@ -108,7 +108,31 @@ public enum HostFileRequest: Equatable, Sendable {
 }
 
 extension PosixShell {
-    /// `quote` 的反向：把以空白分隔、每個都用單引號包住(內部單引號寫成 `'"'"'`)的參數還原。
+    /// 雙引號內的內容(已吃掉開頭的 `"`):`\\`、`\"`、`\$` 還原成單一字元,其他反斜線照字面(`quote` 只會產生這三種跳脫);
+    /// 未跳脫的 `$` 或反引號代表會被 shell 展開,不是 `quote` 的產物,回 `nil`。
+    package static func doubleQuotedContent(_ text: Substring) -> (String, Substring)? {
+        var content = ""
+        var rest = text
+        while let character = rest.first {
+            rest = rest.dropFirst()
+            switch character {
+            case "\"": return (content, rest)
+            case "\\":
+                guard let next = rest.first else { return nil }
+                if next == "\\" || next == "\"" || next == "$" {
+                    content.append(next)
+                    rest = rest.dropFirst()
+                } else {
+                    content.append("\\")
+                }
+            case "$", "`": return nil
+            default: content.append(character)
+            }
+        }
+        return nil
+    }
+
+    /// `quote` 的反向：把以空白分隔、每個都用單引號包住(內部單引號寫成 `'"'"'`;含反斜線時用雙引號,見 `quote`)的參數還原。
     package static func unquote(_ text: String) -> [String]? {
         var arguments: [String] = []
         var current: String?
@@ -119,10 +143,14 @@ extension PosixShell {
             case " ":
                 if let argument = current { arguments.append(argument) }
                 current = nil
-            case "'", "\"":
+            case "'":
                 guard let end = rest.firstIndex(of: character) else { return nil }
                 current = (current ?? "") + rest[..<end]
                 rest = rest[rest.index(after: end)...]
+            case "\"":
+                guard let (content, remainder) = doubleQuotedContent(rest) else { return nil }
+                current = (current ?? "") + content
+                rest = remainder
             default:
                 return nil
             }

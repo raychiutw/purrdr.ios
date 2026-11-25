@@ -76,11 +76,46 @@ public enum HerdrCommand {
 }
 
 /// POSIX shell 的引號規則。
+///
+/// sshd 會先把指令交給使用者的登入 shell(行為規格 §3.2),所以結果必須在 sh、bash、zsh、fish 解析後都剛好是原字串(#571):
+/// - 一般情況:整段用單引號包住，內部單引號寫成 `'"'"'`。fish 在單引號內只有 `\\` 與 `\'` 是跳脫，其他反斜線照字面,
+///   所以結果裡沒有這兩種序列(含結尾的反斜線，它會和收尾的引號組成 `\'`)就與 POSIX 沒有差異;Windows 路徑 `C:\Users\x`、腳本裡的 `\n` 維持原樣。
+/// - 結果有 `\\` 或 `\'`:參數含「反斜線＋單引號」就能在 fish 逃出引號。改用雙引號，只跳脫 `\`、`"`、`$`
+///   (這三個在 POSIX 與 fish 的雙引號內意思相同);反引號在 POSIX 雙引號內會執行、fish 不會，所以反引號另以單引號包住接在後面。
 public enum PosixShell {
-    /// 整段用單引號包住，內部單引號寫成 `'"'"'`。不用反斜線：fish 在單引號內仍把 `\` 當特殊字元,
-    /// 而 sshd 會先把指令交給使用者的登入 shell(行為規格 §3.2)。
     public static func quote(_ text: String) -> String {
+        let simple = singleQuoted(text)
+        guard simple.contains(#"\\"#) || simple.contains(#"\'"#) else { return simple }
+        var result = ""
+        var run = ""
+        func flush() {
+            guard !run.isEmpty else { return }
+            result += run.unicodeScalars.contains("\\") ? doubleQuoted(run) : singleQuoted(run)
+            run = ""
+        }
+        for scalar in text.unicodeScalars {
+            if scalar == "`" {
+                flush()
+                result += "'`'"
+            } else {
+                run.unicodeScalars.append(scalar)
+            }
+        }
+        flush()
+        return result
+    }
+
+    private static func singleQuoted(_ text: String) -> String {
         "'" + text.replacingOccurrences(of: "'", with: #"'"'"'"#) + "'"
+    }
+
+    private static func doubleQuoted(_ text: String) -> String {
+        var escaped = ""
+        for scalar in text.unicodeScalars {
+            if scalar == "\\" || scalar == "\"" || scalar == "$" { escaped.unicodeScalars.append("\\") }
+            escaped.unicodeScalars.append(scalar)
+        }
+        return "\"" + escaped + "\""
     }
 }
 
