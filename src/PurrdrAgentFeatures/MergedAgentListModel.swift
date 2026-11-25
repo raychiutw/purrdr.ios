@@ -360,6 +360,25 @@ public final class MergedAgentListModel {
         return TerminalRow(pane: pane, host: route.host, hostLabel: nil).program
     }
 
+    /// 視窗指令(選單列與快捷鍵)要的、選取中聊天的資料(#581)。
+    package struct WindowTarget: Equatable {
+        /// 「在新視窗開啟」的內容;沒選或列表上找不到是 `nil`。
+        package var opening: SpacesTab.WindowOpening?
+        /// 選取的是對話(不是 Pane 終端機);沒選是 `false`。
+        package var hasConversation: Bool
+    }
+
+    /// 只查選取的那個聊天(所在那台主機的 snapshot),不對所有主機做完整 Spaces 投影(#581)。
+    /// 沒選聊天(`route` 為 `nil`)時完全不讀列表資料。
+    package func windowTarget(for route: ChatRoute?) -> WindowTarget {
+        guard let route else { return WindowTarget(opening: nil, hasConversation: false) }
+        guard let source = sources.first(where: { $0.host == route.host }) else { return WindowTarget(opening: nil, hasConversation: true) }
+        let hasConversation = terminalTitle(of: route) == nil
+        let tabs = AgentListProjection.spacesSections(sources: [projectionSource(of: source)], visible: [], query: "").flatMap(\.tabs)
+        let opening = tabs.lazy.compactMap(\.newWindowOpening).first { $0.paneID == route.paneID }
+        return WindowTarget(opening: opening, hasConversation: hasConversation)
+    }
+
     /// 列表看到的 session(開對話時用來比對快取)。
     public func sessionID(of route: ChatRoute) -> String? {
         list(for: route.host)?.sessionID(ofPane: route.paneID)

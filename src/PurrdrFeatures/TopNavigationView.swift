@@ -10,6 +10,10 @@ import SwiftUI
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
 public struct TopNavigationView: View {
     @State private var navigation: TopNavigationModel
+    /// 傳給子畫面的閉包(穩定物件,#581);根畫面重算時不產生新閉包。
+    @State private var actions: RootActions
+    /// 聊天 tab 的徽章數字(#581);只有小 View `RootTabs` 讀它。
+    @State private var badge: NeedsYouBadge
     /// 兩欄預設都顯示。
     @State private var columns = NavigationSplitViewVisibility.all
     let hosts: HostsModel
@@ -37,7 +41,10 @@ public struct TopNavigationView: View {
         hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil,
         appLock: AppLock? = nil, inspectorStore: any InspectorVisibilityStore = UserDefaultsInspectorVisibilityStore()
     ) {
-        _navigation = State(initialValue: TopNavigationModel(inspectorStore: inspectorStore))
+        let navigation = TopNavigationModel(inspectorStore: inspectorStore)
+        _navigation = State(initialValue: navigation)
+        _actions = State(initialValue: RootActions(navigation: navigation, hosts: hosts))
+        _badge = State(initialValue: NeedsYouBadge(merged: hosts.agentList))
         self.welcome = welcome
         self.appLock = appLock
         self.hostSync = hostSync
@@ -54,14 +61,14 @@ public struct TopNavigationView: View {
             .environment(\.usageSections, UsageSectionContext(hosts: hosts))
             // 對話頂部的跨聊天「需要你」橫幅(#530):點了把目前的聊天換成那個聊天。
             .registersAsMainWindow()
-            .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, open: { [navigation] in navigation.selectedChat = $0 }))
+            .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, open: actions.openBannerChat))
             // 「需要你」通知跟著合併列表的快照(整個 app 只有這一個接線點;背景不推進,#492)。
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
                 await hosts.agentList.needsYou.runShared(observing: hosts.agentList)
             }
             // 選單列與快捷鍵作用在有焦點的視窗(`PurrdrCommands`)。
-            .focusedSceneValue(\.windowCommands, windowCommands)
+            .modifier(WindowCommandsModifier(navigation: navigation, hosts: hosts))
             .tailscaleCheckPrompt(hosts.tailscaleCheck)
             .sheet(item: $navigation.sheet) { sheet in
                 Group {
@@ -161,38 +168,6 @@ public struct TopNavigationView: View {
         appLock.whenUnlocked(navigation)
     }
 
-    private var windowCommands: WindowCommands {
-        let navigation = navigation
-        let hosts = hosts
-        let opening = selectedWindowOpening
-        let openWindow = openWindow
-        let hasConversation = navigation.selectedChat.map { hosts.agentList.terminalTitle(of: $0) == nil } ?? false
-        let context = KeyboardCommandContext(
-            hasSelectedChat: opening != nil, hasSelectedConversation: hasConversation, tab: navigation.tab,
-            isWideWindow: sizeClass != .compact, isInspectorShown: navigation.isInspectorShown,
-            supportsMultipleWindows: supportsMultipleWindows)
-        return WindowCommands(perform: { command in
-            if command == .openInNewWindow {
-                if let route = navigation.selectedChat, let opening {
-                    openWindow(value: PaneWindow(
-                        kind: opening.isTerminal ? .terminal : .chat, host: route.host, paneID: route.paneID,
-                        sessionID: hosts.agentList.sessionID(of: route), title: opening.title))
-                }
-                return
-            }
-            navigation.perform(command, visibleAgents: navigation.visibleAgents(hosts.agentList.spacesSections))
-        }, context: context)
-    }
-
-    /// 目前選取的聊天在 Spaces 列表上的「在新視窗開啟」內容(「在新視窗開啟」選單項目用);沒選或列表上找不到是 `nil`。
-    private var selectedWindowOpening: SpacesTab.WindowOpening? {
-        guard let route = navigation.selectedChat else { return nil }
-        for tab in hosts.agentList.spacesSections.flatMap(\.tabs) where tab.host == route.host {
-            if let opening = tab.newWindowOpening, opening.paneID == route.paneID { return opening }
-        }
-        return nil
-    }
-
     /// 聊天 tab:窄視窗是一般 `NavigationStack`(列表為根、聊天推入,轉場與主機 tab 的子頁一樣順),
     /// 寬視窗是兩欄。選取的聊天(`navigation.selectedChat`)兩種排版共用,縮放視窗時不丟失。
     @ViewBuilder
@@ -247,14 +222,14 @@ public struct TopNavigationView: View {
             open = { kind, route, title in openInNewWindow(kind, route, title) }
         }
         let topBar = ChatTopBarActions(
-            newChat: { navigation.sheet = .newChat },
-            newChatInWorkspace: { navigation.startNewChat(inWorkspace: $1, on: $0) },
-            canNewChatInWorkspace: { hosts.supportsNewChatInWorkspace($0) },
-            addHost: { navigation.openAddHost() },
+            newChat: actions.newChat,
+            newChatInWorkspace: actions.newChatInWorkspace,
+            canNewChatInWorkspace: actions.canNewChatInWorkspace,
+            addHost: actions.addHost,
             account: AccountButtonPlacement.showsInTopBar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
         return AgentListView(
             model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar,
-            prefetchConversations: { await hosts.prefetchConversations($0) }
+            prefetchConversations: actions.prefetchConversations
         ) { route, sessionID in
             hosts.member(for: route.host).conversation(route, sessionID: sessionID)
         } terminal: { route, title in
@@ -268,18 +243,34 @@ public struct TopNavigationView: View {
             kind: kind, host: route.host, paneID: route.paneID, sessionID: hosts.agentList.sessionID(of: route), title: title))
     }
 
-    /// 4 個 tab。每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
+    /// 4 個 tab。徽章數字在小 View `RootTabs` 讀(#581)。
     private var tabs: some View {
+        RootTabs(
+            navigation: navigation, hosts: hosts, member: member, plus: plus, badge: badge,
+            chats: chatsRoot.selectedHostTheme(hosts).tint(ProminentFillStyle()))
+    }
+}
+
+/// 4 個 tab 的容器。只有它讀聊天 tab 的徽章數字(`NeedsYouBadge`):數量變了只重算這一層,根畫面不重算(#581)。
+/// 每個 tab 的頂列一致:中間是這頁看什麼,右上依 tab 不同,最右上角是帳號鈕。
+private struct RootTabs<Chats: View>: View {
+    let navigation: TopNavigationModel
+    let hosts: HostsModel
+    let member: MemberModel
+    let plus: SubscriptionModel?
+    let badge: NeedsYouBadge
+    let chats: Chats
+
+    var body: some View {
+        @Bindable var navigation = navigation
         TabView(selection: Binding(
             get: { TopLevelTab.visibleSelection(navigation.tab, visible: TopLevelTab.allCases) },
             set: { navigation.tab = $0 })) {
             Tab("Chats", systemImage: "bubble.left.and.bubble.right.fill", value: TopLevelTab.chats) {
                 // 選取中主機的主題(#23)只套在聊天 tab 的列表、對話與終端機。
-                chatsRoot
-                    .selectedHostTheme(hosts)
-                    .tint(ProminentFillStyle())
+                chats
             }
-            .badge(hosts.agentList.needsYouCount())
+            .badge(badge.count)
             Tab("Files", systemImage: "folder.fill", value: TopLevelTab.files) {
                 FilesTab(hosts: hosts, member: member, openAccount: { navigation.sheet = .member }, addHost: { navigation.openAddHost() })
                     .tint(ProminentFillStyle())
@@ -299,6 +290,65 @@ public struct TopNavigationView: View {
         }
         // tab bar 選取態的顏色(DESIGN.md「深色層次與新色票」);內容各自把 tint 還原成主色。
         .tint(AccessibleColors.tabSelection.color)
+        .task { badge.start() }
+    }
+}
+
+/// 視窗指令(選單列與快捷鍵)的接線(#581):body 只查選取的聊天(`windowTarget`),不對所有主機做完整 Spaces 投影;
+/// 放在 ViewModifier 裡,資料變了只重算這一層,不連累根畫面。
+private struct WindowCommandsModifier: ViewModifier {
+    let navigation: TopNavigationModel
+    let hosts: HostsModel
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+
+    func body(content: Content) -> some View {
+        content.focusedSceneValue(\.windowCommands, windowCommands)
+    }
+
+    private var windowCommands: WindowCommands {
+        let navigation = navigation
+        let hosts = hosts
+        let target = hosts.agentList.windowTarget(for: navigation.selectedChat)
+        let opening = target.opening
+        let openWindow = openWindow
+        let context = KeyboardCommandContext(
+            hasSelectedChat: opening != nil, hasSelectedConversation: target.hasConversation, tab: navigation.tab,
+            isWideWindow: sizeClass != .compact, isInspectorShown: navigation.isInspectorShown,
+            supportsMultipleWindows: supportsMultipleWindows)
+        return WindowCommands(perform: { command in
+            if command == .openInNewWindow {
+                if let route = navigation.selectedChat, let opening {
+                    openWindow(value: PaneWindow(
+                        kind: opening.isTerminal ? .terminal : .chat, host: route.host, paneID: route.paneID,
+                        sessionID: hosts.agentList.sessionID(of: route), title: opening.title))
+                }
+                return
+            }
+            // 執行時才算完整投影(切換聊天的快捷鍵),不在 body 裡讀。
+            navigation.perform(command, visibleAgents: navigation.visibleAgents(hosts.agentList.spacesSections))
+        }, context: context)
+    }
+}
+
+/// 根畫面傳給子畫面的閉包(#581):一份穩定物件,根畫面重算時不產生新閉包。
+@MainActor
+final class RootActions {
+    let openBannerChat: @MainActor (ChatRoute) -> Void
+    let newChat: () -> Void
+    let newChatInWorkspace: (HostSelection, String) -> Void
+    let canNewChatInWorkspace: (HostSelection) -> Bool
+    let addHost: () -> Void
+    let prefetchConversations: @MainActor ([ChatRoute]) async -> Void
+
+    init(navigation: TopNavigationModel, hosts: HostsModel) {
+        openBannerChat = { [weak navigation] in navigation?.selectedChat = $0 }
+        newChat = { [weak navigation] in navigation?.sheet = .newChat }
+        newChatInWorkspace = { [weak navigation] in navigation?.startNewChat(inWorkspace: $1, on: $0) }
+        canNewChatInWorkspace = { [weak hosts] in hosts?.supportsNewChatInWorkspace($0) ?? false }
+        addHost = { [weak navigation] in navigation?.openAddHost() }
+        prefetchConversations = { [weak hosts] in await hosts?.prefetchConversations($0) }
     }
 }
 
