@@ -110,6 +110,25 @@ public protocol HostConnection: Sendable {
     /// 持續讀到主機那端結束、herdr 回錯誤(例如 `events_lost`)或呼叫端不再讀(此時關閉串流)。
     func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error>
 
+    // MARK: - 型別化操作:對話紀錄的追蹤讀取、預覽、subagent、workflow、委派(#595 第二批 C)
+
+    /// 讀游標之後新增的完整行(`catchUp` 為真時從游標分段接著讀、落後多少都不回報落後太多);路徑與游標已驗證。
+    /// 檔案被換掉回 `.shrank`;檔案不在或讀不了丟 `TranscriptReadError`。
+    func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead
+
+    /// 列表預覽:每個聊天對話紀錄的檔尾原始內容(key 對應 `PreviewRequest.key`);沒有檔案或讀不到的聊天可以不在結果裡。
+    /// HTTPS 要主機服務 0.7.0 起(`HostServiceFeature.transcriptPreviewsAndDelegations`)。
+    func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody]
+
+    /// 呼叫 `callID` 啟動的 subagent 的對話紀錄路徑(`toolUseId` 完全相等;還沒有丟 `.absent`,不只一個丟 `.changed`)。
+    func locateSubagent(sessionFolder: String, callID: String) async throws -> String
+
+    /// workflow 進度:run 檔只在結束時寫,所以有 run 檔讀 run 檔,否則讀 journal;checksum 與 `knownChecksum` 相同回 `.unchanged`。
+    func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead
+
+    /// 父對話紀錄中指名這個委派(呼叫 id 或 agent id)的行。
+    func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead
+
     /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
     func beginQuickDisconnectDetection() async
 
@@ -198,6 +217,21 @@ extension HostConnection {
     }
     public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
         try await HerdrClient(connection: self).wireSubscribe(subscriptions)
+    }
+    public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
+        try await TranscriptReader(connection: self).wireTail(path: path, from: cursor, limit: limit, catchUp: catchUp)
+    }
+    public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
+        try await TranscriptReader(connection: self).wirePreviews(requests)
+    }
+    public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
+        try await TranscriptReader(connection: self).wireLocateSubagent(sessionFolder: sessionFolder, callID: callID)
+    }
+    public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
+        try await TranscriptReader(connection: self).wireWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
+    }
+    public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
+        try await TranscriptReader(connection: self).wireDelegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
     }
 }
 

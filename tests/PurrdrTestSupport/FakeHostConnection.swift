@@ -214,6 +214,34 @@ public actor FakeHostConnection: HostConnection {
         return try await HerdrClient(connection: self).wireSubscribe(subscriptions)
     }
 
+    // 對話紀錄的追蹤讀取、預覽、subagent、workflow、委派(#595 第二批 C):記錄呼叫後走既有的對話紀錄回放(`answerTranscripts`)。
+
+    public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
+        typedCalls.append("readTranscriptTail \(path) \(cursor) \(limit) \(catchUp)")
+        return try await TranscriptReader(connection: self).wireTail(path: path, from: cursor, limit: limit, catchUp: catchUp)
+    }
+
+    public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
+        typedCalls.append("readTranscriptPreviews \(requests.map(\.key).joined(separator: ","))")
+        return try await TranscriptReader(connection: self).wirePreviews(requests)
+    }
+
+    public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
+        typedCalls.append("locateSubagent \(callID)")
+        return try await TranscriptReader(connection: self).wireLocateSubagent(sessionFolder: sessionFolder, callID: callID)
+    }
+
+    public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
+        typedCalls.append("readWorkflow \(runID)")
+        return try await TranscriptReader(connection: self).wireWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
+    }
+
+    public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
+        typedCalls.append("readDelegationLines \(callID)")
+        return try await TranscriptReader(connection: self).wireDelegationLines(
+            path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
+    }
+
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
         let method = Self.method(of: request)
         let reply = try consume(request)

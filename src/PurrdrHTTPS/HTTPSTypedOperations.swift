@@ -188,6 +188,42 @@ extension HTTPSHostConnection {
         Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
     }
 
+    // MARK: - 對話紀錄的追蹤讀取、預覽、subagent、workflow、委派(#595 第二批 C)
+
+    public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
+        guard TranscriptReader.isValidPath(path), cursor >= 0, limit > 0 else { throw TranscriptReadError.invalidReference }
+        // 主機服務(#173 起)落後超過上限時從游標分段送出，與 SSH 的分段接著讀相同;行從推送累積的緩衝回答，不必依上限放寬期限。
+        let answer: TailAnswer
+        do {
+            answer = try await withDeadline(HostCommandDeadline.standard) { try await self.tail(path: path, from: cursor, limit: limit) }
+        } catch TranscriptReadError.replaced(let size) {
+            // 主機服務回報檔案被換掉：與 SSH 的「變小」同樣是真正的斷層。
+            return TranscriptTailRead(tail: .shrank(size: size), size: size)
+        }
+        return try TranscriptReader.interpretTail(size: answer.size, cursor: cursor, limit: limit, catchUp: catchUp) {
+            (answer.records.map(\.text), answer.records.reduce(0) { $0 + $1.length + 1 })
+        }
+    }
+
+    public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
+        try await previewBodies(requests)
+    }
+
+    public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
+        let path = try await subagentPath(sessionFolder: sessionFolder, callID: callID)
+        // 路徑不合規格視同找不到(與 SSH 腳本輸出經 `TranscriptReader` 檢查後的結果相同)。
+        guard TranscriptReader.isValidPath(path) else { throw TranscriptReadError.absent }
+        return path
+    }
+
+    public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
+        try await workflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
+    }
+
+    public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
+        try await delegation(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
+    }
+
     // MARK: - 輔助
 
     /// 主機會比對時才帶比對欄位(與 `HerdrClient` 相同)。
