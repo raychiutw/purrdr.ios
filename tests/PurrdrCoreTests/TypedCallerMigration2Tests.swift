@@ -16,8 +16,8 @@ struct TypedCallerMigration2Tests {
     @Test("HerdrClient 的 workspace／tab 操作經型別化操作,參數原樣交給連線")
     func structureOperations() async throws {
         let connection = FakeHostConnection()
-        for method in ["workspace.rename", "tab.rename", "tab.close", "workspace.close"] {
-            await connection.expect(method, reply: Self.ok)
+        for operation in [FakeHostConnection.Operation.workspaceRename, .tabRename, .tabClose, .workspaceClose] {
+            await connection.stub(operation)
         }
         let client = HerdrClient(connection: connection)
         try await client.renameWorkspace("w1", to: "garden")

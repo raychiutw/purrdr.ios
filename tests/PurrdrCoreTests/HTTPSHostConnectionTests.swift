@@ -163,11 +163,12 @@ struct HTTPSHostConnectionTests {
     func deadline() async throws {
         let service = try await FakeHostService.start(.init(agentsReply: .silent))
         defer { Task { await service.stop() } }
-        let connection = Self.connection(to: service)
-        let request = Data(#"{"id":"purrdr:session.snapshot","method":"session.snapshot","params":{}}"#.utf8) + [0x0A]
+        // 計時縮成四十分之一:標準期限 20 秒到 0.5 秒就到。
+        let connection = HTTPSHostConnection(
+            address: service.address, deviceToken: { "token-ok" }, appVersion: "9.9.9", sleep: { try await Task.sleep(for: $0 / 40) })
 
         await #expect(throws: HerdrError.deadlineExceeded) {
-            try await connection.herdrRequest(request, deadline: .milliseconds(500))
+            _ = try await connection.readSnapshot()
         }
     }
 
@@ -193,29 +194,46 @@ struct HTTPSHostConnectionTests {
         let service = try await FakeHostService.start()
         defer { Task { await service.stop() } }
 
+        let client = HerdrClient(connection: Self.connection(to: service))
         await #expect(throws: HostServiceError.unsupported("agent.wait")) {
-            _ = try await HerdrClient(connection: Self.connection(to: service)).waitForAgent(target: "w1:p6", until: [.working], timeout: .seconds(1))
+            _ = try await client.waitForAgent(target: "w1:p6", until: [.working], timeout: .seconds(1))
         }
-        #expect(!service.log.messages.contains { $0.contains("wait") })
+        await #expect(throws: HostServiceError.unsupported("agent.get")) { _ = try await client.agentLaunchState(target: "w1:p6") }
+        await #expect(throws: HostServiceError.unsupported("integration.list")) { _ = try await client.integrations() }
+        await #expect(throws: HostServiceError.unsupported("pane.report_metadata")) {
+            try await client.reportPresence(paneID: "w1:p6", model: nil, seq: 1)
+        }
+        #expect(!service.log.messages.contains { $0.contains("wait") || $0.contains("integration") || $0.contains("report_metadata") })
     }
 
-    @Test(
-        "herdr 請求是否寫入類照協定的 x-write 判斷(UI 測試替身與主機服務用同一個來源)",
-        arguments: [
-            (#"{"id":"1","method":"agent.prompt","params":{"target":"w1:p1","text":"hi"}}"#, true),
-            (#"{"id":"1","method":"pane.send_text","params":{"pane_id":"w1:p1","text":"hi"}}"#, true),
-            (#"{"id":"1","method":"pane.send_keys","params":{"pane_id":"w1:p1","keys":["Enter"]}}"#, true),
-            (#"{"id":"1","method":"session.snapshot","params":{}}"#, false),
-            (#"{"id":"1","method":"ping"}"#, false),
-        ])
-    func writeRequestsFollowSchema(request: String, isWrite: Bool) throws {
-        #expect(try HTTPSHostConnection.isWriteRequest(Data(request.utf8)) == isWrite)
-    }
+    @Test("唯讀裝置:寫入類操作(schema 的 x-write)被主機服務拒絕,讀取類照常(UI 測試替身的寫入清單與它一致)")
+    func readOnlyDeviceRejectsExactlyTheWriteOperations() async throws {
+        let service = try await FakeHostService.start(.init(
+            readOnlyTokens: ["token-ok"], hostServiceVersion: "0.15.0", paneScreens: ["w1:p6": "> hi\n"]))
+        defer { Task { await service.stop() } }
+        let connection = Self.connection(to: service)
 
-    @Test("不支援的 herdr 請求問不出是否寫入類：錯誤種類是 unsupported")
-    func unsupportedRequestHasNoWriteKind() {
-        #expect(throws: HostServiceError.unsupported("agent.wait")) {
-            try HTTPSHostConnection.isWriteRequest(Data(#"{"id":"1","method":"agent.wait","params":{}}"#.utf8))
+        _ = try await connection.readSnapshot()
+        _ = try await connection.readPaneScreen(paneID: "w1:p6", lines: 40, format: .text)
+        _ = try await connection.listSessions(cwd: "/Users/demo/p", agent: "claude")
+        let rejected: [(String, () async throws -> Void)] = [
+            ("sendKeys", { try await connection.sendKeys(paneID: "w1:p6", keys: ["enter"], expecting: .none) }),
+            ("sendText", { try await connection.sendText(paneID: "w1:p6", text: "hi", expecting: .none) }),
+            ("sendPrompt", { _ = try await connection.sendPrompt(target: "w1:p6", text: "hi", wait: nil, expecting: .none) }),
+            ("renameWorkspace", { try await connection.renameWorkspace("w1", to: "a") }),
+            ("renameTab", { try await connection.renameTab("w1:t1", to: "a") }),
+            ("closeTab", { try await connection.closeTab("w1:t1") }),
+            ("closeWorkspace", { try await connection.closeWorkspace("w1") }),
+            ("createWorktree", { _ = try await connection.createWorktree(from: "w1", branch: "b") }),
+            ("createWorkspace", { _ = try await connection.createWorkspace(cwd: "/tmp", label: nil) }),
+            ("createTab", { _ = try await connection.createTab(in: "w1", label: nil) }),
+            ("startAgent", {
+                _ = try await connection.startAgent(
+                    AgentStartRequest(name: "a", kind: "claude", paneID: "w1:p1", arguments: [], timeout: .seconds(1)))
+            }),
+        ]
+        for (name, operation) in rejected {
+            await #expect(throws: HostServiceError.readOnlyDevice, "\(name)") { try await operation() }
         }
     }
 
@@ -277,17 +295,13 @@ struct HTTPSHostConnectionTests {
     func sendTextGoesToPaneSendText() async throws {
         let service = try await FakeHostService.start()
         defer { Task { await service.stop() } }
-        let request = Data(#"{"id":"purrdr:pane.send_text","method":"pane.send_text","params":{"pane_id":"w1:p6","text":"yes"}}"#.utf8)
 
-        let reply = try await Self.connection(to: service).herdrRequest(request, deadline: .seconds(20))
+        try await Self.connection(to: service).sendText(paneID: "w1:p6", text: "yes", expecting: .none)
 
         let sent = try Self.lastMessage(service)
         #expect(sent["type"] as? String == "pane.send_text")
         #expect(sent["pane_id"] as? String == "w1:p6")
         #expect(sent["text"] as? String == "yes")
-        let envelope = try #require(try JSONSerialization.jsonObject(with: reply) as? [String: Any])
-        #expect(envelope["id"] as? String == "purrdr:pane.send_text")
-        #expect((envelope["result"] as? [String: Any])?["type"] as? String == "ok")
     }
 
     @Test("唯讀裝置：連線回報唯讀;送 prompt 什麼都沒送出，結果是 readOnlyDevice")

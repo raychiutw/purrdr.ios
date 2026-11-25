@@ -2,16 +2,16 @@ import Foundation
 import PurrdrCore
 import PurrdrSSH
 
-/// 假的主機連線：對預期的 herdr 請求(以 method 比對)回放錄製的真實回應，並記錄 app 送出的請求。
-/// 上層功能的測試用它，就不必知道連線方式。
+/// 假的主機連線：型別化操作直接回 stub 的值或失敗，並記錄 app 送出的操作。上層功能的測試用它，就不必知道連線方式。
 ///
 /// ```swift
 /// let connection = FakeHostConnection()
-/// await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+/// await connection.stub(.snapshot, snapshot)                                          // 型別化的值
+/// await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))  // 錄製的 herdr 回應,由 SSH 解析層判讀
 /// let model = AgentListModel(client: HerdrClient(connection: connection))
 /// ```
 ///
-/// 沒有預期的請求一律以 `FakeHostConnectionError.unexpectedRequest` 失敗。
+/// 沒有 stub 的操作一律以 `FakeHostConnectionError.unexpectedRequest` 失敗。
 public actor FakeHostConnection: HostConnection {
     /// app 送出的 herdr 請求行(含 `events.subscribe`),依送出順序。
     public private(set) var requests: [String] = []
@@ -19,7 +19,6 @@ public actor FakeHostConnection: HostConnection {
     public private(set) var subscriptionsClosed: [Bool] = []
     public private(set) var disconnectCount = 0
 
-    private var expectations: [(method: String, reply: Result<Data, any Error>)] = []
 
     /// `hostServiceVersion()` 回報的版本(#198);`nil` 像 SSH 一樣沒有主機服務。
     private var reportedHostServiceVersion: String?
@@ -65,20 +64,9 @@ public actor FakeHostConnection: HostConnection {
 
     public func checksSendExpectations() async -> Bool { checksExpectations }
 
-    /// 預期 app 會送出 `method` 的請求，以 `reply`(錄製的回應)回應。同一 method 可預期多次，依序消耗。
-    /// `events.subscribe` 的回應送完後串流保持開著，之後用 `send(event:toSubscription:)` 推事件。
-    public func expect(_ method: String, reply: Data) {
-        expectations.append((method, .success(reply)))
-    }
-
-    /// 預期 app 會送出 `method` 的請求，以 `failure` 失敗(例如主機服務的 `HostServiceError.paneChanged`)。
-    public func expect(_ method: String, failure: any Error) {
-        expectations.append((method, .failure(failure)))
-    }
-
-    /// 還沒被送出的預期請求(method)。
+    /// 還沒被用掉的預期(stub 與事件訂閱)。
     public var unmetExpectations: [String] {
-        expectations.map(\.method) + unmetStubs + subscriptionExpectations.map { _ in "events.subscribe" }
+        unmetStubs + subscriptionExpectations.map { _ in "events.subscribe" }
     }
 
     // MARK: - 型別化操作(ADR-0015)
@@ -193,7 +181,7 @@ public actor FakeHostConnection: HostConnection {
     public func readSnapshot() async throws -> HostSnapshot {
         if let snapshot = try await takeStub(.snapshot, as: HostSnapshot.self, call: "readSnapshot") { return snapshot }
         typedCalls.append("readSnapshot")
-        return try await HerdrClient(connection: self).wireSnapshot()
+        throw FakeHostConnectionError.unexpectedRequest("readSnapshot")
     }
 
     public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
@@ -201,7 +189,7 @@ public actor FakeHostConnection: HostConnection {
         let params: [String: Any] = ["pane_id": paneID, "keys": keys].merging(expectationParams(expecting)) { $1 }
         if try await takeStub(.sendKeys, as: Void.self, call: call, params: params) != nil { return }
         typedCalls.append(call)
-        try await HerdrClient(connection: self).wireSendKeys(paneID: paneID, keys: keys, expecting: expecting)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
@@ -209,79 +197,75 @@ public actor FakeHostConnection: HostConnection {
         let params: [String: Any] = ["pane_id": paneID, "text": text].merging(expectationParams(expecting)) { $1 }
         if try await takeStub(.sendText, as: Void.self, call: call, params: params) != nil { return }
         typedCalls.append(call)
-        try await HerdrClient(connection: self).wireSendText(paneID: paneID, text: text, expecting: expecting)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
         let call = "readPaneScreen \(paneID) \(lines) \(format == .ansi ? "ansi" : "text")"
         if let screen = try await takeStub(.paneRead, as: String.self, call: call, params: ["pane_id": paneID, "lines": lines]) { return screen }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wireReadPane(paneID: paneID, lines: lines, format: format)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile {
         try await transcriptOperation(
-            .transcriptLocate, call: "locateTranscript", served: { try $0.locate(location) },
-            wire: { try await TranscriptReader(connection: self).wireLocate(location) })
+            .transcriptLocate, call: "locateTranscript", served: { try $0.locate(location) })
     }
 
     public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
         transcriptWindowReads.append(TranscriptWindowRead(path: path, end: end, lines: lines, maxBytes: maxBytes))
         return try await transcriptOperation(
             .transcriptWindow, call: "readTranscriptWindow \(path) \(end) \(lines) \(maxBytes)",
-            served: { try $0.window(path, end, lines, maxBytes) },
-            wire: {
-                try await TranscriptReader(connection: self).wireWindow(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
-            })
+            served: { try $0.window(path, end, lines, maxBytes) })
     }
 
-    // herdr 的結構與 Agent 操作:有 stub 就直接回,沒有就記錄呼叫後走既有的 herdr 回放(`expect(method, reply:)`)。
+    // herdr 的結構與 Agent 操作:有 stub 就直接回,沒有就記錄呼叫後丟 `unexpectedRequest`。
 
     public func herdrVersion() async throws -> String {
         if let version = try await takeStub(.ping, as: String.self, call: "herdrVersion") { return version }
         typedCalls.append("herdrVersion")
-        return try await HerdrClient(connection: self).wirePing()
+        throw FakeHostConnectionError.unexpectedRequest("herdrVersion")
     }
 
     public func listIntegrations() async throws -> [AgentIntegration] {
         if let list = try await takeStub(.integrations, as: [AgentIntegration].self, call: "listIntegrations") { return list }
         typedCalls.append("listIntegrations")
-        return try await HerdrClient(connection: self).wireIntegrations()
+        throw FakeHostConnectionError.unexpectedRequest("listIntegrations")
     }
 
     public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
         let call = "reportPresence \(paneID) \(model ?? "-") \(seq)"
         if try await takeStub(.reportPresence, as: Void.self, call: call, params: ["pane_id": paneID]) != nil { return }
         typedCalls.append(call)
-        try await HerdrClient(connection: self).wireReportPresence(paneID: paneID, model: model, seq: seq)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
         let call = "renameWorkspace \(workspaceID) \(label)"
         if try await takeStub(.workspaceRename, as: Void.self, call: call, params: ["workspace_id": workspaceID, "label": label]) != nil { return }
         typedCalls.append(call)
-        try await HerdrClient(connection: self).wireRenameWorkspace(workspaceID, to: label)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func renameTab(_ tabID: String, to label: String) async throws {
         let call = "renameTab \(tabID) \(label)"
         if try await takeStub(.tabRename, as: Void.self, call: call, params: ["tab_id": tabID, "label": label]) != nil { return }
         typedCalls.append(call)
-        try await HerdrClient(connection: self).wireRenameTab(tabID, to: label)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func closeTab(_ tabID: String) async throws {
         let call = "closeTab \(tabID)"
         if try await takeStub(.tabClose, as: Void.self, call: call, params: ["tab_id": tabID]) != nil { return }
         typedCalls.append(call)
-        try await HerdrClient(connection: self).wireCloseTab(tabID)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func closeWorkspace(_ workspaceID: String) async throws {
         let call = "closeWorkspace \(workspaceID)"
         if try await takeStub(.workspaceClose, as: Void.self, call: call, params: ["workspace_id": workspaceID]) != nil { return }
         typedCalls.append(call)
-        try await HerdrClient(connection: self).wireCloseWorkspace(workspaceID)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
@@ -290,28 +274,28 @@ public actor FakeHostConnection: HostConnection {
             return created
         }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wireCreateWorktree(from: workspaceID, branch: branch)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
         let call = "createWorkspace \(cwd) \(label ?? "-")"
         if let created = try await takeStub(.workspaceCreate, as: NewWorkspace.self, call: call, params: ["cwd": cwd]) { return created }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wireCreateWorkspace(cwd: cwd, label: label)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
         let call = "createTab \(workspaceID) \(label ?? "-")"
         if let created = try await takeStub(.tabCreate, as: CreatedTab.self, call: call, params: ["workspace_id": workspaceID]) { return created }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wireCreateTab(in: workspaceID, label: label)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func startAgent(_ request: AgentStartRequest) async throws -> Bool {
         let call = "startAgent \(request.kind) \(request.paneID)"
         if let ready = try await takeStub(.agentStart, as: Bool.self, call: call, params: agentStartParams(request)) { return ready }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wireStartAgent(request)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     private func agentStartParams(_ request: AgentStartRequest) -> [String: Any] {
@@ -324,14 +308,14 @@ public actor FakeHostConnection: HostConnection {
         let call = "agentLaunchState \(target)"
         if let state = try await takeStub(.agentLaunchState, as: AgentLaunchState.self, call: call, params: ["target": target]) { return state }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wireAgentLaunchState(target: target)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
         let call = "listSessions \(cwd) \(agent)"
         if let list = try await takeStub(.sessionsList, as: [ResumableSession].self, call: call, params: ["cwd": cwd, "agent_kind": agent]) { return list }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wireListSessions(cwd: cwd, agent: agent)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
@@ -339,54 +323,44 @@ public actor FakeHostConnection: HostConnection {
         let params: [String: Any] = ["target": target, "text": text].merging(expectationParams(expecting)) { $1 }
         if let reply = try await takeStub(.agentPrompt, as: PromptReply.self, call: call, params: params) { return reply }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wirePrompt(target: target, text: text, wait: wait, expecting: expecting)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
         let call = "waitForAgent \(target)"
         if let reached = try await takeStub(.agentWait, as: Bool.self, call: call, params: ["target": target]) { return reached }
         typedCalls.append(call)
-        return try await HerdrClient(connection: self).wireWaitForAgent(target: target, until: until, timeout: timeout)
+        throw FakeHostConnectionError.unexpectedRequest(call)
     }
 
     // 對話紀錄的追蹤讀取、預覽、subagent、workflow、委派:有 stub 就直接回,其次是 `serveTranscript` 設的伺服器,
-    // 都沒有才走既有的對話紀錄回放(`answerTranscripts`)。
+    // 都沒有就丟 `unsupported`。
 
     public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
         transcriptTailReads.append(TranscriptTailReadRequest(path: path, cursor: cursor, limit: limit, catchUp: catchUp))
         return try await transcriptOperation(
             .transcriptTail, call: "readTranscriptTail \(path) \(cursor) \(limit) \(catchUp)",
-            served: { try $0.tail(path, cursor, limit, catchUp) },
-            wire: { try await TranscriptReader(connection: self).wireTail(path: path, from: cursor, limit: limit, catchUp: catchUp) })
+            served: { try $0.tail(path, cursor, limit, catchUp) })
     }
 
     public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
         try await transcriptOperation(
-            .transcriptPreviews, call: "readTranscriptPreviews \(requests.map(\.key).joined(separator: ","))", served: nil,
-            wire: { try await TranscriptReader(connection: self).wirePreviews(requests) })
+            .transcriptPreviews, call: "readTranscriptPreviews \(requests.map(\.key).joined(separator: ","))", served: nil)
     }
 
     public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
         try await transcriptOperation(
-            .subagentLocate, call: "locateSubagent \(callID)", served: nil,
-            wire: { try await TranscriptReader(connection: self).wireLocateSubagent(sessionFolder: sessionFolder, callID: callID) })
+            .subagentLocate, call: "locateSubagent \(callID)", served: nil)
     }
 
     public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
         try await transcriptOperation(
-            .workflow, call: "readWorkflow \(runID)", served: nil,
-            wire: {
-                try await TranscriptReader(connection: self).wireWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
-            })
+            .workflow, call: "readWorkflow \(runID)", served: nil)
     }
 
     public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
         try await transcriptOperation(
-            .delegation, call: "readDelegationLines \(callID)", served: nil,
-            wire: {
-                try await TranscriptReader(connection: self).wireDelegationLines(
-                    path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
-            })
+            .delegation, call: "readDelegationLines \(callID)", served: nil)
     }
 
     /// app 送出的視窗讀取(依送出順序)。`maxBytes` 為 0 表示不限。
@@ -394,16 +368,15 @@ public actor FakeHostConnection: HostConnection {
     /// app 送出的尾端讀取(依送出順序)。
     public private(set) var transcriptTailReads: [TranscriptTailReadRequest] = []
 
-    /// 對話紀錄操作的共同流程:記錄呼叫、(有 `holdTranscripts` 時)停住,然後 stub → 伺服器 → 回放。
+    /// 對話紀錄操作的共同流程:記錄呼叫、(有 `holdTranscripts` 時)停住,然後 stub → 伺服器;都沒有就 `unsupported`。
     private func transcriptOperation<Value: Sendable>(
-        _ operation: Operation, call: String, served: (@Sendable (TranscriptServer) throws -> Value)?,
-        wire: () async throws -> Value
+        _ operation: Operation, call: String, served: (@Sendable (TranscriptServer) throws -> Value)?
     ) async throws -> Value {
         typedCalls.append(call)
         if holdsTranscripts { await withCheckedContinuation { heldTranscripts.append($0) } }
         if let stubbed = try popStub(operation, as: Value.self) { return stubbed }
         if let served, let transcriptServer { return try served(transcriptServer) }
-        return try await wire()
+        throw FakeHostConnectionError.unsupported
     }
 
     /// 型別化的對話紀錄伺服器:定位、視窗與尾端讀取各自以閉包回答(沒給的操作丟 `unsupported`)。
@@ -453,9 +426,7 @@ public actor FakeHostConnection: HostConnection {
 
     public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
         typedCalls.append("subscribeToEvents \(subscriptions.count)")
-        guard !subscriptionExpectations.isEmpty else {
-            return try await HerdrClient(connection: self).wireSubscribe(subscriptions)
-        }
+        guard !subscriptionExpectations.isEmpty else { throw FakeHostConnectionError.unexpectedRequest("events.subscribe") }
         let expectation = subscriptionExpectations.removeFirst()
         subscribeRequests.append(subscriptions)
         requests.append(Self.requestLine("events.subscribe", [
@@ -474,7 +445,7 @@ public actor FakeHostConnection: HostConnection {
         subscriptionHandles.append(SubscriptionHandle(
             sendLine: { line in
                 do {
-                    if let event = try HerdrClient.decodeEventLine(line) { continuation.yield(event) }
+                    if let event = try HerdrWireClient.decodeEventLine(line) { continuation.yield(event) }
                 } catch {
                     continuation.finish(throwing: error)
                 }
@@ -506,16 +477,6 @@ public actor FakeHostConnection: HostConnection {
 
     private var subscriptionHandles: [SubscriptionHandle] = []
 
-    public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-        let method = Self.method(of: request)
-        let reply = try consume(request)
-        if let index = heldMethods.firstIndex(of: method) {
-            heldMethods.remove(at: index)
-            await withCheckedContinuation { held.append($0) }
-        }
-        return reply.firstIndex(of: 0x0A).map { reply[reply.startIndex..<$0] } ?? reply
-    }
-
     private var heldMethods: [String] = []
     private var held: [CheckedContinuation<Void, Never>] = []
 
@@ -539,37 +500,9 @@ public actor FakeHostConnection: HostConnection {
         subscriptionHandles[index].finish(nil)
     }
 
-    public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-        let reply = try consume(request)
-        let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
-        for line in reply.split(separator: 0x0A) { continuation.yield(Data(line)) }
-        let index = subscriptionHandles.count
-        subscriptionHandles.append(SubscriptionHandle(
-            sendLine: { continuation.yield($0) }, send: { _ in }, finish: { _ in continuation.finish() }))
-        subscriptionsClosed.append(false)
-        continuation.onTermination = { _ in Task { await self.closeSubscription(index) } }
-        return lines
-    }
-
-    /// 對第 `index` 條 Agent 事件串流(從 0 起算)送出一行事件。
+    /// 對第 `index` 條 Agent 事件串流(從 0 起算)送出 herdr 的一行事件(JSON);錯誤 envelope 讓串流以錯誤結束。
     public func send(event: Data, toSubscription index: Int) {
         for line in event.split(separator: 0x0A) { subscriptionHandles[index].sendLine(Data(line)) }
-    }
-
-    /// app 送出的對話紀錄讀取，依送出順序。
-    public private(set) var transcriptRequests: [TranscriptRequest] = []
-    private var transcriptAnswer: (@Sendable (TranscriptRequest) throws -> Data)?
-
-    /// 之後的對話紀錄讀取以 `answer` 回應(格式同主機腳本的輸出)。沒設定時一律 `unsupported`。
-    public func answerTranscripts(_ answer: @escaping @Sendable (TranscriptRequest) throws -> Data) {
-        transcriptAnswer = answer
-    }
-
-    public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        transcriptRequests.append(request)
-        if holdsTranscripts { await withCheckedContinuation { heldTranscripts.append($0) } }
-        guard let transcriptAnswer else { throw FakeHostConnectionError.unsupported }
-        return try transcriptAnswer(request)
     }
 
     private var holdsTranscripts = false
@@ -684,19 +617,6 @@ public actor FakeHostConnection: HostConnection {
 
     public func endQuickDisconnectDetection() async {
         quickDetectionRequests -= 1
-    }
-
-    private static func method(of request: Data) -> String {
-        (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
-    }
-
-    private func consume(_ request: Data) throws -> Data {
-        let method = Self.method(of: request)
-        requests.append(String(decoding: request, as: UTF8.self))
-        guard let index = expectations.firstIndex(where: { $0.method == method }) else {
-            throw FakeHostConnectionError.unexpectedRequest(method)
-        }
-        return try expectations.remove(at: index).reply.get()
     }
 
     private func closeSubscription(_ index: Int) {

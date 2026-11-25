@@ -14,36 +14,16 @@ struct ConversationFollowTests {
     static let transcriptPath = ".claude/projects/-Users-demo-Projects-garden-journal/\(sessionID).jsonl"
 
     /// 轉送給 SSH 主機連線，並記下停止追蹤的路徑。
-    actor StopRecordingConnection: HostConnection {
-        let wrapped: any HostConnection
+    actor StopRecordingConnection: ForwardingHostConnection {
+        let base: any HostConnection
         private(set) var stoppedPaths: [String] = []
 
-        init(_ wrapped: any HostConnection) {
-            self.wrapped = wrapped
-        }
-
-        func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-            try await wrapped.herdrRequest(request, deadline: deadline)
-        }
-
-        func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-            try await wrapped.herdrEvents(request)
-        }
-
-        func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-            try await wrapped.readTranscript(request)
+        init(_ base: any HostConnection) {
+            self.base = base
         }
 
         func stopFollowingTranscript(path: String) async {
             stoppedPaths.append(path)
-        }
-
-        func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-            try await wrapped.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
-        }
-
-        func disconnect() async {
-            await wrapped.disconnect()
         }
     }
 

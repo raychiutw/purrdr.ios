@@ -1,20 +1,11 @@
 import Foundation
 
-/// 主機連線：上層功能(Agent 列表、對話閱讀、送 prompt、Pane 終端機)對一台主機能做的 herdr 操作。
+/// 主機連線：上層功能(Agent 列表、對話閱讀、送 prompt、Pane 終端機)對一台主機能做的領域操作(型別化,ADR-0015)。
 ///
-/// 每種連線方式一個實作(SSH:`SSHHostConnection`),上層只看這個介面，不知道背後是哪種連線方式。
+/// 每種連線方式一個實作(SSH:`SSHHostConnection`、HTTPS:`HTTPSHostConnection`),上層只看這個介面，不知道背後是哪種連線方式。
+/// SSH 把操作換成 herdr 的 NDJSON 與主機腳本(`HerdrWire`)再解析;HTTPS 直接對應主機服務訊息。
 /// 登入 Shell 不在這裡：它只有 SSH 提供，直接用主機通道(ADR-0010)。
 public protocol HostConnection: Sendable {
-    /// herdr 單次請求：送出一行請求(NDJSON),回傳第一行回應(不含換行)。一律有期限(#86),到了丟 `HerdrError.deadlineExceeded`;
-    /// 外層取消丟 `CancellationError`,兩者都立刻返回。
-    func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data
-
-    /// Agent 事件串流：送出 `events.subscribe` 請求，逐行回傳 herdr 的回應(ack、事件、錯誤)。呼叫端不再讀時關閉。
-    func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error>
-
-    /// 對話紀錄：讀一次，回傳主機的原始輸出(格式見 `TranscriptReader`)。主機回報的失敗丟 `TranscriptReadError`。
-    func readTranscript(_ request: TranscriptRequest) async throws -> Data
-
     /// 追蹤對話紀錄尾端：從 `cursor` 起有新增的完整行就送 `.appended`;接不上時送 `.replaced` 並結束。
     /// 多久看一次由連線方式決定(推送的直接轉;內部輪詢的照 `pace`)。呼叫端停止讀取或 `stopFollowingTranscript(path:)` 時結束。
     func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error>
@@ -38,7 +29,7 @@ public protocol HostConnection: Sendable {
     /// 主機會不會在送出前比對 `SendExpectation`(#304)。`false` 時 herdr 請求不帶比對欄位(SSH 主機、舊版主機服務)。
     func checksSendExpectations() async -> Bool
 
-    // MARK: - 型別化操作(ADR-0015、#594;與上面的 `Data` 操作並存;`HerdrClient`／`TranscriptReader` 已改經這裡(#595)，`Data` 操作留給 #596 移除)
+    // MARK: - 型別化操作(ADR-0015)
 
     /// 讀主機目前的全量狀態。SSH 以 herdr 的 `session.snapshot` 實作，HTTPS 直接對應 `agents.list`。
     func readSnapshot() async throws -> HostSnapshot
@@ -151,87 +142,80 @@ extension HostConnection {
     public func checksSendExpectations() async -> Bool { false }
 }
 
-/// 型別化操作的預設實作：經既有的 `Data` 操作(herdr NDJSON 與對話紀錄腳本格式)。SSH 沿用它，
-/// herdr wire 格式仍在 `HerdrClient`／`TranscriptReader`(遷移完成後才收進 SSH adapter，見 ADR-0015)；HTTPS 覆寫成直接對應主機服務訊息。
-extension HostConnection {
-    public func readSnapshot() async throws -> HostSnapshot {
-        try await HerdrClient(connection: self).wireSnapshot()
-    }
-
-    public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
-        try await HerdrClient(connection: self).wireSendKeys(paneID: paneID, keys: keys, expecting: expecting)
-    }
-
-    public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
-        try await HerdrClient(connection: self).wireSendText(paneID: paneID, text: text, expecting: expecting)
-    }
-
-    public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
-        try await HerdrClient(connection: self).wireReadPane(paneID: paneID, lines: lines, format: format)
-    }
-
-    public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile {
-        try await TranscriptReader(connection: self).wireLocate(location)
-    }
-
-    public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
-        try await TranscriptReader(connection: self).wireWindow(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
-    }
+/// 包住另一個主機連線、把每個操作轉給它的連線(測試與 UI 測試的替身用):只覆寫需要改的操作。
+public protocol ForwardingHostConnection: HostConnection {
+    var base: any HostConnection { get }
 }
 
-extension HostConnection {
-    public func herdrVersion() async throws -> String { try await HerdrClient(connection: self).wirePing() }
-    public func listIntegrations() async throws -> [AgentIntegration] { try await HerdrClient(connection: self).wireIntegrations() }
+extension ForwardingHostConnection {
+    public func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
+        await base.followTranscript(path: path, from: cursor, pace: pace)
+    }
+    public func stopFollowingTranscript(path: String) async { await base.stopFollowingTranscript(path: path) }
+    public func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
+        try await base.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
+    }
+    public func disconnect() async { await base.disconnect() }
+    public func isReadOnlyDevice() async throws -> Bool { try await base.isReadOnlyDevice() }
+    public func hostServiceVersion() async throws -> String? { try await base.hostServiceVersion() }
+    public func checksSendExpectations() async -> Bool { await base.checksSendExpectations() }
+    public func beginQuickDisconnectDetection() async { await base.beginQuickDisconnectDetection() }
+    public func endQuickDisconnectDetection() async { await base.endQuickDisconnectDetection() }
+
+    public func readSnapshot() async throws -> HostSnapshot { try await base.readSnapshot() }
+    public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
+        try await base.sendKeys(paneID: paneID, keys: keys, expecting: expecting)
+    }
+    public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
+        try await base.sendText(paneID: paneID, text: text, expecting: expecting)
+    }
+    public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
+        try await base.readPaneScreen(paneID: paneID, lines: lines, format: format)
+    }
+    public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile { try await base.locateTranscript(location) }
+    public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
+        try await base.readTranscriptWindow(path: path, end: end, lines: lines, maxBytes: maxBytes)
+    }
+    public func herdrVersion() async throws -> String { try await base.herdrVersion() }
+    public func listIntegrations() async throws -> [AgentIntegration] { try await base.listIntegrations() }
     public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
-        try await HerdrClient(connection: self).wireReportPresence(paneID: paneID, model: model, seq: seq)
+        try await base.reportPresence(paneID: paneID, model: model, seq: seq)
     }
-    public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
-        try await HerdrClient(connection: self).wireRenameWorkspace(workspaceID, to: label)
-    }
-    public func renameTab(_ tabID: String, to label: String) async throws {
-        try await HerdrClient(connection: self).wireRenameTab(tabID, to: label)
-    }
-    public func closeTab(_ tabID: String) async throws { try await HerdrClient(connection: self).wireCloseTab(tabID) }
-    public func closeWorkspace(_ workspaceID: String) async throws { try await HerdrClient(connection: self).wireCloseWorkspace(workspaceID) }
+    public func renameWorkspace(_ workspaceID: String, to label: String) async throws { try await base.renameWorkspace(workspaceID, to: label) }
+    public func renameTab(_ tabID: String, to label: String) async throws { try await base.renameTab(tabID, to: label) }
+    public func closeTab(_ tabID: String) async throws { try await base.closeTab(tabID) }
+    public func closeWorkspace(_ workspaceID: String) async throws { try await base.closeWorkspace(workspaceID) }
     public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
-        try await HerdrClient(connection: self).wireCreateWorktree(from: workspaceID, branch: branch)
+        try await base.createWorktree(from: workspaceID, branch: branch)
     }
-    public func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
-        try await HerdrClient(connection: self).wireCreateWorkspace(cwd: cwd, label: label)
-    }
-    public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
-        try await HerdrClient(connection: self).wireCreateTab(in: workspaceID, label: label)
-    }
-    public func startAgent(_ request: AgentStartRequest) async throws -> Bool { try await HerdrClient(connection: self).wireStartAgent(request) }
-    public func agentLaunchState(target: String) async throws -> AgentLaunchState {
-        try await HerdrClient(connection: self).wireAgentLaunchState(target: target)
-    }
-    public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
-        try await HerdrClient(connection: self).wireListSessions(cwd: cwd, agent: agent)
-    }
+    public func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace { try await base.createWorkspace(cwd: cwd, label: label) }
+    public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab { try await base.createTab(in: workspaceID, label: label) }
+    public func startAgent(_ request: AgentStartRequest) async throws -> Bool { try await base.startAgent(request) }
+    public func agentLaunchState(target: String) async throws -> AgentLaunchState { try await base.agentLaunchState(target: target) }
+    public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] { try await base.listSessions(cwd: cwd, agent: agent) }
     public func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
-        try await HerdrClient(connection: self).wirePrompt(target: target, text: text, wait: wait, expecting: expecting)
+        try await base.sendPrompt(target: target, text: text, wait: wait, expecting: expecting)
     }
     public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
-        try await HerdrClient(connection: self).wireWaitForAgent(target: target, until: until, timeout: timeout)
+        try await base.waitForAgent(target: target, until: until, timeout: timeout)
     }
     public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
-        try await HerdrClient(connection: self).wireSubscribe(subscriptions)
+        try await base.subscribeToEvents(subscriptions)
     }
     public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
-        try await TranscriptReader(connection: self).wireTail(path: path, from: cursor, limit: limit, catchUp: catchUp)
+        try await base.readTranscriptTail(path: path, from: cursor, limit: limit, catchUp: catchUp)
     }
     public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
-        try await TranscriptReader(connection: self).wirePreviews(requests)
+        try await base.readTranscriptPreviews(requests)
     }
     public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
-        try await TranscriptReader(connection: self).wireLocateSubagent(sessionFolder: sessionFolder, callID: callID)
+        try await base.locateSubagent(sessionFolder: sessionFolder, callID: callID)
     }
     public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
-        try await TranscriptReader(connection: self).wireWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
+        try await base.readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
     }
     public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
-        try await TranscriptReader(connection: self).wireDelegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
+        try await base.readDelegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
     }
 }
 

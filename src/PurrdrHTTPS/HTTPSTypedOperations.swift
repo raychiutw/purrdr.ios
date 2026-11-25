@@ -1,8 +1,8 @@
 import Foundation
 import PurrdrCore
 
-/// HTTPS 的型別化主機操作(ADR-0015、#594):直接對應主機服務協定訊息，不再先組成 herdr／SSH 腳本的位元組格式再解回。
-/// 錯誤、期限與版本門檻與 `herdrRequest`／`readTranscript` 的路徑一致(同一組 `HostServiceError`、`TranscriptReadError`)。
+/// HTTPS 的型別化主機操作(ADR-0015):直接對應主機服務協定訊息，不組成 herdr／SSH 腳本的位元組格式。
+/// 錯誤是核心的 `HostServiceError`、`TranscriptReadError`。
 extension HTTPSHostConnection {
     public func readSnapshot() async throws -> HostSnapshot {
         try await withDeadline(HostCommandDeadline.standard) {
@@ -138,7 +138,7 @@ extension HTTPSHostConnection {
 
     public func startAgent(_ request: AgentStartRequest) async throws -> Bool {
         // 主機服務只收 Claude Code 的權限模式:其他參數在送出前丟 `unsupported`。
-        let mode = try HerdrOperation.permissionMode(kind: request.kind, arguments: request.arguments, method: HerdrMethod.agentStart.rawValue)
+        let mode = try HerdrMethod.permissionMode(kind: request.kind, arguments: request.arguments, method: HerdrMethod.agentStart.rawValue)
         let timeoutMs = Self.milliseconds(request.timeout)
         let reply = try await perform(.agentStart, deadline: HerdrClient.startDeadline(timeout: request.timeout)) {
             .agentStart(.init(
@@ -172,7 +172,7 @@ extension HTTPSHostConnection {
         return PromptReply(writtenOnly: result.delivery == "written_to_pty")
     }
 
-    /// 送出一個 herdr method 對應的主機服務訊息:先檢查版本門檻(送出前),再在期限內握手並送出(同舊的 herdr 請求路徑)。
+    /// 送出一個 herdr method 對應的主機服務訊息:先檢查版本門檻(送出前),再在期限內握手並送出。
     private func perform(
         _ method: HerdrMethod, deadline: Duration = HostCommandDeadline.standard,
         _ make: @escaping @Sendable (String) -> HostServiceProtocol.ClientMessage

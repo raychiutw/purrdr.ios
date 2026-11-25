@@ -273,9 +273,7 @@ struct ConversationLayoutTests {
         defer { mounted.chat.cancel(); mounted.window.isHidden = true }
         try await waitForFollow(mounted)
         var frames = await sample(mounted.window, frames: 20, interval: .milliseconds(30))
-        await mounted.connection.expect(
-            "agent.prompt",
-            reply: Data(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted","delivery":"submitted"}}"#.utf8 + [0x0A]))
+        await mounted.connection.stub(.agentPrompt, PromptReply(writtenOnly: false))
         let model = mounted.model
         model.draft = "請繼續"
         let sending = Task { await model.send() }
