@@ -57,6 +57,8 @@ struct PurrdrApp: App {
         if uiTesting, let domain = Bundle.main.bundleIdentifier {
             UITestingPreferences.resetPersistedState(in: .standard, domain: domain)
         }
+        // 重裝清理(#580):刪 App 後 Keychain 項目還在;必須在任何 Keychain 存放區被讀之前。UI 測試不碰真的 Keychain。
+        if !uiTesting { ReinstallGuard.system().run() }
         // UI 測試(#374):關掉動畫，XCTest 每次互動前等動畫結束的 1 秒左右就不用等。要驗動畫本身的測試帶 `-uiTestingAnimations`。
         let disablesAnimations = uiTesting && !arguments.contains("-uiTestingAnimations")
         self.disablesAnimations = disablesAnimations

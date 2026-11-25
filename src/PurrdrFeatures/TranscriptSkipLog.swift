@@ -8,7 +8,7 @@ import os
 /// 單獨一行解析不了多半是視窗邊界切斷的第一行,不記。
 final class TranscriptSkipLog: Sendable {
     static let shared = TranscriptSkipLog { message in
-        Logger(subsystem: "com.raychiu.purrdr", category: "agent-profile").notice("\(message, privacy: .public)")
+        Logger(subsystem: "com.raychiu.purrdr", category: "agent-profile").notice("\(message, privacy: .private)")
     }
 
     private let write: @Sendable (String) -> Void

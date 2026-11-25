@@ -105,6 +105,9 @@ struct SecretCheckSheet: View {
         case .googleAPIKey: String(localized: "Google API key")
         case .jwt: String(localized: "JWT")
         case .password: String(localized: "Password (password=)")
+        case .gitLabToken: String(localized: "GitLab token")
+        case .npmToken: String(localized: "npm token")
+        case .huggingFaceToken: String(localized: "Hugging Face token")
         }
     }
 }

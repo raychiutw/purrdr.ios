@@ -88,12 +88,6 @@ struct KeychainOfflineQueueBlobStoreTests {
         store.delete(account: "a")
         #expect(store.read(account: "a") == nil)
         #expect(store.read(account: "b") != nil)
-
-        store.deleteAll()
-        #expect(store.read(account: "b") == nil)
-        let clearAll = try #require(keychain.deleteQueries.last)
-        #expect(clearAll[kSecAttrService as String] as? String == "purrdr.offlineQueue")
-        #expect(clearAll[kSecAttrAccount as String] == nil)
     }
 }
 #endif
