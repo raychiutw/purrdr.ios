@@ -107,10 +107,14 @@ public struct TranscriptReader: Sendable {
         try await locate(target.location)
     }
 
-    func locate(_ location: TranscriptLocation) async throws -> TranscriptFile {
+    package func locate(_ location: TranscriptLocation) async throws -> TranscriptFile {
         guard location.isSafe else { throw TranscriptReadError.invalidReference }
+        return try Self.locatedFile(lines: try await run(.locate(location)).lines, for: location)
+    }
+
+    /// 定位結果(路徑、大小，再接 header 行)的檢查與解析;SSH 腳本輸出與 HTTPS 的 `transcript.locate` 共用。
+    package static func locatedFile(lines: [String], for location: TranscriptLocation) throws -> TranscriptFile {
         let locator = location.locator
-        let lines = try await run(.locate(location)).lines
         guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]) else { throw TranscriptReadError.changed }
         if case .id(let id) = location.reference, let pathCheck = locator.pathCheck, !pathCheck(lines[0], id) {
             throw TranscriptReadError.changed
@@ -296,7 +300,7 @@ public struct TranscriptReader: Sendable {
 
     /// 主機回報的路徑：必須是絕對路徑(POSIX `/…` 或 Windows `C:\…`)、以 `.jsonl` 結尾、沒有 `..` 段、
     /// 沒有 NUL／CR／LF(行為規格 §4.0)。
-    static func isValidPath(_ path: String) -> Bool {
+    package static func isValidPath(_ path: String) -> Bool {
         HostPathSyntax.isSafeAbsolute(path) && path.hasSuffix(".jsonl")
     }
 }

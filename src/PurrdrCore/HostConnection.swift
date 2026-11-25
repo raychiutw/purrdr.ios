@@ -38,6 +38,26 @@ public protocol HostConnection: Sendable {
     /// 主機會不會在送出前比對 `SendExpectation`(#304)。`false` 時 herdr 請求不帶比對欄位(SSH 主機、舊版主機服務)。
     func checksSendExpectations() async -> Bool
 
+    // MARK: - 型別化操作(ADR-0015、#594;與上面的 `Data` 操作並存，呼叫端遷移在 #595)
+
+    /// 讀主機目前的全量狀態。SSH 以 herdr 的 `session.snapshot` 實作，HTTPS 直接對應 `agents.list`。
+    func readSnapshot() async throws -> HostSnapshot
+
+    /// 送 herdr 鍵名(`enter`、`esc`、`ctrl+c`…)到 pane。`expecting` 只在主機會比對時才送出(HTTPS 0.7.0 起)；不符丟 `HostServiceError.paneChanged`。
+    func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws
+
+    /// 把文字原樣打進 pane(不含 Enter)。`expecting` 同 `sendKeys`。
+    func sendText(paneID: String, text: String, expecting: SendExpectation) async throws
+
+    /// 讀 pane 目前看得到的畫面。
+    func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String
+
+    /// 定位對話紀錄並取得大小；已做位置安全、路徑與 header 檢查(失敗丟 `TranscriptReadError`)。
+    func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile
+
+    /// 讀以 `end` 為終點的最後 `lines` 行；`maxBytes` 大於 0 時範圍不超過該 byte 數。
+    func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk
+
     /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
     func beginQuickDisconnectDetection() async
 
@@ -58,6 +78,34 @@ extension HostConnection {
 
     /// herdr 不認得比對欄位：SSH 主機的對象由送出前重讀的 snapshot 確認。
     public func checksSendExpectations() async -> Bool { false }
+}
+
+/// 型別化操作的預設實作：經既有的 `Data` 操作(herdr NDJSON 與對話紀錄腳本格式)。SSH 沿用它，
+/// herdr wire 格式仍在 `HerdrClient`／`TranscriptReader`(遷移完成後才收進 SSH adapter，見 ADR-0015)；HTTPS 覆寫成直接對應主機服務訊息。
+extension HostConnection {
+    public func readSnapshot() async throws -> HostSnapshot {
+        try await HerdrClient(connection: self).snapshot()
+    }
+
+    public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
+        try await HerdrClient(connection: self).sendKeys(paneID: paneID, keys: keys, expecting: expecting)
+    }
+
+    public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
+        try await HerdrClient(connection: self).sendText(paneID: paneID, text: text, expecting: expecting)
+    }
+
+    public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
+        try await HerdrClient(connection: self).readPane(paneID: paneID, lines: lines, format: format)
+    }
+
+    public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile {
+        try await TranscriptReader(connection: self).locate(location)
+    }
+
+    public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
+        try await TranscriptReader(connection: self).window(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
+    }
 }
 
 extension HostConnection {
