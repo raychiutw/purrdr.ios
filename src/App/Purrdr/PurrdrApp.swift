@@ -15,6 +15,9 @@ struct PurrdrApp: App {
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @State private var hosts: HostsModel
     private let root: AppRoot
+    /// 進背景保留連線(#551):所有視窗都進背景、裝置沒鎖定才申請 background task。
+    private let backgroundScheduler: SystemBackgroundTaskScheduler
+    private let backgroundRetention: BackgroundRetentionController
     /// 所有場景合併的生命週期(App 鎖依它判斷離開多久)。
     @Environment(\.scenePhase) private var scenePhase
 
@@ -25,6 +28,9 @@ struct PurrdrApp: App {
         if environment.disablesAnimations { UIView.setAnimationsEnabled(false) }
         let root = AppAssembly.assemble(environment)
         self.root = root
+        let scheduler = SystemBackgroundTaskScheduler()
+        backgroundScheduler = scheduler
+        backgroundRetention = BackgroundRetentionController(scheduler: scheduler)
         _hosts = State(initialValue: root.hosts)
     }
 
@@ -60,7 +66,11 @@ struct PurrdrApp: App {
         .onChange(of: scenePhase, initial: true) { _, phase in
             root.appLock.scenePhaseChanged(to: AppLockPhase(phase), at: .now)
             // 只在真的進背景時存(inactive 只是拉下通知中心等短暫狀態),且在背景佇列寫、不在主執行緒同步寫檔(#498)。
-            if phase == .background { flushTrafficInBackground() }
+            if phase == .background {
+                flushTrafficInBackground()
+                backgroundRetention.didEnterBackground(isDeviceLocked: backgroundScheduler.isDeviceLocked)
+            }
+            if phase == .active { backgroundRetention.didBecomeActive() }
         }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in
