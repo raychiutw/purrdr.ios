@@ -71,12 +71,7 @@ public struct TerminalSessionView: View {
         }
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .alert("Copy to Clipboard?", isPresented: Binding(get: { clipboardRequests.hasPendingRequest }, set: { [clipboardRequests] in if !$0 { clipboardRequests.deny() } })) {
-            Button("Allow") { clipboardRequests.allow() }
-            Button("Don’t Allow", role: .cancel) { clipboardRequests.deny() }
-        } message: {
-            Text("The host wants to copy text to the clipboard.")
-        }
+        .modifier(ClipboardRequestAlert(requests: clipboardRequests))
         .alert("Can’t Paste", isPresented: Binding(get: { model.notice != nil }, set: { [model] in if !$0 { model.notice = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -103,6 +98,24 @@ public struct TerminalSessionView: View {
             // 接上後終端機取得焦點，鍵盤輸入直接送往遠端。
             if status == .connected { screen.focus() }
         }
+    }
+}
+
+/// 主機經 OSC 52 要寫剪貼簿時的確認提示(#578):允許才寫，拒絕或關掉就不寫。
+private struct ClipboardRequestAlert: ViewModifier {
+    let requests: ClipboardWriteRequests
+
+    func body(content: Content) -> some View {
+        content.alert("Copy to Clipboard?", isPresented: isPresented) {
+            Button("Allow") { requests.allow() }
+            Button("Don’t Allow", role: .cancel) { requests.deny() }
+        } message: {
+            Text("The host wants to copy text to the clipboard.")
+        }
+    }
+
+    private var isPresented: Binding<Bool> {
+        Binding(get: { requests.hasPendingRequest }, set: { [requests] isShown in if !isShown { requests.deny() } })
     }
 }
 
