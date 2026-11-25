@@ -73,16 +73,26 @@ public struct TopNavigationView: View {
             // 選單列與快捷鍵作用在有焦點的視窗(`PurrdrCommands`)。
             .modifier(WindowCommandsModifier(navigation: navigation, hosts: hosts))
             .tailscaleCheckPrompt(hosts.tailscaleCheck)
-            .sheet(item: $navigation.sheet) { sheet in
+            // 帳號與設定是滿版 modal(#623,fullScreenCover),其他是 sheet;同一時間只開一個(`navigation.sheet`)。
+            .fullScreenCover(item: Binding(
+                get: { navigation.sheet == .member ? TopLevelSheet.member : nil },
+                set: { if $0 == nil, navigation.sheet == .member { navigation.sheet = nil } }
+            )) { _ in
+                // 帳號與設定頁(#246、#503)自帶 NavigationStack 與左上角 X;設定併在第一層。
+                MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync,
+                    hosts: hosts,
+                    settings: AccountSettings(model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock))
+                    // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
+                    .task { await hosts.checkHostServiceVersions() }
+            }
+            .sheet(item: Binding(
+                get: { navigation.sheet == .member ? nil : navigation.sheet },
+                set: { if $0 == nil, navigation.sheet != .member { navigation.sheet = nil } }
+            )) { sheet in
                 Group {
                 switch sheet {
                 case .member:
-                    // 帳號與設定頁(#246、#503)自帶 NavigationStack 與右上角 X;設定併在第一層。
-                    MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync,
-                        hosts: hosts,
-                        settings: AccountSettings(model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock))
-                        // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
-                        .task { await hosts.checkHostServiceVersions() }
+                    EmptyView()
                 case .plus:
                     if let plus {
                         PlusSheet(model: plus, member: member, features: PlusFeatureLinks(

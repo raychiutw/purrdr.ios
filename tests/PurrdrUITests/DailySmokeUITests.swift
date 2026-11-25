@@ -251,6 +251,15 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["account.entry.signIn"].exists, "沒有「登入」")
             XCTAssertTrue(app.buttons["account.entry.join"].exists, "沒有「加入會員」")
             XCTAssertFalse(app.buttons["member.signIn.apple"].exists, "選擇前不該先看到 Apple 登入鈕")
+            // 帳號與設定是滿版 modal(#623):蓋住 tab bar,左上 X。
+            XCTAssertFalse(app.tabBars.firstMatch.isHittable, "帳號與設定沒有蓋滿畫面")
+            app.assertModalToolbar(close: "member.signIn.cancel")
+        }
+        step("列尾 > 推入登入頁,系統返回第一下就回到選擇頁") {
+            app.buttons["account.entry.signIn"].tap()
+            XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒有推入登入頁")
+            app.navigationBars.buttons["Account"].tap()
+            XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 5), "第一下返回沒有回到選擇頁")
         }
         step("登入頁查無會員:擋下並問要不要加入,確認才進加入流程") {
             app.buttons["account.entry.signIn"].tap()
@@ -265,12 +274,12 @@ final class DailySmokeUITests: XCTestCase {
             // 上一步按了「加入」已在加入第 1 步(不再回選擇頁)。
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "加入第 1 步沒有 Apple 註冊鈕")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
-            XCTAssertTrue(app.buttons["member.entry.back"].exists, "第 1 步左上應是返回")
+            XCTAssertTrue(app.navigationBars.buttons["Account"].exists, "第 1 步左上應是系統返回")
             app.buttons["member.signIn.apple"].tap()
 
             XCTAssertTrue(app.element("account.join.paywall").waitUntilExists(timeout: 10), "建立會員後沒有進開通 Plus")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 2 of 4")
-            XCTAssertFalse(app.buttons["member.entry.back"].exists, "第 2 步起左上不是返回")
+            XCTAssertFalse(app.navigationBars.buttons["Account"].exists, "第 2 步起左上不是返回")
             XCTAssertTrue(app.buttons["member.signIn.cancel"].exists, "第 2 步起左上應是關閉")
             app.buttons["account.join.secondary"].tap()
 
@@ -282,6 +291,11 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("account.join.doneCreated").waitUntilExists(timeout: 5), "略過 Plus 的完成頁不是「會員已建立」")
             app.buttons["account.join.primary"].tap()
             XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 10), "開始使用後沒有回到帳號頁")
+        }
+        step("以左上 X 關閉帳號與設定,回到 tab bar") {
+            app.assertModalToolbar(close: "member.close")
+            app.closeAccountSheet()
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "關閉後 tab bar 沒有回來")
         }
     }
 

@@ -37,14 +37,18 @@ public struct MemberView: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        AccountEntryStack(
+            model: model, entry: $entry, plus: plus, pushes: pushes, hostSync: hostSync, hostCount: hosts?.hosts.count ?? 0,
+            onClose: { dismiss() }
+        ) {
             MemberContent(
                 model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts,
                 settings: settings, entry: $entry
             )
+            // 滿版 modal(#623):根頁左上一律是 X;沒登入的選擇頁沿用既有識別碼。
             .toolbar {
                 if entry.shownScreen(phase: model.phase, hasPlus: plus != nil) != nil {
-                    AccountEntryToolbar(entry: $entry, onClose: { dismiss() })
+                    SheetCloseToolbar(identifier: "member.signIn.cancel")
                 } else {
                     SheetCloseToolbar(identifier: "member.close")
                 }
@@ -88,7 +92,8 @@ public struct MemberContent: View {
             } message: {
                 Text("We couldn’t find a member for this account. Do you want to join?")
             }
-            .navigationTitle(entry.navigationTitle(phase: model.phase, hasPlus: plus != nil))
+            // 根頁永遠是「Account」(推入的登入、加入頁自己有標題,系統返回鈕寫「Account」)。
+            .navigationTitle("Account")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -121,15 +126,9 @@ public struct MemberContent: View {
 
     @ViewBuilder
     private var content: some View {
-        if let screen = entry.shownScreen(phase: model.phase, hasPlus: plus != nil) {
-            // 沒登入先選「登入」或「加入會員」(#408);加入第 2 步起是步驟流程。
-            if screen == .join, entry.join.step != .createMember, let plus {
-                JoinFlowPages(
-                    model: model, entry: $entry, plus: plus, pushes: pushes, hostSync: hostSync, hostCount: hosts?.hosts.count ?? 0,
-                    signedInMember: signedInMember)
-            } else {
-                AccountEntryPages(model: model, entry: $entry, settings: settings)
-            }
+        if entry.shownScreen(phase: model.phase, hasPlus: plus != nil) != nil {
+            // 沒登入先選「登入」或「加入會員」(#408);登入、加入與加入的各步驟都是推入的頁(#623)。
+            ChoosePage(settings: settings)
         } else if model.phase == .unknown {
             if model.isWorking {
                 // 後台還沒回應、沒有上次的會員資料:帳號頁骨架(#496)。
@@ -173,13 +172,15 @@ struct SignInSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            AccountEntryPages(model: model, entry: $entry)
-                .navigationTitle(entry.navigationTitle(phase: model.phase, hasPlus: false))
+        AccountEntryStack(
+            model: model, entry: $entry, plus: nil, pushes: [], hostSync: nil, hostCount: 0, onClose: { dismiss() }
+        ) {
+            ChoosePage(settings: nil)
+                .navigationTitle("Account")
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
-                .toolbar { AccountEntryToolbar(entry: $entry, onClose: { dismiss() }) }
+                .toolbar { SheetCloseToolbar(identifier: "member.signIn.cancel") }
         }
         .onChange(of: model.phase) { _, phase in
             if case .signedIn = phase { dismiss() }
@@ -1057,35 +1058,21 @@ extension AccountEntryFlow {
         default: nil
         }
     }
-
-    func navigationTitle(phase: MemberModel.Phase, hasPlus: Bool) -> LocalizedStringKey {
-        guard shownScreen(phase: phase, hasPlus: hasPlus) != nil else { return "Account" }
-        switch title {
-        case .account: return "Account"
-        case .signIn: return "Sign In"
-        case .join: return "Join as a Member"
-        }
-    }
 }
 
-/// 沒登入流程的 toolbar:左上圓形「返回」或「關閉」,右上加入流程的「n / 4」。
-struct AccountEntryToolbar: ToolbarContent {
-    @Binding var entry: AccountEntryFlow
+/// 沒登入流程推入頁的 toolbar:左上交給系統返回鈕;加入第 2 步起不能回到已建立的會員,
+/// 隱藏返回鈕、左上是「關閉」(之後在帳號頁繼續);右上加入流程的「n / 4」。
+struct AccountEntryPageToolbar: ToolbarContent {
+    let entry: AccountEntryFlow
+    let page: AccountEntryFlow.Page
     let onClose: () -> Void
 
     var body: some ToolbarContent {
-        switch entry.leadingAction {
-        case .back:
-            ToolbarItem(placement: .cancellationAction) {
-                Button { entry.back() } label: { Image(systemName: "chevron.backward") }
-                    .accessibilityLabel(Text("Back"))
-                    .accessibilityIdentifier("member.entry.back")
-            }
-        case .close:
+        if case .joinStep = page {
             // 所有 modal 的關閉都在左上角「X」(#613)。
             ToolbarItem(placement: .cancellationAction) {
                 Button("Close", systemImage: "xmark", action: onClose)
-                    .accessibilityLabel(entry.screen == .join ? Text("Close. Continue in Account Later") : Text("Close"))
+                    .accessibilityLabel(Text("Close. Continue in Account Later"))
                     .accessibilityIdentifier("member.signIn.cancel")
             }
         }
