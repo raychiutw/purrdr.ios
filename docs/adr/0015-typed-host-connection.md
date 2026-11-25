@@ -44,3 +44,4 @@ Expand 批不改 AGENTS.md 的行為描述,只在遷移進度到哪時補一行�
 ## 遷移進度
 
 - Migrate(#595):`HerdrClient` 的 snapshot／送鍵／送文字／讀畫面與 `TranscriptReader` 的定位／讀視窗改經連線的型別化操作;原本的 herdr NDJSON／腳本實作改名 `wire*`，只留給 SSH 預設實作與 `FakeHostConnection` 的回放。其餘 `Data` 操作(prompt、workspace、事件、預覽等)留給 Contract 批(#596)。
+- Migrate 第二批(#595):`HerdrClient` 其餘操作(prompt、workspace／tab／worktree 建立關閉重命名、啟動 agent、續接清單、等待、就緒狀態、整合清單、在場回報、ping、事件訂閱)與 `TranscriptReader` 其餘操作(尾端讀取、預覽、subagent、workflow、委派)都經 `HostConnection` 的型別化操作。HTTPS 直接對應主機服務訊息,沒有對應的操作(整合清單、在場回報、等待、就緒狀態)送出前丟 `unsupported`;追蹤與預覽的判讀(`TranscriptReader.interpretTail`、`readings`)SSH 與 HTTPS 共用。呼叫端只剩各 `wire*` 預設實作與轉送用的包裝連線還碰 `Data` 操作;`Data` 操作本身與其測試留給 #596 移除。
