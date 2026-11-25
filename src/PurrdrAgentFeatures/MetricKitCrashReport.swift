@@ -15,15 +15,13 @@ public struct MetricKitCrashReport: Equatable, Sendable {
     public var exceptionReason: String?
     /// 被歸責執行緒的呼叫堆疊,由外往內,每列 `二進位名稱 UUID +位移`。
     public var frames: [String]
-    public var app: String
-    public var os: String
-    public var device: String
+    public var environment: DiagnosticEnvironment
     /// payload 時間區間的開頭(`timestamp` 是尾端)。
     public var periodStart: Date?
 
     public init(
         timestamp: Date, exceptionType: Int?, signal: Int?, terminationReason: String?, exceptionName: String?,
-        exceptionReason: String?, frames: [String], app: String, os: String, device: String, periodStart: Date? = nil
+        exceptionReason: String?, frames: [String], environment: DiagnosticEnvironment, periodStart: Date? = nil
     ) {
         self.timestamp = timestamp
         self.exceptionType = exceptionType
@@ -32,9 +30,7 @@ public struct MetricKitCrashReport: Equatable, Sendable {
         self.exceptionName = exceptionName
         self.exceptionReason = exceptionReason
         self.frames = frames
-        self.app = app
-        self.os = os
-        self.device = device
+        self.environment = environment
         self.periodStart = periodStart
     }
 
@@ -85,7 +81,8 @@ public enum MetricKitCrashParser {
             exceptionName: text(objc?["exceptionName"]),
             exceptionReason: text(objc?["composedMessage"] ?? objc?["message"]),
             frames: frames(from: diagnostic["callStackTree"] as? [String: Any]),
-            app: "\(version) (\(build))", os: os(meta["osVersion"] as? String), device: meta["deviceType"] as? String ?? "?",
+            environment: DiagnosticEnvironment(
+                app: "\(version) (\(build))", os: os(meta["osVersion"] as? String), device: meta["deviceType"] as? String ?? "?"),
             periodStart: periodStart)
     }
 

@@ -51,8 +51,7 @@ extension CrashExceptionHandler {
     @MainActor
     public static func installAtLaunch(recorder: DiagnosticRecorder) {
         let reporter = CrashReporter(
-            store: FileCrashMarkerStore.applicationSupport(), app: HitchSystemState.appText, os: HitchSystemState.osText,
-            device: HitchSystemState.deviceIdentifier)
+            store: FileCrashMarkerStore.applicationSupport(), environment: .current)
         reporter.recoverPending(into: recorder)
         install(reporter)
     }
@@ -63,7 +62,7 @@ extension DiagnosticRecorder {
     public func recordUITestingCrash() {
         recordCrash(CrashRecord(
             timestamp: Date(), name: "NSInternalInconsistencyException", reason: "UI testing",
-            app: HitchSystemState.appText, os: HitchSystemState.osText, device: HitchSystemState.deviceIdentifier))
+            environment: .current))
     }
 }
 #endif

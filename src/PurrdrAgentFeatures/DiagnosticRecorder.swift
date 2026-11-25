@@ -228,7 +228,7 @@ public final class DiagnosticRecorder {
         // 啟動提示用(Swift 執行期錯誤沒有中止前的標記,只有這份報告):以名稱與原因摘要通知。
         let record = CrashRecord(
             timestamp: report.timestamp, name: report.exceptionName ?? report.terminationReason ?? "crash",
-            reason: report.exceptionReason ?? "", app: report.app, os: report.os, device: report.device,
+            reason: report.exceptionReason ?? "", environment: report.environment,
             reportPeriod: min(report.periodStart ?? report.timestamp, report.timestamp)...report.timestamp,
             nameIsKnown: report.exceptionName != nil)
         latestCrash = record

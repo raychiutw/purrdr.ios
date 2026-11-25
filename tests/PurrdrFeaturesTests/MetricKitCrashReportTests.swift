@@ -44,9 +44,9 @@ struct MetricKitCrashReportTests {
         #expect(report.terminationReason == "Namespace SIGNAL, Code 6 Abort trap: 6")
         #expect(report.exceptionName == "NSInternalInconsistencyException")
         #expect(report.exceptionReason == "invalid number of items in section 0")
-        #expect(report.app == "0.52.2 (7)")
-        #expect(report.os == "iOS 27.0.1")
-        #expect(report.device == "iPhone18,1")
+        #expect(report.environment.app == "0.52.2 (7)")
+        #expect(report.environment.os == "iOS 27.0.1")
+        #expect(report.environment.device == "iPhone18,1")
         // 只取被歸責的執行緒,由外往內
         #expect(report.frames == [
             "UIKitCore 11111111-2222-3333-4444-555555555555 +4096",

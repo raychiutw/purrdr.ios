@@ -145,30 +145,32 @@ extension HitchSystemState {
         case .critical: thermal = "critical"
         @unknown default: thermal = "unknown"
         }
+        let environment = DiagnosticEnvironment.current
         return HitchSystemState(
             thermal: thermal, lowPower: info.isLowPowerModeEnabled,
             reduceTransparency: UIAccessibility.isReduceTransparencyEnabled, reduceMotion: UIAccessibility.isReduceMotionEnabled,
-            device: deviceIdentifier, os: osText, app: appText, textSize: "", maxFramesPerSecond: 0)
+            device: environment.device, os: environment.os, app: environment.app, textSize: "", maxFramesPerSecond: 0)
+    }
+}
+
+extension DiagnosticEnvironment {
+    /// 這支裝置、這個 app 目前的版本與機型。
+    public static var current: DiagnosticEnvironment {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let info = Bundle.main.infoDictionary ?? [:]
+        return DiagnosticEnvironment(
+            app: "\(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))",
+            os: "iOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)", device: deviceIdentifier)
     }
 
     /// 機型代碼(模擬器用它模擬的機型),不是裝置名稱。
-    static var deviceIdentifier: String {
+    private static var deviceIdentifier: String {
         if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] { return simulated }
         var system = utsname()
         uname(&system)
         return withUnsafePointer(to: &system.machine) {
             $0.withMemoryRebound(to: CChar.self, capacity: Int(_SYS_NAMELEN)) { String(cString: $0) }
         }
-    }
-
-    static var osText: String {
-        let version = ProcessInfo.processInfo.operatingSystemVersion
-        return "iOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
-    }
-
-    static var appText: String {
-        let info = Bundle.main.infoDictionary ?? [:]
-        return "\(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))"
     }
 }
 

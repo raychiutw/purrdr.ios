@@ -10,7 +10,7 @@ struct CrashNoticeTests {
     nonisolated static let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
     static func record(at time: Date = t0, name: String = "NSRangeException", app: String = "a") -> CrashRecord {
-        CrashRecord(timestamp: time, name: name, reason: "r", app: app, os: "o", device: "d")
+        CrashRecord(timestamp: time, name: name, reason: "r", environment: DiagnosticEnvironment(app: app, os: "o", device: "d"))
     }
 
     /// MetricKit 報告:時間是整份 payload 區間的尾端,區間預設 24 小時。
@@ -19,7 +19,7 @@ struct CrashNoticeTests {
     ) -> MetricKitCrashReport {
         MetricKitCrashReport(
             timestamp: end, exceptionType: nil, signal: 6, terminationReason: nil, exceptionName: name,
-            exceptionReason: nil, frames: [], app: app, os: "o", device: "d", periodStart: end.addingTimeInterval(-hours * 3_600))
+            exceptionReason: nil, frames: [], environment: DiagnosticEnvironment(app: app, os: "o", device: "d"), periodStart: end.addingTimeInterval(-hours * 3_600))
     }
 
     static func make(store: InMemoryCrashNoticeStore = InMemoryCrashNoticeStore()) -> (CrashNoticeModel, DiagnosticRecorder, InMemoryCrashNoticeStore) {
@@ -93,7 +93,7 @@ struct CrashNoticeTests {
             recorder.recordCrash(Self.record())
             model.dismiss()
             recorder.recordCrashReport(report)
-            #expect(model.pending != nil, "\(report.app) \(report.exceptionName ?? "-") \(report.timestamp)")
+            #expect(model.pending != nil, "\(report.environment.app) \(report.exceptionName ?? "-") \(report.timestamp)")
         }
     }
 
@@ -187,7 +187,7 @@ struct CrashNoticeTests {
         let (model, recorder, _) = Self.make()
         recorder.recordCrashReport(MetricKitCrashReport(
             timestamp: Self.t0, exceptionType: nil, signal: 5, terminationReason: nil, exceptionName: nil,
-            exceptionReason: nil, frames: [], app: "a", os: "o", device: "d"))
+            exceptionReason: nil, frames: [], environment: DiagnosticEnvironment(app: "a", os: "o", device: "d")))
         #expect(model.pending != nil)
         #expect(model.pending?.timestamp == Self.t0)
     }

@@ -21,7 +21,7 @@ struct CrashDiagnosticsTests {
     nonisolated static let now = Date(timeIntervalSince1970: 1_800_000_000)
 
     static func reporter(_ store: MemoryCrashMarkerStore) -> CrashReporter {
-        CrashReporter(store: store, app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1", clock: { now })
+        CrashReporter(store: store, environment: DiagnosticEnvironment(app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1"), clock: { now })
     }
 
     static func recorder(_ sink: RecordingDiagnosticSink, enabled: Bool = true) -> DiagnosticRecorder {
@@ -63,7 +63,7 @@ struct CrashDiagnosticsTests {
         #expect(store.current == nil)
         #expect(sink.entries == [.crash(CrashRecord(
             timestamp: Self.now, name: "NSRangeException", reason: "index 3 beyond bounds",
-            app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1"))])
+            environment: DiagnosticEnvironment(app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1")))])
         // 再啟動一次不會重複記。
         Self.reporter(store).recoverPending(into: recorder)
         #expect(sink.entries.count == 1)
@@ -93,7 +93,7 @@ struct CrashDiagnosticsTests {
     @Test("編碼成 JSON Lines 的 crash 一行")
     func encodesCrashLine() throws {
         let line = DiagnosticLogEncoder.line(.crash(CrashRecord(
-            timestamp: Self.now, name: "N", reason: "r", app: "a", os: "o", device: "d")))
+            timestamp: Self.now, name: "N", reason: "r", environment: DiagnosticEnvironment(app: "a", os: "o", device: "d"))))
         let object = try #require(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
         #expect(object["kind"] as? String == "crash")
         #expect(object["name"] as? String == "N")
@@ -121,7 +121,7 @@ struct CrashDiagnosticsTests {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("crash-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = DiagnosticLogFile(directory: directory)
-        file.append([.crash(CrashRecord(timestamp: Self.now, name: "N", reason: "r", app: "a", os: "o", device: "d")), DiagnosticLogFileTests.entry(50)])
+        file.append([.crash(CrashRecord(timestamp: Self.now, name: "N", reason: "r", environment: DiagnosticEnvironment(app: "a", os: "o", device: "d"))), DiagnosticLogFileTests.entry(50)])
         let url = try #require(await file.exportFile(meta: nil))
         let lines = try DiagnosticLogFileTests.lines(url)
         #expect(lines.count == 2)

@@ -2,6 +2,25 @@ import Foundation
 
 // 診斷記錄檔(`hitch-log.jsonl`,JSON Lines;卡頓、閃退與 MetricKit 共用)的一筆、儲存介面、大小裁切與編碼。
 
+/// 記錄當時的 app、作業系統與機型(都是版本字串與機型代碼,沒有使用者資料);閃退記錄、MetricKit 報告與編碼共用。
+public struct DiagnosticEnvironment: Equatable, Sendable, Codable {
+    /// 例如 `0.52.2 (7)`。
+    public var app: String
+    /// 例如 `iOS 27.0.1`。
+    public var os: String
+    /// 機型代碼(例如 iPhone18,1),不是裝置名稱。
+    public var device: String
+
+    public init(app: String, os: String, device: String) {
+        self.app = app
+        self.os = os
+        self.device = device
+    }
+
+    /// 讀不到時的占位。
+    public static let unknown = DiagnosticEnvironment(app: "?", os: "?", device: "?")
+}
+
 /// 記錄檔的一筆。
 public enum DiagnosticEntry: Equatable, Sendable {
     case hitch(HitchEvent)
@@ -99,9 +118,7 @@ public enum DiagnosticLogEncoder {
             object["t"] = time(record.timestamp)
             object["name"] = record.name
             object["reason"] = record.reason
-            object["app"] = record.app
-            object["os"] = record.os
-            object["device"] = record.device
+            addEnvironment(record.environment, to: &object)
         case .crashReport(let report):
             object["kind"] = "crashReport"
             object["t"] = time(report.timestamp)
@@ -111,9 +128,7 @@ public enum DiagnosticLogEncoder {
             if let value = report.exceptionName { object["name"] = value }
             if let value = report.exceptionReason { object["reason"] = value }
             object["frames"] = report.frames
-            object["app"] = report.app
-            object["os"] = report.os
-            object["device"] = report.device
+            addEnvironment(report.environment, to: &object)
         case .meta(let system, let date):
             object["kind"] = "meta"
             object["t"] = time(date)
@@ -123,12 +138,16 @@ public enum DiagnosticLogEncoder {
         return String(decoding: data, as: UTF8.self)
     }
 
+    private static func addEnvironment(_ environment: DiagnosticEnvironment, to object: inout [String: Any]) {
+        object["app"] = environment.app
+        object["os"] = environment.os
+        object["device"] = environment.device
+    }
+
     private static func addSystem(_ system: HitchSystemState, to object: inout [String: Any], full: Bool) {
         object["thermal"] = system.thermal
         object["lowPower"] = system.lowPower
-        object["device"] = system.device
-        object["os"] = system.os
-        object["app"] = system.app
+        addEnvironment(DiagnosticEnvironment(app: system.app, os: system.os, device: system.device), to: &object)
         if full {
             object["reduceTransparency"] = system.reduceTransparency
             object["reduceMotion"] = system.reduceMotion
