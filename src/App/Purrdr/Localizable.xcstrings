@@ -1293,6 +1293,17 @@
         }
       }
     },
+    "Add one in the Hosts tab, then turn on notifications there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到「主機」分頁加入一台，再到那裡開啟通知。"
+          }
+        }
+      }
+    },
     "Add the host where your agents run, and they show up here. Or look around with sample conversations first." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7552,6 +7563,17 @@
         }
       }
     },
+    "No Agents Turned On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有開啟任何 Agent"
+          }
+        }
+      }
+    },
     "No Agents are turned on" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7581,6 +7603,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有變更"
+          }
+        }
+      }
+    },
+    "No Data Usage Yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有流量記錄"
           }
         }
       }
@@ -7673,6 +7706,17 @@
         }
       }
     },
+    "No Notification Devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有通知裝置"
+          }
+        }
+      }
+    },
     "No Subscription Needed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7713,17 +7757,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有裝置會收到通知。"
-          }
-        }
-      }
-    },
-    "No hosts yet. Add one in the Hosts tab, then turn on notifications there." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有主機。請先在主機 tab 新增一台,再開啟通知。"
           }
         }
       }
@@ -8494,6 +8527,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在這支 iPhone 裝 Tailscale 並登入。"
+          }
+        }
+      }
+    },
+    "Once Purrdr talks to your hosts, the data it sends and receives shows up here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 開始和主機連線後，收送的資料量會顯示在這裡。"
           }
         }
       }
@@ -11556,6 +11600,17 @@
         }
       }
     },
+    "Sign Out…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登出⋯"
+          }
+        }
+      }
+    },
     "Sign Up with Google" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11985,13 +12040,13 @@
         }
       }
     },
-    "Stored on this device only. Nothing is counted yet." : {
+    "Stored on this device only." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "統計只存在這支裝置，目前還沒有資料。"
+            "value" : "只存在這支裝置上。"
           }
         }
       }

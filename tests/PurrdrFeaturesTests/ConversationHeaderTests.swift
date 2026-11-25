@@ -78,7 +78,7 @@ struct ConversationHeaderTests {
         #expect(header.subtitle == "Online")
     }
 
-    @Test("標題列：系統副標題是主機名與狀態")
+    @Test("標題列：系統副標題只有狀態,不含主機名(#618 收尾,使用者決定)")
     func headerWithHost() async throws {
         let setup = try Self.setup(hostName: "studio")
         await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.snapshot {
@@ -90,7 +90,7 @@ struct ConversationHeaderTests {
 
         #expect(setup.model.header.status == .done)
         #expect(setup.model.header.segments == ["studio"])
-        #expect(setup.model.header.subtitle == "studio · Done")
+        #expect(setup.model.header.subtitle == "Done")
     }
 
     @Test("標題列：還沒讀到 Agent 時標題退回聊天標題")

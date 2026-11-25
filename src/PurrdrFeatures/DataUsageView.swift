@@ -48,9 +48,17 @@ public struct DataUsageView: View {
             VStack(alignment: .leading, spacing: 16) {
                 summaryTiles
                 chips
-                chartCard
-                hostsSection
-                resetButton
+                if model.hasNoRecordedData {
+                    // 統計還沒開始:系統空狀態,不只寫在註腳(#626)。
+                    ContentUnavailableView(
+                        "No Data Usage Yet", systemImage: "chart.bar",
+                        description: Text("Once Purrdr talks to your hosts, the data it sends and receives shows up here."))
+                        .accessibilityIdentifier("dataUsage.empty")
+                } else {
+                    chartCard
+                    hostsSection
+                    resetButton
+                }
                 footnote
             }
             .padding(.horizontal, 16)
@@ -208,7 +216,7 @@ public struct DataUsageView: View {
             if let since = model.countingSince {
                 Text("Stored on this device only, counting since \(since.formatted(date: .abbreviated, time: .omitted)).")
             } else {
-                Text("Stored on this device only. Nothing is counted yet.")
+                Text("Stored on this device only.")
             }
         }
         .font(.footnote)

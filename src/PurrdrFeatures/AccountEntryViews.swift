@@ -385,8 +385,10 @@ struct JoinFlowPages: View {
             }
             Section {
                 if pushes.isEmpty {
-                    Text("No hosts yet. Add one in the Hosts tab, then turn on notifications there.")
-                        .foregroundStyle(.secondaryText)
+                    ContentUnavailableView(
+                        "No Hosts Yet", systemImage: "desktopcomputer",
+                        description: Text("Add one in the Hosts tab, then turn on notifications there."))
+                        .listRowBackground(Color.clear)
                         .accessibilityIdentifier("account.join.noHosts")
                 }
                 ForEach(pushes) { push in

@@ -61,6 +61,7 @@ struct PurrdrApp: App {
             .environment(\.hitchRecorder, root.hitchRecorder)
             .environment(\.recentPhotoSource, root.inputSources.recentPhotos)
             .environment(\.videoSource, root.inputSources.video)
+            .environment(\.fileUploadSource, root.inputSources.fileUpload)
             .environment(\.forcesOpaqueGlass, root.viewFlags.forcesOpaqueGlass)
             .environment(\.skeletonAnimationsEnabled, !root.disablesAnimations)
             .environment(\.allowsTestingLinks, root.viewFlags.allowsTestingLinks)

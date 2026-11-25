@@ -33,6 +33,7 @@ struct LaunchEnvironment {
         var pairingCodeScan: PairingCodeScanSource
         var recentPhotos: RecentPhotoSource
         var video: VideoSource
+        var fileUpload: FileUploadSource
     }
 
     /// 推播的平台與存放處。

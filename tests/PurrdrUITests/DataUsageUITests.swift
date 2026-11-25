@@ -30,6 +30,17 @@ final class DataUsageUITests: XCTestCase {
         XCTAssertTrue(app.element("dataUsage.chart").exists)
     }
 
+    /// 還沒有任何流量記錄時是系統空狀態(#626),不是只在註腳寫「Nothing is counted yet」。
+    @MainActor
+    func testNoRecordedDataShowsSystemEmptyState() {
+        let app = XCUIApplication.launchUITesting()
+        app.openTab(.traffic)
+        XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 5))
+        XCTAssertTrue(app.element("dataUsage.empty").waitUntilExists(timeout: 5), "沒有流量記錄時沒有系統空狀態")
+        XCTAssertFalse(app.element("dataUsage.chart").exists, "沒有記錄時不該畫空的長條圖")
+        XCTAssertFalse(app.buttons["dataUsage.reset"].exists, "沒有記錄時不該有重設")
+    }
+
     /// 主機列尾 > 往右推進主機明細頁(#619,原本是半高 sheet):左上是返回、tab bar 還在,可左緣滑回。
     @MainActor
     func testHostRowPushesDetailPage() {
