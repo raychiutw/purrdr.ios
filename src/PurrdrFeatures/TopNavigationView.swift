@@ -74,7 +74,7 @@ public struct TopNavigationView: View {
             .modifier(WindowCommandsModifier(navigation: navigation, hosts: hosts))
             .tailscaleCheckPrompt(hosts.tailscaleCheck)
             // 帳號與設定是滿版 modal(#623,fullScreenCover),其他是 sheet;同一時間只開一個(`navigation.sheet`)。
-            .fullScreenCover(item: Binding(
+            .accountCover(item: Binding(
                 get: { navigation.sheet == .member ? TopLevelSheet.member : nil },
                 set: { if $0 == nil, navigation.sheet == .member { navigation.sheet = nil } }
             )) { _ in
@@ -441,5 +441,19 @@ struct CurrentHostMenu: View {
             Button("Add Host…", systemImage: "plus", action: addHost)
                 .accessibilityIdentifier("hostMenu.addHost")
         }
+    }
+}
+
+private extension View {
+    /// 帳號與設定的滿版 modal(#623):iOS 是 `fullScreenCover`;`fullScreenCover` 在 macOS 不存在(只為了讓 `swift test` 編得過),退回 sheet。
+    @ViewBuilder
+    func accountCover<Item: Identifiable, Content: View>(
+        item: Binding<Item?>, @ViewBuilder content: @escaping (Item) -> Content
+    ) -> some View {
+        #if os(iOS)
+        fullScreenCover(item: item, content: content)
+        #else
+        sheet(item: item, content: content)
+        #endif
     }
 }
