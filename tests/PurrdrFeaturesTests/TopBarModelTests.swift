@@ -12,20 +12,20 @@ struct TopBarModelTests {
         #expect(TopLevelTab.traffic.topBar.plus == nil)
     }
 
-    @Test("控制項形狀:聊天與檔案是膠囊(電腦圖示｜＋),主機只有＋,流量只有電腦圖示(#500)")
+    @Test("控制項形狀:聊天、檔案與主機是膠囊(電腦圖示｜＋),流量只有電腦圖示(#500、#616)")
     func controlsShape() {
         #expect(TopLevelTab.chats.topBar.controls == .pill)
         #expect(TopLevelTab.files.topBar.controls == .pill)
-        #expect(TopLevelTab.hosts.topBar.controls == .plusOnly)
+        #expect(TopLevelTab.hosts.topBar.controls == .pill)
         #expect(TopLevelTab.traffic.topBar.controls == .hostScopeOnly)
     }
 
-    @Test("聊天、檔案與流量有主機範圍(電腦圖示);主機 tab 本身是清單,沒有")
+    @Test("四個 tab 都有主機範圍(電腦圖示):主機 tab 的選主機也在右上(#616)")
     func hostScopeDependsOnTab() {
         #expect(TopLevelTab.chats.topBar.hasHostScope == true)
         #expect(TopLevelTab.traffic.topBar.hasHostScope == true)
         #expect(TopLevelTab.files.topBar.hasHostScope == true)
-        #expect(TopLevelTab.hosts.topBar.hasHostScope == false)
+        #expect(TopLevelTab.hosts.topBar.hasHostScope == true)
     }
 
     @Test("只有聊天與檔案有搜尋(系統 searchable);主機與流量沒有")

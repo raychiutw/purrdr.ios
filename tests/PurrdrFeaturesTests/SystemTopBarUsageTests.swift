@@ -36,3 +36,26 @@ struct SystemTopBarUsageTests {
         #expect(text.contains("ToolbarSpacer"), "頭像要用 ToolbarSpacer 與膠囊隔開")
     }
 }
+
+/// 選主機全 app 只有一種長相:頂列右上電腦圖示選單(#616、spec #612)。主機 tab 不再有頁面內的主機清單。
+@Suite("選主機只有電腦圖示選單")
+struct HostPickerSingleStyleTests {
+    private func source(_ name: String) throws -> String {
+        try String(contentsOf: SystemTopBarUsageTests.featuresFolder.appending(path: name), encoding: .utf8)
+    }
+
+    @Test("主機頁內沒有主機清單(hostListSection、hosts.host.<名稱> 列)")
+    func overviewHasNoHostList() throws {
+        let text = try source("HostOverviewView.swift")
+        #expect(!text.contains("hostListSection"), "主機頁內不放主機清單,選主機在右上電腦圖示選單")
+        #expect(!text.contains("\"hosts.host."), "主機頁內不放主機清單列")
+    }
+
+    @Test("主機 tab 的頂列有電腦圖示選單,並且處理需要重新確認的主機")
+    func hostsTabUsesHostMenu() throws {
+        let text = try source("HostsTab.swift")
+        #expect(text.contains("hostMenu:"), "主機 tab 的頂列要給電腦圖示選單")
+        #expect(text.contains("HostSelectionMenu("), "主機 tab 與檔案 tab 共用同一個選單")
+        #expect(text.contains("reconfirm"), "需要重新確認的主機點了進編輯頁(#572)")
+    }
+}

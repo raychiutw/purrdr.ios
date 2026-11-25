@@ -80,4 +80,13 @@ public final class HostPickerModel {
         selection = host
         remember(host)
     }
+
+    /// 從頂列電腦圖示選單選一台主機(#616):換成它;如果它需要重新確認(#572),回傳那台主機的 id,
+    /// 呼叫端開編輯頁走確認流程,不開連線。一般主機與 Demo 回 `nil`。
+    @discardableResult
+    public func choose(_ host: HostSelection) -> UUID? {
+        select(host)
+        guard let option = options.first(where: { $0.id == host }), option.needsReconfirmation, case .host(let id) = host else { return nil }
+        return id
+    }
 }

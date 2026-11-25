@@ -57,11 +57,12 @@ final class HostsUITests: XCTestCase {
         step("總頁只有這台主機") {
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
             XCTAssertTrue(app.element("hosts.status").exists, "沒有連線狀態")
-            XCTAssertFalse(app.buttons["toolbar.currentHost"].exists, "主機 tab 頂列不放電腦圖示")
+            XCTAssertTrue(app.buttons["hosts.host"].firstMatch.exists, "主機 tab 右上要有電腦圖示選單(#616)")
             for id in ["hosts.tool.notifications.locked", "hosts.share", "hosts.settings", "hosts.edit", "hosts.delete"] {
                 XCTAssertTrue(app.overviewRow(id).exists, "總頁沒有 \(id)")
             }
             XCTAssertFalse(app.buttons["hosts.demo"].exists, "不該再有主機清單")
+            XCTAssertFalse(app.buttons["hosts.host.Studio Mac"].exists, "主機頁內不該有主機清單列(選主機在右上選單)")
         }
 
         step("開編輯器") {
@@ -114,7 +115,8 @@ final class HostsUITests: XCTestCase {
             // 回到總頁時列表還停在剛才捲到的位置,狀態卡在最上面(lazy):先捲回上面。
             let status = app.element("hosts.status")
             XCTAssertTrue(app.scrollIntoView(status, search: .up, timeout: 5), "存檔後沒有回到總頁")
-            XCTAssertTrue(app.staticTexts["Office Mac"].firstMatch.waitUntilExists(timeout: 5), "總頁沒有換成新名稱")
+            let picker = app.buttons["hosts.host"].firstMatch
+            XCTAssertTrue(UITestWait.until(timeout: 10) { picker.label.contains("Office Mac") }, "右上主機選單沒有換成新名稱:\(picker.label)")
         }
 
         // 分享:在同一個 NavigationStack push,顯示 QR code 與分享連結。
@@ -143,8 +145,8 @@ final class HostsUITests: XCTestCase {
             XCTAssertFalse(app.buttons["hosts.edit"].exists)
         }
 
-        // 掃 QR code／點分享連結(深層連結)→ 主機 tab 開出新增主機引導，資料已齊，直接到測試連線，通過後才能加入。
-        step("分享連結開引導直接到測試連線") {
+        // 掃 QR code／點分享連結(深層連結)→ 主機 tab 開出新增主機引導，資料已齊，停在測試連線的確認頁(顯示連線目標，#573);按下「Test Connection」才測試，通過後才能加入。
+        step("分享連結開引導停在確認頁，按下才測試") {
             XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 10))
             // HostShareLink:name Studio Mac、host studio-mac、port 22、user demo。
             let payload = #"{"host":"studio-mac","method":"tailscaleSSH","name":"Studio Mac","port":22,"user":"demo","v":1}"#
@@ -152,17 +154,22 @@ final class HostsUITests: XCTestCase {
                 .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
             app.open(URL(string: "purrdr://host?d=\(encoded)")!)
 
+            // #573:只到確認頁,顯示連線目標、還沒測試;按下才測試連線。
+            let confirm = app.buttons["guide.confirmTest"]
+            XCTAssertTrue(confirm.waitUntilExists(timeout: 15), "沒有停在測試連線的確認頁\n\(app.debugDescription)")
+            XCTAssertTrue(app.staticTexts["guide.target"].exists, "確認頁沒有顯示連線目標")
+            XCTAssertFalse(app.buttons["guide.save"].exists, "確認前不該已通過測試")
+            confirm.tap()
             let save = app.buttons["guide.save"]
-            XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有直接到測試連線\n\(app.debugDescription)")
+            XCTAssertTrue(save.waitUntilExists(timeout: 15), "按下測試後沒有通過連線測試\n\(app.debugDescription)")
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
             app.openHostsTab()
-            // 匯入的主機成為選取中主機:主機清單(兩台以上才顯示)裡它被勾選。
-            XCTAssertTrue(app.buttons["hosts.host.Studio Mac"].firstMatch.waitUntilExists(timeout: 5), "主機 tab 沒有匯入的主機")
-            // 列表列與裡面的按鈕在 accessibility tree 裡都帶這個識別碼(選取狀態只在其中一個):任何一個被勾選就算。
-            let rows = app.buttons.matching(identifier: "hosts.host.Studio Mac")
-            let selected = UITestWait.until(timeout: 10) { rows.allElementsBoundByIndex.contains { $0.isSelected } }
-            XCTAssertTrue(selected, "匯入的主機不是選取中主機")
+            // 匯入的主機成為選取中主機:右上電腦圖示選單的標籤是「Host: 主機名」(#616)。
+            let picker = app.buttons["hosts.host"].firstMatch
+            XCTAssertTrue(picker.waitUntilExists(timeout: 5), "主機 tab 右上沒有電腦圖示選單")
+            let selected = UITestWait.until(timeout: 10) { picker.label.contains("Studio Mac") }
+            XCTAssertTrue(selected, "匯入的主機不是選取中主機:\(picker.label)")
         }
     }
 

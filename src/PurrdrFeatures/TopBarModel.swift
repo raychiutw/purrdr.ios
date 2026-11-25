@@ -28,7 +28,7 @@ extension TopLevelTab {
         switch self {
         case .chats: TopBarSpec(plus: .newChat, hasHostScope: true, hasSearch: true)
         case .files: TopBarSpec(plus: .upload, hasHostScope: true, hasSearch: true)
-        case .hosts: TopBarSpec(plus: .addHost, hasHostScope: false, hasSearch: false)
+        case .hosts: TopBarSpec(plus: .addHost, hasHostScope: true, hasSearch: false)
         case .traffic: TopBarSpec(plus: nil, hasHostScope: true, hasSearch: false)
         }
     }

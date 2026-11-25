@@ -37,12 +37,9 @@ struct HostsTab: View {
     var body: some View {
         NavigationStack(path: $flow.path) {
             content
-                // 共用頂列(#500):大標題「主機」,右側單顆「＋」新增主機與頭像(沒有電腦圖示;多台主機在頁面的「主機」清單切換);
-                // 沒有搜尋,往下滑收成置中小標題。
-                .topBarPage(TopBarContent(
-                    tab: .hosts, title: "Hosts",
-                    plus: AnyView(TopBarPlusButton(title: "Add Host", identifier: "hosts.add") { flow.path.append(.add) }),
-                    account: AnyView(TopBarAccountButton(member: member, action: openAccount))))
+                // 共用頂列(#500、#616):大標題「主機」,右側 [電腦圖示｜＋] 與頭像。電腦圖示選單選看哪一台主機(與檔案 tab 同一個選單,
+                // 最下面「新增主機…」);選到需要重新確認的主機(#572)直接開編輯頁。沒有搜尋,往下滑收成置中小標題。
+                .topBarPage(topBarContent)
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }
         .alert(
@@ -71,6 +68,20 @@ struct HostsTab: View {
         .onChange(of: editHostID) { openPendingEditor() }
         .onAppear(perform: openPendingAdd)
         .onChange(of: addHost) { openPendingAdd() }
+    }
+
+    private var topBarContent: TopBarContent {
+        let picker = hosts.screens.selectedHostPicker()
+        return TopBarContent(
+            tab: .hosts, title: "Hosts",
+            hostScope: .selected(hostName: hosts.overview?.name),
+            hostMenu: AnyView(
+                HostSelectionMenu(
+                    model: picker, addHost: { flow.path.append(.add) },
+                    reconfirm: { flow.openEditor(of: $0) })),
+            hostIdentifier: "hosts.host",
+            plus: AnyView(TopBarPlusButton(title: "Add Host", identifier: "hosts.add") { flow.path.append(.add) }),
+            account: AnyView(TopBarAccountButton(member: member, action: openAccount)))
     }
 
     @ViewBuilder

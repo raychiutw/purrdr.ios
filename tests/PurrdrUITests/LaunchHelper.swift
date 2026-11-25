@@ -203,15 +203,15 @@ extension XCUIApplication {
         return row
     }
 
-    /// 主機 tab 的主機清單(#500)選了某一台(多台主機才有清單;名稱是列的標籤)。
+    /// 主機 tab 右上電腦圖示選單(#616)選了某一台(選單的項目名稱是主機名稱)。
     @MainActor
     func selectHostOnHostsTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let row = buttons["hosts.host.\(name)"].firstMatch
-        _ = row.waitUntilExists(timeout: 10)
-        // 清單是 lazy:主機列在畫面外時不在 accessibility tree,先捲到看得到。
-        scrollIntoView(row, search: .both, timeout: 5)
-        XCTAssertTrue(row.waitUntilExists(timeout: 5), "主機 tab 的主機清單沒有 \(name)", file: file, line: line)
-        row.tap()
+        let picker = buttons["hosts.host"].firstMatch
+        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "主機 tab 右上沒有電腦圖示選單", file: file, line: line)
+        picker.tap()
+        let item = buttons[name].firstMatch
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機選單沒有 \(name)", file: file, line: line)
+        item.tap()
     }
 
     /// 開已存主機(`-seedHost` 的 Studio Mac,啟動時就是選取中主機)的「這台主機的設定」頁(#392):
