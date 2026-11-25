@@ -20,7 +20,6 @@ public actor FakeHostConnection: HostConnection {
     public private(set) var disconnectCount = 0
 
     private var expectations: [(method: String, reply: Result<Data, any Error>)] = []
-    private var subscriptions: [AsyncThrowingStream<Data, any Error>.Continuation] = []
 
     /// `hostServiceVersion()` 回報的版本(#198);`nil` 像 SSH 一樣沒有主機服務。
     private var reportedHostServiceVersion: String?
@@ -78,169 +77,364 @@ public actor FakeHostConnection: HostConnection {
     }
 
     /// 還沒被送出的預期請求(method)。
-    public var unmetExpectations: [String] { expectations.map(\.method) }
+    public var unmetExpectations: [String] {
+        expectations.map(\.method) + unmetStubs + subscriptionExpectations.map { _ in "events.subscribe" }
+    }
 
-    // MARK: - 型別化操作(ADR-0015、#594)
+    // MARK: - 型別化操作(ADR-0015)
 
-    private var snapshotStubs: [HostSnapshot] = []
-    private var paneScreenStubs: [String] = []
-    private var transcriptFileStubs: [TranscriptFile] = []
-    private var transcriptChunkStubs: [TranscriptChunk] = []
     /// 型別化操作的呼叫紀錄(依序;只記操作名稱與主要參數，文字內容照原樣)。
     public private(set) var typedCalls: [String] = []
 
-    /// 下一次 `readSnapshot()` 直接回這個值(依序消耗)。用完或沒設定就退回 herdr 請求回放(`expect("session.snapshot", …)`)。
-    public func stub(snapshot: HostSnapshot) { snapshotStubs.append(snapshot) }
+    /// 型別化 stub 的操作種類。raw value 沿用 herdr 的 method 名稱(`expect`／`hold` 也用同一組字串)。
+    public enum Operation: String, Sendable {
+        case snapshot = "session.snapshot"
+        case sendKeys = "pane.send_keys"
+        case sendText = "pane.send_text"
+        case paneRead = "pane.read"
+        case ping
+        case integrations = "integration.list"
+        case reportPresence = "pane.report_metadata"
+        case workspaceRename = "workspace.rename"
+        case tabRename = "tab.rename"
+        case tabClose = "tab.close"
+        case workspaceClose = "workspace.close"
+        case worktreeCreate = "worktree.create"
+        case workspaceCreate = "workspace.create"
+        case tabCreate = "tab.create"
+        case agentStart = "agent.start"
+        case agentLaunchState = "agent.get"
+        case sessionsList = "sessions.list"
+        case agentPrompt = "agent.prompt"
+        case agentWait = "agent.wait"
+        case transcriptLocate = "transcript.locate"
+        case transcriptWindow = "transcript.window"
+        case transcriptTail = "transcript.tail"
+        case transcriptPreviews = "transcript.previews"
+        case subagentLocate = "transcript.subagent"
+        case workflow = "transcript.workflow"
+        case delegation = "transcript.delegation"
+    }
+
+    private var stubs: [Operation: [Result<any Sendable, any Error>]] = [:]
+
+    /// 下一次 `operation` 直接回 `value`(同一操作依序消耗)。沒有 stub 的操作走既有的 herdr／對話紀錄回放。
+    public func stub(_ operation: Operation, _ value: some Sendable) {
+        stubs[operation, default: []].append(.success(value))
+    }
+
+    /// 下一次 `operation` 直接成功(沒有回傳值的操作:送鍵、送文字、重新命名、關閉、在場回報)。
+    public func stub(_ operation: Operation) {
+        stubs[operation, default: []].append(.success(()))
+    }
+
+    /// 下一次 `operation` 以 `failure` 失敗(例如主機服務的 `HostServiceError.paneChanged`)。
+    public func stub(_ operation: Operation, failure: any Error) {
+        stubs[operation, default: []].append(.failure(failure))
+    }
+
+    /// 下一次 `readSnapshot()` 直接回這個值(依序消耗)。
+    public func stub(snapshot: HostSnapshot) { stub(.snapshot, snapshot) }
     /// 下一次 `readPaneScreen` 直接回這段畫面文字。
-    public func stub(paneScreen: String) { paneScreenStubs.append(paneScreen) }
+    public func stub(paneScreen: String) { stub(.paneRead, paneScreen) }
     /// 下一次 `locateTranscript` 直接回這個檔案。
-    public func stub(transcriptFile: TranscriptFile) { transcriptFileStubs.append(transcriptFile) }
+    public func stub(transcriptFile: TranscriptFile) { stub(.transcriptLocate, transcriptFile) }
     /// 下一次 `readTranscriptWindow` 直接回這段。
-    public func stub(transcriptChunk: TranscriptChunk) { transcriptChunkStubs.append(transcriptChunk) }
+    public func stub(transcriptChunk: TranscriptChunk) { stub(.transcriptWindow, transcriptChunk) }
+
+    /// 還沒被用掉的 stub(操作名稱)。
+    public var unmetStubs: [String] {
+        stubs.flatMap { operation, results in results.map { _ in operation.rawValue } }.sorted()
+    }
+
+    /// 取出 `operation` 的下一個 stub;沒有時回 `nil`。記錄呼叫與請求行,有 `hold` 時先停住。
+    private func takeStub<Value: Sendable>(
+        _ operation: Operation, as type: Value.Type, call: String, params: [String: Any] = [:]
+    ) async throws -> Value? {
+        guard var queue = stubs[operation], !queue.isEmpty else { return nil }
+        let result = queue.removeFirst()
+        stubs[operation] = queue
+        typedCalls.append(call)
+        requests.append(Self.requestLine(operation.rawValue, params))
+        await holdIfRequested(operation.rawValue)
+        switch result {
+        case .failure(let error): throw error
+        case .success(let value):
+            guard let typed = value as? Value else { throw FakeHostConnectionError.stubTypeMismatch(operation.rawValue) }
+            return typed
+        }
+    }
+
+    private func holdIfRequested(_ method: String) async {
+        if let index = heldMethods.firstIndex(of: method) {
+            heldMethods.remove(at: index)
+            await withCheckedContinuation { held.append($0) }
+        }
+    }
+
+    private static func requestLine(_ method: String, _ params: [String: Any]) -> String {
+        let object: [String: Any] = ["method": method, "params": params]
+        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private static func expectationParams(_ expecting: SendExpectation) -> [String: Any] {
+        expecting.session.map { ["expected_session": $0] } ?? [:]
+    }
 
     public func readSnapshot() async throws -> HostSnapshot {
+        if let snapshot = try await takeStub(.snapshot, as: HostSnapshot.self, call: "readSnapshot") { return snapshot }
         typedCalls.append("readSnapshot")
-        if !snapshotStubs.isEmpty { return snapshotStubs.removeFirst() }
         return try await HerdrClient(connection: self).wireSnapshot()
     }
 
     public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws {
-        typedCalls.append("sendKeys \(paneID) \(keys.joined(separator: ","))")
+        let call = "sendKeys \(paneID) \(keys.joined(separator: ","))"
+        let params: [String: Any] = ["pane_id": paneID, "keys": keys].merging(Self.expectationParams(expecting)) { $1 }
+        if try await takeStub(.sendKeys, as: Void.self, call: call, params: params) != nil { return }
+        typedCalls.append(call)
         try await HerdrClient(connection: self).wireSendKeys(paneID: paneID, keys: keys, expecting: expecting)
     }
 
     public func sendText(paneID: String, text: String, expecting: SendExpectation) async throws {
-        typedCalls.append("sendText \(paneID) \(text)")
+        let call = "sendText \(paneID) \(text)"
+        let params: [String: Any] = ["pane_id": paneID, "text": text].merging(Self.expectationParams(expecting)) { $1 }
+        if try await takeStub(.sendText, as: Void.self, call: call, params: params) != nil { return }
+        typedCalls.append(call)
         try await HerdrClient(connection: self).wireSendText(paneID: paneID, text: text, expecting: expecting)
     }
 
     public func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
-        typedCalls.append("readPaneScreen \(paneID) \(lines) \(format == .ansi ? "ansi" : "text")")
-        if !paneScreenStubs.isEmpty { return paneScreenStubs.removeFirst() }
+        let call = "readPaneScreen \(paneID) \(lines) \(format == .ansi ? "ansi" : "text")"
+        if let screen = try await takeStub(.paneRead, as: String.self, call: call, params: ["pane_id": paneID, "lines": lines]) { return screen }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wireReadPane(paneID: paneID, lines: lines, format: format)
     }
 
     public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile {
+        if let file = try await takeStub(.transcriptLocate, as: TranscriptFile.self, call: "locateTranscript") { return file }
         typedCalls.append("locateTranscript")
-        if !transcriptFileStubs.isEmpty { return transcriptFileStubs.removeFirst() }
         return try await TranscriptReader(connection: self).wireLocate(location)
     }
 
     public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
-        typedCalls.append("readTranscriptWindow \(path) \(end) \(lines) \(maxBytes)")
-        if !transcriptChunkStubs.isEmpty { return transcriptChunkStubs.removeFirst() }
+        let call = "readTranscriptWindow \(path) \(end) \(lines) \(maxBytes)"
+        if let chunk = try await takeStub(.transcriptWindow, as: TranscriptChunk.self, call: call) { return chunk }
+        typedCalls.append(call)
         return try await TranscriptReader(connection: self).wireWindow(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
     }
 
-    // herdr 的結構與 Agent 操作(#595 第二批):記錄呼叫後走既有的 herdr 回放(`expect(method, reply:)`)。
+    // herdr 的結構與 Agent 操作:有 stub 就直接回,沒有就記錄呼叫後走既有的 herdr 回放(`expect(method, reply:)`)。
 
     public func herdrVersion() async throws -> String {
+        if let version = try await takeStub(.ping, as: String.self, call: "herdrVersion") { return version }
         typedCalls.append("herdrVersion")
         return try await HerdrClient(connection: self).wirePing()
     }
 
     public func listIntegrations() async throws -> [AgentIntegration] {
+        if let list = try await takeStub(.integrations, as: [AgentIntegration].self, call: "listIntegrations") { return list }
         typedCalls.append("listIntegrations")
         return try await HerdrClient(connection: self).wireIntegrations()
     }
 
     public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
-        typedCalls.append("reportPresence \(paneID) \(model ?? "-") \(seq)")
+        let call = "reportPresence \(paneID) \(model ?? "-") \(seq)"
+        if try await takeStub(.reportPresence, as: Void.self, call: call, params: ["pane_id": paneID]) != nil { return }
+        typedCalls.append(call)
         try await HerdrClient(connection: self).wireReportPresence(paneID: paneID, model: model, seq: seq)
     }
 
     public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
-        typedCalls.append("renameWorkspace \(workspaceID) \(label)")
+        let call = "renameWorkspace \(workspaceID) \(label)"
+        if try await takeStub(.workspaceRename, as: Void.self, call: call, params: ["workspace_id": workspaceID, "label": label]) != nil { return }
+        typedCalls.append(call)
         try await HerdrClient(connection: self).wireRenameWorkspace(workspaceID, to: label)
     }
 
     public func renameTab(_ tabID: String, to label: String) async throws {
-        typedCalls.append("renameTab \(tabID) \(label)")
+        let call = "renameTab \(tabID) \(label)"
+        if try await takeStub(.tabRename, as: Void.self, call: call, params: ["tab_id": tabID, "label": label]) != nil { return }
+        typedCalls.append(call)
         try await HerdrClient(connection: self).wireRenameTab(tabID, to: label)
     }
 
     public func closeTab(_ tabID: String) async throws {
-        typedCalls.append("closeTab \(tabID)")
+        let call = "closeTab \(tabID)"
+        if try await takeStub(.tabClose, as: Void.self, call: call, params: ["tab_id": tabID]) != nil { return }
+        typedCalls.append(call)
         try await HerdrClient(connection: self).wireCloseTab(tabID)
     }
 
     public func closeWorkspace(_ workspaceID: String) async throws {
-        typedCalls.append("closeWorkspace \(workspaceID)")
+        let call = "closeWorkspace \(workspaceID)"
+        if try await takeStub(.workspaceClose, as: Void.self, call: call, params: ["workspace_id": workspaceID]) != nil { return }
+        typedCalls.append(call)
         try await HerdrClient(connection: self).wireCloseWorkspace(workspaceID)
     }
 
     public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
-        typedCalls.append("createWorktree \(workspaceID) \(branch)")
+        let call = "createWorktree \(workspaceID) \(branch)"
+        if let created = try await takeStub(.worktreeCreate, as: CreatedWorkspace.self, call: call, params: ["workspace_id": workspaceID, "branch": branch]) {
+            return created
+        }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wireCreateWorktree(from: workspaceID, branch: branch)
     }
 
     public func createWorkspace(cwd: String, label: String?) async throws -> NewWorkspace {
-        typedCalls.append("createWorkspace \(cwd) \(label ?? "-")")
+        let call = "createWorkspace \(cwd) \(label ?? "-")"
+        if let created = try await takeStub(.workspaceCreate, as: NewWorkspace.self, call: call, params: ["cwd": cwd]) { return created }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wireCreateWorkspace(cwd: cwd, label: label)
     }
 
     public func createTab(in workspaceID: String, label: String?) async throws -> CreatedTab {
-        typedCalls.append("createTab \(workspaceID) \(label ?? "-")")
+        let call = "createTab \(workspaceID) \(label ?? "-")"
+        if let created = try await takeStub(.tabCreate, as: CreatedTab.self, call: call, params: ["workspace_id": workspaceID]) { return created }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wireCreateTab(in: workspaceID, label: label)
     }
 
     public func startAgent(_ request: AgentStartRequest) async throws -> Bool {
-        typedCalls.append("startAgent \(request.kind) \(request.paneID)")
+        let call = "startAgent \(request.kind) \(request.paneID)"
+        if let ready = try await takeStub(.agentStart, as: Bool.self, call: call, params: ["pane_id": request.paneID, "agent": request.kind]) { return ready }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wireStartAgent(request)
     }
 
     public func agentLaunchState(target: String) async throws -> AgentLaunchState {
-        typedCalls.append("agentLaunchState \(target)")
+        let call = "agentLaunchState \(target)"
+        if let state = try await takeStub(.agentLaunchState, as: AgentLaunchState.self, call: call, params: ["target": target]) { return state }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wireAgentLaunchState(target: target)
     }
 
     public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
-        typedCalls.append("listSessions \(cwd) \(agent)")
+        let call = "listSessions \(cwd) \(agent)"
+        if let list = try await takeStub(.sessionsList, as: [ResumableSession].self, call: call, params: ["cwd": cwd, "agent": agent]) { return list }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wireListSessions(cwd: cwd, agent: agent)
     }
 
     public func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
-        typedCalls.append("sendPrompt \(target) \(text)")
+        let call = "sendPrompt \(target) \(text)"
+        let params: [String: Any] = ["target": target, "text": text].merging(Self.expectationParams(expecting)) { $1 }
+        if let reply = try await takeStub(.agentPrompt, as: PromptReply.self, call: call, params: params) { return reply }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wirePrompt(target: target, text: text, wait: wait, expecting: expecting)
     }
 
     public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
-        typedCalls.append("waitForAgent \(target)")
+        let call = "waitForAgent \(target)"
+        if let reached = try await takeStub(.agentWait, as: Bool.self, call: call, params: ["target": target]) { return reached }
+        typedCalls.append(call)
         return try await HerdrClient(connection: self).wireWaitForAgent(target: target, until: until, timeout: timeout)
     }
 
-    public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
-        typedCalls.append("subscribeToEvents \(subscriptions.count)")
-        return try await HerdrClient(connection: self).wireSubscribe(subscriptions)
-    }
-
-    // 對話紀錄的追蹤讀取、預覽、subagent、workflow、委派(#595 第二批 C):記錄呼叫後走既有的對話紀錄回放(`answerTranscripts`)。
+    // 對話紀錄的追蹤讀取、預覽、subagent、workflow、委派:有 stub 就直接回,沒有就記錄呼叫後走既有的對話紀錄回放(`answerTranscripts`)。
 
     public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
-        typedCalls.append("readTranscriptTail \(path) \(cursor) \(limit) \(catchUp)")
+        let call = "readTranscriptTail \(path) \(cursor) \(limit) \(catchUp)"
+        if let read = try await takeStub(.transcriptTail, as: TranscriptTailRead.self, call: call) { return read }
+        typedCalls.append(call)
         return try await TranscriptReader(connection: self).wireTail(path: path, from: cursor, limit: limit, catchUp: catchUp)
     }
 
     public func readTranscriptPreviews(_ requests: [PreviewRequest]) async throws -> [String: TranscriptPreviewBody] {
-        typedCalls.append("readTranscriptPreviews \(requests.map(\.key).joined(separator: ","))")
+        let call = "readTranscriptPreviews \(requests.map(\.key).joined(separator: ","))"
+        if let bodies = try await takeStub(.transcriptPreviews, as: [String: TranscriptPreviewBody].self, call: call) { return bodies }
+        typedCalls.append(call)
         return try await TranscriptReader(connection: self).wirePreviews(requests)
     }
 
     public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
-        typedCalls.append("locateSubagent \(callID)")
+        let call = "locateSubagent \(callID)"
+        if let path = try await takeStub(.subagentLocate, as: String.self, call: call) { return path }
+        typedCalls.append(call)
         return try await TranscriptReader(connection: self).wireLocateSubagent(sessionFolder: sessionFolder, callID: callID)
     }
 
     public func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String?) async throws -> WorkflowRead {
-        typedCalls.append("readWorkflow \(runID)")
+        let call = "readWorkflow \(runID)"
+        if let read = try await takeStub(.workflow, as: WorkflowRead.self, call: call) { return read }
+        typedCalls.append(call)
         return try await TranscriptReader(connection: self).wireWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
     }
 
     public func readDelegationLines(path: String, callID: String, agentID: String, knownChecksum: String?) async throws -> DelegationRead {
-        typedCalls.append("readDelegationLines \(callID)")
+        let call = "readDelegationLines \(callID)"
+        if let read = try await takeStub(.delegation, as: DelegationRead.self, call: call) { return read }
+        typedCalls.append(call)
         return try await TranscriptReader(connection: self).wireDelegationLines(
             path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
     }
+
+    // MARK: 事件訂閱
+
+    /// 型別化的事件訂閱預期:`subscribeToEvents` 時依序送出 `events`(預設只有 `.subscriptionStarted`),之後保持開著,
+    /// 用 `send(_:toSubscription:)` 推事件。`failure` 有值時訂閱直接失敗。
+    private var subscriptionExpectations: [(events: [HerdrEvent], failure: (any Error)?)] = []
+    /// app 送出的訂閱內容(依送出順序;只計型別化的訂閱)。
+    public private(set) var subscribeRequests: [[EventSubscription]] = []
+
+    public func expectSubscription(events: [HerdrEvent] = [.subscriptionStarted]) {
+        subscriptionExpectations.append((events, nil))
+    }
+
+    public func expectSubscription(failure: any Error) {
+        subscriptionExpectations.append(([], failure))
+    }
+
+    public func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
+        typedCalls.append("subscribeToEvents \(subscriptions.count)")
+        guard !subscriptionExpectations.isEmpty else {
+            return try await HerdrClient(connection: self).wireSubscribe(subscriptions)
+        }
+        let expectation = subscriptionExpectations.removeFirst()
+        subscribeRequests.append(subscriptions)
+        requests.append(Self.requestLine("events.subscribe", [
+            "subscriptions": subscriptions.map { subscription -> [String: Any] in
+                var entry: [String: Any] = ["event": subscription.type.rawValue]
+                if let paneID = subscription.paneID { entry["pane_id"] = paneID }
+                return entry
+            },
+        ]))
+        await holdIfRequested("events.subscribe")
+        if let failure = expectation.failure { throw failure }
+        let (stream, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
+        for event in expectation.events { continuation.yield(event) }
+        let index = subscriptionHandles.count
+        subscriptionHandles.append(SubscriptionHandle(
+            sendLine: { line in
+                if let event = try? HerdrClient.decodeEventLine(line) { continuation.yield(event) }
+            },
+            send: { continuation.yield($0) },
+            finish: { error in
+                if let error { continuation.finish(throwing: error) } else { continuation.finish() }
+            }))
+        subscriptionsClosed.append(false)
+        continuation.onTermination = { _ in Task { await self.closeSubscription(index) } }
+        return stream
+    }
+
+    /// 對第 `index` 條 Agent 事件串流(從 0 起算)推一個事件。
+    public func send(_ event: HerdrEvent, toSubscription index: Int) {
+        subscriptionHandles[index].send(event)
+    }
+
+    /// 主機那端以 `error` 結束第 `index` 條 Agent 事件串流(例如 herdr 的 `events_lost`)。
+    public func finish(subscription index: Int, throwing error: any Error) {
+        subscriptionHandles[index].finish(error)
+    }
+
+    private struct SubscriptionHandle: Sendable {
+        var sendLine: @Sendable (Data) -> Void
+        var send: @Sendable (HerdrEvent) -> Void
+        var finish: @Sendable ((any Error)?) -> Void
+    }
+
+    private var subscriptionHandles: [SubscriptionHandle] = []
 
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
         let method = Self.method(of: request)
@@ -272,15 +466,16 @@ public actor FakeHostConnection: HostConnection {
 
     /// 主機那端結束第 `index` 條 Agent 事件串流(斷線)。
     public func finish(subscription index: Int) {
-        subscriptions[index].finish()
+        subscriptionHandles[index].finish(nil)
     }
 
     public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
         let reply = try consume(request)
         let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
         for line in reply.split(separator: 0x0A) { continuation.yield(Data(line)) }
-        let index = subscriptions.count
-        subscriptions.append(continuation)
+        let index = subscriptionHandles.count
+        subscriptionHandles.append(SubscriptionHandle(
+            sendLine: { continuation.yield($0) }, send: { _ in }, finish: { _ in continuation.finish() }))
         subscriptionsClosed.append(false)
         continuation.onTermination = { _ in Task { await self.closeSubscription(index) } }
         return lines
@@ -288,7 +483,7 @@ public actor FakeHostConnection: HostConnection {
 
     /// 對第 `index` 條 Agent 事件串流(從 0 起算)送出一行事件。
     public func send(event: Data, toSubscription index: Int) {
-        for line in event.split(separator: 0x0A) { subscriptions[index].yield(Data(line)) }
+        for line in event.split(separator: 0x0A) { subscriptionHandles[index].sendLine(Data(line)) }
     }
 
     /// app 送出的對話紀錄讀取，依送出順序。
@@ -443,6 +638,8 @@ public enum FakeHostConnectionError: Error, Equatable {
     case unexpectedRequest(String)
     /// 這個假連線還沒有對話紀錄;Pane 終端機沒有預期(`expectPaneTerminal`)。
     case unsupported
+    /// `stub` 給的值型別與操作要回的不符。
+    case stubTypeMismatch(String)
 }
 
 /// 一次開對話紀錄追蹤的參數。

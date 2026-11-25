@@ -130,6 +130,11 @@ public struct HerdrClient: Sendable {
         return events
     }
 
+    /// 一行事件串流的內容(已過 ack):事件、`nil`(看不懂的行略過),或錯誤 envelope(丟出)。測試的假連線用它把事件行換成型別化事件。
+    package static func decodeEventLine(_ line: Data) throws -> HerdrEvent? {
+        try decodeStreamLine(line, started: true)
+    }
+
     /// 串流中的一行:ack、事件，或錯誤 envelope(丟出)。ack 之後看不懂的行略過。
     private static func decodeStreamLine(_ line: Data, started: Bool) throws -> HerdrEvent? {
         guard let decoded = try? JSONDecoder().decode(StreamLine.self, from: line) else {
