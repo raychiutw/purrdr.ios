@@ -352,4 +352,23 @@ struct UnreadPinnedTests {
         model.currentHost = Self.lab
         #expect(model.needsYouCount() == 2, "主機篩選不影響 tab badge")
     }
+
+    // MARK: - 剛關閉的 Tab
+
+    @Test("關閉 Tab 成功後，列表馬上拿掉那一列，即使重讀到的快照還有它(SSH 重讀慢時不會出現「關了還在、再關一次 tab not found」)")
+    func closedTabDisappearsBeforeSnapshotCatchesUp() async {
+        let clock = MarkerClock(Self.t0)
+        let studio = await Self.host(Self.studio, clock: clock)
+        let model = Self.merged([studio])
+        await model.load()
+        let tabKeys = { model.spacesSections.flatMap(\.tabs).map(\.key) }
+        #expect(tabKeys().contains("w1:tA"))
+
+        await studio.fake.expect(Self.bridge, reply: FakeReply(stdout: Data(#"{"id":"purrdr:tab.close","result":{"type":"ok"}}"#.utf8 + [0x0A]), trigger: .afterStdinLine))
+        await studio.source.actions.closeTab(tabID: "w1:tA", sessionIDs: [])
+
+        #expect(studio.source.list.snapshot?.tabs.contains { $0.id == "w1:tA" } == true, "快照還沒追上")
+        #expect(!tabKeys().contains("w1:tA"))
+        #expect(tabKeys().contains("w1:t6"), "其他 Tab 不受影響")
+    }
 }
