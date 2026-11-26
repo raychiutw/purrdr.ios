@@ -298,6 +298,18 @@ extension XCUIApplication {
     @MainActor
     var conversationList: XCUIElement { collectionViews["conversation.list"] }
 
+    /// 點文字欄叫出鍵盤,以「欄位真的取得焦點」為準:剛推進頁面時欄位的轉場還沒停,第一下點擊可能落空
+    /// (只有那一下沒有焦點,鍵盤就不會出現);焦點沒到就再點,最多 3 次。
+    @MainActor
+    func focusTextField(_ field: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        guard field.waitUntilHittable(timeout: timeout) else { return false }
+        for _ in 0..<3 {
+            field.tap()
+            if field.wait(timeout: 2, until: { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }) { return true }
+        }
+        return false
+    }
+
     /// 等鍵盤收起(自己按「完成」或 return 之後)。
     @MainActor
     func waitForKeyboardToHide(timeout: TimeInterval = 3) -> Bool {
