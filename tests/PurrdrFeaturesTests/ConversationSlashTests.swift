@@ -21,7 +21,7 @@ struct ConversationSlashTests {
         let model = ConversationModel(
             client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host), paneID: paneID,
             knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-            slashDiscovery: ClaudeSlashDiscovery(channel: host)
+            slashDiscovery: ClaudeSlashDiscovery(channel: host, sleep: RecordingSleeper().sleep)
         )
         return (host, model)
     }
