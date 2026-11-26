@@ -359,7 +359,8 @@ extension XCUIApplication {
         // `for … where` 條件不成立時不會結束迴圈,而是空轉剩下的次數、每次還是查詢鍵盤(每次 typeEnglish 白白多約 1 秒):
         // 已經是指定的輸入法就第一次檢查後直接返回。
         for _ in 0..<5 {
-            if markers.contains(where: { keyboard.keys[$0].exists }) || !nextKeyboard.exists { return }
+            // iPad 的鍵盤框在 AX 樹裡是未轉向的座標,地球鍵可能在畫面外、點不到(`Failed to scroll to visible`):點不到就放棄切換。
+            if markers.contains(where: { keyboard.keys[$0].exists }) || !nextKeyboard.exists || !nextKeyboard.isHittable { return }
             nextKeyboard.tap()
         }
     }
@@ -371,7 +372,15 @@ extension XCUIElement {
     func typeEnglish(_ text: String) {
         // 點下輸入框後焦點要一下子才到：沒有焦點就 typeText 會失敗。
         _ = wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }
-        XCUIApplication().switchKeyboard(to: .english)
+        let app = XCUIApplication()
+        app.switchKeyboard(to: .english)
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists, !keyboard.keys["q"].exists, !keyboard.keys["Q"].exists {
+            // 軟體鍵盤不是英文、也切不過去(iPad 實測:模擬器記住上次的輸入法「繁體手寫」,地球鍵在畫面外):
+            // 改以硬體鍵盤事件逐字輸入(不經軟體鍵盤的輸入法)。
+            for character in text { app.typeKey(character == "\n" ? "\r" : String(character), modifierFlags: []) }
+            return
+        }
         typeText(text)
     }
 }
