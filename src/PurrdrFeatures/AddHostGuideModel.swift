@@ -136,7 +136,7 @@ public final class AddHostGuideModel {
     /// 這支裝置的公鑰(金鑰路徑;`loadDeviceKey()` 取得)。
     public private(set) var devicePublicKey: SSHPublicKey?
     /// 拿不到裝置金鑰時的說明。
-    public private(set) var deviceKeyProblem: String?
+    public private(set) var deviceKeyProblem: DisplayedError?
     public var address = ""
     public var port = "22"
     /// HTTPS:主機服務的位址(主機名稱)、Port 與配對碼。
@@ -392,18 +392,18 @@ public final class AddHostGuideModel {
             devicePublicKey = key
             deviceKeyProblem = nil
         case .failure(let error):
-            deviceKeyProblem = HostErrorText.message(for: error)
+            deviceKeyProblem = DisplayedError(error: error)
         }
     }
 
     /// 貼上的私鑰不能用時的說明(RSA、passphrase、不是 OpenSSH 格式…);沒貼或可用時 `nil`。
-    public var privateKeyProblem: String? {
+    public var privateKeyProblem: DisplayedError? {
         guard authentication == .importedKey, !privateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         do {
             _ = try SSHPrivateKey(openSSH: privateKey)
             return nil
         } catch {
-            return HostErrorText.keyImportMessage(error)
+            return DisplayedError(HostErrorText.keyImportMessage(error), error: error)
         }
     }
 

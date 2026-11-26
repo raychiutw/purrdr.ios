@@ -1,4 +1,5 @@
 import AuthenticationServices
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -371,7 +372,8 @@ struct AccountView: View {
             if let plus {
                 if let subscription = plus.subscription, subscription.pendingReview {
                     Section {
-                        ErrorLabel(String(localized: "Your two old members were combined. Another subscription (\(subscription.store.displayName)) needs your attention: cancel it there to avoid paying twice."), area: "MemberView")
+                        ErrorLabel(String(localized: "Your two old members were combined. Another subscription (\(subscription.store.displayName)) needs your attention: cancel it there to avoid paying twice."), area: "MemberView",
+                                   error: ErrorDescriptor(category: "Subscription", code: "pendingReview"))
                         .accessibilityIdentifier("account.pendingReview")
                     }
                 }
@@ -462,6 +464,7 @@ struct AccountView: View {
         } message: { notice in
             Text(notice.message)
         }
+        .reportsErrorDisplay(plus?.notice?.displayedError, area: "MemberView")
         .alert(
             Text(verbatim: lockReason?.shortText ?? ""), isPresented: lockedPresented, presenting: lockReason
         ) { reason in
@@ -682,7 +685,7 @@ struct SignInDevicesView: View {
                     RowsSkeleton(identifier: "account.signInDevices.loading")
                 }
                 if let problem = model.problem {
-                    ErrorLabel(problem, area: "MemberView")
+                    ErrorLabel(problem.text, area: "MemberView", error: problem.descriptor)
                         .accessibilityIdentifier("account.signInDevices.problem")
                     Button("Try Again") { Task { await model.load() } }
                         .listAction()

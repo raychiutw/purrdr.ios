@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -361,7 +362,7 @@ struct AddHostGuideView: View {
                     .focused($focus, equals: .privateKey)
                     .accessibilityIdentifier("guide.field.privateKey")
                 if let problem = model.privateKeyProblem {
-                    ErrorLabel(problem, area: "AddHostGuideView")
+                    ErrorLabel(problem.text, area: "AddHostGuideView", error: problem.descriptor)
                         .accessibilityIdentifier("guide.keyProblem")
                     if model.privateKeyOffersDeviceKey {
                         Button("Use This Device’s Key Instead") { model.useDeviceKeyInstead() }
@@ -387,7 +388,7 @@ struct AddHostGuideView: View {
     @ViewBuilder
     private var keySetup: some View {
         if let problem = model.deviceKeyProblem, model.devicePublicKey == nil {
-            ErrorLabel(problem, area: "AddHostGuideView")
+            ErrorLabel(problem.text, area: "AddHostGuideView", error: problem.descriptor)
                 .padding(.top, 24)
                 .accessibilityIdentifier("guide.deviceKeyProblem")
         } else if model.devicePublicKey == nil {
@@ -488,12 +489,12 @@ struct AddHostGuideView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppSurface.card, in: .rect(cornerRadius: 18))
-        case .hostKeyChanged:
-            ErrorLabel(String(localized: "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself."), area: "AddHostGuideView")
+        case .hostKeyChanged(let presented, let pinned):
+            ErrorLabel(String(localized: "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself."), area: "AddHostGuideView", error: SSHConnectionError.hostKeyChanged(presented: presented, pinned: pinned))
                 .accessibilityIdentifier("guide.result")
         case .failed(let message):
             VStack(alignment: .leading, spacing: 10) {
-                ErrorLabel(message, area: "AddHostGuideView")
+                ErrorLabel(message.text, area: "AddHostGuideView", error: message.descriptor)
                     .accessibilityIdentifier("guide.result")
                 if let details = model.failureDetails {
                     DisclosureGroup("Details") {
@@ -513,11 +514,11 @@ struct AddHostGuideView: View {
                 }
                 .accessibilityIdentifier("guide.reminder")
             }
-        case .needsUpdate:
-            ErrorLabel(String(localized: "herdr on that computer is too old. Update herdr there, then try again."), area: "AddHostGuideView")
+        case .needsUpdate(let version):
+            ErrorLabel(String(localized: "herdr on that computer is too old. Update herdr there, then try again."), area: "AddHostGuideView", error: HostProbeError.herdrOutdated(version))
                 .accessibilityIdentifier("guide.result")
         case .restartServerRequired:
-            ErrorLabel(String(localized: "herdr is updated. Restart herdr on that computer, then try again."), area: "AddHostGuideView")
+            ErrorLabel(String(localized: "herdr is updated. Restart herdr on that computer, then try again."), area: "AddHostGuideView", error: ErrorDescriptor(category: "HerdrUpdateOutcome", code: "restartServerRequired"))
                 .accessibilityIdentifier("guide.result")
         case .tested(let report):
             Text("herdr \(report.herdrVersion.description) · \(report.operatingSystem.displayName)")

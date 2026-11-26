@@ -23,7 +23,7 @@ struct CodexLauncherSection: View {
             .disabled(isBusy)
             .accessibilityIdentifier("settings.codexLauncher")
             if let message = model.message {
-                ErrorLabel(message, area: "CodexLauncher")
+                ErrorLabel(message.text, area: "CodexLauncher", error: message.descriptor)
                     .font(.footnote)
                     .accessibilityIdentifier("settings.codexLauncher.message")
             }

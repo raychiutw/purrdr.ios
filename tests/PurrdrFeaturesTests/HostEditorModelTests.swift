@@ -215,7 +215,7 @@ struct HostEditorModelTests {
         await model.test()
 
         guard case .failed(let message) = model.phase else { Issue.record("\(model.phase)"); return }
-        #expect(message.contains("Tailscale"))
+        #expect(message.text.contains("Tailscale"))
     }
 
     @Test("儲存失敗(例如 Keychain 拒絕)時留在編輯器並說明原因")
@@ -230,7 +230,7 @@ struct HostEditorModelTests {
         #expect(model.save() == nil)
         guard case .failed(let message) = model.phase else { Issue.record("\(model.phase)"); return }
         // 函式庫的原文不放在說明裡，收進「詳細資訊」(#359)。
-        #expect(!message.contains("SaveFailed"), "說明不直接帶錯誤原文:\(message)")
+        #expect(!message.text.contains("SaveFailed"), "說明不直接帶錯誤原文:\(message.text)")
         #expect(model.failureDetails?.isEmpty == false)
     }
 

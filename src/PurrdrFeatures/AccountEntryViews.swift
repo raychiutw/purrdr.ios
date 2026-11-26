@@ -57,6 +57,7 @@ struct AccountEntryStack<Root: View>: View {
         } message: { notice in
             Text(notice.message)
         }
+        .reportsErrorDisplay(model.notice?.displayedError, area: "AccountEntry")
         // 流程 → 堆疊:登入結果、前進、略過。
         .onChange(of: shownPath) { _, path in
             if pages != path { pages = path }
@@ -314,6 +315,7 @@ struct JoinFlowPages: View {
         } message: { notice in
             Text(notice.message)
         }
+        .reportsErrorDisplay(plus.notice?.displayedError, area: "AccountJoin")
         .safeAreaBar(edge: .bottom) {
             VStack(spacing: 2) {
                 if plus.storefront == .available {

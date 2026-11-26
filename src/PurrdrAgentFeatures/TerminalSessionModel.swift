@@ -37,7 +37,7 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     var modifiers: TerminalModifiers { get }
     var fontSize: Double { get }
     /// 一次性的提示(例如貼上太大)。
-    var notice: String? { get set }
+    var notice: DisplayedError? { get set }
     /// 單指垂直滑動交給遠端(`scroll`);`false` 時終端機模擬器自己捲 scrollback。
     var usesRemoteScroll: Bool { get }
     /// 終端機模擬器看得到遠端程式的模式(登入 Shell 的 PTY);Pane 終端機經 herdr,看不到。

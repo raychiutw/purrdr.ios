@@ -91,7 +91,7 @@ public final class HostsModel {
     /// 所有主機合併的 Agent 列表。
     public let agentList: MergedAgentListModel
     /// 讀不到已存主機時的說明。
-    public private(set) var loadError: String?
+    public private(set) var loadError: DisplayedError?
     /// Tailscale SSH check mode 的提示。所有主機通道共用;composition root 把它的 `observer` 交給主機通道。
     public let tailscaleCheck: TailscaleCheckModel
     /// 使用者新增、修改、刪除主機時通知(主機同步)。
@@ -555,7 +555,8 @@ public final class HostsModel {
             refreshPairing()
             loadError = nil
         case .failure(let error):
-            loadError = String(localized: "Couldn’t read saved hosts on this device. \(error.localizedDescription)")
+            loadError = DisplayedError(
+                String(localized: "Couldn’t read saved hosts on this device. \(error.localizedDescription)"), error: error)
         }
         select(validSelection(selectionStore.load()))
         // 存的目前主機已不在列表上(刪除或同步移除)就維持所有主機。

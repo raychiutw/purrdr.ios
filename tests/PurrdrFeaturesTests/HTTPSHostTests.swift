@@ -125,7 +125,7 @@ struct HTTPSHostEditorTests {
 
         await model.test()
 
-        #expect(model.phase == .failed(HostErrorText.message(for: expected, connection: .https)))
+        #expect(model.phase == .failed(DisplayedError(error: expected, connection: .https)))
         #expect(!model.canSave)
     }
 

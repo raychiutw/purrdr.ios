@@ -192,7 +192,8 @@ struct PushDevicesModelTests {
         await devices.load()
 
         #expect(devices.devices.map(\.id) == [Self.ipad])
-        #expect(devices.problem == .failed(String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")))
+        guard case .failed(let shown)? = devices.problem else { Issue.record("沒有失敗說明"); return }
+        #expect(shown.text == String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again."))
     }
 
     @Test("改名失敗：說明，名稱不變")

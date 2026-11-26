@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -40,7 +41,7 @@ struct PushDevicesView: View {
                 }
                 if let problem = model.problem {
                     // 頁內錯誤一律紅色三角說明(#626)。
-                    ErrorLabel(problem.text, area: "PushDevices")
+                    ErrorLabel(problem.text, area: "PushDevices", error: problem.descriptor)
                         .accessibilityIdentifier("account.pushDevices.problem")
                 }
             } footer: {
@@ -229,7 +230,15 @@ extension PushDevicesModel.Problem {
     var text: String {
         switch self {
         case .needsSubscription: String(localized: "Renaming devices needs Purrdr Plus.")
-        case .failed(let message): message
+        case .failed(let shown): shown.text
+        }
+    }
+
+    /// 記錄用的類別與錯誤碼。
+    var descriptor: ErrorDescriptor {
+        switch self {
+        case .needsSubscription: ErrorDescriptor(category: "PushDevicesModel.Problem", code: "needsSubscription")
+        case .failed(let shown): shown.descriptor
         }
     }
 }

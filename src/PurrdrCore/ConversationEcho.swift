@@ -40,7 +40,7 @@ public struct PromptEcho: Sendable, Equatable, Identifiable {
 }
 
 /// 回音失敗的原因(泡泡下方的說明與「重試」)。
-public enum EchoFailure: Sendable, Equatable {
+public enum EchoFailure: Error, Sendable, Equatable {
     /// 沒有反應(停滯)。
     case noResponse
     /// 無法確認是否送到。

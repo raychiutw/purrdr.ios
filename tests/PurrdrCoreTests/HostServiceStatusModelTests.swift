@@ -162,7 +162,7 @@ struct HostServiceStatusModelTests {
         await model.updateNow()
 
         guard case .failed(let message) = model.update else { Issue.record("沒有失敗"); return }
-        #expect(message.contains("already in progress"))
+        #expect(message.text.contains("already in progress"))
         #expect(service.log.connections == 1)
     }
 
