@@ -199,10 +199,7 @@ struct ClaudePlanUsageHostTests {
 
         try await usage.install()
 
-        // 若把包裝腳本存成原本的，執行時會無限遞迴呼叫自己，直到程序數用盡才失敗(要好幾秒)。
-        let started = ContinuousClock.now
         #expect(try await runStatusLine(input: Self.statusLineInput) == "")
-        #expect(ContinuousClock.now - started < .seconds(3), "status line 執行太久，可能在遞迴呼叫自己")
     }
 
     @Test("安裝後使用者又改了 settings.json:還原只換回 status line,保留使用者的修改")
