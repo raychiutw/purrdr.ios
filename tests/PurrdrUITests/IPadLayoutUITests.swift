@@ -102,13 +102,13 @@ final class IPadLayoutUITests: XCTestCase {
         XCTAssertTrue(tab.exists, "對話推走了列表")
     }
 
-    /// 硬體鍵盤：Command-, 開 App 設定(不是系統的 Settings…)。
+    /// 硬體鍵盤：Option-Command-, 開 App 設定(Command-, 是系統的 Settings…,開 iOS 設定 app)。
     @MainActor
-    func testCommandCommaOpensAppSettings() throws {
+    func testAppSettingsShortcutOpensAccount() throws {
         let app = launchInLandscape()
         XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")))
 
-        try app.openAccountWithCommandComma()
+        app.openAccountWithShortcut()
         app.closeAccountSheet()
     }
 

@@ -22,7 +22,7 @@ final class IPadSidebarUITests: XCTestCase {
         XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
         row.tap()
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 15), "對話沒有開在對話欄")
-        // 對話頂列(用量環)可點才算畫面穩定:剛開好就送硬體鍵盤快捷鍵,焦點系統還沒接上、Command-, 偶爾沒反應(實測)。
+        // 對話頂列(用量環)可點才算畫面穩定,再送硬體鍵盤快捷鍵。
         XCTAssertTrue(UITestWait.until(timeout: 10) { app.buttons["conversation.usage"].firstMatch.isHittable }, "對話頂列沒有就緒")
     }
 
@@ -78,13 +78,13 @@ final class IPadSidebarUITests: XCTestCase {
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "返回後沒有回到原本的對話")
     }
 
-    /// Command-, 開帳號與設定:寬視窗是 page sheet(不是全螢幕),關閉後對話欄的對話還在(#623)。
+    /// Option-Command-, 開帳號與設定:寬視窗是 page sheet(不是全螢幕),關閉後對話欄的對話還在(#623)。
     @MainActor
-    func testCommandCommaOpensPageSheetAndClosesBackToChat() throws {
+    func testAppSettingsShortcutOpensPageSheetAndClosesBackToChat() {
         let app = launch()
         openChat(app)
 
-        try app.openAccountWithCommandComma()
+        app.openAccountWithShortcut()
         let sheet = app.element("account.signedOut")
         XCTAssertLessThan(sheet.frame.width, app.windows.firstMatch.frame.width, "寬視窗的帳號與設定應是 page sheet、不是滿版")
         app.closeAccountSheet()

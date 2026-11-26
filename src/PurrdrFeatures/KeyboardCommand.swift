@@ -49,7 +49,7 @@ extension KeyboardCommand {
         case .search: KeyboardShortcut("f", modifiers: .command)
         case .openTerminal: KeyboardShortcut("t", modifiers: [.command, .shift])
         case .newChat: KeyboardShortcut("n", modifiers: .command)
-        case .settings: KeyboardShortcut(",", modifiers: .command)
+        case .settings: KeyboardShortcut(",", modifiers: [.command, .option])
         case .showChats: KeyboardShortcut("1", modifiers: .command)
         case .showFiles: KeyboardShortcut("2", modifiers: .command)
         case .showHosts: KeyboardShortcut("3", modifiers: .command)
