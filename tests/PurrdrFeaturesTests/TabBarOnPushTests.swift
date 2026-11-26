@@ -38,7 +38,9 @@ struct TabBarOnPushTests {
         for url in urls {
             let text = try String(contentsOf: url, encoding: .utf8)
             #expect(!text.contains("hidesTabBarWhenCompact"), "\(url.lastPathComponent) 還在被推入的頁面上隱藏 tab bar")
-            if text.contains("for: .tabBar)") { owners.append(url.lastPathComponent) }
+            // 不靠單一字面寫法:有 `toolbarVisibility(`/`.toolbar(` 又出現 `.tabBar` 的檔案都算。
+            let setsVisibility = text.contains("toolbarVisibility(") || text.contains(".toolbar(.hidden") || text.contains(".toolbar(.visible")
+            if setsVisibility, text.contains(".tabBar") { owners.append(url.lastPathComponent) }
         }
         #expect(owners == ["TopLevelTabs.swift"], "隱藏 tab bar 的 toolbarVisibility 只該在共用 modifier 裡:\(owners)")
     }

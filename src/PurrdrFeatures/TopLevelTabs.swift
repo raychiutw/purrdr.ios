@@ -20,16 +20,6 @@ extension Sequence where Element: HidesTabBarOnPush {
     var hidesTabBar: Bool { contains { $0.hidesTabBar } }
 }
 
-extension ChatsDestination: HidesTabBarOnPush {
-    /// 聊天(對話或 Pane 終端機)隱藏;版面圖保留 tab bar。
-    var hidesTabBar: Bool { chatRoute != nil }
-}
-
-extension HostRoute: HidesTabBarOnPush {
-    /// 只有登入 Shell 隱藏;其餘子頁保留 tab bar。
-    var hidesTabBar: Bool { self == .loginShell }
-}
-
 private struct TabBarHiddenWhenCompact: ViewModifier {
     let hidden: Bool
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -125,4 +115,3 @@ struct TrafficTab: View {
         }
     }
 }
-
