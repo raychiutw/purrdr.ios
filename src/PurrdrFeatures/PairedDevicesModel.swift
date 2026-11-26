@@ -12,7 +12,7 @@ public final class PairedDevicesModel {
     public enum State: Equatable {
         case loading
         case loaded([PairedDeviceRecord])
-        case failed(String)
+        case failed(DisplayedError)
     }
 
     public private(set) var state: State = .loading
@@ -23,7 +23,7 @@ public final class PairedDevicesModel {
     /// 撤銷中的裝置 id。
     public private(set) var revokingID: String?
     /// 上一次撤銷失敗的說明。
-    public private(set) var revocationError: String?
+    public private(set) var revocationError: DisplayedError?
 
     /// 等使用者確認要從這支裝置移除主機的那一列(「這支裝置」)。
     public private(set) var confirmingHostRemoval: PairedDeviceRecord?
@@ -66,7 +66,7 @@ public final class PairedDevicesModel {
             isReadOnly = try await host.isReadOnlyDevice()
             state = .loaded(try await host.pairedDevices())
         } catch {
-            state = .failed(HostErrorText.message(for: error))
+            state = .failed(DisplayedError(error: error))
         }
     }
 
@@ -93,7 +93,7 @@ public final class PairedDevicesModel {
         do {
             try await host.revokePairedDevice(device.id)
         } catch {
-            revocationError = HostErrorText.message(for: error)
+            revocationError = DisplayedError(error: error)
             return
         }
         await load()

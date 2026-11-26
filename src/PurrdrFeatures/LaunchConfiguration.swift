@@ -14,12 +14,14 @@ public struct LaunchConfiguration: Equatable, Sendable {
         case agentFiles, sentImages, antigravity
         case needsYouWithStatusBanner, needsYouLater
         case goesOffline, goesOfflineHanging, noNetwork
+        /// 聊天用量讀取延遲幾秒才回應(#644):用量環先轉圈、之後換成結果。
+        case usageReadDelayed
 
         /// 優先順序(前面的贏);`standard` 不在內。
         public static let priorityOrder: [DemoScenario] = [
             .paneInUse, .tailscaleCheck, .tailscaleCheckCompletes, .transcriptPending, .largeOutput, .largeOutputOnPrompt,
             .toolBurst, .workingAfterPrompt, .agentFiles, .sentImages, .antigravity, .needsYouWithStatusBanner, .needsYouLater,
-            .goesOffline, .goesOfflineHanging, .noNetwork,
+            .goesOffline, .goesOfflineHanging, .noNetwork, .usageReadDelayed,
         ]
 
         /// 對應的啟動旗標;`standard` 沒有。
@@ -42,6 +44,7 @@ public struct LaunchConfiguration: Equatable, Sendable {
             case .goesOffline: "-demoGoesOffline"
             case .goesOfflineHanging: "-demoGoesOfflineHanging"
             case .noNetwork: "-demoNoNetwork"
+            case .usageReadDelayed: "-demoUsageReadDelayed"
             }
         }
     }

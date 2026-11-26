@@ -368,7 +368,7 @@ struct HostEditorView: View {
             }
             .accessibilityIdentifier("hostEditor.devicePublicKey")
         } else if let problem = model.deviceKeyProblem {
-            ErrorLabel(problem, area: "HostEditorView")
+            ErrorLabel(problem.text, area: "HostEditorView", error: problem.descriptor)
         } else {
             ProgressView()
                 .task { await model.loadDeviceKey() }
@@ -428,7 +428,7 @@ struct HostEditorView: View {
                 Text("Checking key…")
             }
         case .invalid(let error):
-            ErrorLabel(HostErrorText.keyImportMessage(error), area: "HostEditorView")
+            ErrorLabel(HostErrorText.keyImportMessage(error), area: "HostEditorView", error: error)
                 .accessibilityIdentifier("hostEditor.keyProblem")
             if error == .rsaNotSupported || error.isUnsupportedKeyType {
                 Button("Use This Device’s Key Instead") { model.useDeviceKeyInstead() }
@@ -486,7 +486,7 @@ struct HostEditorView: View {
                 connectedRow(Text("Connected · herdr \(check.herdrVersion)"), summary: check.summary)
             case .failed(let message):
                 VStack(alignment: .leading, spacing: 8) {
-                    ErrorLabel(message, area: "HostEditorView")
+                    ErrorLabel(message.text, area: "HostEditorView", error: message.descriptor)
                         .accessibilityIdentifier("hostEditor.result")
                     if let details = model.failureDetails {
                     DisclosureGroup("Details") {

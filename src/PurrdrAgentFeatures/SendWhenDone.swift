@@ -17,7 +17,7 @@ public final class SendWhenDoneModel {
     /// 第一次讀回佇列後為 `true`。
     public private(set) var hasLoaded = false
     /// 排入、刪除失敗的說明;下一次操作成功時清掉。
-    public private(set) var notice: String?
+    public private(set) var notice: DisplayedError?
     private var requested = false
 
     @ObservationIgnored private let host: (any SendWhenDoneHosting)?
@@ -77,7 +77,7 @@ public final class SendWhenDoneModel {
     func add(text: String, expectedSession: String?) async -> Bool {
         guard let host else { return false }
         guard let expectedSession else {
-            notice = String(localized: "This chat isn’t ready yet, so the message can’t be queued. Try again in a moment.")
+            notice = DisplayedError(String(localized: "This chat isn’t ready yet, so the message can’t be queued. Try again in a moment."), category: "SendWhenDone", code: "sessionUnknown")
             return false
         }
         do {
@@ -85,7 +85,7 @@ public final class SendWhenDoneModel {
             notice = nil
             return true
         } catch {
-            notice = HostErrorText.message(for: error)
+            notice = DisplayedError(error: error)
             return false
         }
     }
@@ -120,7 +120,7 @@ public final class SendWhenDoneModel {
             notice = nil
         } catch {
             items = before
-            notice = HostErrorText.message(for: error)
+            notice = DisplayedError(error: error)
             if let queues = try? await host.sendWhenDoneQueues() { apply(queues) }
         }
     }
@@ -137,7 +137,7 @@ public final class SendWhenDoneModel {
             if let queues = try? await host.sendWhenDoneQueues() { apply(queues) }
             return false
         } catch {
-            notice = HostErrorText.message(for: error)
+            notice = DisplayedError(error: error)
             return false
         }
     }

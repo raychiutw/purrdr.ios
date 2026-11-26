@@ -175,7 +175,8 @@ struct ModelContentView: View {
                 Text(lock.explanation)
                     .accessibilityIdentifier("model.lock")
             } else {
-                ErrorLabel(String(localized: "Couldn’t open the model list. Try again, or check the terminal."), area: "ModelCapsule")
+                ErrorLabel(String(localized: "Couldn’t open the model list. Try again, or check the terminal."), area: "ModelCapsule",
+                           error: ErrorDescriptor(category: "ModelPanel", code: "modelListUnavailable"))
                     .font(.footnote)
                     .accessibilityIdentifier("model.failure")
             }
@@ -240,7 +241,8 @@ private struct EffortPage: View {
                 }
             } else if model.modelPanelUnreadable {
                 Section {
-                    ErrorLabel(String(localized: "Couldn’t open the effort settings. Go back and try again, or check the terminal."), area: "ModelCapsule")
+                    ErrorLabel(String(localized: "Couldn’t open the effort settings. Go back and try again, or check the terminal."), area: "ModelCapsule",
+                               error: ErrorDescriptor(category: "ModelPanel", code: "effortPanelUnreadable"))
                         .font(.footnote)
                         .accessibilityIdentifier("effort.failure")
                 }

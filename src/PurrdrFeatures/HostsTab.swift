@@ -26,7 +26,7 @@ struct HostsTab: View {
 
     @State private var flow = HostListFlow()
     @State private var statusCache = HostStatusCache()
-    @State private var actionError: String?
+    @State private var actionError: DisplayedError?
     @State private var confirmingRemoveDemo = false
 
     /// 存好或完成引導後回到總頁。
@@ -193,7 +193,8 @@ struct HostsTab: View {
                 try await flow.confirmDeletion(of: request) { try await hosts.delete($0) }
                 actionError = nil
             } catch {
-                actionError = String(localized: "Couldn’t remove this host from this device. \(error.localizedDescription)")
+                actionError = DisplayedError(
+                    String(localized: "Couldn’t remove this host from this device. \(error.localizedDescription)"), error: error)
             }
         }
     }

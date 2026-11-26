@@ -21,7 +21,7 @@ public enum HostConnectionPhase: Equatable {
     case tested(HostProbeReport)
     /// HTTPS 主機：配對(或用存著的權杖)後連上主機服務。
     case connected(HostServiceCheck)
-    case failed(String)
+    case failed(DisplayedError)
 }
 
 /// HTTPS 主機的連線測試結果。
@@ -97,10 +97,14 @@ package final class HostConnectionFlow {
     package private(set) var failureDetails: String?
 
     private func fail(_ error: any Error, connection: HostConfiguration.ConnectionMethod, authentication: HostConfiguration.OpenSSHAuthentication? = nil) {
-        fail(HostErrorText.message(for: error, connection: connection, authentication: authentication), details: HostErrorText.details(for: error))
+        fail(DisplayedError(error: error, connection: connection, authentication: authentication), details: HostErrorText.details(for: error))
     }
 
-    private func fail(_ message: String, details: String?) {
+    private func fail(_ message: String, error: any Error) {
+        fail(DisplayedError(message, error: error), details: error.localizedDescription)
+    }
+
+    private func fail(_ message: DisplayedError, details: String?) {
         phase = .failed(message)
         failureDetails = details
     }
@@ -346,7 +350,7 @@ package final class HostConnectionFlow {
                 wroteSecret = false
             }
         } catch {
-            fail(String(localized: "Couldn’t save this host’s sign-in details on this device."), details: error.localizedDescription)
+            fail(String(localized: "Couldn’t save this host’s sign-in details on this device."), error: error)
             return nil
         }
         do {
@@ -355,7 +359,7 @@ package final class HostConnectionFlow {
         } catch {
             // 新主機沒存成：不要留下沒有主機的祕密。
             if wroteSecret, existing == nil { try? credentials.secrets.setSecret(nil, for: host.id) }
-            fail(String(localized: "Couldn’t save this host on this device."), details: error.localizedDescription)
+            fail(String(localized: "Couldn’t save this host on this device."), error: error)
             return nil
         }
     }
@@ -368,14 +372,14 @@ package final class HostConnectionFlow {
             if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
             if existing != nil { try credentials.secrets.setSecret(nil, for: host.id) }
         } catch {
-            fail(String(localized: "Couldn’t save this host’s pairing on this device."), details: error.localizedDescription)
+            fail(String(localized: "Couldn’t save this host’s pairing on this device."), error: error)
             return nil
         }
         do {
             try store.save(host)
         } catch {
             if newToken != nil { try? hostService.tokens.setDeviceToken(previousToken, for: host.id) }
-            fail(String(localized: "Couldn’t save this host on this device."), details: error.localizedDescription)
+            fail(String(localized: "Couldn’t save this host on this device."), error: error)
             return nil
         }
         if newToken != nil { pairing?.isSaved = true }

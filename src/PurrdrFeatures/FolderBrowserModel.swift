@@ -13,7 +13,7 @@ public final class FolderBrowserModel {
     public enum Phase: Equatable {
         case loading
         case loaded(FolderListing)
-        case failed(String)
+        case failed(DisplayedError)
     }
 
     public private(set) var phase: Phase = .loading
@@ -22,7 +22,7 @@ public final class FolderBrowserModel {
     /// 上傳中的檔名。
     public private(set) var uploading: String?
     /// 一次性的提示(上傳失敗、檔案太大)。
-    public var notice: String?
+    public var notice: DisplayedError?
     public let hostName: String
     /// 頂列搜尋欄的字串(#500):只比對目前資料夾的項目名稱;換資料夾就清掉。
     public var query = ""
@@ -118,7 +118,7 @@ public final class FolderBrowserModel {
         } catch {
             guard self.generation == generation else { return }
             if let target { path = target }
-            phase = .failed(Self.message(for: error))
+            phase = .failed(DisplayedError(Self.message(for: error), error: error))
         }
     }
 
@@ -130,15 +130,15 @@ public final class FolderBrowserModel {
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         let name = url.lastPathComponent
         guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
-            notice = String(localized: "Couldn’t read this file.")
+            notice = DisplayedError(String(localized: "Couldn’t read this file."), category: "FolderBrowser", code: "fileUnreadable")
             return
         }
         guard size <= HostFolders.maximumUploadSize else {
-            notice = Self.message(for: HostFolderError.tooLarge)
+            notice = DisplayedError(Self.message(for: HostFolderError.tooLarge), error: HostFolderError.tooLarge)
             return
         }
         guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
-            notice = String(localized: "Couldn’t read this file.")
+            notice = DisplayedError(String(localized: "Couldn’t read this file."), category: "FolderBrowser", code: "fileUnreadable")
             return
         }
         await upload(data, named: name)
@@ -152,10 +152,12 @@ public final class FolderBrowserModel {
         do {
             _ = try await folders.upload(data, named: name, to: path)
         } catch HostFolderError.alreadyExists {
-            notice = String(localized: "There’s already an item named “\(name)” in this folder. Rename the file and try again.")
+            notice = DisplayedError(
+                String(localized: "There’s already an item named “\(name)” in this folder. Rename the file and try again."),
+                error: HostFolderError.alreadyExists)
             return
         } catch {
-            notice = Self.message(for: error)
+            notice = DisplayedError(Self.message(for: error), error: error)
             return
         }
         await list(path)

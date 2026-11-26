@@ -470,7 +470,7 @@ struct WorkflowAgentRow: View {
                     Text(stats).font(.footnote).foregroundStyle(.secondaryText)
                 }
                 if let error = agent.error {
-                    ErrorLabel(error, area: "DelegationViews").font(.footnote)
+                    ErrorLabel(error, area: "DelegationViews", error: ErrorDescriptor(category: "WorkflowAgent", code: "agentReportedFailure")).font(.footnote)
                 } else if agent.state == .running, let activity = agent.activity {
                     Text(activity).font(.footnote.monospaced()).foregroundStyle(.secondaryText).lineLimit(2)
                 } else if let preview = agent.resultPreview {

@@ -3,9 +3,10 @@ import PurrdrCore
 import SwiftUI
 
 /// 頂列用量環按鈕(#513、#617):和「⋯」放在同一個 `ToolbarItemGroup`,系統把它們合成一顆玻璃膠囊 [用量環｜⋯]。
-/// 不自加寬度(交給系統排版);永遠顯示,沒有用量資料時是空環。點了開面板(iPad popover、iPhone sheet),從按鈕展開。
+/// 不自加寬度(交給系統排版);永遠顯示:一進聊天是系統載入動畫(#644),讀到資料換成百分比環,沒有資料是空環。
+/// 點了開面板(iPad popover、iPhone sheet),從按鈕展開,載入中也可以點。
 struct UsageRingButton: View {
-    let summary: UsageSummary?
+    let state: UsageRingState
     /// regular 寬度才用的 popover 開關(compact 的 sheet 掛在聊天畫面上)。
     let showsPopover: Binding<Bool>
     let tap: () -> Void
@@ -15,9 +16,10 @@ struct UsageRingButton: View {
 
     var body: some View {
         Button(action: tap) {
-            UsageRingView(summary: summary)
+            UsageRingView(state: state)
         }
-        .accessibilityLabel(Text(verbatim: summary?.accessibilityText ?? String(localized: "Usage")))
+        .accessibilityLabel(Text(verbatim: state.summary?.accessibilityText ?? String(localized: "Usage")))
+        .accessibilityValue(Text(state == .loading ? "Loading" : ""))
         .accessibilityHint(Text("Shows usage and details."))
         .accessibilityIdentifier("conversation.usage")
         .conversationPanelPopover(isPresented: showsPopover, model: model, usageSection: usageSection, display: display)
@@ -25,20 +27,27 @@ struct UsageRingButton: View {
 }
 
 /// 用量環:一個小圓環,填滿比例是顯示的數字,顏色依等級(一般、70% 起橙、85% 起紅);數字另在 VoiceOver 與面板。
-/// 沒有用量資料(`summary` 為 `nil`)時只畫軌道(空環)。
+/// 空環只畫軌道;載入中是系統 `ProgressView`(環形,不自畫動畫,「減少動態效果」由系統處理),
+/// 三種狀態都在同一個固定大小的框裡,切換不造成頂列版面位移。
 struct UsageRingView: View {
-    let summary: UsageSummary?
+    let state: UsageRingState
     @ScaledMetric(relativeTo: .body) private var diameter: CGFloat = 24
     @ScaledMetric(relativeTo: .body) private var lineWidth: CGFloat = 3
 
     var body: some View {
         ZStack {
-            Circle().stroke(.quaternary, lineWidth: lineWidth)
-            if let summary {
-                Circle()
-                    .trim(from: 0, to: summary.fraction)
-                    .stroke(summary.level.tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
+            if state == .loading {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityIdentifier("conversation.usage.loading")
+            } else {
+                Circle().stroke(.quaternary, lineWidth: lineWidth)
+                if let summary = state.summary {
+                    Circle()
+                        .trim(from: 0, to: summary.fraction)
+                        .stroke(summary.level.tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
             }
         }
         .frame(width: diameter, height: diameter)

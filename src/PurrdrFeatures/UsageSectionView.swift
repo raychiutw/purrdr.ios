@@ -141,7 +141,7 @@ struct UsageSectionView: View {
             }
             .padding(.vertical, 4)
         case .failed(let failure):
-            ErrorLabel(failure.text, area: "UsageSection")
+            ErrorLabel(failure.text, area: "UsageSection", error: failure.descriptor)
                 .frame(minHeight: 44, alignment: .leading)
                 .accessibilityIdentifier("usage.failed.\(entry.agent.rawValue)")
         }

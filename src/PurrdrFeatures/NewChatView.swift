@@ -138,9 +138,9 @@ public struct NewChatView: View {
                     }
                 }
 
-                if let error = model.error {
+                if let error = model.failure {
                     Section {
-                        ErrorLabel(error, area: "NewChatView")
+                        ErrorLabel(error.text, area: "NewChatView", error: error.descriptor)
                             .accessibilityIdentifier("newChat.error")
                     }
                 }
@@ -271,7 +271,7 @@ public struct NewChatView: View {
             }
         case .failed(let message):
             Section {
-                ErrorLabel(message, area: "NewChatView")
+                ErrorLabel(message.text, area: "NewChatView", error: message.descriptor)
                     .accessibilityIdentifier("newChat.sessions.error")
                 Button("Try Again") { Task { await model.refreshSessions() } }
                     .listAction()
@@ -485,7 +485,7 @@ struct FolderPickerView: View {
             ContentUnavailableView {
                 Label("Can’t Open Folder", systemImage: "exclamationmark.triangle")
             } description: {
-                Text(message)
+                Text(message.text)
             } actions: {
                 Button("Try Again") { Task { await model.load() } }
                     .accessibilityIdentifier("folderPicker.retry")

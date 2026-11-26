@@ -272,7 +272,7 @@ public struct AgentControls: Sendable, Equatable {
 }
 
 /// 切換權限模式失敗的原因(#306)。
-public enum PermissionModeFailure: Equatable, Sendable {
+public enum PermissionModeFailure: Error, Equatable, Sendable {
     /// 試了 `attempts` 次，畫面上沒有看到 `target`。
     case notReached(attempts: Int, target: AgentPermissionMode)
     /// 輪替一圈沒有出現目標模式(略過權限、自動):這個 session 沒有開。

@@ -172,7 +172,8 @@ struct PushModelTests {
         await model.requestOn()
 
         #expect(model.state == .off)
-        #expect(model.problem == .unsupportedDevice("no aps-environment entitlement"))
+        guard case .unsupportedDevice(let detail)? = model.problem else { Issue.record("沒有說明"); return }
+        #expect(detail.text == "no aps-environment entitlement")
     }
 
     @Test("後台說沒有有效訂閱(403):提示訂閱，主機不動")
@@ -201,7 +202,7 @@ struct PushModelTests {
 
         #expect(model.state == .off)
         guard case .failed(let message)? = model.problem else { Issue.record("沒有說明"); return }
-        #expect(message.contains("git clone failed"))
+        #expect(message.text.contains("git clone failed"))
         let hash = try #require(backend.requests(to: "/v1/members/me/push-pairings").first?.json?["keyHash"] as? String)
         #expect(backend.requests.contains { $0.method == "DELETE" && $0.path == "/v1/members/me/push-pairings/\(hash)" })
         #expect(try FakeHerdrPluginCLI.snapshot(of: host) == before)
@@ -278,7 +279,7 @@ struct PushModelTests {
 
         #expect(model.state == .off)
         guard case .failed(let message)? = model.problem else { Issue.record("沒有說明"); return }
-        #expect(message.contains("herdr server is not running"))
+        #expect(message.text.contains("herdr server is not running"))
     }
 
     @Test("開啟與關閉經推播外掛安裝：配對寫到這支裝置，最後一支關閉時外掛移除")
@@ -482,7 +483,7 @@ struct PushModelTests {
         await turnOn(model)
         #expect(model.state == .off)
         guard case .failed(let message)? = model.problem else { Issue.record("沒有說明失敗"); return }
-        #expect(message.contains("git not found"))
+        #expect(message.text.contains("git not found"))
 
         pluginHost.setInstallFailure(nil)
         await turnOn(model)
@@ -597,7 +598,7 @@ struct PushModelTests {
         await model.requestOn()
 
         #expect(model.state == .off)
-        #expect(model.problem == .deviceIDUnavailable)
+        guard case .deviceIDUnavailable? = model.problem else { Issue.record("沒有裝置 ID 說明"); return }
         #expect(pluginHost.calls.isEmpty)
 
         keychain.isUnlocked = true
@@ -676,7 +677,7 @@ struct PushModelTests {
             Issue.record("預期失敗,實際 \(model.testNotification)")
             return
         }
-        #expect(!message.isEmpty)
+        #expect(!message.text.isEmpty)
     }
 
     @Test("測試通知：這支裝置在主機上已沒有有效配對(notPaired)：開關回到未開啟、本機配對紀錄清掉、後台配對撤銷")
@@ -698,7 +699,7 @@ struct PushModelTests {
             Issue.record("預期失敗,實際 \(model.testNotification)")
             return
         }
-        #expect(!message.isEmpty)
+        #expect(!message.text.isEmpty)
     }
 
     struct InternalDetail: Error, LocalizedError {
@@ -720,8 +721,8 @@ struct PushModelTests {
             Issue.record("預期失敗,實際 \(model.testNotification)")
             return
         }
-        #expect(!message.contains("SQLITE"))
-        #expect(!message.isEmpty)
+        #expect(!message.text.contains("SQLITE"))
+        #expect(!message.text.isEmpty)
     }
 
     static let studioHash = String(repeating: "1", count: 64)

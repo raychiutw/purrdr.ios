@@ -236,7 +236,7 @@ struct WorkspaceActionsModelTests {
 
         await model.closeTab(tabID: "w1:t9", sessionIDs: ["s1"])
 
-        #expect(model.actionError == "pane w1:p9 did not stop")
+        #expect(model.actionError?.text == "pane w1:p9 did not stop")
         #expect(store.load().pinned.keys.sorted() == ["s1"])
         #expect(counter.count == 0)
     }
@@ -254,7 +254,7 @@ struct WorkspaceActionsModelTests {
         let workspaceModel = Self.model(host: other, store: InMemoryChatPreferencesStore(), counter: RefreshCounter())
         await workspaceModel.close(workspaceID: "w1", sessionIDs: [])
         #expect(workspaceModel.actionErrorTitle == "Couldn’t Close Workspace")
-        #expect(workspaceModel.actionError == "busy")
+        #expect(workspaceModel.actionError?.text == "busy")
     }
 
     @Test("關閉 Tab 時主機回 tab_not_found(已經關掉了):當成關閉成功，不顯示錯誤，清本機偏好並重讀列表(0.52.2 回報)")
@@ -299,7 +299,7 @@ struct WorkspaceActionsModelTests {
 
         await model.close(workspaceID: "w1", sessionIDs: ["s1"])
 
-        #expect(model.actionError == WorkspaceActionsModel.groupCloseRequiredMessage)
+        #expect(model.actionError?.text == WorkspaceActionsModel.groupCloseRequiredMessage)
         #expect(store.load().pinned.keys.sorted() == ["s1"])
     }
 
@@ -335,6 +335,6 @@ struct WorkspaceActionsModelTests {
         let created = await model.createWorktree(from: "w2", branch: "try")
 
         #expect(created == nil)
-        #expect(model.worktreeError == WorkspaceActionsModel.notGitRepoMessage)
+        #expect(model.worktreeError?.text == WorkspaceActionsModel.notGitRepoMessage)
     }
 }

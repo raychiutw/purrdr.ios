@@ -154,7 +154,7 @@ struct FolderBrowserView: View {
                 ContentUnavailableView {
                     Label("Can’t Show This Folder", systemImage: "exclamationmark.triangle")
                 } description: {
-                    Text(message)
+                    Text(message.text)
                 } actions: {
                     Button("Try Again") { Task { await model.load() } } // listAction:exempt ContentUnavailableView 的 actions 由系統樣式畫
                         .accessibilityIdentifier("files.retry")
@@ -171,7 +171,7 @@ struct FolderBrowserView: View {
                     // 上傳失敗不彈 alert(#625):顯示在列表最上面,可關閉。
                     Section {
                         HStack {
-                            ErrorLabel(notice, area: "FolderBrowser")
+                            ErrorLabel(notice.text, area: "FolderBrowser", error: notice.descriptor)
                             Spacer(minLength: 8)
                             Button("Dismiss") { model.notice = nil }
                                 .listAction()

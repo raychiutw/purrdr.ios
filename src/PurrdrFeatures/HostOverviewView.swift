@@ -9,7 +9,7 @@ struct HostOverviewView: View {
     let plus: SubscriptionModel?
     let openPlus: () -> Void
     let statusCache: HostStatusCache
-    let actionError: String?
+    let actionError: DisplayedError?
     /// 移除主機的確認狀態與動作;確認對話框掛在「Remove Host」按鈕上,讓它錨定在觸發的按鈕(#625)。
     let flow: HostListFlow
     let confirmRemoval: (HostDeletionRequest) -> Void
@@ -62,7 +62,7 @@ struct HostOverviewView: View {
                 }
                 if let message = actionError ?? hosts.loadError {
                     Section {
-                        ErrorLabel(message, area: "HostOverview")
+                        ErrorLabel(message.text, area: "HostOverview", error: message.descriptor)
                             .font(.footnote)
                             .accessibilityIdentifier("hosts.error")
                     }

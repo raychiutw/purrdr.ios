@@ -10,9 +10,7 @@ package enum HostErrorText {
         for error: any Error, connection: HostConfiguration.ConnectionMethod? = nil,
         authentication: HostConfiguration.OpenSSHAuthentication? = nil
     ) -> String {
-        let text = resolvedMessage(for: error, connection: connection, authentication: authentication)
-        ErrorMessageRegistry.note(text, ErrorDescriptor(error))
-        return text
+        resolvedMessage(for: error, connection: connection, authentication: authentication)
     }
 
     private static func resolvedMessage(
@@ -56,12 +54,6 @@ package enum HostErrorText {
 
     /// 匯入私鑰失敗的說明。
     package static func keyImportMessage(_ error: SSHKeyImportError) -> String {
-        let text = keyImportText(error)
-        ErrorMessageRegistry.note(text, ErrorDescriptor(error))
-        return text
-    }
-
-    private static func keyImportText(_ error: SSHKeyImportError) -> String {
         switch error {
         case .rsaNotSupported:
             String(localized: "This kind of key isn’t supported. Use this device’s key instead.")
@@ -98,12 +90,6 @@ package enum HostErrorText {
 
     /// HTTPS 連線方式(主機服務)的說明。權杖失效時引導重新配對。
     package static func hostServiceMessage(_ error: HostServiceError) -> String {
-        let text = hostServiceText(error)
-        ErrorMessageRegistry.note(text, ErrorDescriptor(error))
-        return text
-    }
-
-    private static func hostServiceText(_ error: HostServiceError) -> String {
         switch error {
         case .notPaired:
             String(localized: "This device isn’t paired with this host. Edit the host and pair again with a new pairing code.")

@@ -221,7 +221,7 @@ struct SendWhenDoneTests {
         let result = await SendWhenDoneStep(model: model).process(Self.prompt(), clock: Self.clock())
 
         #expect(result == .halt(SendHalt(restoresDraft: true)))
-        #expect(model.notice == HostErrorText.message(for: HostServiceError.queueFull))
+        #expect(model.notice == DisplayedError(error: HostServiceError.queueFull))
     }
 
     @Test("管線步驟:還不知道 session 時不能排(主機要比對)，文字放回輸入框")
