@@ -15,10 +15,10 @@ struct PlanUsageSystemColorTests {
     }
 
     private static func traits(dark: Bool, high: Bool) -> UITraitCollection {
-        UITraitCollection(traitsFrom: [
-            UITraitCollection(userInterfaceStyle: dark ? .dark : .light),
-            UITraitCollection(accessibilityContrast: high ? .high : .normal),
-        ])
+        UITraitCollection { mutableTraits in
+            mutableTraits.userInterfaceStyle = dark ? .dark : .light
+            mutableTraits.accessibilityContrast = high ? .high : .normal
+        }
     }
 
     @Test("深色與深色增加對比:70% 級距解析出的顏色就是 UIColor.systemOrange 在同特徵下的值")
