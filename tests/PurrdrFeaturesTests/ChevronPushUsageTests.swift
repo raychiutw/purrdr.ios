@@ -39,7 +39,9 @@ struct ChevronPushUsageTests {
         #expect(top.contains("NavigationStack(path: $navigation.chatsPath)"))
         #expect(!top.contains(".navigationDestination(item: $navigation.selectedChat)"), "item 與 value 不混用")
         let list = try Self.source("AgentListView.swift")
-        #expect(list.contains("window != nil && listSizeClass != .compact"), "窄視窗的 List 不能有 selection(push 後第一下返回會被吃掉)")
+        #expect(list.contains("window != nil && !pushesChats"), "窄視窗的 List 不能有 selection(push 後第一下返回會被吃掉)")
+        #expect(!list.contains("listSizeClass"), "推入或選取看視窗層級 size class,列表欄自己的環境值在 split view 欄內可能是 compact")
+        #expect(top.contains("pushesChats: sizeClass == .compact"))
     }
 
     @Test("流量主機明細是下一頁,不是 sheet")

@@ -112,7 +112,9 @@ struct NewChatPushUsageTests {
             #expect(!view.contains(pattern), "新增聊天是 push,不該有 \(pattern)")
         }
         let top = try source("TopNavigationView.swift")
-        #expect(top.contains(".navigationDestination(isPresented: $navigation.isNewChatOpen)"))
+        // 窄視窗推進列表堆疊(TopNavigationView),寬視窗推進對話欄的堆疊(WindowDetail)。
+        #expect(top.contains(".navigationDestination(isPresented: sizeClass == .compact ? $navigation.isNewChatOpen : .constant(false))"))
+        #expect(try source("WindowViews.swift").contains(".navigationDestination(isPresented: $navigation.isNewChatOpen)"), "寬視窗在對話欄推入")
         #expect(!top.contains("case .newChat:"), "新增聊天不再是 sheet 的一種")
         #expect(!(try source("TopNavigationModel.swift")).contains("case newChat\n"), "TopLevelSheet 沒有 newChat")
     }
