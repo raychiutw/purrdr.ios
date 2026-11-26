@@ -16,15 +16,19 @@ struct ChatToolbarUsageTests {
         }
     }
 
-    @Test("聊天標題是系統標題加副標題,不自畫標題膠囊、狀態點與權限盾牌(#618)")
-    func systemTitleAndSubtitle() throws {
-        let view = try GlassLevelUsageTests.source("ConversationView.swift")
-        #expect(!view.contains("placement: .principal"), "聊天頂列不放自畫的 principal 標題")
+    @Test("聊天標題是系統工具列的玻璃膠囊(principal＋共用 floatingGlass),不自畫膠囊、狀態點與權限盾牌")
+    func titleIsSystemGlassCapsule() throws {
+        // 使用者 2026-11-26 改決定(推翻 #618 的純系統標題):標題要膠囊風格,只有外觀、不能點。
         let title = try GlassLevelUsageTests.source("ConversationListContentBuilder.swift")
-        #expect(title.contains(".navigationSubtitle("), "狀態文字用系統副標題")
+        #expect(title.contains("placement: .principal"), "標題放在工具列 principal")
+        #expect(title.contains(".floatingGlass(in: .capsule)"), "膠囊用共用的系統玻璃(principal 沒有系統工具列膠囊)")
+        #expect(title.contains(".navigationTitle("), "仍設系統標題(返回鈕、視窗標題用)")
+        for pattern in ["Capsule()", ".glassEffect(", "Button {", "Button("] {
+            #expect(!title.contains(pattern), "標題膠囊不自畫、不能點(\(pattern))")
+        }
         for name in GlassLevelUsageTests.featureFiles {
             let text = try GlassLevelUsageTests.source(name)
-            #expect(!text.contains("ConversationTitleView"), "\(name) 不該再有標題膠囊")
+            #expect(!text.contains("ConversationTitleView"), "\(name) 不該再有舊的自畫標題膠囊")
             #expect(!text.contains("titleCapsuleHeight"), "\(name) 不該有標題膠囊尺寸")
             #expect(!text.contains("\"exclamationmark.shield\""), "\(name) 不該有橘色權限盾牌")
         }

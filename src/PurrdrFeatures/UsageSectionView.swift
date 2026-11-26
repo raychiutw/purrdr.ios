@@ -204,6 +204,8 @@ struct UsageBarRow: View {
     let display: PlanUsageModel.Display
     let staleMinutes: Int?
 
+    /// 版面(0.53 TestFlight 截圖：名稱、用量、重設時間擠一行，中文折成兩三行):
+    /// 第一行名稱在左、用量在右;中間進度條;第三行重設時間或資料時間(小字、次要色)。
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
@@ -217,11 +219,17 @@ struct UsageBarRow: View {
                             .foregroundStyle(AccessibleColors.planUsage(row.level).color)
                             .accessibilityHidden(true)
                     }
-                    detail
+                    amount.fontWeight(.semibold).monospacedDigit()
                 }
                 .font(.subheadline)
+                .fixedSize()
             }
             UsageBar(fraction: row.fraction, level: row.level)
+            if let footnote {
+                footnote
+                    .font(.caption)
+                    .foregroundStyle(.secondaryText)
+            }
         }
         // 唯讀的進度列:列高用 List 的標準列高,不再疊 minHeight 44(設計稿 Host 的用量列是緊湊的)。
         .accessibilityElement(children: .ignore)
@@ -233,14 +241,20 @@ struct UsageBarRow: View {
         display == .used ? Text("\(row.percent)% used") : Text("\(row.percent)% left")
     }
 
-    @ViewBuilder
-    private var detail: some View {
-        amount.fontWeight(.semibold).monospacedDigit()
-        if let staleMinutes {
-            Text("· \(staleMinutes) min ago").foregroundStyle(.secondaryText)
-        } else if let resetsAt = row.resetsAt {
-            Text("· Resets \(resetsAt, format: PlanUsageRingView.resetFormat(resetsAt))").foregroundStyle(.secondaryText)
+    /// 資料過舊時的擷取時間:相對時間(「12 分鐘前」「1 天前」),不寫「1,453 分鐘前」。
+    private var capturedAt: Date? {
+        staleMinutes.map { Date.now.addingTimeInterval(-Double($0) * 60) }
+    }
+
+    /// 第三行:資料過舊時顯示資料時間,否則顯示重設時間。
+    private var footnote: Text? {
+        if let capturedAt {
+            return Text("Data from \(capturedAt, format: .relative(presentation: .named))")
         }
+        if let resetsAt = row.resetsAt {
+            return Text("Resets \(resetsAt, format: PlanUsageRingView.resetFormat(resetsAt))")
+        }
+        return nil
     }
 
     /// VoiceOver:「Claude · 5 小時, 38% 已用, 14:00 重設」;偏高時先說明,過舊時加上資料時間。
@@ -253,8 +267,8 @@ struct UsageBarRow: View {
         if let resetsAt = row.resetsAt {
             parts.append(String(localized: "Resets \(resetsAt.formatted(PlanUsageRingView.resetFormat(resetsAt)))"))
         }
-        if let staleMinutes {
-            parts.append(String(localized: "\(staleMinutes) min ago"))
+        if let capturedAt {
+            parts.append(String(localized: "Data from \(capturedAt.formatted(.relative(presentation: .named)))"))
         }
         return parts.joined(separator: ", ")
     }
