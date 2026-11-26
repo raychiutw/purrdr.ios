@@ -38,7 +38,9 @@ public struct AgentListView: View {
     @Bindable var model: MergedAgentListModel
     @State private var presentation = WorkspacePresentation()
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.horizontalSizeClass) private var listSizeClass
+    /// 聊天是推入(窄視窗的 `NavigationStack`)還是選取(寬視窗,對話在對話欄)。由視窗層級的 size class 決定:
+    /// 列表欄自己的環境 size class 在 split view 的欄裡可能是 compact(實測),不能用。
+    private let pushesChats: Bool
     /// 建立某台主機上某個 Agent 的對話 model(列表看到的 session)。由 composition root 提供。
     private let makeConversation: @MainActor (ChatRoute, String?) -> ConversationModel
     /// 建立某台主機上某個 Pane 的終端機 model(標題)。由 composition root 提供。
@@ -63,6 +65,7 @@ public struct AgentListView: View {
         openInNewWindow: ((_ kind: PaneWindow.Kind, _ route: ChatRoute, _ title: String) -> Void)? = nil,
         topBar: ChatTopBarActions,
         chatDestination: @escaping (ChatRoute) -> AnyView = { _ in AnyView(EmptyView()) },
+        pushesChats: Bool = false,
         prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
@@ -75,6 +78,7 @@ public struct AgentListView: View {
         self.openInNewWindow = openInNewWindow
         self.topBarActions = topBar
         self.chatDestination = chatDestination
+        self.pushesChats = pushesChats
     }
 
     private static let prefetchCount = 8
@@ -303,7 +307,7 @@ public struct AgentListView: View {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             // 寬視窗(split view 的內容欄)的列是選取;窄視窗的堆疊是推入,List 不能有 selection
             // (NavigationLink 在有 selection 的 List 裡,push 後第一下返回會被吃掉,#641 查出的根因)。
-            if window != nil && listSizeClass != .compact {
+            if window != nil && !pushesChats {
                 List(selection: selection) {
                     hostStatusRows
                     listRows(sections)
@@ -320,7 +324,7 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
-        .environment(\.pushesChatsByPath, window != nil && listSizeClass == .compact)
+        .environment(\.pushesChatsByPath, window != nil && pushesChats)
         // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。
         .onAppear { model.rememberRowCount(of: sections) }
         .onChange(of: MergedAgentListModel.rowCount(of: sections)) { model.rememberRowCount(of: sections) }

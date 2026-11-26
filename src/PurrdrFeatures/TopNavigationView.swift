@@ -221,13 +221,9 @@ public struct TopNavigationView: View {
         @Bindable var navigation = navigation
         return NavigationSplitView(columnVisibility: $columns) {
             // 所有主機合併的 Agent 列表(#39)。換選取中主機不重建列表，只改排序與主機名標示。
-            // 列表欄自己的堆疊只推版面圖(#641);聊天顯示在對話欄,不進路徑。
-            NavigationStack(path: $navigation.chatsPath) {
-                agentList
-            }
-            .onChange(of: navigation.chatsPath, initial: true) { _, path in
-                if path.contains(where: { $0.chatRoute != nil }) { navigation.chatsPath = path.filter { $0.chatRoute == nil } }
-            }
+            // 列表欄本身就是 NavigationSplitView 的導覽欄:不再包 `NavigationStack`(巢狀會讓 `List(selection:)` 點列不選取),
+            // 版面圖與新增聊天以系統 `NavigationLink`／`navigationDestination` 推進這一欄;聊天由選取顯示在對話欄。
+            agentList
             .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
         } detail: {
             WindowDetail(
@@ -258,6 +254,7 @@ public struct TopNavigationView: View {
         @Bindable var navigation = navigation
         return AgentListView(
             model: hosts.agentList, window: navigation, openInNewWindow: open, topBar: topBar, chatDestination: chatDestination,
+            pushesChats: sizeClass == .compact,
             prefetchConversations: actions.prefetchConversations
         ) { route, sessionID in
             hosts.member(for: route.host).conversation(route, sessionID: sessionID)
