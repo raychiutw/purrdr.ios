@@ -23,10 +23,10 @@ final class SendWhenDoneUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: "conversation.sendWhenDone.item").allElementsBoundByIndex.map(\.label)
     }
 
-    // 不能用的原因寫在開關下方(#626)的檢查在 ShellCommandUITests.testShellCommandShowsHintAndBlock。
+    // 不能用的原因寫在開關下方(#626)的檢查在 ShellCommandUITests.testShellBlockThenSecretCheckThenSendWhenDoneReason。
 
     @MainActor
-    func testQueuedMessagesCanBeReordered() throws {
+    func testQueuedMessagesCanBeReorderedThenPairedDevicesRevokeAndRemoveHost() throws {
         let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
         let row = app.element("spaces.tab.\(Self.httpsHost)/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 HTTPS 主機的 Agent")
@@ -63,5 +63,51 @@ final class SendWhenDoneUITests: XCTestCase {
         let reordered = NSPredicate(format: "label CONTAINS 'second message'")
         XCTAssertTrue(items.element(boundBy: 0).wait(for: reordered, timeout: 10), "等待的條件沒有成立")
         XCTAssertTrue(queuedTexts(in: app)[1].contains("first message"), "順序沒有對調:\(queuedTexts(in: app))")
+        // 聊天返回後,主機頁(ⓘ)下方的已配對裝置(#291;UI 測試替身:這支 iPhone 與另一支唯讀的 iPad):
+        // 滑動別支裝置「撤銷」→ 確認後從列表消失;這支裝置沒有撤銷動作,滑動是「移除主機」。
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        openPairedDevices(app)
+
+        let otherDevice = app.descendants(matching: .any)["pairedDevices.row.ui-testing-ipad"].firstMatch
+        XCTAssertTrue(app.scrollIntoView(otherDevice, timeout: 10), "沒有另一支裝置")
+        let thisDevice = app.descendants(matching: .any)["pairedDevices.row.ui-testing"].firstMatch
+        XCTAssertTrue(thisDevice.label.contains("This Device"), thisDevice.label)
+
+        thisDevice.swipeLeft()
+        XCTAssertFalse(app.buttons["Revoke"].waitUntilExists(timeout: 2), "這支裝置不該能在列表撤銷")
+
+        otherDevice.swipeLeft()
+        let revoke = app.buttons["Revoke"]
+        XCTAssertTrue(revoke.waitUntilExists(timeout: 5), "沒有撤銷鈕")
+        revoke.tap()
+        let confirm = app.buttons["pairedDevices.confirmRevoke"].firstMatch
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有確認對話框")
+        XCTAssertTrue(otherDevice.exists, "確認前就撤銷了")
+        confirm.tap()
+
+        XCTAssertTrue(otherDevice.waitUntilGone(timeout: 10), "撤銷後還在列表")
+
+        // 「這支裝置」滑動是「移除主機」:在那一列上跳出移除主機的確認(撤銷自己沿用移除主機流程)。
+        XCTAssertTrue(app.scrollIntoView(thisDevice, timeout: 10), "撤銷後找不到這支裝置")
+        thisDevice.swipeLeft()
+        let remove = app.buttons["pairedDevices.removeHost"]
+        XCTAssertTrue(remove.waitUntilExists(timeout: 5), "這支裝置沒有移除主機")
+        remove.tap()
+        let removeConfirm = app.buttons["hosts.delete.confirm"].firstMatch
+        XCTAssertTrue(removeConfirm.waitUntilExists(timeout: 5), "沒有移除主機的確認")
+        // 系統的確認對話框錨定在那一列,沒有 Cancel 鈕:點外面(系統的收起區域)取消,不移除、留在這一頁。
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
+        XCTAssertTrue(removeConfirm.waitUntilGone(timeout: 5), "取消後確認沒有收起")
+        XCTAssertTrue(thisDevice.exists, "取消後離開了已配對裝置頁")
     }
+    @MainActor
+    private func openPairedDevices(_ app: XCUIApplication) {
+        app.openHostsTab()
+        // 已配對裝置在主機 tab 總頁的主機服務區塊下,點進去是「已配對裝置」子頁(#392)。
+        let link = app.buttons["hosts.pairedDevices"].firstMatch
+        XCTAssertTrue(app.scrollIntoView(link, timeout: 10), "主機 tab 沒有已配對裝置")
+        link.tap()
+        XCTAssertTrue(app.element("hosts.pairedDevices.page").waitUntilExists(timeout: 5), "沒有開啟已配對裝置")
+    }
+
 }

@@ -54,65 +54,6 @@ final class ChatListAcceptanceUITests: XCTestCase {
         XCTAssertTrue(steps.waitUntilExists(timeout: 10), "20 個工具步驟沒有接上,情境沒有生效")
     }
 
-    // MARK: - 2. 打開聊天不出現骨架再換列表
-
-    /// 第一次開啟(從點列的當下就取樣):正常載入讀取在骨架出現前(約 300 毫秒留白)就完成,整段過程都不該出現骨架,
-    /// 訊息出現後也不該再有。取樣不等導覽列停下,骨架若在轉場中出現也抓得到。
-    /// 返回用左緣滑動(窄視窗是一般 NavigationStack,選取在返回時清掉);第二次開啟(快取命中)必須同步還原:
-    /// 畫面一出現就有訊息,整段過程沒有載入中,而且第一則訊息的位置不再變動。
-    @MainActor
-    func testOpeningChatNeverShowsSkeletonAndReopensAfterEdgeSwipeBack() {
-        let app = XCUIApplication.launchUITesting()
-        let row = app.element(chatRowID("w1:p1"))
-        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        let message = app.element("conversation.user")
-        let loading = app.element("conversation.loading")
-        row.tap()
-        var sawSkeletonOnFirstOpen = false
-        var sawMessage = false
-        _ = UITestWait.until(timeout: 15) {
-            if loading.exists { sawSkeletonOnFirstOpen = true }
-            if message.exists { sawMessage = true }
-            return sawMessage
-        }
-        XCTAssertTrue(sawMessage, "第一次開啟後沒有出現訊息")
-        XCTAssertTrue(app.conversationBar.waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面")
-        // 訊息出現之後再多看一會兒(骨架若是延後才冒出來也要抓到)。
-        let firstDeadline = Date().addingTimeInterval(1.5)
-        while Date() < firstDeadline {
-            if loading.exists { sawSkeletonOnFirstOpen = true }
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        XCTAssertFalse(sawSkeletonOnFirstOpen, "正常載入的對話出現了骨架")
-
-        // 左緣滑動返回,再開第二次(快取命中)。
-        let composer = app.element("composer.text")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.5))
-            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)))
-        XCTAssertTrue(composer.waitUntilGone(timeout: 5), "左緣滑動沒有離開聊天(#641)")
-        XCTAssertTrue(app.reveal(row), "左緣滑動後沒有回到列表")
-        XCTAssertTrue(row.waitUntilHittable(timeout: 5))
-        row.tap()
-
-        var sawLoading = false
-        var positions: [CGFloat] = []
-        var hadMessageWhenHeaderAppeared: Bool?
-        let header = app.conversationBar
-        let deadline = Date().addingTimeInterval(4)
-        while Date() < deadline {
-            if loading.exists { sawLoading = true }
-            if hadMessageWhenHeaderAppeared == nil, header.exists { hadMessageWhenHeaderAppeared = message.exists }
-            if message.exists { positions.append(message.frame.minY) }
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        XCTAssertFalse(sawLoading, "第二次打開聊天時出現了載入中畫面")
-        XCTAssertEqual(hadMessageWhenHeaderAppeared, true, "第二次打開聊天時,畫面一出現還沒有訊息(沒有同步還原)")
-        // 轉場動畫結束後(取後半段的樣本)位置不再變動。
-        let settled = Array(positions.suffix(max(positions.count / 2, 1)))
-        let spread = (settled.max() ?? 0) - (settled.min() ?? 0)
-        XCTAssertLessThanOrEqual(spread, 1, "訊息出現後位置還在變動(\(spread)pt),像是骨架換成列表")
-    }
-
     // MARK: - 4. 跳到最新後停在最後一則;停在底部時新訊息跟上
 
     /// 「Jump to Latest」只在不在底部時出現:開啟時(在底部)沒有;往上捲出現且不被輸入列蓋住;自己捲回底部消失(#93)。

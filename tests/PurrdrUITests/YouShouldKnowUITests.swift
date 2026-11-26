@@ -49,27 +49,5 @@ final class YouShouldKnowUITests: XCTestCase {
         editor.expectValue(containing: "Here is a note offered by a side agent", timeout: 5)
         XCTAssertTrue(note.waitUntilGone(timeout: 10), "註記沒有消失")
     }
-
-    /// 主機頁(#274)打開「Use Host Theme」:先同意，之後顯示主機的 herdr 主題名稱;關掉後名稱消失。
-    @MainActor
-    func testHostThemeToggle() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
-        app.openSeededHostSettings()
-
-        let toggle = app.switches["settings.hostTheme"]
-        XCTAssertTrue(app.scrollIntoView(toggle, search: .down, timeout: 5), "這台主機的設定沒有主機主題開關")
-        toggle.switches.firstMatch.tap()
-        let alert = app.alerts.firstMatch
-        XCTAssertTrue(alert.waitUntilExists(timeout: 5), "沒有詢問同意")
-        let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
-        XCTAssertTrue(message.contains("colors") && message.contains("demo"), "沒說明讀寫什麼、以哪個使用者:\(message)")
-        alert.buttons["Use Theme"].firstMatch.tap()
-
-        let name = app.element("settings.hostTheme.name")
-        XCTAssertTrue(name.waitUntilExists(timeout: 10), "沒有顯示主機主題")
-        XCTAssertTrue(name.label.contains("tokyo-night"), "主題名稱不對:\(name.label)")
-
-        toggle.switches.firstMatch.tap()
-        XCTAssertTrue(name.waitUntilGone(timeout: 10), "關閉後仍顯示主題")
-    }
+    // 主機主題開關的檢查在 HostsUITests.testSeededHostOverviewAndEditor 的「主機主題」步驟。
 }
