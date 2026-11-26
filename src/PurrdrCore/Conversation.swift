@@ -204,6 +204,15 @@ public enum Conversation {
         return builder.finish()
     }
 
+    /// 測試用:整批建立並回報建構器為了算工具串摘要走訪的步驟總數(確定性的工作量,不看牆鐘時間;#510)。
+    package static func itemsMeasuringSummaryWork(from messages: [TranscriptMessage]) -> (items: [ConversationItem], stepsScanned: Int) {
+        var builder = Builder()
+        builder.defersSummaries = true
+        for message in messages where !message.isSidechain { builder.add(message) }
+        let items = builder.finish()
+        return (items, builder.summaryStepsScanned)
+    }
+
     /// 最後一則有文字的 agent 回覆(非 sidechain)的文字;撰寫中預覽以它去重(#208)。
     public static func latestReplyText(in messages: [TranscriptMessage]) -> String? {
         messages.reversed().lazy
@@ -430,7 +439,7 @@ public enum Conversation {
                 refreshSummary(at: openRun)
                 return (openRun, run.steps.count - 1)
             }
-            items.append(.toolRun(ToolRun(id: step.id, expansionID: step.id, steps: [step], summary: Conversation.summary(of: [step]))))
+            items.append(.toolRun(ToolRun(id: step.id, expansionID: step.id, steps: [step], summary: scannedSummary(of: [step]))))
             openRun = items.count - 1
             return (items.count - 1, 0)
         }
@@ -472,7 +481,7 @@ public enum Conversation {
                 dirtySummaries.insert(index)
             } else if case .toolRun(var run) = items[index] {
                 items[index] = Self.placeholder
-                run.summary = Conversation.summary(of: run.steps)
+                run.summary = scannedSummary(of: run.steps)
                 items[index] = .toolRun(run)
             }
         }
@@ -622,7 +631,7 @@ public enum Conversation {
                         olderRun.steps += existing.steps
                         olderRun.id = existing.id
                         olderRun.expansionID = existing.id
-                        olderRun.summary = Conversation.summary(of: olderRun.steps)
+                        olderRun.summary = scannedSummary(of: olderRun.steps)
                         older.items[slot] = .toolRun(olderRun)
                         mergedSlot = slot
                         mergedItemIndex = index
@@ -668,12 +677,24 @@ public enum Conversation {
             return true
         }
 
-        func finish() -> [ConversationItem] {
-            items.map { item in
+        mutating func finish() -> [ConversationItem] {
+            var scanned = 0
+            let result = items.map { item -> ConversationItem in
                 guard case .toolRun(var run) = item else { return item }
+                scanned += run.steps.count
                 run.summary = Conversation.summary(of: run.steps)
                 return .toolRun(run)
             }
+            summaryStepsScanned += scanned
+            return result
+        }
+
+        /// 算摘要時走訪過的步驟累計(只給測試讀;純整數累加,不影響行為)。
+        package private(set) var summaryStepsScanned = 0
+
+        private mutating func scannedSummary(of steps: [ToolStep]) -> ToolRunSummary {
+            summaryStepsScanned += steps.count
+            return Conversation.summary(of: steps)
         }
     }
 
