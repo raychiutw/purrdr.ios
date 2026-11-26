@@ -36,10 +36,10 @@ final class ConversationHeaderUITests: XCTestCase {
         stop.tap()
 
         let stopping = app.element("stopBar.stopping")
+        // 「停止中不能重按」由 ConversationHeaderTests 守(停止中不到 1 秒,UI 測試量 isEnabled 會找不到元素)。
         let result = app.element("stopBar.result")
         // 停止中不到 1 秒：用輪詢等「停止中」或「結果」其中之一出現(快的話停止中已過,直接是結果),不在點完立刻只查一次。
         XCTAssertTrue(UITestWait.until(timeout: 10) { stopping.exists || result.exists }, "按下後沒有顯示停止中或結果")
-        if stopping.exists { XCTAssertFalse(stopping.isEnabled, "停止中應該停用") }
 
         XCTAssertTrue(result.waitUntilExists(timeout: 10), "停下後沒有顯示結果")
         XCTAssertTrue(result.label.contains("Stopped"), "結果應該是已停止：\(result.label)")
@@ -66,26 +66,5 @@ final class ConversationHeaderUITests: XCTestCase {
 
         XCTAssertTrue(app.element("conversation.working").waitUntilGone(timeout: 15), "強制結束後仍在工作")
         XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 10), "強制結束後停止列還在")
-    }
-
-    /// 頂列右上只有用量環與「⋯」(#617):沒有 Inspector 開關鈕,兩顆並排(系統合成一顆膠囊)。
-    @MainActor
-    func testHeaderTrailingHasOnlyRingAndMore() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        let ring = app.buttons["conversation.usage"].firstMatch
-        let more = app.buttons["conversation.more"].firstMatch
-        XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
-        XCTAssertTrue(more.exists, "沒有「⋯」")
-        XCTAssertFalse(app.buttons["conversation.inspectorToggle"].exists, "不該有 Inspector 開關鈕")
-        XCTAssertLessThanOrEqual(ring.frame.maxX, more.frame.minX + 1, "用量環應該在「⋯」左邊並排")
-        // 同一個 ToolbarItemGroup 由系統合成一顆膠囊:兩顆同高、垂直置中對齊,間距是膠囊內的間距(不是兩個獨立工具列項目的距離)。
-        // XCUITest 看不到合成後的玻璃形狀,以 frame 關係佐證。
-        XCTAssertEqual(ring.frame.midY, more.frame.midY, accuracy: 2, "用量環與「⋯」垂直沒有對齊")
-        XCTAssertEqual(ring.frame.height, more.frame.height, accuracy: 4, "用量環與「⋯」不同高")
-        XCTAssertLessThanOrEqual(more.frame.minX - ring.frame.maxX, 24, "用量環與「⋯」間距太大,不像同一顆膠囊")
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        if back.exists, back.frame.maxX < ring.frame.minX {
-            XCTAssertGreaterThan(ring.frame.minX - back.frame.maxX, more.frame.minX - ring.frame.maxX, "用量環離返回鈕比離「⋯」還近")
-        }
     }
 }

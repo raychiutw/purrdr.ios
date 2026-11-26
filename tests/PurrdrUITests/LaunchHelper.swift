@@ -272,6 +272,12 @@ extension XCUIApplication {
         tapToolbarItem("toolbar.account", overflowLabel: "Account", file: file, line: line)
     }
 
+    /// 收起對話的「⋯」選單:點導覽列中央(標題區,#515 起不是按鈕;點視窗中段會落在對話內容上,可能點到訊息裡的連結或卡片)。
+    @MainActor
+    func dismissConversationMenu() {
+        navigationBars.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
     /// 打開對話右上角的「更多」選單並回傳其中的項目(`terminal.open`、`changes.open`、`layout.show`,#381)。
     @MainActor
     func conversationMoreItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
@@ -286,7 +292,7 @@ extension XCUIApplication {
         for _ in 0..<6 {
             tapToolbarItem("conversation.more", overflowLabel: "More", file: file, line: line)
             if item.waitUntilExists(timeout: 2) { return item }
-            windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+            dismissConversationMenu()
             _ = UITestWait.until(timeout: 2) { !self.buttons["terminal.open"].firstMatch.exists && !self.buttons["changes.open"].firstMatch.exists }
         }
         XCTAssertTrue(item.exists, "「更多」選單沒有 \(identifier)", file: file, line: line)

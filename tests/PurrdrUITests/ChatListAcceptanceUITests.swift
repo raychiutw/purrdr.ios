@@ -1,12 +1,9 @@
 import XCTest
 
-/// 聊天列表重做(spec #480、驗收 #489)的 5 個驗收情境:捲動位置、開啟不閃、圖片列高、跟隨底部、跳到最新。
+/// 聊天列表重做(spec #480、驗收 #489)的驗收情境:捲動位置、開啟不閃、跳到最新與跟隨底部(圖片列高在 `ConversationUITests.testSentImagesReadBackFromHost`)。
 ///
 /// 斷言都量 accessibility frame(列的位置與高度),不看截圖;跳動會直接表現成位置差。
 final class ChatListAcceptanceUITests: XCTestCase {
-    /// 大字級讓對話超出一個畫面。不用 AX5:AX5 時「You should know」卡與輸入列佔掉約 625pt,
-    /// 可見的訊息區只剩約 130pt,圖片列根本滑不進畫面(測的是列高穩定,不是 AX5 的版面)。
-    private static let largeText = "UICTContentSizeCategoryXXXL"
     /// 最後一則文字框與列底緣的差(座標四捨五入與文字行距)。
     private static let landingTolerance: CGFloat = 4
 
@@ -59,24 +56,44 @@ final class ChatListAcceptanceUITests: XCTestCase {
 
     // MARK: - 2. 打開聊天不出現骨架再換列表
 
-    /// 第一次開啟讓記憶體快取命中;返回後第二次開啟必須同步還原:畫面一出現就有訊息,整段過程沒有載入中,
-    /// 而且第一則訊息的位置不再變動。
+    /// 第一次開啟(從點列的當下就取樣):正常載入讀取在骨架出現前(約 300 毫秒留白)就完成,整段過程都不該出現骨架,
+    /// 訊息出現後也不該再有。取樣不等導覽列停下,骨架若在轉場中出現也抓得到。
+    /// 返回用左緣滑動(窄視窗是一般 NavigationStack,選取在返回時清掉);第二次開啟(快取命中)必須同步還原:
+    /// 畫面一出現就有訊息,整段過程沒有載入中,而且第一則訊息的位置不再變動。
     @MainActor
     func testOpeningChatNeverShowsSkeletonThenSwapsToList() {
         let app = XCUIApplication.launchUITesting()
         let row = app.element(chatRowID("w1:p1"))
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        row.tap()
         let message = app.element("conversation.user")
+        let loading = app.element("conversation.loading")
+        row.tap()
+        var sawSkeletonOnFirstOpen = false
+        var sawMessage = false
+        _ = UITestWait.until(timeout: 15) {
+            if loading.exists { sawSkeletonOnFirstOpen = true }
+            if message.exists { sawMessage = true }
+            return sawMessage
+        }
+        XCTAssertTrue(sawMessage, "第一次開啟後沒有出現訊息")
         XCTAssertTrue(app.conversationBar.waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面")
-        XCTAssertTrue(message.waitUntilExists(timeout: 10), "第一次開啟後沒有出現訊息")
+        // 訊息出現之後再多看一會兒(骨架若是延後才冒出來也要抓到)。
+        let firstDeadline = Date().addingTimeInterval(1.5)
+        while Date() < firstDeadline {
+            if loading.exists { sawSkeletonOnFirstOpen = true }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        XCTAssertFalse(sawSkeletonOnFirstOpen, "正常載入的對話出現了骨架")
 
-        // 返回再開第二次(快取命中)。
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(app.reveal(row), "返回後沒有看到 Agent 列表")
+        // 左緣滑動返回,再開第二次(快取命中)。
+        let composer = app.element("composer.text")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.0, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)))
+        XCTAssertTrue(composer.waitUntilGone(timeout: 5), "左緣滑動沒有離開聊天(#641)")
+        XCTAssertTrue(app.reveal(row), "左緣滑動後沒有回到列表")
+        XCTAssertTrue(row.waitUntilHittable(timeout: 5))
         row.tap()
 
-        let loading = app.element("conversation.loading")
         var sawLoading = false
         var positions: [CGFloat] = []
         var hadMessageWhenHeaderAppeared: Bool?
@@ -96,67 +113,11 @@ final class ChatListAcceptanceUITests: XCTestCase {
         XCTAssertLessThanOrEqual(spread, 1, "訊息出現後位置還在變動(\(spread)pt),像是骨架換成列表")
     }
 
-    // MARK: - 3. 圖片捲出再捲回,列高不變
+    // MARK: - 4. 跳到最新後停在最後一則;停在底部時新訊息跟上
 
-    /// 大字級讓對話超出一個畫面;使用者送出的圖片縮圖與所在訊息捲出畫面再捲回,高度與寬度要一樣。
-    @MainActor
-    func testImageRowHeightIsStableAfterScrollingAwayAndBack() {
-        let app = XCUIApplication.launchUITestingConversation(
-            paneID: "w1:p1", flags: ["-demoSentImages"], contentSize: Self.largeText)
-        let list = app.conversationList
-        XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
-        let thumbnail = app.element("conversation.sentImage.thumbnail")
-        XCTAssertTrue(app.revealInConversation(thumbnail), "縮圖沒有讀回")
-        _ = UITestWait.until(timeout: 5) { thumbnail.frame.height > 0 }
-        let before = thumbnail.frame.size
-        let userRow = app.element("conversation.user")
-        let userRowBefore = userRow.frame.height
-        XCTAssertGreaterThan(userRowBefore, 0, "量不到訊息列的高度")
-
-        // 往下捲到縮圖整個離開可見範圍。
-        var gone = false
-        for _ in 0..<8 where !gone {
-            list.swipeUp()
-            let range = app.visibleConversationRange(of: list)
-            gone = !thumbnail.exists || thumbnail.frame.maxY < range.lowerBound || thumbnail.frame.minY > range.upperBound
-        }
-        XCTAssertTrue(gone, "縮圖一直沒有捲出畫面(測試資料不夠長)")
-
-        XCTAssertTrue(app.revealInConversation(thumbnail), "捲回來後縮圖不見了")
-        _ = UITestWait.until(timeout: 5) { thumbnail.frame.height > 0 }
-        XCTAssertEqual(thumbnail.frame.size.height, before.height, accuracy: 1, "捲回來後縮圖高度變了")
-        XCTAssertEqual(thumbnail.frame.size.width, before.width, accuracy: 1, "捲回來後縮圖寬度變了")
-        // 縮圖在這一列裡,縮圖回來了這一列就在畫面上:直接比高度,不成立就失敗。
-        XCTAssertTrue(userRow.exists, "捲回來後找不到訊息列")
-        XCTAssertEqual(userRow.frame.height, userRowBefore, accuracy: 1, "捲回來後訊息列高度變了")
-    }
-
-    // MARK: - 4. 停在底部時新訊息跟上
-
-    /// `-demoLargeOutputOnPrompt`:長對話開在底部;送出後回覆與 160 個工具步驟接上,畫面要跟到收尾訊息,不出現跳到最新鈕。
-    @MainActor
-    func testStaysAtBottomWhenNewMessagesArrive() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
-        XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
-        let jump = app.element("conversation.jumpToLatest")
-        XCTAssertFalse(jump.waitUntilExists(timeout: 2), "開啟時在底部,不該顯示跳到最新")
-
-        let text = app.element("composer.text")
-        text.tap()
-        text.typeEnglish("Stay at the bottom")
-        app.element("composer.send").tap()
-
-        // 單段訊息的文字合併在 conversation.agent 元素的 label 裡(「Agent:, …」),所以用 CONTAINS。
-        let summary = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs; every row exported cleanly.'")).firstMatch
-        XCTAssertTrue(summary.waitUntilExists(timeout: 20), "收尾訊息沒有出現(停在底部時新訊息沒有跟上)")
-        let composer = app.element("composer.text")
-        XCTAssertLessThanOrEqual(summary.frame.maxY, composer.frame.minY + 1, "收尾訊息被輸入框蓋住")
-        XCTAssertFalse(jump.exists, "跟隨底部時不該出現跳到最新")
-    }
-
-    // MARK: - 5. 跳到最新後停在最後一則
-
+    /// 「Jump to Latest」只在不在底部時出現:開啟時(在底部)沒有;往上捲出現且不被輸入列蓋住;自己捲回底部消失(#93)。
     /// 往上快滑再點跳到最新:最後一則完整在輸入框上方,且與輸入框之間沒有大片空白(沒有停在內容外)。
+    /// 最後在底部送出 prompt:回覆與 160 個工具步驟接上,畫面要跟到收尾訊息,不出現跳到最新鈕。
     @MainActor
     func testJumpToLatestLandsOnLastMessage() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
@@ -165,6 +126,15 @@ final class ChatListAcceptanceUITests: XCTestCase {
         let jump = app.element("conversation.jumpToLatest")
         let composer = app.element("composer.text")
         XCTAssertTrue(composer.waitUntilExists(timeout: 5))
+        XCTAssertFalse(jump.waitUntilExists(timeout: 2), "開啟時在底部,不該顯示跳到最新")
+
+        list.swipeDown()
+        list.swipeDown()
+        XCTAssertTrue(jump.waitUntilExists(timeout: 5), "往上捲後應顯示")
+        // 在輸入列(含停止列)上方,不被它蓋住(#476)。
+        XCTAssertLessThanOrEqual(jump.frame.maxY, composer.frame.minY, "跳到最新壓在輸入列上")
+        for _ in 0..<4 { list.swipeUp() }
+        XCTAssertTrue(jump.waitUntilGone(timeout: 5), "自己捲回底部後應隱藏")
 
         var gaps: [CGFloat] = []
         for attempt in 1...3 {
@@ -189,6 +159,16 @@ final class ChatListAcceptanceUITests: XCTestCase {
             gaps.append(gap)
         }
         XCTAssertLessThanOrEqual((gaps.max() ?? 0) - (gaps.min() ?? 0), Self.landingTolerance, "三次跳到最新落點不一致:\(gaps)")
+
+        // 人在底部時送出 prompt:新訊息要跟上。
+        composer.tap()
+        composer.typeEnglish("Stay at the bottom")
+        app.element("composer.send").tap()
+        // 單段訊息的文字合併在 conversation.agent 元素的 label 裡(「Agent:, …」),所以用 CONTAINS。
+        let summary = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs; every row exported cleanly.'")).firstMatch
+        XCTAssertTrue(summary.waitUntilExists(timeout: 20), "收尾訊息沒有出現(停在底部時新訊息沒有跟上)")
+        XCTAssertLessThanOrEqual(summary.frame.maxY, composer.frame.minY + 1, "收尾訊息被輸入框蓋住")
+        XCTAssertFalse(jump.exists, "跟隨底部時不該出現跳到最新")
     }
 
     // MARK: - 輔助

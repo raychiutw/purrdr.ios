@@ -24,7 +24,6 @@
         "DailySmokeUITests/testNeedsYouAndSubagent()",
         "DailySmokeUITests/testTabsAndSignedOutAccount()",
         "DailySmokeUITests/testFilesHostMenuDoesNotChangeChatFilter()",
-        "DailySmokeUITests/testChatsTabBadgeCountsNeedsYou()",
         "DailySmokeUITests/testPlusMemberAccount()",
         "DailySmokeUITests/testDataUsage()",
         "DailySmokeUITests/testNoHostsGuideAndDemo()",

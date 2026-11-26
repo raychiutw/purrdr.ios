@@ -7,30 +7,6 @@ final class SkeletonUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 正常載入的對話:讀取在骨架出現前(約 300 毫秒留白)就完成,整段過程都不該出現骨架,訊息出現後也不該再有。
-    /// (只等「骨架消失」守不到問題:正常載入骨架根本不會出現,卡住的骨架也要等到逾時才消失。所以輪詢整段看有沒有出現過。)
-    @MainActor
-    func testConversationNeverShowsSkeletonOnNormalLoad() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        let loading = app.element("conversation.loading")
-        let message = app.element("conversation.user")
-        var sawSkeleton = false
-        var sawMessage = false
-        _ = UITestWait.until(timeout: 10) {
-            if loading.exists { sawSkeleton = true }
-            if message.exists { sawMessage = true }
-            return sawMessage
-        }
-        XCTAssertTrue(sawMessage, "對話沒有載入出訊息")
-        // 訊息出現之後再多看一會兒(骨架若是延後才冒出來也要抓到)。
-        let deadline = Date().addingTimeInterval(1.5)
-        while Date() < deadline {
-            if loading.exists { sawSkeleton = true }
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        XCTAssertFalse(sawSkeleton, "正常載入的對話出現了骨架")
-    }
-
     /// 後台一直沒回應、沒有上次的會員資料:帳號頁是骨架。
     @MainActor
     func testAccountSkeletonWhileBackendSilent() {

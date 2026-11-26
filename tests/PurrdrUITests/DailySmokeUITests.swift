@@ -122,7 +122,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
             XCTAssertTrue(app.conversationMoreItem("menu.permissionMode").label.contains("Accept Edits"), "「⋯」的權限模式副標沒有顯示 Accept Edits")
             // 收起「⋯」選單,下一步才能重新打開。
-            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+            app.dismissConversationMenu()
         }
         step("模型選擇 sheet 與投入程度子頁(#384)") {
             // 輸入列收合時沒有模型膠囊:從「⋯」→ 模型與思考深度開同一張 sheet(#515)。
