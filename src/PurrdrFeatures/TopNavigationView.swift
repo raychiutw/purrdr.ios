@@ -68,6 +68,8 @@ public struct TopNavigationView: View {
             .environment(\.usageSections, UsageSectionContext(hosts: hosts))
             // 對話頂部的跨聊天「需要你」橫幅(#530):點了把目前的聊天換成那個聊天。
             .registersAsMainWindow()
+            // `openWindow` 是環境值、只能在 View 裡取得:進畫面時交給 `RootActions`,之後閉包不必隨 body 重建。
+            .onAppear { actions.openWindow = openWindow }
             .crashNotice(crashNotice, appLock: appLock)
             .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, open: actions.openBannerChat))
             // 選單列與快捷鍵作用在有焦點的視窗(`PurrdrCommands`)。
@@ -245,10 +247,8 @@ public struct TopNavigationView: View {
     private var agentList: some View {
         let hosts = hosts
         let chatDestination: (ChatRoute) -> AnyView = sizeClass == .compact ? { compactChatDestination($0) } : { _ in AnyView(EmptyView()) }
-        var open: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
-        if supportsMultipleWindows {
-            open = { kind, route, title in openInNewWindow(kind, route, title) }
-        }
+        // 閉包是 `RootActions` 上的穩定物件,不在每次 body 重算時產生新的(#581)。
+        let open = supportsMultipleWindows ? actions.openInNewWindow : nil
         let topBar = ChatTopBarActions(
             newChat: actions.newChat,
             newChatInWorkspace: actions.newChatInWorkspace,
@@ -279,12 +279,6 @@ public struct TopNavigationView: View {
             }
             .appNavigationBackground()
         }
-    }
-
-    /// 把列表上的 Agent 開在新視窗(context menu,HIG Windows)。任何一台主機的 Agent 都可以(每台主機各自連線,#39)。
-    private func openInNewWindow(_ kind: PaneWindow.Kind, _ route: ChatRoute, _ title: String) {
-        openWindow(value: PaneWindow(
-            kind: kind, host: route.host, paneID: route.paneID, sessionID: hosts.agentList.sessionID(of: route), title: title))
     }
 
     /// 4 個 tab。徽章數字在小 View `RootTabs` 讀(#581)。
@@ -385,6 +379,10 @@ final class RootActions {
     let canNewChatInWorkspace: (HostSelection) -> Bool
     let addHost: () -> Void
     let prefetchConversations: @MainActor ([ChatRoute]) async -> Void
+    /// 把列表上的 Agent 開在新視窗(context menu,HIG Windows)。任何一台主機的 Agent 都可以(每台主機各自連線,#39)。
+    /// 系統的 `openWindow` 由畫面在出現時放進 `openWindow`。
+    private(set) var openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)!
+    var openWindow: OpenWindowAction?
 
     init(navigation: TopNavigationModel, hosts: HostsModel) {
         openBannerChat = { [weak navigation] in navigation?.selectedChat = $0 }
@@ -393,6 +391,11 @@ final class RootActions {
         canNewChatInWorkspace = { [weak hosts] in hosts?.supportsNewChatInWorkspace($0) ?? false }
         addHost = { [weak navigation] in navigation?.openAddHost() }
         prefetchConversations = { [weak hosts] in await hosts?.prefetchConversations($0) }
+        openInNewWindow = { [weak self, weak hosts] kind, route, title in
+            guard let self, let hosts else { return }
+            openWindow?(value: PaneWindow(
+                kind: kind, host: route.host, paneID: route.paneID, sessionID: hosts.agentList.sessionID(of: route), title: title))
+        }
     }
 }
 

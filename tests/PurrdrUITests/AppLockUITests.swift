@@ -68,6 +68,25 @@ final class AppLockUITests: XCTestCase {
         XCTAssertTrue(reason.exists, "沒有說明不可用的原因")
     }
 
+    /// 鎖定中收到深層連結(#573):不在鎖定畫面底下偷開,解鎖後才執行。
+    @MainActor
+    func testDeepLinkWhileLockedWaitsUntilUnlocked() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAppLock"])
+        XCTAssertTrue(app.staticTexts["appLock.title"].waitUntilExists(timeout: 10), "冷啟動沒有鎖定畫面")
+
+        app.open(URL(string: "purrdr://settings")!)
+
+        XCTAssertTrue(app.staticTexts["appLock.title"].exists, "收到連結後鎖定畫面不該消失")
+        let accountOpened = { app.element("sheet.account").exists || app.element("account.signedOut").exists }
+        XCTAssertFalse(
+            UITestWait.until(timeout: 3, accountOpened), "鎖定中不該開出帳號與設定")
+
+        app.buttons["appLock.unlock"].tap()
+
+        XCTAssertTrue(app.staticTexts["appLock.title"].waitUntilGone(timeout: 10), "解鎖後鎖定畫面沒有消失")
+        app.waitForAccountSheet()
+    }
+
     @MainActor
     private func openSettings(in app: XCUIApplication) {
         app.openSettingsSheet()

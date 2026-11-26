@@ -217,10 +217,6 @@ public struct AgentControls: Sendable, Equatable {
     /// 模型膠囊要顯示:Claude(可切換),或 Codex 有讀到目前模型(只顯示、說明不能在 app 內切換,#384)。
     public var showsModelCapsule: Bool { supportsPermissionMode || (dialect.showsModelName && modelName != nil) }
 
-    /// 標題列顯示的權限模式:只有能切換或有狀態列的 Agent 才有。
-    public var headerPermissionMode: AgentPermissionMode? {
-        supportsPermissionMode || readsStatusLine ? permissionMode : nil
-    }
 
     // MARK: - 停用原因
 
@@ -241,8 +237,58 @@ public struct AgentControls: Sendable, Equatable {
         return nil
     }
 
+    /// 能開模型選擇所需的聊天狀態(#561):`Link` 之外、只有聊天才知道的輸入。
+    public struct ChooseModelInputs: Sendable, Equatable {
+        public var hasTarget: Bool
+        public var isSending: Bool
+        public var hasTypedAnswer: Bool
+        public var hasPanel: Bool
+        public var isChoosingModel: Bool
+
+        public init(
+            hasTarget: Bool = true, isSending: Bool = false, hasTypedAnswer: Bool = false, hasPanel: Bool = false,
+            isChoosingModel: Bool = false
+        ) {
+            self.hasTarget = hasTarget
+            self.isSending = isSending
+            self.hasTypedAnswer = hasTypedAnswer
+            self.hasPanel = hasPanel
+            self.isChoosingModel = isChoosingModel
+        }
+    }
+
+    /// 能開模型選擇:只有 Claude(`/model` 面板一步選定)、閒置、沒有問題在等、沒有別的面板、
+    /// 非唯讀與離線。工作中時 `/model` 會排進佇列,所以不開放。
+    public func canChooseModel(_ chat: ChooseModelInputs) -> Bool {
+        dialect.canChooseModel && chat.hasTarget && !link.isReadOnly && !link.isOffline && !chat.isSending
+            && !chat.hasTypedAnswer && !link.hasPrompt && !chat.hasPanel && link.agentStatus != .working
+            && link.agentStatus != .blocked && !chat.isChoosingModel
+    }
+
     /// 膠囊可以操作:讀到目前模式、沒在切換、沒有停用原因。
     public func canSwitchPermissionMode(isSwitching: Bool) -> Bool {
         supportsPermissionMode && permissionMode != nil && !isSwitching && permissionModeLock == nil
+    }
+}
+
+/// 切換權限模式失敗的原因(#306)。
+public enum PermissionModeFailure: Equatable, Sendable {
+    /// 試了 `attempts` 次，畫面上沒有看到 `target`。
+    case notReached(attempts: Int, target: AgentPermissionMode)
+    /// 輪替一圈沒有出現目標模式(略過權限、自動):這個 session 沒有開。
+    case modeUnavailable(AgentPermissionMode)
+    /// 讀不到畫面，不知道目前是哪個模式。
+    case unreadable(target: AgentPermissionMode)
+    /// 按鍵沒送到主機。
+    case keysFailed(target: AgentPermissionMode)
+    /// 對話已被換成別的(送出前比對不符)，什麼都沒按。
+    case paneChanged(target: AgentPermissionMode)
+
+    /// 再試一次要切到的模式;略過權限沒開時再試沒有意義。
+    public var target: AgentPermissionMode? {
+        switch self {
+        case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
+        case .modeUnavailable: nil
+        }
     }
 }

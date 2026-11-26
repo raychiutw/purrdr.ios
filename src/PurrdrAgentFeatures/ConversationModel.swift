@@ -2118,8 +2118,10 @@ public final class ConversationModel {
     /// 能開模型選擇:只有 Claude(`/model` 面板一步選定)、閒置、沒有問題在等、沒有別的面板、
     /// 非唯讀與離線。工作中時 `/model` 會排進佇列,所以不開放。
     public var canChooseModel: Bool {
-        screenDialect.canChooseModel && hasTarget && !isReadOnly && !isOffline && !isSending && typedAnswer == nil
-            && prompt == nil && panel == nil && agentStatus != .working && agentStatus != .blocked && !isChoosingModel
+        controls.canChooseModel(
+            AgentControls.ChooseModelInputs(
+                hasTarget: hasTarget, isSending: isSending, hasTypedAnswer: typedAnswer != nil, hasPanel: panel != nil,
+                isChoosingModel: isChoosingModel))
     }
 
     public typealias ModelChoiceLock = AgentControls.ModelChoiceLock
@@ -2591,52 +2593,49 @@ public enum SendNotice: Sendable, Equatable {
     case readOnlyDevice
 }
 
-/// 切換權限模式失敗的原因(#306)。
-public enum PermissionModeFailure: Equatable, Sendable {
-    /// 試了 `attempts` 次，畫面上沒有看到 `target`。
-    case notReached(attempts: Int, target: AgentPermissionMode)
-    /// 輪替一圈沒有出現目標模式(略過權限、自動):這個 session 沒有開。
-    case modeUnavailable(AgentPermissionMode)
-    /// 讀不到畫面，不知道目前是哪個模式。
-    case unreadable(target: AgentPermissionMode)
-    /// 按鍵沒送到主機。
-    case keysFailed(target: AgentPermissionMode)
-    /// 對話已被換成別的(送出前比對不符)，什麼都沒按。
-    case paneChanged(target: AgentPermissionMode)
-
-    /// 再試一次要切到的模式;略過權限沒開時再試沒有意義。
-    public var target: AgentPermissionMode? {
-        switch self {
-        case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
-        case .modeUnavailable: nil
-        }
-    }
-}
-
 // MARK: - 觀察範圍的測試入口(#593)
 
 extension ConversationModel {
-    /// 沒有畫面讀的內部欄位(標 `@ObservationIgnored` 的那組)。測試在 `withObservationTracking` 裡讀它、再呼叫
-    /// `writeObservationIgnoredStateForTesting`,證明這些欄位的寫入不會通知觀察者。新增沒有畫面讀的欄位時加在這兩處。
-    package func readObservationIgnoredStateForTesting() {
-        _ = (olderMessages, segments, waitingSince, lastPolledStatus, lastPresenceSeq, awayLatch, backgroundedAt)
-        _ = (generation, dialect, panelWatchUntil, entriesRevision, onTranscriptWork)
+    /// 沒有畫面讀的內部欄位(標 `@ObservationIgnored` 的那組),逐欄位列出(#593):測試對每個欄位各自建一次追蹤,
+    /// 只讀它、只寫它,證明該欄位的寫入不會通知觀察者;哪個欄位被誤拿掉標記,失敗訊息就點名它。新增沒有畫面讀的欄位時加一個 case。
+    package enum ObservationIgnoredField: String, CaseIterable, Sendable {
+        case olderMessages, segments, waitingSince, lastPolledStatus, lastPresenceSeq, awayLatch, backgroundedAt
+        case generation, dialect, panelWatchUntil, entriesRevision, onTranscriptWork
     }
 
-    /// 寫入上面那組欄位(每個都換成不同的值，確保沒標 ignored 時一定會通知)。
-    package func writeObservationIgnoredStateForTesting(message: TranscriptMessage, now: Date) {
-        olderMessages = [message]
-        segments = [(0, 1)]
-        waitingSince = now
-        lastPolledStatus = .working
-        lastPresenceSeq += 1
-        awayLatch = (now, now)
-        backgroundedAt = now
-        generation += 1
-        dialect = dialect == .claude ? .codex : .claude
-        panelWatchUntil = now
-        entriesRevision &+= 1
-        onTranscriptWork = {}
+    package func readForTesting(_ field: ObservationIgnoredField) {
+        switch field {
+        case .olderMessages: _ = olderMessages
+        case .segments: _ = segments
+        case .waitingSince: _ = waitingSince
+        case .lastPolledStatus: _ = lastPolledStatus
+        case .lastPresenceSeq: _ = lastPresenceSeq
+        case .awayLatch: _ = awayLatch
+        case .backgroundedAt: _ = backgroundedAt
+        case .generation: _ = generation
+        case .dialect: _ = dialect
+        case .panelWatchUntil: _ = panelWatchUntil
+        case .entriesRevision: _ = entriesRevision
+        case .onTranscriptWork: _ = onTranscriptWork
+        }
+    }
+
+    /// 寫入那個欄位(換成不同的值,確保沒標 ignored 時一定會通知)。
+    package func writeForTesting(_ field: ObservationIgnoredField, message: TranscriptMessage, now: Date) {
+        switch field {
+        case .olderMessages: olderMessages = [message]
+        case .segments: segments = [(0, 1)]
+        case .waitingSince: waitingSince = now
+        case .lastPolledStatus: lastPolledStatus = .working
+        case .lastPresenceSeq: lastPresenceSeq += 1
+        case .awayLatch: awayLatch = (now, now)
+        case .backgroundedAt: backgroundedAt = now
+        case .generation: generation += 1
+        case .dialect: dialect = dialect == .claude ? .codex : .claude
+        case .panelWatchUntil: panelWatchUntil = now
+        case .entriesRevision: entriesRevision &+= 1
+        case .onTranscriptWork: onTranscriptWork = {}
+        }
     }
 }
 

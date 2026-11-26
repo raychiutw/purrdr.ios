@@ -149,9 +149,26 @@ struct AgentControlsTests {
         #expect(codexModel.showsModelCapsule)
         #expect(codexModel.approvalPolicy == "on-request")
         #expect(claudeBare.approvalPolicy == nil)
-        #expect(codexModel.headerPermissionMode == nil)
+    }
 
-        let claudeMode = AgentControls(dialect: Self.claude, metadata: TranscriptMetadata(permissionMode: "plan"))
-        #expect(claudeMode.headerPermissionMode == .plan)
+    @Test("能開模型選擇:Claude 閒置才行,唯讀、離線、工作中、有提問、面板、送出中、選擇中都不行,Codex 不行")
+    func canChooseModel() {
+        func claude(_ link: AgentControls.Link = .init(agentStatus: .idle)) -> AgentControls {
+            AgentControls(dialect: Self.claude, metadata: TranscriptMetadata(), link: link)
+        }
+        let open = AgentControls.ChooseModelInputs()
+        #expect(claude().canChooseModel(open))
+        #expect(!claude(.init(isReadOnly: true, agentStatus: .idle)).canChooseModel(open))
+        #expect(!claude(.init(isOffline: true, agentStatus: .idle)).canChooseModel(open))
+        #expect(!claude(.init(hasPrompt: true, agentStatus: .idle)).canChooseModel(open))
+        #expect(!claude(.init(agentStatus: .working)).canChooseModel(open))
+        #expect(!claude(.init(agentStatus: .blocked)).canChooseModel(open))
+        #expect(!claude().canChooseModel(.init(hasTarget: false)))
+        #expect(!claude().canChooseModel(.init(isSending: true)))
+        #expect(!claude().canChooseModel(.init(hasTypedAnswer: true)))
+        #expect(!claude().canChooseModel(.init(hasPanel: true)))
+        #expect(!claude().canChooseModel(.init(isChoosingModel: true)))
+        let codex = AgentControls(dialect: Self.codex, metadata: TranscriptMetadata(), link: .init(agentStatus: .idle))
+        #expect(!codex.canChooseModel(open))
     }
 }
