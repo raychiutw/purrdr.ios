@@ -38,7 +38,7 @@ struct LaunchConfigurationTests {
             ("-demoAgentFiles", .agentFiles), ("-demoSentImages", .sentImages), ("-demoAntigravity", .antigravity),
             ("-demoNeedsYouWithStatusBanner", .needsYouWithStatusBanner), ("-demoNeedsYouLater", .needsYouLater),
             ("-demoGoesOffline", .goesOffline), ("-demoGoesOfflineHanging", .goesOfflineHanging), ("-demoNoNetwork", .noNetwork),
-            ("-demoUsageReadPending", .usageReadPending),
+            ("-demoUsageReadDelayed", .usageReadDelayed),
         ]
         #expect(table.count == LaunchConfiguration.DemoScenario.priorityOrder.count)
         for (flag, expected) in table { #expect(parse(flag).demoScenario == expected, "\(flag)") }
