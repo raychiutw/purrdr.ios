@@ -93,13 +93,14 @@ private struct TopBarToolbar: ToolbarContent {
     var body: some ToolbarContent {
         if content.hostMenu != nil || content.plus != nil {
             ToolbarItemGroup(placement: placement) {
-                if let menu = content.hostMenu { TopBarHostScopeMenu(content: content, menu: menu) }
-                if let plus = content.plus { plus }
+                // tab 內容都套了主色 tint(`ProminentFillStyle`),這裡明確改回系統單色,否則圖示會變主色(0.52 截圖)。
+                if let menu = content.hostMenu { TopBarHostScopeMenu(content: content, menu: menu).tint(.primary) }
+                if let plus = content.plus { plus.tint(.primary) }
             }
         }
         if let account = content.account {
             ToolbarSpacer(.fixed, placement: placement)
-            ToolbarItem(placement: placement) { account }
+            ToolbarItem(placement: placement) { account.tint(.primary) }
         }
     }
 }
