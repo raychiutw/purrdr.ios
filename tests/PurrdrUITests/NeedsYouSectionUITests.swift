@@ -27,15 +27,5 @@ final class NeedsYouSectionUITests: XCTestCase {
         // 標題是 Tab 名稱(不是 workspace 名稱),以副標題的「需要你」狀態確認開到的是 weather-app。
         XCTAssertTrue(app.conversationSubtitle(containing: "Needs You").waitUntilExists(timeout: 10), "開到別的聊天")
     }
-
-    /// AX 最大字級不爆版:段落標題與列都還在畫面上。
-    @MainActor
-    func testSectionAtLargestTextSize() {
-        let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-
-        let header = app.element("needsYou.section")
-        XCTAssertTrue(header.waitUntilExists(timeout: 15), "AX 字級沒有「需要你」段落")
-        XCTAssertTrue(app.element(rowID).waitUntilExists(timeout: 5), "AX 字級段落裡沒有列")
-        XCTAssertLessThanOrEqual(header.frame.maxX, app.frame.maxX + 1, "標題超出畫面寬度")
-    }
+    // AX 最大字級不爆版由 SignInUITests.testAccessibilitySizeThenDefaultSizeSignInButtonsTabBarAndNeedsYouSection 守。
 }

@@ -37,22 +37,5 @@ final class AgentListUITests: XCTestCase {
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)))
         XCTAssertTrue(title.waitUntilExists(timeout: 5), "回到頂端後大標題沒有回來")
     }
-
-    /// AX 字級下 4 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。
-    @MainActor
-    func testTabBarAndAccountReachableAtAccessibilitySize() {
-        let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-        XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 15))
-        for tab in [AppTab.chats, .files, .hosts, .traffic] {
-            XCTAssertTrue(
-                app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 5),
-                "tab bar 沒有 \(tab.rawValue)")
-        }
-        // 未登入時帳號鈕開的是「登入或加入」選擇頁(#408),不是帳號頁。
-        app.openAccount()
-        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "大字級下沒有開出登入或加入選擇頁")
-        let signIn = app.buttons["account.entry.signIn"]
-        app.scrollIntoView(signIn, search: .down)
-        XCTAssertTrue(signIn.waitUntilExists(timeout: 5), "大字級下找不到「登入」")
-    }
+    // AX 字級下 tab bar 與帳號可達由 SignInUITests.testAccessibilitySizeThenDefaultSizeSignInButtonsTabBarAndNeedsYouSection 守。
 }

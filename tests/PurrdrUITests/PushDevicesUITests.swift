@@ -12,12 +12,36 @@ final class PushDevicesUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 列出其他裝置(名稱、型號、主機數);舊版 app 的裝置顯示「Unnamed Device」。改名後清單換成新名稱。
+    /// 登入中的裝置也能左滑登出(#626):與列上的「Sign Out」同一個動作、先確認;目前這支左滑沒有登出。
+    /// 接著列出其他裝置(名稱、型號、主機數);舊版 app 的裝置顯示「Unnamed Device」。改名後清單換成新名稱。
+    /// 左滑關閉(#626):與列上的選單同一個動作、先確認(確認前列還在);關掉所有裝置後顯示系統空狀態。
+    /// 最後有 App Store 訂閱的會員刪除前先處理訂閱(#412):說明頁有「管理訂閱」,繼續後才是刪除確認(同一次啟動,
+    /// 原本 4 個測試合併)。
     @MainActor
-    func testListsDevicesAndRenames() {
+    func testSignedInDevicesSwipeThenPushDevicesRenameTurnOffAndDeleteWithSubscription() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
         app.openAccountSheet()
 
+        // 登入中的裝置左滑登出。
+        let signInDevices = app.buttons["member.signInDevices"]
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: signInDevices, search: .down, timeout: 10), "帳號頁沒有登入中的裝置")
+        signInDevices.tap()
+        let sessionIPad = app.element("account.signInDevice.ui-session-ipad")
+        XCTAssertTrue(sessionIPad.waitUntilExists(timeout: 10), "清單沒有另一支裝置")
+        app.element("account.signInDevice.ui-session-this").swipeLeft()
+        XCTAssertFalse(app.buttons["account.signInDevice.swipeSignOut.ui-session-this"].waitUntilExists(timeout: 1), "目前這支左滑不該有登出")
+        sessionIPad.swipeLeft()
+        let swipeSignOut = app.buttons["account.signInDevice.swipeSignOut.ui-session-ipad"].firstMatch
+        XCTAssertTrue(swipeSignOut.waitUntilExists(timeout: 5), "左滑沒有「登出」")
+        swipeSignOut.tap()
+        let signOutConfirm = app.buttons["account.signInDevices.confirm"].firstMatch
+        XCTAssertTrue(signOutConfirm.waitUntilExists(timeout: 5), "左滑沒有先確認")
+        XCTAssertTrue(sessionIPad.exists, "確認前列不該先被移走")
+        signOutConfirm.tap()
+        XCTAssertTrue(sessionIPad.waitUntilGone(timeout: 10), "登出後裝置還在清單")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        // 通知裝置:列出、改名。
         openPushDevices(app)
         let ipad = app.element("account.pushDevice.\(Self.studioIPad)")
         XCTAssertTrue(ipad.waitUntilExists(timeout: 10), "沒有 Studio iPad 的列")
@@ -37,14 +61,8 @@ final class PushDevicesUITests: XCTestCase {
         app.alerts.buttons["account.pushDevices.save"].firstMatch.tap()
 
         ipad.expectLabel(containing: "Desk iPad")
-    }
 
-    /// 左滑關閉(#626):與列上的選單同一個動作、先確認(確認前列還在);關掉所有裝置後顯示系統空狀態。
-    @MainActor
-    func testSwipeTurnsOffDevicesThenShowsEmptyState() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
-        app.openAccountSheet()
-
+        // 左滑關閉、空狀態。
         openPushDevices(app)
         for id in [Self.studioIPad, Self.legacyDevice] {
             let row = app.element("account.pushDevice.\(id)")
@@ -62,6 +80,18 @@ final class PushDevicesUITests: XCTestCase {
             XCTAssertTrue(row.waitUntilGone(timeout: 10), "關閉後仍在清單")
         }
         XCTAssertTrue(app.element("account.pushDevices.empty").waitUntilExists(timeout: 10), "沒有裝置時沒有系統空狀態")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        // 刪除會員:有訂閱先處理訂閱。
+        let delete = app.buttons["member.delete"]
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: delete, search: .down, timeout: 10), "返回後帳號頁沒有刪除會員")
+        delete.tap()
+        XCTAssertTrue(app.buttons["member.deleteSubscription.manage"].waitUntilExists(timeout: 5), "沒有先處理訂閱")
+        XCTAssertFalse(app.alerts["Delete Member?"].exists, "訂閱說明之前不該有刪除確認")
+        app.buttons["member.deleteSubscription.continue"].tap()
+        let deleteAlert = app.alerts["Delete Member?"]
+        XCTAssertTrue(deleteAlert.waitUntilExists(timeout: 5))
+        deleteAlert.buttons["Cancel"].tap()
     }
 
     // MARK: - 輔助

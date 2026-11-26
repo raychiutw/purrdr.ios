@@ -25,28 +25,5 @@ final class AppLockUITests: XCTestCase {
         XCTAssertTrue(app.chatListReady.isHittable, "解鎖後列表不能操作")
     }
 
-    /// 預設關閉;開啟時先驗證，在前景開啟不會馬上鎖住。
-    @MainActor
-    func testTurnOnFromSettings() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
-
-        let toggle = app.switches["settings.appLock"]
-        app.scrollIntoView(toggle, search: .down)
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "設定頁沒有 App 鎖")
-        XCTAssertEqual(toggle.label, "Require Face ID")
-        XCTAssertEqual(toggle.value as? String, "0", "App 鎖預設應關閉")
-        XCTAssertFalse(app.descendants(matching: .any)["settings.appLock.footer"].exists, "能用時不放功能說明(#276)")
-
-        toggle.switches.firstMatch.tap()
-
-        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == '1'"), timeout: 5), "等待的條件沒有成立")
-        XCTAssertFalse(app.staticTexts["appLock.title"].exists, "在前景開啟不該馬上鎖住")
-    }
-
-    @MainActor
-    private func openSettings(in app: XCUIApplication) {
-        app.openSettingsSheet()
-    }
-
+    // 從設定開啟 App 鎖的檢查在 SettingsUITests.testSettingsSectionsCopyDiagnosticsAppearanceAndAppLock。
 }

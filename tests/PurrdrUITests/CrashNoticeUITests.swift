@@ -4,9 +4,9 @@ import XCTest
 final class CrashNoticeUITests: XCTestCase {
     override func setUp() { continueAfterFailure = false }
 
-    /// 提示出現、「分享記錄」開出系統分享、「關閉」後不再出現。
+    /// 提示出現、「分享記錄」開出系統分享、「關閉」後不再出現;接著設定的「診斷記錄」同樣可分享閃退記錄。
     @MainActor
-    func testLaunchNoticeSharesAndDismisses() {
+    func testLaunchNoticeSharesDismissesThenSettingsDiagnosticLogSharesCrash() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord"])
         let banner = app.otherElements["crashNotice.banner"]
         XCTAssertTrue(banner.waitUntilExists(timeout: 10), "沒有「上次意外關閉」提示")
@@ -22,14 +22,8 @@ final class CrashNoticeUITests: XCTestCase {
             _ = banner.waitUntilGone(timeout: 3)
         }
         XCTAssertTrue(banner.waitUntilGone(timeout: 5), "關閉後提示還在")
-    }
 
-    /// 設定的「診斷記錄」在有閃退記錄時可分享(開出系統分享,不是「還沒有記錄」)。
-    @MainActor
-    func testSettingsDiagnosticLogCanShareCrash() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord"])
-        XCTAssertTrue(app.buttons["crashNotice.dismiss"].waitUntilExists(timeout: 10))
-        app.buttons["crashNotice.dismiss"].tap()
+        // 設定的「診斷記錄」在有閃退記錄時可分享(開出系統分享,不是「還沒有記錄」)。
         app.openSettingsSheet()
         let share = app.buttons["settings.hitchLog.share"]
         app.scrollIntoView(share, search: .down)

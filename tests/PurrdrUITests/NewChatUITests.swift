@@ -22,7 +22,7 @@ final class NewChatUITests: XCTestCase {
 
     /// 瀏覽 Demo 家目錄 → ledger → 空的 reports(說明沒有子資料夾，不是錯誤)→ 上一層 → 再進去 → 使用這個資料夾 → 回到表單並填好。
     @MainActor
-    func testChooseFolderOnHostFillsForm() {
+    func testChooseFolderOnHostFillsFormThenStartInExistingWorkspaceAddsATab() {
         let app = openNewChat()
         let start = app.buttons["newChat.start"]
         app.scrollIntoView(start, search: .down)
@@ -68,41 +68,28 @@ final class NewChatUITests: XCTestCase {
         app.scrollIntoView(start, search: .down)
         XCTAssertTrue(start.waitUntilExists(timeout: 5), "表單沒有「開始」")
         XCTAssertTrue(start.isEnabled)
-    }
 
-    /// 既有 Workspace(#537):第一個欄位選 ledger 後資料夾欄消失(沿用它的資料夾)、Workspace 名稱欄消失;
-    /// 填第一則訊息開始 → Demo 在 ledger 新增 Tab 並啟動 agent,sheet 關閉,新 Tab 的 Agent 出現在列表。
-    @MainActor
-    func testStartInExistingWorkspaceAddsATab() {
-        let app = XCUIApplication.launchUITesting()
-        app.openNewChat()
+        // 既有 Workspace(#537):第一個欄位選 ledger 後資料夾欄消失(沿用它的資料夾)、Workspace 名稱欄消失;
+        // 訊息已填,開始 → Demo 在 ledger 新增 Tab 並啟動 agent,sheet 關閉,新 Tab 的 Agent 出現在列表。
         let sheet = app.element("newChat.page")
-        XCTAssertTrue(sheet.waitUntilExists(timeout: 10), "沒有開出新增對話")
         // 選項是勾選列(#313 同做法),以標籤找:Workspace 名稱加資料夾。
-        let ledger = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'ledger'")).firstMatch
-        XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "沒有列出既有的 Workspace ledger")
+        let ledgerWorkspace = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'ledger'")).firstMatch
+        XCTAssertTrue(app.scrollIntoView(ledgerWorkspace, search: .up, timeout: 10), "沒有列出既有的 Workspace ledger")
         XCTAssertTrue(app.buttons["New Workspace"].exists, "沒有「新的 Workspace」")
-        ledger.tap()
+        ledgerWorkspace.tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["newChat.placement.footer"].firstMatch.waitUntilExists(timeout: 5), "選了既有 Workspace 沒有說明")
-        sheet.swipeUp()
-        XCTAssertFalse(app.textFields["newChat.folder"].exists, "選了既有 Workspace 不需要資料夾")
+        XCTAssertTrue(UITestWait.until(timeout: 5) { !app.textFields["newChat.folder"].exists }, "選了既有 Workspace 不需要資料夾")
         XCTAssertFalse(app.textFields["newChat.workspaceName"].exists, "既有 Workspace 沒有 Workspace 名稱欄")
         let tabName = app.textFields["newChat.tabName"]
         app.scrollIntoView(tabName, search: .down)
-        XCTAssertTrue(tabName.waitForExistence(timeout: 5), "既有 Workspace 沒有 Tab 名稱欄")
-
-        let message = app.textViews["newChat.message"].exists ? app.textViews["newChat.message"] : app.textFields["newChat.message"]
-        message.tap()
-        message.typeEnglish("Add a second tab")
-        let start = app.buttons["newChat.start"]
+        XCTAssertTrue(tabName.waitUntilExists(timeout: 5), "既有 Workspace 沒有 Tab 名稱欄")
         app.scrollIntoView(start, search: .down)
         XCTAssertTrue(start.isEnabled)
         start.tap()
 
-        XCTAssertTrue(sheet.waitForNonExistence(timeout: 15), "開始後新增聊天沒有收掉")
+        XCTAssertTrue(sheet.waitUntilGone(timeout: 15), "開始後新增聊天沒有收掉")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)[chatRowID("w1:p2")].firstMatch), "新 Tab 的 Agent 沒有出現在列表")
     }
-
 }

@@ -12,7 +12,7 @@ final class SettingsUITests: XCTestCase {
     /// 外觀下的「自動」與送出可撤回的秒數說明、支援段的隱私揭露是例外，數據用量列下沒有說明;主機設定與會員不在這裡。
     /// 一次啟動由上而下檢查(#372:原本四個測試各啟動一次)。
     @MainActor
-    func testSettingsShowsOnlyAppWideSections() {
+    func testSettingsSectionsCopyDiagnosticsAppearanceAndAppLock() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
         XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
@@ -50,22 +50,19 @@ final class SettingsUITests: XCTestCase {
         // 會員與 Purrdr Plus 移到帳號頁(#246)。
         XCTAssertFalse(app.element("settings.member").exists, "設定頁不該有會員")
         XCTAssertFalse(app.element("settings.hostSync").exists, "設定頁不該有主機同步")
-    }
 
-    /// 外觀即時生效(#322):設定 sheet 開著時切換，sheet 本身立刻變深或變淺;切回自動回到系統的深淺色。
-    /// 以 sheet 截圖的平均亮度判斷(accessibility 樹看不到深淺色)。
-    @MainActor
-    func testAppearanceChoiceRecolorsOpenSettingsSheet() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
-        addTeardownBlock { @MainActor in
-            let cleanup = XCUIApplication.launchUITesting()
-            self.openSettings(in: cleanup)
-            cleanup.buttons["Automatic"].tap()
-            cleanup.terminate()
-        }
+        // 複製診斷資訊:按下後鈕的文字變「Copied」。
+        let copy = app.buttons["settings.copyDiagnostics"]
+        app.scrollIntoView(copy, search: .down)
+        XCTAssertEqual(copy.label, "Copy Diagnostics")
+        copy.tap()
+
+        XCTAssertTrue(copy.wait(for: NSPredicate(format: "label == %@", "Copied"), timeout: 5), "等待的條件沒有成立")
+
+        // 外觀即時生效(#322):設定 sheet 開著時切換，sheet 本身立刻變深或變淺;切回自動回到系統的深淺色。
+        // 以 sheet 截圖的平均亮度判斷(accessibility 樹看不到深淺色)。`-uiTesting` 每次啟動都清掉偏好,最後切回自動只是為了驗證它。
         let sheet = app.element("account.signedOut")
-        app.scrollIntoView(app.buttons["Automatic"], search: .down)
+        app.scrollIntoView(app.buttons["Automatic"], search: .up)
         XCTAssertTrue(app.buttons["Automatic"].waitUntilExists(timeout: 5))
         let system = luminance(of: sheet)
 
@@ -79,68 +76,17 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(
             waitForLuminance(of: sheet) { abs($0 - system) < 0.1 },
             "切回自動後設定 sheet 沒有回到系統的深淺色(亮度 \(luminance(of: sheet)),系統 \(system))")
-    }
 
-    /// 刪除會員(#322):按鈕寫「Delete Member」不帶刪節號，按下仍先跳確認。
-    @MainActor
-    func testDeleteMemberButtonHasNoEllipsisAndConfirms() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
-        let account = app.buttons["toolbar.account"]
-        XCTAssertTrue(account.waitUntilExists(timeout: 10))
-        account.tap()
-        let delete = app.buttons["member.delete"]
-        app.scrollIntoView(delete, search: .down)
-        XCTAssertTrue(delete.waitUntilExists(timeout: 10), "帳號頁沒有刪除會員")
-        XCTAssertEqual(delete.label, "Delete Member")
-        delete.tap()
-        XCTAssertTrue(app.alerts["Delete Member?"].waitForExistence(timeout: 5), "沒有訂閱的會員按刪除要直接跳確認")
-        XCTAssertFalse(app.otherElements["member.deleteSubscription"].exists, "沒有訂閱不該先出現訂閱說明頁")
-    }
-
-    /// 有 App Store 訂閱的會員刪除前先處理訂閱(#412):說明頁有「管理訂閱」,繼續後才是刪除確認。
-    @MainActor
-    func testDeleteMemberWithSubscriptionShowsSubscriptionStepFirst() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
-        let account = app.buttons["toolbar.account"]
-        XCTAssertTrue(account.waitUntilExists(timeout: 10))
-        account.tap()
-        let delete = app.buttons["member.delete"]
-        app.scrollIntoView(delete, search: .down)
-        XCTAssertTrue(delete.waitUntilExists(timeout: 10))
-        delete.tap()
-        XCTAssertTrue(app.buttons["member.deleteSubscription.manage"].waitForExistence(timeout: 5), "沒有先處理訂閱")
-        XCTAssertFalse(app.alerts["Delete Member?"].exists, "訂閱說明之前不該有刪除確認")
-        app.buttons["member.deleteSubscription.continue"].tap()
-        XCTAssertTrue(app.alerts["Delete Member?"].waitForExistence(timeout: 5))
-    }
-
-    /// 登出(#412):先說明會停止這支裝置的通知,確認後才登出。
-    @MainActor
-    func testSignOutExplainsBeforeSigningOut() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
-        let account = app.buttons["toolbar.account"]
-        XCTAssertTrue(account.waitUntilExists(timeout: 10))
-        account.tap()
-        let signOut = app.buttons["member.signOut"]
-        app.scrollIntoView(signOut, search: .down)
-        XCTAssertTrue(signOut.waitUntilExists(timeout: 10))
-        signOut.tap()
-        XCTAssertTrue(app.sheets["Sign Out?"].waitForExistence(timeout: 5), "登出前沒有說明")
-        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
-        XCTAssertTrue(signOut.exists, "取消後仍在帳號頁")
-    }
-
-    @MainActor
-    func testCopyDiagnosticsConfirmsCopy() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
-
-        let copy = app.buttons["settings.copyDiagnostics"]
-        app.scrollIntoView(copy, search: .down)
-        XCTAssertEqual(copy.label, "Copy Diagnostics")
-        copy.tap()
-
-        XCTAssertTrue(copy.wait(for: NSPredicate(format: "label == %@", "Copied"), timeout: 5), "等待的條件沒有成立")
+        // App 鎖(#284):預設關閉;開啟時先驗證，在前景開啟不會馬上鎖住(放最後)。
+        let lock = app.switches["settings.appLock"]
+        app.scrollIntoView(lock, search: .down)
+        XCTAssertTrue(lock.waitUntilExists(timeout: 5), "設定頁沒有 App 鎖")
+        XCTAssertEqual(lock.label, "Require Face ID")
+        XCTAssertEqual(lock.value as? String, "0", "App 鎖預設應關閉")
+        XCTAssertFalse(app.descendants(matching: .any)["settings.appLock.footer"].exists, "能用時不放功能說明(#276)")
+        lock.switches.firstMatch.tap()
+        XCTAssertTrue(lock.wait(for: NSPredicate(format: "value == '1'"), timeout: 5), "App 鎖沒有開啟")
+        XCTAssertFalse(app.staticTexts["appLock.title"].exists, "在前景開啟不該馬上鎖住")
     }
 
     /// String Catalog 真的套用到 package 裡的畫面(畫面字串在 PurrdrFeatures,catalog 在 app)。
@@ -148,9 +94,8 @@ final class SettingsUITests: XCTestCase {
     func testTraditionalChineseInterface() {
         let app = XCUIApplication.launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
 
-        // 聊天頂列:新增聊天鈕在,搜尋欄提示是繁體中文(#501)。
+        // 聊天頂列:新增聊天鈕在(搜尋欄 placeholder 的繁中由 StringCatalogTests 與 `scripts/strings.sh check` 守,不必往下拉出搜尋欄)。
         XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有看到列表")
-        XCTAssertEqual(app.revealChatSearch().placeholderValue, "搜尋 Tab、Workspace、主機", "列表不是繁體中文")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["帳號"].waitUntilExists(timeout: 5), "帳號與設定頁標題不是繁體中文")
         XCTAssertTrue(app.staticTexts["用量顯示"].waitUntilExists(timeout: 5), "設定沒有「用量顯示」")

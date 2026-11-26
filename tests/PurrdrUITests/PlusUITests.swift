@@ -10,71 +10,49 @@ final class PlusUITests: XCTestCase {
     }
 
     /// 每個方案揭露名稱、期間、每期內容、當地幣別的完整價格、試用後自動扣款;另有恢復購買、兌換代碼、條款與隱私權政策。
+    /// 預設字級與 AX 最大字級各驗一次(同一次啟動內換字級);預設字級那輪再驗:頁首只有標題(#236);預設年繳、年繳在前;
+    /// 改選月繳時說明換成月繳的價格,方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
+    /// 最後(回到預設字級)訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
     @MainActor
-    func testPaywallDisclosesEverythingRequired() {
-        for contentSize in [nil, "UICTContentSizeCategoryAccessibilityXXXL"] {
-            let size = contentSize ?? "預設字級"
-            let app = XCUIApplication.launchUITesting(contentSize: contentSize)
-            openPlus(in: app)
-
-            // 每期內容在最上面(App Store 3.1.2);大字級時方案在畫面外,下面再捲過去。
-            let benefits = app.descendants(matching: .any)["plus.benefits"].firstMatch
-            XCTAssertTrue(benefits.waitUntilExists(timeout: 15), "沒有每期內容(\(size))")
-            XCTAssertTrue(benefits.label.contains("agent needs you"), benefits.label)
-
-            let monthly = app.descendants(matching: .any)[Self.monthly].firstMatch
-            app.scrollIntoView(monthly, search: .down)
-            XCTAssertTrue(monthly.exists, "沒有月繳方案(\(size))")
-            XCTAssertTrue(monthly.label.contains("Purrdr Plus Monthly"), monthly.label)
-            XCTAssertTrue(monthly.label.contains("$4.99"), monthly.label)
-            XCTAssertTrue(monthly.label.contains("month"), monthly.label)
-            XCTAssertTrue(monthly.label.contains("2 weeks free"), monthly.label)
-            let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
-            app.scrollIntoView(yearly, search: .down)
-            XCTAssertTrue(yearly.label.contains("Purrdr Plus Yearly"), yearly.label)
-            XCTAssertTrue(yearly.label.contains("$39.99"), yearly.label)
-            XCTAssertTrue(yearly.label.contains("year"), yearly.label)
-
-            let disclosure = app.staticTexts["plus.disclosure"]
-            app.scrollIntoView(disclosure, search: .down)
-            XCTAssertTrue(disclosure.label.contains("2 weeks"), disclosure.label)
-            XCTAssertTrue(disclosure.label.contains("$39.99"), disclosure.label)  // 預設選年繳(完整扣款揭露保留)
-            XCTAssertTrue(disclosure.label.contains("renews automatically"), disclosure.label)
-            XCTAssertTrue(disclosure.label.contains("24 hours"), disclosure.label)
-
-            for identifier in ["plus.restore", "plus.redeem", "plus.terms", "plus.privacy"] {
-                let element = app.descendants(matching: .any)[identifier].firstMatch
-                app.scrollIntoView(element, search: .down)
-                XCTAssertTrue(element.isHittable, "\(identifier) 點不到(\(size))")
-                XCTAssertGreaterThanOrEqual(element.frame.height, 44, "\(identifier) 觸控目標太小(\(size))")
-            }
-
-            // 預設字級那一輪再驗:頁首只有標題(#236);預設年繳、年繳在前;改選月繳時說明換成月繳的價格,
-            // 方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
-            if contentSize == nil {
-                app.scrollIntoView(benefits, search: .up)
-                XCTAssertFalse(app.scrollViews.staticTexts["Purrdr Plus"].exists, "內容裡重複了標題")
-                XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
-                app.scrollIntoView(yearly, search: .down)
-                XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "預設沒選年繳:\(String(describing: yearly.value))")
-                XCTAssertLessThan(yearly.frame.minY, monthly.frame.minY, "年繳沒有排在月繳前面")
-                app.scrollIntoView(monthly, search: .up)
-                monthly.press(forDuration: 0.3)
-                XCTAssertTrue(monthly.isSelected || monthly.value as? String == "Selected", "\(String(describing: monthly.value))")
-                app.scrollIntoView(disclosure, search: .down)
-                XCTAssertTrue(disclosure.label.contains("$4.99"), disclosure.label)
-            }
-            app.terminate()
-        }
-    }
-
-    /// 訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
-    @MainActor
-    func testSubscribingNeedsSignInAndPaywallCanBeClosed() {
+    func testPaywallDisclosesEverythingRequiredAtBothSizesThenSubscribingNeedsSignIn() {
         let app = XCUIApplication.launchUITesting()
         openPlus(in: app)
+        let benefits = app.descendants(matching: .any)["plus.benefits"].firstMatch
+        XCTAssertTrue(benefits.waitUntilExists(timeout: 15), "沒有每期內容(預設字級)")
+        let defaultBenefitsHeight = benefits.frame.height
+
+        assertPaywallDisclosures(in: app, size: "預設字級", selectedPrice: "$39.99")
+
+        // 預設字級那一輪再驗。
+        let monthly = app.descendants(matching: .any)[Self.monthly].firstMatch
+        let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
+        let disclosure = app.staticTexts["plus.disclosure"]
+        app.scrollIntoView(benefits, search: .up)
+        XCTAssertFalse(app.scrollViews.staticTexts["Purrdr Plus"].exists, "內容裡重複了標題")
+        XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
+        app.scrollIntoView(yearly, search: .down)
+        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "預設沒選年繳:\(String(describing: yearly.value))")
+        XCTAssertLessThan(yearly.frame.minY, monthly.frame.minY, "年繳沒有排在月繳前面")
+        app.scrollIntoView(monthly, search: .up)
+        monthly.press(forDuration: 0.3)
+        XCTAssertTrue(monthly.isSelected || monthly.value as? String == "Selected", "\(String(describing: monthly.value))")
+        app.scrollIntoView(disclosure, search: .down)
+        XCTAssertTrue(disclosure.label.contains("$4.99"), disclosure.label)
+
+        // AX 最大字級:先確認字級真的變大,否則下面的 AX 斷言會變成重複量預設字級。
+        app.setContentSize("UICTContentSizeCategoryAccessibilityXXXL")
+        app.scrollIntoView(benefits, search: .up)
+        XCTAssertTrue(benefits.waitUntilExists(timeout: 10), "換字級後沒有每期內容")
+        XCTAssertTrue(UITestWait.until(timeout: 5) { benefits.frame.height > defaultBenefitsHeight * 1.3 },
+                      "字級沒有真的變大(換字級的測試連結沒有生效):每期內容高度 \(benefits.frame.height),預設 \(defaultBenefitsHeight)")
+        // 預設字級那輪已改選月繳,說明是月繳價格。
+        assertPaywallDisclosures(in: app, size: "AX 最大字級", selectedPrice: "$4.99")
+
+        // 回到預設字級驗登入引導。
+        app.setContentSize(nil)
+        app.scrollIntoView(benefits, search: .up)
         let subscribe = app.buttons["plus.subscribe"]
-        XCTAssertTrue(subscribe.waitUntilExists(timeout: 15))
+        XCTAssertTrue(app.scrollIntoView(subscribe, search: .both, timeout: 15))
         XCTAssertEqual(subscribe.label, "Sign In to Subscribe")
 
         subscribe.tap()
@@ -88,6 +66,43 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(done.waitUntilExists(timeout: 5))
         done.tap()
         XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch.waitUntilExists(timeout: 5))
+    }
+
+    @MainActor
+    private func assertPaywallDisclosures(in app: XCUIApplication, size: String, selectedPrice: String) {
+        // 每期內容在最上面(App Store 3.1.2);大字級時方案在畫面外,下面再捲過去。
+        let benefits = app.descendants(matching: .any)["plus.benefits"].firstMatch
+        app.scrollIntoView(benefits, search: .up)
+        XCTAssertTrue(benefits.waitUntilExists(timeout: 15), "沒有每期內容(\(size))")
+        XCTAssertTrue(benefits.label.contains("agent needs you"), benefits.label)
+
+        let monthly = app.descendants(matching: .any)[Self.monthly].firstMatch
+        app.scrollIntoView(monthly, search: .down)
+        XCTAssertTrue(monthly.exists, "沒有月繳方案(\(size))")
+        XCTAssertTrue(monthly.label.contains("Purrdr Plus Monthly"), monthly.label)
+        XCTAssertTrue(monthly.label.contains("$4.99"), monthly.label)
+        XCTAssertTrue(monthly.label.contains("month"), monthly.label)
+        XCTAssertTrue(monthly.label.contains("2 weeks free"), monthly.label)
+        let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
+        app.scrollIntoView(yearly, search: .down)
+        XCTAssertTrue(yearly.label.contains("Purrdr Plus Yearly"), yearly.label)
+        XCTAssertTrue(yearly.label.contains("$39.99"), yearly.label)
+        XCTAssertTrue(yearly.label.contains("year"), yearly.label)
+
+        let disclosure = app.staticTexts["plus.disclosure"]
+        app.scrollIntoView(disclosure, search: .down)
+        XCTAssertTrue(disclosure.label.contains("2 weeks"), disclosure.label)
+        // 預設選年繳(完整扣款揭露保留)。
+        XCTAssertTrue(disclosure.label.contains(selectedPrice), disclosure.label)
+        XCTAssertTrue(disclosure.label.contains("renews automatically"), disclosure.label)
+        XCTAssertTrue(disclosure.label.contains("24 hours"), disclosure.label)
+
+        for identifier in ["plus.restore", "plus.redeem", "plus.terms", "plus.privacy"] {
+            let element = app.descendants(matching: .any)[identifier].firstMatch
+            app.scrollIntoView(element, search: .down)
+            XCTAssertTrue(element.isHittable, "\(identifier) 點不到(\(size))")
+            XCTAssertGreaterThanOrEqual(element.frame.height, 44, "\(identifier) 觸控目標太小(\(size))")
+        }
     }
 
     /// 已訂閱(#323):方案區塊有「管理訂閱」,「你的 Plus 包含」逐項帶目前狀態,點了到帳號頁;不再只有一張卡片。

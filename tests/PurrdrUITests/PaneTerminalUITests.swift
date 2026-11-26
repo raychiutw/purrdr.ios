@@ -24,7 +24,7 @@ final class PaneTerminalUITests: XCTestCase {
     /// 同一次啟動串起終端機的基本行為:連線與狀態、往回捲、鍵盤接管、按鍵列、Ctrl 鎖定(#374 瘦身;原本各自啟動)。
     /// 順序刻意排好:先捲動(還沒打字)，再打字，之後的步驟接著前面輸入的內容往下斷言。
     @MainActor
-    func testTerminalBehaviors() {
+    func testTerminalBehaviorsThenReturningFromBackgroundReappliesControl() {
         let app = XCUIApplication.launchUITesting()
         let screen = openTerminal(app)
 
@@ -108,22 +108,17 @@ final class PaneTerminalUITests: XCTestCase {
             screen.expectValue(containing: "^C")
             XCTAssertEqual(ctrl.value as? String, "Off", "送出後 Ctrl 要放開")
         }
-    }
 
-    /// 只在畫面顯示時持有 Pane 的尺寸(#357):進背景(鎖定也是)放開控制,回到前景自動以手機的格數重新接上,不必按「重新連線」。
-    @MainActor
-    func testReturningFromBackgroundReappliesControl() {
-        let app = XCUIApplication.launchUITesting()
-        let screen = openTerminal(app)
-        screen.expectValue(containing: "demo@purrdr ledger %")
+        // 只在畫面顯示時持有 Pane 的尺寸(#357):進背景(鎖定也是)放開控制,回到前景自動以手機的格數重新接上,不必按「重新連線」。
+        step("進背景再回前景自動接回") {
+            XCUIDevice.shared.press(.home)
+            XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10), "沒有進背景")
+            app.activate()
 
-        XCUIDevice.shared.press(.home)
-        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10), "沒有進背景")
-        app.activate()
-
-        XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "回到前景沒有自動接回:\(app.terminalHeader)")
-        XCTAssertFalse(app.buttons["terminal.reconnect"].exists, "自己放開的，回來不該要使用者按「重新連線」")
-        screen.expectValue(containing: "demo@purrdr ledger %")
+            XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "回到前景沒有自動接回:\(app.terminalHeader)")
+            XCTAssertFalse(app.buttons["terminal.reconnect"].exists, "自己放開的，回來不該要使用者按「重新連線」")
+            screen.expectValue(containing: "demo@purrdr ledger %")
+        }
     }
 
     /// 貼上失敗的說明顯示在終端機上方、不彈 alert(#625、#626):`-uiTestingOversizedClipboard` 讓剪貼簿一開始就超過貼上上限。
