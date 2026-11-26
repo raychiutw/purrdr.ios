@@ -230,7 +230,8 @@ final class ConversationUITests: XCTestCase {
         let load = app.element("conversation.agentImage.load")
         XCTAssertTrue(app.revealInConversation(load), "超過 8 MiB 的掃描檔應該等點擊")
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Not loaded automatically")).firstMatch.exists, "沒有顯示大小與說明")
-        XCTAssertGreaterThanOrEqual(load.frame.height, 44)
+        // 觸控目標 44pt 由 `HitTarget` 的 minHeight 撐住;座標換算會有浮點誤差(實測 43.99999999999994),所以給 0.5pt 容差。
+        XCTAssertGreaterThanOrEqual(load.frame.height, 43.5)
         load.tap()
         let scan = app.element("conversation.agentImage.thumbnail", labelPrefix: "Image statement-scan.png")
         XCTAssertTrue(scan.waitUntilExists(timeout: 15), "點了之後掃描檔沒有載入")
@@ -492,7 +493,7 @@ final class ConversationUITests: XCTestCase {
         // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
         let window = app.windows.firstMatch.frame
         let keyboard = app.keyboards.firstMatch
-        let visibleBottom = keyboard.exists ? min(keyboard.frame.minY, window.maxY) : window.maxY
+        let visibleBottom = keyboard.exists ? ((try? keyboard.snapshot()).map { min($0.frame.minY, window.maxY) } ?? window.maxY) : window.maxY
 
         // 可用高度從狀態列下緣算，比可見範圍小;以可見範圍當上界只會放寬。
         let height = text.frame.height
