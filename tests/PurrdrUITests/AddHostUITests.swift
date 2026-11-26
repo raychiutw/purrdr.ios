@@ -85,6 +85,9 @@ final class AddHostUITests: XCTestCase {
         XCTAssertTrue(app.waitForKeyboardToHide(), "按「完成」後鍵盤沒有收起")
         XCTAssertTrue(app.buttons["guide.next"].isHittable, "鍵盤收起後「Next」點不到")
 
+        // 回上一步(左上系統返回鈕)到選登入方式那一頁,再選私鑰。
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["guide.option.password"].waitUntilExists(timeout: 5), "返回後沒有回到選登入方式那一頁")
         app.buttons["Other Ways"].firstMatch.tapWhenReady()  // 系統 DisclosureGroup 的展開鈕(#622)
         app.buttons["guide.option.importedKey"].tapWhenReady()
 
