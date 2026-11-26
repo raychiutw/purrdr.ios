@@ -132,4 +132,22 @@ final class IPadSidebarUITests: XCTestCase {
         XCTAssertTrue(UITestWait.until(timeout: 10) { app.element("spaces.tab.demo/w1:t1").isHittable }, "再點一次列表欄沒有回來")
         XCTAssertTrue(app.element("composer.text").exists, "展開後對話不見了")
     }
+
+    /// 列表欄標題跟系統(iPadOS 26 起 sidebar 預設 inline):標題「Chats」存在、在列表欄範圍內,且不和右側控制項、列表第一列重疊。
+    @MainActor
+    func testListColumnTitleExistsAndDoesNotOverlap() {
+        let app = launch()
+        openChat(app)
+        let title = app.topBarTitle("Chats")
+        XCTAssertTrue(title.waitUntilExists(timeout: 10), "列表欄沒有標題\n\(app.debugDescription)")
+        let row = app.element("spaces.tab.demo/w1:t1")
+        XCTAssertTrue(row.waitUntilExists(timeout: 10))
+        let newChat = app.buttons["toolbar.newChat"].firstMatch
+        XCTAssertTrue(newChat.waitUntilExists(timeout: 5))
+        print("IPADTITLE title=\(title.frame) newChat=\(newChat.frame) row=\(row.frame)")
+        XCTAssertGreaterThan(title.frame.width, 0)
+        XCTAssertLessThanOrEqual(title.frame.maxX, newChat.frame.minX + 1, "標題和右側控制項重疊")
+        XCTAssertLessThanOrEqual(title.frame.maxY, row.frame.minY + 1, "標題和列表第一列重疊")
+        XCTAssertLessThan(title.frame.maxX, app.windows.firstMatch.frame.midX, "標題不在左側列表欄")
+    }
 }

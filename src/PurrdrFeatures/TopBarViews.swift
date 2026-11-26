@@ -66,8 +66,10 @@ private struct TopBarPageModifier: ViewModifier {
             .appPageContentWidth()
             .background(AppSurface.groupedPage)
             .navigationTitle(content.title)
+            // 標題樣式交給系統:iPhone 與一疊的根頁是大標題;iPadOS 26 起 regular 寬度的列表欄(sidebar)預設 inline。
+            // 不強制 `.large`(iPad 照系統,docs/research/ipados27-hig-research.md)。
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.automatic)
             #endif
             .toolbar { TopBarToolbar(content: content) }
             .modifier(TopBarSearchModifier(search: content.search))

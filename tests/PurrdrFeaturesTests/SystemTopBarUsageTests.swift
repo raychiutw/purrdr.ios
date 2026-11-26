@@ -35,6 +35,13 @@ struct SystemTopBarUsageTests {
         #expect(text.contains("ToolbarItemGroup"), "電腦圖示與＋要放同一個 ToolbarItemGroup 讓系統合成膠囊")
         #expect(text.contains("ToolbarSpacer"), "頭像要用 ToolbarSpacer 與膠囊隔開")
     }
+
+    @Test("標題樣式交給系統:不強制 .large(iPad 列表欄照 iPadOS 預設 inline)")
+    func titleDisplayModeFollowsSystem() throws {
+        let text = try String(contentsOf: Self.featuresFolder.appending(path: "TopBarViews.swift"), encoding: .utf8)
+        #expect(!text.contains("navigationBarTitleDisplayMode(.large)"), "不強制大標題;iPad 列表欄走系統預設")
+        #expect(text.contains("navigationBarTitleDisplayMode(.automatic)"), "標題樣式明確交給系統")
+    }
 }
 
 /// 選主機全 app 只有一種長相:頂列右上電腦圖示選單(#616、spec #612)。主機 tab 不再有頁面內的主機清單。
