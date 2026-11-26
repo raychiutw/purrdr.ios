@@ -112,4 +112,24 @@ final class IPadSidebarUITests: XCTestCase {
         app.buttons["panel.cancel"].tap()
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "取消後輸入框沒有回來")
     }
+
+    /// 系統的 sidebar 開關(HIG Toolbars:前緣放顯示／隱藏 sidebar;`NavigationSplitView` 預設給,不自己畫也不拿掉):
+    /// 點了收起列表欄、對話欄拿到整個視窗,再點一次回來;列表欄的選取不丟。
+    @MainActor
+    func testSystemSidebarToggleCollapsesAndRestoresListColumn() {
+        let app = launch()
+        openChat(app)
+        let toggle = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Sidebar'")).firstMatch
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有系統的 sidebar 開關\n\(app.debugDescription)")
+        let row = app.element("spaces.tab.demo/w1:t1")
+        XCTAssertTrue(row.isHittable, "收起前列表欄應該看得到")
+
+        toggle.tap()
+        XCTAssertTrue(UITestWait.until(timeout: 10) { !row.isHittable }, "點 sidebar 開關後列表欄沒有收起")
+        XCTAssertTrue(app.element("composer.text").exists, "收起列表欄後對話不見了")
+
+        toggle.tap()
+        XCTAssertTrue(UITestWait.until(timeout: 10) { app.element("spaces.tab.demo/w1:t1").isHittable }, "再點一次列表欄沒有回來")
+        XCTAssertTrue(app.element("composer.text").exists, "展開後對話不見了")
+    }
 }

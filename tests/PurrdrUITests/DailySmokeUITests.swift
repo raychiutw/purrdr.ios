@@ -225,7 +225,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
             XCTAssertFalse(app.buttons["hosts.add"].exists, "流量 tab 右上不放動作")
         }
-        step("設定併在帳號 sheet,只有四個 tab,右上 X 關閉(#503)") {
+        step("設定併在帳號 sheet,只有四個 tab,左上 X 關閉(#503、#623)") {
             XCTAssertFalse(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Settings")).firstMatch.exists, "不該再有設定 tab")
             app.openSettingsSheet()
             let used = app.buttons["Used"].firstMatch
