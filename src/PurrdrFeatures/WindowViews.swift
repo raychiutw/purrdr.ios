@@ -10,15 +10,33 @@ struct WindowDetail: View {
     let navigation: TopNavigationModel
     /// 寬視窗時帳號頭像掛在這一欄的工具列右側(最右邊那欄,視窗右上角;#520);`nil` 時由列表頂列放。
     var account: AnyView?
+    /// 新增聊天頁(#621):寬視窗推進這一欄(對話欄)的堆疊,左上系統返回離開。
+    var newChat: (() -> AnyView)?
 
     var body: some View {
+        @Bindable var navigation = navigation
         NavigationStack {
-            WindowDetailContent(hosts: hosts, navigation: navigation, route: navigation.selectedChat)
-                .appNavigationBackground()
-                .accountToolbarItem(account)
+            Group {
+                if let layout = navigation.selectedLayout {
+                    // 列表欄選了多 Pane 的 Tab:版面圖顯示在對話欄;選了 Pane 就換成那個聊天。
+                    SpacesLayoutDestination(route: layout, snapshot: hosts.agentList.snapshot(for: layout.host), popsOnChoose: false) { host, target in
+                        switch target {
+                        case .chat(let paneID), .terminal(let paneID): navigation.selectedChat = ChatRoute(host: host, paneID: paneID)
+                        }
+                    }
+                } else {
+                    WindowDetailContent(hosts: hosts, navigation: navigation, route: navigation.selectedChat)
+                }
+            }
+            .appNavigationBackground()
+            .accountToolbarItem(account)
+            .navigationDestination(isPresented: $navigation.isNewChatOpen) {
+                if let newChat { newChat() }
+            }
         }
-        // 換一個聊天就整個重建(對話 model、推入的終端機)。
-        .id(navigation.selectedChat)
+        // 換一個聊天(或版面圖)就整個重建(對話 model、推入的終端機)。
+        .id(navigation.sidebarSelection)
+        .onChange(of: navigation.sidebarSelection) { navigation.isNewChatOpen = false }
     }
 }
 
@@ -32,11 +50,11 @@ struct WindowDetailContent: View {
     var body: some View {
         if let route, let title = hosts.agentList.terminalTitle(of: route) {
             // agent 以外的 pane(Spaces 的終端機列、版面圖的終端機方塊):開它的 Pane 終端機(#40)。
-            PaneTerminalScreen(model: hosts.terminal(route, title: title))
+            PaneTerminalScreen(model: hosts.member(for: route.host).terminal(paneID: route.paneID, title: title))
         } else if let route {
             ConversationScreen(
-                model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
-                makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route,
+                model: hosts.member(for: route.host).conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
+                makeTerminal: { hosts.member(for: route.host).terminal(paneID: $0, title: $1) }, window: navigation, route: route,
                 layoutSnapshot: { hosts.agentList.snapshot(for: route.host) },
                 openLayoutTarget: { target in
                     switch target {
@@ -64,7 +82,6 @@ public struct PaneWindowView: View {
         self.hosts = hosts
     }
 
-    @Environment(\.scenePhase) private var scenePhase
 
     public var body: some View {
         NavigationStack {
@@ -85,11 +102,6 @@ public struct PaneWindowView: View {
         }
         // 跟主視窗一樣套用選取中主機的主題(#23)。
         .selectedHostTheme(hosts)
-        // 只剩 Pane 視窗時「需要你」橫幅也要更新(#546):與主視窗共用同一個訂閱(`runShared`),不重複訂閱;背景不推進(#492)。
-        .task(id: scenePhase == .active) {
-            guard scenePhase == .active, window.kind == .chat else { return }
-            await hosts.agentList.needsYou.runShared(observing: hosts.agentList)
-        }
     }
 }
 
@@ -103,8 +115,8 @@ private struct PaneWindowContent: View {
         switch window.kind {
         case .chat:
             ConversationScreen(
-                model: hosts.conversation(route, sessionID: window.sessionID),
-                makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) })
+                model: hosts.member(for: route.host).conversation(route, sessionID: window.sessionID),
+                makeTerminal: { hosts.member(for: route.host).terminal(paneID: $0, title: $1) })
             .environment(\.usageHost, route.host)
             // 「需要你」橫幅(#539):自己的聊天不算;點了在主視窗開那個聊天並帶到前面,沒有主視窗就開新的 Pane 視窗。
             .environment(\.needsYouBanner, NeedsYouBannerContext(merged: hosts.agentList, windowChat: route, open: openFromBanner))
@@ -112,7 +124,7 @@ private struct PaneWindowContent: View {
             .onAppear { hosts.agentList.chatAppeared(route) }
             .onDisappear { hosts.agentList.chatDisappeared(route) }
         case .terminal:
-            PaneTerminalScreen(model: hosts.terminal(route, title: window.title))
+            PaneTerminalScreen(model: hosts.member(for: route.host).terminal(paneID: route.paneID, title: window.title))
         }
     }
 
@@ -143,10 +155,19 @@ extension FocusedValues {
     @Entry public var windowCommands: WindowCommands?
 }
 
+/// 最近一個登記快捷鍵入口的視窗。`@FocusedValue` 在焦點落在 UIKit 的視圖(點了列表的列、聊天的輸入框)時會是 `nil`,
+/// 選單項目就停用、快捷鍵沒反應,所以沒有焦點值時退回這一份。
+@MainActor
+@Observable
+final class WindowCommandsHub {
+    static let shared = WindowCommandsHub()
+    var latest: WindowCommands?
+}
+
 /// app 的選單列與快捷鍵(#31,HIG 檢核清單 20.9)。作用在有焦點的視窗。
 ///
 /// - 「新增對話」用 Command-N(系統慣例的「新增」),「新視窗」改用 Option-Command-N(同「郵件」)。
-/// - 選單列的「Settings…」保留給系統的設定 app 頁面(拿掉它預設的 Command-,);app 內設定另列「App Settings…」(Command-,)。
+/// - 選單列的「Settings…」(Command-,)是系統的、開 iOS 設定 app 的頁面,不取代;app 內設定另列「App Settings…」(Option-Command-,)。
 /// - 選單裡的每個動作在畫面上也都找得到(列表工具列、對話標題列的終端機鈕、搜尋欄)。
 public struct PurrdrCommands: Commands {
     @FocusedValue(\.windowCommands) private var window
@@ -164,14 +185,10 @@ public struct PurrdrCommands: Commands {
             Button("New Window") { openWindow(id: Self.mainWindowID) }
                 .keyboardShortcut("n", modifiers: [.command, .option])
         }
-        // 系統的「Settings…」預設也用 Command-,(同一個快捷鍵兩項會讓選單建立失敗而 crash):
-        // 換成不帶快捷鍵、一樣打開系統設定 app 的項目，Command-, 給 app 內設定。
-        CommandGroup(replacing: .appSettings) {
-            #if canImport(UIKit)
-            Button("Settings…") {
-                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
-            }
-            #endif
+        // iPadOS 選單列的「App 名稱 > Settings…」(Command-,)是系統自動產生、不能取代的項目,開 iOS「設定」app 裡這個 app 的頁面
+        // (HIG〈The menu bar〉、DTS:不能取代 Settings 項目;app 自己的設定用另一個項目接在它下面)。所以這裡只在它後面加
+        // 「App Settings…」(Option-Command-,),不取代、也不佔 Command-,(取代的做法實測第二次啟動起被系統接走)。
+        CommandGroup(after: .appSettings) {
             button(.settings)
         }
         // 「顯示方式」:系統「View」選單的最前面(#522)。項目不顯示圖示(iPadOS 27 預設)。
@@ -190,10 +207,12 @@ public struct PurrdrCommands: Commands {
     }
 
     private func button(_ command: KeyboardCommand) -> some View {
-        let context = window?.context ?? KeyboardCommandContext()
-        return Button(command.title(in: context)) { window?.perform(command) }
+        let focused = window
+        let context = (focused ?? WindowCommandsHub.shared.latest)?.context ?? KeyboardCommandContext()
+        // 動作在按下當下才找視窗(選單建立時可能還沒有焦點值,也還沒登記視窗),選單項目不因「還沒有視窗」而停用。
+        return Button(command.title(in: context)) { (focused ?? WindowCommandsHub.shared.latest)?.perform(command) }
             .keyboardShortcut(command.shortcut)
-            .disabled(window == nil || !command.isEnabled(in: context))
+            .disabled(!command.isEnabled(in: context))
     }
 }
 

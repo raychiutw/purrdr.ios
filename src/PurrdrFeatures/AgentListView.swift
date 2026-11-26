@@ -38,6 +38,9 @@ public struct AgentListView: View {
     @Bindable var model: MergedAgentListModel
     @State private var presentation = WorkspacePresentation()
     @Environment(\.scenePhase) private var scenePhase
+    /// 聊天是推入(窄視窗的 `NavigationStack`)還是選取(寬視窗,對話在對話欄)。由視窗層級的 size class 決定:
+    /// 列表欄自己的環境 size class 在 split view 的欄裡可能是 compact(實測),不能用。
+    private let pushesChats: Bool
     /// 建立某台主機上某個 Agent 的對話 model(列表看到的 session)。由 composition root 提供。
     private let makeConversation: @MainActor (ChatRoute, String?) -> ConversationModel
     /// 建立某台主機上某個 Pane 的終端機 model(標題)。由 composition root 提供。
@@ -47,6 +50,8 @@ public struct AgentListView: View {
     /// 所在視窗的導覽狀態(#31)。有的話：列是 split view 的選取(對話顯示在對話欄)、套用側欄的 workspace 篩選;
     /// 沒有的話列表自己推入對話。
     private let window: TopNavigationModel?
+    /// 路徑上聊天目的地的畫面(窄視窗的堆疊給;寬視窗聊天顯示在對話欄,不給)。
+    private let chatDestination: (ChatRoute) -> AnyView
     /// 把 Agent 對話或終端機開在新視窗(支援多視窗時才有)。
     private let openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)?
     /// 共用頂列的動作(#499):新增聊天、新增主機與帳號鈕。
@@ -59,6 +64,8 @@ public struct AgentListView: View {
         model: MergedAgentListModel, window: TopNavigationModel? = nil,
         openInNewWindow: ((_ kind: PaneWindow.Kind, _ route: ChatRoute, _ title: String) -> Void)? = nil,
         topBar: ChatTopBarActions,
+        chatDestination: @escaping (ChatRoute) -> AnyView = { _ in AnyView(EmptyView()) },
+        pushesChats: Bool = false,
         prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
@@ -70,6 +77,8 @@ public struct AgentListView: View {
         self.window = window
         self.openInNewWindow = openInNewWindow
         self.topBarActions = topBar
+        self.chatDestination = chatDestination
+        self.pushesChats = pushesChats
     }
 
     private static let prefetchCount = 8
@@ -93,8 +102,7 @@ public struct AgentListView: View {
                     }
                     // 對話欄打開與換掉的聊天各記一次開啟時間;開在旁邊的不算未讀(行為規格 F2.6)。
                     .onChange(of: window.selectedChat, initial: true) { old, new in
-                        if let old, old != new { model.chatDisappeared(old) }
-                        if let new { model.chatAppeared(new) }
+                        window.reportVisibleChat(new, to: model)
                     }
             } else {
                 content
@@ -106,7 +114,7 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 共用頂列(#499):左側大標題「聊天」,右側 [電腦圖示｜＋] 膠囊與頭像;往下滑時收合,搜尋欄貼頂。
+        // 共用頂列(#499):左側大標題「聊天」,右側 [電腦圖示｜＋] 膠囊與頭像;大標題與搜尋欄的收合由系統處理。
         // 搜尋範圍是目前主機(所有主機就搜全部),比對 Tab、Workspace、主機(含 Tab 裡的 Agent 標題)。
         // 共用頁面(`topBarPage`):頁面底色、iPad 內容寬度上限、導覽標題(返回鈕用,導覽列隱藏)與頂列。
         .topBarPage(topBarContent)
@@ -123,7 +131,14 @@ public struct AgentListView: View {
         }
         // 預先載入前幾個聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
         // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
-        .task(id: model.agentRows.filter(\.isAway).map(\.id)) {
+        // 離開期間門檻(15 分鐘)一到就重算,徽章不晚到下一次無關的更新(#583);只在前景等。
+        .task(id: AwayTransitionKey(active: scenePhase == .active, at: model.nextAwayTransition(after: now))) {
+            guard scenePhase == .active, let at = model.nextAwayTransition(after: Date()) else { return }
+            try? await Task.sleep(for: .seconds(max(0, at.timeIntervalSinceNow) + 0.05))
+            guard !Task.isCancelled else { return }
+            now = Date()
+        }
+        .task(id: model.awayRoutes) {
             await model.refreshAwayTurns()
         }
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
@@ -157,8 +172,8 @@ public struct AgentListView: View {
         var needsTicks: Bool
     }
 
-    private var selection: Binding<ChatRoute?> {
-        Binding { window?.selectedChat } set: { window?.selectedChat = $0 }
+    private var sidebarSelection: Binding<SidebarSelection?> {
+        Binding { window?.sidebarSelection } set: { window?.sidebarSelection = $0 }
     }
 
     /// Agent 的 pane 開對話;agent 以外的 pane(終端機列、版面圖的終端機方塊)開它的 Pane 終端機(#37 故事 14)。
@@ -289,13 +304,17 @@ public struct AgentListView: View {
         let sections = model.spacesSections
         let prefetchRoutes = AgentListProjection.prefetchRoutes(from: sections, limit: Self.prefetchCount)
         return Group {
-            // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
-            if window != nil {
-                List(selection: selection) {
+            // 寬視窗(split view 的列表欄):列是系統選取(`List(selection:)` 加同型別的 `NavigationLink(value:)`,持續高亮,HIG 20.9),
+            // 聊天與多 Pane Tab 的版面圖都顯示在對話欄;窄視窗的堆疊是推入,List 不能有 selection
+            // (NavigationLink 在有 selection 的 List 裡,push 後第一下返回會被吃掉,#641 查出的根因)。
+            // 推入或選取看**視窗層級**的 size class(`pushesChats`):列表欄自己的環境值在 split view 的欄內可能是 compact(實測)。
+            if window != nil && !pushesChats {
+                List(selection: sidebarSelection) {
                     hostStatusRows
                     listRows(sections)
                 }
                 .environment(\.selectedChatRoute, window?.selectedChat)
+                .environment(\.usesSidebarSelection, true)
             } else {
                 List {
                     hostStatusRows
@@ -307,6 +326,7 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         .appGroupedList()
         #endif
+        .environment(\.pushesChatsByPath, window != nil && pushesChats)
         // 記住列數,下次冷啟動的載入骨架照這個數量(#496)。
         .onAppear { model.rememberRowCount(of: sections) }
         .onChange(of: MergedAgentListModel.rowCount(of: sections)) { model.rememberRowCount(of: sections) }
@@ -319,7 +339,11 @@ public struct AgentListView: View {
             }
         }
         // 版面圖選的 Pane:聊天推入對話(或在對話欄打開);Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
-        .workspaceActionsPresentation(actions: { model.actions(for: $0) }, presentation: presentation) { host, target in
+        .workspaceActionsPresentation(
+            actions: { model.actions(for: $0) }, snapshot: { model.snapshot(for: $0) }, presentation: presentation,
+            path: Binding { window?.chatsPath ?? [] } set: { window?.chatsPath = $0 },
+            showLayoutInDetail: window != nil && !pushesChats ? { [weak window] route in window?.selectedLayout = route } : nil,
+            chatDestination: chatDestination) { host, target in
             // 版面圖選的 Pane:Agent 開對話，終端機方塊開它的 Pane 終端機(兩者都以 pane 指定，見 `conversationScreen`)。
             switch target {
             case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
@@ -345,11 +369,14 @@ public struct AgentListView: View {
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
            sections.isEmpty {
             // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。
+            // 系統空狀態(ContentUnavailableView)放在列裡,與下面的「連線中斷」區塊同時出現時也不疊在一起。
             Section {
-                Text("No agents on \(filtered.name).")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
+                ContentUnavailableView(
+                    "No Agents", systemImage: "bubble.left.and.bubble.right",
+                    description: Text("No agents on \(filtered.name)."))
                     .accessibilityIdentifier("agentList.filterEmpty")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         }
         if !failures.isEmpty, !searchHasNoMatch(sections) {
@@ -364,6 +391,7 @@ public struct AgentListView: View {
                 }
                 Button("Try Again", systemImage: "arrow.clockwise") { model.retry() }
                     .font(.footnote)
+                    .listAction()
                     .accessibilityIdentifier("agentList.retry")
             } header: {
                 Text("Connection Lost")
@@ -397,12 +425,13 @@ struct ConversationScreen: View {
     let openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)?
     @State private var showsLayout = false
     @State private var pendingLayoutTarget: PaneOpenTarget?
-    /// 用量環與用量 sheet(#513):這個聊天的 Agent 在這台主機的方案用量(沒有來源時是 `nil`)。
+    /// 用量環與面板(#513、#617):這個聊天的 Agent 在這台主機的方案用量(沒有來源時是 `nil`)。
     @Environment(\.usageSections) private var usageContext
     @Environment(\.usageHost) private var usageHost
     @Environment(\.scenePhase) private var scenePhase
     @State private var usageSection: UsageSectionModel?
     @State private var showsUsage = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     /// 「⋯」選單開的 sheet(#515):權限模式、做完再送、待辦、背景子 Agent;模型與思考深度另用 `isChoosingModel`(同輸入框的模型膠囊)。
     @State private var menuSheet: ConversationMenuSheetKind?
     @State private var isChoosingModel = false
@@ -426,26 +455,19 @@ struct ConversationScreen: View {
             .toolbar {
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItemGroup(placement: .primaryAction) {
-                    if let usageSummary {
-                        UsageRingButton(summary: usageSummary) { showsUsage = true }
-                    }
-                    ConversationMoreMenu(
-                        model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
-                        canShowLayout: layoutSnapshot != nil, select: selectMenuItem)
+                    usageRing
+                    moreMenu
                 }
             }
             .task(id: UsageLifecycleKey(active: scenePhase == .active, agentKind: model.agentKind)) { startUsage() }
             .onChange(of: model.modelName) { _, name in usageSection?.activeGroup = name.flatMap(PlanUsage.Group.init(modelName:)) }
-            .sheet(isPresented: $showsUsage) {
-                ConversationUsageSheet(model: model, section: usageSection, display: usageContext?.display.display ?? .used)
-                    .appSheetBackground()
-            }
-            .modifier(ConversationInspectorModifier(
-                window: window, model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used))
-            .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model).appSheetBackground() }
+            .conversationPanelSheet(
+                isPresented: panelBinding(compact: true), model: model, usageSection: usageSection,
+                display: usageContext?.display.display ?? .used)
+            .onChange(of: window?.conversationPanelToggleCount) { showsUsage.toggle() }
+            .sheet(item: $menuSheet) { ConversationMenuSheet(kind: $0, model: model) }
             .sheet(isPresented: $isChoosingModel, onDismiss: { Task { await model.finishChoosingModel() } }) {
                 ModelSheet(model: model)
-                    .appSheetBackground()
             }
             // 工作中膠囊的子 Agent 數被點了:開背景子 Agent sheet。
             .onChange(of: model.showsBackgroundAgentsSheet) { _, shown in
@@ -454,22 +476,23 @@ struct ConversationScreen: View {
                 menuSheet = .backgroundAgents
             }
             .task(id: model.canOpenChanges) { await model.refreshGitMenu() }
-            .sheet(isPresented: $showsLayout) {
-                Group {
+            // 顯示版面是下一頁(#619):從聊天再往下一層,左上「<」回聊天。
+            .navigationDestination(isPresented: $showsLayout) {
                 if let workspaceID = model.workspaceID, let snapshot = layoutSnapshot?() {
                     let label = snapshot.workspaces.first { $0.id == workspaceID }?.label ?? workspaceID
-                    SpacesLayoutSheet(
+                    SpacesLayoutPage(
                         workspaceLabel: label, layout: SpacesLayout(snapshot: snapshot, workspaceID: workspaceID),
                         onChoose: { pendingLayoutTarget = $0 })
                 }
-                }
-                .appSheetBackground()
             }
             .onChange(of: showsLayout) { _, shown in
-                // sheet 關閉後才開選到的 Pane(不能在關 sheet 的同一刻 push)。
+                // 返回聊天之後才開選到的 Pane(不能在返回的同一刻 push)。
                 guard !shown, let target = pendingLayoutTarget else { return }
                 pendingLayoutTarget = nil
-                openLayoutTarget?(target)
+                Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    openLayoutTarget?(target)
+                }
             }
             .navigationDestination(isPresented: Binding(get: { changes != nil }, set: { if !$0 { changes = nil } })) {
                 if let changes {
@@ -502,12 +525,38 @@ struct ConversationScreen: View {
         var agentKind: String?
     }
 
+    private var usageRing: some View {
+        UsageRingButton(
+            state: usageRingState, showsPopover: panelBinding(compact: false), tap: { showsUsage = true },
+            model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used)
+    }
+
+    private var moreMenu: some View {
+        ConversationMoreMenu(
+            model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
+            canShowLayout: layoutSnapshot != nil, select: selectMenuItem)
+    }
+
+    /// 聊天面板的開關(#617):compact 是 sheet、regular 是 popover,只有符合目前 size class 的那個開。
+    private func panelBinding(compact: Bool) -> Binding<Bool> {
+        Binding(
+            get: { showsUsage && (horizontalSizeClass == .compact) == compact },
+            set: { showsUsage = $0 })
+    }
+
     /// 頂列用量環的內容:context 與這台主機的方案用量取最高的一項。
     private var usageSummary: UsageSummary? {
         UsageSummary.make(
             contextUsed: model.displayProgress.contextPercent,
             planRows: usageSection?.entries.filter { $0.state == .rows }.flatMap(\.rows) ?? [],
             display: usageContext?.display.display ?? .used)
+    }
+
+    /// 頂列用量環的狀態(#644):context 或方案用量還沒讀到第一次結果前是載入中。
+    private var usageRingState: UsageRingState {
+        UsageRingState.make(
+            summary: usageSummary, isContextLoading: model.isSessionStatusLoading,
+            isPlanLoading: usageSection?.entries.contains { $0.state == .loading } ?? false)
     }
 
     /// 聊天在畫面上才查方案用量,離開或進背景就停(沒有來源的 Agent 種類不查)。
@@ -528,7 +577,7 @@ struct ConversationScreen: View {
     /// 點「⋯」選單的項目:開各自的 sheet 或畫面。
     private func selectMenuItem(_ item: ConversationMoreMenuPlan.Item) {
         switch item {
-        case .usage: showsUsage = true
+        case .usage: showsUsage = true    // 開面板(從用量環展開)
         case .permissionMode: menuSheet = .permissionMode
         case .model:
             isChoosingModel = true
@@ -651,8 +700,12 @@ extension AgentStatus {
 }
 
 extension EnvironmentValues {
+    /// 列以導覽路徑推入(窄視窗的 `NavigationStack(path:)`);`false` 時列是 split view 的選取。
+    @Entry var pushesChatsByPath = false
     /// iPad split view 列表目前選取的聊天(`selectionFill(for:)` 用);獨立的 NavigationStack 沒有選取。
     @Entry var selectedChatRoute: ChatRoute?
+    /// 列是寬視窗列表欄的系統選取(值是 `SidebarSelection`);`false` 是窄視窗的推入或沒有視窗狀態的列表。
+    @Entry var usesSidebarSelection = false
 }
 
 extension View {
@@ -673,4 +726,9 @@ private struct SelectionFillModifier: ViewModifier {
             .foregroundStyle(.primary)
             .listRowBackground(isSelected ? Rectangle().fill(.neutralSelection) : nil)
     }
+}
+
+private struct AwayTransitionKey: Equatable {
+    var active: Bool
+    var at: Date?
 }

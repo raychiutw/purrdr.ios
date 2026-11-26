@@ -21,6 +21,7 @@ public struct PaneTerminalButton: View {
 #if canImport(UIKit)
 import SwiftTerm
 import UIKit
+import UniformTypeIdentifiers
 
 /// Pane 終端機。
 public typealias PaneTerminalView = TerminalSessionView
@@ -34,9 +35,9 @@ public struct TerminalSessionView: View {
     let model: any TerminalSessionModel
     /// 登入 Shell 的主機挑選鈕(#245);Pane 終端機沒有。
     let hostPicker: HostPickerModel?
-    @Environment(\.scenePhase) private var scenePhase
     @State private var screen = TerminalScreenHandle()
     @State private var isOnScreen = false
+    @State private var clipboardRequests = ClipboardWriteRequests()
     /// 主機主題的終端機配色(#23);`nil` 時用預設深色。
     @Environment(\.hostTheme) private var hostTheme
     @Environment(\.paneWindowTitle) private var paneWindowTitle
@@ -47,61 +48,106 @@ public struct TerminalSessionView: View {
     }
 
     public var body: some View {
+        terminalContent
+            .modifier(ClipboardRequestAlert(requests: clipboardRequests))
+            .modifier(TerminalLifecycle(model: model, screen: screen, isOnScreen: $isOnScreen))
+    }
+
+    /// 終端機畫面與導覽列(拆出 body,避免型別推斷逾時)。
+    private var terminalContent: some View {
         VStack(spacing: 0) {
+            if let notice = model.notice {
+                // 純告知不彈 alert(#625):貼上失敗等直接顯示在終端機上方。
+                HStack {
+                    ErrorLabel(notice.text, area: "PaneTerminal", error: notice.descriptor)
+                    Spacer(minLength: 8)
+                    Button("Dismiss") { model.notice = nil }
+                        .buttonStyle(.borderless)
+                }
+                .font(.footnote)
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .accessibilityIdentifier("terminal.notice")
+            }
             if let banner = model.bannerText {
                 TerminalBanner(text: banner, model: model)
             }
-            TerminalScreen(model: model, handle: screen, theme: hostTheme?.terminal)
+            TerminalScreen(model: model, handle: screen, clipboardRequests: clipboardRequests, theme: hostTheme?.terminal)
                 .padding(.horizontal, 4)
             TerminalKeyBar(model: model, screen: screen)
         }
         .background(hostTheme?.terminal.map { SwiftUI.Color($0.background) } ?? SwiftUI.Color.black)
         .environment(\.colorScheme, .dark)
+        // 系統標題＋副標題(#621,同聊天頂列):名稱是標題、連線狀態只用文字當副標題,不自畫兩行標題與狀態點。
         .navigationTitle(paneWindowTitle ?? model.title)
+        .navigationSubtitle(model.statusText)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                TerminalTitle(title: model.title, status: model.status, statusText: model.statusText, hostPicker: hostPicker)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if let hostPicker { HostMenuButton(model: hostPicker, identifier: "loginShell.host") }
                 FontSizeMenu(model: model)
             }
         }
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .alert("Can’t Paste", isPresented: Binding(get: { model.notice != nil }, set: { [model] in if !$0 { model.notice = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(model.notice ?? "")
-        }
-        // 只在畫面顯示時持有 Pane 的尺寸(#357):離開畫面、進背景或鎖定立刻放開控制(電腦上的 Pane 還原成原尺寸),
-        // 回到畫面再以手機的格數重新接上。
-        .onChange(of: scenePhase) { _, phase in
-            switch phase {
-            case .background: BackgroundRelease.hangUp(model)
-            case .active: if isOnScreen { model.resume() }
-            default: break
+    }
+}
+
+/// 只在畫面顯示時持有 Pane 的尺寸(#357):離開畫面、進背景或鎖定立刻放開控制(電腦上的 Pane 還原成原尺寸),
+/// 回到畫面再以手機的格數重新接上;接上後終端機取得焦點。
+private struct TerminalLifecycle: ViewModifier {
+    let model: any TerminalSessionModel
+    let screen: TerminalScreenHandle
+    @Binding var isOnScreen: Bool
+    @Environment(\.scenePhase) private var scenePhase
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .background: BackgroundRelease.hangUp(model)
+                case .active: if isOnScreen { model.resume() }
+                default: break
+                }
             }
+            .onAppear {
+                isOnScreen = true
+                if scenePhase == .active { model.resume() }
+            }
+            .onDisappear {
+                isOnScreen = false
+                BackgroundRelease.hangUp(model)
+            }
+            .onChange(of: model.status) { _, status in
+                // 接上後終端機取得焦點，鍵盤輸入直接送往遠端。
+                if status == .connected { screen.focus() }
+            }
+    }
+}
+
+/// 主機經 OSC 52 要寫剪貼簿時的確認提示(#578):允許才寫，拒絕或關掉就不寫。
+private struct ClipboardRequestAlert: ViewModifier {
+    let requests: ClipboardWriteRequests
+
+    func body(content: Content) -> some View {
+        content.alert("Copy to Clipboard?", isPresented: isPresented) {
+            Button("Allow") { requests.allow() }
+            Button("Don’t Allow", role: .cancel) { requests.deny() }
+        } message: {
+            Text("The host wants to copy text to the clipboard.")
         }
-        .onAppear {
-            isOnScreen = true
-            if scenePhase == .active { model.resume() }
-        }
-        .onDisappear {
-            isOnScreen = false
-            BackgroundRelease.hangUp(model)
-        }
-        .onChange(of: model.status) { _, status in
-            // 接上後終端機取得焦點，鍵盤輸入直接送往遠端。
-            if status == .connected { screen.focus() }
-        }
+    }
+
+    private var isPresented: Binding<Bool> {
+        Binding(get: { requests.hasPendingRequest }, set: { [requests] isShown in if !isShown { requests.deny() } })
     }
 }
 
 /// 放開控制要在 App 被系統凍結前送出:進背景時向系統要一小段執行時間,等 release 送完再還給系統。
 @MainActor
 enum BackgroundRelease {
-    private final class Token: @unchecked Sendable {
+    /// 只在主執行緒讀寫,所以標 `@MainActor`(自動是 Sendable)。
+    @MainActor private final class Token {
         var identifier = UIBackgroundTaskIdentifier.invalid
     }
 
@@ -125,46 +171,23 @@ enum BackgroundRelease {
     }
 }
 
-// MARK: - 標題與狀態
+/// 主機經 OSC 52 要寫剪貼簿的待確認請求(#578);邏輯在核心的 `ClipboardWriteGate`。
+@MainActor
+@Observable
+final class ClipboardWriteRequests {
+    private var gate = ClipboardWriteGate()
 
-struct TerminalTitle: View {
-    let title: String
-    let status: TerminalStatus
-    let statusText: String
-    var hostPicker: HostPickerModel?
+    var hasPendingRequest: Bool { gate.hasPendingRequest }
 
-    var body: some View {
-        if let hostPicker {
-            // 主機挑選鈕是自己的按鈕;狀態另成一個元素，念出主機與狀態。
-            VStack(spacing: 2) {
-                SheetHostPicker(model: hostPicker, identifier: "loginShell.host")
-                statusRow
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "\(title), \(statusText)"))
-                    .accessibilityIdentifier("terminal.status")
-            }
-        } else {
-            VStack(spacing: 0) {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(1)
-                statusRow
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("terminal.status")
-        }
-    }
+    func receive(_ content: Data) { gate.receive(content) }
+    func allow() { gate.allow(into: LocalOnlyClipboard()) }
+    func deny() { gate.deny() }
+}
 
-    private var statusRow: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(status.tone.style)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
-            Text(statusText)
-                .font(.caption)
-                .foregroundStyle(.secondaryText)
-        }
+/// 只寫這支手機的剪貼簿,不經通用剪貼簿同步到 Mac 或其他裝置。
+struct LocalOnlyClipboard: LocalClipboardWriting {
+    func write(_ text: String) {
+        UIPasteboard.general.setItems([[UTType.utf8PlainText.identifier: text]], options: [.localOnly: true])
     }
 }
 
@@ -497,13 +520,14 @@ final class TerminalScreenHandle {
 struct TerminalScreen: UIViewRepresentable {
     let model: any TerminalSessionModel
     let handle: TerminalScreenHandle
+    let clipboardRequests: ClipboardWriteRequests
     /// 主機主題的配色;`nil` = 預設(黑底、淺灰字、SwiftTerm 的 ANSI 色)。
     var theme: TerminalTheme?
     /// 系統「粗體文字」:終端機字型是固定大小的等寬系統字(使用者用 `Aa` 調整),不會自動變粗，要自己跟著換(#35)。
     @Environment(\.legibilityWeight) private var legibilityWeight
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(model: model)
+        Coordinator(model: model, clipboardRequests: clipboardRequests)
     }
 
     func makeUIView(context: Context) -> TerminalScreenContainer {
@@ -600,8 +624,11 @@ struct TerminalScreen: UIViewRepresentable {
         private var pinchStartSize: Double = TerminalFontSize.default
         private var scrolledRows = 0
 
-        init(model: any TerminalSessionModel) {
+        let clipboardRequests: ClipboardWriteRequests
+
+        init(model: any TerminalSessionModel, clipboardRequests: ClipboardWriteRequests) {
             self.model = model
+            self.clipboardRequests = clipboardRequests
         }
 
         func install(on view: PurrdrTerminalView) {
@@ -673,11 +700,9 @@ struct TerminalScreen: UIViewRepresentable {
             }
         }
 
-        /// OSC 52 只能寫、不能讀(SwiftTerm 不支援讀)。herdr 的 control 串流目前不轉送 OSC 52(#4 spike),
-        /// 這裡只是保底:合法 UTF-8 才寫。
+        /// OSC 52 只能寫、不能讀。主機要寫剪貼簿先問使用者(#578),允許才寫、只寫這支手機。
         nonisolated func clipboardCopy(source: TerminalView, content: Data) {
-            guard let text = String(data: content, encoding: .utf8) else { return }
-            MainActor.assumeIsolated { UIPasteboard.general.string = text }
+            MainActor.assumeIsolated { clipboardRequests.receive(content) }
         }
 
         nonisolated func setTerminalTitle(source: TerminalView, title: String) {}

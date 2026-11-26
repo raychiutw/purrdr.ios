@@ -25,6 +25,11 @@ public enum UploadedImages {
         return text.isEmpty ? joined : text + "\n\n" + joined
     }
 
+    private static let imageMarker: NSRegularExpression = {
+        // swiftlint:disable:next force_try
+        try! NSRegularExpression(pattern: #"\[Image #\d+\]"#)
+    }()
+
     /// 把使用者文字拆成「打的字」與圖片路徑(依出現順序、不重複)。
     public static func extract(from text: String) -> (text: String, paths: [String]) {
         var kept: [Substring] = []
@@ -35,7 +40,7 @@ public enum UploadedImages {
                 if !paths.contains(path) { paths.append(path) }
                 continue
             }
-            let stripped = String(line).replacingMatches(#"\[Image #\d+\]"#, with: "")
+            let stripped = line.contains("[Image #") ? String(line).replacingMatches(imageMarker, with: "") : String(line)
             if stripped != String(line), stripped.trimmingCharacters(in: .whitespaces).isEmpty { continue }
             kept.append(Substring(stripped))
         }

@@ -27,8 +27,7 @@ struct ConversationSessionStatusTests {
     static let session = ConversationModelTests.sessionID
 
     static func opened(reader: Reader?) async throws -> ConversationAnswerTests.Setup {
-        let setup = try await ConversationPermissionModeTests.opened()
-        setup.model.sessionStatusReader = reader
+        let setup = try await ConversationPermissionModeTests.opened(links: .init(sessionStatusReader: reader))
         return setup
     }
 
@@ -107,5 +106,82 @@ struct ConversationSessionStatusTests {
 
         #expect(setup.model.sessionStatus == nil)
         #expect(setup.model.header.progress == setup.model.progress)
+    }
+
+    // MARK: 用量環的載入狀態(#644)
+
+    /// 讀取卡在半途直到放行,給「讀取中」的斷言。
+    final class GatedReader: ClaudeSessionStatusReading, @unchecked Sendable {
+        private let lock = NSLock()
+        private var waiting: CheckedContinuation<Void, Never>?
+        private var released = false
+        var statuses: [String: ClaudeSessionStatus] = [:]
+        func sessionStatuses(sessionIDs: [String]) async throws -> [String: ClaudeSessionStatus] {
+            await withCheckedContinuation { continuation in
+                lock.withLock {
+                    if released { continuation.resume() } else { waiting = continuation }
+                }
+            }
+            return statuses
+        }
+        func release() {
+            lock.withLock {
+                released = true
+                waiting?.resume()
+                waiting = nil
+            }
+        }
+    }
+
+    @Test("還沒讀過第一次結果:載入中;讀到之後不再載入")
+    func loadingUntilFirstResult() async throws {
+        let reader = Reader([Self.session: ClaudeSessionStatus(sessionID: Self.session, contextPercent: 31)])
+        let setup = try await Self.opened(reader: reader)
+        #expect(setup.model.isSessionStatusLoading)
+
+        await setup.model.refreshSessionStatusIfDue()
+
+        #expect(!setup.model.isSessionStatusLoading)
+        #expect(setup.model.sessionStatus != nil)
+    }
+
+    @Test("讀取進行中仍是載入中,結果回來才結束")
+    func loadingWhileReadInFlight() async throws {
+        let reader = GatedReader()
+        reader.statuses = [Self.session: ClaudeSessionStatus(sessionID: Self.session, contextPercent: 12)]
+        let setup = try await ConversationPermissionModeTests.opened(links: .init(sessionStatusReader: reader))
+        let model = setup.model
+
+        let reading = Task { await model.refreshSessionStatusIfDue() }
+        for _ in 0..<50 { await Task.yield() }
+        #expect(model.isSessionStatusLoading)
+
+        reader.release()
+        await reading.value
+        #expect(!model.isSessionStatusLoading)
+    }
+
+    @Test("沒有這個 session 的檔(無資料):結束載入")
+    func noDataEndsLoading() async throws {
+        let setup = try await Self.opened(reader: Reader())
+        await setup.model.refreshSessionStatusIfDue()
+        #expect(!setup.model.isSessionStatusLoading)
+        #expect(setup.model.sessionStatus == nil)
+    }
+
+    @Test("讀取錯誤:結束載入(畫面換成空環)")
+    func errorEndsLoading() async throws {
+        let reader = Reader()
+        reader.error = HostServiceError.unexpectedResponse
+        let setup = try await Self.opened(reader: reader)
+        await setup.model.refreshSessionStatusIfDue()
+        #expect(!setup.model.isSessionStatusLoading)
+    }
+
+    @Test("沒有讀取來源:不會一直轉圈")
+    func noReaderEndsLoading() async throws {
+        let setup = try await Self.opened(reader: nil)
+        await setup.model.refreshSessionStatusIfDue()
+        #expect(!setup.model.isSessionStatusLoading)
     }
 }

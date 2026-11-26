@@ -155,7 +155,7 @@ struct AddHostGuideFailureAndNotificationTests {
         let hosts = HostsModel(
             store: MemoryHostStore(), demoChannel: FakeHost(), push: HostServiceUpdateTests.pushService(),
             makeChannel: ChannelFactory(await HostEditorModelTests.healthyHost()).make)
-        let model = hosts.makeAddHostGuide()
+        let model = hosts.screens.makeAddHostGuide()
         model.choose(.ssh)
         model.choose(.macOS)
         model.choose(.tailscale)

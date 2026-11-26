@@ -23,11 +23,11 @@ struct OfflineQueueTests {
     @MainActor
     final class Deliveries {
         var sent: [(text: String, paneID: String, expectedSession: String?)] = []
-        var outcome: PromptOutcome = .delivered
+        var outcome: SafeSend.Result = .delivered
 
-        var deliver: @MainActor (String, Agent, String?) async -> PromptOutcome {
-            { text, agent, expectedSession in
-                self.sent.append((text, agent.paneID, expectedSession))
+        var deliver: @MainActor (String, SafeSend.Destination) async -> SafeSend.Result {
+            { text, destination in
+                self.sent.append((text, destination.paneID, destination.expectedSession))
                 return self.outcome
             }
         }
@@ -149,7 +149,7 @@ struct OfflineQueueTests {
     @Test("補送沒送到：需要你、被拒、無法確認各自標原因，同一個 pane 後面的也不送")
     func deliveryProblemsStopThatPane() async {
         let deliveries = Deliveries()
-        deliveries.outcome = .needsAnswer
+        deliveries.outcome = .notSent(.needsAnswer(Self.snapshot().agents[0]))
         let queue = Self.queue(deliveries: deliveries)
         queue.enqueue(Self.prompt("第一則"))
         queue.enqueue(Self.prompt("第二則"))
@@ -159,10 +159,10 @@ struct OfflineQueueTests {
         #expect(deliveries.sent.map(\.text) == ["第一則"])
         #expect(queue.entries.map(\.problem) == [.needsAnswer, .needsAnswer])
 
-        for (outcome, problem) in [(PromptOutcome.rejected(message: "no"), QueuedPrompt.Problem.notDelivered),
+        for (outcome, problem) in [(SafeSend.Result.notSent(.rejected("no")), QueuedPrompt.Problem.notDelivered),
                                    (.unconfirmed(.connectionLost), .mayHaveBeenSent), (.noResponse, .mayHaveBeenSent),
                                    // 主機送出前比對發現對話已變更(#304 的 pane_changed):什麼都沒送出，標成對話已變更。
-                                   (.paneChanged, .conversationChanged)] {
+                                   (.notSent(.conversationChanged), .conversationChanged)] {
             let deliveries = Deliveries()
             deliveries.outcome = outcome
             let queue = Self.queue(deliveries: deliveries)
@@ -173,14 +173,15 @@ struct OfflineQueueTests {
     }
 
     @Test("存在本機：App 重開(新的佇列讀同一個 store)仍在")
-    func persistsAcrossLaunches() throws {
-        let suite = "OfflineQueueTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let first = Self.queue(store: UserDefaultsOfflineQueueStore(defaults: defaults))
+    func persistsAcrossLaunches() {
+        let blobs = ProtectedOfflineQueueStoreTests.MemoryBlobs()
+        let legacy = ProtectedOfflineQueueStoreTests.emptyLegacy()
+        let firstStore = ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy)
+        let first = Self.queue(store: firstStore)
         first.enqueue(Self.prompt("重開也在"))
+        firstStore.flush()
 
-        let relaunched = Self.queue(store: UserDefaultsOfflineQueueStore(defaults: defaults))
+        let relaunched = Self.queue(store: ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy))
 
         #expect(relaunched.entries.map(\.text) == ["重開也在"])
         #expect(relaunched.entries.first?.sessionID == "s-1")
@@ -245,7 +246,7 @@ struct OfflineQueueTests {
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-                clock: TestClock().clock, drafts: drafts, sendSteps: [OfflineQueueStep(queue: queue)], sleep: RecordingSleeper().sleep)
+                clock: TestClock().clock, drafts: drafts, sendStages: SendStages(offlineQueue: OfflineQueueStep(queue: queue)), sleep: RecordingSleeper().sleep)
         }
     }
 
@@ -284,7 +285,7 @@ struct OfflineQueueTests {
             ConversationModel(
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-                clock: TestClock().clock, drafts: drafts, sendSteps: [countdown, OfflineQueueStep(queue: queue)],
+                clock: TestClock().clock, drafts: drafts, sendStages: SendStages(undo: countdown, offlineQueue: OfflineQueueStep(queue: queue)),
                 sleep: RecordingSleeper().sleep)
         }
         setup.model.draft = "倒數中斷線"
@@ -396,7 +397,7 @@ struct OfflineQueueTests {
     func conversationsShareHostQueue() {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
-        let chat = model.conversation(ChatRoute(host: .demo, paneID: "w1:p1"), sessionID: nil)
+        let chat = model.member(for: .demo).conversation(ChatRoute(host: .demo, paneID: "w1:p1"), sessionID: nil)
 
         #expect(chat.offlineQueue === model.offlineQueue(for: .demo))
     }

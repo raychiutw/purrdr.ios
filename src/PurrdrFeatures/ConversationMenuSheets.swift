@@ -5,7 +5,7 @@ import SwiftUI
 /// 「⋯」選單點開的 sheet(#515):權限模式、做完再送、待辦、背景子 Agent。用量用 `ConversationUsageSheet`,模型與思考深度用 `ModelSheet`(同輸入框的模型膠囊)。
 ///
 /// 每個 sheet 的**內容**是可單獨嵌入的 view(`…ContentView`,不含 NavigationStack、關閉鈕與 toolbar);
-/// sheet(`ConversationMenuSheet`)只是容器,#517 的 iPad 右側 inspector 之後放同一批內容。
+/// sheet(`ConversationMenuSheet`)只是容器,聊天面板(#617)放同一批內容。
 enum ConversationMenuSheetKind: String, Identifiable {
     case permissionMode, sendWhenDone, todos, backgroundAgents
     var id: String { rawValue }
@@ -18,11 +18,11 @@ struct PermissionModeContentView: View {
 
     var body: some View {
         List { PermissionModeSections(model: model, onSwitched: onSwitched) }
-            .appGroupedList()
+            .appSheetList()
     }
 }
 
-/// 權限模式的 List 內容(不含 List 本身):sheet 與 iPad 的 Inspector(#521)共用。
+/// 權限模式的 List 內容(不含 List 本身):sheet 與聊天面板(#617)共用。
 struct PermissionModeSections: View {
     let model: ConversationModel
     var onSwitched: (() -> Void)?
@@ -42,11 +42,11 @@ struct SendWhenDoneContentView: View {
 
     var body: some View {
         List { SendWhenDoneSections(model: model) }
-            .appGroupedList()
+            .appSheetList()
     }
 }
 
-/// 做完再送的 List 內容(不含 List 本身):sheet 與 Inspector(#521)共用;Inspector 帶標題。
+/// 做完再送的 List 內容(不含 List 本身):sheet 與聊天面板(#617)共用;面板帶標題。
 struct SendWhenDoneSections: View {
     let model: ConversationModel
     var showsHeader = false
@@ -58,7 +58,11 @@ struct SendWhenDoneSections: View {
             } header: {
                 if showsHeader { Text("Send When Done") }
             } footer: {
-                if model.isReadOnly {
+                if let reason = sendWhenDone.availability.unavailabilityReason {
+                    // 不能用的原因直接寫在開關下方,不跳 alert(#626)。
+                    Text(reason)
+                        .accessibilityIdentifier("status.sendWhenDone.reason")
+                } else if model.isReadOnly {
                     Text("This device is paired read-only, so it can’t queue messages.")
                 } else {
                     Text("Queues your message and sends it when the agent is done.")
@@ -74,12 +78,12 @@ struct TodosContentView: View {
 
     var body: some View {
         List { TodoRows(progress: progress) }
-            .appGroupedList()
+            .appSheetList()
             .accessibilityIdentifier("status.todos")
     }
 }
 
-/// 待辦列(不含 List 本身):sheet 與 Inspector(#521)共用。
+/// 待辦列(不含 List 本身):sheet 與聊天面板(#617)共用。
 struct TodoRows: View {
     let progress: AgentProgress
 
@@ -97,12 +101,12 @@ struct BackgroundAgentsContentView: View {
 
     var body: some View {
         List { BackgroundAgentRows(model: model, pane: pane) }
-            .appGroupedList()
+            .appSheetList()
             .accessibilityIdentifier("status.backgroundAgents")
     }
 }
 
-/// 背景子 Agent 列(不含 List 本身):sheet 與 Inspector(#521)共用。
+/// 背景子 Agent 列(不含 List 本身):sheet 與聊天面板(#617)共用。
 struct BackgroundAgentRows: View {
     let model: ConversationModel
     let pane: AgentsPane

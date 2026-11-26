@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 
 /// 帳號頁「登入中的裝置」(#409):這個會員在後台的工作階段(每支裝置一個)。撤銷另一支 = 把它登出,要先確認是本人。
@@ -12,7 +13,7 @@ public final class SignInDevicesModel {
     public private(set) var devices: [SignInDevice]?
     public private(set) var busyDeviceIDs: Set<String> = []
     /// 讀取或撤銷失敗的說明;成功後清掉。
-    public var problem: String?
+    public var problem: DisplayedError?
     /// 等使用者在對話框確認撤銷的裝置(畫面狀態)。
     public var pendingRevoke: SignInDevice?
 
@@ -33,7 +34,7 @@ public final class SignInDevicesModel {
         } catch BackendError.signedOut {
             devices = nil
         } catch {
-            problem = String(localized: "Couldn’t load your devices. Try again.")
+            problem = DisplayedError(String(localized: "Couldn’t load your devices. Try again."), error: error)
         }
     }
 
@@ -41,7 +42,8 @@ public final class SignInDevicesModel {
     public func revoke(_ device: SignInDevice) async {
         guard !device.isCurrent, !busyDeviceIDs.contains(device.id) else { return }
         if let confirmOwner, !(await confirmOwner()) {
-            problem = String(localized: "Couldn’t confirm it’s you. Nothing was changed.")
+            problem = DisplayedError(
+                String(localized: "Couldn’t confirm it’s you. Nothing was changed."), category: "SignInDevices", code: "ownerNotConfirmed")
             return
         }
         busyDeviceIDs.insert(device.id)
@@ -51,7 +53,7 @@ public final class SignInDevicesModel {
             devices?.removeAll { $0.id == device.id }
             problem = nil
         } catch {
-            problem = String(localized: "Couldn’t sign out that device. Try again.")
+            problem = DisplayedError(String(localized: "Couldn’t sign out that device. Try again."), error: error)
         }
     }
 }

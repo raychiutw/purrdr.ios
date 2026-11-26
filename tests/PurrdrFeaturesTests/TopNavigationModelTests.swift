@@ -25,25 +25,30 @@ struct TopNavigationModelTests {
         #expect(TopNavigationModel().tab == .chats)
     }
 
-    @Test("在此新增聊天:開新增聊天 sheet 並記下預選的主機與 Workspace;sheet 關了就清掉(#537)")
+    @Test("在此新增聊天:推入新增聊天並記下預選的主機與 Workspace;離開就清掉(#537、#621)")
     func startNewChatInWorkspace() {
         let model = TopNavigationModel()
         let host = HostSelection.host(UUID())
 
         model.startNewChat(inWorkspace: "w2", on: host)
 
-        #expect(model.sheet == .newChat)
+        #expect(model.isNewChatOpen)
+        #expect(model.tab == .chats)
+        #expect(model.sheet == nil, "新增聊天是 push,不是 sheet")
         #expect(model.newChatPreselection == NewChatPreselection(host: host, workspaceID: "w2"))
 
-        model.sheet = nil
+        model.isNewChatOpen = false
         #expect(model.newChatPreselection == nil)
     }
 
-    @Test("一般的新增聊天(快捷鍵)沒有預選")
+    @Test("一般的新增聊天(快捷鍵)沒有預選,並切到聊天 tab")
     func plainNewChatHasNoPreselection() {
         let model = TopNavigationModel()
+        model.tab = .files
         model.perform(.newChat, visibleAgents: [])
-        #expect(model.sheet == .newChat)
+        #expect(model.isNewChatOpen)
+        #expect(model.tab == .chats)
+        #expect(model.sheet == nil)
         #expect(model.newChatPreselection == nil)
     }
 
@@ -136,5 +141,17 @@ struct TopNavigationModelTests {
 
         #expect(!handled)
         #expect(model.tab == .hosts)
+    }
+
+    @Test("同一個聊天重複回報只計一次,離開後不留在「開著」(#641:列表堆疊重建會再觸發一次 initial)")
+    func reportingVisibleChatIsIdempotent() {
+        let window = TopNavigationModel()
+        let list = MergedAgentListModel()
+        let chat = ChatRoute(host: .demo, paneID: "w3:p1")
+        window.reportVisibleChat(chat, to: list)
+        window.reportVisibleChat(chat, to: list)
+        #expect(list.visibleChats == [chat])
+        window.reportVisibleChat(nil, to: list)
+        #expect(list.visibleChats.isEmpty, "重複回報不能讓離開後仍算開著")
     }
 }

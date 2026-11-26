@@ -21,7 +21,7 @@ public enum HostConnectionPhase: Equatable {
     case tested(HostProbeReport)
     /// HTTPS 主機：配對(或用存著的權杖)後連上主機服務。
     case connected(HostServiceCheck)
-    case failed(String)
+    case failed(DisplayedError)
 }
 
 /// HTTPS 主機的連線測試結果。
@@ -97,10 +97,14 @@ package final class HostConnectionFlow {
     package private(set) var failureDetails: String?
 
     private func fail(_ error: any Error, connection: HostConfiguration.ConnectionMethod, authentication: HostConfiguration.OpenSSHAuthentication? = nil) {
-        fail(HostErrorText.message(for: error, connection: connection, authentication: authentication), details: HostErrorText.details(for: error))
+        fail(DisplayedError(error: error, connection: connection, authentication: authentication), details: HostErrorText.details(for: error))
     }
 
-    private func fail(_ message: String, details: String?) {
+    private func fail(_ message: String, error: any Error) {
+        fail(DisplayedError(message, error: error), details: error.localizedDescription)
+    }
+
+    private func fail(_ message: DisplayedError, details: String?) {
         phase = .failed(message)
         failureDetails = details
     }
@@ -189,7 +193,7 @@ package final class HostConnectionFlow {
         case .failure(SSHConnectionError.hostKeyUnverified(let presented)):
             // Tailscale SSH 的身分已由 tailnet 確認:第一次連線自動記住出示的 key(仍 pin),不問使用者。
             // 只在還沒有 pin 時才會走到這裡;key 之後變了仍是 `hostKeyChanged`,照舊擋下。
-            if ssh.method == .tailscaleSSH, ssh.settings.hostKeyPin == nil {
+            if ssh.method == .tailscaleSSH, ssh.settings.hostKeyPin == nil, existing?.needsReconfirmation != true {
                 accepted = (presented, ssh.settings.endpoint)
                 var remembered = ssh
                 remembered.settings.hostKeyPin = presented
@@ -245,7 +249,7 @@ package final class HostConnectionFlow {
     /// 測試用的權杖：這次的配對碼換得的，或已存主機的。換了位址或配對碼重新配對時，前一次拿到的權杖請主機撤銷。
     private func deviceToken(address: HostServiceAddress, pairingCode: String?) async throws -> TestToken {
         guard let code = pairingCode else {
-            guard let existing, let token = try hostService.tokens.deviceToken(for: existing.id) else { throw HostServiceError.notPaired }
+            guard let existing, !existing.needsReconfirmation, let token = try hostService.tokens.deviceToken(for: existing.id) else { throw HostServiceError.notPaired }
             return TestToken(deviceToken: token, readOnly: nil)
         }
         if let pairing, pairing.address == address, pairing.code == code {
@@ -346,7 +350,7 @@ package final class HostConnectionFlow {
                 wroteSecret = false
             }
         } catch {
-            fail(String(localized: "Couldn’t save this host’s sign-in details on this device."), details: error.localizedDescription)
+            fail(String(localized: "Couldn’t save this host’s sign-in details on this device."), error: error)
             return nil
         }
         do {
@@ -355,7 +359,7 @@ package final class HostConnectionFlow {
         } catch {
             // 新主機沒存成：不要留下沒有主機的祕密。
             if wroteSecret, existing == nil { try? credentials.secrets.setSecret(nil, for: host.id) }
-            fail(String(localized: "Couldn’t save this host on this device."), details: error.localizedDescription)
+            fail(String(localized: "Couldn’t save this host on this device."), error: error)
             return nil
         }
     }
@@ -368,19 +372,19 @@ package final class HostConnectionFlow {
             if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
             if existing != nil { try credentials.secrets.setSecret(nil, for: host.id) }
         } catch {
-            fail(String(localized: "Couldn’t save this host’s pairing on this device."), details: error.localizedDescription)
+            fail(String(localized: "Couldn’t save this host’s pairing on this device."), error: error)
             return nil
         }
         do {
             try store.save(host)
         } catch {
             if newToken != nil { try? hostService.tokens.setDeviceToken(previousToken, for: host.id) }
-            fail(String(localized: "Couldn’t save this host on this device."), details: error.localizedDescription)
+            fail(String(localized: "Couldn’t save this host on this device."), error: error)
             return nil
         }
         if newToken != nil { pairing?.isSaved = true }
         // 重新配對換了權杖：舊的請主機撤銷。
-        if let newToken, let previousToken, previousToken != newToken, let previousAddress = existing?.hostService {
+        if let newToken, let previousToken, previousToken != newToken, let existing, !existing.needsReconfirmation, let previousAddress = existing.hostService {
             hostService.revokeWithoutWaiting(previousToken, at: previousAddress)
         }
         return host
@@ -401,7 +405,7 @@ package final class HostConnectionFlow {
     /// 只有主機或埠改變(或新主機)才重設 pin;改名稱、使用者、herdr 設定不重設(行為規格 §8.2)。
     package func pin(for endpoint: SSHEndpoint) -> HostKeyFingerprint? {
         if let accepted, Self.sameMachine(accepted.endpoint, endpoint) { return accepted.fingerprint }
-        if let saved = existing?.ssh, Self.sameMachine(saved.endpoint, endpoint) { return saved.hostKeyPin }
+        if let existing, !existing.needsReconfirmation, let saved = existing.ssh, Self.sameMachine(saved.endpoint, endpoint) { return saved.hostKeyPin }
         return nil
     }
 

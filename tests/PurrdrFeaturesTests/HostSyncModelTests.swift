@@ -38,10 +38,9 @@ struct HostSyncModelTests {
 
     func makeModels(
         hosts: [HostConfiguration] = [studio], channels: Int = 4, deviceTokens: any DeviceTokenStore = InMemoryDeviceTokenStore(),
-        icons: [UUID: HostIcon] = [:], now: @escaping @MainActor () -> Date = { Self.now }
+        icons: [UUID: HostIcon] = [:], now: @escaping @MainActor () -> Date = { Self.now }, factory: ChannelFactory = ChannelFactory()
     ) -> (HostSyncModel, HostsModel) {
         hostStore.hosts = hosts
-        let factory = ChannelFactory()
         factory.hosts = (0..<channels).map { _ in FakeHost() }
         let hostsModel = HostsModel(
             store: hostStore, demoChannel: FakeHost(), hostIcons: InMemoryHostIconStore(icons), credentials: HostCredentials(secrets: secrets, deviceKey: EphemeralDeviceKey()),
@@ -231,6 +230,40 @@ struct HostSyncModelTests {
         #expect(hosts.hosts == [Self.httpsStudio])
         #expect(try deviceTokens.deviceToken(for: Self.httpsStudio.id) == nil)
         #expect(hosts.rows.first?.needsPairing == true)
+    }
+
+    // MARK: - 位址與 host key 改變要重新確認(#572)
+
+    @Test("別台裝置把位址改掉:保留新位址與本機祕密，主機清單標示需要重新確認，確認前不開連線也不送祕密")
+    func changedAddressWaitsForReconfirmation() async throws {
+        try subscribe()
+        try secrets.setSecret(.password("hunter2"), for: Self.studio.id)
+        let moved = Self.remoteStudio(modifiedAt: "2026-11-16T08:00:00.000Z").replacingOccurrences(of: "\"studio-mac\"", with: "\"attacker.example\"")
+        backend.on("POST", Self.path, .json(200, Self.snapshot(hosts: [moved])))
+        let factory = ChannelFactory()
+        let (sync, hosts) = makeModels(factory: factory)
+
+        await sync.setEnabled(true)
+
+        #expect(hosts.hosts.first?.ssh?.endpoint.host == "attacker.example")
+        #expect(hostStore.hosts.first?.needsReconfirmation == true)
+        #expect(hosts.rows.first?.needsReconfirmation == true)
+        #expect(try secrets.secret(for: Self.studio.id) == .password("hunter2"), "不直接刪除憑證")
+        #expect(!factory.endpoints.contains { $0.host == "attacker.example" }, "確認前不對新位址開連線")
+    }
+
+    @Test("使用者在編輯頁重新確認後存檔:不再需要重新確認")
+    func savingFromEditorClearsReconfirmation() async throws {
+        var pending = Self.studio
+        pending.needsReconfirmation = true
+        let (_, hosts) = makeModels(hosts: [pending])
+
+        #expect(hosts.rows.first?.needsReconfirmation == true)
+
+        hostStore.hosts = [Self.studio]
+        hosts.load()
+
+        #expect(hosts.rows.first?.needsReconfirmation == false)
     }
 
     // MARK: - 衝突與刪除

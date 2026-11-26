@@ -32,16 +32,16 @@ struct ConversationLongToolRunTests {
         #expect(Conversation.items(from: all) == batched.items)
     }
 
-    @Test("建立長工具串的時間隨長度線性成長(不是平方)")
+    @Test("建立長工具串的工作量隨長度線性成長(不是平方)")
     func buildingLongToolRunScalesLinearly() {
-        let small = Self.messages(1_000)
-        let large = Self.messages(4_000)
-        let clock = ContinuousClock()
-        // 取三次最快的,避免整套測試並行時被其他測試的負載拉高。
-        let smallTime = (0..<3).map { _ in clock.measure { _ = Conversation.items(from: small) } }.min()!
-        let largeTime = (0..<3).map { _ in clock.measure { _ = Conversation.items(from: large) } }.min()!
-        let ratio = (largeTime / smallTime)
+        // 以建構器走訪步驟的次數計,不看牆鐘時間,所以不受機器負載影響。
+        let small = Conversation.itemsMeasuringSummaryWork(from: Self.messages(1_000))
+        let large = Conversation.itemsMeasuringSummaryWork(from: Self.messages(4_000))
+        // 每個步驟只該被走訪常數次。
+        #expect(small.stepsScanned <= 2 * 2_000, "1000 組走訪了 \(small.stepsScanned) 步")
+        #expect(large.stepsScanned <= 2 * 8_000, "4000 組走訪了 \(large.stepsScanned) 步")
         // 線性約 4 倍,平方約 16 倍。
-        #expect(ratio < 9, "4 倍長度花了 \(ratio) 倍時間(\(smallTime) → \(largeTime))")
+        let ratio = Double(large.stepsScanned) / Double(max(small.stepsScanned, 1))
+        #expect(ratio < 5, "4 倍長度走訪了 \(ratio) 倍步驟")
     }
 }

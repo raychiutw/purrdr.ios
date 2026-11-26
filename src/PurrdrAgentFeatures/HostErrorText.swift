@@ -10,6 +10,13 @@ package enum HostErrorText {
         for error: any Error, connection: HostConfiguration.ConnectionMethod? = nil,
         authentication: HostConfiguration.OpenSSHAuthentication? = nil
     ) -> String {
+        resolvedMessage(for: error, connection: connection, authentication: authentication)
+    }
+
+    private static func resolvedMessage(
+        for error: any Error, connection: HostConfiguration.ConnectionMethod?,
+        authentication: HostConfiguration.OpenSSHAuthentication?
+    ) -> String {
         switch error {
         case SSHConnectionError.authenticationFailed:
             authenticationFailed(connection: connection, authentication: authentication)

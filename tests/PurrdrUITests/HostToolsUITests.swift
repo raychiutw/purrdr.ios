@@ -12,7 +12,7 @@ final class HostToolsUITests: XCTestCase {
         case "menu.files":
             app.openTab(.files)
         case "menu.newChat":
-            app.openNewChatSheet()
+            app.openNewChat()
         default:
             // 登入 Shell 在主機 tab。
             app.openHostsTab()
@@ -20,6 +20,24 @@ final class HostToolsUITests: XCTestCase {
             XCTAssertTrue(item.exists, "主機 tab 沒有登入 Shell")
             item.tap()
         }
+    }
+
+    /// 上傳失敗的說明顯示在列表上、不彈 alert(#625、#626):`-uiTestingSimulatedFileUpload` 上傳與家目錄已有項目同名的檔案,
+    /// Demo 主機回「已有同名項目」;說明可關閉。
+    @MainActor
+    func testUploadFailureShowsInlineNoticeNotAlert() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedFileUpload"])
+        openMenuItem("menu.files", in: app)
+        let upload = app.buttons["files.upload"].firstMatch
+        XCTAssertTrue(upload.waitUntilExists(timeout: 10), "檔案 tab 沒有上傳")
+        upload.tap()
+
+        let notice = app.descendants(matching: .any)["files.uploadNotice"].firstMatch
+        XCTAssertTrue(notice.waitUntilExists(timeout: 10), "上傳失敗沒有顯示頁內說明")
+        XCTAssertTrue(notice.label.contains("README.md"), "說明沒有指出哪個檔案:\(notice.label)")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "上傳失敗不該彈 alert")
+        app.buttons["Dismiss"].firstMatch.tap()
+        XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
     }
 
     @MainActor
@@ -31,9 +49,8 @@ final class HostToolsUITests: XCTestCase {
         let screen = app.descendants(matching: .any)["terminal.screen"].firstMatch
         XCTAssertTrue(screen.waitUntilExists(timeout: 10), "沒有打開登入 Shell")
         screen.expectValue(containing: "demo@purrdr ~ %")
-        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.label.contains("Studio Mac"), "標題不是主機名稱:\(status.label)")
-        XCTAssertTrue(status.label.contains("Connected"), "狀態不對:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "狀態不對:\(app.terminalHeader)")
+        XCTAssertTrue(app.terminalHeader.contains("Studio Mac"), "標題不是主機名稱:\(app.terminalHeader)")
 
         // 鍵盤輸入直接寫進 PTY(Demo 的 shell 會回顯);接上後終端機自動取得焦點。
         app.typeEnglish("ls")
@@ -41,7 +58,32 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["terminal.key.esc"].firstMatch.isHittable, "按鍵列沒有出現")
     }
 
-    /// 檔案頁(#273,原型):路徑麵包屑「~ › ledger」每段可點回那一層;右上「＋」上傳;沒有「上一層」按鈕與說明段落。
+    /// 檔案頁搜尋(#615):輸入只留名稱相符的列、搜不到有系統空狀態、清掉搜尋回到完整列表。
+    @MainActor
+    func testFilesSearchFiltersRows() {
+        let app = XCUIApplication.launchUITesting()
+        openMenuItem("menu.files", in: app)
+        let ledger = app.buttons["files.row.ledger"].firstMatch
+        XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "沒有列出家目錄")
+        let zshrc = app.descendants(matching: .any)["files.row..zshrc"].firstMatch
+        XCTAssertTrue(zshrc.exists)
+
+        let search = app.revealChatSearch()
+        XCTAssertTrue(search.waitUntilExists(timeout: 5), "檔案頁沒有搜尋欄")
+        search.tap()
+        search.typeEnglish("ledg")
+        XCTAssertTrue(ledger.exists, "搜尋 ledg 後 ledger 不見了")
+        XCTAssertTrue(zshrc.waitUntilGone(timeout: 5), "搜尋 ledg 後不相符的 .zshrc 還在")
+
+        search.clearAndType("zzzz")
+        XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "搜不到時列還在")
+
+        search.clearAndType("ledg")
+        XCTAssertTrue(ledger.waitUntilExists(timeout: 5), "改搜尋後相符的列沒有回來")
+        XCTAssertTrue(zshrc.waitUntilGone(timeout: 5), "改搜尋後不相符的列還在")
+    }
+
+    /// 檔案頁(#273,原型):資料夾是 push(#620):進兩層、左上「<」返回、麵包屑「~ › ledger」當快速跳層;右上「＋」上傳;沒有「上一層」按鈕。
     @MainActor
     func testFilesBrowseFoldersWithBreadcrumbs() {
         let app = XCUIApplication.launchUITesting()
@@ -50,17 +92,35 @@ final class HostToolsUITests: XCTestCase {
         let ledger = app.buttons["files.row.ledger"].firstMatch
         XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "沒有列出家目錄")
         XCTAssertTrue(app.descendants(matching: .any)["files.row..zshrc"].firstMatch.exists, "隱藏檔沒有列出")
-        XCTAssertEqual(app.staticTexts["topBar.title"].firstMatch.label, "Files", "檔案頁的大標題不是 tab 名稱")
+        XCTAssertEqual(app.topBarTitle("Files").label, "Files", "檔案頁的大標題不是 tab 名稱")
         XCTAssertEqual(app.buttons["files.upload"].firstMatch.label, "Upload File")
         XCTAssertFalse(app.buttons["files.up"].exists, "不該再有「上一層」按鈕")
         XCTAssertEqual(app.buttons["files.crumb.0"].firstMatch.label, "Home Folder")
 
+        // 進兩層(#620):資料夾是 push,左上「<」回上一層,tab bar 保留,大標題是資料夾名稱。
         ledger.tap()
         XCTAssertTrue(app.descendants(matching: .any)["files.row.export.csv"].firstMatch.waitUntilExists(timeout: 10), "沒有打開資料夾")
         XCTAssertEqual(app.buttons["files.crumb.1"].firstMatch.label, "ledger")
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).isHittable, "下一層左上沒有返回鈕")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "下一層沒有保留 tab bar")
+        XCTAssertTrue(app.navigationBars["ledger"].exists, "下一層的大標題不是資料夾名稱")
 
+        let reports = app.buttons["files.row.reports"].firstMatch
+        XCTAssertTrue(reports.waitUntilExists(timeout: 10), "ledger 底下沒有 reports")
+        reports.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["files.empty"].firstMatch.waitUntilExists(timeout: 10), "空資料夾沒有系統空狀態")
+        XCTAssertTrue(app.navigationBars["reports"].exists, "第二層的大標題不是資料夾名稱")
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["ledger"].waitUntilExists(timeout: 10), "返回沒有回到 ledger")
+        XCTAssertTrue(app.descendants(matching: .any)["files.row.export.csv"].firstMatch.exists)
+
+        // 麵包屑當快速跳層:再進 reports,直接點「~」回到第一層。
+        app.buttons["files.row.reports"].firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["files.empty"].firstMatch.waitUntilExists(timeout: 10))
         app.buttons["files.crumb.0"].firstMatch.tap()
         XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "點「~」沒有回到家目錄")
+        XCTAssertEqual(app.topBarTitle("Files").label, "Files")
     }
 
     // MARK: - 主機挑選鈕(#245)
@@ -89,8 +149,7 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Studio HTTPS"].exists, "HTTPS 主機不支援登入 Shell,不該列出")
         app.buttons["Demo"].firstMatch.tap()
 
-        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.waitForLabel(containing: "Demo", timeout: 10), "沒有換到 Demo:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "Demo", timeout: 10), "沒有換到 Demo:\(app.terminalHeader)")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         openMenuItem("menu.loginShell", in: app)
@@ -110,8 +169,7 @@ final class HostToolsUITests: XCTestCase {
     func testDemoHostKeepsLoginShell() {
         let app = XCUIApplication.launchUITesting()
         openMenuItem("menu.loginShell", in: app)
-        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.waitForLabel(containing: "Demo", timeout: 10), "範例主機的登入 Shell 沒有開到 Demo 終端機:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "Demo", timeout: 10), "範例主機的登入 Shell 沒有開到 Demo 終端機:\(app.terminalHeader)")
     }
 
     /// 檔案換主機後從那台的家目錄重新列出。
@@ -128,7 +186,7 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "換主機後沒有重新列出家目錄")
     }
 
-    /// 新增聊天標題列有主機挑選鈕：預設選取中主機(聊天列表篩選為所有主機),列出所有主機。
+    /// 新增聊天右上有電腦圖示的主機選單(#621)：預設選取中主機(聊天列表篩選為所有主機),列出所有主機。
     @MainActor
     func testNewChatPicksHost() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnpairedHTTPSHost"])
@@ -141,8 +199,8 @@ final class HostToolsUITests: XCTestCase {
         pickHost("Demo", with: "newChat.host", in: app)
 
         XCTAssertTrue(app.buttons["newChat.host"].firstMatch.label.contains("Demo"), "沒有換到 Demo")
-        // 新增對話是部分高度的 sheet(#425):資料夾欄在下方(lazy,不在 accessibility tree),拉到 large 才看得到。
-        for _ in 0..<4 where !app.textFields["newChat.folder"].exists { app.element("sheet.newChat").swipeUp() }
+        // 資料夾欄在下方(lazy,不在 accessibility tree),往上捲才看得到。
+        for _ in 0..<4 where !app.textFields["newChat.folder"].exists { app.element("newChat.page").swipeUp() }
         XCTAssertTrue(app.textFields["newChat.folder"].firstMatch.waitUntilExists(timeout: 5), "換主機後表單不見了")
     }
 }

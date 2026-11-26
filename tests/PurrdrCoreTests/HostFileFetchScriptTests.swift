@@ -157,6 +157,21 @@ struct HostFileFetchScriptTests {
         #expect(try await Self.readAll(setup.fetcher, HostFileTarget(path: setup.path("tmp/shot.png"), root: nil), chunk: 100) == Data("ok".utf8))
     }
 
+    @Test("排除清單：case folding 後等於排除段落的 Unicode 名稱也拒絕(APFS 上 `.ſsh` 開到 `.ssh`,#577)")
+    func excludedAfterUnicodeCaseFolding() async throws {
+        let setup = try Self.setup()
+        let root = setup.path("ledger")
+        let lookalikes = [
+            "ledger/.\u{17F}sh/id_ed25519", "ledger/.\u{17F}SH/config", "ledger/.git-credential\u{17F}",
+            "ledger/.purrdr/host-\u{17F}ervice/devices.json", "ledger/.\u{212A}ube/config", "ledger/.password-\u{FB05}ore/a.gpg",
+        ]
+        for path in lookalikes { try setup.shell.write(Data("secret".utf8), to: path) }
+
+        for path in lookalikes {
+            #expect(try await setup.fetcher.status(of: HostFileTarget(path: setup.path(path), root: root)) == .denied, "\(path)")
+        }
+    }
+
     @Test("工作目錄本身不存在：拒絕")
     func missingWorkingDirectory() async throws {
         let setup = try Self.setup()

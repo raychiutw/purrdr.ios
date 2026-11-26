@@ -25,15 +25,19 @@ final class HostsUITests: XCTestCase {
         edit.tap()
         let name = app.textFields["hostEditor.name"]
         XCTAssertTrue(name.waitUntilExists(timeout: 5))
-        name.tap()
+        XCTAssertTrue(app.focusTextField(name), "名稱欄沒有取得焦點")
         XCTAssertTrue(app.waitForKeyboard(), "沒有叫出鍵盤")
         if edits { name.typeEnglish("2") }
 
-        let cancel =
-            app.navigationBars.buttons.matching(identifier: "Cancel").firstMatch.exists
-            ? app.navigationBars.buttons.matching(identifier: "Cancel").firstMatch
-            : app.navigationBars.buttons.element(boundBy: 0)
-        cancel.tap()
+        // 左上是系統返回鈕(#622);沒有另外的 Cancel。
+        XCTAssertFalse(app.navigationBars.buttons["Cancel"].exists, "編輯主機不該有 Cancel")
+        if edits {
+            // 有未存修改時左緣滑回也不能直接離開(要先確認)。
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.002, dy: 0.5))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+            XCTAssertTrue(app.textFields["hostEditor.name"].waitUntilExists(timeout: 3), "有未存修改時左緣滑回直接離開了編輯頁")
+        }
+        app.navigationBars.buttons.element(boundBy: 0).tap()
 
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3), "點取消後 app 不在前景(閃退) \(label) edits=\(edits)")
         if edits {
@@ -44,6 +48,8 @@ final class HostsUITests: XCTestCase {
         }
         XCTAssertTrue(app.overviewRow("hosts.edit").waitUntilExists(timeout: 5), "沒有回到主機總頁")
         XCTAssertEqual(app.state, .runningForeground)
+        // 編輯頁收起時鍵盤還在往下收:等它收完再做下一件事(否則下一次找元素時鍵盤正好消失,查詢會失敗)。
+        XCTAssertTrue(app.waitForKeyboardToHide(timeout: 5), "離開編輯頁後鍵盤沒有收起")
     }
 
     /// 已存主機的總頁與編輯一次啟動走完(#374 瘦身;原本各自啟動):總頁、開編輯器、取消編輯(#333)、
@@ -57,17 +63,24 @@ final class HostsUITests: XCTestCase {
         step("總頁只有這台主機") {
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
             XCTAssertTrue(app.element("hosts.status").exists, "沒有連線狀態")
-            XCTAssertFalse(app.buttons["toolbar.currentHost"].exists, "主機 tab 頂列不放電腦圖示")
+            XCTAssertTrue(app.buttons["hosts.host"].firstMatch.exists, "主機 tab 右上要有電腦圖示選單(#616)")
             for id in ["hosts.tool.notifications.locked", "hosts.share", "hosts.settings", "hosts.edit", "hosts.delete"] {
                 XCTAssertTrue(app.overviewRow(id).exists, "總頁沒有 \(id)")
             }
             XCTAssertFalse(app.buttons["hosts.demo"].exists, "不該再有主機清單")
+            XCTAssertFalse(app.buttons["hosts.host.Studio Mac"].exists, "主機頁內不該有主機清單列(選主機在右上選單)")
         }
 
         step("開編輯器") {
             app.overviewRow("hosts.edit").tap()
             XCTAssertTrue(app.navigationBars["Edit Host"].waitUntilExists(timeout: 5))
             XCTAssertEqual(app.textFields["hostEditor.name"].value as? String, "Studio Mac")
+            // 連線方式是系統的勾選清單(`.inline` Picker),三種方式都在,目前這台是選中的(#622)。
+            for raw in ["tailscaleSSH", "openSSH", "https"] {
+                XCTAssertTrue(app.descendants(matching: .any)["hostEditor.method.\(raw)"].firstMatch.exists, "沒有連線方式 \(raw)")
+            }
+            XCTAssertFalse(app.navigationBars.buttons["Cancel"].exists, "編輯主機左上是系統返回鈕,沒有 Cancel")
+            XCTAssertTrue(app.buttons["hostEditor.save"].exists, "編輯主機右上是儲存")
             app.navigationBars.buttons.element(boundBy: 0).tap()
         }
 
@@ -114,7 +127,8 @@ final class HostsUITests: XCTestCase {
             // 回到總頁時列表還停在剛才捲到的位置,狀態卡在最上面(lazy):先捲回上面。
             let status = app.element("hosts.status")
             XCTAssertTrue(app.scrollIntoView(status, search: .up, timeout: 5), "存檔後沒有回到總頁")
-            XCTAssertTrue(app.staticTexts["Office Mac"].firstMatch.waitUntilExists(timeout: 5), "總頁沒有換成新名稱")
+            let picker = app.buttons["hosts.host"].firstMatch
+            XCTAssertTrue(UITestWait.until(timeout: 10) { picker.label.contains("Office Mac") }, "右上主機選單沒有換成新名稱:\(picker.label)")
         }
 
         // 分享:在同一個 NavigationStack push,顯示 QR code 與分享連結。
@@ -132,7 +146,9 @@ final class HostsUITests: XCTestCase {
             app.overviewRow("hosts.delete").tap()
             let confirm = app.buttons["hosts.delete.confirm"].firstMatch
             XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "移除主機要先確認")
-            app.alerts.firstMatch.buttons["Cancel"].tap()
+            XCTAssertFalse(app.alerts.firstMatch.exists, "移除主機的確認是底部選項,不是中央對話框")
+            XCTAssertTrue(app.sheets.firstMatch.exists, "移除主機沒有出現 action sheet")
+            app.otherElements["PopoverDismissRegion"].firstMatch.tap()
             XCTAssertTrue(confirm.waitUntilGone(timeout: 5))
             XCTAssertTrue(app.overviewRow("hosts.edit").exists, "取消後主機還在")
 
@@ -143,8 +159,8 @@ final class HostsUITests: XCTestCase {
             XCTAssertFalse(app.buttons["hosts.edit"].exists)
         }
 
-        // 掃 QR code／點分享連結(深層連結)→ 主機 tab 開出新增主機引導，資料已齊，直接到測試連線，通過後才能加入。
-        step("分享連結開引導直接到測試連線") {
+        // 掃 QR code／點分享連結(深層連結)→ 主機 tab 開出新增主機引導，資料已齊，停在測試連線的確認頁(顯示連線目標，#573);按下「Test Connection」才測試，通過後才能加入。
+        step("分享連結開引導停在確認頁，按下才測試") {
             XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 10))
             // HostShareLink:name Studio Mac、host studio-mac、port 22、user demo。
             let payload = #"{"host":"studio-mac","method":"tailscaleSSH","name":"Studio Mac","port":22,"user":"demo","v":1}"#
@@ -152,17 +168,22 @@ final class HostsUITests: XCTestCase {
                 .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
             app.open(URL(string: "purrdr://host?d=\(encoded)")!)
 
+            // #573:只到確認頁,顯示連線目標、還沒測試;按下才測試連線。
+            let confirm = app.buttons["guide.confirmTest"]
+            XCTAssertTrue(confirm.waitUntilExists(timeout: 15), "沒有停在測試連線的確認頁\n\(app.debugDescription)")
+            XCTAssertTrue(app.staticTexts["guide.target"].exists, "確認頁沒有顯示連線目標")
+            XCTAssertFalse(app.buttons["guide.save"].exists, "確認前不該已通過測試")
+            confirm.tap()
             let save = app.buttons["guide.save"]
-            XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有直接到測試連線\n\(app.debugDescription)")
+            XCTAssertTrue(save.waitUntilExists(timeout: 15), "按下測試後沒有通過連線測試\n\(app.debugDescription)")
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
             app.openHostsTab()
-            // 匯入的主機成為選取中主機:主機清單(兩台以上才顯示)裡它被勾選。
-            XCTAssertTrue(app.buttons["hosts.host.Studio Mac"].firstMatch.waitUntilExists(timeout: 5), "主機 tab 沒有匯入的主機")
-            // 列表列與裡面的按鈕在 accessibility tree 裡都帶這個識別碼(選取狀態只在其中一個):任何一個被勾選就算。
-            let rows = app.buttons.matching(identifier: "hosts.host.Studio Mac")
-            let selected = UITestWait.until(timeout: 10) { rows.allElementsBoundByIndex.contains { $0.isSelected } }
-            XCTAssertTrue(selected, "匯入的主機不是選取中主機")
+            // 匯入的主機成為選取中主機:右上電腦圖示選單的標籤是「Host: 主機名」(#616)。
+            let picker = app.buttons["hosts.host"].firstMatch
+            XCTAssertTrue(picker.waitUntilExists(timeout: 5), "主機 tab 右上沒有電腦圖示選單")
+            let selected = UITestWait.until(timeout: 10) { picker.label.contains("Studio Mac") }
+            XCTAssertTrue(selected, "匯入的主機不是選取中主機:\(picker.label)")
         }
     }
 

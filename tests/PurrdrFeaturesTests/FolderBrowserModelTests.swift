@@ -61,15 +61,37 @@ struct FolderBrowserModelTests {
 
         await model.load()
         #expect(model.breadcrumbs.map(\.title) == ["~"])
-        await model.open(FolderEntry(name: "ledger", kind: .folder, size: 96))
-        #expect(model.breadcrumbs.map(\.title) == ["~", "ledger"])
-        #expect(model.breadcrumbs.map(\.path) == ["/Users/demo", "/Users/demo/ledger"])
+        let ledgerPath = try #require(model.childPath(for: FolderEntry(name: "ledger", kind: .folder, size: 96)))
+        let child = model.child(at: ledgerPath)
+        await child.load()
+        #expect(child.breadcrumbs.map(\.title) == ["~", "ledger"])
+        #expect(child.breadcrumbs.map(\.path) == ["/Users/demo", "/Users/demo/ledger"])
 
-        await model.go(to: try #require(model.breadcrumbs.first))
-        #expect(model.path == "/Users/demo")
-        await model.goUp()
-        #expect(model.breadcrumbs.map(\.title) == ["/", "Users"])
-        #expect(model.breadcrumbs.map(\.path) == ["/", "/Users"])
+        await child.go(to: try #require(child.breadcrumbs.first))
+        #expect(child.path == "/Users/demo")
+        await child.go(to: FolderBreadcrumb(title: "Users", path: "/Users"))
+        #expect(child.breadcrumbs.map(\.title) == ["/", "Users"])
+        #expect(child.breadcrumbs.map(\.path) == ["/", "/Users"])
+        #expect(await host.unmetExpectations.isEmpty)
+    }
+
+    @Test("資料夾是 push(#620):子層的 model 從那個資料夾開始、沿用家目錄,麵包屑立刻有完整路徑;route 來自項目名稱")
+    func childLevelStartsAtFolder() async throws {
+        let host = FakeHost()
+        await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        await host.expect(HostFolderCommand.list("/Users/demo/ledger"), reply: FakeReply(stdout: Data(Self.ledger.utf8)))
+        let root = Self.model(host)
+        await root.load()
+        #expect(root.childPath(for: FolderEntry(name: "export.csv", kind: .file, size: 1)) == nil, "檔案不能打開")
+        let path = try #require(root.childPath(for: FolderEntry(name: "ledger", kind: .folder, size: 96)))
+        #expect(path == "/Users/demo/ledger")
+
+        let child = root.child(at: path)
+        #expect(child.breadcrumbs.map(\.title) == ["~", "ledger"], "還沒載入也看得到路徑")
+        #expect(child.title == "ledger")
+        await child.load()
+        #expect(Self.listed(child) == ["export.csv"])
+        #expect(root.path == "/Users/demo", "子層不改動上一層")
         #expect(await host.unmetExpectations.isEmpty)
     }
 
@@ -128,7 +150,8 @@ struct FolderBrowserModelTests {
 
         await model.load()
 
-        #expect(model.phase == .failed("The host didn’t respond with a folder listing."))
+        guard case .failed(let listingFailure) = model.phase else { Issue.record("應該是失敗"); return }
+        #expect(listingFailure.text == "The host didn’t respond with a folder listing.")
     }
 
     @Test("打開資料夾、回上一層")
@@ -140,12 +163,13 @@ struct FolderBrowserModelTests {
         let model = Self.model(host)
         await model.load()
 
-        await model.open(FolderEntry(name: "ledger", kind: .folder, size: 96))
-        #expect(model.title == "ledger")
-        #expect(Self.listed(model) == ["export.csv"])
+        let child = model.child(at: try #require(model.childPath(for: FolderEntry(name: "ledger", kind: .folder, size: 96))))
+        await child.load()
+        #expect(child.title == "ledger")
+        #expect(Self.listed(child) == ["export.csv"])
 
-        await model.goUp()
-        #expect(model.path == "/Users/demo")
+        await child.go(to: FolderBreadcrumb(title: "~", path: "/Users/demo"))
+        #expect(child.path == "/Users/demo")
         #expect(await host.unmetExpectations.isEmpty)
     }
 
@@ -159,8 +183,9 @@ struct FolderBrowserModelTests {
 
         #expect(model.title == "/")
         #expect(!model.canGoUp)
-        await model.open(FolderEntry(name: "tmp", kind: .folder, size: 64))
-        #expect(model.path == "/tmp")
+        let child = model.child(at: try #require(model.childPath(for: FolderEntry(name: "tmp", kind: .folder, size: 64))))
+        await child.load()
+        #expect(child.path == "/tmp")
     }
 
     @Test("檔案不能打開(不送指令)")
@@ -170,7 +195,7 @@ struct FolderBrowserModelTests {
         let model = Self.model(host)
         await model.load()
 
-        await model.open(FolderEntry(name: ".zshrc", kind: .file, size: 12))
+        #expect(model.childPath(for: FolderEntry(name: ".zshrc", kind: .file, size: 12)) == nil)
 
         #expect(await host.executions.count == 1)
         #expect(model.path == "/Users/demo")
@@ -211,7 +236,7 @@ struct FolderBrowserModelTests {
 
         await model.upload(fileAt: file)
 
-        #expect(model.notice == "Files over 25 MB can’t be uploaded.")
+        #expect(model.notice?.text == "Files over 25 MB can’t be uploaded.")
         #expect(await host.executions.count == 1)
     }
 
@@ -225,6 +250,6 @@ struct FolderBrowserModelTests {
 
         await model.upload(Data("x".utf8), named: ".zshrc")
 
-        #expect(model.notice == "There’s already an item named “.zshrc” in this folder. Rename the file and try again.")
+        #expect(model.notice?.text == "There’s already an item named “.zshrc” in this folder. Rename the file and try again.")
     }
 }

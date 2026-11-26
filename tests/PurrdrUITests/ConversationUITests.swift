@@ -200,7 +200,8 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["docs/export-preview.png"].exists)
         thumbnail.tap()
         XCTAssertTrue(app.element("imageViewer").waitUntilExists(timeout: 5), "沒有全螢幕檢視")
-        XCTAssertGreaterThanOrEqual(app.element("imageViewer.close").frame.height, 44)
+        // 關閉鈕是系統導覽列的按鈕(#627,不自加 44pt 尺寸,觸控範圍由系統給):可點即可。
+        XCTAssertTrue(app.element("imageViewer.close").isHittable, "看圖的關閉鈕點不到")
 
         // #330:雙點兩下放大、再雙點兩下縮回;1× 下滑關閉。
         let image = app.element("imageViewer.image")
@@ -229,7 +230,8 @@ final class ConversationUITests: XCTestCase {
         let load = app.element("conversation.agentImage.load")
         XCTAssertTrue(app.revealInConversation(load), "超過 8 MiB 的掃描檔應該等點擊")
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Not loaded automatically")).firstMatch.exists, "沒有顯示大小與說明")
-        XCTAssertGreaterThanOrEqual(load.frame.height, 44)
+        // 觸控目標 44pt 由 `HitTarget` 的 minHeight 撐住;座標換算會有浮點誤差(實測 43.99999999999994),所以給 0.5pt 容差。
+        XCTAssertGreaterThanOrEqual(load.frame.height, 43.5)
         load.tap()
         let scan = app.element("conversation.agentImage.thumbnail", labelPrefix: "Image statement-scan.png")
         XCTAssertTrue(scan.waitUntilExists(timeout: 15), "點了之後掃描檔沒有載入")
@@ -477,31 +479,6 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(app.keyboards.firstMatch.exists, "點註記不該叫出鍵盤")
     }
 
-    /// 注音組字(#187):組字文字跟一般文字一樣換行，輸入框跟著長高;按鈕列留在下方。
-    @MainActor
-    func testZhuyinCompositionWrapsAndGrowsComposer() throws {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
-        let text = app.element("composer.text")
-        XCTAssertTrue(text.waitUntilExists(timeout: 10))
-        text.tap()
-        // 以實體鍵盤的注音配置按鍵組字：模擬器沒有接實體鍵盤(畫面上有軟體鍵盤)時測不到，略過(#374)。
-        if app.keyboards.firstMatch.waitUntilExists(timeout: 2) {
-            throw XCTSkip("需要模擬器接著實體鍵盤(Simulator ▸ I/O ▸ Keyboard ▸ Connect Hardware Keyboard)")
-        }
-        app.switchKeyboard(to: .zhuyin)
-        let idleHeight = text.frame.height
-
-        // 模擬器接著實體鍵盤：以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
-        for _ in 0..<24 {
-            for key in ["s", "u", "3"] {
-                app.typeKey(key, modifierFlags: [])
-            }
-        }
-        XCTAssertTrue((text.value as? String)?.contains("ㄋ") == true, "沒有在組字(\(String(describing: text.value)))")
-        XCTAssertGreaterThan(text.frame.height, idleHeight + 30, "組字換行後沒有長高(\(idleHeight) → \(text.frame.height))")
-        XCTAssertGreaterThanOrEqual(app.element("composer.send").frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
-    }
-
     /// AX 字級下長高不超過鍵盤上方可用高度的 40%,超過的在框內捲動(#137)。
     @MainActor
     func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
@@ -516,7 +493,7 @@ final class ConversationUITests: XCTestCase {
         // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
         let window = app.windows.firstMatch.frame
         let keyboard = app.keyboards.firstMatch
-        let visibleBottom = keyboard.exists ? min(keyboard.frame.minY, window.maxY) : window.maxY
+        let visibleBottom = keyboard.exists ? ((try? keyboard.snapshot()).map { min($0.frame.minY, window.maxY) } ?? window.maxY) : window.maxY
 
         // 可用高度從狀態列下緣算，比可見範圍小;以可見範圍當上界只會放寬。
         let height = text.frame.height

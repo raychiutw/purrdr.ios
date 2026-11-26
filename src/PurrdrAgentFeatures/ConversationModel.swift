@@ -56,6 +56,8 @@ public final class ConversationModel {
         case available
         case loading
         case reachedStart
+        /// 往上翻已讀滿 `scrollbackMessageLimit` 則(不跟隨最新時舊頁的上限,#586);回到最新後會修剪並可再往上讀。
+        case scrollbackLimitReached
     }
 
     public private(set) var phase: Phase = .loading
@@ -88,17 +90,13 @@ public final class ConversationModel {
     /// context 退回對話紀錄算法(`progress`)。
     public private(set) var sessionStatus: ClaudeSessionStatus?
     /// 讀 session 狀態的來源(SSH 主機上的 session 檔、HTTPS 的 `usage.session_context`);`nil` 時只用退回算法。
-    public var sessionStatusReader: (any ClaudeSessionStatusReading)?
+    public let sessionStatusReader: (any ClaudeSessionStatusReading)?
     /// 各 Agent 種類自己的 session 狀態來源(Antigravity 的 statusline 包裝,#448);沒有的種類用 `sessionStatusReader`。
-    public var agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:]
+    public let agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading]
 
-    /// 有狀態列的 Agent(Antigravity)裝了 statusline 包裝時,從 session 檔讀到的模式、模型與 effort(優先於畫面狀態列,#448);沒有是 `nil`。
-    private var statusFileLine: AgentStatusLine? {
-        guard screenDialect.statusLine != nil, let status = sessionStatus else { return nil }
-        return AgentStatusLine(
-            mode: status.cycleMode.flatMap { AgentPermissionMode(antigravityCycleMode: $0) }, model: status.antigravityModelName,
-            effort: status.effort)
-    }
+    /// 還沒讀到第一次結果(有資料、沒資料或錯誤都算讀到)前是 `true`(#644):頂列用量環這段時間顯示系統載入動畫。
+    /// 沒有讀取來源、不是支援的 Agent 或不知道 session 時讀不到東西,第一次輪詢就結束載入。
+    public private(set) var isSessionStatusLoading = true
     @ObservationIgnored private var sessionStatusReadAt: Date?
     /// 追蹤事件觸發的快取寫入最短間隔(秒);離開聊天時一定補寫(#510)。
     package static let cacheSaveInterval: TimeInterval = 5
@@ -186,7 +184,7 @@ public final class ConversationModel {
             // 自訂回答的文字不是草稿，也不開 slash 選單(#120)。
             guard typedAnswer == nil else {
                 slash.update(draft: "")
-                typedAnswerDraftChanged()
+                if let restored = mutateAnswerFlow({ $0.typedDraftChanged(draft) }) { draft = restored }
                 return
             }
             drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
@@ -220,11 +218,11 @@ public final class ConversationModel {
         }
     }
     /// 選取中主機的「You should know」註記(#23);由 `HostsModel` 接上，沒有時不顯示。
-    public var youShouldKnow: YouShouldKnowModel?
+    public let youShouldKnow: YouShouldKnowModel?
     /// 圖片卡片的縮圖載入(#225):聊天所在主機的那份，由 `HostsModel` 接上;沒有時卡片不載入縮圖。
-    public var agentFiles: AgentFileLoads?
+    public let agentFiles: AgentFileLoads?
     /// 變更頁的 git 讀取(#310):聊天所在主機的連線方式，由 `HostsModel` 接上;沒有時不顯示變更鈕。
-    public var gitChanges: (any GitChangesReading)?
+    public let gitChanges: (any GitChangesReading)?
 
     /// 這個 Agent 工作目錄的變更頁;沒有 git 讀取或還不知道工作目錄時是 `nil`。
     public func makeChanges() -> ChangesModel? {
@@ -309,46 +307,32 @@ public final class ConversationModel {
     public let slash: SlashMenuModel
     public private(set) var isSending = false
     /// 這支裝置配對成唯讀(HTTPS):不能送 prompt、回答或中斷。
-    public private(set) var isReadOnly = false
+    public var isReadOnly: Bool { readOnlyState.isReadOnly }
+    /// 唯讀的唯一切換入口:輪詢、回答被拒、送出被拒都經 `readOnlyState.observe(_:)`。
+    private var readOnlyState = ReadOnlyDeviceState()
 
-    // MARK: 圖片(F7)
+    // MARK: 附件(F7、#286、#474;邏輯在 `ComposerAttachments`,#562)
 
     /// 一則最多幾個附件(圖片與檔案合計,#352)。
-    public static let maximumAttachments = 10
-    /// 輸入列上的圖片附件(送出被接受時才清)。
-    public private(set) var attachments: [ComposerAttachment] = []
-    @ObservationIgnored private let images: ComposerImages?
-    /// 這台主機能不能附加圖片(有上傳器;目前只有 Unix 主機)。
-    public var canAttachImages: Bool { images != nil }
-    public var remainingImageSlots: Int { max(0, Self.maximumAttachments - attachments.count) }
+    public static let maximumAttachments = ComposerAttachments.maximumCount
+    /// 附件 module:清單、準備、上傳、行動網路確認與草稿保存都在它裡面。聊天 model 只在送出時要路徑、依安全送出的結果收尾。
+    public let composerAttachments: ComposerAttachments
 
-    /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過 4 張的部分、原始大小超過單張上限的不加入並提示。
+    /// 輸入列上的附件(主機收下或可能收下時才清)。
+    public var attachments: [ComposerAttachment] { composerAttachments.items }
+    /// 這台主機能不能附加圖片(有上傳器;目前只有 Unix 主機)。
+    public var canAttachImages: Bool { composerAttachments.isAvailable }
+    public var remainingImageSlots: Int { composerAttachments.remainingSlots }
+
+    /// 拿走附件 module 剛產生的提示(沒有就不動既有提示)。
+    private func collectAttachmentNotice() {
+        if let attachmentNotice = composerAttachments.takeNotice() { notice = attachmentNotice }
+    }
+
+    /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過額度的部分、原始大小超過單張上限的不加入並提示。
     public func addImages(_ items: [Data]) async {
-        guard let images, !items.isEmpty else { return }
-        if items.count > remainingImageSlots { notice = .attachmentLimit }
-        for data in items.prefix(remainingImageSlots) {
-            // 單張上限以使用者挑的原始圖片判斷，不因縮小而改變(#76)。
-            guard data.count <= ImageUploadLimit.maximumSize else {
-                notice = .imageTooLarge
-                continue
-            }
-            let prepared = await Task.detached(priority: .userInitiated) { ImagePreparation.prepare(data) }.value
-            guard let prepared, remainingImageSlots > 0 else {
-                if prepared == nil { notice = .imageUnreadable }
-                continue
-            }
-            let name = images.makeName()
-            do {
-                try images.store.save(prepared.jpeg, as: name.value)
-            } catch {
-                notice = .imageUnreadable
-                continue
-            }
-            attachments.append(
-                ComposerAttachment(
-                    fileName: HostUploadName(name), byteCount: prepared.jpeg.count, pixelWidth: prepared.width, pixelHeight: prepared.height))
-            saveAttachments()
-        }
+        await composerAttachments.addImages(items)
+        collectAttachmentNotice()
     }
 
     /// 已滿時點「附加」:提示上限(F7)。
@@ -377,9 +361,7 @@ public final class ConversationModel {
     /// 移除附件。送出(上傳)中不能移除。
     public func removeAttachment(_ id: String) {
         guard !isSending else { return }
-        if let removed = attachments.first(where: { $0.id == id }), removed.kind == .file { removeStoredCopies(of: removed) }
-        attachments.removeAll { $0.id == id }
-        saveAttachments()
+        composerAttachments.remove(id)
     }
 
     /// 泡泡裡的主機圖片路徑 → 手機上的副本(依檔名;找不到就是 `nil`,畫面顯示「圖片」標籤)。
@@ -389,282 +371,66 @@ public final class ConversationModel {
     }
 
     public func localImage(named name: String) -> URL? {
-        images?.store.url(of: name)
+        composerAttachments.localImage(named: name)
     }
-
-    private func saveAttachments() {
-        drafts.saveAttachments(attachments, chatKey: chatKey)
-    }
-
-    // MARK: 檔案(#286)
 
     /// 正在讀取、準備加成附件的檔案(原始檔名);沒有時是 `nil`。
-    public private(set) var loadingFileName: String?
-    /// 能不能附加檔案：有上傳到主機、不是唯讀裝置。
-    public var canAttachFiles: Bool { images != nil && !isReadOnly }
+    public var loadingFileName: String? { composerAttachments.loadingFileName }
+    /// 能不能附加檔案:有上傳到主機、不是唯讀裝置。
+    public var canAttachFiles: Bool { composerAttachments.canAttachFiles(isReadOnly: isReadOnly) }
 
-    /// 附加一般檔案：讀進來存手機副本、在輸入列成一張附件卡，送出時才上傳(#352)。已知大小超過上限時不讀內容。
-    /// 圖片檔(副檔名 png、jpg…)走圖片附件，與相簿一致。
+    /// 附加一般檔案:讀進來存手機副本、在輸入列成一張附件卡,送出時才上傳(#352)。已知大小超過上限時不讀內容。
+    /// 圖片檔(副檔名 png、jpg…)走圖片附件,與相簿一致。
     public func addFile(named originalName: String, size: Int?, load: @Sendable () async throws -> Data) async {
-        guard let images, canAttachFiles, loadingFileName == nil else { return }
-        guard remainingImageSlots > 0 else {
-            notice = .attachmentLimit
-            return
-        }
-        let limit = HostUploadLimit.maximumFileSize
-        if let size, size > limit {
-            notice = .fileTooLarge(size: size, limit: limit)
-            return
-        }
-        loadingFileName = originalName
-        defer { loadingFileName = nil }
-        let data: Data
-        do {
-            data = try await load()
-        } catch {
-            notice = .fileUnreadable
-            return
-        }
-        guard data.count <= limit else {
-            notice = .fileTooLarge(size: data.count, limit: limit)
-            return
-        }
-        if UploadedImages.hasImageExtension(originalName) {
-            await addImages([data])
-            return
-        }
-        guard remainingImageSlots > 0 else {
-            notice = .attachmentLimit
-            return
-        }
-        let name = images.makeFileName(originalName)
-        do {
-            try images.store.save(data, as: name.value)
-        } catch {
-            notice = .fileUnreadable
-            return
-        }
-        attachments.append(ComposerAttachment(kind: .file, fileName: name, displayName: originalName, byteCount: data.count))
-        saveAttachments()
+        await composerAttachments.addFile(named: originalName, size: size, isReadOnly: isReadOnly, load: load)
+        collectAttachmentNotice()
     }
-
-    // MARK: 影片(#474)
 
     /// 影片準備中(取出、壓縮)的進度;沒有時是 `nil`。
-    public private(set) var videoPreparation: VideoPreparation?
-    /// 能不能附加影片：能附加檔案、又有壓縮器。
-    public var canAttachVideos: Bool { canAttachFiles && images?.videoCompressor != nil }
-
-    @ObservationIgnored private var videoTask: Task<VideoOutcome, Never>?
-    /// 目前這一次準備的識別;取消或換新一次後,舊的結果回來(挑選器不回應取消)就丟掉。
-    @ObservationIgnored private var videoToken: UUID?
-
-    private enum VideoOutcome: Sendable {
-        /// 已經搬進手機副本。
-        case ready(fileName: HostUploadName, displayName: String, byteCount: Int, duration: TimeInterval?, thumbnailFileName: String?)
-        case tooLong
-        case unreadable
-        case cancelled
-    }
+    public var videoPreparation: VideoPreparation? { composerAttachments.videoPreparation }
+    /// 能不能附加影片:能附加檔案、又有壓縮器。
+    public var canAttachVideos: Bool { composerAttachments.canAttachVideos(isReadOnly: isReadOnly) }
 
     /// 附加相簿影片(#474):`load` 取出影片檔(可能要從 iCloud 下載;檔案交給這裡，用完會刪)。
     public func addVideo(displayName: String, load: @escaping @Sendable () async throws -> URL) async {
         await addPickedVideo(displayName: displayName, load: { VideoSourceFile(try await load()) })
     }
 
-    /// 附加相簿影片(#474):沒超過上限就原樣加成附件卡;超過就由高到低壓縮，第一個放得下的畫質就是結果;
-    /// 壓到最小仍超過、或太長，提示後不加入。與檔案一樣先留在輸入列，送出才上傳。可用 `cancelVideoPreparation()` 取消。
-    /// 取出、壓縮與搬進手機副本都在背景做(最多 25 MiB 不佔主執行緒)，副檔名依實際格式。
+    /// 附加相簿影片(#474):壓縮階梯、上限與取消見 `ComposerAttachments.addPickedVideo`。
     public func addPickedVideo(displayName: String, load: @escaping @Sendable () async throws -> VideoSourceFile) async {
-        guard let images, let compressor = images.videoCompressor, canAttachFiles, videoPreparation == nil, loadingFileName == nil else { return }
-        guard remainingImageSlots > 0 else {
-            notice = .attachmentLimit
-            return
-        }
-        videoPreparation = VideoPreparation(displayName: displayName, phase: .loading, fraction: nil)
-        let token = UUID()
-        videoToken = token
-        let limit = HostUploadLimit.maximumFileSize
-        let task = Task.detached { [weak self] () -> VideoOutcome in
-            let picked: VideoSourceFile
-            do { picked = try await load() } catch { return Task.isCancelled ? .cancelled : .unreadable }
-            defer { try? FileManager.default.removeItem(at: picked.discard) }
-            // 挑選器不回應取消:回來時已經取消就整個丟掉。
-            if Task.isCancelled { return .cancelled }
-            let source = picked.url
-            do {
-                let sourceSize = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                if sourceSize <= limit {
-                    let ext = source.pathExtension.lowercased()
-                    return try await Self.storeVideo(source, displayName: displayName, fileExtension: ext.isEmpty ? nil : ext, images: images, compressor: compressor)
-                }
-                let candidates = VideoQuality.candidates(forDuration: try await compressor.duration(of: source), limit: limit)
-                await self?.setVideoPhase(.shrinking, token: token)
-                for quality in candidates {
-                    let output = FileManager.default.temporaryDirectory.appending(path: "purrdr-video-\(UUID().uuidString).mp4")
-                    defer { try? FileManager.default.removeItem(at: output) }
-                    try await compressor.compress(source, quality: quality, to: output) { fraction in
-                        Task { @MainActor in self?.setVideoFraction(fraction, token: token) }
-                    }
-                    let size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? .max
-                    if size <= limit {
-                        if Task.isCancelled { return .cancelled }
-                        return try await Self.storeVideo(output, displayName: displayName, fileExtension: "mp4", images: images, compressor: compressor)
-                    }
-                }
-                return .tooLong
-            } catch {
-                return Task.isCancelled || error is CancellationError ? .cancelled : .unreadable
-            }
-        }
-        videoTask = task
-        let outcome = await task.value
-        // 取消(或已經換成新的一次)後回來的結果:不加入，已搬進副本的刪掉。
-        guard videoToken == token else {
-            if case .ready(let fileName, _, _, _, let thumbnail) = outcome {
-                images.store.remove(fileName.value)
-                if let thumbnail { images.store.remove(thumbnail) }
-            }
-            return
-        }
-        videoTask = nil
-        videoToken = nil
-        videoPreparation = nil
-        switch outcome {
-        case .cancelled: break
-        case .tooLong: notice = .videoTooLong
-        case .unreadable: notice = .videoUnreadable
-        case .ready(let fileName, let name, let byteCount, let duration, let thumbnail):
-            guard remainingImageSlots > 0 else {
-                images.store.remove(fileName.value)
-                if let thumbnail { images.store.remove(thumbnail) }
-                notice = .attachmentLimit
-                return
-            }
-            attachments.append(
-                ComposerAttachment(
-                    kind: .file, fileName: fileName, displayName: name, byteCount: byteCount, duration: duration, thumbnailFileName: thumbnail))
-            saveAttachments()
-        }
-    }
-
-    /// 把影片檔搬進手機副本(背景)。`fileExtension` 是實際格式,沒有就沿用顯示名稱的。
-    private nonisolated static func storeVideo(
-        _ file: URL, displayName: String, fileExtension: String?, images: ComposerImages, compressor: any VideoCompressing
-    ) async throws -> VideoOutcome {
-        var name = displayName
-        if let fileExtension { name = (displayName as NSString).deletingPathExtension + "." + fileExtension }
-        let byteCount = (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        let uploadName = images.makeFileName(name)
-        // 長度與縮圖在搬走檔案之前取(取不到就沒有,卡片照常顯示)。
-        let duration = try? await compressor.duration(of: file)
-        var thumbnailName: String?
-        if let thumbnail = await compressor.thumbnail(of: file) {
-            let stem = (uploadName.value as NSString).deletingPathExtension
-            if (try? images.store.save(thumbnail, as: stem + "-thumb.jpg")) != nil { thumbnailName = stem + "-thumb.jpg" }
-        }
-        do {
-            try images.store.save(movingFile: file, as: uploadName.value)
-        } catch {
-            if let thumbnailName { images.store.remove(thumbnailName) }
-            throw error
-        }
-        return .ready(fileName: uploadName, displayName: name, byteCount: byteCount, duration: duration, thumbnailFileName: thumbnailName)
-    }
-
-    private func setVideoPhase(_ phase: VideoPreparation.Phase, token: UUID) {
-        guard videoToken == token else { return }
-        videoPreparation?.phase = phase
-    }
-
-    private func setVideoFraction(_ fraction: Double, token: UUID) {
-        guard videoToken == token else { return }
-        videoPreparation?.fraction = fraction
+        await composerAttachments.addPickedVideo(displayName: displayName, isReadOnly: isReadOnly, load: load)
+        collectAttachmentNotice()
     }
 
     /// 取消影片準備(取出或壓縮中):立刻恢復輸入列;不加入、不提示，暫存檔刪掉。
-    public func cancelVideoPreparation() {
-        videoTask?.cancel()
-        videoTask = nil
-        videoToken = nil
-        videoPreparation = nil
-    }
-
-    /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
-    private static func uploadNotice(for error: any Error, otherwise: SendNotice) -> SendNotice {
-        guard case .hostServiceUpdateRequired(_, let installedVersion)? = error as? HostServiceError else { return otherwise }
-        return .hostServiceUpdateRequired(installedVersion: installedVersion)
-    }
+    public func cancelVideoPreparation() { composerAttachments.cancelVideoPreparation() }
 
     /// 影片大到行動網路上傳前要先提醒的大小(10 MiB)。
-    package nonisolated static let cellularWarningBytes = 10 * 1024 * 1024
+    package nonisolated static let cellularWarningBytes = ComposerAttachments.cellularWarningBytes
     /// 等使用者確認的行動網路上傳提醒(這次要上傳的影片位元組數);沒有提醒時是 `nil`。
-    public private(set) var cellularUploadWarning: Int?
-    @ObservationIgnored private var cellularConfirmed = false
-
-    private var needsCellularConfirmation: Bool {
-        guard !cellularConfirmed, let images, images.isOnCellular() else { return false }
-        return attachments.contains { $0.uploadedPath == nil && $0.duration != nil && $0.byteCount >= Self.cellularWarningBytes }
-    }
+    public var cellularUploadWarning: Int? { composerAttachments.cellularUploadWarning }
 
     /// 使用者確認用行動網路上傳:接著照常送出。
     public func confirmCellularUpload() async {
-        cellularUploadWarning = nil
-        cellularConfirmed = true
-        defer { cellularConfirmed = false }
+        composerAttachments.beginConfirmedUpload()
+        defer { composerAttachments.endConfirmedUpload() }
         await send()
     }
 
-    public func dismissCellularWarning() { cellularUploadWarning = nil }
-
-    /// 刪掉檔案附件的手機副本(影片連縮圖)。
-    private func removeStoredCopies(of attachment: ComposerAttachment) {
-        images?.store.remove(attachment.fileName.value)
-        if let thumbnail = attachment.thumbnailFileName { images?.store.remove(thumbnail) }
-    }
+    public func dismissCellularWarning() { composerAttachments.dismissCellularWarning() }
 
     /// 送出時上傳中的附件進度;沒有在上傳時是 `nil`。
-    public private(set) var uploadProgress: UploadProgress?
-    @ObservationIgnored private var uploadTask: Task<[String], any Error>?
+    public var uploadProgress: UploadProgress? { composerAttachments.uploadProgress }
 
     /// 取消送出時的上傳(使用者按取消):附件與草稿留著,不提示。SSH 主機上的暫存檔因連線提早結束而刪掉。
-    public func cancelUpload() { uploadTask?.cancel() }
+    public func cancelUpload() { composerAttachments.cancelUpload() }
 
-    /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗丟出那個錯誤：整則不送(F6.5)。
-    private func uploadAttachments() async throws -> [String] {
-        guard let images else {
-            guard attachments.isEmpty else { throw HostServiceError.unsupported("upload") }
-            return []
-        }
-        var paths: [String] = []
-        for index in attachments.indices {
-            if let path = attachments[index].uploadedPath {
-                paths.append(path)
-                continue
-            }
-            let name = attachments[index].fileName
-            guard let url = images.store.url(of: name.value) else { throw CocoaError(.fileReadNoSuchFile) }
-            // 分塊讀檔上傳(影片最多 25 MiB,不整份進記憶體),回報進度。
-            let source = try HostUploadSource.file(at: url)
-            uploadProgress = UploadProgress(displayName: attachments[index].displayName, fraction: 0)
-            defer { uploadProgress = nil }
-            let path = try await images.uploader.upload(source, named: name) { [weak self] fraction in
-                Task { @MainActor in self?.uploadProgress?.fraction = fraction }
-            }
-            if let current = attachments.firstIndex(where: { $0.fileName == name }) {
-                attachments[current].uploadedPath = path
-            }
-            paths.append(path)
-        }
-        saveAttachments()
-        return paths
-    }
     /// 還沒被對話紀錄確認的回音。
     public private(set) var echoes: [PromptEcho] = []
     /// 畫面上的列：對話紀錄的項目，加上依時間併入的回音。
     public private(set) var entries: [ConversationEntry] = []
     /// 列表結構(列的 id 與順序)每變一次遞增。畫面觀察它，不必每次 body 都配置整個 id 陣列(#130)。
-    public private(set) var entriesRevision = 0
+    @ObservationIgnored public private(set) var entriesRevision = 0
     /// 時間軸目前的列(身分穩定,回音確認後仍沿用回音的 id);聊天列表用它的 id 當 diffable 的 identifier(#487)。
     public private(set) var rows: [ConversationRow] = []
     /// 時間軸每次產生變更時呼叫(聊天列表據此餵捲動決策者,#487);沒有變更不呼叫。
@@ -674,18 +440,32 @@ public final class ConversationModel {
         timeline.markdownBlocks(for: text)
     }
 
-    /// 列展開狀態每變一次遞增,讓讀 `isExpanded` 的畫面重畫。
-    private var expansionRevision = 0
+    /// 單一列(或列內子項)的展開版本:只有讀它的觀察者會因這一列展開而失效(#592)。
+    @Observable
+    final class ExpansionStamp {
+        var revision = 0
+    }
+
+    /// 以「列 id + 子項 id」為 key 的版本戳,不讓任一列展開就讓所有讀過的列失效。
+    @ObservationIgnored private var expansionStamps: [String: ExpansionStamp] = [:]
+
+    fileprivate func expansionStamp(rowID: String, partID: String?) -> ExpansionStamp {
+        let key = partID.map { "\(rowID)\u{0}\($0)" } ?? rowID
+        if let stamp = expansionStamps[key] { return stamp }
+        let stamp = ExpansionStamp()
+        expansionStamps[key] = stamp
+        return stamp
+    }
 
     /// 列(或列內以 `partID` 區分的子項)是否展開。狀態存在時間軸,跟著列走。
     public func isExpanded(rowID: String, partID: String? = nil) -> Bool {
-        _ = expansionRevision
+        _ = expansionStamp(rowID: rowID, partID: partID).revision
         return timeline.isExpanded(rowID: rowID, partID: partID)
     }
 
     public func setExpanded(_ expanded: Bool, rowID: String, partID: String? = nil) {
         timeline.setExpanded(expanded, rowID: rowID, partID: partID)
-        expansionRevision &+= 1
+        expansionStamp(rowID: rowID, partID: partID).revision &+= 1
     }
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
     public private(set) var notice: SendNotice?
@@ -701,14 +481,25 @@ public final class ConversationModel {
 
     // MARK: 回答「需要你」(F8)
 
+    /// 回答「需要你」的狀態機(#560):卡片、鎖定、已回答卡片、提示、自訂回答與期限規則都在 `AnswerFlow`,
+    /// 這裡只執行它吐出的動作(送按鍵、播觸覺、改輸入框、再輪詢)。
+    private var answerFlow = AnswerFlow()
     /// 畫面上正在等回答的提示。
-    public private(set) var prompt: BlockedPrompt?
+    public var prompt: BlockedPrompt? { answerFlow.prompt }
     /// 已送出、還在等結果的回答(選項全部鎖住)。
-    public private(set) var answerInFlight: PromptAnswer?
-    /// 最近一次已送達的回答(畫面清楚顯示選了什麼);Agent 寫出新的文字後收起(#213,`AnsweredCardAnchor`)。
-    public private(set) var lastAnswer: AnsweredPrompt?
-    private var answeredCardAnchor: AnsweredCardAnchor?
-    public private(set) var answerNotice: AnswerNotice?
+    public var answerInFlight: PromptAnswer? { answerFlow.inFlight }
+    /// 最近一次已送達的回答(畫面清楚顯示選了什麼);Agent 寫出新的文字後收起(#213)。
+    public var lastAnswer: AnsweredPrompt? { answerFlow.lastAnswer }
+    public var answerNotice: AnswerNotice? { answerFlow.notice }
+
+    /// 改動狀態機:只有真的變了才寫回(輪詢每 2 秒走一次,不能讓畫面每次都重繪)。
+    @discardableResult
+    private func mutateAnswerFlow<T>(_ body: (inout AnswerFlow) -> T) -> T {
+        var copy = answerFlow
+        let result = body(&copy)
+        if copy != answerFlow { answerFlow = copy }
+        return result
+    }
 
     public let paneID: String
     /// 不是選取中主機時的主機名(標題列第一段);選取中主機為 `nil`。每次算標題列時才問，
@@ -725,12 +516,14 @@ public final class ConversationModel {
     private let knownSessionID: String?
     private let drafts: DraftStore
     private let delivery: PromptDelivery
+    private let safeSend: SafeSend
     /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
     private let sendPipeline: SendPipeline
     /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
-    public var undoSend: UndoSendCountdown? { sendPipeline.step(UndoSendCountdown.self) }
+    public let undoSend: UndoSendCountdown?
     /// 管線裡的離線佇列(#301):離線時送出的訊息排在這台主機的佇列;沒有這個步驟時離線不能送出。
-    public var offlineQueue: OfflineQueue? { sendPipeline.step(OfflineQueueStep.self)?.queue }
+    public var offlineQueue: OfflineQueue? { offlineQueueStep?.queue }
+    private let offlineQueueStep: OfflineQueueStep?
     /// 這個聊天(pane)排隊中與沒送出的訊息，畫在對話最下面。
     public var queuedPrompts: [QueuedPrompt] { offlineQueue?.entries(forPane: paneID) ?? [] }
 
@@ -746,7 +539,8 @@ public final class ConversationModel {
     }
 
     /// 管線裡的 Send When Done(#305):輸入列的「做完再送」開關與主機上的佇列;沒有這個步驟時是 `nil`。
-    public var sendWhenDone: SendWhenDoneModel? { sendPipeline.step(SendWhenDoneStep.self)?.model }
+    public var sendWhenDone: SendWhenDoneModel? { sendWhenDoneStep?.model }
+    private let sendWhenDoneStep: SendWhenDoneStep?
 
     /// 編輯 Send When Done 佇列裡的一則:從主機佇列拿掉，文字放回輸入框(接在目前的草稿前面)。
     public func editSendWhenDone(_ id: SendWhenDoneItem.ID) async {
@@ -755,25 +549,17 @@ public final class ConversationModel {
     }
 
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
-    public var secretCheck: SecretCheck? { sendPipeline.step(SecretCheck.self) }
+    public let secretCheck: SecretCheck?
     private let slashDiscovery: (any SlashDiscovering)?
     private let modelCatalogProvider: (any ModelCatalogProviding)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
-    @ObservationIgnored public var onPromptDelivered: (@MainActor () -> Void)?
-    /// 下一次輪詢要讀畫面(送出時 agent 在等回答)。
-    private var probeScreen = false
-    private var answerSignature: String?
-    private var answerQuestion: String?
-    /// 按鍵送達主機的時間與當時對話的最後一列(已回答卡片的錨點，#213);還在送時為 `nil`(不判定)。
-    private var answerSent: AnsweredCardAnchor?
-    /// 答完後到這個時間為止，blocked 但畫面不是選單時視為過時狀態、不顯示通用鈕(#468)。
-    private var staleBlockedUntil: Date?
+    @ObservationIgnored public let onPromptDelivered: (@MainActor () -> Void)?
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 「已停止」2 秒後的收起;agent 又開始工作或有新的停止時取消(#220)。
     @ObservationIgnored private var stoppedCollapseTask: Task<Void, Never>?
-    /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
-    @ObservationIgnored private var screenThisPoll: String?
+    /// 每輪的 Pane 畫面(#559):所有看畫面的用途向它要,同一輪最多讀一次。
+    @ObservationIgnored private var screens: PaneScreenRound
     /// 工作中讀畫面的節奏(#204)。
     @ObservationIgnored private var workingScreenReads = WorkingScreenReads()
     /// 這次輪詢若在工作中，可以讀畫面更新即時預覽與背景 agents 窗格;不行時沿用上次的。
@@ -804,11 +590,11 @@ public final class ConversationModel {
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
     /// 對話紀錄的方言，依 Agent 設定檔(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
-    private var dialect: TranscriptDialect = .claude
+    @ObservationIgnored private var dialect: TranscriptDialect = .claude
     /// 解析時略過認不得的行(#449):交給診斷紀錄(只含種類名稱與數量);`nil` 不回報。
-    public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
+    public let onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
     /// 對話紀錄的解析與重建在背景做(#498);測試用:每次背景計算開頭呼叫(在背景執行緒上)。
-    package var onTranscriptWork: (@Sendable () -> Void)?
+    @ObservationIgnored package var onTranscriptWork: (@Sendable () -> Void)?
     /// 對話紀錄各段依到達順序套用的鎖:解析在背景做,結果回主執行緒以時間軸增量套用(`applyTimeline`)。
     private let applyGate = TranscriptSerialGate()
     /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
@@ -829,20 +615,27 @@ public final class ConversationModel {
     private var recent: [TranscriptMessage] = []
     /// `recent` 由哪幾段讀取組成(每段的 byte 起點與訊息數，依序、加總等於 `recent.count`)。修剪與寫快取都以整段為單位，
     /// 視窗起點因此是某一段的開頭，往上翻接得上、不缺訊息(#130)。
-    private var segments: [(start: Int, count: Int)] = []
+    @ObservationIgnored private var segments: [(start: Int, count: Int)] = []
     /// 畫面跟隨尾端(由畫面告知)。只有跟隨中才修剪最舊的訊息：讀者正在看的不會被拿掉。
     @ObservationIgnored public var isFollowingLatest = true
     /// 跟隨尾端時記憶體裡最多保留的訊息數(含往上翻的舊頁;與快取的上限相同)。超過時整段修剪最舊的，可以往上翻回來。
     public static let followingMessageLimit = CachedConversation.maxMessages
+    /// 往上翻讀到的舊訊息上限:不跟隨最新時不修剪(使用者正在讀),以這個上限擋住無限成長;
+    /// 回到最新(`trimIfFollowing`)才丟掉舊頁。
+    public static let scrollbackMessageLimit = 4 * CachedConversation.maxMessages
     /// 往上翻載入的舊訊息(不寫入快取)。
-    private var olderMessages: [TranscriptMessage] = []
+    @ObservationIgnored private var olderMessages: [TranscriptMessage] = []
     /// 對話時間軸:列身分由它分配,新內容只以增量餵給它(#481)。
     @ObservationIgnored private var timeline = ConversationTimeline()
-    private var waitingSince: Date?
+    @ObservationIgnored private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
     /// 知道 Agent 後預載 slash 清單(#469);之後每次輪詢檢查是否過期,超過 60 秒在背景重讀。
     private var currentAgent: Agent? {
-        didSet { preloadSlash() }
+        didSet {
+            preloadSlash()
+            let kind = currentAgent?.kind ?? ""
+            if answerFlow.agentKind != kind { answerFlow.agentKind = kind }
+        }
     }
 
     /// 預載 slash 清單:要等 Agent 已知、對話紀錄路徑也找到(session 內的 skill 才讀得到)才開始,
@@ -857,17 +650,17 @@ public final class ConversationModel {
     public var transcriptStartsAfterFirstMessage: Bool { screenDialect.transcriptStartsAfterFirstMessage }
     /// Agent 所在的 workspace(更多選單的「顯示版面」用,#381)。
     public var workspaceID: String? { currentAgent?.workspaceID }
-    private var lastPolledStatus: AgentStatus?
+    @ObservationIgnored private var lastPolledStatus: AgentStatus?
     /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
     @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
-    private var lastPresenceSeq: UInt64 = 0
+    @ObservationIgnored private var lastPresenceSeq: UInt64 = 0
 
     // MARK: 離開期間摘要(#308)
 
     /// 上次離開這個聊天的時間(由 `MergedAgentListModel.awayStart(for:)` 接上;沒開過的聊天是 `nil`)。
-    @ObservationIgnored public var awayStart: (@MainActor () -> Date?)?
+    @ObservationIgnored public let awayStart: (@MainActor () -> Date?)?
     /// 第一次讀到離開起點時定下來的(離開起點，進來的時間);之後不變，聊天開著時發生的項目不會被算進去。
-    private var awayLatch: (from: Date, cutoff: Date)?
+    @ObservationIgnored private var awayLatch: (from: Date, cutoff: Date)?
     /// 離開超過 15 分鐘回來時的摘要;其餘為 `nil`。
     package private(set) var awaySummary: AwaySummary?
     /// 離開期間那段是否收合(只留最後一句)。
@@ -881,7 +674,7 @@ public final class ConversationModel {
     }
 
     /// app 進背景的時間(聊天一直開著時的離開起點，#308)。
-    private var backgroundedAt: Date?
+    @ObservationIgnored private var backgroundedAt: Date?
 
     /// app 進背景或回到前景(由畫面的 scenePhase 回報):進背景記起點，回來時離開起點與這次進來的時間重新定下來，
     /// 之後的摘要規則同進出聊天畫面(離開 15 分鐘以上才出現)。
@@ -901,7 +694,36 @@ public final class ConversationModel {
         awaySummary = awayLatch.flatMap { AwaySummary.make(items: items, awayFrom: $0.from, cutoff: $0.cutoff) }
     }
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
-    private var generation = 0
+    @ObservationIgnored private var generation = 0
+
+    /// 聊天所在主機接上的來源與回呼(#566):建立時一次給齊,之後畫面不能改。
+    public struct HostLinks {
+        public var youShouldKnow: YouShouldKnowModel?
+        public var agentFiles: AgentFileLoads?
+        public var gitChanges: (any GitChangesReading)?
+        public var sessionStatusReader: (any ClaudeSessionStatusReading)?
+        public var agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading]
+        public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
+        public var onPromptDelivered: (@MainActor () -> Void)?
+        public var awayStart: (@MainActor () -> Date?)?
+
+        public init(
+            youShouldKnow: YouShouldKnowModel? = nil, agentFiles: AgentFileLoads? = nil,
+            gitChanges: (any GitChangesReading)? = nil, sessionStatusReader: (any ClaudeSessionStatusReading)? = nil,
+            agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:],
+            onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)? = nil,
+            onPromptDelivered: (@MainActor () -> Void)? = nil, awayStart: (@MainActor () -> Date?)? = nil
+        ) {
+            self.youShouldKnow = youShouldKnow
+            self.agentFiles = agentFiles
+            self.gitChanges = gitChanges
+            self.sessionStatusReader = sessionStatusReader
+            self.agentSessionStatusReaders = agentSessionStatusReaders
+            self.onTranscriptSkips = onTranscriptSkips
+            self.onPromptDelivered = onPromptDelivered
+            self.awayStart = awayStart
+        }
+    }
 
     public init(
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
@@ -909,15 +731,16 @@ public final class ConversationModel {
         openMaxBytes: Int = TranscriptReader.openingMaxBytes, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: @escaping @MainActor () -> String? = { nil },
-        images: ComposerImages? = nil,
+        images: ComposerAttachments.Dependencies? = nil,
         updates: HostUpdates? = nil,
-        sendSteps: [any SendStep] = [],
+        sendStages: SendStages = SendStages(),
+        links: HostLinks = HostLinks(),
         modelCatalog: (any ModelCatalogProviding)? = nil,
         sleep: @escaping Sleep = Sleeping.task
     ) {
         self.modelCatalogProvider = modelCatalog
         self.updates = updates
-        self.images = images
+        composerAttachments = ComposerAttachments(dependencies: images, drafts: drafts, chatKey: paneID)
         self.client = client
         self.transcripts = transcripts
         self.paneID = paneID
@@ -932,14 +755,28 @@ public final class ConversationModel {
         self.hostName = hostName
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
-        sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
+        safeSend = SafeSend(client: client, sleep: sleep)
+        screens = PaneScreenRound(read: { format in try await client.readPane(paneID: paneID, format: format) })
+        secretCheck = sendStages.secretCheck
+        sendWhenDoneStep = sendStages.sendWhenDone
+        undoSend = sendStages.undo
+        offlineQueueStep = sendStages.offlineQueue
+        youShouldKnow = links.youShouldKnow
+        agentFiles = links.agentFiles
+        gitChanges = links.gitChanges
+        sessionStatusReader = links.sessionStatusReader
+        agentSessionStatusReaders = links.agentSessionStatusReaders
+        onTranscriptSkips = links.onTranscriptSkips
+        onPromptDelivered = links.onPromptDelivered
+        awayStart = links.awayStart
+        sendPipeline = SendPipeline(steps: sendStages.steps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
-        if images != nil { attachments = drafts.attachments(chatKey: paneID) }
         slash.loader = { [weak self] in await self?.slashCatalog() }
         slash.onPick = { [weak self] command in self?.pick(slash: command) }
         slash.update(draft: draft, caret: draftCaret)
+        controlSwitcher.host = self
         // 記憶體層有這個聊天最近的內容:同步還原,打開時第一幀就有內容(不閃骨架)。
         if let cached = cache.cachedConversation(chatKey: paneID), accepts(cached) { restore(cached) }
     }
@@ -1031,7 +868,7 @@ public final class ConversationModel {
             while !Task.isCancelled {
                 await poll()
                 await refreshSessionStatusIfDue()
-                await probePermissionModeIfNeeded()
+                await controlSwitcher.probePermissionModeIfNeeded()
                 await refreshStatusLineIfDue()
                 do {
                     // 輪詢期間被叫醒就不等。
@@ -1064,6 +901,7 @@ public final class ConversationModel {
         guard let reader, dialect.readsSessionStatus, let session = boundSessionID ?? knownSessionID,
               ClaudeSessionStatus.isValidSessionID(session) else {
             sessionStatus = nil
+            if isSessionStatusLoading { isSessionStatusLoading = false }
             return
         }
         let now = clock.now()
@@ -1073,6 +911,7 @@ public final class ConversationModel {
         guard !Task.isCancelled else { return }
         let status = statuses?[session].flatMap { $0.isFresh(at: now) ? $0 : nil }
         if status != sessionStatus { sessionStatus = status }
+        if isSessionStatusLoading { isSessionStatusLoading = false }
     }
 
     /// 載入超過 `loadingSkeletonDelay` 還沒有內容才畫骨架。
@@ -1128,7 +967,7 @@ public final class ConversationModel {
         // 重連後的 Agent 列表交給離線佇列比對、補送(#301;主機更新來源讀到的也會交給它)。
         offlineQueue?.receive(snapshot)
         // 送出時被拒過就維持唯讀。
-        if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
+        readOnlyState.observe(.reported((try? await client.isReadOnlyDevice()) == true))
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
         guard let agent = currentAgent else {
             clearSuggestion()
@@ -1140,7 +979,7 @@ public final class ConversationModel {
         }
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         settleStopResult()
-        screenThisPoll = nil
+        screens.begin()
         workingScreenDue = workingScreenReads.allowsRead(isWorking: agentStatus == .working, at: clock.now())
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         tabName = AgentListProjection.tabPosition(of: agent.tabID, in: snapshot).map { AgentListProjection.tabName(label: $0.tab.label, position: $0.position) } ?? ""
@@ -1193,11 +1032,11 @@ public final class ConversationModel {
         default: agentsPane != nil || lastPolledStatus == .working
         }
         guard shouldRead else { return }
-        // 這次輪詢找提示時已經讀過畫面就沿用，不再多一個主機指令。
-        let read: String?
-        if let screenThisPoll { read = screenThisPoll } else { read = await readScreen() }
-        guard let screen = read else { return }
-        agentsPane = AgentsPane.parse(screen: screen)
+        guard let screen = await readScreen(for: .agentsPane) else { return }
+        // 畫面解析放背景,不佔主執行緒(#585);回來後 Task 若已被取消就不套用。
+        let parsed = await Task.detached(priority: .userInitiated) { AgentsPane.parse(screen: screen) }.value
+        guard !Task.isCancelled else { return }
+        agentsPane = parsed
         agentsPaneReadAt = clock.now()
     }
 
@@ -1404,7 +1243,9 @@ public final class ConversationModel {
     /// 但檔案前面有:往前一頁一頁讀到有訊息為止，不顯示「還沒有訊息」(#418)。有上限，避免超大檔案讀不完。
     private func readEarlierUntilMessages(path: String, generation: Int) async throws {
         var pages = 0
-        while !hasReadableMessage, older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
+        // 補讀期間只更新訊息清單,補讀完(或中途失敗)才整份重建時間軸一次(#586);可讀與否看訊息,不看還沒更新的畫面項目。
+        defer { if pages > 0, generation == self.generation { rebuild() } }
+        while !Self.hasReadableMessage(in: olderMessages + recent), older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
             pages += 1
             // 每頁加倍(上限 `maximumBackfillPageLines`):尾端一長串工具步驟時，往返次數是使用者在等的時間(#508)。
             let lines = min(pageLines << min(pages - 1, 4), max(pageLines, Self.maximumBackfillPageLines))
@@ -1520,8 +1361,10 @@ public final class ConversationModel {
             }
             file?.windowStart = page.start
             older = page.start > 0 ? .available : .reachedStart
+            if older == .available, !intoWindow, olderMessages.count >= Self.scrollbackMessageLimit { older = .scrollbackLimitReached }
             // 補讀屬於開啟視窗:跟隨最新時維持在底部(「整份取代」的捲動規則),不當成往上翻而停在原列、讓位置跳動(#508)。
-            applyTimeline(intoWindow ? timeline.reset(olderMessages + recent) : timeline.prependOlder(olderPage))
+            // 補讀(intoWindow)連讀好幾頁時不逐頁重建,由 `readEarlierUntilMessages` 補讀完整份重建一次(#586)。
+            if !intoWindow { applyTimeline(timeline.prependOlder(olderPage)) }
         }
     }
 
@@ -1688,17 +1531,48 @@ public final class ConversationModel {
     public func send() async {
         guard canSend else { return }
         // 行動網路上要傳大影片:先提醒會用掉多少流量,使用者確認才送(#474)。
-        if needsCellularConfirmation {
-            cellularUploadWarning = attachments.filter { $0.uploadedPath == nil && $0.duration != nil }.reduce(0) { $0 + $1.byteCount }
-            return
-        }
+        if composerAttachments.requestCellularConfirmation() { return }
         if let typedAnswer {
             await sendTypedAnswer(typedAnswer)
             return
         }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 問題卡開著、使用者不選選項直接打字送出:先結束題目選單，等 Agent 回到可輸入，再當一般 prompt 送出。
+        if let prompt, answerInFlight == nil, answerFlow.isQuestionCard {
+            draft = ""
+            guard await dismissQuestionCard(prompt) else {
+                putBackInDraft(text)
+                notice = .needsAnswer
+                return
+            }
+            await submit(text)
+            return
+        }
         draft = ""
         await submit(text)
+    }
+
+    /// 結束問題卡:有「Chat about this」就選它，沒有就送 Esc;再輪詢到 Agent 不再等回答(最多約 5 秒)。
+    private func dismissQuestionCard(_ prompt: BlockedPrompt) async -> Bool {
+        if let chat = prompt.chatOption, canAnswer(.option(chat)) {
+            await answer(.option(chat))
+            // 之後由這裡輪詢，不用 answer 排的兩次延後輪詢。
+            kickTask?.cancel()
+            guard answerInFlight != nil else { return false }
+        } else {
+            guard let keys = AnswerKeys.keys(for: .generic(.escape), agentKind: answerAgentKind) else { return false }
+            do {
+                try await client.sendKeys(paneID: paneID, keys: keys, expecting: SendExpectation(session: boundSessionID ?? knownSessionID))
+            } catch {
+                return false
+            }
+        }
+        for attempt in 0..<10 {
+            await poll()
+            if self.prompt == nil, agentStatus != .blocked { return true }
+            if attempt < 9 { try? await sleep(.milliseconds(500)) }
+        }
+        return false
     }
 
     /// 變更頁組好的評論訊息送給 Agent(#310):與輸入列同一條送出管線;輸入框裡打到一半的字留著，
@@ -1745,11 +1619,8 @@ public final class ConversationModel {
         rebuildEntries()
         // 圖片先逐張上傳;任何一張失敗 → 整則不送，草稿與圖片保留(F6.5、F7)。
         let paths: [String]
-        let upload = Task { try await uploadAttachments() }
-        uploadTask = upload
-        defer { uploadTask = nil }
         do {
-            paths = try await withTaskCancellationHandler { try await upload.value } onCancel: { upload.cancel() }
+            paths = try await composerAttachments.upload()
         } catch is CancellationError {
             // 使用者取消上傳:什麼都沒送出,草稿與附件留著,不提示。
             removeEcho(echo.id)
@@ -1758,7 +1629,7 @@ public final class ConversationModel {
         } catch {
             removeEcho(echo.id)
             putBackInDraft(text)
-            notice = Self.uploadNotice(for: error, otherwise: .uploadFailed)
+            notice = ComposerAttachments.notice(forUploadError: error)
             return
         }
         if let index = echoes.firstIndex(where: { $0.id == echo.id }) {
@@ -1767,26 +1638,14 @@ public final class ConversationModel {
             rebuildEntries()
         }
         let prompt = UploadedImages.prompt(text: text, paths: paths)
-        switch await freshTarget() {
-        case .success(let agent):
-            apply(
-                await delivery.send(prompt, to: agent, expectedSession: outgoing.expectedSession), toEcho: echo.id, text: text,
-                isRetry: false)
-            // 附件只在送出被接受時清(什麼都沒送出時草稿放回、圖片也留著，已上傳的不重傳)。
-            if !Self.nothingSent(notice) {
-                attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
-                for sent in sentImages where sent.kind == .file { removeStoredCopies(of: sent) }
-                saveAttachments()
-            }
-            if notice == .needsAnswer {
-                // 什麼都沒送出，因為 agent 在等回答：立刻找出問題(資料夾信任這類提示 herdr 可能回報 idle)。
-                probeScreen = true
-                await refreshPrompt(agent)
-            }
-        case .failure(let failure):
-            removeEcho(echo.id)
-            putBackInDraft(text)
-            notice = failure.notice
+        let result = await safeSend.send(prompt, to: destination(expectedSession: outgoing.expectedSession))
+        apply(result, toEcho: echo.id, text: text, isRetry: false)
+        // 附件收尾由附件 module 依安全送出的結果決定(沒送出就留著,已上傳的不重傳)。
+        composerAttachments.settle(sent: sentImages, after: result)
+        if case .notSent(.needsAnswer(let agent)) = result {
+            // 什麼都沒送出，因為 agent 在等回答：立刻找出問題(資料夾信任這類提示 herdr 可能回報 idle)。
+            mutateAnswerFlow { $0.requestProbe() }
+            await refreshPrompt(agent)
         }
     }
 
@@ -1799,15 +1658,8 @@ public final class ConversationModel {
         echoes[index].state = .sending
         rebuildEntries()
         notice = nil
-        switch await freshTarget() {
-        case .success(let agent):
-            apply(
-                await delivery.send(prompt, to: agent, expectedSession: boundSessionID ?? knownSessionID), toEcho: echoID, text: text,
-                isRetry: true)
-        case .failure(let targetFailure):
-            setEcho(echoID, state: .failed(failure))
-            notice = targetFailure.notice
-        }
+        let result = await safeSend.send(prompt, to: destination(expectedSession: boundSessionID ?? knownSessionID))
+        apply(result, toEcho: echoID, text: text, isRetry: true, previousFailure: failure)
     }
 
     /// 停止(F6.7):一個 Esc,3 秒內確認離開 working;結果顯示在停止列(#220)。
@@ -1855,34 +1707,24 @@ public final class ConversationModel {
 
     public func dismissNotice() { notice = nil }
 
-    // MARK: - 回答「需要你」
+    // MARK: - 回答「需要你」(規則在 `AnswerFlow`,#560)
 
-    /// 這個回答現在能不能送:沒有回答在途、提示還在，且有按鍵可送(編號 10 以上不行,R-Q04)。
+    /// 這個回答現在能不能送:沒有回答在途、提示還在,且有按鍵可送(編號 10 以上不行,R-Q04)。
     public func canAnswer(_ answer: PromptAnswer) -> Bool {
-        guard !isReadOnly, answerInFlight == nil, let prompt, inputs(for: answer) != nil else { return false }
-        switch answer {
-        case .option(let option): return prompt.options.contains(option)
-        case .continueMultiSelect: return prompt.isMultiSelect
-        case .closePicker: return prompt.kind == .filePicker
-        case .generic: return prompt.kind == .unrecognized
-        case .typed(let option, _): return prompt.typedAnswerOption(agentKind: answerAgentKind) == option
-        }
+        answerFlow.canAnswer(answer, isReadOnly: isReadOnly)
     }
 
     /// 回答提示(F8):依 agent 規則送出按鍵(§5.5)。
     ///
-    /// 送出前就鎖住所有選項(兩次快速點擊在重繪前就會到);之後每次輪詢判定：提示不見了或換成別的 → 已送達;
+    /// 送出前就鎖住所有選項(兩次快速點擊在重繪前就會到);之後每次輪詢判定:提示不見了或換成別的 → 已送達;
     /// 同一個提示超過期限 → 逾時、解鎖並提示可能沒送到;按鍵送不出去 → 立刻解鎖並顯示錯誤(R-Q05)。
     public func answer(_ answer: PromptAnswer) async {
-        guard canAnswer(answer), let prompt, let inputs = inputs(for: answer) else { return }
-        answerInFlight = answer
-        answerSignature = prompt.signature
-        answerQuestion = prompt.question
-        answerSent = nil
-        staleBlockedUntil = nil
-        answerNotice = nil
+        guard let inputs = mutateAnswerFlow({ $0.begin(answer: answer, isReadOnly: isReadOnly) }) else { return }
+        // 正在回答:先前「請先回答」的提示已不適用(只清這一種)。
+        if notice == .needsAnswer { notice = nil }
         haptics.play(.selection)
         let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
+        let result: AnswerFlow.SendResult
         do {
             for input in inputs {
                 switch input {
@@ -1890,33 +1732,28 @@ public final class ConversationModel {
                 case .text(let text): try await client.sendText(paneID: paneID, text: text, expecting: expectation)
                 }
             }
+            result = .sent(lastEntryID: entries.last?.id, at: clock.now())
         } catch {
-            guard answerInFlight == answer else { return }
-            clearAnswer()
-            if error as? HostServiceError == .paneChanged {
-                // 什麼都沒送出：題目或對話已變，立刻重讀畫面換上目前的題目。
-                answerNotice = .questionChanged
-                haptics.play(.error)
-                probeScreen = true
-                await poll()
-                return
+            switch error as? HostServiceError {
+            case .paneChanged?: result = .paneChanged
+            case .readOnlyDevice?: result = .readOnlyDevice
+            default: result = .failed
             }
-            if error as? HostServiceError == .readOnlyDevice {
-                // 卡片改顯示唯讀說明，不另外提示。
-                isReadOnly = true
-                haptics.play(.error)
-                return
-            }
-            answerNotice = .sendFailed
-            haptics.play(.error)
+        }
+        let follow = mutateAnswerFlow { $0.finish(answer, result: result) }
+        if let haptic = follow.haptic { haptics.play(haptic) }
+        // 卡片改顯示唯讀說明,不另外提示。
+        if follow.marksReadOnly { readOnlyState.observe(.answerRejected) }
+        if follow.rereadsScreen {
+            await poll()
             return
         }
-        guard answerInFlight == answer else { return }
-        answerSent = AnsweredCardAnchor(lastEntryID: entries.last?.id, sentAt: clock.now())
-        // 下一題常緊接著出現：0.4 秒與 1.2 秒各多看一次(R-Q09)。
+        guard !follow.followUpPolls.isEmpty else { return }
+        // 下一題常緊接著出現:0.4 秒與 1.2 秒各多看一次(R-Q09)。
         kickTask?.cancel()
+        let delays = follow.followUpPolls
         kickTask = Task { [weak self, sleep] in
-            for delay in [Duration.milliseconds(400), .milliseconds(800)] {
+            for delay in delays {
                 do { try await sleep(delay) } catch { return }
                 guard let self, !Task.isCancelled else { return }
                 await self.poll()
@@ -1924,266 +1761,141 @@ public final class ConversationModel {
         }
     }
 
-    public func dismissAnswerNotice() { answerNotice = nil }
+    public func dismissAnswerNotice() { mutateAnswerFlow { $0.dismissNotice() } }
 
     // MARK: 自訂回答(Type something,#120)
 
     /// 正在用輸入框打自訂答案的「Type something.」選項;`nil` = 一般輸入。
-    public private(set) var typedAnswer: PromptOption?
-    /// 進入自訂回答前的草稿(結束後放回)。
-    private var draftBeforeTypedAnswer = ""
-    /// 這次自訂回答打過字了沒有。剛進入時輸入框本來就空，打過字之後再清空才算取消(#127)。
-    private var typedAnswerHasText = false
+    public var typedAnswer: PromptOption? { answerFlow.typed }
 
     /// 這個選項是不是要用輸入框打字回答的「Type something.」。
     public func isTypedAnswerOption(_ option: PromptOption) -> Bool {
-        prompt?.typedAnswerOption(agentKind: answerAgentKind) == option
+        answerFlow.isTypedOption(option)
     }
 
-    /// 這個「Type something.」現在能不能點(進入自訂回答):沒有回答在途、它是這張問題卡的自訂回答選項。
-    /// 已經在自訂回答時也可點(不做事),所以不看 `typedAnswer`。
+    /// 這個「Type something.」現在能不能點(進入自訂回答)。已經在自訂回答時也可點(不做事),所以不看 `typedAnswer`。
     public func canBeginTypedAnswer(_ option: PromptOption) -> Bool {
-        answerInFlight == nil && isTypedAnswerOption(option)
+        answerFlow.canBeginTyped(option)
     }
 
-    /// 這個選項的回答是否正在送出(點選的編號，或以它送出的自訂回答)。
+    /// 這個選項的回答是否正在送出(點選的編號,或以它送出的自訂回答)。
     public func isAnswering(_ option: PromptOption) -> Bool {
-        switch answerInFlight {
-        case .option(let answered)?, .typed(let answered, _)?: answered == option
-        default: false
-        }
+        answerFlow.isAnswering(option)
     }
 
     /// 「需要你」卡片上一個選項現在的狀態(#424):畫面據此決定附屬位置放什麼、能不能點、VoiceOver 念什麼。
     public func optionState(for option: PromptOption) -> PromptOptionState {
-        if isAnswering(option) { return .sending }
-        if answerInFlight != nil || isReadOnly { return .disabled }
-        let answer = PromptAnswer.option(option)
-        return isTypedAnswerOption(option) ? (canBeginTypedAnswer(option) ? .available : .disabled)
-            : (canAnswer(answer) ? .available : .disabled)
+        answerFlow.optionState(for: option, isReadOnly: isReadOnly)
     }
 
     /// 點「Type something.」:不送任何按鍵(Claude 收到數字只會把那一列變成文字輸入),改由輸入框打字;
     /// 原本的草稿先收起來，結束時放回。
     public func beginTypedAnswer(_ option: PromptOption) {
-        guard canBeginTypedAnswer(option), typedAnswer == nil else { return }
-        typedAnswer = option
-        typedAnswerHasText = false
-        draftBeforeTypedAnswer = draft
-        draft = ""
+        if let cleared = mutateAnswerFlow({ $0.beginTyped(option, draft: draft) }) { draft = cleared }
     }
 
     /// 取消自訂回答，回到一般輸入(什麼都沒送過，不必還原 pane)。
     public func cancelTypedAnswer() {
-        guard typedAnswer != nil else { return }
-        endTypedAnswer()
-    }
-
-    /// 自訂回答時輸入框改了：打過字之後清空 = 取消，回到一般輸入(#127)。
-    private func typedAnswerDraftChanged() {
-        if !draft.isEmpty {
-            typedAnswerHasText = true
-        } else if typedAnswerHasText {
-            endTypedAnswer()
-        }
-    }
-
-    private func endTypedAnswer() {
-        typedAnswer = nil
-        typedAnswerHasText = false
-        draft = draftBeforeTypedAnswer
-        draftBeforeTypedAnswer = ""
+        if let restored = mutateAnswerFlow({ $0.cancelTyped() }) { draft = restored }
     }
 
     /// 送出自訂回答：數字 → 文字 → enter(`AnswerKeys.inputs`)。送不出去就回到自訂回答、保留打的字。
     private func sendTypedAnswer(_ option: PromptOption) async {
         let text = draft
-        let answer = PromptAnswer.typed(option, text: text)
-        guard canAnswer(answer) else { return }
-        endTypedAnswer()
-        await self.answer(answer)
-        if answerNotice == .sendFailed || answerNotice == .questionChanged, isTypedAnswerOption(option) {
-            beginTypedAnswer(option)
-            draft = text
+        switch mutateAnswerFlow({ $0.submitTyped(option: option, text: text, isReadOnly: isReadOnly) }) {
+        case .questionChanged(let kept):
+            // 題目已經變了:不默默沒反應，文字留在輸入框並提示。
+            draft = kept
+        case .send(let typed, let restored):
+            draft = restored
+            await answer(typed)
+            if let resumed = mutateAnswerFlow({ $0.resumeTypedAfterFailure(option: option, text: text, currentDraft: draft) }) {
+                draft = resumed
+            }
         }
-    }
-
-    private func inputs(for answer: PromptAnswer) -> [AnswerInput]? {
-        AnswerKeys.inputs(for: answer, agentKind: answerAgentKind)
     }
 
     /// 回答規則用的 agent 種類(還不知道 agent 時是空字串，走一般規則)。
     private var answerAgentKind: String { agentKind ?? "" }
 
-    /// 回答期限:max(12 秒, 3 × 輪詢間隔)(blocked 時每 2 秒輪詢;慢輪詢下好答案曾被判逾時,R-Q05)。
-    private static let answerDeadline: TimeInterval = max(12, 3 * 2)
-
-    /// 讀 pane 畫面找出提示(§5.1)。
-    ///
-    /// - `blocked`(或 `input_pending`)每次輪詢都讀;看不出選單就給通用鈕。
-    /// - herdr 0.9.5 沒有 `input_pending`:Claude 首次啟動的資料夾信任時 agent 是閒置、還沒有 session,
-    ///   所以閒置且沒有 session、送出時被告知在等回答、或畫面上已有提示時也讀，但**只認資料夾信任**
-    ///   (閒置畫面上對話中的編號清單不是提示)。
+    /// 讀 pane 畫面找出提示(§5.1);何時讀、讀到什麼怎麼判定都在 `AnswerFlow`。
     private func refreshPrompt(_ agent: Agent) async {
-        let blocked = agent.status == .blocked || (agent.inputPending && agent.status != .working)
-        // 工作中 = 沒有在等任何回答(提示已經被回答掉了)。
-        let probe = agent.status != .working && (probeScreen || prompt != nil || agent.session == nil)
-        probeScreen = false
-        guard blocked || probe else {
-            update(prompt: nil)
-            return
+        let observation = AnswerFlow.Observation(
+            isBlocked: agent.status == .blocked || (agent.inputPending && agent.status != .working),
+            isWorking: agent.status == .working, hasSession: agent.session != nil, now: clock.now(), draft: draft)
+        switch mutateAnswerFlow({ $0.begin(observation) }) {
+        case .settled(let outcome):
+            apply(outcome)
+        case .readScreen:
+            let screen = await readScreen(for: .prompt)
+            var observed = observation
+            observed.now = clock.now()
+            observed.draft = draft
+            let dialect = AgentCatalog.profile(forHerdrName: agent.kind).screen
+            // 提問卡解析在背景做(#585),回主執行緒只套用結果。
+            let parsed: BlockedPrompt?? = if let screen { .some(await Self.parsePrompt(screen: screen, dialect: dialect)) } else { nil }
+            observed.now = clock.now()
+            observed.draft = draft
+            apply(mutateAnswerFlow { $0.observe(parsed: parsed, observed) })
         }
-        screenThisPoll = await readScreen()
-        guard let screen = screenThisPoll else {
-            // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
-            // 剛答完、herdr 的 blocked 還沒更新的期限內(`staleBlockedUntil`)不冒通用鈕(#468)。
-            let isWithinStaleWindow = staleBlockedUntil.map { clock.now() < $0 } ?? false
-            if blocked, prompt == nil, !isWithinStaleWindow { prompt = .unrecognized }
-            if prompt != nil { agentStatus = .blocked }
-            checkAnswerDeadline()
-            return
-        }
-        let parsed = BlockedPromptParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
-        if blocked, parsed == nil, answerInFlight != nil, answerSent == nil, prompt != nil {
-            // 送出還沒返回、按鍵可能已到 Agent 而畫面重繪：維持原卡片，不換成通用鈕(#468)。
-            agentStatus = .blocked
-            return
-        }
-        var next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
-        if parsed != nil { staleBlockedUntil = nil }
-        if blocked, parsed == nil {
-            // 答完後 herdr 的 blocked 狀態可能還沒更新：畫面不是選單時不冒出通用鈕(其按鍵會真的打進 Agent)，到期限為止。
-            if let sent = answerSent, answerInFlight != nil { staleBlockedUntil = sent.sentAt.addingTimeInterval(Self.answerDeadline) }
-            if let until = staleBlockedUntil, clock.now() < until { next = nil }
-        }
-        if next != nil { agentStatus = .blocked }
-        update(prompt: next)
     }
 
-    /// 以新的畫面判定在途的回答，再換上新的提示(同一提示保持原物件)。
-    private func update(prompt next: BlockedPrompt?) {
-        if let answer = answerInFlight, let sent = answerSent {
-            if next == nil || next?.signature != answerSignature {
-                // 不再 blocked = 已送達;換成別的提示 = 被取代(通常是下一題),新問題不繼承鎖。
-                if case .option(let option) = answer, option.checked != nil {
-                    // 勾選只是切換，不是最終的回答。
-                } else {
-                    lastAnswer = AnsweredPrompt(question: answerQuestion, choice: Self.choiceText(answer))
-                    answeredCardAnchor = sent
-                }
-                clearAnswer()
-                haptics.play(.success)
-            } else {
-                checkAnswerDeadline()
-            }
-        }
-        if next?.signature != prompt?.signature || (next == nil) != (prompt == nil) { prompt = next }
-        // 提示換了或不見了(例如在終端機回答掉):自訂回答跟著結束。
-        if let typedAnswer, !isTypedAnswerOption(typedAnswer) { endTypedAnswer() }
+    @concurrent
+    private nonisolated static func parsePrompt(screen: String, dialect: ScreenDialect) async -> BlockedPrompt? {
+        AnswerFlow.parse(screen: screen, dialect: dialect)
     }
 
-    private func checkAnswerDeadline() {
-        guard answerInFlight != nil, let sentAt = answerSent?.sentAt,
-              clock.now().timeIntervalSince(sentAt) > Self.answerDeadline else { return }
-        clearAnswer()
-        answerNotice = .mayNotHaveArrived
-        haptics.play(.error)
-    }
-
-    private func clearAnswer() {
-        answerInFlight = nil
-        answerSignature = nil
-        answerQuestion = nil
-        answerSent = nil
-    }
-
-    private static func choiceText(_ answer: PromptAnswer) -> String {
-        switch answer {
-        case .option(let option): option.label
-        case .continueMultiSelect: String(localized: "Continue")
-        case .closePicker: String(localized: "Close File Picker")
-        case .generic(.confirm): String(localized: "Confirm")
-        case .generic(.one): "1"
-        case .generic(.two): "2"
-        case .generic(.escape): String(localized: "Esc")
-        case .typed(_, let text): text
-        }
+    private func apply(_ outcome: AnswerFlow.Outcome) {
+        if outcome.agentBlocked { agentStatus = .blocked }
+        if let haptic = outcome.haptic { haptics.play(haptic) }
+        // Agent 不再等回答:「請先回答」的提示收掉(只清這一種)。
+        if outcome.promptGone, notice == .needsAnswer { notice = nil }
+        if let restored = outcome.draft { draft = restored }
     }
 
     // MARK: - 送出(內部)
 
-    private enum TargetFailure: Error {
-        case agentGone
-        case superseded
+    /// 送出目標:app 目前看到的 session 與輪詢得到的 Agent(讀不到新鮮快照時退回用)。
+    private func destination(expectedSession: String?) -> SafeSend.Destination {
+        SafeSend.Destination(paneID: paneID, expectedSession: expectedSession, fallback: currentAgent)
+    }
 
-        var notice: SendNotice {
-            switch self {
-            case .agentGone: .agentGone
-            case .superseded: .superseded
-            }
+    /// 什麼都沒送出的原因對應的畫面提示。
+    private static func notice(for reason: SafeSend.NotSent) -> SendNotice? {
+        switch reason {
+        case .agentGone: .agentGone
+        case .conversationChanged: .superseded
+        case .needsAnswer: .needsAnswer
+        case .rejected(let message): .rejected(message)
+        case .readOnlyDevice: .readOnlyDevice
         }
     }
 
-    /// 送出當下的目標：重讀新鮮的 snapshot(不共用輪詢那份);讀不到就用輪詢得到的 agent(F6.5)。
-    /// session 換了 = pane 被回收成另一個聊天，原本的對象已不在(F5.1)。
-    private func freshTarget() async -> Result<Agent, TargetFailure> {
-        let agent: Agent?
-        if let snapshot = try? await client.snapshot() {
-            agent = snapshot.agents.first { $0.paneID == paneID }
-        } else {
-            agent = currentAgent
-        }
-        guard let agent else { return .failure(.agentGone) }
-        if let expected = boundSessionID ?? knownSessionID, let session = agent.session?.value, session != expected {
-            return .failure(.superseded)
-        }
-        return .success(agent)
-    }
-
-    private func apply(_ outcome: PromptOutcome, toEcho id: String, text: String, isRetry: Bool) {
-        let nothingSent: SendNotice?
-        switch outcome {
+    /// 依送出結果更新回音、提示與唯讀狀態。附件與草稿由 `SafeSend.Result.sentNothing` 決定,不看提示。
+    /// `previousFailure`:重試時什麼都沒送出,回音維持原本的失敗原因。
+    private func apply(_ result: SafeSend.Result, toEcho id: String, text: String, isRetry: Bool, previousFailure: EchoFailure? = nil) {
+        switch result {
         case .delivered:
             setEcho(id, state: .sent)
             onPromptDelivered?()
-            return
         case .submittedCommand:
             setEcho(id, state: .sent)
             watchForPanel()
-            return
         case .noResponse:
             setEcho(id, state: .failed(.noResponse))
             notice = .noResponse
-            return
         case .unconfirmed(let reason):
             setEcho(id, state: .failed(.unconfirmed(reason)))
             notice = .unconfirmed(reason)
-            return
-        case .needsAnswer:
-            nothingSent = .needsAnswer
-        case .rejected(let message):
-            nothingSent = .rejected(message)
-        case .readOnlyDevice:
-            isReadOnly = true
-            nothingSent = .readOnlyDevice
-        case .paneChanged:
-            // 主機送出前比對發現對話已變更(#304):與送前重讀 snapshot 發現 session 換了相同。
-            nothingSent = .superseded
-        }
-        notice = nothingSent
-        if isRetry {
-            setEcho(id, state: .failed(.noResponse))
-        } else {
-            removeEcho(id)
-            putBackInDraft(text)
-        }
-    }
-
-    /// 什麼都沒送出的提示(草稿放回)。
-    private static func nothingSent(_ notice: SendNotice?) -> Bool {
-        switch notice {
-        case .needsAnswer?, .rejected?, .readOnlyDevice?: true
-        default: false
+        case .notSent(let reason):
+            notice = Self.notice(for: reason)
+            if reason == .readOnlyDevice { readOnlyState.observe(.sendRejected) }
+            if isRetry {
+                setEcho(id, state: .failed(previousFailure ?? .noResponse))
+            } else {
+                removeEcho(id)
+                putBackInDraft(text)
+            }
         }
     }
 
@@ -2236,9 +1948,11 @@ public final class ConversationModel {
 
     /// 已回答卡片：Agent 寫出新的文字，或只有工具步驟但已過保留時間就收起(#213)。
     private func refreshAnsweredCard() {
-        guard let anchor = answeredCardAnchor, !anchor.isShowing(rows: answeredCardRows, at: clock.now()) else { return }
-        lastAnswer = nil
-        answeredCardAnchor = nil
+        // 沒有已回答卡片時不必整理對話列(每輪輪詢都會走到這裡)。
+        guard answerFlow.lastAnswer != nil else { return }
+        let rows = answeredCardRows
+        let now = clock.now()
+        mutateAnswerFlow { $0.refreshAnsweredCard(rows: rows, now: now) }
     }
 
     /// 已回答卡片去留規則看的對話列。
@@ -2287,7 +2001,7 @@ public final class ConversationModel {
     /// 面板按鍵送出中(卡片上的操作暫時停用)。
     public private(set) var isOperatingPanel = false
     /// 面板監看到這個時間為止(送出 slash 指令或操作面板後 8 秒)。
-    private var panelWatchUntil: Date?
+    @ObservationIgnored private var panelWatchUntil: Date?
     @ObservationIgnored private var panelKickTask: Task<Void, Never>?
 
     /// 面板卡片的操作：送方向鍵或面板自己的動作鍵，**永不送數字**(R-C04)。送完 0.3 秒後重讀，並把監看延長 8 秒
@@ -2337,28 +2051,20 @@ public final class ConversationModel {
     /// 監看中或面板開著時讀畫面(只限 Claude／Codex、沒有問題在等、agent 不在工作);這次輪詢已讀過畫面就順便看。
     /// 讀不到畫面沿用上次;畫面上沒有面板、或 agent 開始工作／需要你時關掉。
     private func refreshPanel(_ agent: Agent) async {
-        defer { updatePanelReadability() }
+        defer { controlSwitcher.updatePanelReadability() }
         let watching = panelWatchUntil.map { clock.now() < $0 } ?? false
         if !watching { panelWatchUntil = nil }
         guard AgentCatalog.profile(forHerdrName: agent.kind).screen.readsPanels, prompt == nil, agentStatus != .working, agentStatus != .blocked else {
             panel = nil
             return
         }
-        guard watching || panel != nil || screenThisPoll != nil else { return }
-        if screenThisPoll == nil { screenThisPoll = await readScreen() }
-        guard let screen = screenThisPoll else { return }
-        let next = SlashPanelParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
+        guard watching || panel != nil || screens.hasScreen else { return }
+        guard let screen = await readScreen(for: .panel) else { return }
+        let dialect = AgentCatalog.profile(forHerdrName: agent.kind).screen
+        let next = await Task.detached(priority: .userInitiated) { SlashPanelParser.parse(screen: screen, dialect: dialect) }.value
+        guard !Task.isCancelled else { return }
         if next != panel { panel = next }
-        if modelSheetPage == .effort, effortBaseline == nil, let next, let slider = next.slider {
-            effortBaseline = EffortBaseline(level: slider.current, ultracode: next.ultracode)
-        }
-    }
-
-    /// 模型選擇 sheet 在等面板、監看期已滿還是沒讀到面板:sheet 改成只顯示目前模型(#384)。
-    private func updatePanelReadability() {
-        let watching = panelWatchUntil.map { clock.now() < $0 } ?? false
-        let unreadable = isChoosingModel && panel == nil && !watching
-        if unreadable != modelPanelUnreadable { modelPanelUnreadable = unreadable }
+        controlSwitcher.notePanelRead(next)
     }
 
     // MARK: - 建議提示詞(#121、#123)
@@ -2386,106 +2092,62 @@ public final class ConversationModel {
     /// 讀得到畫面或是其他原因失敗時為 `nil`。
     public private(set) var screenUpdateRequiredMessage: String?
 
-    /// 讀 pane 可見畫面;讀不到回 `nil`(呼叫端各自沿用上次或當成未知)。主機服務太舊時記下說明，讀得到就拿掉。
-    private func readScreen(format: PaneReadFormat = .text) async -> String? {
-        do {
-            let screen = try await client.readPane(paneID: paneID, format: format)
-            screenUpdateRequiredMessage = nil
-            return screen
-        } catch let error as HostServiceError {
-            if case .hostServiceUpdateRequired = error { screenUpdateRequiredMessage = HostErrorText.hostServiceMessage(error) }
-            return nil
-        } catch {
-            return nil
-        }
+    /// 向這輪的 Pane 畫面要一份(同一輪最多讀一次,#559);讀不到回 `nil`(呼叫端各自沿用上次或當成未知)。
+    /// 主機服務太舊時記下說明，讀得到就拿掉。
+    private func readScreen(for need: PaneScreenRound.Need) async -> String? {
+        let screen = await screens.screen(for: need)
+        if screenUpdateRequiredMessage != screens.updateRequiredMessage { screenUpdateRequiredMessage = screens.updateRequiredMessage }
+        return screen
     }
 
     // MARK: - 模型膠囊(#350)
 
-    /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
-    public var modelName: String? { statusFileLine?.model ?? screenStatusLine?.model ?? metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+    /// Agent 控制(#561):模型、effort、權限模式的目前值、可選項與停用原因,標題列、膠囊與面板都讀這一份。
+    /// 三個來源(status line 檔、畫面狀態列、對話紀錄)的優先序只寫在 `AgentControls`。
+    public var controls: AgentControls {
+        AgentControls(
+            dialect: screenDialect, metadata: metadata, sessionStatus: sessionStatus, observations: controlObservations,
+            link: AgentControls.Link(
+                isReadOnly: isReadOnly, isOffline: isOffline, hasAgent: currentAgent != nil, hasPrompt: prompt != nil,
+                agentStatus: agentStatus ?? .unknown))
+    }
 
-    /// 目前的 effort 原值:畫面狀態列優先(使用者在電腦上改了也跟著),沒有就取對話紀錄。
-    private var effortLevel: String? { statusFileLine?.effort ?? screenStatusLine?.effort ?? metadata.effort }
+    /// 切換程序(#561 第二步):權限模式輪替、模型與 effort sheet;狀態與流程都在它裡面。
+    let controlSwitcher = AgentControlSwitcher()
+
+    /// 這個聊天看過的控制來源(畫面狀態列、畫面認出的權限模式、看過的模式)。
+    public private(set) var controlObservations = AgentControlObservations()
+
+    /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
+    public var modelName: String? { controls.modelName }
 
     /// 面板「模型」列的值:「Opus 5.5 · 中」;沒有 effort 時只有模型名,還沒讀到是 `nil`。
-    public var modelSummary: String? {
-        guard let name = modelName else { return nil }
-        guard let effort = effortLevel.flatMap(Self.effortName(of:)) else { return name }
-        return "\(name) · \(effort)"
-    }
+    public var modelSummary: String? { controls.modelSummary }
 
     /// 目前的 effort 顯示名稱(「中」);還沒讀到是 `nil`。
-    public var effortDisplayName: String? { effortLevel.flatMap(Self.effortName(of:)) }
+    public var effortDisplayName: String? { controls.effortDisplayName }
 
-    public static func effortName(of level: String) -> String? {
-        switch level.lowercased() {
-        case "low": String(localized: "Low")
-        case "medium": String(localized: "Medium")
-        case "high": String(localized: "High")
-        case "xhigh": String(localized: "Extra High")
-        case "max": String(localized: "Max")
-        default: level.isEmpty ? nil : level
-        }
-    }
+    public static func effortName(of level: String) -> String? { AgentControls.effortName(of: level) }
 
     /// 模型選擇 sheet 開著(從送出 `/model` 到選定或取消)。畫面據此不在對話裡重複畫同一張面板卡片。
-    public private(set) var isChoosingModel = false
+    public var isChoosingModel: Bool { controlSwitcher.isChoosingModel }
 
     /// 模型膠囊要顯示:Claude(可切換),或 Codex 有讀到目前模型(只顯示、說明不能在 app 內切換,#384)。
-    public var showsModelCapsule: Bool {
-        supportsPermissionMode || (screenDialect.showsModelName && modelName != nil)
-    }
+    public var showsModelCapsule: Bool { controls.showsModelCapsule }
 
     /// 能開模型選擇:只有 Claude(`/model` 面板一步選定)、閒置、沒有問題在等、沒有別的面板、
     /// 非唯讀與離線。工作中時 `/model` 會排進佇列,所以不開放。
     public var canChooseModel: Bool {
-        screenDialect.canChooseModel && hasTarget && !isReadOnly && !isOffline && !isSending && typedAnswer == nil
-            && prompt == nil && panel == nil && agentStatus != .working && agentStatus != .blocked && !isChoosingModel
+        controls.canChooseModel(
+            AgentControls.ChooseModelInputs(
+                hasTarget: hasTarget, isSending: isSending, hasTypedAnswer: typedAnswer != nil, hasPanel: panel != nil,
+                isChoosingModel: isChoosingModel))
     }
 
-    /// 模型選擇為什麼停用(#384);可選時是 `nil`。停用時膠囊仍可點開 sheet,sheet 只顯示目前模型與這個原因(說明同權限模式)。
-    public enum ModelChoiceLock: Equatable, Sendable {
-        case readOnlyDevice
-        case offline
-        /// Agent 在等使用者回覆:這時 `/model` 面板不會出現。
-        case waitingForYou
-        /// Agent 在工作:`/model` 會排進佇列。
-        case working
-        /// 這個 Agent 沒有在 app 內切換模型的功能(Codex 等)。
-        case agentLacksFeature
-        /// 這個 Agent 的切換方式還沒驗證過,所以不開放。
-        case notVerified(documentedFor: String)
-        /// 這台主機做不到。
-        case hostCannot
+    public typealias ModelChoiceLock = AgentControls.ModelChoiceLock
 
-        public init(_ unavailability: FeatureUnavailability) {
-            switch unavailability {
-            case .agentLacksFeature: self = .agentLacksFeature
-            case .notVerified(let version): self = .notVerified(documentedFor: version)
-            case .hostCannot: self = .hostCannot
-            }
-        }
-
-        /// 對應三種「不能用」的原因;因為唯讀、離線、等你回覆、工作中而停用的不算。
-        public var unavailability: FeatureUnavailability? {
-            switch self {
-            case .agentLacksFeature: .agentLacksFeature
-            case .notVerified(let version): .notVerified(documentedFor: version)
-            case .hostCannot: .hostCannot
-            case .readOnlyDevice, .offline, .waitingForYou, .working: nil
-            }
-        }
-    }
-
-    public var modelChoiceLock: ModelChoiceLock? {
-        if currentAgent != nil, let reason = screenDialect.modelChoiceUnavailability { return ModelChoiceLock(reason) }
-        if isReadOnly { return .readOnlyDevice }
-        if isOffline { return .offline }
-        if agentStatus == .blocked || prompt != nil { return .waitingForYou }
-        if agentStatus == .working { return .working }
-        return nil
-    }
+    /// 模型選擇為什麼停用(#384);可選時是 `nil`。規則只在 `AgentControls`。
+    public var modelChoiceLock: ModelChoiceLock? { controls.modelChoiceLock }
 
     /// 模型選擇 sheet 的頁面:模型列,或投入程度子頁(#384)。
     public enum ModelSheetPage: Equatable, Sendable {
@@ -2493,18 +2155,11 @@ public final class ConversationModel {
         case effort
     }
 
-    public private(set) var modelSheetPage: ModelSheetPage = .models
+    public var modelSheetPage: ModelSheetPage { controlSwitcher.modelSheetPage }
     /// 模型切換的按鍵送出中(膠囊顯示「切換中」)。
-    public private(set) var isSwitchingModel = false
+    public var isSwitchingModel: Bool { controlSwitcher.isSwitchingModel }
     /// 面板監看期滿還是讀不到(解析失敗或畫面不是預期的面板):sheet 只顯示目前模型,不開自己的選單。
-    public private(set) var modelPanelUnreadable = false
-
-    private struct EffortBaseline {
-        var level: Int?
-        var ultracode: Bool?
-    }
-
-    @ObservationIgnored private var effortBaseline: EffortBaseline?
+    public var modelPanelUnreadable: Bool { controlSwitcher.modelPanelUnreadable }
 
     // MARK: - 模型目錄(#385)
 
@@ -2514,7 +2169,7 @@ public final class ConversationModel {
 
     @ObservationIgnored private var catalogTask: Task<Void, Never>?
 
-    private func refreshModelCatalog() {
+    package func refreshModelCatalog() {
         guard let provider = modelCatalogProvider else { return }
         catalogTask?.cancel()
         catalogTask = Task { [weak self] in
@@ -2539,163 +2194,50 @@ public final class ConversationModel {
         currentModelEntry?.effort(level)
     }
 
-    /// 點模型膠囊:送 `/model`(不產生回音泡泡),之後由既有的面板監看讀到畫面上的面板。
-    /// 什麼都沒送出(Agent 不在、對話已變更、唯讀…)時 sheet 只顯示目前模型與原因,原因放在 `notice`。
-    public func beginChoosingModel() async {
-        guard canChooseModel else { return }
-        isChoosingModel = true
-        modelSheetPage = .models
-        modelPanelUnreadable = false
-        effortBaseline = nil
-        notice = nil
-        refreshModelCatalog()
-        await sendModelCommand()
-    }
+    // MARK: - 模型與 effort 切換(程序在 `AgentControlSwitcher`,#561)
 
-    private func sendModelCommand() async {
-        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
-        switch await freshTarget() {
-        case .success(let agent):
-            let outcome = await delivery.send("/model", to: agent, expectedSession: boundSessionID ?? knownSessionID)
-            switch outcome {
-            case .submittedCommand:
-                watchForPanel()
-            case .noResponse:
-                notice = .noResponse
-                isChoosingModel = false
-            default:
-                isChoosingModel = false
-            }
-        case .failure(let failure):
-            notice = failure.notice
-            isChoosingModel = false
-        }
-    }
+    /// 點模型膠囊:送 `/model`(不產生回音泡泡),之後由既有的面板監看讀到畫面上的面板。
+    public func beginChoosingModel() async { await controlSwitcher.beginChoosingModel() }
 
     /// 在 sheet 點選一個模型:移動面板游標到那一列,再按面板自己的 `s`(只用在這個 session;永不送數字)。
-    /// 按鍵送不出去就維持原模型,`notice` 說明。
-    public func chooseModel(_ option: SlashPanelOption) async {
-        guard let panel, isChoosingModel, modelSheetPage == .models else { return }
-        isSwitchingModel = true
-        defer { isSwitchingModel = false }
-        guard await operatePanel(.select(option)) else {
-            notice = .modelSwitchFailed
-            isChoosingModel = false
-            return
-        }
-        // 面板的 Enter 是「設為預設」(寫進使用者設定);膠囊只改這個 session,所以有 `s`(只用在這個 session)就按它。
-        if let confirm = panel.actions.first(where: { $0.key == "s" }) ?? panel.actions.first(where: { $0.key == "enter" }) {
-            guard await operatePanel(.action(confirm)) else {
-                notice = .modelSwitchFailed
-                isChoosingModel = false
-                return
-            }
-        }
-        isChoosingModel = false
-    }
+    public func chooseModel(_ option: SlashPanelOption) async { await controlSwitcher.chooseModel(option) }
 
-    /// sheet 關閉(選定後或使用者下滑／按完成):面板還開著就取消(在投入程度子頁且有改動則確認),不改模型。
-    public func finishChoosingModel() async {
-        guard isChoosingModel else { return }
-        isChoosingModel = false
-        let key = modelSheetPage == .effort && effortChanged ? "enter" : "esc"
-        modelSheetPage = .models
-        effortBaseline = nil
-        if let action = panel?.actions.first(where: { $0.key == key }) {
-            await operatePanel(.action(action))
-        }
-    }
-
-    // MARK: - 投入程度子頁(#384)
+    /// sheet 關閉(選定後或使用者下滑／按完成):面板還開著就取消,不改模型。
+    public func finishChoosingModel() async { await controlSwitcher.finishChoosingModel() }
 
     /// 子頁上的層級滑桿(讀到 `/effort` 面板後才有)。
-    public var effortSlider: SlashPanelSlider? { modelSheetPage == .effort ? panel?.slider : nil }
+    public var effortSlider: SlashPanelSlider? { controlSwitcher.effortSlider }
 
-    /// Ultracode 開關只在目前模型支援 xhigh 時出現:面板有開關,且層級含 xhigh。
-    public var showsUltracode: Bool {
-        guard modelSheetPage == .effort, let panel, panel.ultracode != nil, let slider = panel.slider else { return false }
-        return slider.levels.contains { $0.lowercased() == "xhigh" }
-    }
+    /// Ultracode 開關只在目前模型支援 xhigh 時出現。
+    public var showsUltracode: Bool { controlSwitcher.showsUltracode }
 
-    public var ultracodeIsOn: Bool { panel?.ultracode == true }
+    public var ultracodeIsOn: Bool { controlSwitcher.ultracodeIsOn }
 
     /// 子頁開著後層級或 Ultracode 與剛進來時不同。
-    public var effortChanged: Bool {
-        guard modelSheetPage == .effort, let baseline = effortBaseline, let panel, let slider = panel.slider else { return false }
-        return slider.current != baseline.level || panel.ultracode != baseline.ultracode
-    }
+    public var effortChanged: Bool { controlSwitcher.effortChanged }
 
     /// 點「投入程度」列:先 Esc 收掉 `/model` 面板(不改模型),再送 `/effort` 讀滑桿面板。
-    public func openEffortPage() async {
-        guard isChoosingModel, modelSheetPage == .models, !isOperatingPanel else { return }
-        if let esc = panel?.actions.first(where: { $0.key == "esc" }) {
-            await operatePanel(.action(esc))
-        }
-        panel = nil
-        modelSheetPage = .effort
-        effortBaseline = nil
-        modelPanelUnreadable = false
-        notice = nil
-        await sendEffortCommand()
-    }
-
-    private func sendEffortCommand() async {
-        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
-        switch await freshTarget() {
-        case .success(let agent):
-            let outcome = await delivery.send("/effort", to: agent, expectedSession: boundSessionID ?? knownSessionID)
-            if outcome == .submittedCommand {
-                watchForPanel()
-            } else {
-                if outcome == .noResponse { notice = .noResponse }
-                panelWatchUntil = nil
-                updatePanelReadability()
-            }
-        case .failure(let failure):
-            notice = failure.notice
-            panelWatchUntil = nil
-            updatePanelReadability()
-        }
-    }
+    public func openEffortPage() async { await controlSwitcher.openEffortPage() }
 
     /// 點一個層級:只移動滑桿(送方向鍵),離開子頁時才確認。
-    public func chooseEffortLevel(_ level: Int) async {
-        guard modelSheetPage == .effort else { return }
-        await operatePanel(.level(level))
-    }
+    public func chooseEffortLevel(_ level: Int) async { await controlSwitcher.chooseEffortLevel(level) }
 
     /// 切換 Ultracode(Tab)。
-    public func toggleUltracode() async {
-        guard showsUltracode else { return }
-        await operatePanel(.toggleUltracode)
-    }
+    public func toggleUltracode() async { await controlSwitcher.toggleUltracode() }
 
-    /// 離開子頁:有改動就按 Enter 確認(成為新 session 的預設),沒有就 Esc;接著重開 `/model` 回到模型列。
-    public func closeEffortPage() async {
-        guard modelSheetPage == .effort else { return }
-        let key = effortChanged ? "enter" : "esc"
-        let action = panel?.slider != nil ? panel?.actions.first(where: { $0.key == key }) : nil
-        modelSheetPage = .models
-        effortBaseline = nil
-        if let action { await operatePanel(.action(action)) }
-        panel = nil
-        modelPanelUnreadable = false
-        await sendModelCommand()
-    }
+    /// 離開子頁:有改動就按 Enter 確認,沒有就 Esc;接著重開 `/model` 回到模型列。
+    public func closeEffortPage() async { await controlSwitcher.closeEffortPage() }
 
-    /// 面板 sheet 被使用者關掉(下滑或「完成」)時：面板還開著就按 Esc 取消，不改設定(#366)。
-    public func dismissPanel() async {
-        guard !isChoosingModel, let esc = panel?.actions.first(where: { $0.key == "esc" }) else { return }
-        await operatePanel(.action(esc))
-    }
+    /// 面板 sheet 被使用者關掉(下滑或「完成」)時:面板還開著就按 Esc 取消,不改設定(#366)。
+    public func dismissPanel() async { await controlSwitcher.dismissPanel() }
 
     // MARK: - 畫面狀態列(#446)
 
     /// 這個 Agent 的畫面有可讀的狀態列(Antigravity):模式、模型、effort 只顯示、不能在 app 切換。
-    public var readsStatusLine: Bool { screenDialect.statusLine != nil }
+    public var readsStatusLine: Bool { controls.readsStatusLine }
 
     /// 畫面最底下狀態列讀到的模式、模型與 effort(Antigravity,#446);還沒讀到或這個 Agent 沒有狀態列是 `nil`。
-    public private(set) var screenStatusLine: AgentStatusLine?
+    public var screenStatusLine: AgentStatusLine? { controlObservations.screenStatusLine }
     @ObservationIgnored private var statusLineReadStatus: AgentStatus?
     @ObservationIgnored private var pollsSinceStatusLine = 0
 
@@ -2704,10 +2246,16 @@ public final class ConversationModel {
 
     /// 讀一次畫面的狀態列;認不出(被蓋住、讀不到)沿用上次。只讀、不送按鍵。
     public func refreshStatusLine() async {
-        guard screenDialect.statusLine != nil, !isOffline, let screen = await readScreen() else { return }
+        screens.begin()
+        await readStatusLine()
+    }
+
+    /// 與這輪的其他用途共用同一份畫面(#559)。
+    private func readStatusLine() async {
+        guard screenDialect.statusLine != nil, !isOffline, let screen = await readScreen(for: .statusLine) else { return }
         pollsSinceStatusLine = 0
         statusLineReadStatus = agentStatus
-        if let line = screenDialect.readStatusLine(in: Self.plainText(ansi: screen)) { screenStatusLine = line }
+        if let line = screenDialect.readStatusLine(in: screen) { controlObservations.observeStatusLine(line) }
     }
 
     /// 輪詢迴圈每輪呼叫:第一次、Agent 狀態變了或隔了一段時間才讀(指令預算:平常的輪詢不讀畫面)。
@@ -2716,199 +2264,69 @@ public final class ConversationModel {
         pollsSinceStatusLine += 1
         guard screenStatusLine == nil && statusLineReadStatus == nil
             || statusLineReadStatus != agentStatus || pollsSinceStatusLine >= Self.statusLineRefreshPolls else { return }
-        await refreshStatusLine()
+        await readStatusLine()
     }
 
     // MARK: - 權限模式(#306、#383)
 
-    /// 畫面讀到的模式與當時對話紀錄的原文。紀錄沒變就用畫面補「剛切換、紀錄尚未寫入」的空檔;紀錄一更新就以紀錄為準。
-    private struct ScreenObservation {
-        var mode: AgentPermissionMode
-        var transcriptValue: String?
-    }
-
-    private var screenObservation: ScreenObservation?
-    /// 這個聊天看過的模式(畫面標示、對話紀錄),用來決定輪替裡有沒有略過權限與自動。
-    private var observedPermissionModes: Set<AgentPermissionMode> = []
-
     /// Claude 目前的權限模式:對話紀錄尾端最後一筆為準(電腦端改了也會同步),畫面只補空檔;都沒有是 `nil`。
-    public var permissionMode: AgentPermissionMode? {
-        // Antigravity 的對話紀錄沒有權限模式,以畫面狀態列為準(#446)。
-        if screenDialect.statusLine != nil, let mode = statusFileLine?.mode ?? screenStatusLine?.mode { return mode }
-        let fromTranscript = metadata.permissionMode.flatMap { AgentPermissionMode(transcriptValue: $0) }
-        if let seen = screenObservation, seen.transcriptValue == metadata.permissionMode { return seen.mode }
-        return fromTranscript ?? screenObservation?.mode
-    }
+    public var permissionMode: AgentPermissionMode? { controls.permissionMode }
 
     /// Shift+Tab 輪替裡有哪些模式:預設一般、接受編輯、Plan;看過略過權限或自動才加入。
-    public var permissionModeAvailability: PermissionModeAvailability {
-        var availability = PermissionModeAvailability()
-        for mode in observedPermissionModes { availability.observe(mode) }
-        if let permissionMode { availability.observe(permissionMode) }
-        return availability
-    }
+    public var permissionModeAvailability: PermissionModeAvailability { controls.permissionModeAvailability }
 
     /// 面板上的模式選項(依輪替順序);目前是 `dontAsk` 時多一列只顯示的它。
     /// 有自己輪替的 Agent(Antigravity)固定是它輪替裡的幾種。
-    public var permissionModeOptions: [AgentPermissionMode] {
-        screenDialect.switchablePermissionModes ?? permissionModeAvailability.options(current: permissionMode)
-    }
+    public var permissionModeOptions: [AgentPermissionMode] { controls.permissionModeOptions }
 
     /// Codex 的核准政策原文(例:`on-request`);只顯示,不能在手機切換。其他 Agent 是 `nil`。
-    public var approvalPolicy: String? {
-        screenDialect.showsApprovalPolicy ? metadata.approvalPolicy : nil
-    }
+    public var approvalPolicy: String? { controls.approvalPolicy }
 
     private func noteTranscriptPermissionMode() {
-        if let mode = metadata.permissionMode.flatMap({ AgentPermissionMode(transcriptValue: $0) }) {
-            observedPermissionModes.insert(mode)
-        }
+        controlObservations.noteTranscript(permissionMode: metadata.permissionMode)
     }
 
     /// 一批對話紀錄行裡出現過的權限模式都記下(同一批有多次切換時,中間的模式也算看過)。
     private func notePermissionModes(in lines: [String]) {
-        for line in lines where line.contains("\"permissionMode\"") {
-            var scratch = TranscriptMetadata()
-            scratch.update(with: line)
-            if let mode = scratch.permissionMode.flatMap({ AgentPermissionMode(transcriptValue: $0) }) {
-                observedPermissionModes.insert(mode)
-            }
-        }
+        controlObservations.noteTranscript(lines: lines)
     }
 
-    private func observeScreen(_ mode: AgentPermissionMode) {
-        observedPermissionModes.insert(mode)
-        screenObservation = ScreenObservation(mode: mode, transcriptValue: metadata.permissionMode)
-    }
     /// 正在切到這個模式(膠囊顯示進行中)。
-    public private(set) var switchingPermissionMode: AgentPermissionMode?
-    public var isSwitchingPermissionMode: Bool { switchingPermissionMode != nil }
-    @ObservationIgnored private var permissionModeProbed = false
+    public var switchingPermissionMode: AgentPermissionMode? { controlSwitcher.switchingPermissionMode }
+    public var isSwitchingPermissionMode: Bool { controlSwitcher.isSwitchingPermissionMode }
 
     /// 只有畫面方言有權限模式(Claude Code)且驗證過才開放切換。
-    public var supportsPermissionMode: Bool { screenDialect.switchesPermissionMode }
+    public var supportsPermissionMode: Bool { controls.supportsPermissionMode }
 
     /// 膠囊可以操作:讀到目前模式、沒在切換、沒離線;唯讀裝置不行(畫面說明)。
-    public var canSwitchPermissionMode: Bool {
-        supportsPermissionMode && permissionMode != nil && !isSwitchingPermissionMode && permissionModeLock == nil
-    }
+    public var canSwitchPermissionMode: Bool { controls.canSwitchPermissionMode(isSwitching: isSwitchingPermissionMode) }
+
+    public typealias PermissionModeLock = AgentControls.PermissionModeLock
 
     /// 面板的權限選項為什麼停用(#380);可切換時是 `nil`。
-    public enum PermissionModeLock: Equatable, Sendable {
-        case readOnlyDevice
-        case offline
-        /// Agent 在工作:這個 Agent 的切換只驗證過閒置時(Antigravity)。
-        case working
-        /// Agent 在等使用者回覆:這時 Shift+Tab 會變成「核准」。
-        case waitingForYou
-    }
-
-    public var permissionModeLock: PermissionModeLock? {
-        if isReadOnly { return .readOnlyDevice }
-        if isOffline { return .offline }
-        if agentStatus == .blocked { return .waitingForYou }
-        if agentStatus == .working, screenDialect.switchesPermissionModeOnlyWhenIdle { return .working }
-        return nil
-    }
+    public var permissionModeLock: PermissionModeLock? { controls.permissionModeLock }
 
     /// 讀一次畫面:對話紀錄還沒有模式時用它當目前模式,紀錄有值就以紀錄為準(畫面只用來記錄看過哪些模式);認不出沿用上次。
     public func refreshPermissionMode() async {
-        guard supportsPermissionMode, let mode = await readPermissionMode() else { return }
-        if metadata.permissionMode == nil {
-            observeScreen(mode)
-        } else {
-            observedPermissionModes.insert(mode)
-        }
-    }
-
-    /// 每次 `run` 第一輪輪詢後讀一次(平常的輪詢不讀畫面,指令預算)。
-    private func probePermissionModeIfNeeded() async {
-        guard !permissionModeProbed, supportsPermissionMode, !isReadOnly, !isOffline else { return }
-        permissionModeProbed = true
-        await refreshPermissionMode()
+        screens.begin()
+        await controlSwitcher.readPermissionModeFromScreen()
     }
 
     /// 最近一次切換失敗的原因(#306);切換成功、再試或換 Agent 時清掉。膠囊的 sheet 顯示說明與「再試一次」。
-    public private(set) var permissionModeFailure: PermissionModeFailure?
+    public var permissionModeFailure: PermissionModeFailure? { controlSwitcher.permissionModeFailure }
 
     /// 對上次失敗的目標再切一次。
-    public func retryPermissionMode() async {
-        guard let target = permissionModeFailure?.target else { return }
-        await setPermissionMode(target)
-    }
+    public func retryPermissionMode() async { await controlSwitcher.retryPermissionMode() }
 
-    /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式,最多 `maximumSwitchAttempts` 次。
-    /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面;按鍵帶 `expected_session`,對話已換掉就不按。
-    /// 目標是略過權限或自動時,輪替一圈回到看過的模式就停(這個 session 沒開,再按也不會出現)。
-    /// 失敗記在 `permissionModeFailure`,可再試;離開聊天(取消)時直接結束、不算失敗。
-    public func setPermissionMode(_ target: AgentPermissionMode) async {
-        guard supportsPermissionMode, !isSwitchingPermissionMode, target.isSwitchable else { return }
-        // 有自己輪替的 Agent:目標不在輪替裡(例如略過權限)按不出來,一個鍵都不送。
-        if let cycle = screenDialect.permissionModeCycle, !cycle.contains(target) { return }
-        guard !isReadOnly else {
-            notice = .readOnlyDevice
-            return
-        }
-        // 離線,或 Agent 在等你回覆(這時 Shift+Tab 會變成「核准」):一個鍵都不送。
-        guard permissionModeLock == nil else { return }
-        permissionModeFailure = nil
-        switchingPermissionMode = target
-        defer { switchingPermissionMode = nil }
-        guard var current = await readPermissionMode() else {
-            permissionModeFailure = .unreadable(target: target)
-            return
-        }
-        observeScreen(current)
-        let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
-        var visited: Set<AgentPermissionMode> = [current]
-        var attempts = 0
-        while current != target, attempts < AgentPermissionMode.maximumSwitchAttempts {
-            do {
-                try await client.sendKeys(paneID: paneID, keys: ["shift+tab"], expecting: expectation)
-            } catch is CancellationError {
-                return
-            } catch {
-                permissionModeFailure = error as? HostServiceError == .paneChanged
-                    ? .paneChanged(target: target) : .keysFailed(target: target)
-                haptics.play(.error)
-                return
-            }
-            attempts += 1
-            do { try await sleep(.milliseconds(300)) } catch { return }
-            guard var read = await readPermissionMode() else { break }
-            // 有自己輪替的 Agent:畫面可能還沒重畫(讀到的模式沒變),先再讀幾次,不要重複按而跳過目標。
-            var rereads = 0
-            while screenDialect.permissionModeCycle != nil, read == current, rereads < Self.staleModeRereads {
-                rereads += 1
-                do { try await sleep(.milliseconds(300)) } catch { return }
-                guard let again = await readPermissionMode() else { break }
-                read = again
-            }
-            let wrapped = read != current && !visited.insert(read).inserted
-            current = read
-            observeScreen(read)
-            if wrapped, current != target {
-                permissionModeFailure = .modeUnavailable(target)
-                haptics.play(.error)
-                return
-            }
-        }
-        if current != target {
-            permissionModeFailure = .notReached(attempts: attempts, target: target)
-            haptics.play(.error)
-        } else {
-            haptics.play(.selection)
-        }
-    }
-
-    /// 按了 Shift+Tab 後畫面沒變時最多再讀幾次(每次隔 0.3 秒)才再按。
-    private static let staleModeRereads = 2
+    /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式(程序與驗證在 `AgentControlSwitcher`)。
+    public func setPermissionMode(_ target: AgentPermissionMode) async { await controlSwitcher.setPermissionMode(target) }
 
     /// 讀畫面認出目前的權限模式(依畫面方言);狀態列方言順便更新狀態列,讓膠囊與標題跟著變。
-    private func readPermissionMode() async -> AgentPermissionMode? {
-        guard let screen = await readScreen() else { return nil }
-        if screenDialect.statusLine != nil, let line = screenDialect.readStatusLine(in: Self.plainText(ansi: screen)) {
-            screenStatusLine = line
+    /// `verifying` 為真(切換後確認)一律重讀;探測時與這輪其他用途共用畫面(#559)。
+    fileprivate func readPermissionMode(verifying: Bool = false) async -> AgentPermissionMode? {
+        guard let screen = await readScreen(for: verifying ? .permissionModeVerify : .permissionMode) else { return nil }
+        if screenDialect.statusLine != nil, let line = screenDialect.readStatusLine(in: screen) {
+            controlObservations.observeStatusLine(line)
             return line.mode
         }
         return screenDialect.readPermissionMode(in: screen)
@@ -2940,11 +2358,14 @@ public final class ConversationModel {
     /// 給這次輪詢的面板、背景 agents 窗格共用(R-F02);這次輪詢已讀過純文字畫面(分不出灰色建議)就留到下次。
     /// 讀取期間建議被清掉(送出)時結果作廢，畫面也不共用。
     private func readSuggestion(_ agent: Agent) async -> SuggestionRead? {
-        guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, screenThisPoll == nil else { return nil }
+        guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, !screens.hasScreen else { return nil }
         let epoch = suggestionEpoch
         suggestionReadsLeft -= 1
-        guard let screen = await readScreen(format: .ansi), epoch == suggestionEpoch else { return nil }
-        screenThisPoll = Self.plainText(ansi: screen)
+        guard let screen = await readScreen(for: .suggestion) else { return nil }
+        guard epoch == suggestionEpoch else {
+            screens.invalidate()
+            return nil
+        }
         return SuggestionRead(suggestion: PromptSuggestion.detect(screen: screen), epoch: epoch)
     }
 
@@ -2965,18 +2386,12 @@ public final class ConversationModel {
         suggestionEpoch += 1
     }
 
-    /// 去掉跳脫序列與 `\r`:`.ansi` 畫面只差在跳脫序列與行尾，其他解析器吃的是純文字。
-    static func plainText(ansi screen: String) -> String {
-        ANSIText.strip(screen).replacingOccurrences(of: "\r", with: "")
-    }
-
     // MARK: - 標題列(#44)
 
     /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
         ConversationHeader(
-            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress,
-            permissionMode: supportsPermissionMode || screenDialect.statusLine != nil ? permissionMode : nil, tabName: tabName)
+            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: displayProgress, tabName: tabName)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
@@ -3010,8 +2425,7 @@ public final class ConversationModel {
     private func refreshLivePreview() async {
         if agentStatus == .working, prompt == nil {
             if workingScreenDue {
-                if screenThisPoll == nil { screenThisPoll = await readScreen() }
-                screenPreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
+                screenPreview = await readScreen(for: .livePreview).flatMap(LivePreview.extract(screen:))
             }
         } else {
             screenPreview = nil
@@ -3199,24 +2613,102 @@ public enum SendNotice: Sendable, Equatable {
     case readOnlyDevice
 }
 
-/// 切換權限模式失敗的原因(#306)。
-public enum PermissionModeFailure: Equatable, Sendable {
-    /// 試了 `attempts` 次，畫面上沒有看到 `target`。
-    case notReached(attempts: Int, target: AgentPermissionMode)
-    /// 輪替一圈沒有出現目標模式(略過權限、自動):這個 session 沒有開。
-    case modeUnavailable(AgentPermissionMode)
-    /// 讀不到畫面，不知道目前是哪個模式。
-    case unreadable(target: AgentPermissionMode)
-    /// 按鍵沒送到主機。
-    case keysFailed(target: AgentPermissionMode)
-    /// 對話已被換成別的(送出前比對不符)，什麼都沒按。
-    case paneChanged(target: AgentPermissionMode)
+// MARK: - 觀察範圍的測試入口(#593)
 
-    /// 再試一次要切到的模式;略過權限沒開時再試沒有意義。
-    public var target: AgentPermissionMode? {
-        switch self {
-        case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
-        case .modeUnavailable: nil
+extension ConversationModel {
+    /// 沒有畫面讀的內部欄位(標 `@ObservationIgnored` 的那組),逐欄位列出(#593):測試對每個欄位各自建一次追蹤,
+    /// 只讀它、只寫它,證明該欄位的寫入不會通知觀察者;哪個欄位被誤拿掉標記,失敗訊息就點名它。新增沒有畫面讀的欄位時加一個 case。
+    package enum ObservationIgnoredField: String, CaseIterable, Sendable {
+        case olderMessages, segments, waitingSince, lastPolledStatus, lastPresenceSeq, awayLatch, backgroundedAt
+        case generation, dialect, panelWatchUntil, entriesRevision, onTranscriptWork
+    }
+
+    package func readForTesting(_ field: ObservationIgnoredField) {
+        switch field {
+        case .olderMessages: _ = olderMessages
+        case .segments: _ = segments
+        case .waitingSince: _ = waitingSince
+        case .lastPolledStatus: _ = lastPolledStatus
+        case .lastPresenceSeq: _ = lastPresenceSeq
+        case .awayLatch: _ = awayLatch
+        case .backgroundedAt: _ = backgroundedAt
+        case .generation: _ = generation
+        case .dialect: _ = dialect
+        case .panelWatchUntil: _ = panelWatchUntil
+        case .entriesRevision: _ = entriesRevision
+        case .onTranscriptWork: _ = onTranscriptWork
         }
+    }
+
+    /// 寫入那個欄位(換成不同的值,確保沒標 ignored 時一定會通知)。
+    package func writeForTesting(_ field: ObservationIgnoredField, message: TranscriptMessage, now: Date) {
+        switch field {
+        case .olderMessages: olderMessages = [message]
+        case .segments: segments = [(0, 1)]
+        case .waitingSince: waitingSince = now
+        case .lastPolledStatus: lastPolledStatus = .working
+        case .lastPresenceSeq: lastPresenceSeq += 1
+        case .awayLatch: awayLatch = (now, now)
+        case .backgroundedAt: backgroundedAt = now
+        case .generation: generation += 1
+        case .dialect: dialect = dialect == .claude ? .codex : .claude
+        case .panelWatchUntil: panelWatchUntil = now
+        case .entriesRevision: entriesRevision &+= 1
+        case .onTranscriptWork: onTranscriptWork = {}
+        }
+    }
+}
+
+// MARK: - 切換程序要的「手」(#561)
+
+extension ConversationModel: AgentControlSwitchingHost {
+    package var permissionModeCycle: [AgentPermissionMode]? { screenDialect.permissionModeCycle }
+    package var isWatchingPanel: Bool { panelWatchUntil.map { clock.now() < $0 } ?? false }
+
+    package func clearPanel() { panel = nil }
+
+    package func setNotice(_ notice: SendNotice?) { self.notice = notice }
+
+    package func cancelPanelWatch() { panelWatchUntil = nil }
+
+    package func readScreenPermissionMode(verifying: Bool) async -> AgentPermissionMode? { await readPermissionMode(verifying: verifying) }
+
+    package func recordSwitchedScreenMode(_ mode: AgentPermissionMode) {
+        controlObservations.observeScreen(mode: mode, transcriptValue: metadata.permissionMode)
+    }
+
+    package func recordProbedScreenMode(_ mode: AgentPermissionMode) {
+        if metadata.permissionMode == nil {
+            recordSwitchedScreenMode(mode)
+        } else {
+            controlObservations.noteSeen(mode: mode)
+        }
+    }
+
+    package func sendShiftTab() async throws {
+        try await client.sendKeys(
+            paneID: paneID, keys: ["shift+tab"], expecting: SendExpectation(session: boundSessionID ?? knownSessionID))
+    }
+
+    package func pause(_ duration: Duration) async throws { try await sleep(duration) }
+
+    package func play(_ feedback: HapticFeedback) { haptics.play(feedback) }
+
+    /// 送 slash 指令開面板並監看;沒送出時把原因放進提示。
+    package func sendPanelCommand(_ text: String) async -> Bool {
+        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
+        let result = await safeSend.send(text, to: destination(expectedSession: boundSessionID ?? knownSessionID))
+        switch result {
+        case .submittedCommand:
+            watchForPanel()
+            return true
+        case .noResponse:
+            notice = .noResponse
+        case .notSent(let reason):
+            if let target = Self.notice(for: reason) { notice = target }
+        default:
+            break
+        }
+        return false
     }
 }

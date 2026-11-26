@@ -12,7 +12,7 @@ public enum KeyboardCommand: CaseIterable, Sendable {
     case showFiles
     case showHosts
     case showTraffic
-    case toggleInspector
+    case toggleConversationPanel
     case openInNewWindow
 }
 
@@ -20,24 +20,22 @@ public enum KeyboardCommand: CaseIterable, Sendable {
 public struct KeyboardCommandContext: Equatable, Sendable {
     /// 有選取的聊天(對話或 Pane 終端機)。
     public var hasSelectedChat: Bool
-    /// 選取的是 Agent 對話(Pane 終端機沒有 Inspector)。
+    /// 選取的是 Agent 對話(Pane 終端機沒有用量與詳細資料面板)。
     public var hasSelectedConversation: Bool
     /// 目前選的 tab。
     public var tab: TopLevelTab
-    /// 視窗夠寬,Inspector 是右側欄(窄視窗是 sheet,沒有選單可切)。
+    /// 視窗夠寬(面板是 popover;窄視窗是 sheet)。目前不影響任何指令的啟用。
     public var isWideWindow: Bool
-    public var isInspectorShown: Bool
     public var supportsMultipleWindows: Bool
 
     public init(
         hasSelectedChat: Bool = false, hasSelectedConversation: Bool = false, tab: TopLevelTab = .chats,
-        isWideWindow: Bool = true, isInspectorShown: Bool = false, supportsMultipleWindows: Bool = true
+        isWideWindow: Bool = true, supportsMultipleWindows: Bool = true
     ) {
         self.hasSelectedChat = hasSelectedChat
         self.hasSelectedConversation = hasSelectedConversation
         self.tab = tab
         self.isWideWindow = isWideWindow
-        self.isInspectorShown = isInspectorShown
         self.supportsMultipleWindows = supportsMultipleWindows
     }
 }
@@ -51,12 +49,12 @@ extension KeyboardCommand {
         case .search: KeyboardShortcut("f", modifiers: .command)
         case .openTerminal: KeyboardShortcut("t", modifiers: [.command, .shift])
         case .newChat: KeyboardShortcut("n", modifiers: .command)
-        case .settings: KeyboardShortcut(",", modifiers: .command)
+        case .settings: KeyboardShortcut(",", modifiers: [.command, .option])
         case .showChats: KeyboardShortcut("1", modifiers: .command)
         case .showFiles: KeyboardShortcut("2", modifiers: .command)
         case .showHosts: KeyboardShortcut("3", modifiers: .command)
         case .showTraffic: KeyboardShortcut("4", modifiers: .command)
-        case .toggleInspector: KeyboardShortcut("i", modifiers: [.command, .option])
+        case .toggleConversationPanel: KeyboardShortcut("i", modifiers: [.command, .option])
         case .openInNewWindow: KeyboardShortcut("o", modifiers: [.command, .option])
         }
     }
@@ -75,7 +73,7 @@ extension KeyboardCommand {
         case .showFiles: "Files"
         case .showHosts: "Hosts"
         case .showTraffic: "Traffic"
-        case .toggleInspector: "Show Inspector"
+        case .toggleConversationPanel: "Show Usage & Details"
         case .openInNewWindow: "Open in New Window"
         }
     }
@@ -84,25 +82,24 @@ extension KeyboardCommand {
     public func isEnabled(in context: KeyboardCommandContext) -> Bool {
         switch self {
         case .openInNewWindow: context.hasSelectedChat && context.supportsMultipleWindows
-        case .toggleInspector: context.tab == .chats && context.isWideWindow && context.hasSelectedConversation
+        case .toggleConversationPanel: context.tab == .chats && context.hasSelectedConversation
         default: true
         }
     }
 
-    /// 選單項目在這個狀態下的名稱(Inspector 依開關顯示「Show／Hide Inspector」)。
+    /// 選單項目在這個狀態下的名稱。
     public func title(in context: KeyboardCommandContext) -> LocalizedStringKey {
         LocalizedStringKey(titleText(in: context))
     }
 
     /// `title(in:)` 的英文 key(測試用)。
     public func titleText(in context: KeyboardCommandContext) -> String {
-        if self == .toggleInspector, context.isInspectorShown { return "Hide Inspector" }
         return switch self {
         case .showChats: "Chats"
         case .showFiles: "Files"
         case .showHosts: "Hosts"
         case .showTraffic: "Traffic"
-        case .toggleInspector: "Show Inspector"
+        case .toggleConversationPanel: "Show Usage & Details"
         case .openInNewWindow: "Open in New Window"
         case .nextAgent: "Next Agent"
         case .previousAgent: "Previous Agent"
@@ -114,7 +111,7 @@ extension KeyboardCommand {
     }
 
     /// 「顯示方式」選單的項目與順序(#522)。
-    public static let viewMenu: [KeyboardCommand] = [.showChats, .showFiles, .showHosts, .showTraffic, .toggleInspector]
+    public static let viewMenu: [KeyboardCommand] = [.showChats, .showFiles, .showHosts, .showTraffic, .toggleConversationPanel]
     /// 「Agent」選單的項目與順序。
     public static let agentMenu: [KeyboardCommand] = [.nextAgent, .previousAgent, .search, .openTerminal, .openInNewWindow]
 

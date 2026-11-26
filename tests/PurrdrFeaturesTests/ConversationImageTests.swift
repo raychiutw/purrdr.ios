@@ -35,7 +35,7 @@ struct ConversationImageTests {
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                images: ComposerImages(uploader: SSHHostUploader(channel: channel), store: store, makeName: { names.next() }),
+                images: ComposerAttachments.Dependencies(uploader: SSHHostUploader(channel: channel), store: store, makeName: { names.next() }),
                 sleep: sleeper.sleep
             )
         }
@@ -250,7 +250,7 @@ struct ConversationImageTests {
         let reopened = ConversationModel(
             client: HerdrClient(channel: setup.base.host), transcripts: TranscriptReader(channel: setup.base.host),
             paneID: ConversationSendTests.paneID, knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-            drafts: setup.base.drafts, images: ComposerImages(uploader: SSHHostUploader(channel: setup.uploads), store: setup.store)
+            drafts: setup.base.drafts, images: ComposerAttachments.Dependencies(uploader: SSHHostUploader(channel: setup.uploads), store: setup.store)
         )
 
         #expect(reopened.attachments.map(\.fileName.value) == ["img-1.jpg"])

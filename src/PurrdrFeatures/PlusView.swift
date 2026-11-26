@@ -42,6 +42,7 @@ public struct PlusView: View {
 
     public var body: some View {
         List {
+            SubscriptionNoticeSection(plus: model)
             if let subscription = model.subscription, subscription.isActive {
                 subscribedSections(subscription)
             } else if model.isPlusProvisional {
@@ -67,9 +68,13 @@ public struct PlusView: View {
             }
             legalSection
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("plus.list")
         .disabled(model.isWorking)
+        // 功能列推入的頁面(#619)。
+        .navigationDestination(for: PlusFeature.self) { feature in
+            features?.destination(feature)
+        }
         .navigationTitle("Purrdr Plus")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -83,7 +88,6 @@ public struct PlusView: View {
         }
         .sheet(isPresented: $signingIn) {
             SignInSheet(model: member)
-                .appSheetBackground()
         }
         #if os(iOS)
         .offerCodeRedemption(isPresented: $redeeming) { _ in
@@ -94,15 +98,18 @@ public struct PlusView: View {
         .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
             if notice == .signInRequired {
                 Button("Sign In") { signingIn = true }
+                Button("Not Now", role: .cancel) {}
+            } else {
+                Button("OK", role: .cancel) {}
             }
-            Button("OK", role: .cancel) {}
         } message: { notice in
             Text(notice.message)
         }
+        .reportsErrorDisplay(model.notice?.displayedError, area: "PlusView")
     }
 
     private var noticePresented: Binding<Bool> {
-        Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
+        Binding(get: { model.notice.map { !$0.isInformational } ?? false }, set: { if !$0 { model.notice = nil } })
     }
 
     // MARK: - 區塊
@@ -121,13 +128,15 @@ public struct PlusView: View {
                         .accessibilityIdentifier("plus.summary")
                 }
                 Spacer(minLength: 8)
+                // 不能點的狀態:不用主色(像按鈕);主要色加粗。
                 Text("In Use")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(Color.primary)
             }
             .accessibilityElement(children: .combine)
             if subscription.store == .appStore {
                 Button("Manage Subscription") { managing = true }
+                    .listAction()
                     .accessibilityIdentifier("plus.manage")
             }
         } footer: {
@@ -140,7 +149,7 @@ public struct PlusView: View {
         featuresSection(showsStatus: true)
         Section {
             PlusFeatureRow(symbol: "terminal", title: "Chat, Terminal, and the Demo Host",
-                detail: "Work without a member account or subscription.", value: nil, isLink: false)
+                detail: "Work without a member account or subscription.", value: nil)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("plus.free")
         } header: {
@@ -178,19 +187,14 @@ public struct PlusView: View {
     @ViewBuilder
     private func featureRow(_ feature: PlusFeature, showsStatus: Bool) -> some View {
         let value = showsStatus ? features?.status.value(for: feature) : nil
-        if showsStatus, let features {
-            Button {
-                if features.dismissesOnOpen { dismiss() }
-                features.open(feature)
-            } label: {
-                PlusFeatureRow(symbol: feature.symbol, title: feature.title,
-                    detail: feature.detail, value: value, isLink: true)
+        if showsStatus, features != nil {
+            // 往右 push 對應的頁面(#619);列尾的 > 由 NavigationLink 給。
+            NavigationLink(value: feature) {
+                PlusFeatureRow(symbol: feature.symbol, title: feature.title, detail: feature.detail, value: value)
             }
-            .buttonStyle(.pressableRow())
             .accessibilityIdentifier("plus.feature.\(feature.rawValue)")
         } else {
-            PlusFeatureRow(symbol: feature.symbol, title: feature.title,
-                detail: feature.detail, value: value, isLink: false)
+            PlusFeatureRow(symbol: feature.symbol, title: feature.title, detail: feature.detail, value: value)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier(feature == .notifications && !showsStatus ? "plus.benefits" : "plus.feature.\(feature.rawValue)")
         }
@@ -214,6 +218,7 @@ public struct PlusView: View {
             Section {
                 Text("Couldn’t load subscription options. Check your connection and try again.")
                 Button("Try Again") { Task { await model.loadPlans() } }
+                    .listAction()
             }
         case .available:
             Section {
@@ -265,10 +270,12 @@ public struct PlusView: View {
             Button("Restore Purchases") {
                 if signedInMember == nil { signingIn = true } else { Task { await model.restore() } }
             }
+            .listAction()
             .accessibilityIdentifier("plus.restore")
             Button("Redeem Code") {
                 if signedInMember == nil { signingIn = true } else { redeeming = true }
             }
+            .listAction()
             .accessibilityIdentifier("plus.redeem")
         }
     }
@@ -375,13 +382,12 @@ struct PlanRow: View {
     }
 }
 
-/// 一列 Plus 功能:主色線條圖示、名稱、一行說明,列尾是目前狀態與 ›(可點時)。
+/// 一列 Plus 功能:主色線條圖示、名稱、一行說明,列尾是目前狀態(可點時由 NavigationLink 在列尾加 >)。
 struct PlusFeatureRow: View {
     let symbol: String
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
     let value: String?
-    let isLink: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -400,12 +406,6 @@ struct PlusFeatureRow: View {
             if let value {
                 Text(value)
                     .foregroundStyle(.secondaryText)
-            }
-            if isLink {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
             }
         }
         .contentShape(Rectangle())
@@ -550,6 +550,34 @@ extension SubscriptionNotice {
             String(localized: "Purrdr couldn’t confirm it’s you, so the subscription wasn’t moved.")
         case .failed:
             String(localized: "Something went wrong. Try again.")
+        }
+    }
+}
+
+
+/// 純告知的訂閱結果(#625、spec #612):顯示在頁內,不彈 alert;可關閉。需要決定或出錯的仍用 alert。
+struct SubscriptionNoticeSection: View {
+    let plus: SubscriptionModel
+
+    var body: some View {
+        if let notice = plus.notice, notice.isInformational {
+            Section {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(notice.title).font(.headline)
+                        Text(notice.message)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondaryText)
+                    }
+                    Spacer(minLength: 8)
+                    Button("Dismiss") { plus.notice = nil }
+                        .listAction()
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("subscription.notice.dismiss")
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("subscription.notice")
+            }
         }
     }
 }

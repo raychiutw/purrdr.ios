@@ -19,26 +19,34 @@ struct ConversationNoteTests {
         return (model, host)
     }
 
+    /// 註記由 initializer 接上(#566):以給定的 You should know 建立聊天。
+    static func setup(notes: YouShouldKnowModel) async throws -> ConversationSendTests.Setup {
+        try await ConversationSendTests.setup { client, transcripts, drafts in
+            ConversationModel(
+                client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
+                knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
+                clock: TestClock().clock, drafts: drafts, links: .init(youShouldKnow: notes))
+        }
+    }
+
     @Test("輸入列上方只顯示這個聊天 session 的註記")
     func noteForThisSession() async throws {
-        let setup = try await ConversationSendTests.setup()
         let (notes, _) = try Self.notes(for: ConversationModelTests.sessionID)
         await notes.refresh()
-        setup.model.youShouldKnow = notes
+        let setup = try await Self.setup(notes: notes)
         #expect(setup.model.note?.line == "Tests run in parallel")
 
         let (other, _) = try Self.notes(for: "00000000-0000-4000-8000-000000000000")
         await other.refresh()
-        setup.model.youShouldKnow = other
-        #expect(setup.model.note == nil)
+        let otherSetup = try await Self.setup(notes: other)
+        #expect(otherSetup.model.note == nil)
     }
 
     @Test("在聊天中討論：空的輸入框放入草稿;已有文字時接在後面(空一行),不蓋掉")
     func discussInsertsDraft() async throws {
-        let setup = try await ConversationSendTests.setup()
         let (notes, _) = try Self.notes(for: ConversationModelTests.sessionID)
         await notes.refresh()
-        setup.model.youShouldKnow = notes
+        let setup = try await Self.setup(notes: notes)
         let note = try #require(setup.model.note)
 
         setup.model.draft = ""

@@ -3,6 +3,7 @@ import PurrdrAgentFeatures
 
 /// 診斷記錄檔(`hitch-log.jsonl`,JSON Lines;卡頓與閃退共用):所有檔案 I/O 都在一條背景序列佇列上,呼叫端(含主執行緒與畫面回呼)不會被擋住。
 /// 超過大小上限就丟最舊的行;排除備份,隨 app 刪除;不上傳任何地方。
+/// `@unchecked`:可變的 `knownSize` 只在序列佇列 `queue` 上讀寫,其餘是 `let`。
 public final class DiagnosticLogFile: DiagnosticLogStoring, @unchecked Sendable {
     public static let fileName = "hitch-log.jsonl"
 

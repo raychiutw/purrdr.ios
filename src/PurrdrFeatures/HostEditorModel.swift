@@ -9,8 +9,14 @@ import PurrdrSSH
 @MainActor
 public protocol HostStore: AnyObject {
     func loadHosts() throws -> [HostConfiguration]
+    /// 冷啟動用:不阻塞主執行緒的讀取(#590)。預設就在呼叫端讀;Keychain 實作改在背景讀。
+    func loadHostsInBackground() async throws -> [HostConfiguration]
     func save(_ host: HostConfiguration) throws
     func delete(_ id: UUID) throws
+}
+
+extension HostStore {
+    public func loadHostsInBackground() async throws -> [HostConfiguration] { try loadHosts() }
 }
 
 /// 新增／編輯主機畫面的 model(行為規格 F1.2、§8.1–8.3)。
@@ -93,7 +99,7 @@ public final class HostEditorModel {
     /// 這支裝置的公鑰(含註解),`loadDeviceKey()` 之後才有。
     public private(set) var devicePublicKey: SSHPublicKey?
     /// 拿不到裝置金鑰時的說明。
-    public private(set) var deviceKeyProblem: String?
+    public private(set) var deviceKeyProblem: DisplayedError?
 
     /// 是否是編輯既有主機。
     public var isEditing: Bool { existing != nil }
@@ -210,7 +216,7 @@ public final class HostEditorModel {
         self.credentials = credentials
         self.hostService = hostService
         hasStoredDeviceToken = editing.map {
-            $0.connectionMethod.usesHostService && (try? hostService.tokens.deviceToken(for: $0.id)) != nil
+            $0.connectionMethod.usesHostService && !$0.needsReconfirmation && (try? hostService.tokens.deviceToken(for: $0.id)) != nil
         } ?? false
         guard let editing else { return }
         name = editing.name
@@ -390,7 +396,7 @@ public final class HostEditorModel {
             devicePublicKey = key
             deviceKeyProblem = nil
         case .failure(let error):
-            deviceKeyProblem = HostErrorText.message(for: error)
+            deviceKeyProblem = DisplayedError(error: error)
         }
     }
 

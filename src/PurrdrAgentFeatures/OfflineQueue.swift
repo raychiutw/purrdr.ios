@@ -5,7 +5,7 @@ import PurrdrCore
 /// 離線佇列裡的一則訊息(#301)。
 public struct QueuedPrompt: Codable, Equatable, Sendable, Identifiable {
     /// 重連後沒有補送的原因(泡泡紅框，下方寫原因與「放回輸入框」「刪除」)。
-    public enum Problem: String, Codable, Sendable {
+    public enum Problem: String, Error, Codable, Sendable {
         /// 排隊超過 10 分鐘。
         case expired
         /// 對象的 pane 不在了、換了 Workspace,或 session 換了。
@@ -60,31 +60,6 @@ public final class InMemoryOfflineQueueStore: OfflineQueueStore {
     public func save(_ prompts: [QueuedPrompt], host: String) { stored[host] = prompts }
 }
 
-/// 存在 `UserDefaults`(只在這支裝置、不同步):每台主機一個 key,內容是 JSON。
-@MainActor
-public final class UserDefaultsOfflineQueueStore: OfflineQueueStore {
-    public static let keyPrefix = "offlineQueue."
-
-    private let defaults: UserDefaults
-
-    public init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-    }
-
-    public func load(host: String) -> [QueuedPrompt] {
-        guard let data = defaults.data(forKey: Self.keyPrefix + host) else { return [] }
-        return (try? JSONDecoder().decode([QueuedPrompt].self, from: data)) ?? []
-    }
-
-    public func save(_ prompts: [QueuedPrompt], host: String) {
-        if prompts.isEmpty {
-            defaults.removeObject(forKey: Self.keyPrefix + host)
-        } else if let data = try? JSONEncoder().encode(prompts) {
-            defaults.set(data, forKey: Self.keyPrefix + host)
-        }
-    }
-}
-
 /// 一台主機的離線佇列(#301,spec #298):沒有連線時送出的訊息先排在這裡(每台主機最多 30 則，存本機)。
 ///
 /// 訊息只在離線時進來，所以之後收到的第一份 Agent 列表(`reconcile(with:)`)就是重連後的第一次:逐則比對，
@@ -104,15 +79,15 @@ public final class OfflineQueue {
     @ObservationIgnored private let host: String
     @ObservationIgnored private let store: any OfflineQueueStore
     @ObservationIgnored private let now: @Sendable () -> Date
-    @ObservationIgnored private let deliver: @MainActor (String, Agent, String?) async -> PromptOutcome
+    @ObservationIgnored private let deliver: @MainActor (String, SafeSend.Destination) async -> SafeSend.Result
     @ObservationIgnored private var reconciling: Task<Void, Never>?
 
     /// - Parameters:
     ///   - host: 這台主機在本機存放的 key(`HostSelection.storedValue`)。
-    ///   - deliver: 補送一則給 Agent,第三個參數是排入時的 session(由建立者以新鮮的快照與 `PromptDelivery` 實作)。
+    ///   - deliver: 補送一則給目標(含排入時的 session 與比對時的 Agent;由建立者以 `SafeSend` 實作,送前會重讀新鮮快照確認)。
     public init(
         host: String, store: any OfflineQueueStore, now: @escaping @Sendable () -> Date = Date.init,
-        deliver: @escaping @MainActor (String, Agent, String?) async -> PromptOutcome
+        deliver: @escaping @MainActor (String, SafeSend.Destination) async -> SafeSend.Result
     ) {
         self.host = host
         self.store = store
@@ -204,12 +179,13 @@ public final class OfflineQueue {
 
     /// 補送一則;送到回 `nil`。
     private func send(_ entry: QueuedPrompt, to agent: Agent) async -> QueuedPrompt.Problem? {
-        switch await deliver(entry.text, agent, entry.sessionID) {
-        case .delivered, .submittedCommand: nil
-        case .noResponse, .unconfirmed: .mayHaveBeenSent
-        case .needsAnswer: .needsAnswer
-        case .rejected, .readOnlyDevice: .notDelivered
-        case .paneChanged: .conversationChanged
+        let destination = SafeSend.Destination(paneID: entry.paneID, expectedSession: entry.sessionID, fallback: agent)
+        switch await deliver(entry.text, destination) {
+        case .delivered, .submittedCommand: return nil
+        case .noResponse, .unconfirmed: return .mayHaveBeenSent
+        case .notSent(.needsAnswer): return .needsAnswer
+        case .notSent(.rejected), .notSent(.readOnlyDevice): return .notDelivered
+        case .notSent(.conversationChanged), .notSent(.agentGone): return .conversationChanged
         }
     }
 

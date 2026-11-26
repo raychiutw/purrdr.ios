@@ -11,7 +11,7 @@ struct KeyboardMenuTests {
 
     @Test("顯示方式選單:聊天、檔案、主機、流量依序是 Command-1 到 4,再來 Option-Command-I")
     func viewMenuItems() {
-        #expect(KeyboardCommand.viewMenu == [.showChats, .showFiles, .showHosts, .showTraffic, .toggleInspector])
+        #expect(KeyboardCommand.viewMenu == [.showChats, .showFiles, .showHosts, .showTraffic, .toggleConversationPanel])
         let digits: [(KeyboardCommand, Character, TopLevelTab)] = [
             (.showChats, "1", .chats), (.showFiles, "2", .files), (.showHosts, "3", .hosts), (.showTraffic, "4", .traffic),
         ]
@@ -20,9 +20,9 @@ struct KeyboardMenuTests {
             #expect(command.shortcut.modifiers == .command, "\(command)")
             #expect(command.tab == tab, "\(command)")
         }
-        #expect(KeyboardCommand.toggleInspector.shortcut.key.character == "i")
-        #expect(KeyboardCommand.toggleInspector.shortcut.modifiers == [.command, .option])
-        #expect(KeyboardCommand.toggleInspector.tab == nil)
+        #expect(KeyboardCommand.toggleConversationPanel.shortcut.key.character == "i")
+        #expect(KeyboardCommand.toggleConversationPanel.shortcut.modifiers == [.command, .option])
+        #expect(KeyboardCommand.toggleConversationPanel.tab == nil)
     }
 
     @Test("Agent 選單:加上在新視窗開啟(Option-Command-O),既有項目不變")
@@ -37,7 +37,8 @@ struct KeyboardMenuTests {
         #expect(key(.newChat) == "n|\(EventModifiers.command.rawValue)")
         #expect(key(.search) == "f|\(EventModifiers.command.rawValue)")
         #expect(key(.openTerminal) == "t|\(EventModifiers([.command, .shift]).rawValue)")
-        #expect(key(.settings) == ",|\(EventModifiers.command.rawValue)")
+        // App Settings… 是 Option-Command-,(Command-, 是 iPadOS 系統自動的 Settings…,見 KeyboardCommandTests)。
+        #expect(key(.settings) == ",|\(EventModifiers([.command, .option]).rawValue)")
     }
 
     @Test("快捷鍵不與「新視窗」(Option-Command-N)重複")
@@ -54,27 +55,26 @@ struct KeyboardMenuTests {
             in: KeyboardCommandContext(hasSelectedChat: true, supportsMultipleWindows: false)))
     }
 
-    @Test("Inspector:要在聊天 tab、寬視窗、選了 Agent 對話才能用,其餘停用")
-    func inspectorEnabled() {
+    @Test("用量與詳細資料面板(#617):要在聊天 tab、選了 Agent 對話才能用(不看視窗寬度,窄視窗也是 sheet),其餘停用")
+    func conversationPanelEnabled() {
         let ready = KeyboardCommandContext(hasSelectedChat: true, hasSelectedConversation: true)
-        #expect(KeyboardCommand.toggleInspector.isEnabled(in: ready))
+        #expect(KeyboardCommand.toggleConversationPanel.isEnabled(in: ready))
         var c = ready
         c.hasSelectedConversation = false
-        #expect(!KeyboardCommand.toggleInspector.isEnabled(in: c))
+        #expect(!KeyboardCommand.toggleConversationPanel.isEnabled(in: c))
         c = ready
         c.tab = .hosts
-        #expect(!KeyboardCommand.toggleInspector.isEnabled(in: c))
+        #expect(!KeyboardCommand.toggleConversationPanel.isEnabled(in: c))
         c = ready
         c.isWideWindow = false
-        #expect(!KeyboardCommand.toggleInspector.isEnabled(in: c))
+        #expect(KeyboardCommand.toggleConversationPanel.isEnabled(in: c), "窄視窗也能開(面板在窄視窗是 sheet)")
     }
 
-    @Test("切 tab 的項目一律可用;Inspector 標題依開關顯示或隱藏")
-    func tabsAlwaysEnabledAndInspectorTitle() {
+    @Test("切 tab 的項目一律可用;面板的名稱是「Show Usage & Details」,不再叫 Inspector")
+    func tabsAlwaysEnabledAndPanelTitle() {
         for command in [KeyboardCommand.showChats, .showFiles, .showHosts, .showTraffic] {
             #expect(command.isEnabled(in: KeyboardCommandContext()))
         }
-        #expect(KeyboardCommand.toggleInspector.titleText(in: KeyboardCommandContext(isInspectorShown: false)) == "Show Inspector")
-        #expect(KeyboardCommand.toggleInspector.titleText(in: KeyboardCommandContext(isInspectorShown: true)) == "Hide Inspector")
+        #expect(KeyboardCommand.toggleConversationPanel.titleText(in: KeyboardCommandContext()) == "Show Usage & Details")
     }
 }

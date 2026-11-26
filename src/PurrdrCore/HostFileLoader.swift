@@ -10,29 +10,26 @@ public actor HostFileLoader {
         case unavailable(HostFileProblem)
     }
 
-    private struct CacheKey: Hashable {
-        var path: String
-        var version: HostFileVersion
-    }
-
     private let fetcher: any HostFileFetching
-    private let cacheLimit: Int
-    private var cache: [CacheKey: Data] = [:]
-    /// 最近用過的在後面;超過上限從前面丟。
-    private var recentlyUsed: [CacheKey] = []
+    private let cache: HostFileCache
+    /// 這個載入者在共用快取裡的命名空間(各台主機的同名路徑不互相覆蓋)。
+    private let owner = UUID()
 
-    /// - Parameter cacheLimit: 記憶體快取的總 bytes。
-    public init(fetcher: any HostFileFetching, cacheLimit: Int = 48 * 1024 * 1024) {
+    /// - Parameter cache: 記憶體快取;預設是全 app 共用的 `HostFileCache.shared`(總上限由它管)。
+    public init(fetcher: any HostFileFetching, cache: HostFileCache = .shared) {
         self.fetcher = fetcher
-        self.cacheLimit = cacheLimit
+        self.cache = cache
     }
 
-    /// - Parameter userRequested: 使用者點了「載入」:上限放寬到 `HostFileFetchLimits.maximumSize`。
-    public func load(_ path: String, scope: HostFileAccessScope, userRequested: Bool = false) async -> Outcome {
+    /// - Parameters:
+    ///   - userRequested: 使用者點了「載入」:上限放寬到 `HostFileFetchLimits.maximumSize`,也不限圖片格式。
+    ///   - automaticImageFormatsOnly: 內容要以 ImageIO 解碼時為 `true`:不是 PNG／JPEG／HEIC／GIF／WebP 的檔案不自動載入(#579)。
+    public func load(
+        _ path: String, scope: HostFileAccessScope, userRequested: Bool = false, automaticImageFormatsOnly: Bool = false
+    ) async -> Outcome {
         let attempt = await HostFileFetchAttempt.run(path, scope: scope, fetcher: fetcher) { target, version, size -> Outcome in
-            let key = CacheKey(path: path, version: version)
-            if let cached = cache[key] {
-                touch(key)
+            let key = HostFileCache.Key(owner: owner, path: path, version: version)
+            if let cached = cache.value(for: key) {
                 return .loaded(cached, version: version)
             }
             if !userRequested, size > HostFileFetchLimits.automaticLoad { return .overAutomaticLimit(size: size) }
@@ -44,8 +41,12 @@ public actor HostFileLoader {
                     target, version: version, offset: data.count, length: min(HostFileFetchLimits.chunkSize, size - data.count))
                 guard !chunk.isEmpty else { throw HostFileProblem.failed("host file ended early") }
                 data.append(chunk)
+                // 第一塊就判斷格式:不是常見格式不再往下讀，等使用者點擊。
+                if automaticImageFormatsOnly, !userRequested, data.count == chunk.count, AutoDecodableImageFormat.detect(chunk) == nil {
+                    return .overAutomaticLimit(size: size)
+                }
             }
-            store(data, for: key)
+            cache.store(data, for: key)
             return .loaded(data, version: version)
         }
         switch attempt {
@@ -57,23 +58,5 @@ public actor HostFileLoader {
     /// 只查狀態(不讀內容):檔案卡片顯示大小或原因(#429)。成功回大小。
     public func size(of path: String, scope: HostFileAccessScope) async -> Result<Int, HostFileProblem> {
         await HostFileFetchAttempt.run(path, scope: scope, fetcher: fetcher) { _, _, size in size }
-    }
-
-    private func touch(_ key: CacheKey) {
-        recentlyUsed.removeAll { $0 == key }
-        recentlyUsed.append(key)
-    }
-
-    private func store(_ data: Data, for key: CacheKey) {
-        // 同一路徑的舊版本不再需要。
-        for old in recentlyUsed where old.path == key.path { cache[old] = nil }
-        recentlyUsed.removeAll { $0.path == key.path }
-        cache[key] = data
-        recentlyUsed.append(key)
-        var total = cache.values.reduce(0) { $0 + $1.count }
-        while total > cacheLimit, recentlyUsed.count > 1 {
-            let evicted = recentlyUsed.removeFirst()
-            total -= cache.removeValue(forKey: evicted)?.count ?? 0
-        }
     }
 }

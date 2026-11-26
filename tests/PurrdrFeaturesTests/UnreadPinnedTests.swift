@@ -211,6 +211,29 @@ struct UnreadPinnedTests {
         #expect(relaunched.store(for: Self.lab).load().opened[Self.sessionP6] == nil)
     }
 
+    @Test("開聊天時順便修剪 opened:很舊而且已不在主機快照的 session 被移除,快照裡還在的保留(#588)")
+    func openingChatPrunesStaleOpenedMarkers() async {
+        let defaults = UserDefaults(suiteName: "UnreadPinnedTests.prune.\(UUID())")!
+        let stores = UserDefaultsHostChatPreferencesStore(defaults: defaults)
+        let store = stores.store(for: Self.studio)
+        let day: TimeInterval = 86_400
+        var seeded = store.load()
+        seeded.opened["gone-old"] = Self.t0.addingTimeInterval(-90 * day)
+        seeded.opened["gone-recent"] = Self.t0.addingTimeInterval(-5 * day)
+        store.save(seeded)
+        let clock = MarkerClock(Self.t0)
+        let studio = await Self.host(Self.studio, clock: clock, preferences: store)
+        let model = Self.merged([studio])
+        await model.load()
+
+        model.chatAppeared(ChatRoute(host: Self.studio, paneID: "w1:p6"))
+
+        let opened = store.load().opened
+        #expect(opened["gone-old"] == nil, "很舊又不在快照的紀錄沒有被修剪")
+        #expect(opened["gone-recent"] != nil, "較新的紀錄不該被修剪")
+        #expect(opened[Self.sessionP6] != nil)
+    }
+
     @Test("舊版只有釘選、靜音的偏好仍讀得出來(沒有開啟紀錄)")
     func decodesPreferencesWithoutOpenedMarkers() throws {
         let data = Data(#"{"pinned":{"s1":0},"muted":["s2"]}"#.utf8)

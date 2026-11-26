@@ -208,11 +208,16 @@ public enum ClaudeTranscriptParser {
             .replacingOccurrences(of: "&amp;", with: "&")
     }
 
+    private static let pastedContent: NSRegularExpression = {
+        // swiftlint:disable:next force_try
+        try! NSRegularExpression(pattern: #"<pasted_content id="(\d+)">([\s\S]*?)</pasted_content id="\1">"#)
+    }()
+
     /// 行為規格 §4.1「使用者文字清理」。
     static func cleanUserText(_ raw: String) -> String {
         var text = raw
         // 長貼上:`<pasted_content id="N">…</pasted_content id="N">` 解開(#79)。
-        text = text.replacingMatches(#"<pasted_content id="(\d+)">([\s\S]*?)</pasted_content id="\1">"#, with: "$2")
+        if text.contains("<pasted_content") { text = text.replacingMatches(pastedContent, with: "$2") }
         if let command = firstElement("command-name", in: text) {
             let args = (firstElement("command-args", in: text) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             return args.isEmpty ? command.trimmingCharacters(in: .whitespacesAndNewlines) : "\(command.trimmingCharacters(in: .whitespacesAndNewlines)) \(args)"
@@ -432,6 +437,11 @@ extension String {
 
     func replacingMatches(_ pattern: String, with template: String) -> String {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return self }
-        return regex.stringByReplacingMatches(in: self, range: NSRange(startIndex..., in: self), withTemplate: template)
+        return replacingMatches(regex, with: template)
+    }
+
+    /// 以預先建好的正規式取代(熱路徑用;不要每次呼叫都重新 parse pattern,#585)。
+    func replacingMatches(_ regex: NSRegularExpression, with template: String) -> String {
+        regex.stringByReplacingMatches(in: self, range: NSRange(startIndex..., in: self), withTemplate: template)
     }
 }

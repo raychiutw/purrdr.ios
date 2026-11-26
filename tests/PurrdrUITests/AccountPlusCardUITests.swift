@@ -69,9 +69,9 @@ final class AccountPlusCardUITests: XCTestCase {
         XCTAssertEqual(transfer.label, "Move to This Member")
         transfer.tap()
 
-        let done = app.alerts.firstMatch
-        XCTAssertTrue(done.waitUntilExists(timeout: 10), "轉移完成沒有提示")
-        done.buttons["OK"].tap()
+        // 轉移完成是純告知:顯示在頁內,不彈 alert(#625)。
+        XCTAssertTrue(app.element("subscription.notice").waitUntilExists(timeout: 10), "轉移完成沒有頁內提示")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "純告知不該彈 alert")
         XCTAssertTrue(status(app).wait(for: NSPredicate(format: "label CONTAINS 'Active'"), timeout: 10), "轉移後 Plus 沒有生效")
         XCTAssertFalse(app.buttons["account.plusCard.primary"].exists)
     }
@@ -106,5 +106,29 @@ final class AccountPlusCardUITests: XCTestCase {
         confirm.tap()
 
         XCTAssertTrue(ipad.waitUntilGone(timeout: 10), "撤銷後裝置還在清單")
+    }
+
+    /// 登入中的裝置也能左滑登出(#626):與列上的「Sign Out」同一個動作、先確認;目前這支左滑沒有登出。
+    @MainActor
+    func testSignedInDevicesSwipeToSignOut() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+        app.openAccountSheet()
+        let row = app.buttons["member.signInDevices"]
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: row, search: .down, timeout: 10), "帳號頁沒有登入中的裝置")
+        row.tap()
+
+        let ipad = app.element("account.signInDevice.ui-session-ipad")
+        XCTAssertTrue(ipad.waitUntilExists(timeout: 10), "清單沒有另一支裝置")
+        app.element("account.signInDevice.ui-session-this").swipeLeft()
+        XCTAssertFalse(app.buttons["account.signInDevice.swipeSignOut.ui-session-this"].waitUntilExists(timeout: 1), "目前這支左滑不該有登出")
+        ipad.swipeLeft()
+        let swipeSignOut = app.buttons["account.signInDevice.swipeSignOut.ui-session-ipad"].firstMatch
+        XCTAssertTrue(swipeSignOut.waitUntilExists(timeout: 5), "左滑沒有「登出」")
+        swipeSignOut.tap()
+        let confirm = app.buttons["account.signInDevices.confirm"].firstMatch
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "左滑沒有先確認")
+        XCTAssertTrue(ipad.exists, "確認前列不該先被移走")
+        confirm.tap()
+        XCTAssertTrue(ipad.waitUntilGone(timeout: 10), "登出後裝置還在清單")
     }
 }

@@ -42,7 +42,7 @@ struct HostPushSection: View {
 
 /// 一台主機的通知列：圖示、名稱、狀態與開關。VoiceOver 念「主機名稱，通知已開啟／未開啟」。
 ///
-/// 還沒配對的 HTTPS 主機(#295,原型 B):開關照樣顯示但停用，副標以強調色寫「先配對這台主機 ›」,點整列開配對。
+/// 還沒配對的 HTTPS 主機(#295,原型 B):開關照樣顯示但停用，副標是「先配對這台主機」按鈕(系統 `.borderless` 按鈕),點它開配對。
 struct HostPushRow: View {
     let push: HostPush
     let pair: (UUID) -> Void
@@ -56,13 +56,11 @@ struct HostPushRow: View {
                 Text(verbatim: push.name)
                     .accessibilityHidden(true)
                 if let pairingHost {
-                    Text("Pair This Host First \(Image(systemName: "chevron.forward"))")
+                    // 系統按鈕(#623):不用手勢加 trait 模擬按鈕。
+                    Button("Pair This Host First") { pair(pairingHost) }
+                        .buttonStyle(.borderless)
                         .font(.subheadline)
-                        .foregroundStyle(.tint)
-                        .accessibilityLabel(Text("Pair This Host First"))
                         .accessibilityHint(Text("Notifications can be turned on after this device pairs with the host."))
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { pair(pairingHost) }
                         .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
                 } else {
                     status
@@ -81,9 +79,6 @@ struct HostPushRow: View {
             .accessibilityValue(isOnOrPending ? Text("Notifications On") : Text("Notifications Off"))
             .accessibilityIdentifier("account.push.\(push.host.storedValue)")
         }
-        // 要先配對時整列可點(開關停用，點到開關也開配對);其他列不加手勢，開關照常回應。
-        .contentShape(.rect)
-        .gesture(TapGesture().onEnded { if let pairingHost { pair(pairingHost) } }, isEnabled: pairingHost != nil)
         .task {
             // 只查已開啟的主機：未開啟的不為了顯示裝置數另開連線。
             if push.support == .supported, model.state == .on { await model.refreshStatus() }
@@ -108,6 +103,7 @@ struct HostPushRow: View {
             Text("This host can’t send notifications.")
         case .needsHostService(let version, _):
             Label("Needs host service \(version) or later", systemImage: "exclamationmark.triangle")
+                // errorLabel:exempt 需求提示,不是失敗
         case .supported:
             switch model.state {
             case .on:
@@ -121,12 +117,8 @@ struct HostPushRow: View {
             case .checking, .confirming, .turningOn:
                 Text("Setting up notifications…")
             case .off:
-                if case .failed(let message) = model.problem {
-                    Label {
-                        Text("\(message) Tap the switch to try again.")
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle")
-                    }
+                if case .failed(let shown) = model.problem {
+                    ErrorLabel(String(localized: "\(shown.text) Tap the switch to try again."), area: "HostPush", error: shown.descriptor)
                 } else if model.otherDevices > 0 {
                     Text("Off · Other devices here: \(model.otherDevices)")
                 } else if push.installsViaHostService {
@@ -163,51 +155,38 @@ struct HostPushRow: View {
     }
 }
 
-/// 通知開著的主機:「傳送測試通知」(#328),結果以提示說明,失敗附原因。
+/// 通知開著的主機:「傳送測試通知」(#328),結果直接顯示在列上(#625,不彈 alert),失敗附原因。
 struct HostPushTestRow: View {
     let push: HostPush
 
     private var model: PushModel { push.model }
 
     var body: some View {
-        Button {
-            Task { await model.sendTestNotification() }
-        } label: {
-            HStack {
-                Text("Send Test Notification")
-                Spacer()
-                if model.testNotification == .sending { ProgressView() }
-            }
-        }
-        .disabled(model.testNotification == .sending)
-        .accessibilityIdentifier("account.push.\(push.host.storedValue).test")
-        .alert(resultTitle, isPresented: resultPresented) {
-            Button("OK", role: .cancel) { model.dismissTestNotification() }
-        } message: {
-            Text(resultMessage)
-        }
-    }
-
-    private var resultPresented: Binding<Bool> {
-        Binding(
-            get: {
-                switch model.testNotification {
-                case .sent, .failed: true
-                case .idle, .sending: false
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                Task { await model.sendTestNotification() }
+            } label: {
+                HStack {
+                    Text("Send Test Notification")
+                    Spacer()
+                    if model.testNotification == .sending { ProgressView() }
                 }
-            },
-            set: { if !$0 { model.dismissTestNotification() } })
-    }
-
-    private var resultTitle: LocalizedStringKey {
-        if case .failed = model.testNotification { return "Couldn’t Send Test Notification" }
-        return "Test Notification Sent"
-    }
-
-    private var resultMessage: String {
-        switch model.testNotification {
-        case .failed(let message): message
-        default: String(localized: "It should arrive on this device in a moment.")
+            }
+            .disabled(model.testNotification == .sending)
+            .accessibilityIdentifier("account.push.\(push.host.storedValue).test")
+            switch model.testNotification {
+            case .sent:
+                Label("Sent. It should arrive on this device in a moment.", systemImage: "checkmark.circle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("account.push.\(push.host.storedValue).test.result")
+            case .failed(let shown):
+                ErrorLabel(shown.text, area: "PushTest", error: shown.descriptor)
+                    .font(.footnote)
+                    .accessibilityIdentifier("account.push.\(push.host.storedValue).test.result")
+            case .idle, .sending:
+                EmptyView()
+            }
         }
     }
 }
@@ -307,6 +286,7 @@ struct PushProblemRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Notifications need Purrdr Plus.", systemImage: "bell.badge")
                 Button("See Purrdr Plus", action: openPlus)
+                    .listAction()
                     .accessibilityIdentifier("settings.push.plus")
             }
             .accessibilityIdentifier("settings.push.problem")
@@ -314,20 +294,21 @@ struct PushProblemRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Notifications are off for Purrdr in iOS Settings.", systemImage: "bell.slash")
                 Button("Open Settings") { model.openSystemSettings() }
+                    .listAction()
                     .accessibilityIdentifier("settings.push.openSettings")
             }
             .accessibilityIdentifier("settings.push.problem")
         case .unsupportedDevice(let detail):
-            Label("This device can’t receive notifications. \(detail)", systemImage: "exclamationmark.triangle")
+            ErrorLabel(String(localized: "This device can’t receive notifications. \(detail.text)"), area: "HostPush", error: detail.descriptor)
                 .accessibilityIdentifier("settings.push.problem")
         case .hostServiceOutdated(let update):
             HostServicePushUpdateRow(update: update)
                 .accessibilityIdentifier("settings.push.problem")
-        case .deviceIDUnavailable:
-            Label("Couldn’t read this device’s ID. Unlock this device and try again.", systemImage: "lock")
+        case .deviceIDUnavailable(let shown):
+            ErrorLabel(shown.text, area: "HostPush", error: shown.descriptor)
                 .accessibilityIdentifier("settings.push.problem")
         case .failed(let message), .mutedSyncFailed(let message), .kindsUpdateFailed(let message):
-            Label { Text(verbatim: message) } icon: { Image(systemName: "exclamationmark.triangle") }
+            ErrorLabel(message.text, area: "HostPush", error: message.descriptor)
                 .accessibilityIdentifier("settings.push.problem")
         }
     }
@@ -356,6 +337,7 @@ struct HostServicePushUpdateRow: View {
                 .textSelection(.enabled)
             Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
                 .buttonStyle(.borderless)
+                .listAction()
         }
     }
 }

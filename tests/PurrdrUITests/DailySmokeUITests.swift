@@ -31,7 +31,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("spaces.section.demo/w1").exists, "沒有 workspace 段落標題")
         }
         step("搜尋篩選列表") {
-            let search = app.chatSearch
+            let search = app.revealChatSearch()
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
@@ -43,7 +43,7 @@ final class DailySmokeUITests: XCTestCase {
         }
         step("Spaces:搜尋 workspace、沒有檢視切換") {
             XCTAssertTrue(app.reveal(app.element("spaces.section.demo/w3")), "Spaces 沒有 workspace 段落")
-            let search = app.chatSearch
+            let search = app.revealChatSearch()
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
             search.tap()
             search.typeEnglish("weather")
@@ -108,20 +108,21 @@ final class DailySmokeUITests: XCTestCase {
             app.dismissKeyboard()
         }
         step("用量環與「⋯」→ 權限模式") {
-            let header = app.element("conversation.header")
-            XCTAssertTrue(header.waitUntilExists(timeout: 10), "沒有標題膠囊")
+            XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10), "沒有聊天頂列")
             app.buttons["conversation.usage"].firstMatch.tap()
-            XCTAssertTrue(app.element("usage.sheet").waitUntilExists(timeout: 5), "點用量環沒有開出用量 sheet")
-            XCTAssertTrue(app.element("usage.sheet.context").waitUntilExists(timeout: 5), "用量 sheet 沒有 Context 卡片")
-            app.buttons["usage.sheet.close"].tap()
-            XCTAssertTrue(app.element("usage.sheet").waitUntilGone(timeout: 5), "用量 sheet 沒有關閉")
+            XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
+            XCTAssertTrue(app.element("usage.sheet.context").waitUntilExists(timeout: 5), "面板沒有 Context 卡片")
+            app.buttons["panel.close"].tap()
+            XCTAssertTrue(app.element("conversation.panel").waitUntilGone(timeout: 5), "面板沒有關閉")
             app.conversationMoreItem("menu.permissionMode").tap()
             XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "「⋯」→ 權限模式沒有開出 sheet")
             let accept = app.buttons["Accept Edits"].firstMatch
             XCTAssertTrue(accept.waitUntilExists(timeout: 10), "sheet 裡沒有 Accept Edits")
             accept.tap()
             XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
-            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Accept Edits'"), timeout: 10), "標題沒有顯示 Accept Edits")
+            XCTAssertTrue(app.conversationMoreItem("menu.permissionMode").label.contains("Accept Edits"), "「⋯」的權限模式副標沒有顯示 Accept Edits")
+            // 收起「⋯」選單,下一步才能重新打開。
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
         }
         step("模型選擇 sheet 與投入程度子頁(#384)") {
             // 輸入列收合時沒有模型膠囊:從「⋯」→ 模型與思考深度開同一張 sheet(#515)。
@@ -159,8 +160,8 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(open.waitUntilExists(timeout: 20), "別的聊天變成需要你後沒有橫幅")
             XCTAssertTrue(open.label.hasPrefix("notes"), "橫幅沒有寫出 notes:\(open.label)")
             open.tap()
-            let header = app.element("conversation.header")
-            XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS 'Needs You'"), timeout: 10), "點橫幅後沒有換成需要你的 notes 聊天(標題在這條流程裡是 Tab 名稱,看狀態):\(header.label)")
+            let subtitle = app.conversationSubtitle(containing: "Needs You")
+            XCTAssertTrue(subtitle.waitUntilExists(timeout: 10), "點橫幅後沒有換成需要你的 notes 聊天(標題在這條流程裡是 Tab 名稱,看副標題的狀態)")
             XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "已經在那個聊天,橫幅該消失")
         }
         step("返回後列表最上面有「需要你」段落") {
@@ -204,6 +205,14 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["files.upload"].firstMatch.waitUntilExists(timeout: 10), "檔案 tab 沒有上傳")
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "檔案 tab 沒有帳號鈕")
             XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "檔案 tab 不該有新增聊天")
+            // 資料夾是 push(#620):進一層、tab bar 還在、左上「<」回第一層。
+            let ledger = app.buttons["files.row.ledger"].firstMatch
+            XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "檔案 tab 沒有列出家目錄")
+            ledger.tap()
+            XCTAssertTrue(app.navigationBars["ledger"].waitUntilExists(timeout: 10), "沒有推進下一層")
+            XCTAssertTrue(app.tabBars.firstMatch.exists, "下一層沒有保留 tab bar")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "返回沒有回到第一層")
             app.openHostsTab()
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "主機 tab 沒有帳號鈕")
             // 沒有已存主機時主機 tab 是範例主機:只有範例狀態、登入 Shell 與「移除範例主機」(#392、#434)。
@@ -216,7 +225,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
             XCTAssertFalse(app.buttons["hosts.add"].exists, "流量 tab 右上不放動作")
         }
-        step("設定併在帳號 sheet,只有四個 tab,右上 X 關閉(#503)") {
+        step("設定併在帳號 sheet,只有四個 tab,左上 X 關閉(#503、#623)") {
             XCTAssertFalse(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Settings")).firstMatch.exists, "不該再有設定 tab")
             app.openSettingsSheet()
             let used = app.buttons["Used"].firstMatch
@@ -225,10 +234,28 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "關閉後沒有回到 tab")
         }
         step("新增聊天") {
-            app.openNewChatSheet()
-            XCTAssertTrue(app.element("sheet.newChat").waitUntilExists(timeout: 10), "沒有開出新增聊天")
-            app.swipeDown(velocity: .fast)
-            XCTAssertTrue(app.element("sheet.newChat").waitUntilGone(timeout: 5), "新增聊天沒有關閉")
+            app.openNewChat()
+            let page = app.element("newChat.page")
+            XCTAssertTrue(page.waitUntilExists(timeout: 10), "沒有開出新增聊天")
+            XCTAssertTrue(app.tabBars.firstMatch.exists, "新增聊天是 push,tab bar 要保留")
+            XCTAssertTrue(app.buttons["newChat.host"].firstMatch.exists, "新增聊天右上沒有主機選單")
+            // 有輸入時離開先確認(action sheet):留在頁面;確認放棄才離開。
+            let folder = app.textFields["newChat.folder"]
+            for _ in 0..<4 where !folder.exists { page.swipeUp() }
+            folder.tap()
+            folder.typeEnglish("~/ledger")
+            app.buttons["newChat.back"].tap()
+            let discard = app.buttons["Discard"].firstMatch
+            XCTAssertTrue(discard.waitUntilExists(timeout: 5), "有輸入時離開沒有先確認")
+            // 從工具列按鈕展開的確認是錨在按鈕上的選單(系統不放取消鈕):點旁邊等於繼續編輯;有取消鈕時點它。
+            let keep = app.buttons["Keep Editing"].firstMatch
+            if keep.exists { keep.tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.45)).tap() }
+            XCTAssertTrue(discard.waitUntilGone(timeout: 5), "確認沒有收起")
+            XCTAssertTrue(page.exists, "選了繼續編輯還是離開了")
+            app.buttons["newChat.back"].tap()
+            XCTAssertTrue(discard.waitUntilExists(timeout: 5))
+            discard.tap()
+            XCTAssertTrue(page.waitUntilGone(timeout: 5), "確認放棄後新增聊天沒有離開")
         }
         step("對話隱藏 tab bar,返回後回來") {
             app.openConversation(paneID: "w1:p1")
@@ -242,6 +269,15 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["account.entry.signIn"].exists, "沒有「登入」")
             XCTAssertTrue(app.buttons["account.entry.join"].exists, "沒有「加入會員」")
             XCTAssertFalse(app.buttons["member.signIn.apple"].exists, "選擇前不該先看到 Apple 登入鈕")
+            // 帳號與設定是滿版 modal(#623):蓋住 tab bar,左上 X。
+            XCTAssertFalse(app.tabBars.firstMatch.isHittable, "帳號與設定沒有蓋滿畫面")
+            app.assertModalToolbar(close: "member.signIn.cancel")
+        }
+        step("列尾 > 推入登入頁,系統返回第一下就回到選擇頁") {
+            app.buttons["account.entry.signIn"].tap()
+            XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒有推入登入頁")
+            app.buttons["BackButton"].firstMatch.tap()
+            XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 5), "第一下返回沒有回到選擇頁")
         }
         step("登入頁查無會員:擋下並問要不要加入,確認才進加入流程") {
             app.buttons["account.entry.signIn"].tap()
@@ -256,12 +292,12 @@ final class DailySmokeUITests: XCTestCase {
             // 上一步按了「加入」已在加入第 1 步(不再回選擇頁)。
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "加入第 1 步沒有 Apple 註冊鈕")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
-            XCTAssertTrue(app.buttons["member.entry.back"].exists, "第 1 步左上應是返回")
+            XCTAssertTrue(app.buttons["BackButton"].firstMatch.exists, "第 1 步左上應是系統返回")
             app.buttons["member.signIn.apple"].tap()
 
             XCTAssertTrue(app.element("account.join.paywall").waitUntilExists(timeout: 10), "建立會員後沒有進開通 Plus")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 2 of 4")
-            XCTAssertFalse(app.buttons["member.entry.back"].exists, "第 2 步起左上不是返回")
+            XCTAssertFalse(app.buttons["BackButton"].firstMatch.isHittable, "第 2 步起左上不是返回")
             XCTAssertTrue(app.buttons["member.signIn.cancel"].exists, "第 2 步起左上應是關閉")
             app.buttons["account.join.secondary"].tap()
 
@@ -273,6 +309,11 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("account.join.doneCreated").waitUntilExists(timeout: 5), "略過 Plus 的完成頁不是「會員已建立」")
             app.buttons["account.join.primary"].tap()
             XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 10), "開始使用後沒有回到帳號頁")
+        }
+        step("以左上 X 關閉帳號與設定,回到 tab bar") {
+            app.assertModalToolbar(close: "member.close")
+            app.closeAccountSheet()
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "關閉後 tab bar 沒有回來")
         }
     }
 
@@ -384,7 +425,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 10), "沒有沒有主機的空狀態")
             app.buttons["agentList.addHost"].tap()
             XCTAssertTrue(app.buttons["guide.option.ssh"].waitUntilExists(timeout: 5), "沒有開出新增主機引導")
-            app.buttons["guide.cancel"].tapWhenReady()
+            app.navigationBars.buttons.element(boundBy: 0).tap()  // 左上系統返回鈕離開引導,沒有另外的 Cancel(#622)
             // 引導開在主機 tab 裡：取消後回到主機清單，再回聊天 tab 看到空狀態。
             XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機清單")
             app.openTab(.chats)

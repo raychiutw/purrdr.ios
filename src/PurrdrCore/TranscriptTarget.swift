@@ -34,7 +34,7 @@ public struct TranscriptLocation: Sendable, Equatable, Hashable {
     }
 
     /// 這個位置的 id 或路徑是否安全到可以交給主機(R-I12:不安全就拒絕，不進 shell)。
-    var isSafe: Bool {
+    package var isSafe: Bool {
         switch reference {
         case .id(let id): ClaudeTranscript.isSafeSessionID(id)
         case .path(let path): TranscriptReader.isValidPath(path)

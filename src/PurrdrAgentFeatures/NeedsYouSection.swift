@@ -29,13 +29,16 @@ extension AgentListProjection {
     package static func needsYouSection(
         sources: [Source], visible: Set<ChatRoute> = [], query: String = "", order: [ChatRoute] = [], justNow: ChatRoute? = nil
     ) -> NeedsYouSection? {
+        needsYouSection(tabs: spacesSections(sources: sources, visible: visible, query: query).flatMap(\.tabs), order: order, justNow: justNow)
+    }
+
+    /// 已投影好的 Spaces 列(同一次投影共用,#583)直接挑出需要你的。
+    package static func needsYouSection(tabs allTabs: [SpacesTab], order: [ChatRoute] = [], justNow: ChatRoute? = nil) -> NeedsYouSection? {
         func rank(_ tab: SpacesTab) -> Int {
             order.firstIndex { $0.host == tab.host && tab.blockedPaneIDs.contains($0.paneID) } ?? Int.max
         }
         func isListed(_ tab: SpacesTab) -> Bool { rank(tab) != Int.max }
-        let tabs = spacesSections(sources: sources, visible: visible, query: query)
-            .flatMap(\.tabs)
-            .filter(isListed)
+        let tabs = allTabs.filter(isListed)
         guard !tabs.isEmpty else { return nil }
         let rows = tabs.enumerated()
             .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }

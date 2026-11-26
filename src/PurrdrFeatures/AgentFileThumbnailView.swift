@@ -30,7 +30,7 @@ struct AgentFileThumbnailView: View {
             .accessibilityIdentifier("conversation.agentFile.thumbnail")
             .task(id: card.file.path) {
                 guard display.preview == .thumbnail, let loads = context.loads else { return }
-                await loads.load(card.file.path, scope: context.scope(), userRequested: false)
+                await loads.load(card.file.path, scope: context.scope(), userRequested: false, decodesWithImageIO: card.file.kind == .image)
             }
             .task(id: loadedVersion) { await decode() }
     }

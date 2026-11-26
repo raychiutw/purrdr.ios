@@ -24,7 +24,7 @@ public final class LoginShellModel: TerminalSessionModel {
     public private(set) var modifiers: TerminalModifiers = []
     /// 字級只存在記憶體，不持久化(行為規格 §6.4)。
     public private(set) var fontSize: Double = TerminalFontSize.default
-    public var notice: String?
+    public var notice: DisplayedError?
     public let title: String
     public var usesRemoteScroll: Bool { false }
     public var seesProgramModes: Bool { true }
@@ -234,7 +234,7 @@ public final class LoginShellModel: TerminalSessionModel {
         guard isInteractive, !text.isEmpty else { return }
         let body = Data(text.utf8)
         guard body.count <= Self.maxPasteBytes else {
-            notice = String(localized: "This paste is too large to send to the terminal.")
+            notice = DisplayedError(String(localized: "This paste is too large to send to the terminal."), category: "Terminal", code: "pasteTooLarge")
             return
         }
         outbox?.yield(.bytes(bracketed ? Data("\u{1B}[200~".utf8) + body + Data("\u{1B}[201~".utf8) : body))

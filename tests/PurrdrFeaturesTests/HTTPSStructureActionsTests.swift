@@ -11,17 +11,7 @@ import Testing
 @Suite("HTTPS 主機的結構操作畫面")
 struct HTTPSStructureActionsTests {
     /// 仿 HTTPS 主機連線：每個 herdr 請求都以 `error` 失敗;唯讀照 `readOnly` 回報。
-    struct RefusingHostConnection: HostConnection {
-        let error: any Error
-        var readOnly = false
-
-        func isReadOnlyDevice() async throws -> Bool { readOnly }
-        func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data { throw error }
-        func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> { throw error }
-        func readTranscript(_ request: TranscriptRequest) async throws -> Data { throw error }
-        func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection { throw error }
-        func disconnect() async {}
-    }
+    typealias RefusingHostConnection = FailingHostConnection
 
     private static let outdated = HostServiceError.hostServiceUpdateRequired(.workspaceOperations, installedVersion: "0.6.0")
 
@@ -62,7 +52,7 @@ struct HTTPSStructureActionsTests {
 
         await actions.closeTab(tabID: "w1:t1", sessionIDs: [])
 
-        #expect(actions.actionError == HostErrorText.message(for: error))
+        #expect(actions.actionError == DisplayedError(error: error))
     }
 
     @Test("唯讀裝置：Tab 改名被拒時說明唯讀(#458)")
@@ -84,7 +74,7 @@ struct HTTPSStructureActionsTests {
         await actions.close(workspaceID: "w1", sessionIDs: [])
 
         #expect(actions.isReadOnly)
-        #expect(actions.actionError == WorkspaceActionsModel.readOnlyMessage)
+        #expect(actions.actionError?.text == WorkspaceActionsModel.readOnlyMessage)
         #expect(WorkspaceActionsModel.readOnlyMessage == HostErrorText.message(for: HostServiceError.readOnlyDevice))
     }
 
@@ -146,8 +136,8 @@ struct HTTPSStructureActionsTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
 
-        #expect(!model.newChat(on: .host(https.id)).canBrowseFolders)
-        #expect(model.newChat(on: .host(ssh.id)).canBrowseFolders)
+        #expect(!model.member(for: .host(https.id)).newChat().canBrowseFolders)
+        #expect(model.member(for: .host(ssh.id)).newChat().canBrowseFolders)
     }
 
     @Test("「在此新增聊天」與選既有 Workspace:HTTPS 主機服務 0.15.0 起提供;已知更舊的不提供;還不知道版本時先提供;SSH 提供")
@@ -177,6 +167,6 @@ struct HTTPSStructureActionsTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
 
-        #expect(model.newChatHostPicker(preferring: .host(second.id)).selection == .host(second.id))
+        #expect(model.screens.newChatHostPicker(preferring: .host(second.id)).selection == .host(second.id))
     }
 }

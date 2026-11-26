@@ -98,7 +98,7 @@ struct HostsModelAgentSettingsTests {
     @Test("HTTPS 主機:以列表讀到的快照裡出現過的種類偵測,不另外搶讀快照;還沒讀到就不寫")
     func httpsDetectsFromSnapshot() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         let model = HostOverviewTests.httpsModel(connection: connection)
         let id = HostOverviewTests.buildBox.id
         await model.initializeAgentSettings(for: id, isNewHost: true)
@@ -112,7 +112,7 @@ struct HostsModelAgentSettingsTests {
     @Test("HTTPS 主機:快照裡當下沒有任何 Agent 時不寫入空集合,維持還沒設定(新增聊天仍有預設的 Agent)")
     func httpsEmptySnapshotDoesNotInitialize() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.modifiedLine("session.snapshot.ndjson") {
+        await connection.expect(.snapshot, wire: Fixtures.modifiedLine("session.snapshot.ndjson") {
             SnapshotEdit.removeAgents(in: &$0)
         })
         let model = HostOverviewTests.httpsModel(connection: connection)
@@ -126,7 +126,7 @@ struct HostsModelAgentSettingsTests {
     @Test("HTTPS 偵測重試每秒一次、最多 10 次,等待用注入的 sleep(不真的等)")
     func httpsDetectionRetriesUseInjectedSleep() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.modifiedLine("session.snapshot.ndjson") { SnapshotEdit.removeAgents(in: &$0) })
+        await connection.expect(.snapshot, wire: Fixtures.modifiedLine("session.snapshot.ndjson") { SnapshotEdit.removeAgents(in: &$0) })
         let sleeper = RecordingSleeper(fires: { _ in true })
         let model = HostOverviewTests.httpsModel(connection: connection, sleep: sleeper.sleep)
         await model.agentList.load()
@@ -140,7 +140,7 @@ struct HostsModelAgentSettingsTests {
     @Test("HTTPS 偵測第一次就成功:不等待")
     func httpsDetectionSucceedsWithoutSleeping() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         let sleeper = RecordingSleeper(fires: { _ in true })
         let model = HostOverviewTests.httpsModel(connection: connection, sleep: sleeper.sleep)
         await model.agentList.load()
@@ -155,7 +155,7 @@ struct HostsModelAgentSettingsTests {
     func planUsageListsOnlyEnabledAgents() {
         let host = Self.host(enabled: [.codex])
         let (model, _) = Self.model(host)
-        let usage = model.planUsage(host: .host(host.id))
+        let usage = model.screens.planUsage(host: .host(host.id))
         #expect(usage.agents == [.codex])
         #expect(usage.agent == .codex)
     }
@@ -164,7 +164,7 @@ struct HostsModelAgentSettingsTests {
     func newChatListsOnlyEnabled() {
         let host = Self.host(enabled: [.codex, .agy])
         let (model, _) = Self.model(host)
-        let chat = model.newChat(on: .host(host.id))
+        let chat = model.member(for: .host(host.id)).newChat()
         #expect(chat.availableAgents == [.codex, .agy])
         #expect(chat.agent == .codex)
     }
@@ -173,7 +173,7 @@ struct HostsModelAgentSettingsTests {
     func newChatWithNothingEnabled() {
         let host = Self.host(enabled: [])
         let (model, _) = Self.model(host)
-        let chat = model.newChat(on: .host(host.id))
+        let chat = model.member(for: .host(host.id)).newChat()
         #expect(chat.availableAgents.isEmpty)
         chat.folder = "/Users/demo/app"
         chat.message = "hi"
@@ -184,7 +184,7 @@ struct HostsModelAgentSettingsTests {
     func usageSectionSkipsDisabled() {
         let host = Self.host(enabled: [.claude])
         let (model, _) = Self.model(host)
-        let section = model.usageSection(host: .host(host.id), agents: PlanUsageAgent.allCases)
+        let section = model.member(for: .host(host.id)).usageSection(agents: PlanUsageAgent.allCases)
         #expect(section.agents == [.claudeCode])
     }
 }

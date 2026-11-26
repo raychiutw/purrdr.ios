@@ -27,7 +27,9 @@ struct ConversationAnswerTests {
         let sleeper: RecordingSleeper
     }
 
-    static func setup(sleeper: RecordingSleeper = RecordingSleeper(), modelCatalog: (any ModelCatalogProviding)? = nil) throws -> Setup {
+    static func setup(sleeper: RecordingSleeper = RecordingSleeper(), modelCatalog: (any ModelCatalogProviding)? = nil,
+        links: ConversationModel.HostLinks = .init()
+    ) throws -> Setup {
         let shell = try LocalShellHost.temporary()
         try shell.write(ConversationModelTests.fixture, to: ConversationModelTests.transcriptPath)
         let host = RoutingHost(shell: shell)
@@ -36,7 +38,7 @@ struct ConversationAnswerTests {
         let model = ConversationModel(
             client: HerdrClient(channel: host, sleep: sleeper.sleep), transcripts: TranscriptReader(channel: host), paneID: paneID,
             knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(), clock: clock.clock,
-            haptics: haptics, modelCatalog: modelCatalog, sleep: sleeper.sleep
+            haptics: haptics, links: links, modelCatalog: modelCatalog, sleep: sleeper.sleep
         )
         return Setup(host: host, shell: shell, model: model, clock: clock, haptics: haptics, sleeper: sleeper)
     }
@@ -80,6 +82,21 @@ struct ConversationAnswerTests {
         #expect(setup.model.prompt?.question == "Do you want to proceed?")
         #expect(setup.model.prompt?.options.count == 3)
         #expect(await Self.paneReads(setup) == 1)
+    }
+
+    @Test("提問卡解析在背景:一輪只解析一次,且不在主執行緒(#585)")
+    func promptParsingRunsOffMain() async throws {
+        let setup = try Self.setup()
+        let screen = "Parse once?\n❯ 1. Yes\n  2. No\n"
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read(text: screen))
+
+        await setup.model.poll()
+
+        let count = AnswerFlow.parseCount(forScreen: screen)
+        #expect(setup.model.prompt?.question == "Parse once?")
+        #expect(count.total == 1)
+        #expect(count.onMain == 0)
     }
 
     @Test("blocked 但畫面看不出選單：通用鈕的提示")

@@ -52,7 +52,6 @@ struct ModelCapsule: View {
         .accessibilityIdentifier("composer.model")
         .sheet(isPresented: $isPresented, onDismiss: { Task { await model.finishChoosingModel() } }) {
             ModelSheet(model: model)
-                .appSheetBackground()
         }
     }
 }
@@ -78,19 +77,38 @@ struct ModelSheet: View {
     }
 }
 
+/// 「投入程度」子頁的路由(列是系統 `NavigationLink`,spec #612、#627)。
+struct ModelEffortRoute: Hashable {}
+
 extension View {
-    /// 「投入程度」子頁的導覽目的地:模型 sheet 與 iPad Inspector 的模型頁(#521)共用。
+    /// 「投入程度」子頁的導覽目的地:模型 sheet 與聊天面板的模型頁共用。
+    /// 進入時才送 `/effort` 讀滑桿(`openEffortPage`),離開(返回、左緣滑回、關掉 sheet)時確認或取消(`closeEffortPage`)。
     func modelEffortDestination(_ model: ConversationModel) -> some View {
-        navigationDestination(isPresented: Binding(
-            get: { model.modelSheetPage == .effort },
-            set: { shown in if !shown { Task { await model.closeEffortPage() } } }
-        )) {
-            EffortPage(model: model)
+        navigationDestination(for: ModelEffortRoute.self) { _ in
+            EffortDestination(model: model)
         }
     }
 }
 
-/// 模型清單內容(#515):可單獨嵌入——不含 NavigationStack 與關閉鈕(sheet 與 #517 的 inspector 共用)。
+/// 子頁的進出對應 model 的狀態機:先顯示「讀取中」,讀到滑桿後才有層級;進入途中就返回時,讀完立刻收尾。
+private struct EffortDestination: View {
+    let model: ConversationModel
+    @State private var isShowing = true
+
+    var body: some View {
+        EffortPage(model: model)
+            .task {
+                await model.openEffortPage()
+                if !isShowing { await model.closeEffortPage() }
+            }
+            .onDisappear {
+                isShowing = false
+                Task { await model.closeEffortPage() }
+            }
+    }
+}
+
+/// 模型清單內容(#515):可單獨嵌入——不含 NavigationStack 與關閉鈕(sheet 與聊天面板共用)。
 struct ModelContentView: View {
     let model: ConversationModel
     @Environment(\.dismiss) private var dismiss
@@ -111,26 +129,16 @@ struct ModelContentView: View {
                     .accessibilityIdentifier("model.picker")
                 }
                 Section {
-                    Button {
-                        Task { await model.openEffortPage() }
-                    } label: {
-                        HStack {
-                            Text("Effort")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if let badge = model.metadata.effort.flatMap({ model.effortOption($0)?.badge }) {
-                                CatalogBadgeView(badge: badge)
+                    NavigationLink(value: ModelEffortRoute()) {
+                        LabeledContent("Effort") {
+                            HStack {
+                                if let badge = model.metadata.effort.flatMap({ model.effortOption($0)?.badge }) {
+                                    CatalogBadgeView(badge: badge)
+                                }
+                                Text(verbatim: model.effortDisplayName ?? "")
                             }
-                            Text(verbatim: model.effortDisplayName ?? "")
-                                .foregroundStyle(.secondaryText)
-                            Image(systemName: "chevron.forward")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                                .accessibilityHidden(true)
                         }
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
                     .disabled(model.isOperatingPanel)
                     .accessibilityIdentifier("model.effort")
                 }
@@ -167,7 +175,8 @@ struct ModelContentView: View {
                 Text(lock.explanation)
                     .accessibilityIdentifier("model.lock")
             } else {
-                ErrorLabel(String(localized: "Couldn’t open the model list. Try again, or check the terminal."))
+                ErrorLabel(String(localized: "Couldn’t open the model list. Try again, or check the terminal."), area: "ModelCapsule",
+                           error: ErrorDescriptor(category: "ModelPanel", code: "modelListUnavailable"))
                     .font(.footnote)
                     .accessibilityIdentifier("model.failure")
             }
@@ -232,7 +241,8 @@ private struct EffortPage: View {
                 }
             } else if model.modelPanelUnreadable {
                 Section {
-                    ErrorLabel(String(localized: "Couldn’t open the effort settings. Go back and try again, or check the terminal."))
+                    ErrorLabel(String(localized: "Couldn’t open the effort settings. Go back and try again, or check the terminal."), area: "ModelCapsule",
+                               error: ErrorDescriptor(category: "ModelPanel", code: "effortPanelUnreadable"))
                         .font(.footnote)
                         .accessibilityIdentifier("effort.failure")
                 }

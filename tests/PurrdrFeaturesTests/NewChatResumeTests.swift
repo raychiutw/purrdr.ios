@@ -27,7 +27,7 @@ struct NewChatResumeTests {
     func listsSessions() async throws {
         let connection = FakeHostConnection()
         await connection.setHostServiceVersion("0.7.0")
-        await connection.expect("sessions.list", reply: Self.sessionsReply)
+        await connection.expect(.sessionsList, wire: Self.sessionsReply)
         let model = Self.model(connection)
         model.folder = " /Users/demo/ledger "
 
@@ -48,7 +48,7 @@ struct NewChatResumeTests {
     func resetsChoiceAndSkipsUnsupportedAgents() async {
         let connection = FakeHostConnection()
         await connection.setHostServiceVersion("0.7.0")
-        await connection.expect("sessions.list", reply: Self.sessionsReply)
+        await connection.expect(.sessionsList, wire: Self.sessionsReply)
         let model = Self.model(connection)
         model.folder = "/Users/demo/ledger"
         await model.refreshSessions()
@@ -65,7 +65,7 @@ struct NewChatResumeTests {
     @Test("SSH 主機(沒有主機服務,#535):照樣讀清單,不提主機服務")
     func sshListsSessions() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("sessions.list", reply: Self.sessionsReply)
+        await connection.expect(.sessionsList, wire: Self.sessionsReply)
         let model = Self.model(connection)
         model.folder = "/Users/demo/ledger"
 
@@ -93,7 +93,7 @@ struct NewChatResumeTests {
     func unreachableHostCanRetry() async {
         let connection = FakeHostConnection()
         await connection.setHostServiceVersionFailure(HostServiceError.unreachable)
-        await connection.expect("sessions.list", reply: Self.sessionsReply)
+        await connection.expect(.sessionsList, wire: Self.sessionsReply)
         let model = Self.model(connection)
         model.folder = "/Users/demo/ledger"
 
@@ -113,8 +113,8 @@ struct NewChatResumeTests {
     func absentTranscriptHasOwnMessage() async {
         let connection = FakeHostConnection()
         await connection.setHostServiceVersion("0.7.0")
-        await connection.expect("workspace.create", reply: Self.created)
-        await connection.expect("agent.start", failure: TranscriptReadError.absent)
+        await connection.expect(.workspaceCreate, wire: Self.created)
+        await connection.stub(.agentStart, failure: TranscriptReadError.absent)
         let model = Self.model(connection)
         model.folder = "/Users/demo/ledger"
         model.choice = .resume("48b84c34-58a1-465f-94b2-370ed0699957")
@@ -145,8 +145,8 @@ struct NewChatResumeTests {
     func startsResumedChat() async throws {
         let connection = FakeHostConnection()
         await connection.setHostServiceVersion("0.7.0")
-        await connection.expect("workspace.create", reply: Self.created)
-        await connection.expect("agent.start", reply: Self.agentStarted)
+        await connection.expect(.workspaceCreate, wire: Self.created)
+        await connection.expect(.agentStart, wire: Self.agentStarted)
         let model = Self.model(connection)
         model.folder = "/Users/demo/ledger"
         model.choice = .resume("48b84c34-58a1-465f-94b2-370ed0699957")
@@ -165,9 +165,9 @@ struct NewChatResumeTests {
     func newChatDoesNotResume() async throws {
         let connection = FakeHostConnection()
         await connection.setHostServiceVersion("0.7.0")
-        await connection.expect("workspace.create", reply: Self.created)
-        await connection.expect("agent.start", reply: Self.agentStarted)
-        await connection.expect("agent.prompt", reply: Self.line(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted","delivery":"submitted"}}"#))
+        await connection.expect(.workspaceCreate, wire: Self.created)
+        await connection.expect(.agentStart, wire: Self.agentStarted)
+        await connection.expect(.agentPrompt, wire: Self.line(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted","delivery":"submitted"}}"#))
         let model = Self.model(connection)
         model.folder = "/Users/demo/ledger"
         model.message = "Fix it"

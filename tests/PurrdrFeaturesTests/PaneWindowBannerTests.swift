@@ -32,38 +32,37 @@ struct PaneWindowBannerTests {
         #expect(plan == .newPaneWindow(PaneWindow(kind: .chat, host: Self.studio, paneID: "w3:p1", sessionID: nil, title: "w3:p1")))
     }
 
-    @Test("共用的訂閱:兩個視窗同時掛上,其中一個結束,另一個仍讓橫幅更新")
-    func sharedRunSurvivesOneWindowClosing() async throws {
+    @Test("單一驅動:重複開始只有一個訂閱,停止後結束;停止時仍跟得上列表(開著的聊天不算)")
+    func singleDriverStartsOnceAndStops() async throws {
         let merged = await AgentListHostFilterTests.loadedModel { SnapshotEdit.agent("w1:pB", in: &$0) { $0["agent_status"] = "blocked" } }
         let notifications = NeedsYouNotifications()
-        let mainWindow = Task { await notifications.runShared(observing: merged) }
-        let paneWindow = Task { await notifications.runShared(observing: merged) }
-        defer { paneWindow.cancel() }
+        notifications.drive(observing: merged, isActive: true)
+        notifications.drive(observing: merged, isActive: true)
+        #expect(notifications.isRunning)
 
         for _ in 0..<50 where notifications.others.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
         #expect(notifications.others.map(\.route.paneID) == ["w1:pB"])
-
-        mainWindow.cancel()
-        _ = await mainWindow.value
-        #expect(notifications.activeRunnerCount == 1)
-        // 主視窗關掉後,只剩 Pane 視窗:列表變了橫幅輸出仍跟著更新(開著的聊天不算)。
         merged.chatAppeared(ChatRoute(host: Self.studio, paneID: "w1:pB"))
         for _ in 0..<50 where !notifications.others.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
-        #expect(notifications.others.isEmpty, "只剩 Pane 視窗時沒有繼續更新")
+        #expect(notifications.others.isEmpty)
+
+        notifications.drive(observing: merged, isActive: false)
+        #expect(!notifications.isRunning)
     }
 
-    @Test("共用的訂閱:全部視窗結束後停止")
-    func sharedRunStopsWhenAllWindowsEnd() async throws {
-        let merged = await AgentListHostFilterTests.loadedModel()
+    @Test("兩個視窗都要求驅動:apply 次數與一個視窗相同(量測)")
+    func twoWindowsApplyOncePerInputChange() async throws {
+        let merged = await AgentListHostFilterTests.loadedModel { SnapshotEdit.agent("w1:pB", in: &$0) { $0["agent_status"] = "blocked" } }
         let notifications = NeedsYouNotifications()
-        let a = Task { await notifications.runShared(observing: merged) }
-        let b = Task { await notifications.runShared(observing: merged) }
-        for _ in 0..<50 where notifications.activeRunnerCount < 2 { try await Task.sleep(for: .milliseconds(20)) }
-        #expect(notifications.activeRunnerCount == 2)
-        a.cancel()
-        b.cancel()
-        _ = await a.value
-        _ = await b.value
-        #expect(notifications.activeRunnerCount == 0)
+        notifications.drive(observing: merged, isActive: true)
+        notifications.drive(observing: merged, isActive: true)
+        for _ in 0..<50 where notifications.applyCount == 0 { try await Task.sleep(for: .milliseconds(20)) }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(notifications.applyCount == 1)
+        merged.chatAppeared(ChatRoute(host: Self.studio, paneID: "w1:pB"))
+        for _ in 0..<50 where notifications.applyCount < 2 { try await Task.sleep(for: .milliseconds(20)) }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(notifications.applyCount == 2)
+        notifications.drive(observing: merged, isActive: false)
     }
 }

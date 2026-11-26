@@ -23,29 +23,49 @@ struct SecretCheckSheet: View {
     let check: SecretCheck
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.shield.fill")
-                    .font(.title2)
-                    .foregroundStyle(.orange)
-                    .accessibilityHidden(true)
-                Text("Message May Contain a Secret")
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("secretCheck.title")
-            }
-            .padding(.top, 24)
-            VStack(spacing: 0) {
-                ForEach(Array(review.findings.enumerated()), id: \.offset) { index, finding in
-                    if index > 0 { Divider().padding(.leading, 44) }
+        NavigationStack {
+            content
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                // 左上 X 等於「返回編輯」(#613);頁內兩顆大按鈕維持。
+                .toolbar {
+                    SheetCloseToolbar(identifier: "secretCheck.close") { check.returnToEditing() }
+                }
+        }
+        .appSheet(detents: [.medium, .large])
+        .presentationDragIndicator(.visible)
+        // 容器自己一個 identifier,不蓋掉各列與按鈕的。
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("secretCheck.sheet")
+    }
+
+    /// 偵測結果是系統清單的一個 section(分隔線、列高由系統給);頁內兩顆大按鈕在底部 `safeAreaBar`。
+    private var content: some View {
+        List {
+            Section {
+                ForEach(Array(review.findings.enumerated()), id: \.offset) { _, finding in
                     findingRow(finding)
                 }
+            } header: {
+                Label {
+                    Text("Message May Contain a Secret")
+                        .accessibilityIdentifier("secretCheck.title")
+                } icon: {
+                    Image(systemName: "exclamationmark.shield.fill")
+                        .foregroundStyle(.orange)
+                        .accessibilityHidden(true)
+                }
+                .font(.headline)
+                .textCase(nil)
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
+            } footer: {
+                Text("Checked only on this device. Nothing was sent anywhere.")
             }
-            .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 12))
-            Text("Checked only on this device. Nothing was sent anywhere.")
-                .font(.footnote)
-                .foregroundStyle(.secondaryText)
-            Spacer(minLength: 0)
+        }
+        .appSheetList()
+        .safeAreaBar(edge: .bottom) {
             VStack(spacing: 10) {
                 Button {
                     check.returnToEditing()
@@ -66,14 +86,9 @@ struct SecretCheckSheet: View {
                 .controlSize(.large)
                 .accessibilityIdentifier("secretCheck.sendAnyway")
             }
+            .padding(.horizontal)
+            .padding(.bottom)
         }
-        .padding(.horizontal)
-        .padding(.bottom)
-        .appSheet(detents: [.medium, .large])
-        .presentationDragIndicator(.visible)
-        // 容器自己一個 identifier,不蓋掉各列與按鈕的。
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("secretCheck.sheet")
     }
 
     private func findingRow(_ finding: SecretFinding) -> some View {
@@ -88,8 +103,6 @@ struct SecretCheckSheet: View {
                 .foregroundStyle(.secondaryText)
                 .monospacedDigit()
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 44)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("secretCheck.finding.\(finding.kind.rawValue)")
     }
@@ -105,6 +118,9 @@ struct SecretCheckSheet: View {
         case .googleAPIKey: String(localized: "Google API key")
         case .jwt: String(localized: "JWT")
         case .password: String(localized: "Password (password=)")
+        case .gitLabToken: String(localized: "GitLab token")
+        case .npmToken: String(localized: "npm token")
+        case .huggingFaceToken: String(localized: "Hugging Face token")
         }
     }
 }

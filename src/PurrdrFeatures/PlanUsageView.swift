@@ -20,7 +20,7 @@ public struct PlanUsageView: View {
                 Section {
                     Picker("Host", selection: hostSelection) {
                         ForEach(model.hosts) { option in
-                            HostMenuLabel(option.name, icon: option.icon).tag(option.id)
+                            HostMenuLabel(option).tag(option.id)
                         }
                     }
                     .accessibilityIdentifier("planUsage.host")
@@ -143,9 +143,8 @@ public struct PlanUsageView: View {
             }
         }
         if let message = model.message {
-            Label(message, systemImage: "exclamationmark.triangle")
+            ErrorLabel(message.text, area: "PlanUsage", error: message.descriptor)
                 .font(.footnote)
-                .foregroundStyle(.secondaryText)
                 .accessibilityIdentifier("planUsage.message")
         }
     }
@@ -267,8 +266,8 @@ extension PlanUsageFailure {
             String(localized: "Codex didn’t answer in time.")
         case .codexRequestFailed(let message):
             String(localized: "Codex couldn’t get plan usage: \(message)")
-        case .connection(let message):
-            message
+        case .connection(let shown):
+            shown.text
         }
     }
 }
@@ -316,29 +315,26 @@ private struct PlanUsageMessage<Actions: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.title)
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityHidden(true)
-            } else {
-                ProgressView()
+        if let systemImage {
+            // 空狀態與說明一律系統的 ContentUnavailableView(#626),不自己畫圖示加文字。
+            ContentUnavailableView {
+                Label(title, systemImage: systemImage)
+            } description: {
+                if let detail { Text(detail) }
+            } actions: {
+                actions
             }
-            Text(title)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-            if let detail {
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
+        } else {
+            // 局部動作進行中(查詢、安裝、還原):小轉圈加說明。
+            VStack(spacing: 8) {
+                ProgressView()
+                Text(title)
+                    .font(.headline)
                     .multilineTextAlignment(.center)
             }
-            actions
-                .padding(.top, 4)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
     }
 }
 

@@ -17,7 +17,7 @@ public final class HostServiceStatusModel {
         /// 跑的不是安裝好的主機服務。
         case notInstalledCopy
         /// 讀不到(說明文字)。
-        case failed(String)
+        case failed(DisplayedError)
     }
 
     /// 立即更新的進度與結果。
@@ -33,7 +33,7 @@ public final class HostServiceStatusModel {
         case upToDate(version: String)
         /// 時間內沒等到新版本，也沒看到退回。
         case unconfirmed(to: String)
-        case failed(String)
+        case failed(DisplayedError)
 
         public var isBusy: Bool {
             switch self {
@@ -49,7 +49,7 @@ public final class HostServiceStatusModel {
     public private(set) var isReadOnly = false
     public private(set) var isChangingAutoUpdate = false
     /// 改自動更新失敗的說明。
-    public private(set) var autoUpdateError: String?
+    public private(set) var autoUpdateError: DisplayedError?
 
     private let connection: any HostConnection & HostServiceManaging
     private let sleep: Sleep
@@ -158,11 +158,15 @@ public final class HostServiceStatusModel {
         case HostServiceManagementError.notInstalledCopy:
             .notInstalledCopy
         default:
-            .failed(HostErrorText.message(for: error))
+            .failed(DisplayedError(error: error))
         }
     }
 
-    private static func updateMessage(for error: any Error) -> String {
+    private static func updateMessage(for error: any Error) -> DisplayedError {
+        DisplayedError(updateText(for: error), error: error)
+    }
+
+    private static func updateText(for error: any Error) -> String {
         switch error {
         case HostServiceManagementError.updateInProgress:
             String(localized: "An update of the host service is already in progress.")

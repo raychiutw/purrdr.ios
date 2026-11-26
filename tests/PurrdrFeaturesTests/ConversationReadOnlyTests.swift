@@ -13,34 +13,20 @@ struct ConversationReadOnlyTests {
     static let bridge = HerdrCommand.bridge()
 
     /// 仿 HTTPS 連線方式的唯讀裝置：讀取轉給 SSH 假主機;寫入類操作一律被主機服務拒絕。
-    struct ReadOnlyHostConnection: HostConnection {
+    struct ReadOnlyHostConnection: ForwardingHostConnection {
         let base: any HostConnection
         /// 握手時主機服務回報的唯讀(`false` 模擬還沒得知)。
         let reportsReadOnly: Bool
 
         func isReadOnlyDevice() async throws -> Bool { reportsReadOnly }
 
-        func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-            let method = (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
-            if ["agent.prompt", "pane.send_text", "pane.send_keys"].contains(method) { throw HostServiceError.readOnlyDevice }
-            return try await base.herdrRequest(request, deadline: deadline)
+        func sendPrompt(target: String, text: String, wait: Duration?, expecting: SendExpectation) async throws -> PromptReply {
+            throw HostServiceError.readOnlyDevice
         }
 
-        func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-            try await base.herdrEvents(request)
-        }
+        func sendText(paneID: String, text: String, expecting: SendExpectation) async throws { throw HostServiceError.readOnlyDevice }
 
-        func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-            try await base.readTranscript(request)
-        }
-
-        func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-            try await base.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
-        }
-
-        func disconnect() async {
-            await base.disconnect()
-        }
+        func sendKeys(paneID: String, keys: [String], expecting: SendExpectation) async throws { throw HostServiceError.readOnlyDevice }
     }
 
     struct Setup {

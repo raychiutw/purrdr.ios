@@ -1293,6 +1293,17 @@
         }
       }
     },
+    "Add one in the Hosts tab, then turn on notifications there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到「主機」分頁加入一台，再到那裡開啟通知。"
+          }
+        }
+      }
+    },
     "Add the host where your agents run, and they show up here. Or look around with sample conversations first." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1678,6 +1689,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機服務已有更新正在進行。"
+          }
+        }
+      }
+    },
+    "Another device changed this host. Check it before connecting. Nothing is sent until you do." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別台裝置改了這台主機。連線前請先確認；確認前不會送出任何資料。"
           }
         }
       }
@@ -2331,17 +2353,6 @@
         }
       }
     },
-    "Can’t Paste" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法貼上"
-          }
-        }
-      }
-    },
     "Can’t Reach Purrdr" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2371,17 +2382,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法顯示這個資料夾"
-          }
-        }
-      }
-    },
-    "Can’t Upload" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法上傳"
           }
         }
       }
@@ -2650,6 +2650,28 @@
         }
       }
     },
+    "Check Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認主機"
+          }
+        }
+      }
+    },
+    "Check This Host Again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請再確認這台主機"
+          }
+        }
+      }
+    },
     "Check and Show" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2892,17 +2914,6 @@
         }
       }
     },
-    "Clear text" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清除文字"
-          }
-        }
-      }
-    },
     "Close" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3127,13 +3138,13 @@
         }
       }
     },
-    "Combine Members" : {
+    "Combine" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "合併會員"
+            "value" : "合併"
           }
         }
       }
@@ -3545,6 +3556,17 @@
         }
       }
     },
+    "Copy to Clipboard?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要複製到剪貼簿嗎？"
+          }
+        }
+      }
+    },
     "Couldn’t Check" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3552,6 +3574,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法檢查"
+          }
+        }
+      }
+    },
+    "Couldn’t Close Tab" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法關閉 Tab"
+          }
+        }
+      }
+    },
+    "Couldn’t Close Workspace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法關閉 Workspace"
           }
         }
       }
@@ -3585,17 +3629,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "讀不到變更"
-          }
-        }
-      }
-    },
-    "Couldn’t Send Test Notification" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法傳送測試通知"
           }
         }
       }
@@ -4458,17 +4491,6 @@
         }
       }
     },
-    "Decrease" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "減少"
-          }
-        }
-      }
-    },
     "Default" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4656,6 +4678,17 @@
         }
       }
     },
+    "Discard" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄"
+          }
+        }
+      }
+    },
     "Discard Changes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4663,6 +4696,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放棄變更"
+          }
+        }
+      }
+    },
+    "Discard this new chat?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要放棄這個新聊天嗎?"
           }
         }
       }
@@ -4729,6 +4773,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成,之後再說"
+          }
+        }
+      }
+    },
+    "Don’t Allow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不允許"
           }
         }
       }
@@ -5580,6 +5635,17 @@
         }
       }
     },
+    "GitLab token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitLab token"
+          }
+        }
+      }
+    },
     "Go Back" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5675,17 +5741,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有 Purrdr Plus"
-          }
-        }
-      }
-    },
-    "Hide Inspector" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隱藏 Inspector"
           }
         }
       }
@@ -6056,6 +6111,17 @@
         }
       }
     },
+    "Hugging Face token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hugging Face token"
+          }
+        }
+      }
+    },
     "Hyphen" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6265,17 +6331,6 @@
         }
       }
     },
-    "Increase" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "增加"
-          }
-        }
-      }
-    },
     "Inserted /%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6283,17 +6338,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已插入 /%@"
-          }
-        }
-      }
-    },
-    "Inspector" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inspector"
           }
         }
       }
@@ -6371,17 +6415,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "中斷 agent 目前這一輪。按住可強制結束。"
-          }
-        }
-      }
-    },
-    "It should arrive on this device in a moment." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "稍後這支裝置就會收到。"
           }
         }
       }
@@ -6870,6 +6903,17 @@
         }
       }
     },
+    "Loading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "載入中"
+          }
+        }
+      }
+    },
     "Loading Commands…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7310,17 +7354,6 @@
         }
       }
     },
-    "Moves the panel’s selection to this option." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "把面板的選取移到這個選項。"
-          }
-        }
-      }
-    },
     "Mute" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7541,6 +7574,17 @@
         }
       }
     },
+    "No Agents Turned On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有開啟任何 Agent"
+          }
+        }
+      }
+    },
     "No Agents are turned on" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7570,6 +7614,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有變更"
+          }
+        }
+      }
+    },
+    "No Data Usage Yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有流量記錄"
+          }
+        }
+      }
+    },
+    "No Folders" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有資料夾"
           }
         }
       }
@@ -7651,13 +7717,13 @@
         }
       }
     },
-    "No Results" : {
+    "No Notification Devices" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "沒有結果"
+            "value" : "沒有通知裝置"
           }
         }
       }
@@ -7702,28 +7768,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有裝置會收到通知。"
-          }
-        }
-      }
-    },
-    "No folders inside this one. You can still use it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這裡沒有子資料夾。仍然可以使用這個資料夾。"
-          }
-        }
-      }
-    },
-    "No hosts yet. Add one in the Hosts tab, then turn on notifications there." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有主機。請先在主機 tab 新增一台,再開啟通知。"
           }
         }
       }
@@ -8498,6 +8542,17 @@
         }
       }
     },
+    "Once Purrdr talks to your hosts, the data it sends and receives shows up here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 開始和主機連線後，收送的資料量會顯示在這裡。"
+          }
+        }
+      }
+    },
     "Online" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8751,6 +8806,17 @@
         }
       }
     },
+    "Operation Log" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作記錄"
+          }
+        }
+      }
+    },
     "Optional" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8758,6 +8824,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選填"
+          }
+        }
+      }
+    },
+    "Options" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選項"
           }
         }
       }
@@ -8879,17 +8956,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先配對這台主機"
-          }
-        }
-      }
-    },
-    "Pair This Host First %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先配對這台主機 %@"
           }
         }
       }
@@ -10104,17 +10170,6 @@
         }
       }
     },
-    "Record Scroll Stutters" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "記錄捲動卡頓"
-          }
-        }
-      }
-    },
     "Redeem Code" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10753,6 +10808,17 @@
         }
       }
     },
+    "Scroll down to the latest message to read earlier ones again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "往下捲到最新訊息,就能再往上讀更早的內容。"
+          }
+        }
+      }
+    },
     "Search" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11017,6 +11083,17 @@
         }
       }
     },
+    "Sent. It should arrive on this device in a moment." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送出。稍後這支裝置就會收到。"
+          }
+        }
+      }
+    },
     "Session" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11079,17 +11156,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機的設定"
-          }
-        }
-      }
-    },
-    "Settings…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定…"
           }
         }
       }
@@ -11270,17 +11336,6 @@
         }
       }
     },
-    "Show Inspector" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示 Inspector"
-          }
-        }
-      }
-    },
     "Show Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11310,6 +11365,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示較少"
+          }
+        }
+      }
+    },
+    "Show Usage & Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示用量與詳細資料"
           }
         }
       }
@@ -11424,13 +11490,13 @@
         }
       }
     },
-    "Shows usage details." : {
+    "Shows usage and details." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開啟用量詳情。"
+            "value" : "開啟用量與詳細資料。"
           }
         }
       }
@@ -11541,6 +11607,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要登出嗎?"
+          }
+        }
+      }
+    },
+    "Sign Out…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登出⋯"
           }
         }
       }
@@ -11974,13 +12051,13 @@
         }
       }
     },
-    "Stored on this device only. Nothing is counted yet." : {
+    "Stored on this device only." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "統計只存在這支裝置，目前還沒有資料。"
+            "value" : "只存在這支裝置上。"
           }
         }
       }
@@ -12399,17 +12476,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "測試連線"
-          }
-        }
-      }
-    },
-    "Test Notification Sent" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已傳送測試通知"
           }
         }
       }
@@ -13142,6 +13208,17 @@
         }
       }
     },
+    "The host wants to copy text to the clipboard." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機想複製文字到剪貼簿。"
+          }
+        }
+      }
+    },
     "The key stays on this device and never leaves it. Add its public key to each host you sign in to." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13468,6 +13545,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置的金鑰"
+          }
+        }
+      }
+    },
+    "This Folder Is Empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾是空的"
           }
         }
       }
@@ -13897,17 +13985,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上不能使用這個檔名。"
-          }
-        }
-      }
-    },
-    "This folder is empty." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這個資料夾是空的。"
           }
         }
       }
@@ -15519,6 +15596,17 @@
         }
       }
     },
+    "Usage & Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量與詳細資料"
+          }
+        }
+      }
+    },
     "Usage Capture" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15937,17 +16025,6 @@
         }
       }
     },
-    "When Purrdr closes unexpectedly or scrolling feels rough, this iPhone notes down what happened. It never includes your conversations. You can share it with the developer." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Purrdr 意外關閉或捲動不順時，這支 iPhone 會記下發生了什麼事，不含你的對話。你可以分享給開發者。"
-          }
-        }
-      }
-    },
     "When you add a host, Purrdr finds the Agents on it. You can also turn on one it didn’t find." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16212,6 +16289,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一則訊息最多附加 10 個項目。"
+          }
+        }
+      }
+    },
+    "You can still use this folder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍然可以使用這個資料夾。"
           }
         }
       }
@@ -16820,6 +16908,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "my-mac.tailnet.ts.net"
+          }
+        }
+      }
+    },
+    "npm token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "npm token"
           }
         }
       }

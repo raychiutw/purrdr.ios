@@ -15,7 +15,7 @@ struct ChangesView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .safeAreaInset(edge: .bottom, spacing: 0) { ChangesReviewBar(model: model, submit: submit) }
+            .safeAreaBar(edge: .bottom) { ChangesReviewBar(model: model, submit: submit) }
             .task { if model.phase == .loading { await model.load() } }
             .refreshable { await model.load() }
     }
@@ -24,9 +24,9 @@ struct ChangesView: View {
     private var content: some View {
         switch model.phase {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityIdentifier("changes.loading")
+            // 整頁第一次載入:骨架(#626)。
+            List { Section { RowsSkeleton(count: 5, identifier: "changes.loading") } }
+                .appGroupedList()
         case .failed(let problem):
             ChangesProblemView(problem: problem) { Task { await model.load() } }
         case .loaded:
@@ -228,11 +228,10 @@ struct ChangesFileView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .safeAreaInset(edge: .bottom, spacing: 0) { ChangesReviewBar(model: model, submit: submit) }
+            .safeAreaBar(edge: .bottom) { ChangesReviewBar(model: model, submit: submit) }
             .task(id: path) { await model.loadDiff(of: path) }
             .sheet(item: $editing) { comment in
                 ChangesCommentEditor(model: model, path: path, line: comment.line)
-                    .appSheetBackground()
             }
     }
 
@@ -240,8 +239,8 @@ struct ChangesFileView: View {
     private var content: some View {
         switch model.diff(of: path) {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            List { Section { RowsSkeleton(count: 6, identifier: "changes.diff.loading") } }
+                .appGroupedList()
         case .failed(let problem):
             ChangesProblemView(problem: problem) { Task { await model.loadDiff(of: path) } }
         case .omitted(let reason):
@@ -407,6 +406,7 @@ private struct ChangesCommentEditor: View {
                             model.setComment("", on: line, in: path)
                             dismiss()
                         }
+                        .destructiveListAction()
                         .accessibilityIdentifier("changes.comment.delete")
                     }
                 }
@@ -417,16 +417,13 @@ private struct ChangesCommentEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        model.setComment(text, on: line, in: path)
-                        dismiss()
-                    }
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityIdentifier("changes.comment.save")
+                SheetCloseToolbar()
+                ModalConfirmToolbar(
+                    title: "Save", identifier: "changes.comment.save",
+                    isEnabled: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ) {
+                    model.setComment(text, on: line, in: path)
+                    dismiss()
                 }
             }
         }
@@ -470,8 +467,6 @@ private struct ChangesReviewBar: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.bar)
-            .overlay(alignment: .top) { Divider() }
         }
     }
 }

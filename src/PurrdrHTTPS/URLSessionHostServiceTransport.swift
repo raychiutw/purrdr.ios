@@ -14,7 +14,7 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
     private let timeout: TimeInterval
 
     public init(timeout: TimeInterval = 15) {
-        session = URLSession(configuration: .ephemeral)
+        session = URLSession(configuration: .ephemeral, delegate: RedirectRefusingDelegate(), delegateQueue: nil)
         self.timeout = timeout
     }
 
@@ -70,6 +70,16 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
     }
 }
 
+/// 拒絕所有重新導向(#574):請求帶著 Bearer 權杖，跟隨導向會把權杖送到別的主機。拒絕時呼叫端拿到 3xx 回應本身。
+private final class RedirectRefusingDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
 /// 只交出一次的 continuation(之後的回呼拿到 `nil`)。
 private final class FirstCompletion: Sendable {
     private let continuation: Mutex<CheckedContinuation<Void, any Error>?>
@@ -84,7 +94,7 @@ private final class FirstCompletion: Sendable {
 }
 
 /// `URLSessionWebSocketTask` 的包裝。task 本身可跨執行緒使用。
-final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
+final class URLSessionWebSocket: WebSocketSession, Sendable {
     private let task: URLSessionWebSocketTask
     private let hostName: String?
 

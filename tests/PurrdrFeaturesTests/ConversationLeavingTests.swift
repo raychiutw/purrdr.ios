@@ -14,7 +14,7 @@ struct ConversationLeavingTests {
 
     private func openedModel() async throws -> (ConversationModel, FakeHostConnection, Task<Void, Never>) {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await R.answering(connection, lines: W.lines)
         let model = R.model(connection)
         let chat = try await R.open(model, connection)

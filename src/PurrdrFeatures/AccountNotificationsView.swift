@@ -23,9 +23,8 @@ struct AccountNotificationsView: View {
         .navigationDestination(item: $pairingHost) { id in
             if let hosts, let host = hosts.hosts.first(where: { $0.id == id }) {
                 AddHostGuideScreen(
-                    make: { (try? hosts.makePairingGuide(for: host)) ?? hosts.makeAddHostGuide() },
+                    make: { (try? hosts.screens.makePairingGuide(for: host)) ?? hosts.screens.makeAddHostGuide() },
                     onSaved: { _ in pairingHost = nil },
-                    onCancel: { pairingHost = nil },
                     onAdded: { hosts.didSave($0) },
                     hostPush: { id in hosts.hostPushes.first { $0.host == .host(id) } })
             }

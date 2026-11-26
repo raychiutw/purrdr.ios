@@ -5,9 +5,9 @@ import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
-/// 標題膠囊與點開的面板(#380):第二行的權限模式、面板的權限選項何時停用與原因。
+/// 聊天面板(#380、#618):面板的權限選項何時停用與原因。
 @MainActor
-@Suite("標題膠囊與面板")
+@Suite("聊天面板權限選項")
 struct ConversationTitlePanelTests {
     static let bridge = HerdrCommand.bridge()
 
@@ -47,24 +47,6 @@ struct ConversationTitlePanelTests {
         #expect(setup.model.isReadOnly)
         #expect(!setup.model.canSwitchPermissionMode)
         #expect(setup.model.permissionModeLock == .readOnlyDevice)
-    }
-
-    @Test("標題第二行:一般模式不顯示模式,其他模式顯示符號與短名,略過權限標為警示")
-    func headerModeBadge() {
-        func header(_ mode: AgentPermissionMode?) -> ConversationHeader {
-            ConversationHeader(title: "ledger", status: .working, segments: ["studio"], permissionMode: mode)
-        }
-        #expect(header(nil).permissionBadge == nil)
-        #expect(header(.normal).permissionBadge == nil)
-        #expect(header(.acceptEdits).permissionBadge == .init(mode: .acceptEdits, isWarning: false))
-        #expect(header(.plan).permissionBadge == .init(mode: .plan, isWarning: false))
-        #expect(header(.bypassPermissions).permissionBadge == .init(mode: .bypassPermissions, isWarning: true))
-    }
-
-    @Test("標題第二行的 VoiceOver 文字帶權限模式")
-    func headerAccessibilityIncludesMode() {
-        let header = ConversationHeader(title: "ledger", status: .working, segments: ["studio"], permissionMode: .plan)
-        #expect(header.lineAccessibilityText == "studio, Working, Plan")
     }
 
     @Test("連線中斷是離線狀態,不混進 Agent 狀態")

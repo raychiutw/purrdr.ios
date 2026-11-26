@@ -71,10 +71,12 @@ public final class MergedAgentListModel {
         public let list: AgentListModel
         public let actions: WorkspaceActionsModel
         public var notes: YouShouldKnowModel?
+        /// 同步改了位址或 host key,等使用者重新確認(#572)。
+        public let needsReconfirmation: Bool
 
         package init(
             host: HostSelection, name: String, icon: HostIcon, list: AgentListModel, actions: WorkspaceActionsModel,
-            notes: YouShouldKnowModel? = nil
+            notes: YouShouldKnowModel? = nil, needsReconfirmation: Bool = false
         ) {
             self.host = host
             self.name = name
@@ -82,6 +84,7 @@ public final class MergedAgentListModel {
             self.list = list
             self.actions = actions
             self.notes = notes
+            self.needsReconfirmation = needsReconfirmation
         }
     }
 
@@ -105,7 +108,7 @@ public final class MergedAgentListModel {
             if let currentHost { selectHost?(currentHost) }
         }
     }
-    /// 跨聊天「需要你」通知的輸出(返回鈕小點等);由 `TopNavigationView` 的 `.task` 以 `needsYou.run(observing:)` 驅動(整個 app 唯一的接線點,#530);列表段落(#531)只讀輸出。
+    /// 跨聊天「需要你」通知的輸出(返回鈕小點等);由 app 層(`PurrdrApp` 的 scenePhase)以 `needsYou.drive(observing:isActive:)` 驅動(整個 app 唯一的接線點,#530、#589);列表段落(#531)只讀輸出。
     public let needsYou = NeedsYouNotifications()
 
     /// 目前主機改變時通知(主機清單接上，存到本機)。
@@ -119,7 +122,7 @@ public final class MergedAgentListModel {
 
     /// 篩選選單的主機項目(依列表的主機順序)。
     public var hostFilterOptions: [HostOption] {
-        sources.map { HostOption(id: $0.host, name: $0.name, icon: $0.icon) }
+        sources.map { HostOption(id: $0.host, name: $0.name, icon: $0.icon, needsReconfirmation: $0.needsReconfirmation) }
     }
 
     /// 每個 Agent 一列、依分組順序(已釘選、需要你、工作中、閒置)接成一份:離開期間輪數與未讀折算的資料來源，不是畫面上的檢視。
@@ -205,8 +208,11 @@ public final class MergedAgentListModel {
 
     /// 以列表看到的 session 記開啟時間;沒有 session 時不記(行為規格 F2.6:否則下一個用這個 pane 的聊天會被當成讀過)。
     private func markOpened(_ route: ChatRoute) {
-        guard let session = snapshot(for: route.host)?.agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return }
-        actions(for: route.host)?.markOpened(sessionID: session, seen: list(for: route.host)?.previews[route.paneID]?.date)
+        guard let agents = snapshot(for: route.host)?.agents,
+              let session = agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return }
+        actions(for: route.host)?.markOpened(
+            sessionID: session, seen: list(for: route.host)?.previews[route.paneID]?.date,
+            liveSessions: Set(agents.compactMap(\.sessionID)))
     }
 
     /// 需要處理的 workspace 數(導覽入口的數字;不設 app 圖示徽章)。
@@ -267,18 +273,73 @@ public final class MergedAgentListModel {
         return projection
     }
 
-    /// Spaces(#275、#501 起聊天唯一的呈現):每個「主機 · workspace」一段，段內每個 Tab 一列;套用目前主機與搜尋(主機、workspace、Tab 名稱,#391)。
-    public var spacesSections: [SpacesSection] {
-        AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats, query: query)
+    /// 下一個「開啟紀錄跨過離開期間門檻」的時刻(沒有時 `nil`):畫面在那一刻重算,徽章不必等下一次無關的更新(#583)。
+    public func nextAwayTransition(after now: Date) -> Date? {
+        sources.compactMap { source in
+            source.actions.preferences.opened.values
+                .map { $0.addingTimeInterval(AwaySummary.threshold) }
+                .filter { $0 > now }.min()
+        }.min()
     }
+
+    /// 一次投影的結果(#583):Spaces 段落、需要你段落與「離開期間」的列共用。
+    private struct Projection {
+        var spaces: [SpacesSection]
+        var needsYou: NeedsYouSection?
+        var away: [ChatRoute]
+    }
+
+    private struct ProjectionKey: Equatable {
+        var sources: [AgentListProjection.Source]
+        var selected: HostSelection
+        var currentHost: HostSelection?
+        var query: String
+        var visible: Set<ChatRoute>
+        var order: [ChatRoute]
+        var justNow: ChatRoute?
+    }
+
+    @ObservationIgnored private var projectionCache: (key: ProjectionKey, value: Projection)?
+    /// 實際投影(重算)的次數;測試以它確認「一次 body 只投影一次、輸入沒變不重算」。
+    @ObservationIgnored package private(set) var projectionCount = 0
+    /// 基礎投影(所有主機的 Spaces 段落)實際計算的次數;有主機篩選時一次重算也只算一次(#583)。
+    @ObservationIgnored package private(set) var basePassCount = 0
+
+    /// 以輸入(各主機的快照、預覽、偏好、搜尋、目前主機、需要你順序…)比對的投影快取:輸入沒變直接回上次結果。
+    /// 讀輸入仍會登記觀察,所以來源變了畫面照常更新。
+    private var projection: Projection {
+        let all = projectionSources
+        let key = ProjectionKey(
+            sources: all, selected: selected, currentHost: currentHost, query: query, visible: visibleChats,
+            order: needsYou.others.map(\.route), justNow: needsYou.latest?.route)
+        if let cache = projectionCache, cache.key == key { return cache.value }
+        projectionCount += 1
+        let filtered = currentHost.map { host in all.filter { $0.host == host } } ?? all
+        // 基礎投影只算一次:Spaces(依主機篩選)與「需要你」(所有主機)各自在它上面過濾(#583)。
+        basePassCount += 1
+        let base = AgentListProjection.allSpacesSections(sources: all, visible: key.visible)
+        let spaces = AgentListProjection.filter(currentHost.map { host in base.filter { $0.host == host } } ?? base, query: query)
+        let needsYouTabs = (currentHost == nil ? spaces : AgentListProjection.filter(base, query: query)).flatMap(\.tabs)
+        let away = filtered.flatMap { source in
+            (source.snapshot?.agents ?? []).filter { ChatUnread.State(agent: $0, source: source, visible: key.visible).isAway }
+                .map { ChatRoute(host: source.host, paneID: $0.paneID) }
+        }
+        let value = Projection(
+            spaces: spaces, needsYou: AgentListProjection.needsYouSection(tabs: needsYouTabs, order: key.order, justNow: key.justNow),
+            away: away)
+        projectionCache = (key, value)
+        return value
+    }
+
+    /// Spaces(#275、#501 起聊天唯一的呈現):每個「主機 · workspace」一段，段內每個 Tab 一列;套用目前主機與搜尋(主機、workspace、Tab 名稱,#391)。
+    public var spacesSections: [SpacesSection] { projection.spaces }
 
     /// 列表最上面的「需要你」段落(#531):所有主機(不受主機篩選)需要你的聊天、套用搜尋;
     /// 排序與「剛剛」來自 `needsYou`(沒有人驅動它時照列表順序、沒有「剛剛」)。沒有時 `nil`。
-    public var needsYouSection: NeedsYouSection? {
-        AgentListProjection.needsYouSection(
-            sources: projectionSources, visible: visibleChats, query: query,
-            order: needsYou.others.map(\.route), justNow: needsYou.latest?.route)
-    }
+    public var needsYouSection: NeedsYouSection? { projection.needsYou }
+
+    /// 有「離開期間」徽章的聊天(套用目前主機);變動時才重算輪數(#308)。
+    public var awayRoutes: [ChatRoute] { projection.away }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。
     public var hasAgents: Bool { sources.contains { $0.list.hasAgents } }
@@ -295,7 +356,7 @@ public final class MergedAgentListModel {
     public var isNetworkAvailable = true
 
     /// 連線多久沒有結果就顯示「仍在連線」與再試一次。
-    public static let slowConnectionThreshold: TimeInterval = 10
+    public static let slowConnectionThreshold: TimeInterval = ConnectingDisplayPolicy.slowThreshold
 
     /// 還在連線的主機，各一行狀態(依主機順序)。
     public func hostStatuses(at now: Date) -> [HostLoadStatus] {
@@ -303,7 +364,12 @@ public final class MergedAgentListModel {
             // 沒網路時連不上是確定的：列表只顯示離線，不逐台顯示連線中。
             guard isNetworkAvailable, currentHost == nil || source.host == currentHost, source.list.phase == .loading else { return nil }
             let elapsed = now.timeIntervalSince(source.list.updates.connectingSince)
-            let state: HostLoadStatus.State = elapsed >= Self.slowConnectionThreshold ? .stillConnecting : .connecting
+            let state: HostLoadStatus.State
+            switch ConnectingDisplayPolicy.display(elapsed: elapsed, isQuietReconnect: source.list.updates.isQuietReconnect) {
+            case .hidden: return nil
+            case .connecting: state = .connecting
+            case .stillConnecting: state = .stillConnecting
+            }
             return HostLoadStatus(host: source.host, name: source.name, icon: source.icon, state: state)
         }
     }
@@ -366,6 +432,25 @@ public final class MergedAgentListModel {
         return TerminalRow(pane: pane, host: route.host, hostLabel: nil).program
     }
 
+    /// 視窗指令(選單列與快捷鍵)要的、選取中聊天的資料(#581)。
+    package struct WindowTarget: Equatable {
+        /// 「在新視窗開啟」的內容;沒選或列表上找不到是 `nil`。
+        package var opening: SpacesTab.WindowOpening?
+        /// 選取的是對話(不是 Pane 終端機);沒選是 `false`。
+        package var hasConversation: Bool
+    }
+
+    /// 只查選取的那個聊天(所在那台主機的 snapshot),不對所有主機做完整 Spaces 投影(#581)。
+    /// 沒選聊天(`route` 為 `nil`)時完全不讀列表資料。
+    package func windowTarget(for route: ChatRoute?) -> WindowTarget {
+        guard let route else { return WindowTarget(opening: nil, hasConversation: false) }
+        guard let source = sources.first(where: { $0.host == route.host }) else { return WindowTarget(opening: nil, hasConversation: true) }
+        let hasConversation = terminalTitle(of: route) == nil
+        let tabs = AgentListProjection.spacesSections(sources: [projectionSource(of: source)], visible: [], query: "").flatMap(\.tabs)
+        let opening = tabs.lazy.compactMap(\.newWindowOpening).first { $0.paneID == route.paneID }
+        return WindowTarget(opening: opening, hasConversation: hasConversation)
+    }
+
     /// 列表看到的 session(開對話時用來比對快取)。
     public func sessionID(of route: ChatRoute) -> String? {
         list(for: route.host)?.sessionID(ofPane: route.paneID)
@@ -392,6 +477,13 @@ public final class MergedAgentListModel {
     /// 網路恢復、回到前景：每台主機都跳過退避立刻重連。
     public func retryNow() {
         for source in sources { source.list.retryNow() }
+    }
+
+    /// 回前景重撥(#550):連線已被丟棄,每台主機跳過退避立刻重連;手上有快照的列表照舊顯示,
+    /// 「連線中」前 `ConnectingDisplayPolicy.quietGrace` 秒不出現(連上後無聲更新)。
+    public func reconnectAfterForeground() {
+        for source in sources { source.list.updates.beginQuietReconnect() }
+        retryNow()
     }
 
     /// 「再試一次」:讀不到的主機各自重試並改回連線中(取消 Tailscale 重新驗證而停著的，重新開始即時更新);

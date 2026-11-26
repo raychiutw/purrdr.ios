@@ -30,9 +30,8 @@ final class PaneTerminalUITests: XCTestCase {
 
         step("連線後標題列下方顯示狀態") {
             screen.expectValue(containing: "demo@purrdr ledger %")
-            let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-            XCTAssertTrue(status.label.contains("Tidy up the CSV export"), "標題不對:\(status.label)")
-            XCTAssertTrue(status.label.contains("Connected"), "狀態不對:\(status.label)")
+            XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "狀態不對:\(app.terminalHeader)")
+            XCTAssertTrue(app.terminalHeader.contains("Tidy up the CSV export"), "標題不對:\(app.terminalHeader)")
         }
 
         // Demo 的 Pane 依 terminal.scroll 捲主機端 scrollback;打字後回到最新(#88 故事 17、19)。
@@ -111,44 +110,6 @@ final class PaneTerminalUITests: XCTestCase {
         }
     }
 
-    /// 注音組字(#140):浮層出現在游標格子、念得出組字文字，確認前不送;放棄組字後浮層消失。
-    @MainActor
-    func testZhuyinCompositionShowsOverlayAtCursor() throws {
-        let app = XCUIApplication.launchUITesting(flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
-        let screen = openTerminal(app)
-        screen.expectValue(containing: "demo@purrdr ledger %")
-        let input = app.descendants(matching: .any)["terminal.input"].firstMatch
-        XCTAssertTrue(input.waitUntilExists(timeout: 5), "沒有終端機輸入元件")
-        XCTAssertTrue(input.wait(timeout: 5) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }, "輸入元件沒有取得焦點")
-        // 以實體鍵盤的注音配置按鍵組字：模擬器沒有接實體鍵盤(畫面上有軟體鍵盤)時測不到，略過(#374)。
-        if app.keyboards.firstMatch.waitUntilExists(timeout: 2) {
-            throw XCTSkip("需要模擬器接著實體鍵盤(Simulator ▸ I/O ▸ Keyboard ▸ Connect Hardware Keyboard)")
-        }
-        app.switchKeyboard(to: .zhuyin)
-
-        // 模擬器接著實體鍵盤，軟體鍵盤在畫面外;以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
-        for key in ["s", "u", "3"] {
-            app.typeKey(key, modifierFlags: [])
-        }
-
-        let overlay = app.descendants(matching: .any)["terminal.composition"].firstMatch
-        XCTAssertTrue(overlay.waitUntilExists(timeout: 5), "組字時沒有浮層")
-        XCTAssertEqual(overlay.value as? String, "ㄋㄧˇ")
-        // 輸入元件的無障礙範圍以游標格子為中心撐到 44×44pt(#249),比對中心：游標格子的中心落在浮層第一格裡(#251)。
-        // 終端機畫面剛開時還在重排，輸入元件跟著游標移動：等它與浮層在同一列再量(完整跑時量到過移動前的位置)。
-        _ = UITestWait.until(timeout: 5) { abs(overlay.frame.midY - input.frame.midY) <= 1 }
-        let cursorOffset = input.frame.midX - overlay.frame.minX
-        XCTAssertTrue((0...12).contains(cursorOffset), "浮層要從游標格子開始(游標中心在浮層左緣右邊 \(cursorOffset)pt)")
-        XCTAssertEqual(overlay.frame.midY, input.frame.midY, accuracy: 1, "浮層要在游標那一列")
-        XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "確認前不能送出注音")
-
-        // 模擬器的注音輸入法不會出候選字，改用按鍵列結束組字：先放棄組字(浮層消失)再送 Esc。
-        app.buttons["terminal.key.esc"].firstMatch.tap()
-        XCTAssertTrue(overlay.waitUntilGone(timeout: 5), "放棄組字後浮層要消失")
-        screen.expectValue(containing: "demo@purrdr ledger % ^[")
-        XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "放棄的注音不能送出")
-    }
-
     /// 只在畫面顯示時持有 Pane 的尺寸(#357):進背景(鎖定也是)放開控制,回到前景自動以手機的格數重新接上,不必按「重新連線」。
     @MainActor
     func testReturningFromBackgroundReappliesControl() {
@@ -160,11 +121,27 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10), "沒有進背景")
         app.activate()
 
-        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
-        XCTAssertTrue(status.waitUntilExists(timeout: 10))
-        XCTAssertTrue(status.wait(timeout: 10) { $0.label.contains("Connected") }, "回到前景沒有自動接回:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "回到前景沒有自動接回:\(app.terminalHeader)")
         XCTAssertFalse(app.buttons["terminal.reconnect"].exists, "自己放開的，回來不該要使用者按「重新連線」")
         screen.expectValue(containing: "demo@purrdr ledger %")
+    }
+
+    /// 貼上失敗的說明顯示在終端機上方、不彈 alert(#625、#626):`-uiTestingOversizedClipboard` 讓剪貼簿一開始就超過貼上上限。
+    @MainActor
+    func testOversizedPasteShowsInlineNoticeNotAlert() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingOversizedClipboard"])
+        let screen = openTerminal(app)
+        screen.expectValue(containing: "demo@purrdr ledger %")
+        let paste = app.buttons["terminal.key.paste"].firstMatch
+        if !paste.waitUntilExists(timeout: 3) { screen.tap() }
+        XCTAssertTrue(paste.waitUntilExists(timeout: 10), "沒有貼上鍵")
+        paste.tap()
+
+        let notice = app.descendants(matching: .any)["terminal.notice"].firstMatch
+        XCTAssertTrue(notice.waitUntilExists(timeout: 10), "貼上失敗沒有顯示頁內說明")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "貼上失敗不該彈 alert")
+        app.buttons["Dismiss"].firstMatch.tap()
+        XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
     }
 
     @MainActor
@@ -174,7 +151,7 @@ final class PaneTerminalUITests: XCTestCase {
 
         let takeOver = app.buttons["terminal.takeOver"].firstMatch
         XCTAssertTrue(takeOver.waitUntilExists(timeout: 10), "被佔用時沒有「接管」")
-        XCTAssertTrue(app.descendants(matching: .any)["terminal.status"].firstMatch.label.contains("In Use Elsewhere"))
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "In Use Elsewhere", timeout: 5), "副標題不對:\(app.terminalHeader)")
         XCTAssertTrue(app.staticTexts["Someone is using this on the host. Tap Take Over to use it here."].firstMatch.exists, "沒有說明主機正在操作")
 
         takeOver.tap()

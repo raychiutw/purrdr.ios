@@ -396,7 +396,7 @@ struct PaneTerminalModelTests {
 
         #expect(await Self.sentLines(host).count == 1)
         #expect(await Self.sentInput(host) == [0x1B])
-        #expect(model.notice == "This paste is too large to send to the terminal.")
+        #expect(model.notice?.text == "This paste is too large to send to the terminal.")
     }
 
     @Test("單指滑動每滑過一列送一則 lines:1 的 terminal.scroll(由 herdr 決定捲動方式)")

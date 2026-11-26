@@ -2,6 +2,8 @@ import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrTestSupport
+import Observation
+import Synchronization
 import Testing
 
 /// Send When Done(#305,spec #298):輸入列的「做完再送」開關開著時，送出改排進主機上的佇列，Agent 做完後依序送出。
@@ -128,7 +130,7 @@ struct SendWhenDoneTests {
         #expect(await host.calls.filter { $0 == .queues }.count == 2)
     }
 
-    @Test("SSH 主機(沒有主機服務):停用，點開關只說明、不會開啟")
+    @Test("SSH 主機(沒有主機服務):停用，開關寫入不會開啟，原因文字給開關下方的說明")
     func sshHostIsUnavailable() async {
         let model = SendWhenDoneModel(host: nil, paneID: Self.paneID, sleep: { _ in })
         await model.run()
@@ -136,8 +138,8 @@ struct SendWhenDoneTests {
         #expect(model.availability == .needsHostService)
         #expect(!model.isEnabled)
         model.toggle()
+        model.isRequested = true
         #expect(!model.isEnabled)
-        #expect(model.explainsUnavailability)
     }
 
     @Test("唯讀裝置:停用並說明")
@@ -149,8 +151,20 @@ struct SendWhenDoneTests {
         #expect(model.availability == .readOnlyDevice)
         model.toggle()
         #expect(!model.isEnabled)
-        #expect(model.explainsUnavailability)
         #expect(await host.calls.isEmpty)
+    }
+
+    @Test("切換開關會通知畫面重畫(requested 要被觀察,否則系統 Toggle 點了不會變)")
+    func toggleNotifiesObservers() async {
+        let host = FakeSendWhenDoneHost()
+        let model = SendWhenDoneModel(host: host, paneID: Self.paneID, sleep: { _ in })
+        let task = await Self.running(model, host: host)
+        let changed = Mutex(false)
+        withObservationTracking { _ = model.isEnabled } onChange: { changed.withLock { $0 = true } }
+        model.isRequested = true
+        #expect(changed.withLock { $0 })
+        #expect(model.isEnabled)
+        task.cancel()
     }
 
     @Test("開關可用時切換開啟與關閉")
@@ -207,7 +221,7 @@ struct SendWhenDoneTests {
         let result = await SendWhenDoneStep(model: model).process(Self.prompt(), clock: Self.clock())
 
         #expect(result == .halt(SendHalt(restoresDraft: true)))
-        #expect(model.notice == HostErrorText.message(for: HostServiceError.queueFull))
+        #expect(model.notice == DisplayedError(error: HostServiceError.queueFull))
     }
 
     @Test("管線步驟:還不知道 session 時不能排(主機要比對)，文字放回輸入框")

@@ -2,126 +2,83 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 頂列用量環按鈕(#513,原型 Main):和「⋯」放在同一個 `ToolbarItemGroup`,系統把它們合成一顆玻璃膠囊 [用量環｜⋯]。
-/// 觸控目標 ≥ 44pt;點了開用量 sheet。
+/// 頂列用量環按鈕(#513、#617):和「⋯」放在同一個 `ToolbarItemGroup`,系統把它們合成一顆玻璃膠囊 [用量環｜⋯]。
+/// 不自加寬度(交給系統排版);永遠顯示:一進聊天是系統載入動畫(#644),讀到資料換成百分比環,沒有資料是空環。
+/// 點了開面板(iPad popover、iPhone sheet),從按鈕展開,載入中也可以點。
 struct UsageRingButton: View {
-    let summary: UsageSummary
-    let action: () -> Void
+    let state: UsageRingState
+    /// regular 寬度才用的 popover 開關(compact 的 sheet 掛在聊天畫面上)。
+    let showsPopover: Binding<Bool>
+    let tap: () -> Void
+    let model: ConversationModel
+    let usageSection: UsageSectionModel?
+    let display: PlanUsageModel.Display
 
     var body: some View {
-        Button(action: action) {
-            UsageRingView(summary: summary)
-                .frame(minWidth: TopBarMetrics.circleDiameter, minHeight: TopBarMetrics.controlHeight)
-                .contentShape(Rectangle())
+        Button(action: tap) {
+            UsageRingView(state: state)
         }
-        .accessibilityLabel(Text(verbatim: summary.accessibilityText))
-        .accessibilityHint(Text("Shows usage details."))
+        .accessibilityLabel(Text(verbatim: state.summary?.accessibilityText ?? String(localized: "Usage")))
+        .accessibilityValue(Text(state == .loading ? "Loading" : ""))
+        .accessibilityHint(Text("Shows usage and details."))
         .accessibilityIdentifier("conversation.usage")
+        .conversationPanelPopover(isPresented: showsPopover, model: model, usageSection: usageSection, display: display)
     }
 }
 
-/// 用量環:一個小圓環,填滿比例是顯示的數字,顏色依等級(一般、70% 起橙、85% 起紅);數字另在 VoiceOver 與用量 sheet。
+/// 用量環:一個小圓環,填滿比例是顯示的數字,顏色依等級(一般、70% 起橙、85% 起紅);數字另在 VoiceOver 與面板。
+/// 空環只畫軌道;載入中是系統 `ProgressView`(環形,不自畫動畫,「減少動態效果」由系統處理),
+/// 三種狀態都在同一個固定大小的框裡,切換不造成頂列版面位移。
 struct UsageRingView: View {
-    let summary: UsageSummary
+    let state: UsageRingState
     @ScaledMetric(relativeTo: .body) private var diameter: CGFloat = 24
     @ScaledMetric(relativeTo: .body) private var lineWidth: CGFloat = 3
 
     var body: some View {
         ZStack {
-            Circle().stroke(.quaternary, lineWidth: lineWidth)
-            Circle()
-                .trim(from: 0, to: summary.fraction)
-                .stroke(summary.level.tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
+            if state == .loading {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityIdentifier("conversation.usage.loading")
+            } else {
+                Circle().stroke(.quaternary, lineWidth: lineWidth)
+                if let summary = state.summary {
+                    Circle()
+                        .trim(from: 0, to: summary.fraction)
+                        .stroke(summary.level.tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+            }
         }
         .frame(width: diameter, height: diameter)
         .accessibilityHidden(true)
     }
 }
 
-/// 用量 sheet(#513,原型 Usage):左上 X、右上重新整理;內容是可單獨嵌入的 `UsageContentView`(#517 的 iPad 右側 inspector 也放它)。
-struct ConversationUsageSheet: View {
-    let model: ConversationModel
-    /// 這台主機的方案用量(`nil`:這種 Agent 沒有方案用量來源)。
-    let section: UsageSectionModel?
-    let display: PlanUsageModel.Display
-    @State private var isRefreshing = false
-
-    var body: some View {
-        NavigationStack {
-            UsageContentView(model: model, section: section, display: display)
-                .navigationTitle("Usage")
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar {
-                    SheetCloseToolbar(identifier: "usage.sheet.close")
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Refresh", systemImage: "arrow.clockwise") { refresh() }
-                            .disabled(isRefreshing || section == nil)
-                            .accessibilityIdentifier("usage.sheet.refresh")
-                    }
-                }
-        }
-        .appSheet(detents: [.large])
-        .accessibilityIdentifier("usage.sheet")
-    }
-
-    private func refresh() {
-        guard let section else { return }
-        isRefreshing = true
-        Task {
-            await section.refresh()
-            isRefreshing = false
-        }
-    }
-}
-
-/// 用量內容(#513):「這個聊天」的 Context 卡片、「方案用量 · 主機名」的目前工作階段與每週卡片、更新時間。
-/// 不含 NavigationStack、關閉與重新整理(由容器的 toolbar 放),sheet 與 #517 的 inspector 共用。
+/// 用量內容(#513):「這個聊天」的 Context、「方案用量 · 主機名」的目前工作階段與每週、更新時間。
+/// 輸出系統 `Section`(標題、列、註腳都是系統的,#627),放進面板的 `List`;進度條自畫(系統不能指定軌道色)。
+/// 不含 NavigationStack、關閉與重新整理(由面板的 toolbar 放),面板(`ConversationPanelView`)用。
 struct UsageContentView: View {
     let model: ConversationModel
     let section: UsageSectionModel?
     let display: PlanUsageModel.Display
-    /// `false`:不自己捲動也不鋪底(放進 Inspector 的 List 裡,#521)。
-    var scrolls = true
 
     private var hostName: String { section?.hostName ?? "" }
 
     var body: some View {
-        if scrolls {
-            ScrollView { cards.appPageContentWidth() }
-                .background(AppSurface.groupedPage)
-        } else {
-            cards
+        Section("This Chat") {
+            contextCard
         }
-    }
-
-    private var cards: some View {
-            VStack(alignment: .leading, spacing: 10) {
-                sectionTitle("This Chat")
-                contextCard
-                (section == nil ? sectionTitle("Plan Usage") : sectionTitle("Plan Usage · \(hostName)")).padding(.top, 6)
-                planContent
-                if let captured = section?.lastCapturedAt {
-                    Text("Updated \(captured, format: .relative(presentation: .named))")
-                        .font(.footnote)
-                        .foregroundStyle(.secondaryText)
-                        .padding(.horizontal, 6)
-                        .padding(.top, 4)
-                        .accessibilityIdentifier("usage.sheet.updated")
-                }
+        Section {
+            planContent
+        } header: {
+            if section == nil { Text("Plan Usage") } else { Text("Plan Usage · \(hostName)") }
+        } footer: {
+            if let captured = section?.lastCapturedAt {
+                Text("Updated \(captured, format: .relative(presentation: .named))")
+                    .accessibilityIdentifier("usage.sheet.updated")
             }
-            .padding(.horizontal, scrolls ? 16 : 0)
-            .padding(.vertical, 8)
-    }
-
-    private func sectionTitle(_ title: LocalizedStringKey) -> some View {
-        Text(title)
-            .font(.subheadline)
-            .foregroundStyle(.secondaryText)
-            .padding(.horizontal, 6)
-            .accessibilityAddTraits(.isHeader)
+        }
     }
 
     // MARK: Context
@@ -195,14 +152,11 @@ struct UsageContentView: View {
             .font(.subheadline)
             .foregroundStyle(.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(AppSurface.groupedRow, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .accessibilityIdentifier(identifier)
     }
 }
 
-/// 用量 sheet 的一張卡片:標題、已用或剩餘百分比、8pt 進度條、一行說明(已用／總 token 或重設時間)。
+/// 用量面板的一列:標題、已用或剩餘百分比、8pt 進度條、一行說明(已用／總 token 或重設時間)。
 private struct UsageCard: View {
     let title: Text
     let value: Text
@@ -242,10 +196,7 @@ private struct UsageCard: View {
                 detail.font(.footnote).foregroundStyle(.secondaryText)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppSurface.groupedRow, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
     }

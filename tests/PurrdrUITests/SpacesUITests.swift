@@ -53,11 +53,39 @@ final class SpacesUITests: XCTestCase {
         tab.tap()
         let shellBlock = app.buttons["layout.block.w3:p2"]
         XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "點 Tab 沒有開版面圖")
+        // 列尾 > 是 push(#619):左上返回、tab bar 保留;返回後回到列表,再點一次進去選方塊。
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "版面圖左上沒有返回鈕")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "版面圖沒有保留 tab bar")
+        XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(shellBlock.waitUntilGone(timeout: 5), "返回後版面圖還在")
+        XCTAssertTrue(app.reveal(tab))
+        tab.tap()
+        XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "再點 Tab 沒有開版面圖")
         shellBlock.tap()
 
-        let status = app.element("terminal.status")
-        XCTAssertTrue(status.waitUntilExists(timeout: 10), "點終端機方塊沒有開 Pane 終端機")
-        XCTAssertTrue(status.label.contains("npm run dev"), "終端機標題不是程式名:\(status.label)")
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "npm run dev", timeout: 10), "點終端機方塊沒有開 Pane 終端機,或標題不是程式名:\(app.terminalHeader)")
+    }
+
+    /// 版面圖是系統 NavigationLink 推入的頁面(#641):連續三次進去,第一下點返回鈕就要回到列表;最後再用左緣滑動返回一次。
+    @MainActor
+    func testLayoutPushBackWorksOnFirstTapAndEdgeSwipe() {
+        let app = XCUIApplication.launchUITesting()
+        let tab = app.element("spaces.tab.demo/w3:t1")
+        let shellBlock = app.buttons["layout.block.w3:p2"]
+        for round in 1...3 {
+            XCTAssertTrue(app.reveal(tab), "第 \(round) 輪找不到 Tab 列")
+            tab.tap()
+            XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5), "第 \(round) 輪沒有開版面圖")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(shellBlock.waitUntilGone(timeout: 3), "第 \(round) 輪第一下點返回沒有返回")
+        }
+        XCTAssertTrue(app.reveal(tab))
+        tab.tap()
+        XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5))
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        XCTAssertTrue(shellBlock.waitUntilGone(timeout: 3), "左緣滑動沒有返回")
     }
 
     /// 長按選單與左滑都能關閉 Tab,關之前先確認;Demo 每個 Workspace 只有一個 Tab,所以確認文字是「連 Workspace 一起關」(#534)。
@@ -67,24 +95,31 @@ final class SpacesUITests: XCTestCase {
         let first = app.element("spaces.tab.demo/w2:t1")
         XCTAssertTrue(app.reveal(first))
 
+        // 選單、確認與滑動動作都有出現動畫:每一步等「可點」再點,取消後等確認收乾淨才做下一步。
+        let closeItem = app.buttons["menu.closeTab"].firstMatch
         first.press(forDuration: 1.2)
-        app.buttons["menu.closeTab"].tap()
+        XCTAssertTrue(closeItem.waitUntilHittable(timeout: 5), "長按沒有出現「關閉 Tab」")
+        closeItem.tap()
         let confirm = app.buttons["closeTab.confirm"].firstMatch
         XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有出現確認")
         XCTAssertEqual(confirm.label, "Close Tab and Workspace")
         app.otherElements["PopoverDismissRegion"].firstMatch.tap()
+        XCTAssertTrue(confirm.waitUntilGone(timeout: 5), "取消後確認沒有收起")
         XCTAssertTrue(first.exists, "取消後 Tab 不該消失")
 
         first.press(forDuration: 1.2)
-        app.buttons["menu.closeTab"].tap()
+        XCTAssertTrue(closeItem.waitUntilHittable(timeout: 5), "第二次長按沒有出現「關閉 Tab」")
+        closeItem.tap()
+        XCTAssertTrue(confirm.waitUntilHittable(timeout: 5), "第二次沒有出現確認")
         confirm.tap()
         XCTAssertTrue(first.waitUntilGone(timeout: 10), "從選單關閉後 Tab 還在")
 
         let second = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(second))
         second.swipeLeft()
-        app.buttons["menu.closeTab"].tap()
-        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "左滑沒有出現確認")
+        XCTAssertTrue(closeItem.waitUntilHittable(timeout: 5), "左滑沒有出現「關閉 Tab」")
+        closeItem.tap()
+        XCTAssertTrue(confirm.waitUntilHittable(timeout: 5), "左滑沒有出現確認")
         confirm.tap()
         XCTAssertTrue(second.waitUntilGone(timeout: 10), "左滑關閉後 Tab 還在")
     }
@@ -94,8 +129,8 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testClosingNeedsYouTabKeepsAppRunning() {
         let app = XCUIApplication.launchUITesting()
-        app.openNewChatSheet()
-        let sheet = app.element("sheet.newChat")
+        app.openNewChat()
+        let sheet = app.element("newChat.page")
         XCTAssertTrue(sheet.waitUntilExists(timeout: 10))
         let weather = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'weather-app'")).firstMatch
         XCTAssertTrue(weather.waitUntilExists(timeout: 10), "沒有 weather-app")

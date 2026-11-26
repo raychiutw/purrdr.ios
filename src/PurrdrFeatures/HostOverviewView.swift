@@ -9,9 +9,12 @@ struct HostOverviewView: View {
     let plus: SubscriptionModel?
     let openPlus: () -> Void
     let statusCache: HostStatusCache
-    let actionError: String?
-    let removeHost: (UUID) -> Void
-    let removeDemo: () -> Void
+    let actionError: DisplayedError?
+    /// 移除主機的確認狀態與動作;確認對話框掛在「Remove Host」按鈕上,讓它錨定在觸發的按鈕(#625)。
+    let flow: HostListFlow
+    let confirmRemoval: (HostDeletionRequest) -> Void
+    @Binding var confirmingRemoveDemo: Bool
+    let confirmRemoveDemo: () -> Void
     let openAddHost: () -> Void
     let openRoute: (HostRoute) -> Void
 
@@ -25,7 +28,6 @@ struct HostOverviewView: View {
     var body: some View {
         List {
             Group {
-                hostListSection
                 HostStatusRow(overview: overview, retry: retry, pair: pair, update: { if let hostID { openRoute(.edit(hostID)) } })
                 if overview.showsUsage, let usage {
                     UsageSectionContainer(host: overview.host, agents: PlanUsageAgent.allCases, context: usage, scopedTitle: false, detectsInstallation: true)
@@ -40,18 +42,28 @@ struct HostOverviewView: View {
                     thisHostSection
                     if let hostID {
                         Section {
-                            Button("Remove Host", role: .destructive) { removeHost(hostID) }
-                                .foregroundStyle(.destructiveText)
+                            Button("Remove Host", role: .destructive) { flow.requestDeletion(of: hostID, name: overview.name) }
+                                .destructiveListAction()
                                 .frame(maxWidth: .infinity)
                                 .accessibilityIdentifier("hosts.delete")
+                                .confirmationDialog(
+                                    Text("Remove “\(flow.pendingDeletion?.name ?? "")” from This Device?"),
+                                    isPresented: Binding { flow.pendingDeletion != nil } set: { if !$0 { flow.cancelDeletion() } },
+                                    titleVisibility: .visible, presenting: flow.pendingDeletion
+                                ) { request in
+                                    Button("Remove Host", role: .destructive) { confirmRemoval(request) }
+                                        .accessibilityIdentifier("hosts.delete.confirm")
+                                    Button("Cancel", role: .cancel) { flow.cancelDeletion() }
+                                } message: { _ in
+                                    Text("This only removes the host from Purrdr. The host itself and the agents on it aren’t affected. Anything Purrdr added for this device on the host is put back.")
+                                }
                         }
                     }
                 }
                 if let message = actionError ?? hosts.loadError {
                     Section {
-                        Label(message, systemImage: "exclamationmark.triangle")
+                        ErrorLabel(message.text, area: "HostOverview", error: message.descriptor)
                             .font(.footnote)
-                            .foregroundStyle(.secondaryText)
                             .accessibilityIdentifier("hosts.error")
                     }
                 }
@@ -68,42 +80,6 @@ struct HostOverviewView: View {
         .task {
             await hosts.checkHostServiceVersions()
             await hosts.refreshOverviewFacts()
-        }
-    }
-
-    // MARK: - 主機清單(#500)
-
-    /// 主機清單:頂列已沒有主機選單(右上只有「＋」新增主機),多台主機在這裡換看哪一台;只有一台時不顯示。
-    @ViewBuilder
-    private var hostListSection: some View {
-        let picker = hosts.selectedHostPicker()
-        if picker.options.count > 1 {
-            Section {
-                ForEach(picker.options) { option in
-                    Button {
-                        picker.select(option.id)
-                    } label: {
-                        HStack(spacing: 12) {
-                            HostIconBadge(option.icon, diameter: 24)
-                            Text(verbatim: option.name)
-                                .font(.body)
-                                .foregroundStyle(Color.primary)
-                            Spacer(minLength: 0)
-                            if option.id == overview.host {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(Color.appAccent)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(option.id == overview.host ? .isSelected : [])
-                    .accessibilityIdentifier("hosts.host.\(option.name)")
-                }
-            } header: {
-                Text("Hosts")
-            }
         }
     }
 
@@ -238,21 +214,21 @@ struct HostOverviewView: View {
 
     private var showsNotifications: Bool {
         switch overview.status {
-        case .demo, .needsPairing, .herdrTooOld: false
+        case .demo, .needsPairing, .needsReconfirmation, .herdrTooOld: false
         case .connecting, .online, .readOnly, .offline: true
         }
     }
 
     private var showsShare: Bool {
         switch overview.status {
-        case .demo, .needsPairing, .herdrTooOld: false
+        case .demo, .needsPairing, .needsReconfirmation, .herdrTooOld: false
         case .connecting, .online, .readOnly, .offline: overview.canShare
         }
     }
 
     private var showsSettings: Bool {
         switch overview.status {
-        case .demo, .needsPairing, .herdrTooOld, .offline: false
+        case .demo, .needsPairing, .needsReconfirmation, .herdrTooOld, .offline: false
         case .connecting, .online, .readOnly: overview.hasHostSettings
         }
     }
@@ -282,7 +258,7 @@ struct HostOverviewView: View {
             } label: {
                 HostRowLabel(title: "Add Your Own Host")
             }
-            .buttonStyle(.plain)
+            .listAction()
             .accessibilityIdentifier("hosts.demo.addOwn")
             // 設計稿(#392)範例主機沒有登入 Shell;刻意保留:App Review 要能開 Demo 的模擬終端機(#434,App 內建、不連真電腦)。
             if overview.showsLoginShell {
@@ -296,9 +272,17 @@ struct HostOverviewView: View {
                 .foregroundStyle(.secondaryText)
         }
         Section {
-            Button("Remove Demo Host", role: .destructive, action: removeDemo)
+            Button("Remove Demo Host", role: .destructive) { confirmingRemoveDemo = true }
+                .destructiveListAction()
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("hosts.demo.remove")
+                .confirmationDialog("Remove the Demo Host?", isPresented: $confirmingRemoveDemo, titleVisibility: .visible) {
+                    Button("Remove Demo Host", role: .destructive, action: confirmRemoveDemo)
+                        .accessibilityIdentifier("hosts.demo.remove.confirm")
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("The demo conversations disappear from the list. You can bring them back anytime from Add Host or Welcome in Settings.")
+                }
         }
     }
 
@@ -330,24 +314,26 @@ struct HostRowLabel: View {
     var subtitle: LocalizedStringKey?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
+        // 右側說明用系統的 `LabeledContent`(大字級自動換行);標題下的副標是上下兩行。
+        if let detail {
+            LabeledContent {
+                detail
+                    .multilineTextAlignment(.trailing)
+            } label: {
                 Text(title)
-                if let detail {
-                    Spacer(minLength: 8)
-                    detail
-                        .multilineTextAlignment(.trailing)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.footnote)
                         .foregroundStyle(.secondaryText)
                 }
             }
-            if let subtitle {
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-            }
+            // 列高交給 List 的標準列高(再疊 minHeight 44 會讓主機 tab 的列比設定 tab 高約 22pt,設計稿 Host 是標準列高)。
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // 列高交給 List 的標準列高(再疊 minHeight 44 會讓主機 tab 的列比設定 tab 高約 22pt,設計稿 Host 是標準列高)。
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -398,7 +384,7 @@ struct HostStatusRow: View {
             Circle().fill(StatusTone.accent.style).frame(width: 8, height: 8).accessibilityHidden(true)
         case .connecting:
             ProgressView().controlSize(.small)
-        case .offline, .needsPairing, .herdrTooOld:
+        case .offline, .needsPairing, .needsReconfirmation, .herdrTooOld:
             // 狀態用圖示加文字，不只靠顏色。
             Image(systemName: ErrorLabel.symbolName)
                 .font(.caption)
@@ -415,6 +401,7 @@ struct HostStatusRow: View {
         case .readOnly: Text("Online · View Only")
         case .offline: Text("Can’t Reach This Host")
         case .needsPairing: Text("Not Paired on This Device")
+        case .needsReconfirmation: Text("Check This Host Again")
         case .herdrTooOld(let version): Text("herdr \(version) Is Too Old")
         }
     }
@@ -431,6 +418,7 @@ struct HostStatusRow: View {
                 Text(verbatim: message)
             }
         case .needsPairing: Text("This host came from another device. Enter its pairing code to use it here.")
+        case .needsReconfirmation: Text("Another device changed this host. Check it before connecting. Nothing is sent until you do.")
         case .herdrTooOld: Text("Purrdr needs herdr 0.9.5 or later.")
         }
     }
@@ -450,6 +438,10 @@ struct HostStatusRow: View {
             Button("Enter Pairing Code", action: pair)
                 .filledProminentButtonStyle()
                 .accessibilityIdentifier("hosts.status.pair")
+        case .needsReconfirmation:
+            Button("Check Host", action: update)
+                .filledProminentButtonStyle()
+                .accessibilityIdentifier("hosts.status.reconfirm")
         case .herdrTooOld:
             if overview.connection?.usesHostService == true {
                 Text("Update herdr on the host.")

@@ -15,7 +15,21 @@ public final class HostUpdates {
     public private(set) var phase: Phase = .loading {
         didSet {
             if phase == .loading, oldValue != .loading { connectingSince = now() }
+            if phase != .loading { isQuietReconnect = false }
         }
+    }
+
+    /// 回前景重撥中且手上有快取(#550):列表的「連線中」前幾秒不顯示。
+    public private(set) var isQuietReconnect = false
+
+    /// 回前景、連線已被丟棄時呼叫(#550):有快照就留著它,狀態回到連線中但先不顯示;
+    /// 被丟掉的連線那次失敗不算讀不到。沒有快照時沒有東西可先顯示,照一般連線。
+    public func beginQuietReconnect() {
+        guard snapshot != nil else { return }
+        isQuietReconnect = true
+        isRestarting = true
+        phase = .loading
+        connectingSince = now()
     }
 
     /// 這次連線從什麼時候開始(`phase` 是 `.loading` 時才有意義;列表據此顯示「仍在連線」,#221)。
@@ -83,6 +97,10 @@ public final class HostUpdates {
     @ObservationIgnored private var isReading = false
     /// 還沒讀快照處理的事件指名的 pane。
     @ObservationIgnored private var pendingNamedPanes: Set<String> = []
+    /// 還沒處理的事件裡有 `layout.updated` 以外的(它們不限速,#587)。
+    @ObservationIgnored private var pendingNonLayoutEvent = false
+    /// 版面事件限速的等待:等最小間隔,但其他事件一到就叫醒,不被版面限速拖慢(#587)。
+    private let layoutThrottle: WakeSignal
     /// 這一輪訂閱收到 ack 了(退避歸零)。
     @ObservationIgnored private var subscriptionStarted = false
 
@@ -95,6 +113,7 @@ public final class HostUpdates {
         self.now = now
         connectingSince = now()
         retryDue = WakeSignal(sleep: sleep)
+        layoutThrottle = WakeSignal(sleep: sleep)
     }
 
     /// 讀一次快照。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
@@ -148,6 +167,7 @@ public final class HostUpdates {
                 }
                 subscriptionStarted = false
                 pendingNamedPanes = []
+                pendingNonLayoutEvent = false
                 let triggers = coalesced(subscription)
                 defer {
                     endSubscription?()
@@ -159,7 +179,11 @@ public final class HostUpdates {
                     hasQueuedResync = false
                     let namedPanes = pendingNamedPanes
                     pendingNamedPanes = []
+                    let layoutOnly = !pendingNonLayoutEvent
+                    pendingNonLayoutEvent = false
                     try await refresh(namedPanes: namedPanes)
+                    // 拖動分隔線時 layout.updated 每一步都送:讀完後先等最小間隔,期間的事件併成下一次(尾端)讀取。
+                    if layoutOnly, !pendingNonLayoutEvent { try await layoutThrottle.wait(atMost: Self.layoutMinimumInterval) }
                     if subscriptionStarted { isSubscribed = true }
                     if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
                 }
@@ -224,6 +248,9 @@ public final class HostUpdates {
     /// 為了重新開始而丟掉連線：接下來那次失敗不算讀不到。
     @ObservationIgnored private var isRestarting = false
 
+    /// 只有 `layout.updated` 觸發的讀取之間的最小間隔(#587):拖動分隔線時每一步都送,不限速會連續讀快照。
+    package static let layoutMinimumInterval: Duration = .milliseconds(500)
+
     /// 沒有事件訂閱可用時重讀的間隔。
     package static let pollingInterval: Duration = .seconds(30)
 
@@ -247,6 +274,11 @@ public final class HostUpdates {
         onSnapshot?(fresh)
     }
 
+    private static func isLayoutUpdated(_ event: HerdrEvent) -> Bool {
+        if case .event(let name, nil) = event { return name == "layout_updated" || name == "layout.updated" }
+        return false
+    }
+
     /// 把訂閱的事件併成「要重讀」的觸發：最多暫存一個，讀取期間的事件都併進它。
     /// `endSubscription` 能從外面結束它(結束時取消轉送，關掉底層的訂閱通道)。
     private func coalesced(_ events: AsyncThrowingStream<HerdrEvent, any Error>) -> AsyncThrowingStream<Void, any Error> {
@@ -255,6 +287,10 @@ public final class HostUpdates {
             do {
                 for try await event in events {
                     if event == .subscriptionStarted { self?.subscriptionStarted = true }
+                    if !Self.isLayoutUpdated(event) {
+                        self?.pendingNonLayoutEvent = true
+                        if self?.layoutThrottle.isWaiting == true { self?.layoutThrottle.wake() }
+                    }
                     if case .event(_, let paneID?) = event { self?.pendingNamedPanes.insert(paneID) }
                     if self?.isReading == true { self?.hasQueuedResync = true }
                     continuation.yield()

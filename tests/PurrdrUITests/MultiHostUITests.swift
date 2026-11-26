@@ -43,6 +43,20 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertLessThan(filter.frame.maxX, newChat.frame.minX, "主機範圍鈕蓋到新增聊天")
     }
 
+    /// 篩選某台主機時,電腦圖示右上角出現小圓點;選回所有主機就消失(#615)。
+    @MainActor
+    func testHostDotShowsOnlyWhileFiltered() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
+        XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitUntilExists(timeout: 20))
+        XCTAssertFalse(app.descendants(matching: .any)["topBar.hostDot"].exists, "所有主機時不該有小圓點")
+
+        app.filterHosts("Studio Mac")
+        XCTAssertTrue(app.descendants(matching: .any)["topBar.hostDot"].firstMatch.waitUntilExists(timeout: 5), "篩選主機後沒有小圓點")
+
+        app.filterHosts("All Hosts")
+        XCTAssertTrue(app.descendants(matching: .any)["topBar.hostDot"].firstMatch.waitUntilGone(timeout: 5), "選回所有主機小圓點還在")
+    }
+
     /// 主機篩選(#244):Spaces 檢視只留篩選那台主機的 workspace 段落(#275);篩選選單帶各主機，第一項是所有主機。
     @MainActor
     func testHostFilterLimitsSpaces() {
@@ -71,11 +85,13 @@ final class MultiHostUITests: XCTestCase {
         let studioRow = app.element("spaces.tab.DE300000-0000-4000-8000-000000000001/w2:t1")
         XCTAssertTrue(app.reveal(studioRow, timeout: 20), "沒有示範主機 Studio Mac 的列")
         let error = app.element("agentList.error.DE300000-0000-4000-8000-000000000002")
-        XCTAssertTrue(app.reveal(error, timeout: 20), "沒有連不上的示範主機")
+        // 錯誤行在列表最底下(App 讀不到主機後立刻就有,與時間無關):以系統的快速滑動捲到底。
+        // 慢速的 press-drag(`reveal`)在這個長度的列表上偶爾整段時間都捲不動,所以不用它。
+        XCTAssertTrue(app.scrollIntoView(error, search: .down, limit: 4, timeout: 10), "沒有連不上的示範主機")
         XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
     }
 
-    /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，標題列帶主機名。
+    /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，開出的聊天副標題是狀態。
     @MainActor
     func testSamePaneOnTwoHostsAreSeparateChats() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-selectDemo"])
@@ -87,9 +103,9 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertTrue(app.scrollIntoView(studioRow, search: .down, timeout: 15), "另一台主機同一個 pane 沒有自己的列")
 
         studioRow.tap()
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 10))
-        XCTAssertTrue(header.label.contains("Studio Mac"), "非選取中主機的聊天標題列沒有主機名:\(header.label)")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
+        // 副標題只有狀態(#618,不含主機名稱):以狀態文字確認開到的是那個「需要你」的聊天。
+        XCTAssertTrue(app.conversationSubtitle(containing: "Needs You").waitUntilExists(timeout: 10), "沒有開到非選取中主機的聊天")
     }
 
 }

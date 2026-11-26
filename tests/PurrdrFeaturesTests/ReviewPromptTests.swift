@@ -72,9 +72,12 @@ struct ReviewPromptTests {
     // MARK: - 對話送出
 
     static func opened(delivered: Counter) async throws -> ConversationSendTests.Setup {
-        let setup = try await ConversationSendTests.opened()
-        setup.model.onPromptDelivered = { delivered.count += 1 }
-        return setup
+        try await ConversationSendTests.opened { client, transcripts, drafts in
+            ConversationModel(
+                client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
+                knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
+                clock: TestClock().clock, drafts: drafts, links: .init(onPromptDelivered: { delivered.count += 1 }))
+        }
     }
 
     final class Counter {
@@ -119,7 +122,7 @@ struct ReviewPromptTests {
         hosts.load()
 
         for pane in ["w1:p1", "w2:p1", "w3:p1"] {
-            hosts.conversation(ChatRoute(host: .demo, paneID: pane), sessionID: nil).onPromptDelivered?()
+            hosts.member(for: .demo).conversation(ChatRoute(host: .demo, paneID: pane), sessionID: nil).onPromptDelivered?()
         }
 
         #expect(requests.count == 1)

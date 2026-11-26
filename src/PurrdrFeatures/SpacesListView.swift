@@ -17,6 +17,8 @@ struct SpacesSectionsContent: View {
     /// 標題選單的「在此新增聊天」(#537)。
     var newChatInWorkspace: ((HostSelection, String) -> Void)?
     var canNewChatInWorkspace: ((HostSelection) -> Bool)?
+    @Environment(\.pushesChatsByPath) private var pushesByPath
+    @Environment(\.usesSidebarSelection) private var usesSelection
 
     var body: some View {
         if let needsYou {
@@ -31,7 +33,8 @@ struct SpacesSectionsContent: View {
                             tab: TabTarget(tabID: tab.key, snapshot: model.snapshot(for: section.host), workspaceLabel: section.workspace),
                             host: section.host, snapshot: model.snapshot(for: section.host), presentation: presentation,
                             chats: TabChatActions(actions: model.actions(for: section.host), sessionIDs: tab.chatSessionIDs),
-                            openInNewWindow: newWindowAction(tab, host: section.host))
+                            openInNewWindow: newWindowAction(tab, host: section.host),
+                            actions: model.actions(for: section.host))
                         .accessibilityIdentifier("spaces.tab.\(tab.id)")
                 }
             } header: {
@@ -39,7 +42,7 @@ struct SpacesSectionsContent: View {
                     .workspaceHeaderMenu(
                         workspaceTarget(section), host: section.host, snapshot: model.snapshot(for: section.host),
                         isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation,
-                        newChatHere: newChatHere(section))
+                        newChatHere: newChatHere(section), actions: model.actions(for: section.host))
             }
         }
     }
@@ -71,32 +74,37 @@ struct SpacesSectionsContent: View {
         WorkspaceTarget(workspaceID: section.workspaceID, label: section.workspace, snapshot: model.snapshot(for: section.host))
     }
 
+    private func chatRow(_ tab: SpacesTab, justNow: Bool) -> some View {
+        ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
+    }
+
     @ViewBuilder
     private func tabRow(_ tab: SpacesTab, host: HostSelection, justNow: Bool = false) -> some View {
         switch tab.target {
         case .pane(let route):
-            NavigationLink(value: route) {
-                ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
+            // 窄視窗的堆疊以路徑推入(`ChatsDestination`);寬視窗的列是 List 的選取(`ChatRoute`,對話顯示在對話欄)。
+            Group {
+                if pushesByPath {
+                    NavigationLink(value: ChatsDestination.chat(route)) { chatRow(tab, justNow: justNow) }
+                } else if usesSelection {
+                    NavigationLink(value: SidebarSelection.chat(route)) { chatRow(tab, justNow: justNow) }
+                } else {
+                    NavigationLink(value: route) { chatRow(tab, justNow: justNow) }
+                }
             }
             .listRowInsets(ChatRowView.rowInsets)
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
-            Button {
-                // 顯示開啟當下的 snapshot,只畫這個 Tab(行為規格 F4)。
-                presentation.host = host
-                let layout = model.snapshot(for: host).flatMap { SpacesLayout(snapshot: $0, workspaceID: workspaceID) }
-                presentation.sheet = .layout(workspaceLabel: tab.title, layout: layout?.onlyTab(tabID))
-            } label: {
-                HStack {
-                    ChatRowView(content: ChatRowContent(tab: tab), justNowText: justNow ? NeedsYouSection.justNowText : nil)
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
+            // 多 Pane 的 Tab:點列往右 push 版面圖頁(#619、#641):系統 NavigationLink,列尾的 > 由系統給。
+            let layoutRoute = SpacesLayoutRoute(host: host, workspaceID: workspaceID, tabID: tabID, title: tab.title)
+            Group {
+                if usesSelection {
+                    // 寬視窗:版面圖是列表欄的系統選取,顯示在對話欄。
+                    NavigationLink(value: SidebarSelection.layout(layoutRoute)) { chatRow(tab, justNow: justNow) }
+                } else {
+                    NavigationLink(value: ChatsDestination.layout(layoutRoute)) { chatRow(tab, justNow: justNow) }
                 }
-                .contentShape(Rectangle())
             }
             .listRowInsets(ChatRowView.rowInsets)
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))

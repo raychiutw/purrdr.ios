@@ -136,7 +136,7 @@ public final class AddHostGuideModel {
     /// 這支裝置的公鑰(金鑰路徑;`loadDeviceKey()` 取得)。
     public private(set) var devicePublicKey: SSHPublicKey?
     /// 拿不到裝置金鑰時的說明。
-    public private(set) var deviceKeyProblem: String?
+    public private(set) var deviceKeyProblem: DisplayedError?
     public var address = ""
     public var port = "22"
     /// HTTPS:主機服務的位址(主機名稱)、Port 與配對碼。
@@ -149,6 +149,13 @@ public final class AddHostGuideModel {
     /// 最後一頁的通知選項(`loadNotificationOffer()` 之後才有)。
     public private(set) var notificationOffer: NotificationOffer?
     public var phase: HostConnectionPhase { flow.phase }
+    /// 從外部連結直接到測試頁:先顯示位址，使用者按下才測試(`testConnection()` 之後為 `false`)。
+    public private(set) var awaitsTestConfirmation = false
+    /// 測試頁顯示的完整連線目標(`主機:Port`，SSH 前面加帳號)。
+    public var connectionTarget: String {
+        if kind == .https { return "\(pairAddress):\(pairPort)" }
+        return "\(username)@\(address):\(port)"
+    }
 
     @ObservationIgnored private let flow: HostConnectionFlow
     @ObservationIgnored private let credentials: HostCredentials
@@ -158,6 +165,8 @@ public final class AddHostGuideModel {
     /// 匯入的原生 SSH 連結:選完電腦種類直接到登入方式。
     @ObservationIgnored private var continuesAtLogin = false
     @ObservationIgnored private var history: [Step] = []
+    /// 儲存時 `history` 會清空,完成頁之前疊著的頁留在這裡給 `pages`。
+    @ObservationIgnored private var archivedPages: [Step] = []
 
     public init(
         store: any HostStore, credentials: HostCredentials = HostCredentials(), hostService: HostServiceAccess = HostServiceAccess(),
@@ -195,6 +204,7 @@ public final class AddHostGuideModel {
                 load(link.address)
                 pairingCode = link.pairingCode
                 step = .test
+                awaitsTestConfirmation = true
                 return
             }
             let shared = try HostShareLink.decode(url)
@@ -214,6 +224,7 @@ public final class AddHostGuideModel {
                 username = shared.endpoint.username
                 flow.acceptSharedPin(of: shared)
                 step = .test
+                awaitsTestConfirmation = true
             case .openSSH:
                 // 位址、Port、帳號與 host key 已帶入:只問電腦種類(金鑰指令要依它),再選登入方式,不問連線方式與位址。
                 kind = .ssh
@@ -244,6 +255,12 @@ public final class AddHostGuideModel {
     // MARK: - 進度
 
     public var canGoBack: Bool { !history.isEmpty && step != .finished }
+
+    /// 畫面上疊著的頁(#622:每一步是一頁 push,系統返回鈕對應 `back()`):從第一頁到目前這一步。
+    /// 儲存後到完成頁時,前面的頁照舊留著(完成頁沒有上一步,返回鈕隱藏)。
+    public var pages: [Step] {
+        step == .finished ? archivedPages + [.finished] : history + [step]
+    }
 
     /// 目前第幾步、共幾步(VoiceOver 與進度點)。
     public var progress: (position: Int, total: Int) {
@@ -375,18 +392,18 @@ public final class AddHostGuideModel {
             devicePublicKey = key
             deviceKeyProblem = nil
         case .failure(let error):
-            deviceKeyProblem = HostErrorText.message(for: error)
+            deviceKeyProblem = DisplayedError(error: error)
         }
     }
 
     /// 貼上的私鑰不能用時的說明(RSA、passphrase、不是 OpenSSH 格式…);沒貼或可用時 `nil`。
-    public var privateKeyProblem: String? {
+    public var privateKeyProblem: DisplayedError? {
         guard authentication == .importedKey, !privateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         do {
             _ = try SSHPrivateKey(openSSH: privateKey)
             return nil
         } catch {
-            return HostErrorText.keyImportMessage(error)
+            return DisplayedError(HostErrorText.keyImportMessage(error), error: error)
         }
     }
 
@@ -537,6 +554,7 @@ public final class AddHostGuideModel {
     /// 測試連線:第一次連線會停在主機身分確認(`phase == .confirmHostKey`)。
     public func testConnection() async {
         guard let draft else { return }
+        awaitsTestConfirmation = false
         if step != .test { push(.test) }
         await flow.test(draft)
     }
@@ -553,6 +571,7 @@ public final class AddHostGuideModel {
     public func save() -> HostConfiguration? {
         guard let host = flow.save(draft) else { return nil }
         savedHost = host
+        archivedPages = history + [step]
         history.removeAll()
         step = .finished
         return host

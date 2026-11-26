@@ -64,6 +64,8 @@ struct SecretDetectionTests {
         j("sk", "-ant-api03-", "Zx9Yw8Vu7Ts6Rq5Po4Nm3Lk2Ji1Hg0Fe"),
         j("sk", "-", "4f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c"),
         j("sk", "_live_", "51HqLyjWDarjtT1zdp7dc2a3b4c5d6e7"),
+        j("rk", "_live_", "51HqLyjWDarjtT1zdp7dc2a3b4c5d6e7"),
+        j("STRIPE_KEY=", "rk", "_test_", "51HqLyjWDarjtT1zdp7dc2a3b4c5d6e7"),
     ])
     func skKeyDetected(_ text: String) {
         #expect(Self.kinds(text) == [.skKey])
@@ -74,8 +76,66 @@ struct SecretDetectionTests {
         "sk-1234",
         "sk-this-is-not-really-a-key-at-all",
         "desk-0123456789abcdefghijklmnop",
+        "rk_live_ 是 Stripe restricted key 的前綴",
+        "rk_live_1234",
+        "work_live_0123456789abcdefghijklmnop",
     ])
     func skKeyNotDetected(_ text: String) {
+        #expect(Self.kinds(text).isEmpty)
+    }
+
+    // MARK: - GitLab／npm／Hugging Face
+
+    @Test("GitLab token:glpat- 加 20 字以上", arguments: [
+        j("gl", "pat-", "abcdEFGH1234ijklMNOP5678"),
+        j("token: gl", "pat-", "xY7_aB3-cD9eF2gH4iJ6"),
+    ])
+    func gitLabTokenDetected(_ text: String) {
+        #expect(Self.kinds(text) == [.gitLabToken])
+    }
+
+    @Test("GitLab token:太短或只是提到前綴不算", arguments: [
+        j("gl", "pat-", "short1"),
+        "glpat- 是 GitLab personal access token 的前綴",
+        j("xgl", "pat-", "abcdEFGH1234ijklMNOP5678"),
+    ])
+    func gitLabTokenNotDetected(_ text: String) {
+        #expect(Self.kinds(text).isEmpty)
+    }
+
+    @Test("npm token:npm_ 加 36 字", arguments: [
+        j("np", "m_", "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789"),
+        j("//registry.npmjs.org/:_authToken=np", "m_", "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789"),
+    ])
+    func npmTokenDetected(_ text: String) {
+        #expect(Self.kinds(text) == [.npmToken])
+    }
+
+    @Test("npm token:長度不對、前綴黏在字上或只是提到不算", arguments: [
+        j("np", "m_", "short"),
+        "npm_config_cache 是環境變數",
+        j("my", "np", "m_", "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789"),
+        j("np", "m_", "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789ABCD"),
+    ])
+    func npmTokenNotDetected(_ text: String) {
+        #expect(Self.kinds(text).isEmpty)
+    }
+
+    @Test("Hugging Face token:hf_ 加 34 字以上英文字母", arguments: [
+        j("h", "f_", "aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgH"),
+        j("HF_TOKEN=h", "f_", "aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJk"),
+    ])
+    func huggingFaceTokenDetected(_ text: String) {
+        #expect(Self.kinds(text) == [.huggingFaceToken])
+    }
+
+    @Test("Hugging Face token:太短、前綴黏在字上或只是提到不算", arguments: [
+        j("h", "f_", "short"),
+        "hf_ 開頭的是 Hugging Face token",
+        j("shf", "_", "aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgH"),
+        "hf_hub_download",
+    ])
+    func huggingFaceTokenNotDetected(_ text: String) {
         #expect(Self.kinds(text).isEmpty)
     }
 

@@ -7,7 +7,7 @@ import PurrdrCore
 /// 之後的擴充點:Spaces 檢視(#40)是另一種投影。已釘選群組、未讀(#41)的規則在 `ChatUnread.swift`。
 package enum AgentListProjection {
     /// 一台主機的資料。
-    package struct Source {
+    package struct Source: Equatable {
         package var host: HostSelection
         /// 非選取中主機的名稱與圖示;選取中主機為 `nil`(列上不標示)。
         package var label: HostLabel?
@@ -23,6 +23,20 @@ package enum AgentListProjection {
         package var now = Date()
         /// 離開期間的輪數(pane id → 輪數;已算出才有，#308)。
         package var awayTurns: [String: Int] = [:]
+
+        /// 已跨過離開期間門檻的開啟紀錄數(`now` 唯一會影響投影的地方)。
+        package var awayCrossedCount: Int {
+            preferences.opened.values.reduce(0) { $0 + (now.timeIntervalSince($1) >= AwaySummary.threshold ? 1 : 0) }
+        }
+
+        /// 投影快取的輸入比對(#583):不比 `now`(每次繪製的 `Date()` 不同),比「跨過離開期間門檻的紀錄數」——
+        /// 開啟紀錄(在 `preferences` 裡)相同時,數量相同就是同一批跨過門檻,門檻一到快取立刻失效,不再晚到下一分鐘。
+        package static func == (lhs: Source, rhs: Source) -> Bool {
+            lhs.host == rhs.host && lhs.label == rhs.label && lhs.name == rhs.name && lhs.icon == rhs.icon
+                && lhs.snapshot == rhs.snapshot && lhs.previews == rhs.previews && lhs.preferences == rhs.preferences
+                && lhs.awayTurns == rhs.awayTurns
+                && lhs.awayCrossedCount == rhs.awayCrossedCount
+        }
     }
 
     package static func sections(

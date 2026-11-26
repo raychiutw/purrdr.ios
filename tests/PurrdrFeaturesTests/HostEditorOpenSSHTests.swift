@@ -242,8 +242,8 @@ struct HostEditorOpenSSHTests {
         await model.test()
 
         guard case .failed(let message) = model.phase else { Issue.record("\(model.phase)"); return }
-        #expect(message.contains("password"))
-        #expect(!message.contains("Tailscale"))
+        #expect(message.text.contains("password"))
+        #expect(!message.text.contains("Tailscale"))
     }
 }
 

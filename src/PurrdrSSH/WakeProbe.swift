@@ -30,4 +30,12 @@ public struct WakeProbe: Sendable {
         if !alive { await channel.disconnect() }
         return alive
     }
+
+    /// 預先撥號(#550):跑同一個無害指令讓通道重撥(期限 10 秒、含開通道);與 `run()` 不同,失敗不丟棄連線,
+    /// 後面的請求自己會重試。
+    public func dial() async {
+        _ = try? await channel.runOnce(Self.command, deadline: HostCommandDeadline.probe, includesOpening: true, sleep: sleep) { session in
+            try await session.read().didExit
+        }
+    }
 }

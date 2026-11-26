@@ -34,7 +34,7 @@ struct ConversationFileTests {
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                images: ComposerImages(uploader: uploader, store: store, makeFileName: nextName)
+                images: ComposerAttachments.Dependencies(uploader: uploader, store: store, makeFileName: nextName)
             )
         }
         return Setup(base: base, uploader: uploader, store: store)
@@ -212,7 +212,7 @@ struct ConversationFileTests {
         let model = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(channel: host), paneID: ConversationModelTests.paneID,
             knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(), clock: TestClock().clock,
-            images: ComposerImages(uploader: uploader, store: store, makeFileName: { _ in Self.fileName })
+            images: ComposerAttachments.Dependencies(uploader: uploader, store: store, makeFileName: { _ in Self.fileName })
         )
         await host.bridge.expect(ConversationReadOnlyTests.bridge, reply: ConversationReadOnlyTests.snapshot(status: "done"))
         await model.poll()

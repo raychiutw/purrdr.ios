@@ -49,6 +49,9 @@ struct ComposerBar: View {
     @State private var isDropTargeted = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// 最近一次的鍵盤高度:slash 面板取代輸入框時佔同樣高度(#624)。沒看過鍵盤時用預設值。
+    @State private var keyboardHeight = SlashPanelLayout.defaultHeight
     /// 內文一行的高度(最小對話可見高度用)。
     @ScaledMetric(relativeTo: .body) private var bodyLineHeight = 22.0
     /// 鍵盤出現時註記與建議提示詞的顯示方式(#196)。
@@ -77,7 +80,28 @@ struct ComposerBar: View {
         // 唯讀裝置(#60):沒有輸入框與送出鈕;說明只在頂部浮動橫幅出現一次(#348),輸入列不重複。
         // 這裡讀 `model.isReadOnly` 而不是橫幅:離線時橫幅是「離線」,但輸入列仍然不能送。
         if !model.isReadOnly {
-            composer
+            Group {
+                if let panel = inlinePanel {
+                    // 輸入框變成面板(#624):面板取代輸入框、佔住鍵盤位置,草稿留在 model。
+                    SlashPanelBar(model: model, panel: panel, height: sizeClass == .regular ? SlashPanelLayout.regularHeight : keyboardHeight)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                } else {
+                    composer
+                }
+            }
+                .onChange(of: inlinePanel != nil) { _, shown in
+                    // 輸入框被拿掉時系統不會回報失焦,自己清掉,讓讓位規則不以為鍵盤還在。
+                    if shown { isFocused = false }
+                }
+                #if os(iOS)
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+                    guard let frame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue,
+                          frame.height >= SlashPanelLayout.minimumHeight else { return }
+                    keyboardHeight = frame.height
+                }
+                #endif
+                // confirmationDialog:anchor 送出鈕在輸入列(safeAreaBar)裡,對話框掛在輸入列上(掛在畫面上層按了不會執行)
                 .confirmationDialog(
                     "Use mobile data?", isPresented: cellularWarningShown, titleVisibility: .visible
                 ) {
@@ -99,6 +123,13 @@ struct ComposerBar: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
         }
+    }
+
+    /// slash 指令開出的面板(窄視窗與寬視窗都取代輸入框);模型膠囊自己的 sheet 不在這裡。
+    private var inlinePanel: SlashPanel? {
+        let presentation = SlashPanelPresentation.resolve(
+            hasPanel: model.panel != nil, isChoosingModel: model.isChoosingModel)
+        return presentation == .inline ? model.panel : nil
     }
 
     private var composer: some View {
@@ -653,7 +684,7 @@ struct EchoBubbleView: View {
                 .foregroundStyle(.secondaryText)
         case .failed(let failure):
             HStack(spacing: 4) {
-                ErrorLabel(failure.text)
+                ErrorLabel(failure.text, area: "ComposerView", error: failure)
                     .font(.caption)
                 Button(action: retry) { HitTarget("Retry") }
                     .font(.caption.weight(.semibold))
@@ -731,7 +762,7 @@ struct QueuedPromptBubbleView: View {
     private var status: some View {
         if let problem = prompt.problem {
             HStack(spacing: 4) {
-                ErrorLabel(problem.text)
+                ErrorLabel(problem.text, area: "ComposerView", error: problem)
                     .accessibilityIdentifier("conversation.queued.problem")
                 Button(action: putBack) { HitTarget("Put Back") }
                     .fontWeight(.semibold)

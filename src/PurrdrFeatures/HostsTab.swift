@@ -26,7 +26,7 @@ struct HostsTab: View {
 
     @State private var flow = HostListFlow()
     @State private var statusCache = HostStatusCache()
-    @State private var actionError: String?
+    @State private var actionError: DisplayedError?
     @State private var confirmingRemoveDemo = false
 
     /// 存好或完成引導後回到總頁。
@@ -37,33 +37,17 @@ struct HostsTab: View {
     var body: some View {
         NavigationStack(path: $flow.path) {
             content
-                // 共用頂列(#500):大標題「主機」,右側單顆「＋」新增主機與頭像(沒有電腦圖示;多台主機在頁面的「主機」清單切換);
-                // 沒有搜尋,往下滑收成置中小標題。
-                .topBarPage(TopBarContent(
-                    tab: .hosts, title: "Hosts",
-                    plus: AnyView(TopBarPlusButton(title: "Add Host", identifier: "hosts.add") { flow.path.append(.add) }),
-                    account: AnyView(TopBarAccountButton(member: member, action: openAccount))))
+                // 共用頂列(#500、#616):大標題「主機」,右側 [電腦圖示｜＋] 與頭像。電腦圖示選單選看哪一台主機(與檔案 tab 同一個選單,
+                // 最下面「新增主機…」);選到需要重新確認的主機(#572)直接開編輯頁。沒有搜尋,往下滑收成置中小標題。
+                .topBarPage(topBarContent)
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }
-        .alert(
-            deletionTitle, isPresented: deletionBinding, presenting: flow.pendingDeletion
-        ) { request in
-            Button("Remove Host", role: .destructive) { confirmDeletion(request) }
-                .accessibilityIdentifier("hosts.delete.confirm")
-            Button("Cancel", role: .cancel) { flow.cancelDeletion() }
-        } message: { _ in
-            Text("This only removes the host from Purrdr. The host itself and the agents on it aren’t affected. Anything Purrdr added for this device on the host is put back.")
-        }
-        .alert("Remove the Demo Host?", isPresented: $confirmingRemoveDemo) {
-            Button("Remove Demo Host", role: .destructive) { hosts.removeDemo() }
-                .accessibilityIdentifier("hosts.demo.remove.confirm")
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The demo conversations disappear from the list. You can bring them back anytime from Add Host or Welcome in Settings.")
-        }
         .onAppear {
-            // 已配對裝置「這支裝置」那列:回總頁跳出同一個移除確認(#291)。
-            statusCache.removeHost = { id, name in flow.requestDeletionFromEditor(of: id, name: name) }
+            // 已配對裝置「這支裝置」那列:確認在那一列上問過了(#625),確認後回總頁移除(#291)。
+            statusCache.removeHost = { id, name in
+                flow.path.removeAll()
+                confirmDeletion(HostDeletionRequest(id: id, name: name))
+            }
         }
         .onAppear(perform: openPendingImport)
         .onChange(of: importURL) { openPendingImport() }
@@ -73,13 +57,27 @@ struct HostsTab: View {
         .onChange(of: addHost) { openPendingAdd() }
     }
 
+    private var topBarContent: TopBarContent {
+        let picker = hosts.screens.selectedHostPicker()
+        return TopBarContent(
+            tab: .hosts, title: "Hosts",
+            hostScope: .selected(hostName: hosts.overview?.name),
+            hostMenu: AnyView(
+                HostSelectionMenu(
+                    model: picker, addHost: { flow.path.append(.add) },
+                    reconfirm: { flow.openEditor(of: $0) })),
+            hostIdentifier: "hosts.host",
+            plus: AnyView(TopBarPlusButton(title: "Add Host", identifier: "hosts.add") { flow.path.append(.add) }),
+            account: AnyView(TopBarAccountButton(member: member, action: openAccount)))
+    }
+
     @ViewBuilder
     private var content: some View {
         if let overview = hosts.overview {
             HostOverviewView(
                 hosts: hosts, overview: overview, plus: plus, openPlus: openPlus, statusCache: statusCache, actionError: actionError,
-                removeHost: { flow.requestDeletion(of: $0, name: overview.name) },
-                removeDemo: { confirmingRemoveDemo = true }, openAddHost: { flow.path.append(.add) },
+                flow: flow, confirmRemoval: confirmDeletion,
+                confirmingRemoveDemo: $confirmingRemoveDemo, confirmRemoveDemo: { hosts.removeDemo() }, openAddHost: { flow.path.append(.add) },
                 openRoute: { flow.path.append($0) })
                 // 換主機就重新建立(用量區與主機服務各自的 model 屬於那台主機)。
                 .id(overview.host)
@@ -96,10 +94,8 @@ struct HostsTab: View {
         Group {
             switch route {
             case .add:
-                AddHostGuideScreen(make: hosts.makeAddHostGuide) { _ in
+                AddHostGuideScreen(make: hosts.screens.makeAddHostGuide) { _ in
                     finish()  // 主機在存好時已登記(onAdded)
-                } onCancel: {
-                    flow.path.removeLast()
                 } onAdded: { hosts.didSave($0) } hostPush: { id in
                     hosts.hostPushes.first { $0.host == .host(id) }
                 } onTryDemo: {
@@ -109,34 +105,28 @@ struct HostsTab: View {
                     didEnterDemo()
                 }
             case .importGuide(let url):
-                AddHostGuideScreen(make: { (try? hosts.makeImportGuide(url)) ?? hosts.makeAddHostGuide() }) { _ in
+                AddHostGuideScreen(make: { (try? hosts.screens.makeImportGuide(url)) ?? hosts.screens.makeAddHostGuide() }) { _ in
                     finish()
-                } onCancel: {
-                    flow.path.removeLast()
                 } onAdded: { hosts.didSave($0) } hostPush: { id in
                     hosts.hostPushes.first { $0.host == .host(id) }
                 }
             case .pairGuide(let id):
                 AddHostGuideScreen(
                     make: {
-                        hosts.hosts.first { $0.id == id }.flatMap { try? hosts.makePairingGuide(for: $0) } ?? hosts.makeAddHostGuide()
+                        hosts.hosts.first { $0.id == id }.flatMap { try? hosts.screens.makePairingGuide(for: $0) } ?? hosts.screens.makeAddHostGuide()
                     }
                 ) { _ in
                     finish()
-                } onCancel: {
-                    flow.path.removeLast()
                 } onAdded: { hosts.didSave($0) } hostPush: { id in
                     hosts.hostPushes.first { $0.host == .host(id) }
                 }
             case .edit:
                 // 編輯主機:名稱、圖示、連線方式與測試連線(主機主題等設定在「這台主機的設定」)。
                 HostEditorView(
-                    model: hosts.makeEditor(editing: route.hostID.flatMap { id in hosts.hosts.first { $0.id == id } })
+                    model: hosts.screens.makeEditor(editing: route.hostID.flatMap { id in hosts.hosts.first { $0.id == id } })
                 ) { host in
                     hosts.didSave(host)
                     finish()
-                } onCancel: {
-                    flow.path.removeLast()
                 } onIconSaved: {
                     finish()
                 }
@@ -162,13 +152,13 @@ struct HostsTab: View {
                     pair: { flow.path.append(.pairGuide($0)) })
                     .appPageContentWidth()
             case .hostSettings(let id):
-                if let settings = hosts.hostSettings(for: id) {
+                if let settings = hosts.member(for: .host(id)).settings() {
                     HostSettingsPage(
                         hosts: hosts, hostID: id, settings: settings, isReadOnly: hosts.overview?.status == .readOnly)
                         .appPageContentWidth()
                 }
             case .agents(let id):
-                if let model = hosts.agentSettings(for: id) {
+                if let model = hosts.member(for: .host(id)).agentSettings() {
                     HostAgentSettingsPage(hosts: hosts, hostID: id, model: model)
                         .appPageContentWidth()
                 }
@@ -203,17 +193,10 @@ struct HostsTab: View {
                 try await flow.confirmDeletion(of: request) { try await hosts.delete($0) }
                 actionError = nil
             } catch {
-                actionError = String(localized: "Couldn’t remove this host from this device. \(error.localizedDescription)")
+                actionError = DisplayedError(
+                    String(localized: "Couldn’t remove this host from this device. \(error.localizedDescription)"), error: error)
             }
         }
-    }
-
-    private var deletionTitle: Text {
-        Text("Remove “\(flow.pendingDeletion?.name ?? "")” from This Device?")
-    }
-
-    private var deletionBinding: Binding<Bool> {
-        Binding { flow.pendingDeletion != nil } set: { if !$0 { flow.cancelDeletion() } }
     }
 
     // MARK: - 從外部開啟
@@ -221,7 +204,7 @@ struct HostsTab: View {
     private func openPendingImport() {
         guard let url = importURL else { return }
         importURL = nil
-        flow.path = [(try? hosts.makeImportGuide(url)) != nil ? .importGuide(url) : .importFailed]
+        flow.path = [(try? hosts.screens.makeImportGuide(url)) != nil ? .importGuide(url) : .importFailed]
     }
 
     private func openPendingAdd() {
@@ -244,7 +227,7 @@ private struct LoginShellTool: View {
 
     init(hosts: HostsModel) {
         self.hosts = hosts
-        _picker = State(wrappedValue: hosts.hostPicker(for: .loginShell))
+        _picker = State(wrappedValue: hosts.screens.hostPicker(for: .loginShell))
     }
 
     var body: some View {
@@ -265,7 +248,7 @@ final class HostStatusCache {
         if let existing = cache[id] { return existing }
         guard let connection = hosts.hostStatusConnection(for: id), let host = hosts.hosts.first(where: { $0.id == id }) else { return nil }
         let name = host.name
-        let models = HostStatusModels(connection: connection, removeHost: { [weak self] in self?.removeHost(id, name) })
+        let models = HostStatusModels(connection: connection, hostName: name, removeHost: { [weak self] in self?.removeHost(id, name) })
         cache[id] = models
         return models
     }

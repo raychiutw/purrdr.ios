@@ -12,16 +12,35 @@ enum UITestWait {
     static let pollInterval: TimeInterval = 0.1
     static let maxPollInterval: TimeInterval = 0.5
 
+    /// 一次檢查超過這個秒數,就視為 app 的主執行緒被佔住(取快照要等它)。
+    static let unresponsiveThreshold: TimeInterval = 1
+    /// app 無回應的時間最多補償這麼久(再久就是真的卡死,讓等待逾時失敗)。
+    static let maxUnresponsiveCredit: TimeInterval = 90
+
     /// 先立刻檢查一次，不成立才每隔 `pollInterval` 再查，到 `timeout` 為止。回傳條件最後是否成立。
+    ///
+    /// `timeout` 算的是 app **有回應**的時間:Debug 版在剛開機的模擬器上第一次畫出某一頁時,主執行緒會被
+    /// Swift 型別與協定相符性的第一次查表佔住十幾秒(sample:主執行緒幾乎全在 `swift_conformsToProtocol`),
+    /// 這段時間裡取快照的那次檢查本身就拖很久("Timed out while evaluating UI query")。
+    /// 檢查拖超過 `unresponsiveThreshold` 的時間不算進 `timeout`(上限 `maxUnresponsiveCredit`),
+    /// 所以「等 15 秒」是 app 回應後的 15 秒,不是被冷啟動吃掉的 15 秒。
     @MainActor
     static func until(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         if condition() { return true }
-        let deadline = Date().addingTimeInterval(timeout)
+        var deadline = Date().addingTimeInterval(timeout)
+        var credit: TimeInterval = 0
         var interval = pollInterval
         while Date() < deadline {
             // 用 run loop 睡，讓主執行緒仍處理 XCTest 的事件。
             RunLoop.current.run(until: Date().addingTimeInterval(interval))
+            let started = Date()
             if condition() { return true }
+            let took = Date().timeIntervalSince(started)
+            if took > unresponsiveThreshold, credit < maxUnresponsiveCredit {
+                let granted = min(took, maxUnresponsiveCredit - credit)
+                credit += granted
+                deadline.addTimeInterval(granted)
+            }
             // 每次取快照都在打擾 app 的主執行緒(終端機等忙碌畫面會被拖慢)：愈等愈疏，上限 0.5 秒。
             interval = min(interval * 1.5, maxPollInterval)
         }
@@ -175,7 +194,12 @@ extension XCUIApplication {
                         search: ScrollSearch = .both, limit: Int = 6, timeout: TimeInterval = 0) -> Bool {
         let keyboard = keyboards.firstMatch
         func isReachable() -> Bool {
-            target.exists && target.isHittable && (!keyboard.exists || target.frame.maxY < keyboard.frame.minY)
+            guard target.exists && target.isHittable else { return false }
+            // 鍵盤的存在與位置要一次取(snapshot):先 `exists` 再讀 `frame` 是兩次查詢,
+            // 鍵盤正好在收起時第二次找不到("No matches found … Descendants matching type Keyboard"),整個測試就失敗。
+            // snapshot 找不到鍵盤會丟錯,等於沒有鍵盤擋著。
+            guard keyboard.exists, let keyboardTop = (try? keyboard.snapshot())?.frame.minY else { return true }
+            return target.frame.maxY < keyboardTop
         }
         if isReachable() { return true }
         let scroller = container ?? self
@@ -196,6 +220,14 @@ extension XCUIApplication {
         scrollIntoView(target, in: element(sheetIdentifier), search: search, limit: limit, timeout: timeout)
     }
 
+    /// 聊天頂列右上的用量環(#618:標題是系統導覽列標題,沒有識別碼;以這顆鈕當「聊天畫面已出現」的錨點)。
+    var conversationBar: XCUIElement { buttons["conversation.usage"].firstMatch }
+
+    /// 聊天頂列的系統副標題(只有狀態文字):導覽列裡含指定文字的靜態文字。
+    func conversationSubtitle(containing text: String) -> XCUIElement {
+        navigationBars.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
     /// 從聊天列表(Spaces)點開某台主機某個 Agent 的聊天(Tab 列 `spaces.tab.<主機身分>/<tab>`,見 `chatRowID`;Demo 主機身分是 `demo`)。
     /// Tab 有多個 Pane(Demo 的 `w3`)時先開版面圖、再點 Agent 方塊。
     @MainActor
@@ -206,7 +238,7 @@ extension XCUIApplication {
         let block = buttons["layout.block.\(paneID)"]
         if block.waitUntilExists(timeout: 2) { block.tap() }
         // 推進聊天畫面的轉場中，標題列的按鈕已經存在但點不到：等標題列停下。
-        XCTAssertTrue(element("conversation.header").waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面", file: file, line: line)
+        XCTAssertTrue(conversationBar.waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面", file: file, line: line)
     }
 
     /// 以 UI 測試模式啟動並進入某個 Demo 主機 Agent 的聊天。
@@ -276,11 +308,12 @@ extension XCUIApplication {
         let keyboard = keyboards.firstMatch
         guard keyboard.waitUntilExists(timeout: timeout) else { return false }
         let deadline = Date().addingTimeInterval(3)
-        var previous = keyboard.frame
+        // 以 snapshot 一次取得位置(鍵盤收起中時 `frame` 會因找不到鍵盤而讓測試失敗);找不到就當這次取樣沒有鍵盤。
+        var previous = (try? keyboard.snapshot())?.frame
         while Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.15))
-            let current = keyboard.frame
-            if current == previous { return true }
+            let current = (try? keyboard.snapshot())?.frame
+            if current != nil, current == previous { return true }
             previous = current
         }
         return false
@@ -289,6 +322,18 @@ extension XCUIApplication {
     /// 對話列表(`UICollectionView`,ADR-0014);原本的 `ScrollView` 查詢改指到它。
     @MainActor
     var conversationList: XCUIElement { collectionViews["conversation.list"] }
+
+    /// 點文字欄叫出鍵盤,以「欄位真的取得焦點」為準:剛推進頁面時欄位的轉場還沒停,第一下點擊可能落空
+    /// (只有那一下沒有焦點,鍵盤就不會出現);焦點沒到就再點,最多 3 次。
+    @MainActor
+    func focusTextField(_ field: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        guard field.waitUntilHittable(timeout: timeout) else { return false }
+        for _ in 0..<3 {
+            field.tap()
+            if field.wait(timeout: 2, until: { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }) { return true }
+        }
+        return false
+    }
 
     /// 等鍵盤收起(自己按「完成」或 return 之後)。
     @MainActor
@@ -356,5 +401,19 @@ extension XCUIApplication {
             previous = current
         }
         return false
+    }
+}
+
+extension XCUIApplication {
+    /// 終端機的標題與副標題(系統導覽列的標題＋副標題,#621):名稱與連線狀態,以「 | 」連起來。
+    @MainActor
+    var terminalHeader: String {
+        navigationBars.firstMatch.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " | ")
+    }
+
+    /// 等終端機的標題或狀態含指定文字。
+    @MainActor
+    func waitForTerminalHeader(containing text: String, timeout: TimeInterval) -> Bool {
+        UITestWait.until(timeout: timeout) { terminalHeader.contains(text) }
     }
 }

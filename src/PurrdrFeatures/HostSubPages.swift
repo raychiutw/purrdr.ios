@@ -62,6 +62,7 @@ struct HostNotificationsPage: View {
                 } label: {
                     HostRowLabel(title: "Pair This Host First", subtitle: "Notifications can be turned on after this device pairs with the host.")
                 }
+                .listAction()
                 .accessibilityIdentifier("hosts.notifications.pair")
             } else {
                 Toggle(isOn: Binding(get: { isOnOrPending(model) }, set: { change(model, to: $0) })) {
@@ -96,7 +97,7 @@ struct HostNotificationsPage: View {
             case .on:
                 return push.model.otherDevices > 0 ? Text("Other devices here: \(push.model.otherDevices)") : nil
             case .off:
-                if case .failed(let message) = push.model.problem { return Text("\(message) Tap the switch to try again.") }
+                if case .failed(let shown) = push.model.problem { return Text("\(shown.text) Tap the switch to try again.") }
                 return nil
             }
         }
@@ -139,6 +140,7 @@ struct HostNotificationsPage: View {
             }
             if let version = outdatedObserverVersion(push) {
                 Label("“May Be Stuck” and “Still Waiting for You” need host service \(version) or later.", systemImage: "exclamationmark.triangle")
+                    // errorLabel:exempt 需求提示,不是失敗
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
             } else if !push.installsViaHostService {
@@ -173,6 +175,7 @@ struct HostNotificationsPage: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Sign in to use notifications.", systemImage: "person.crop.circle")
                 Button("Sign In", action: openAccount)
+                    .listAction()
                     .accessibilityIdentifier("hosts.notifications.signIn")
             }
             .accessibilityIdentifier("settings.push.problem")
@@ -198,7 +201,7 @@ struct HostSettingsPage: View {
                 Section {
                     // 用量擷取的啟用與還原(經同意修改主機上 Claude Code 的 status line 設定,可完整還原)。
                     NavigationLink {
-                        PlanUsageScreen(model: hosts.planUsage(host: .host(hostID), agent: .claudeCode))
+                        PlanUsageScreen(model: hosts.screens.planUsage(host: .host(hostID), agent: .claudeCode))
                     } label: {
                         HostRowLabel(title: "Usage Capture")
                     }

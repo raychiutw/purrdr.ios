@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrNotificationContent
 
@@ -276,7 +277,27 @@ public final class PushService {
         publishHostNames()
     }
 
+    /// 第一個 frame 之後才寫對應表(#590);沒設閘就立刻寫。
+    public var launchGate: LaunchGate?
+    private var hostNamesPublishDeferred = false
+
     private func publishHostNames() {
+        guard hostNameSharing != nil else { return }
+        if let launchGate, !launchGate.isOpen {
+            guard !hostNamesPublishDeferred else { return }
+            hostNamesPublishDeferred = true
+            launchGate.run { [weak self] in
+                Task { @MainActor in
+                    self?.hostNamesPublishDeferred = false
+                    self?.writeHostNames()
+                }
+            }
+            return
+        }
+        writeHostNames()
+    }
+
+    private func writeHostNames() {
         hostNameSharing?.save(PushHostNameMap.make(pairings: store.pairings, hostNames: latestHostNames))
     }
 
@@ -454,16 +475,16 @@ public final class PushModel {
         /// 通知權限被拒：到 iOS 設定打開。
         case permissionDenied
         /// 取不到 APNs token(模擬器、缺 entitlement);附原始錯誤。
-        case unsupportedDevice(String)
+        case unsupportedDevice(DisplayedError)
         /// 主機服務太舊，不能代裝外掛：附依已安裝版本的更新指令。
         case hostServiceOutdated(HostServiceUpdateCommands)
         /// Keychain 讀不到這支裝置的推播 id(裝置還沒第一次解鎖);稍後再試。
-        case deviceIDUnavailable
+        case deviceIDUnavailable(DisplayedError)
         /// 通知開著，但主機上的靜音清單沒改成;附原因。
-        case mutedSyncFailed(String)
+        case mutedSyncFailed(DisplayedError)
         /// 通知開著，但要收的種類沒改成(維持原本的);附原因。
-        case kindsUpdateFailed(String)
-        case failed(String)
+        case kindsUpdateFailed(DisplayedError)
+        case failed(DisplayedError)
     }
 
     public private(set) var state: State = .off
@@ -493,8 +514,11 @@ public final class PushModel {
     ///   - hostID: 主機 id;Demo 主機是 `nil`。
     ///   - installer: 這支裝置在這台主機的推播外掛安裝;`nil` 時這台主機沒有推播。
     ///   - muted: 目前靜音的聊天(session 值,存在本機的聊天偏好),配對時寫進主機。
+    ///   - testSender: 這台主機自己的測試通知送出管道;`nil` 時沒有(`PushService.testNotifications` 有值時以它為準)。
     public init(service: PushService?, hostID: String?, installer: (any PushPluginInstalling)?,
+                testSender: (any PushTestNotificationSending)? = nil,
                 muted: @escaping @MainActor () -> Set<String>) {
+        self.testSender = testSender
         self.service = service
         self.hostID = hostID
         self.installer = installer
@@ -538,13 +562,13 @@ public final class PushModel {
         case idle
         case sending
         case sent
-        case failed(String)
+        case failed(DisplayedError)
     }
 
     public private(set) var testNotification: TestNotification = .idle
 
     /// 這台主機自己的測試通知送出管道(SSH 主機由 `HostsModel` 接上);`PushService.testNotifications` 有值時以它為準。
-    public var testSender: (any PushTestNotificationSending)?
+    public let testSender: (any PushTestNotificationSending)?
 
     private var testNotificationSender: (any PushTestNotificationSending)? { service?.testNotifications ?? testSender }
 
@@ -568,7 +592,8 @@ public final class PushModel {
             testNotification = .sent
         } catch PushTestNotificationError.notPaired {
             // 主機上已沒有有效配對(被刪、後台已撤銷):與改靜音遇到 notPaired 相同，這台回到未開啟並撤銷後台配對，使用者重新開啟。
-            testNotification = .failed(Self.describeTestFailure(PushTestNotificationError.notPaired))
+            testNotification = .failed(DisplayedError(
+                Self.describeTestFailure(PushTestNotificationError.notPaired), error: PushTestNotificationError.notPaired))
             if let service, let keyHash = service.store.keyHash(forHost: hostID) {
                 service.store.setKeyHash(nil, forHost: hostID)
                 let session = service.session
@@ -577,7 +602,7 @@ public final class PushModel {
             state = .off
             problem = nil
         } catch {
-            testNotification = .failed(Self.describeTestFailure(error))
+            testNotification = .failed(DisplayedError(Self.describeTestFailure(error), error: error))
         }
     }
 
@@ -589,7 +614,7 @@ public final class PushModel {
             problem = .demoHost
             return
         }
-        guard (try? service.device()) != nil else { return stop(.deviceIDUnavailable) }
+        do { _ = try service.device() } catch { return stop(Self.deviceIDUnavailable(error)) }
         state = .checking
         guard await service.isPlusActive() else { return stop(.needsSubscription) }
         switch await service.platform.authorization() {
@@ -603,7 +628,7 @@ public final class PushModel {
         do {
             deviceToken = try await service.platform.deviceToken()
         } catch {
-            return stop(.unsupportedDevice(error.localizedDescription))
+            return stop(.unsupportedDevice(DisplayedError(error.localizedDescription, error: error)))
         }
         do {
             let status = try await installer.status()
@@ -621,7 +646,8 @@ public final class PushModel {
     /// 使用者確認安裝。
     public func confirm() async {
         guard case .confirming = state, let service, let installer, let hostID, let deviceToken else { return }
-        guard let device = try? service.device() else { return stop(.deviceIDUnavailable) }
+        let device: PushDeviceIdentity
+        do { device = try service.device() } catch { return stop(Self.deviceIDUnavailable(error)) }
         state = .turningOn
         let key = PushPairingKey.generate()
         let tokenHex = PushService.hex(deviceToken)
@@ -634,7 +660,7 @@ public final class PushModel {
         } catch BackendError.signedOut {
             return stop(.needsSubscription)
         } catch {
-            return stop(.failed(Self.describe(error)))
+            return stop(.failed(DisplayedError(Self.describe(error), error: error)))
         }
         do {
             let file = PushPairingFile(endpoint: service.configuration.endpoint, key: key, muted: muted())
@@ -679,7 +705,7 @@ public final class PushModel {
         } catch BackendError.signedOut {
             problem = .needsSubscription
         } catch {
-            problem = .kindsUpdateFailed(Self.describeKindsFailure(error))
+            problem = .kindsUpdateFailed(DisplayedError(Self.describeKindsFailure(error), error: error))
         }
     }
 
@@ -692,7 +718,9 @@ public final class PushModel {
             try await installer.remove()
         } catch PushPluginError.pluginUninstallFailed(let message) {
             // 配對已移除(外掛沒有配對就什麼都不送),當成已關閉並說明。
-            problem = .failed(String(localized: "Notifications are off, but the notification helper couldn’t be removed: \(message)"))
+            problem = .failed(DisplayedError(
+                String(localized: "Notifications are off, but the notification helper couldn’t be removed: \(message)"),
+                error: PushPluginError.pluginUninstallFailed(message)))
         } catch {
             state = .on
             problem = Self.problem(for: error)
@@ -747,7 +775,8 @@ public final class PushModel {
             let session = service.session
             Task { try? await session.revokePushPairing(keyHash: keyHash) }
         } catch {
-            problem = .mutedSyncFailed(String(localized: "Couldn’t update muted chats on this host: \(error.localizedDescription)"))
+            problem = .mutedSyncFailed(DisplayedError(
+                String(localized: "Couldn’t update muted chats on this host: \(error.localizedDescription)"), error: error))
         }
     }
 
@@ -760,14 +789,18 @@ public final class PushModel {
         self.problem = problem
     }
 
+    private static func deviceIDUnavailable(_ error: any Error) -> Problem {
+        .deviceIDUnavailable(DisplayedError(String(localized: "Couldn’t read this device’s ID. Unlock this device and try again."), error: error))
+    }
+
     static func problem(for error: any Error) -> Problem {
         switch error {
         case PushPluginError.hostServiceOutdated(let installed):
             .hostServiceOutdated(HostServiceUpdates.commands(installed: installed))
         case is PushDeviceIDError:
-            .deviceIDUnavailable
+            deviceIDUnavailable(error)
         default:
-            .failed(describe(error))
+            .failed(DisplayedError(describe(error), error: error))
         }
     }
 

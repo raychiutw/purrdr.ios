@@ -13,9 +13,11 @@ public final class WorkspaceActionsModel {
     /// 重新命名失敗的原因，顯示在重新命名表單裡。
     public private(set) var renameError: String?
     /// 建立 worktree 失敗的原因，顯示在表單裡。
-    public private(set) var worktreeError: String?
+    public private(set) var worktreeError: DisplayedError?
     /// 關閉等已結束的動作失敗時的訊息，以可關閉的橫幅顯示(與連線錯誤分開)。
-    public var actionError: String?
+    public var actionError: DisplayedError?
+    /// `actionError` 的標題,寫明失敗的是哪個動作(#625)。
+    public private(set) var actionErrorTitle = ""
     /// 有操作正在主機上執行。
     public private(set) var isWorking = false
     /// 這支裝置配對成唯讀(HTTPS 主機):改到主機的操作停用(`loadAccess()` 讀)。
@@ -92,8 +94,11 @@ public final class WorkspaceActionsModel {
     /// 記下開啟這個 session 聊天的時間(進入與離開對話時各一次;行為規格 F2.6)。之前的回覆都算讀過。
     /// - Parameter seen: 開著時看到的最後一則回覆的時間(主機時間)。主機時鐘比手機快時，回覆時間會在手機的「現在」之後;
     ///   取兩者較晚的，開過的聊天才不會一直是未讀。
-    public func markOpened(sessionID: String, seen: Date? = nil) {
-        preferences.opened[sessionID] = max(now(), seen ?? .distantPast)
+    /// - Parameter liveSessions: 主機快照裡現有的 session;給了才順便修剪 `opened`(見 `ChatPreferences.pruneOpened`)。
+    public func markOpened(sessionID: String, seen: Date? = nil, liveSessions: Set<String>? = nil) {
+        let current = now()
+        preferences.opened[sessionID] = max(current, seen ?? .distantPast)
+        if let liveSessions { preferences.pruneOpened(liveSessions: liveSessions.union([sessionID]), now: current) }
         store.save(preferences)
     }
 
@@ -117,7 +122,7 @@ public final class WorkspaceActionsModel {
         return await perform {
             try await client.renameWorkspace(workspaceID, to: label.trimmingCharacters(in: .whitespacesAndNewlines))
         } onError: {
-            renameError = $0
+            renameError = $0.text
         }
     }
 
@@ -127,7 +132,7 @@ public final class WorkspaceActionsModel {
         return await perform {
             try await client.renameTab(tabID, to: label.trimmingCharacters(in: .whitespacesAndNewlines))
         } onError: {
-            renameError = $0
+            renameError = $0.text
         }
     }
 
@@ -145,6 +150,7 @@ public final class WorkspaceActionsModel {
         let closed = await perform {
             try await client.closeWorkspace(workspaceID)
         } onError: {
+            actionErrorTitle = String(localized: "Couldn’t Close Workspace")
             actionError = $0
         }
         guard closed else { return }
@@ -185,6 +191,7 @@ public final class WorkspaceActionsModel {
             }
             closedTabs[tabID] = now()
         } onError: {
+            actionErrorTitle = String(localized: "Couldn’t Close Tab")
             actionError = $0
         }
         guard closed else { return }
@@ -213,17 +220,22 @@ public final class WorkspaceActionsModel {
 
     // MARK: -
 
-    private func perform(_ operation: () async throws -> Void, onError: (String) -> Void) async -> Bool {
+    private func perform(_ operation: () async throws -> Void, onError: (DisplayedError) -> Void) async -> Bool {
         isWorking = true
         defer { isWorking = false }
         do {
             try await operation()
         } catch {
-            onError(Self.message(for: error))
+            onError(Self.displayed(for: error))
             return false
         }
         await refresh()
         return true
+    }
+
+    /// `message(for:)` 的說明文字加上記錄用的類別與錯誤碼(同一個值)。
+    package static func displayed(for error: any Error) -> DisplayedError {
+        DisplayedError(message(for: error), error: error)
     }
 
     /// 需要另外說明的碼換成使用者看得懂的話;其他保留 herdr 原文(行為規格 §3.8)。

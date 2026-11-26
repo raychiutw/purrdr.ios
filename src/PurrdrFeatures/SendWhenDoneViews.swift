@@ -3,46 +3,29 @@ import PurrdrCore
 import SwiftUI
 
 /// 狀態 sheet 的「做完再送」開關(#305、#349:開關從輸入列移到狀態 sheet)。
-/// 開著時送出的訊息排進主機的佇列、Agent 做完後依序送出。SSH 主機、舊版主機服務與唯讀裝置停用，點了說明原因。
+/// 開著時送出的訊息排進主機的佇列、Agent 做完後依序送出。SSH 主機、舊版主機服務與唯讀裝置停用，原因寫在開關下方(`SendWhenDoneAvailability.unavailabilityReason`)。
 struct SendWhenDoneToggle: View {
     @Bindable var model: SendWhenDoneModel
     var identifier = "status.sendWhenDone"
 
     var body: some View {
-        Button {
-            model.toggle()
-        } label: {
-            HStack {
-                Label("Send When Done", systemImage: model.isEnabled ? "checkmark.circle.fill" : "hourglass")
-                Spacer()
-                Text(model.isEnabled ? "On" : "Off")
-                    .foregroundStyle(.secondaryText)
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+        Toggle(isOn: $model.isRequested) {
+            Label("Send When Done", systemImage: "hourglass")
         }
-        .buttonStyle(.plain)
-        .opacity(model.availability == .available ? 1 : 0.5)
-        .accessibilityLabel(Text("Send When Done"))
-        .accessibilityValue(Text(model.isEnabled ? "On" : "Off"))
-        .accessibilityAddTraits(.isToggle)
-        .accessibilityHint(Text(model.availability == .available ? "Queues your message and sends it when the agent is done." : Self.explanation(for: model.availability)))
+        .disabled(model.availability != .available)
         .accessibilityIdentifier(identifier)
-        .alert("Send When Done", isPresented: $model.explainsUnavailability) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(Self.explanation(for: model.availability))
-        }
     }
+}
 
-    /// 停用的原因(點開關時顯示)。
-    static func explanation(for availability: SendWhenDoneAvailability) -> LocalizedStringKey {
-        switch availability {
-        case .available: ""
+extension SendWhenDoneAvailability {
+    /// 停用的原因;可用時是 `nil`。寫在開關下方的說明(footer),不再點了才跳 alert(#626)。
+    var unavailabilityReason: String? {
+        switch self {
+        case .available: nil
         case .needsHostService:
-            "Send When Done needs the Purrdr host service on this host. Install or update it first."
+            String(localized: "Send When Done needs the Purrdr host service on this host. Install or update it first.")
         case .readOnlyDevice:
-            "This device is paired read-only, so it can’t queue messages."
+            String(localized: "This device is paired read-only, so it can’t queue messages.")
         }
     }
 }

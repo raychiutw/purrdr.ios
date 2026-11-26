@@ -14,8 +14,8 @@ struct ConversationAntigravityStatusTests {
     static let paneID = ConversationModelTests.paneID
     static let conversationID = "00000000-0000-4000-8000-000000000000"
 
-    static func opened() async throws -> ConversationModelTests.Setup {
-        let setup = try ConversationModelTests.setup(transcript: nil, knownSessionID: conversationID)
+    static func opened(links: ConversationModel.HostLinks = .init()) async throws -> ConversationModelTests.Setup {
+        let setup = try ConversationModelTests.setup(transcript: nil, knownSessionID: conversationID, links: links)
         try setup.shell.write(
             Fixtures.otherAgentTranscript("antigravity/live-1.5.14/transcript.jsonl"),
             to: ".gemini/antigravity-cli/brain/\(conversationID)/.system_generated/logs/transcript.jsonl")
@@ -34,7 +34,7 @@ struct ConversationAntigravityStatusTests {
         #expect(setup.model.modelSummary == "Gemini 4 Neon · Medium")
     }
 
-    @Test("讀畫面:plan 模式顯示在標題的徽章,模型膠囊顯示,但不能切換權限模式或模型")
+    @Test("讀畫面:plan 模式讀得到,模型膠囊顯示,但不能切換權限模式或模型")
     func planModeShownReadOnly() async throws {
         let setup = try await Self.opened()
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("agy-idle-plan"))
@@ -42,7 +42,6 @@ struct ConversationAntigravityStatusTests {
         await setup.model.refreshStatusLine()
 
         #expect(setup.model.permissionMode == .plan)
-        #expect(setup.model.header.permissionBadge?.mode == .plan)
         #expect(setup.model.showsModelCapsule)
         #expect(setup.model.supportsPermissionMode)
         #expect(setup.model.canSwitchPermissionMode)
@@ -50,7 +49,7 @@ struct ConversationAntigravityStatusTests {
         #expect(setup.model.modelChoiceLock == .notVerified(documentedFor: "Antigravity CLI 1.5.14"))
     }
 
-    @Test("default 模式(狀態列沒有模式那一段)是一般模式,標題沒有徽章")
+    @Test("default 模式(狀態列沒有模式那一段)是一般模式")
     func defaultModeHasNoBadge() async throws {
         let setup = try await Self.opened()
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("agy-idle-default"))
@@ -58,7 +57,6 @@ struct ConversationAntigravityStatusTests {
         await setup.model.refreshStatusLine()
 
         #expect(setup.model.permissionMode == .normal)
-        #expect(setup.model.header.permissionBadge == nil)
     }
 
     @Test("畫面讀不出狀態列(讀不到或被蓋住)沿用上次的值")
@@ -98,9 +96,8 @@ struct ConversationAntigravityStatusTests {
     }
 
     static func opened(statusFile name: String, contextPercent: Double? = nil) async throws -> ConversationModelTests.Setup {
-        let setup = try await opened()
         let reader = ConversationSessionStatusTests.Reader([conversationID: try status(name, contextPercent: contextPercent)])
-        setup.model.agentSessionStatusReaders = [.agy: reader]
+        let setup = try await opened(links: .init(agentSessionStatusReaders: [.agy: reader]))
         await setup.model.refreshSessionStatusIfDue()
         return setup
     }
@@ -133,8 +130,7 @@ struct ConversationAntigravityStatusTests {
 
     @Test("沒有 statusline 檔:照舊用畫面與對話紀錄")
     func withoutStatusFileUsesScreen() async throws {
-        let setup = try await Self.opened()
-        setup.model.agentSessionStatusReaders = [.agy: ConversationSessionStatusTests.Reader()]
+        let setup = try await Self.opened(links: .init(agentSessionStatusReaders: [.agy: ConversationSessionStatusTests.Reader()]))
         await setup.model.refreshSessionStatusIfDue()
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("agy-idle-plan"))
         await setup.model.refreshStatusLine()

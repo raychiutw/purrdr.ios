@@ -119,9 +119,9 @@ struct AgentListPreviewTests {
     @Test("預覽讀取很慢：不擋住快照與訂閱(「需要你」不被延遲)")
     func slowPreviewsDoNotDelaySnapshots() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
-        await connection.expect("events.subscribe", reply: Fixtures.data("events.subscribe.started.ndjson"))
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expectSubscription(wire: Fixtures.data("events.subscribe.started.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await connection.holdTranscripts()
         let model = AgentListModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), sleep: RecordingSleeper().sleep)
@@ -131,7 +131,7 @@ struct AgentListPreviewTests {
             Task { await connection.releaseTranscripts() }
         }
 
-        try await waitUntil { await !connection.transcriptRequests.isEmpty }
+        try await waitUntil { await connection.typedCalls.contains { $0.hasPrefix("readTranscriptPreviews") } }
         try await waitUntil { await connection.requests.count == 3 }
         #expect(await connection.unmetExpectations.isEmpty)
     }
@@ -188,5 +188,27 @@ struct AgentListPreviewTests {
         try await waitUntil { await MainActor.run { model.previews["w1:pA"]?.text == "新的回覆" } }
         commands = await host.shellCommands
         #expect(commands.count == 3)
+    }
+
+    @Test("預覽重讀沒變(unchanged)：不通知觀察者(#582)")
+    func unchangedPreviewReadDoesNotNotifyObservers() async throws {
+        let host = try await Self.makeHost(thenSnapshots: [Self.snapshot])
+        let (model, task) = try await Self.start(host)
+        defer { task.cancel() }
+        try await waitUntil { await MainActor.run { model.previews["w1:p6"] != nil } }
+        let readsBefore = await host.shellCommands.count
+
+        let changed = ObservedChange()
+        withObservationTracking {
+            _ = model.previews
+        } onChange: {
+            changed.happened = true
+        }
+        await host.bridge.send(stdout: Self.paneEvent("w1:p6"), toExecution: 1)
+        try await waitUntil { await host.shellCommands.count > readsBefore }
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(await host.shellCommands.count > readsBefore, "確實重讀了一次")
+        #expect(!changed.happened, "主機回 unchanged、預覽沒變，不該通知")
     }
 }

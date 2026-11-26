@@ -70,7 +70,7 @@ struct ConversationVideoTests {
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                images: ComposerImages(
+                images: ComposerAttachments.Dependencies(
                     uploader: uploader, store: store, makeFileName: { _ in Self.fileName }, videoCompressor: compressor, isOnCellular: { onCellular })
             )
         }

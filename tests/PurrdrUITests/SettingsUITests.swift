@@ -125,8 +125,8 @@ final class SettingsUITests: XCTestCase {
         app.scrollIntoView(signOut, search: .down)
         XCTAssertTrue(signOut.waitUntilExists(timeout: 10))
         signOut.tap()
-        XCTAssertTrue(app.alerts["Sign Out?"].waitForExistence(timeout: 5), "登出前沒有說明")
-        app.alerts["Sign Out?"].buttons["Cancel"].tap()
+        XCTAssertTrue(app.sheets["Sign Out?"].waitForExistence(timeout: 5), "登出前沒有說明")
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
         XCTAssertTrue(signOut.exists, "取消後仍在帳號頁")
     }
 
@@ -143,7 +143,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(copy.wait(for: NSPredicate(format: "label == %@", "Copied"), timeout: 5), "等待的條件沒有成立")
     }
 
-    /// 捲動卡頓記錄(診斷):開關預設開啟、可關閉再開;分享與清除按鈕在。只驗行為,不驗記錄內容。
+    /// 操作記錄(診斷):開關預設開啟、可關閉再開;分享與清除按鈕在。只驗行為,不驗記錄內容。
     @MainActor
     func testHitchLogSectionHasToggleShareAndClear() {
         let app = XCUIApplication.launchUITesting()
@@ -151,7 +151,9 @@ final class SettingsUITests: XCTestCase {
 
         let toggle = app.switches["settings.hitchLog"]
         app.scrollIntoView(toggle, search: .down)
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有「記錄捲動卡頓」開關")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有「操作記錄」開關")
+        XCTAssertEqual(toggle.label, "Operation Log")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "When Purrdr closes unexpectedly")).firstMatch.exists, "說明文字應已移除")
         XCTAssertEqual(toggle.value as? String, "1", "預設應該開啟")
         let share = app.buttons["settings.hitchLog.share"]
         XCTAssertTrue(share.exists, "沒有「分享診斷記錄」")
@@ -174,7 +176,7 @@ final class SettingsUITests: XCTestCase {
 
         // 聊天頂列:新增聊天鈕在,搜尋欄提示是繁體中文(#501)。
         XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有看到列表")
-        XCTAssertEqual(app.chatSearch.placeholderValue, "搜尋 Tab、Workspace、主機", "列表不是繁體中文")
+        XCTAssertEqual(app.revealChatSearch().placeholderValue, "搜尋 Tab、Workspace、主機", "列表不是繁體中文")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["帳號"].waitUntilExists(timeout: 5), "帳號與設定頁標題不是繁體中文")
         XCTAssertTrue(app.staticTexts["用量顯示"].waitUntilExists(timeout: 5), "設定沒有「用量顯示」")

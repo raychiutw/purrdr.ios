@@ -104,3 +104,34 @@ struct HostPickerModelTests {
         #expect(HostPickerModel.newChat(options: Self.options, currentHost: nil, selection: Self.mac).selection == Self.mac)
     }
 }
+
+@MainActor
+@Suite("主機選單:需要重新確認的主機(#572、#616)")
+struct HostPickerReconfirmationTests {
+    private static let ok = UUID()
+    private static let changed = UUID()
+
+    private func picker() -> HostPickerModel {
+        HostPickerModel(
+            options: [
+                HostOption(id: .host(Self.ok), name: "Ok"),
+                HostOption(id: .host(Self.changed), name: "Changed", needsReconfirmation: true),
+                HostOption(id: .demo, name: "Demo"),
+            ], preferred: [.host(Self.ok)])
+    }
+
+    @Test("選需要重新確認的主機:換成它,並回傳要開編輯頁確認的主機")
+    func choosingReconfirmationHost() {
+        let model = picker()
+        #expect(model.choose(.host(Self.changed)) == Self.changed)
+        #expect(model.selection == .host(Self.changed))
+    }
+
+    @Test("選一般主機或 Demo:只換選取,不要求確認")
+    func choosingOrdinaryHost() {
+        let model = picker()
+        #expect(model.choose(.demo) == nil)
+        #expect(model.selection == .demo)
+        #expect(model.choose(.host(Self.ok)) == nil)
+    }
+}

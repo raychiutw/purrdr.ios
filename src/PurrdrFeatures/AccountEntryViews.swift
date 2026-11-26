@@ -9,26 +9,114 @@ extension EnvironmentValues {
 
 // MARK: - 選擇、登入、註冊(加入的第 1 步)
 
-/// 沒登入時帳號頁的前三種畫面(#408,設計稿第 26 組):選擇「登入」或「加入會員」、登入、建立會員。
-/// 帳號 sheet 與付費牆的「登入以訂閱」共用。
-struct AccountEntryPages: View {
+/// 沒登入時帳號頁的導覽(#408、#623):根是選擇頁,登入、加入與加入的各步驟都往右推入(`NavigationStack` 的 destination),
+/// 左上是系統返回「<」。帳號 sheet 與付費牆的「登入以訂閱」共用。
+///
+/// 頁面堆疊由 `AccountEntryFlow` 推導(`path`):流程往前走(登入結果、略過、前進)就推入,
+/// 系統返回(點「<」或左緣滑回)再經 `apply(path:)` 回寫成流程狀態,所以流程狀態永遠是唯一的來源。
+struct AccountEntryStack<Root: View>: View {
     let model: MemberModel
     @Binding var entry: AccountEntryFlow
-    /// 設定(#503):只有選擇頁(沒登入的第一層)帶著。
-    var settings: AccountSettings?
+    let plus: SubscriptionModel?
+    let pushes: [HostPush]
+    let hostSync: HostSyncModel?
+    let hostCount: Int
+    /// 關閉整個 modal(第 2 步起左上的 X)。
+    let onClose: () -> Void
+    @ViewBuilder let root: Root
+
+    @State private var pages: [AccountEntryFlow.Page] = []
 
     var body: some View {
-        switch entry.screen {
-        case .signIn: AccountAuthPage(model: model, entry: $entry, copy: .signIn)
-        case .join: AccountAuthPage(model: model, entry: $entry, copy: .signUp)
-        case .choose, .account: ChoosePage(entry: $entry, settings: settings)
+        NavigationStack(path: $pages) {
+            root
+                .navigationDestination(for: AccountEntryFlow.Page.self) { page in
+                    destination(page)
+                }
         }
+        // 對話框掛在最外層(NavigationStack 之外):掛在根頁上,推入登入頁後根頁不在畫面上,對話框不會出現。
+        // 登入頁查無這個帳號的會員:擋下並問要不要加入,確認才進加入流程(#434)。
+        .alert("No Member Found", isPresented: Binding(get: { model.memberNotFound }, set: { if !$0 { model.dismissMemberNotFound() } })) {
+            Button("Join") { entry.switchToJoin() }
+                .accessibilityIdentifier("member.notFound.join")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("We couldn’t find a member for this account. Do you want to join?")
+        }
+        .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
+            if notice == .deleted {
+                Link("Manage Subscriptions", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
+            }
+            if notice == .signOutBackendUnreachable {
+                Button("Sign Out Anyway", role: .destructive) { Task { await model.signOut(force: true) } }
+                    .accessibilityIdentifier("member.signOutAnyway")
+                Button("Cancel", role: .cancel) {}
+            } else {
+                Button("OK", role: .cancel) {}
+            }
+        } message: { notice in
+            Text(notice.message)
+        }
+        .reportsErrorDisplay(model.notice?.displayedError, area: "AccountEntry")
+        // 流程 → 堆疊:登入結果、前進、略過。
+        .onChange(of: shownPath) { _, path in
+            if pages != path { pages = path }
+        }
+        // 堆疊 → 流程:選擇頁點列推入、系統返回。
+        .onChange(of: pages) { _, new in
+            guard new != shownPath else { return }
+            entry.apply(path: new)
+            if pages != shownPath { pages = shownPath }
+        }
+    }
+
+    private var noticePresented: Binding<Bool> {
+        Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
+    }
+
+    private var shownPath: [AccountEntryFlow.Page] {
+        entry.shownScreen(phase: model.phase, hasPlus: plus != nil) == nil ? [] : entry.path
+    }
+
+    @ViewBuilder
+    private func destination(_ page: AccountEntryFlow.Page) -> some View {
+        switch page {
+        case .signIn:
+            AccountAuthPage(model: model, entry: $entry, copy: .signIn)
+                .entryPageChrome(title: "Sign In", entry: entry, page: page, onClose: onClose)
+        case .join:
+            AccountAuthPage(model: model, entry: $entry, copy: .signUp)
+                .entryPageChrome(title: "Join as a Member", entry: entry, page: page, onClose: onClose)
+        case .joinStep(let step):
+            if let plus {
+                JoinFlowPages(
+                    model: model, entry: $entry, step: step, plus: plus, pushes: pushes, hostSync: hostSync,
+                    hostCount: hostCount, signedInMember: signedInMember)
+                    .entryPageChrome(title: "Join as a Member", entry: entry, page: page, onClose: onClose)
+                    // 會員已建立,不回到上一步;要離開用左上的關閉。
+                    .navigationBarBackButtonHidden()
+            }
+        }
+    }
+
+    private var signedInMember: Member? {
+        if case .signedIn(let member) = model.phase { return member }
+        return nil
+    }
+}
+
+private extension View {
+    func entryPageChrome(title: LocalizedStringKey, entry: AccountEntryFlow, page: AccountEntryFlow.Page, onClose: @escaping () -> Void) -> some View {
+        navigationTitle(title)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar { AccountEntryPageToolbar(entry: entry, page: page, onClose: onClose) }
     }
 }
 
 /// 選擇頁:Purrdr 圖示、說明與「登入」「加入會員」兩列。
-private struct ChoosePage: View {
-    @Binding var entry: AccountEntryFlow
+struct ChoosePage: View {
     let settings: AccountSettings?
 
     var body: some View {
@@ -54,12 +142,8 @@ private struct ChoosePage: View {
                 .listRowBackground(Color.clear)
             }
             Section {
-                ChoiceRow(title: "Sign In", detail: "Already a member", identifier: "account.entry.signIn") {
-                    entry.chooseSignIn()
-                }
-                ChoiceRow(title: "Join as a Member", detail: "First time here. We’ll set up Plus with you.", identifier: "account.entry.join") {
-                    entry.chooseJoin()
-                }
+                ChoiceRow(title: "Sign In", detail: "Already a member", identifier: "account.entry.signIn", page: .signIn)
+                ChoiceRow(title: "Join as a Member", detail: "First time here. We’ll set up Plus with you.", identifier: "account.entry.join", page: .join)
             } footer: {
                 Text("Chat, terminal, and host management don’t need a member account.")
                     .frame(maxWidth: .infinity)
@@ -68,35 +152,27 @@ private struct ChoosePage: View {
             }
             if let settings { SettingsSections(settings) }
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("account.signedOut")
     }
 }
 
+/// 往右推入下一頁的列:列尾的 `>` 由系統的 `NavigationLink` 給(#623)。
 private struct ChoiceRow: View {
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
     let identifier: String
-    let action: () -> Void
+    let page: AccountEntryFlow.Page
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).fontWeight(.semibold)
-                    Text(detail)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondaryText)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+        NavigationLink(value: page) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).fontWeight(.semibold)
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.pressableRow())
         .accessibilityIdentifier(identifier)
     }
 }
@@ -124,9 +200,9 @@ private struct AccountAuthPage: View {
             .padding(.horizontal)
             .padding(.top, 16)
         }
-        // 識別碼掛在 ScrollView 本身:掛在 safeAreaInset 外層會蓋掉登入鈕自己的識別碼。
+        // 識別碼掛在 ScrollView 本身:掛在 safeAreaBar 外層會蓋掉登入鈕自己的識別碼。
         .accessibilityIdentifier(isSignUp ? "account.entry.joinPage" : "account.entry.signInPage")
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             VStack(spacing: 8) {
                 SignInButtons(model: model, linking: false, methods: SignInMethod.allCases, copy: copy)
                 Text(isSignUp
@@ -142,7 +218,6 @@ private struct AccountAuthPage: View {
                 .accessibilityIdentifier("account.entry.switch")
             }
             .padding()
-            .background(.bar)
         }
     }
 }
@@ -153,6 +228,8 @@ private struct AccountAuthPage: View {
 struct JoinFlowPages: View {
     let model: MemberModel
     @Binding var entry: AccountEntryFlow
+    /// 這一頁是哪一步(每一步各自推入一頁,不看流程目前走到哪)。
+    let step: AccountJoinFlow.Step
     let plus: SubscriptionModel
     let pushes: [HostPush]
     let hostSync: HostSyncModel?
@@ -164,7 +241,7 @@ struct JoinFlowPages: View {
 
     var body: some View {
         Group {
-            switch entry.join.step {
+            switch step {
             case .createMember, .activatePlus: paywallPage
             case .turnOnNotifications: notificationsPage
             case .syncHosts: syncPage
@@ -190,6 +267,7 @@ struct JoinFlowPages: View {
 
     private var paywallPage: some View {
         List {
+            SubscriptionNoticeSection(plus: plus)
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Activate Purrdr Plus").font(.title2.bold())
@@ -212,6 +290,7 @@ struct JoinFlowPages: View {
                 Section {
                     Text("Couldn’t load subscription options. Check your connection and try again.")
                     Button("Try Again") { Task { await plus.loadPlans() } }
+                        .listAction()
                 }
             case .available:
                 Section {
@@ -227,7 +306,7 @@ struct JoinFlowPages: View {
                 }
             }
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("account.join.paywall")
         .disabled(plus.isWorking)
         .task { await plus.loadPlans() }
@@ -236,7 +315,8 @@ struct JoinFlowPages: View {
         } message: { notice in
             Text(notice.message)
         }
-        .safeAreaInset(edge: .bottom) {
+        .reportsErrorDisplay(plus.notice?.displayedError, area: "AccountJoin")
+        .safeAreaBar(edge: .bottom) {
             VStack(spacing: 2) {
                 if plus.storefront == .available {
                     primaryButton(selectedPlan?.freeTrial == nil ? "Subscribe" : "Start Free Trial") { subscribe() }
@@ -259,12 +339,11 @@ struct JoinFlowPages: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
-            .background(.bar)
         }
     }
 
     private var noticePresented: Binding<Bool> {
-        Binding(get: { plus.notice != nil }, set: { if !$0 { plus.notice = nil } })
+        Binding(get: { plus.notice.map { !$0.isInformational } ?? false }, set: { if !$0 { plus.notice = nil } })
     }
 
     private func subscribe() {
@@ -284,7 +363,7 @@ struct JoinFlowPages: View {
 
     /// 開通成功:歡迎提示不重複彈(流程本身就是歡迎),前進到下一步。
     private func advanceIfActive() {
-        guard plus.isPlusActive, entry.join.step == .activatePlus else { return }
+        guard plus.isPlusActive, step == .activatePlus, entry.join.step == .activatePlus else { return }
         if plus.notice == .welcome || plus.notice == .restored { plus.notice = nil }
         entry.advance()
     }
@@ -308,8 +387,10 @@ struct JoinFlowPages: View {
             }
             Section {
                 if pushes.isEmpty {
-                    Text("No hosts yet. Add one in the Hosts tab, then turn on notifications there.")
-                        .foregroundStyle(.secondaryText)
+                    ContentUnavailableView(
+                        "No Hosts Yet", systemImage: "desktopcomputer",
+                        description: Text("Add one in the Hosts tab, then turn on notifications there."))
+                        .listRowBackground(Color.clear)
                         .accessibilityIdentifier("account.join.noHosts")
                 }
                 ForEach(pushes) { push in
@@ -326,10 +407,10 @@ struct JoinFlowPages: View {
                 }
             }
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier(locked ? "account.join.notificationsLocked" : "account.join.notifications")
         .hostPushConfirmation(pushes)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             VStack(spacing: 2) {
                 if locked {
                     primaryButton("Activate Purrdr Plus") { showingPlus = true }
@@ -347,7 +428,6 @@ struct JoinFlowPages: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
-            .background(.bar)
         }
     }
 
@@ -385,9 +465,9 @@ struct JoinFlowPages: View {
                     .foregroundStyle(.secondaryText)
             }
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("account.join.syncPage")
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             VStack(spacing: 2) {
                 primaryButton("Finish Setup") { entry.advance() }
                     .accessibilityIdentifier("account.join.primary")
@@ -397,7 +477,6 @@ struct JoinFlowPages: View {
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
-            .background(.bar)
         }
     }
 
@@ -436,12 +515,11 @@ struct JoinFlowPages: View {
             .accessibilityElement(children: .combine)
         }
         .accessibilityIdentifier(created ? "account.join.doneCreated" : "account.join.done")
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             primaryButton("Get Started") { entry.finish() }
                 .accessibilityIdentifier("account.join.primary")
                 .padding(.horizontal)
                 .padding(.bottom, 8)
-                .background(.bar)
         }
     }
 

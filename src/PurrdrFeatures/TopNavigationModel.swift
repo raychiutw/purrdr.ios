@@ -7,16 +7,34 @@ import PurrdrCore
 ///
 /// 頂層是 4 個 tab(聊天、檔案、主機、流量,#376;設定併進帳號 sheet,#503);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
+/// 聊天 tab 導覽堆疊的目的地(#641):整個堆疊只註冊這一個型別的 `navigationDestination(for:)`。
+enum ChatsDestination: Hashable {
+    case chat(ChatRoute)
+    case layout(SpacesLayoutRoute)
+
+    var chatRoute: ChatRoute? {
+        if case .chat(let route) = self { route } else { nil }
+    }
+}
+
+/// 寬視窗列表欄的選取(`List(selection:)` 的值):聊天,或多 Pane Tab 的版面圖。兩者都顯示在對話欄。
+enum SidebarSelection: Hashable {
+    case chat(ChatRoute)
+    case layout(SpacesLayoutRoute)
+}
+
 @MainActor
 @Observable
 public final class TopNavigationModel {
     /// 目前選的 tab。
     public var tab = TopLevelTab.chats
     /// 目前開著的 sheet;`nil` 表示沒有 sheet。
-    public var sheet: TopLevelSheet? {
-        didSet { if sheet != .newChat { newChatPreselection = nil } }
+    public var sheet: TopLevelSheet?
+    /// 新增聊天是不是推入在聊天 tab 上(#621:push,不是 sheet;左上「<」離開)。
+    public var isNewChatOpen = false {
+        didSet { if !isNewChatOpen { newChatPreselection = nil } }
     }
-    /// 新增聊天 sheet 要預先選好的位置(Spaces 的「在此新增聊天」,#537);sheet 不是新增聊天時為 `nil`。
+    /// 新增聊天要預先選好的位置(Spaces 的「在此新增聊天」,#537);新增聊天沒開著時為 `nil`。
     public var newChatPreselection: NewChatPreselection?
     /// 等著匯入的主機分享連結(`purrdr://host?d=…`)或主機配對連結(`purrdr://pair?…`)。主機 tab 出現時帶入新增主機編輯器，之後清掉。
     public var pendingHostImport: URL?
@@ -28,7 +46,47 @@ public final class TopNavigationModel {
     /// 對話欄顯示的 Agent(主機 + pane id,#39)。iPhone 與窄視窗時是推入的對話。
     public var selectedChat: ChatRoute? {
         // 一次只有一個詳細(行為規格 F20):換聊天時，前一個聊天推入的終端機收起。
-        didSet { if selectedChat != oldValue { openedTerminal = nil } }
+        didSet {
+            if selectedChat != oldValue { openedTerminal = nil }
+            if selectedChat != nil, selectedLayout != nil { selectedLayout = nil }
+        }
+    }
+
+    /// 寬視窗對話欄顯示的版面圖(列表欄選了多 Pane 的 Tab,系統選取,不是推入);與 `selectedChat` 互斥。
+    var selectedLayout: SpacesLayoutRoute? {
+        didSet { if selectedLayout != nil, selectedChat != nil { selectedChat = nil } }
+    }
+
+    /// 寬視窗列表欄選取的內容(聊天或版面圖)。
+    var sidebarSelection: SidebarSelection? {
+        get {
+            if let selectedChat { return .chat(selectedChat) }
+            if let selectedLayout { return .layout(selectedLayout) }
+            return nil
+        }
+        set {
+            switch newValue {
+            case .chat(let route): selectedChat = route
+            case .layout(let route): selectedLayout = route
+            case nil: selectedChat = nil; selectedLayout = nil
+            }
+        }
+    }
+
+    /// 聊天 tab 導覽堆疊的路徑(#641):窄視窗是 `NavigationStack(path:)` 的路徑(聊天、版面圖);寬視窗只放列表欄推入的版面圖。
+    /// 列的 `NavigationLink(value:)`、選單的「Show Layout」、返回都改這一個陣列,不再混用 `navigationDestination(item:)`。
+    var chatsPath: [ChatsDestination] = []
+
+    /// 這個視窗已經回報給列表「開著」的聊天。列表的 `onChange(initial: true)` 在堆疊重建、路徑變動時會再觸發一次,
+    /// 所以開著與離開的計次以這裡為準,同一個聊天只計一次(#641:否則返回後聊天被當成還開著,「需要你」段落少一列)。
+    private var reportedChat: ChatRoute?
+
+    /// 把選取的聊天回報給列表(冪等):換了才記上一個離開、新的出現。
+    package func reportVisibleChat(_ chat: ChatRoute?, to list: MergedAgentListModel) {
+        guard chat != reportedChat else { return }
+        if let reportedChat { list.chatDisappeared(reportedChat) }
+        if let chat { list.chatAppeared(chat) }
+        reportedChat = chat
     }
 
     /// 搜尋欄是否有焦點(Command-F)。
@@ -43,20 +101,15 @@ public final class TopNavigationModel {
     /// 測試連結指定的外觀(`light`／`dark`);`nil` 跟隨系統。
     public private(set) var testingAppearance: String?
 
-    /// 對話右側的 Inspector 是否打開(#521):寬視窗是右側欄、窄視窗由系統變成 sheet;偏好存在這支裝置,下一個視窗與下次啟動沿用。
-    public var isInspectorShown: Bool {
-        didSet { if isInspectorShown != oldValue { inspectorStore.save(isInspectorShown) } }
-    }
-    @ObservationIgnored private let inspectorStore: any InspectorVisibilityStore
+    /// 聊天頂列用量環開的面板(#617)的開關要求次數:選單列快捷鍵(Option-Command-I)每按一次加一,
+    /// 目前顯示的聊天畫面依次數變化切換面板;開關狀態本身是聊天畫面的暫時狀態(不存偏好、不會每開一個聊天就跳出)。
+    public private(set) var conversationPanelToggleCount = 0
 
-    public init(inspectorStore: any InspectorVisibilityStore = InMemoryInspectorVisibilityStore()) {
-        self.inspectorStore = inspectorStore
-        isInspectorShown = inspectorStore.load()
-    }
+    public init() {}
 
-    /// 顯示／隱藏 Inspector(對話頂列的鈕;選單列的快捷鍵之後也接這裡)。
-    public func toggleInspector() {
-        isInspectorShown.toggle()
+    /// 要求目前的聊天開關面板(快捷鍵用)。
+    public func toggleConversationPanel() {
+        conversationPanelToggleCount += 1
     }
 
     /// 列表看得到的 Agent,依 Spaces 的畫面順序(段落、Tab)。鍵盤切換 Agent 用:只含單一 Pane 的 Agent Tab
@@ -105,9 +158,15 @@ public final class TopNavigationModel {
         sheet = nil
     }
 
-    /// Workspace 標題選單的「在此新增聊天」:開新增聊天 sheet,預選那台主機與 Workspace。
+    /// 「＋」與快捷鍵:切到聊天 tab,把新增聊天推進來(#621)。
+    public func openNewChat() {
+        tab = .chats
+        isNewChatOpen = true
+    }
+
+    /// Workspace 標題選單的「在此新增聊天」:推入新增聊天,預選那台主機與 Workspace。
     public func startNewChat(inWorkspace workspaceID: String, on host: HostSelection) {
-        sheet = .newChat
+        openNewChat()
         newChatPreselection = NewChatPreselection(host: host, workspaceID: workspaceID)
     }
 
@@ -118,13 +177,13 @@ public final class TopNavigationModel {
         case .previousAgent: selectAdjacentAgent(offset: -1, in: visibleAgents)
         case .search: isSearchFocused = true
         case .openTerminal: if let selectedChat { openedTerminal = selectedChat }
-        case .newChat: sheet = .newChat
+        case .newChat: openNewChat()
         case .settings:
             // 設定併進帳號 sheet(#503)。
             sheet = .member
         case .showChats, .showFiles, .showHosts, .showTraffic:
             if let tab = command.tab { self.tab = tab }
-        case .toggleInspector: toggleInspector()
+        case .toggleConversationPanel: toggleConversationPanel()
         case .openInNewWindow:
             // 開視窗要 `openWindow`(畫面的環境值),由 `TopNavigationView` 的 `WindowCommands` 處理。
             break
@@ -191,7 +250,6 @@ public enum TopLevelTab: String, CaseIterable, Identifiable, Hashable, Sendable 
 
 /// 以 sheet 開啟的畫面(不是 tab)。
 public enum TopLevelSheet: String, Identifiable, Sendable {
-    case newChat
     /// 帳號與設定頁(#246、#503;右上角帳號鈕):會員、Purrdr Plus 開通步驟、設定(外觀、App 鎖…)、登入方式、刪除會員。
     case member
     /// Purrdr Plus 的付費牆與訂閱摘要(#28)。

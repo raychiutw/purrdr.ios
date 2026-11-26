@@ -95,15 +95,19 @@ struct SettingsSections: View {
 
             Section {
                 Button("Show Welcome", systemImage: "hand.wave") { openWelcome() }
+                    .listAction()
                     .accessibilityIdentifier("settings.welcome")
                 Button("Rate Purrdr", systemImage: "star") { model.rateApp() }
+                    .listAction()
                     .accessibilityIdentifier("settings.rate")
                 Button("Support", systemImage: "questionmark.circle") { model.openSupport() }
+                    .listAction()
                     .accessibilityIdentifier("settings.support")
                 Button(
                     model.copiedDiagnostics ? "Copied" : "Copy Diagnostics",
                     systemImage: model.copiedDiagnostics ? "checkmark" : "document.on.document"
                 ) { model.copyDiagnostics() }
+                    .listAction()
                     .accessibilityIdentifier("settings.copyDiagnostics")
             } header: {
                 Text("Support")
@@ -122,6 +126,7 @@ struct SettingsSections: View {
                 LabeledContent("Version", value: model.appVersionText)
                     .accessibilityIdentifier("settings.version")
                 Button("Privacy Policy", systemImage: "hand.raised") { model.openPrivacyPolicy() }
+                    .listAction()
                     .accessibilityIdentifier("settings.privacy")
             } header: {
                 Text("About")
@@ -135,13 +140,13 @@ struct SettingsSections: View {
     }
 }
 
-/// 「診斷記錄」:閃退(一律記)與聊天捲動卡頓(開關控制)只存在這支手機,使用者可分享給開發者、整份清除。
+/// 「診斷記錄」:閃退(一律記)與「操作記錄」開關控制的聊天捲動卡頓、顯示給使用者的錯誤,只存在這支手機,使用者可分享給開發者、整份清除。
 struct HitchLogSection: View {
     @Bindable var model: SettingsModel
 
     var body: some View {
         Section {
-            Toggle("Record Scroll Stutters", isOn: $model.recordsHitches)
+            Toggle("Operation Log", isOn: $model.recordsHitches)
                 .accessibilityIdentifier("settings.hitchLog")
             Button("Share Diagnostic Log", systemImage: "square.and.arrow.up") {
                 Task {
@@ -151,23 +156,23 @@ struct HitchLogSection: View {
                     #endif
                 }
             }
+            .listAction()
             .accessibilityIdentifier("settings.hitchLog.share")
             Button("Clear Records", systemImage: "trash", role: .destructive) {
                 Task { await model.clearHitchLog() }
             }
+            .destructiveListAction()
             .accessibilityIdentifier("settings.hitchLog.clear")
         } header: {
             Text("Diagnostic Log")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("When Purrdr closes unexpectedly or scrolling feels rough, this iPhone notes down what happened. It never includes your conversations. You can share it with the developer.")
-                if model.hitchLogIsEmpty {
-                    Text("Nothing recorded yet.")
-                        .accessibilityIdentifier("settings.hitchLog.empty")
-                }
+            // 只在按了分享卻沒有記錄時說一句(不是功能說明)。
+            if model.hitchLogIsEmpty {
+                Text("Nothing recorded yet.")
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("settings.hitchLog.empty")
             }
-            .foregroundStyle(.secondaryText)
         }
     }
 }

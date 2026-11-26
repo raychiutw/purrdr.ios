@@ -33,6 +33,30 @@ struct PushHostNamePublishingTests {
         return model
     }
 
+    @Test("第一個 frame 前不寫對應表,開閘後才寫一次且內容是最新的(#590)")
+    func defersWritingUntilLaunchGateOpens() async throws {
+        pairings.setKeyHash("hash-studio", forHost: studio.id.uuidString)
+        let gate = LaunchGate()
+        store.hosts = [studio, build]
+        let service = PushService(
+            session: MemberSession(
+                transport: URLSessionBackendTransport(baseURL: URL(string: "https://backend.test")!), tokenStore: InMemoryTokenStore()),
+            platform: QuietPushPlatform(), store: pairings,
+            device: PushDeviceIdentity(id: PushDeviceID(rawValue: "0123456789abcdef")!, name: "iPhone", model: .iPhone),
+            configuration: PushConfiguration(
+                endpoint: URL(string: "https://backend.test/v1/push")!, environment: .production,
+                pluginSource: "raychiutw/purrdr.host/host-plugin"),
+            hostNames: sharing, isPlusActive: { true })
+        service.launchGate = gate
+        let model = HostsModel(store: store, demoChannel: FakeHost(), push: service, makeChannel: ChannelFactory().make)
+        model.load()
+        try model.rename(studio.id, to: "Studio 2")
+        #expect(sharing.saved == [:])
+        gate.open()
+        for _ in 0..<200 where sharing.saved.isEmpty { await Task.yield() }
+        #expect(sharing.saved == ["hash-studio": "Studio 2"])
+    }
+
     @Test("已有配對的主機載入後,對應表有那組雜湊的名稱;沒有配對的主機不在裡面")
     func publishesPairedHostsOnLoad() {
         pairings.setKeyHash("hash-studio", forHost: studio.id.uuidString)

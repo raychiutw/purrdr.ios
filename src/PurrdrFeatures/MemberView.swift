@@ -1,4 +1,5 @@
 import AuthenticationServices
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -37,16 +38,20 @@ public struct MemberView: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        AccountEntryStack(
+            model: model, entry: $entry, plus: plus, pushes: pushes, hostSync: hostSync, hostCount: hosts?.hosts.count ?? 0,
+            onClose: { dismiss() }
+        ) {
             MemberContent(
                 model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts,
                 settings: settings, entry: $entry
             )
+            // 滿版 modal(#623):根頁左上一律是 X;沒登入的選擇頁沿用既有識別碼。
             .toolbar {
                 if entry.shownScreen(phase: model.phase, hasPlus: plus != nil) != nil {
-                    AccountEntryToolbar(entry: $entry, onClose: { dismiss() })
+                    SheetCloseToolbar(identifier: "member.signIn.cancel")
                 } else {
-                    TrailingCloseToolbar(identifier: "member.close")
+                    SheetCloseToolbar(identifier: "member.close")
                 }
             }
         }
@@ -80,15 +85,8 @@ public struct MemberContent: View {
 
     public var body: some View {
         content
-            // 登入頁查無這個帳號的會員:擋下並問要不要加入,確認才進加入流程(#434)。掛在 content 上,與下面的 notice alert 分開。
-            .alert("No Member Found", isPresented: Binding(get: { model.memberNotFound }, set: { if !$0 { model.dismissMemberNotFound() } })) {
-                Button("Join") { entry.switchToJoin() }
-                    .accessibilityIdentifier("member.notFound.join")
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("We couldn’t find a member for this account. Do you want to join?")
-            }
-            .navigationTitle(entry.navigationTitle(phase: model.phase, hasPlus: plus != nil))
+            // 根頁永遠是「Account」(推入的登入、加入頁自己有標題,系統返回鈕寫「Account」)。
+            .navigationTitle("Account")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -103,33 +101,13 @@ public struct MemberContent: View {
         .onChange(of: model.phase) { _, phase in
             if phase == .signedOut { entry.reset() }
         }
-        .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
-            if notice == .deleted {
-                Link("Manage Subscriptions", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
-            }
-            if notice == .signOutBackendUnreachable {
-                Button("Sign Out Anyway", role: .destructive) { Task { await model.signOut(force: true) } }
-                    .accessibilityIdentifier("member.signOutAnyway")
-                Button("Cancel", role: .cancel) {}
-            } else {
-                Button("OK", role: .cancel) {}
-            }
-        } message: { notice in
-            Text(notice.message)
-        }
     }
 
     @ViewBuilder
     private var content: some View {
-        if let screen = entry.shownScreen(phase: model.phase, hasPlus: plus != nil) {
-            // 沒登入先選「登入」或「加入會員」(#408);加入第 2 步起是步驟流程。
-            if screen == .join, entry.join.step != .createMember, let plus {
-                JoinFlowPages(
-                    model: model, entry: $entry, plus: plus, pushes: pushes, hostSync: hostSync, hostCount: hosts?.hosts.count ?? 0,
-                    signedInMember: signedInMember)
-            } else {
-                AccountEntryPages(model: model, entry: $entry, settings: settings)
-            }
+        if entry.shownScreen(phase: model.phase, hasPlus: plus != nil) != nil {
+            // 沒登入先選「登入」或「加入會員」(#408);登入、加入與加入的各步驟都是推入的頁(#623)。
+            ChoosePage(settings: settings)
         } else if model.phase == .unknown {
             if model.isWorking {
                 // 後台還沒回應、沒有上次的會員資料:帳號頁骨架(#496)。
@@ -143,7 +121,7 @@ public struct MemberContent: View {
                         } description: {
                             Text("Your sign-in is kept on this device. Try again when you’re online.")
                         } actions: {
-                            Button("Try Again") { Task { await model.restore() } }
+                            Button("Try Again") { Task { await model.restore() } } // listAction:exempt ContentUnavailableView 的 actions 由系統樣式畫
                         }
                         .listRowBackground(Color.clear)
                     }
@@ -154,10 +132,6 @@ public struct MemberContent: View {
         } else {
             AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts, settings: settings)
         }
-    }
-
-    private var noticePresented: Binding<Bool> {
-        Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
     }
 
     private var signedInMember: Member? {
@@ -173,13 +147,15 @@ struct SignInSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            AccountEntryPages(model: model, entry: $entry)
-                .navigationTitle(entry.navigationTitle(phase: model.phase, hasPlus: false))
+        AccountEntryStack(
+            model: model, entry: $entry, plus: nil, pushes: [], hostSync: nil, hostCount: 0, onClose: { dismiss() }
+        ) {
+            ChoosePage(settings: nil)
+                .navigationTitle("Account")
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
-                .toolbar { AccountEntryToolbar(entry: $entry, onClose: { dismiss() }) }
+                .toolbar { SheetCloseToolbar(identifier: "member.signIn.cancel") }
         }
         .onChange(of: model.phase) { _, phase in
             if case .signedIn = phase { dismiss() }
@@ -335,8 +311,6 @@ struct AccountView: View {
     @State private var offeringFeatureSetup = false
     /// 點了鎖定的功能列:說明原因與下一步。
     @State private var lockedFeature: AccountFeature?
-    /// Purrdr Plus 頁點功能列後捲到帳號頁對應的區塊(#323)。
-    @State private var featureScrollRequest: PlusFeature?
 
     private var signedInMember: Member? {
         if case .signedIn(let member) = model.phase { return member }
@@ -355,8 +329,11 @@ struct AccountView: View {
                 notifyingHostCount: notifyingHostNames.count,
                 isHostSyncOn: hostSync?.isEnabled ?? false,
                 deviceCount: pushDevices.flatMap { $0.hasLoaded ? $0.devices.count : nil }),
-            dismissesOnOpen: true,
-            open: { featureScrollRequest = $0 })
+            destination: { feature in
+                AnyView(PlusFeatureDestination(
+                    feature: feature, member: model, plus: plus, pushes: pushes, pushDevices: pushDevices,
+                    hostSync: hostSync, hosts: hosts, canRename: account.hasPlus))
+            })
     }
 
     private var progress: AccountSetupProgress? {
@@ -364,24 +341,17 @@ struct AccountView: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            list
-                .onChange(of: featureScrollRequest) { _, feature in
-                    guard let feature else { return }
-                    featureScrollRequest = nil
-                    if feature == .notifications, account.hasPlus {
-                        showingNotifications = true
-                    } else {
-                        withAnimation { proxy.scrollTo(feature, anchor: .top) }
-                    }
-                }
-        }
+        list
     }
 
     private var list: some View {
         List {
             Section {
                 AccountHeader(member: signedInMember)
+            }
+
+            if let plus, !showingPlus {
+                SubscriptionNoticeSection(plus: plus)
             }
 
             if model.isConnectionLimited {
@@ -391,6 +361,7 @@ struct AccountView: View {
                         Label("Can’t reach Purrdr for now. You’re still signed in.", systemImage: "wifi.exclamationmark")
                             .foregroundStyle(.secondaryText)
                         Button("Try Again") { Task { await model.restore() } }
+                            .listAction()
                             .accessibilityIdentifier("account.connectionLimited.retry")
                     }
                     .accessibilityElement(children: .contain)
@@ -401,7 +372,8 @@ struct AccountView: View {
             if let plus {
                 if let subscription = plus.subscription, subscription.pendingReview {
                     Section {
-                        ErrorLabel(String(localized: "Your two old members were combined. Another subscription (\(subscription.store.displayName)) needs your attention: cancel it there to avoid paying twice."))
+                        ErrorLabel(String(localized: "Your two old members were combined. Another subscription (\(subscription.store.displayName)) needs your attention: cancel it there to avoid paying twice."), area: "MemberView",
+                                   error: ErrorDescriptor(category: "Subscription", code: "pendingReview"))
                         .accessibilityIdentifier("account.pendingReview")
                     }
                 }
@@ -422,7 +394,6 @@ struct AccountView: View {
                         Text("Notification Devices")
                             .foregroundStyle(.secondaryText)
                     }
-                    .id(PlusFeature.devices)
                 }
             }
 
@@ -451,8 +422,18 @@ struct AccountView: View {
                 }
                 Section {
                     Button("Sign Out") { confirmingSignOut = true }
+                        .listAction()
                         .accessibilityIdentifier("member.signOut")
+                        // 確認對話框掛在觸發的按鈕上,錨定在按鈕(#625)。
+                        .confirmationDialog("Sign Out?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
+                            Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
+                                .accessibilityIdentifier("member.signOut.confirm")
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("Signing out turns off notifications for this device and pauses host sync. Hosts and chats keep working — they don’t need a member account.")
+                        }
                     Button("Delete Member", role: .destructive) { startDeletion() }
+                        .destructiveListAction()
                         .accessibilityIdentifier("member.delete")
                 }
             }
@@ -483,6 +464,7 @@ struct AccountView: View {
         } message: { notice in
             Text(notice.message)
         }
+        .reportsErrorDisplay(plus?.notice?.displayedError, area: "MemberView")
         .alert(
             Text(verbatim: lockReason?.shortText ?? ""), isPresented: lockedPresented, presenting: lockReason
         ) { reason in
@@ -493,8 +475,14 @@ struct AccountView: View {
             default:
                 EmptyView()
             }
-            Button("OK", role: .cancel) {}
-                .accessibilityIdentifier("account.locked.ok")
+            switch reason {
+            case .plusRequired, .subscriptionEnded:
+                Button("Not Now", role: .cancel) {}
+                    .accessibilityIdentifier("account.locked.ok")
+            default:
+                Button("OK", role: .cancel) {}
+                    .accessibilityIdentifier("account.locked.ok")
+            }
         } message: { reason in
             Text(verbatim: reason.explanation)
         }
@@ -504,13 +492,6 @@ struct AccountView: View {
                 .accessibilityIdentifier("account.turnOnAll")
         } message: {
             Text("Turn on notifications and host sync now? You can change them later.")
-        }
-        .alert("Sign Out?", isPresented: $confirmingSignOut) {
-            Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
-                .accessibilityIdentifier("member.signOut.confirm")
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Signing out turns off notifications for this device and pauses host sync. Hosts and chats keep working — they don’t need a member account.")
         }
         .navigationDestination(isPresented: $showingDeletionSubscription) {
             if let deletionSubscription {
@@ -557,7 +538,7 @@ struct AccountView: View {
     /// 付費牆(PlusView)開著時它自己顯示提示,帳號頁不重複顯示。
     private var subscriptionNoticePresented: Binding<Bool> {
         Binding(
-            get: { plus?.notice != nil && !showingPlus },
+            get: { (plus?.notice.map { !$0.isInformational } ?? false) && !showingPlus },
             set: { if !$0 { plus?.notice = nil } })
     }
 
@@ -596,7 +577,6 @@ struct AccountView: View {
             Section {
                 if let hostSync {
                     HostSyncRows(model: hostSync, plus: plus, member: model)
-                        .id(PlusFeature.hostSync)
                 }
                 NavigationLink {
                     notificationsPage
@@ -606,7 +586,6 @@ struct AccountView: View {
                     }
                 }
                 .accessibilityIdentifier("account.notifications")
-                .id(PlusFeature.notifications)
             } header: {
                 Text("Plus Features")
                     .foregroundStyle(.secondaryText)
@@ -691,17 +670,25 @@ struct SignInDevicesView: View {
             Section {
                 if let devices = model.devices {
                     ForEach(devices) { device in
-                        SignInDeviceRow(device: device, isBusy: model.busyDeviceIDs.contains(device.id)) {
+                        SignInDeviceRow(
+                            device: device, isBusy: model.busyDeviceIDs.contains(device.id),
+                            isConfirming: Binding(
+                                get: { model.pendingRevoke?.id == device.id },
+                                set: { if !$0, model.pendingRevoke?.id == device.id { model.pendingRevoke = nil } }),
+                            confirm: { Task { await model.revoke(device) } }
+                        ) {
                             model.pendingRevoke = device
                         }
                     }
                 } else if model.problem == nil {
-                    ProgressView()
+                    // 整頁第一次載入:骨架(#626)。
+                    RowsSkeleton(identifier: "account.signInDevices.loading")
                 }
                 if let problem = model.problem {
-                    ErrorLabel(problem)
+                    ErrorLabel(problem.text, area: "MemberView", error: problem.descriptor)
                         .accessibilityIdentifier("account.signInDevices.problem")
                     Button("Try Again") { Task { await model.load() } }
+                        .listAction()
                 }
             } footer: {
                 Text("Signing out another device means it has to sign in again. To sign out this device, use Sign Out on the account page.")
@@ -715,22 +702,15 @@ struct SignInDevicesView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task { await model.load() }
-        .confirmationDialog(
-            Text(verbatim: model.pendingRevoke.map { String(localized: "Sign out \($0.displayName)?") } ?? ""),
-            isPresented: Binding(get: { model.pendingRevoke != nil }, set: { if !$0 { model.pendingRevoke = nil } }),
-            titleVisibility: .visible, presenting: model.pendingRevoke
-        ) { device in
-            Button("Sign Out", role: .destructive) { Task { await model.revoke(device) } }
-                .accessibilityIdentifier("account.signInDevices.confirm")
-        } message: { _ in
-            Text("This device will have to sign in again.")
-        }
     }
 }
 
 private struct SignInDeviceRow: View {
     let device: SignInDevice
     let isBusy: Bool
+    /// 登出確認對話框掛在這一列上,錨定在觸發的列(#625)。
+    @Binding var isConfirming: Bool
+    let confirm: () -> Void
     let signOut: () -> Void
 
     var body: some View {
@@ -765,6 +745,29 @@ private struct SignInDeviceRow: View {
         .frame(minHeight: 44)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("account.signInDevice.\(device.id)")
+        // confirmationDialog:anchor 登出由列的滑動或長按選單觸發,對話框錨定在那一列
+        .confirmationDialog(
+            Text("Sign out \(device.displayName)?"), isPresented: $isConfirming, titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive, action: confirm)
+                .accessibilityIdentifier("account.signInDevices.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This device will have to sign in again.")
+        }
+        // 左滑與長按選單與列上的「Sign Out」同一個動作(#626);目前這支不能登出。不用 destructive role:登出要先確認。
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !device.isCurrent, !isBusy {
+                Button("Sign Out", systemImage: "rectangle.portrait.and.arrow.right", action: signOut)
+                    .tint(.red)
+                    .accessibilityIdentifier("account.signInDevice.swipeSignOut.\(device.id)")
+            }
+        }
+        .contextMenu {
+            if !device.isCurrent, !isBusy {
+                Button("Sign Out…", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive, action: signOut)
+            }
+        }
     }
 }
 
@@ -854,6 +857,7 @@ struct SignInMethodsView: View {
                     LabeledContent {
                         if member.identities.count > 1 {
                             Button("Remove", role: .destructive) { removing = identity.method }
+                                .destructiveListAction()
                                 .accessibilityLabel(Text("Remove \(identity.method.displayName)"))
                                 .accessibilityIdentifier("member.identity.remove.\(identity.method.rawValue)")
                         }
@@ -865,6 +869,30 @@ struct SignInMethodsView: View {
                     }
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("member.identity.\(identity.method.rawValue)")
+                    // 確認對話框掛在各列上,錨定在觸發的列(#625)。
+                    // confirmationDialog:anchor 移除由列的滑動或列尾按鈕觸發,對話框錨定在那一列
+                    .confirmationDialog(
+                        Text("Remove \(identity.method.displayName)?"),
+                        isPresented: Binding(
+                            get: { removing == identity.method },
+                            set: { if !$0, removing == identity.method { removing = nil } }),
+                        titleVisibility: .visible
+                    ) {
+                        Button("Remove", role: .destructive) { Task { await model.unlink(identity.method) } }
+                            .accessibilityIdentifier("member.identity.remove.confirm")
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("You won’t be able to sign in with \(identity.method.displayName) anymore. You’ll confirm it’s you next.")
+                    }
+                    // 可移除的列一律有左滑(#626);至少保留一種,所以只剩一種時沒有。不用 destructive role:移除要先確認身分。
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        if member.identities.count > 1 {
+                            Button("Remove", systemImage: "trash") { removing = identity.method }
+                                .tint(.red)
+                                .accessibilityLabel(Text("Remove \(identity.method.displayName)"))
+                                .accessibilityIdentifier("member.identity.swipeRemove.\(identity.method.rawValue)")
+                        }
+                    }
                 }
             } footer: {
                 Text("Keep at least one sign-in method. Adding or removing one asks you to confirm it’s you.")
@@ -887,19 +915,9 @@ struct SignInMethodsView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .confirmationDialog(
-            removing.map { Text("Remove \($0.displayName)?") } ?? Text(verbatim: ""),
-            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible, presenting: removing
-        ) { method in
-            Button("Remove", role: .destructive) { Task { await model.unlink(method) } }
-                .accessibilityIdentifier("member.identity.remove.confirm")
-        } message: { method in
-            Text("You won’t be able to sign in with \(method.displayName) anymore. You’ll confirm it’s you next.")
-        }
         .sheet(isPresented: Binding(get: { model.pendingMerge != nil }, set: { if !$0 { model.cancelMerge() } })) {
             if let proposal = model.pendingMerge {
                 MergeConfirmView(model: model, summary: proposal.summary)
-                    .appSheetBackground()
             }
         }
     }
@@ -935,13 +953,7 @@ struct MergeConfirmView: View {
                             .accessibilityIdentifier("member.merge.blocked")
                     }
                 }
-                Section {
-                    Button("Combine Members") { Task { await model.confirmMerge() } }
-                        .disabled(!summary.canMerge || model.isWorking)
-                        .accessibilityIdentifier("member.merge.confirm")
-                    Button("Cancel", role: .cancel) { model.cancelMerge() }
-                        .accessibilityIdentifier("member.merge.cancel")
-                } footer: {
+                Section {} footer: {
                     Text("You’ll confirm it’s you before the members are combined.")
                 }
             }
@@ -950,6 +962,13 @@ struct MergeConfirmView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .toolbar {
+                SheetCloseToolbar(identifier: "member.merge.cancel") { model.cancelMerge() }
+                ModalConfirmToolbar(
+                    title: "Combine", identifier: "member.merge.confirm",
+                    isEnabled: summary.canMerge && !model.isWorking
+                ) { Task { await model.confirmMerge() } }
+            }
             .accessibilityIdentifier("sheet.merge")
         }
     }
@@ -1055,35 +1074,21 @@ extension AccountEntryFlow {
         default: nil
         }
     }
-
-    func navigationTitle(phase: MemberModel.Phase, hasPlus: Bool) -> LocalizedStringKey {
-        guard shownScreen(phase: phase, hasPlus: hasPlus) != nil else { return "Account" }
-        switch title {
-        case .account: return "Account"
-        case .signIn: return "Sign In"
-        case .join: return "Join as a Member"
-        }
-    }
 }
 
-/// 沒登入流程的 toolbar:左上圓形「返回」或「關閉」,右上加入流程的「n / 4」。
-struct AccountEntryToolbar: ToolbarContent {
-    @Binding var entry: AccountEntryFlow
+/// 沒登入流程推入頁的 toolbar:左上交給系統返回鈕;加入第 2 步起不能回到已建立的會員,
+/// 隱藏返回鈕、左上是「關閉」(之後在帳號頁繼續);右上加入流程的「n / 4」。
+struct AccountEntryPageToolbar: ToolbarContent {
+    let entry: AccountEntryFlow
+    let page: AccountEntryFlow.Page
     let onClose: () -> Void
 
     var body: some ToolbarContent {
-        switch entry.leadingAction {
-        case .back:
+        if case .joinStep = page {
+            // 所有 modal 的關閉都在左上角「X」(#613)。
             ToolbarItem(placement: .cancellationAction) {
-                Button { entry.back() } label: { Image(systemName: "chevron.backward") }
-                    .accessibilityLabel(Text("Back"))
-                    .accessibilityIdentifier("member.entry.back")
-            }
-        case .close:
-            // 帳號與設定 sheet 的關閉在右上角「X」(#503)。
-            ToolbarItem(placement: .primaryAction) {
-                Button(role: .close, action: onClose)
-                    .accessibilityLabel(entry.screen == .join ? Text("Close. Continue in Account Later") : Text("Close"))
+                Button("Close", systemImage: "xmark", action: onClose)
+                    .accessibilityLabel(Text("Close. Continue in Account Later"))
                     .accessibilityIdentifier("member.signIn.cancel")
             }
         }
@@ -1123,11 +1128,13 @@ struct DeletionSubscriptionView: View {
             if notice == .appStore {
                 Section {
                     Button("Manage Subscription", action: manage)
+                        .listAction()
                         .accessibilityIdentifier("member.deleteSubscription.manage")
                 }
             }
             Section {
                 Button("Continue Deleting Member", role: .destructive, action: proceed)
+                    .destructiveListAction()
                     .accessibilityIdentifier("member.deleteSubscription.continue")
             }
         }

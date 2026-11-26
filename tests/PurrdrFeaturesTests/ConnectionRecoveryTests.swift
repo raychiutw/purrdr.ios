@@ -112,10 +112,9 @@ struct ConnectionRecoveryTests {
         #expect(model.agentList.isNetworkAvailable == true)
     }
 
-    @Test("喚醒探測失敗而丟棄連線時留下診斷紀錄")
-    func failedWakeProbeIsLogged() async throws {
+    @Test("背景超過保留時間回前景:不跑喚醒探測,直接丟棄連線重撥,並記「背景 N 秒，重撥」")
+    func longBackgroundRedialsWithoutProbe() async throws {
         let log = RecordingDiagnosticLog()
-        // 沒有預期的指令：假主機讓探測立刻以連線層錯誤失敗。
         let linux = FakeHost()
         let store = MemoryHostStore()
         store.hosts = [HostManagementTests.linux]
@@ -124,15 +123,14 @@ struct ConnectionRecoveryTests {
         let start = Date(timeIntervalSince1970: 1_000)
 
         model.sceneDidEnterBackground(at: start)
-        await model.sceneDidBecomeActive(at: start.addingTimeInterval(61))
+        await model.sceneDidBecomeActive(at: start.addingTimeInterval(26))
 
-        #expect(await linux.disconnectCount == 1)
-        #expect(log.messages.count == 1)
-        #expect(log.messages.first?.contains("Wake probe failed") == true, "\(log.messages)")
+        #expect(await linux.disconnectCount == 1, "直接丟棄,不是探測失敗才丟棄")
+        #expect(log.messages == ["背景 26 秒，重撥"], "\(log.messages)")
     }
 
-    @Test("背景超過 60 秒回前景：對已連過的主機跑喚醒探測(true)")
-    func longBackgroundRunsWakeProbe() async throws {
+    @Test("背景超過保留時間回前景:丟棄後立刻預先撥號(在新連線上跑一個無害指令),撥號失敗不再丟一次連線")
+    func redialPreconnects() async throws {
         let linux = FakeHost()
         await linux.expect(WakeProbe.command, reply: FakeReply())
         let model = Self.hostsModel(linux)
@@ -143,21 +141,65 @@ struct ConnectionRecoveryTests {
         await model.sceneDidBecomeActive(at: start.addingTimeInterval(61))
 
         #expect(await linux.executions.map(\.command) == ["true"])
-        #expect(await linux.disconnectCount == 0)
+        #expect(await linux.disconnectCount == 1)
     }
 
-    @Test("背景不到 60 秒回前景：不探測")
-    func shortBackgroundSkipsProbe() async {
+    @Test("背景沒超過保留時間回前景:沿用連線,不探測、不重撥、不預先撥號,並記「背景 N 秒，沿用」")
+    func shortBackgroundReusesConnection() async {
+        let log = RecordingDiagnosticLog()
         let linux = FakeHost()
-        let model = Self.hostsModel(linux)
+        let store = MemoryHostStore()
+        store.hosts = [HostManagementTests.linux]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), diagnostics: log.log, makeChannel: ChannelFactory([linux]).make)
         model.load()
         let start = Date(timeIntervalSince1970: 1_000)
 
         model.sceneDidEnterBackground(at: start)
-        await model.sceneDidBecomeActive(at: start.addingTimeInterval(30))
+        await model.sceneDidBecomeActive(at: start.addingTimeInterval(25))
         await model.sceneDidBecomeActive(at: start.addingTimeInterval(300))
 
         #expect(await linux.executions.isEmpty)
+        #expect(await linux.disconnectCount == 0)
+        #expect(log.messages == ["背景 25 秒，沿用"], "\(log.messages)")
+    }
+
+    @Test("重撥時列表先留著最後的快照,「連線中」前 1.5 秒不顯示,之後才顯示")
+    func redialKeepsListAndHidesConnectingBriefly() async throws {
+        let clock = AgentListLoadingTests.Clock()
+        let connection = await AgentListLoadingTests.healthy()
+        let model = MergedAgentListModel()
+        model.update(
+            sources: [AgentListLoadingTests.source(AgentListLoadingTests.lab, name: "Lab", connection: connection, clock: clock)],
+            selected: AgentListLoadingTests.lab)
+        await model.load()
+        let rows = model.sections.flatMap(\.rows).count
+        #expect(rows > 0)
+
+        model.reconnectAfterForeground()
+
+        #expect(model.sections.flatMap(\.rows).count == rows, "沿用最後的快照")
+        #expect(model.hostStatuses(at: clock.now).isEmpty)
+        clock.advance(seconds: 1.4)
+        #expect(model.hostStatuses(at: clock.now).isEmpty)
+        clock.advance(seconds: 0.1)
+        #expect(model.hostStatuses(at: clock.now).map(\.state) == [.connecting])
+        clock.advance(seconds: 8.5)
+        #expect(model.hostStatuses(at: clock.now).map(\.state) == [.stillConnecting])
+    }
+
+    @Test("一般連線中(沒有快取):照舊立刻顯示連線中")
+    func firstLoadStillShowsConnectingImmediately() async throws {
+        let clock = AgentListLoadingTests.Clock()
+        let model = MergedAgentListModel()
+        model.update(
+            sources: [AgentListLoadingTests.source(AgentListLoadingTests.lab, name: "Lab", connection: await AgentListLoadingTests.hanging(), clock: clock)],
+            selected: AgentListLoadingTests.lab)
+        let loading = Task { await model.load() }
+        defer { loading.cancel() }
+
+        model.reconnectAfterForeground()
+
+        #expect(model.hostStatuses(at: clock.now).map(\.state) == [.connecting], "沒有快取可看,安靜重連不適用")
     }
 }
 

@@ -141,7 +141,7 @@ struct HostOverviewTests {
     @Test("已配對的 HTTPS 主機:有主機服務區塊,沒有登入 Shell;用量區留著(主機服務 0.12.0 起支援)")
     func pairedHTTPS() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         let model = Self.httpsModel(connection: connection)
         await model.agentList.load()
         let overview = model.overview
@@ -160,12 +160,39 @@ struct HostOverviewTests {
     @Test("唯讀裝置配對的 HTTPS 主機:線上·唯讀")
     func readOnlyHTTPS() async {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await connection.setReadOnlyDevice(true)
         let model = Self.httpsModel(connection: connection)
         await model.agentList.load()
         await model.refreshOverviewFacts()
         #expect(model.overview?.status == .readOnly)
+    }
+
+    @Test("同步改了位址、需要重新確認的 HTTPS 主機:不開主機服務連線，不顯示用量、主機服務與登入 Shell(#572)")
+    func needsReconfirmationHTTPS() async {
+        var pending = Self.buildBox
+        pending.needsReconfirmation = true
+        let store = MemoryHostStore()
+        store.hosts = [pending]
+        let connection = FakeHostConnection()
+        let connections = HostServiceConnections()
+        connections.connections = [connection]
+        let tokens = InMemoryDeviceTokenStore(tokens: [pending.id: "token"])
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens), makeChannel: ChannelFactory().make)
+        model.load()
+
+        await model.agentList.load()
+        await model.checkHostServiceVersions()
+        await model.refreshOverviewFacts()
+
+        let overview = model.overview
+        #expect(overview?.status == .needsReconfirmation)
+        #expect(overview?.showsUsage == false)
+        #expect(overview?.showsHostService == false)
+        #expect(overview?.showsLoginShell == false)
+        #expect(model.hostStatusConnection(for: pending.id) == nil)
+        #expect(connections.addresses.isEmpty, "確認前不用權杖開連線")
     }
 
     @Test("herdr 低於 0.9.5:太舊,不顯示用量")
@@ -178,7 +205,7 @@ struct HostOverviewTests {
             result["snapshot"] = snapshot
             line["result"] = result
         }
-        await connection.expect("session.snapshot", reply: old)
+        await connection.expect(.snapshot, wire: old)
         let model = Self.httpsModel(connection: connection)
         await model.agentList.load()
         #expect(model.overview?.status == .herdrTooOld(version: "0.9.3"))

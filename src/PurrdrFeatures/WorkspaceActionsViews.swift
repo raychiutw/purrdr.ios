@@ -9,12 +9,10 @@ import SwiftUI
 final class WorkspacePresentation {
     enum Sheet: Identifiable {
         case worktree(workspaceID: String, label: String)
-        case layout(workspaceLabel: String, layout: SpacesLayout?)
 
         var id: String {
             switch self {
             case .worktree(let id, _): "worktree.\(id)"
-            case .layout(let label, _): "layout.\(label)"
             }
         }
     }
@@ -26,6 +24,8 @@ final class WorkspacePresentation {
     }
 
     var sheet: Sheet?
+    /// 選單「Show Layout」要推入的版面圖(#619):一次性的要求,presenter 轉成導覽路徑後清成 `nil`(#641)。
+    var layoutRoute: SpacesLayoutRoute?
     /// 重新命名提示框(#456):Workspace 與 Tab 共用,系統帶輸入框的 alert。
     var renameRequest: RenameRequest?
     /// 提示框裡的輸入;失敗後重新呈現時保留。
@@ -37,7 +37,7 @@ final class WorkspacePresentation {
     var closeTabRequest: TabTarget?
     /// 操作的是哪台主機(多主機合併列表，#39)。列設定 sheet 或確認時一併設定。
     var host: HostSelection = .demo
-    /// 版面圖裡點選的 Pane:先記下、關 sheet 之後才開(不能在關 sheet 的同一刻 push,行為規格 F4)。
+    /// 版面圖裡點選的 Pane:先記下、返回上一頁之後才開(不能在返回的同一刻 push,行為規格 F4)。
     var chosenTarget: PaneOpenTarget?
 }
 
@@ -122,9 +122,10 @@ extension View {
     /// 改名改的是這個 Tab;Workspace 名稱在段落標題的長按選單(`workspaceHeaderMenu`,#456)。`tab` 為 nil(沒有 Tab 的 pane)時沒有改名項目。
     func workspaceActionsMenu(
         _ target: WorkspaceTarget, tab: TabTarget?, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation,
-        chats: TabChatActions? = nil, openInNewWindow: (() -> Void)? = nil
+        chats: TabChatActions? = nil, openInNewWindow: (() -> Void)? = nil, actions: WorkspaceActionsModel? = nil
     ) -> some View {
-        contextMenu {
+        modifier(CloseTabDialog(presentation: presentation, tab: tab, actions: actions))
+        .contextMenu {
             let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
             let level = WorkspaceMenuLevel.tab(hasNewWindow: openInNewWindow != nil, hasChats: chats != nil, hasTab: tab != nil)
             // 項目由 `WorkspaceMenuLevel` 一處決定(#536);「版面圖」前的分隔線只在前面有新視窗或釘選靜音時出現。
@@ -146,7 +147,7 @@ extension View {
     /// VoiceOver 另有「重新命名 Workspace…」自訂動作。唯讀裝置的改動項目停用。
     func workspaceHeaderMenu(
         _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, isReadOnly: Bool, presentation: WorkspacePresentation,
-        newChatHere: (() -> Void)? = nil
+        newChatHere: (() -> Void)? = nil, actions: WorkspaceActionsModel? = nil
     ) -> some View {
         let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: isReadOnly)
         return Menu {
@@ -158,6 +159,7 @@ extension View {
         } label: {
             self
         } primaryAction: {}
+        .modifier(CloseWorkspaceDialog(presentation: presentation, target: target, actions: actions))
         .buttonStyle(HeaderPressStyle())
         .accessibilityHint(Text("Double-tap and hold to show Workspace actions"))
         .accessibilityAction(named: Text("Rename Workspace…")) { if !isReadOnly { buttons.askWorkspaceName() } }
@@ -166,10 +168,14 @@ extension View {
     /// 呈現 workspace 操作的 sheet、確認與錯誤。`actions` 依主機取得該主機的操作;
     /// `onOpen` 在版面圖選了 Pane 且 sheet 關閉之後呼叫(帶主機)。
     func workspaceActionsPresentation(
-        actions: @escaping (HostSelection) -> WorkspaceActionsModel?, presentation: WorkspacePresentation,
-        onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
+        actions: @escaping (HostSelection) -> WorkspaceActionsModel?, snapshot: @escaping (HostSelection) -> HostSnapshot?,
+        presentation: WorkspacePresentation, path: Binding<[ChatsDestination]>,
+        showLayoutInDetail: ((SpacesLayoutRoute) -> Void)? = nil,
+        chatDestination: @escaping (ChatRoute) -> AnyView, onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
     ) -> some View {
-        modifier(WorkspaceActionsPresenter(resolve: actions, presentation: presentation, onOpen: onOpen))
+        modifier(WorkspaceActionsPresenter(
+            resolve: actions, snapshot: snapshot, presentation: presentation, path: path, showLayoutInDetail: showLayoutInDetail, chatDestination: chatDestination,
+            onOpen: onOpen))
     }
 }
 
@@ -285,10 +291,9 @@ private struct WorkspaceButtons {
 
     func showLayout() -> some View {
         Button("Show Layout", systemImage: "rectangle.split.3x1") {
-            // 顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
+            // 版面在推入當下取 snapshot,不即時更新(行為規格 F4)。
             presentation.host = host
-            presentation.sheet = .layout(
-                workspaceLabel: target.label, layout: snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: target.workspaceID) })
+            presentation.layoutRoute = SpacesLayoutRoute(host: host, workspaceID: target.workspaceID, tabID: nil, title: target.label)
         }
     }
 
@@ -341,7 +346,13 @@ private struct HeaderPressBody: View {
 
 private struct WorkspaceActionsPresenter: ViewModifier {
     let resolve: (HostSelection) -> WorkspaceActionsModel?
+    let snapshot: (HostSelection) -> HostSnapshot?
     @Bindable var presentation: WorkspacePresentation
+    @Binding var path: [ChatsDestination]
+    /// 寬視窗:版面圖顯示在對話欄(列表欄的選取),不進路徑。
+    let showLayoutInDetail: ((SpacesLayoutRoute) -> Void)?
+    /// 路徑上聊天目的地的畫面(窄視窗才有聊天進路徑;寬視窗給空畫面)。
+    let chatDestination: (ChatRoute) -> AnyView
     let onOpen: (HostSelection, PaneOpenTarget) -> Void
 
     /// 目前操作的主機的 Workspace 操作。
@@ -350,7 +361,20 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     func body(content: Content) -> some View {
         content
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
-                if let actions { sheetContent(sheet, actions: actions).appSheetBackground() }
+                if let actions { sheetContent(sheet, actions: actions) }
+            }
+            // 整個聊天 tab 的堆疊只在這裡註冊一次目的地(#641):聊天與版面圖都以 `ChatsDestination` 進路徑。
+            // Tab 列是 `NavigationLink(value:)`;選單的「Show Layout」設 `layoutRoute`,在這裡轉成路徑上的一筆。
+            .navigationDestination(for: ChatsDestination.self) { destination in
+                switch destination {
+                case .chat(let route): chatDestination(route)
+                case .layout(let route): layoutDestination(route)
+                }
+            }
+            .onChange(of: presentation.layoutRoute) { _, route in
+                guard let route else { return }
+                presentation.layoutRoute = nil
+                if let showLayoutInDetail { showLayoutInDetail(route) } else { path.append(.layout(route)) }
             }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
@@ -361,37 +385,12 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             } message: { request in
                 Text(renameMessage(request))
             }
-            .confirmationDialog(
-                closeTitle, isPresented: closeDialogShown, titleVisibility: .visible, presenting: presentation.closeRequest
-            ) { request in
-                Button("Close Workspace", role: .destructive) {
-                    Task { await actions?.close(workspaceID: request.workspaceID, sessionIDs: request.sessionIDs) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { _ in
-                Text("Everything running in this workspace will stop, including its agents. Chat history stays on the host.")
-            }
-            .confirmationDialog(
-                closeTabTitle, isPresented: closeTabDialogShown, titleVisibility: .visible, presenting: presentation.closeTabRequest
-            ) { request in
-                Button(request.isLastInWorkspace ? "Close Tab and Workspace" : "Close Tab", role: .destructive) {
-                    Task { await actions?.closeTab(tabID: request.tabID, sessionIDs: request.sessionIDs) }
-                }
-                .accessibilityIdentifier("closeTab.confirm")
-                Button("Cancel", role: .cancel) {}
-                    .accessibilityIdentifier("closeTab.cancel")
-            } message: { request in
-                if request.isLastInWorkspace {
-                    Text("This is the last tab in “\(request.workspaceLabel)”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host.")
-                } else {
-                    Text("Everything running in this tab will stop, including its agents. Chat history stays on the host.")
-                }
-            }
-            .alert("Couldn’t Finish", isPresented: errorShown, presenting: actions?.actionError) { _ in
+            .alert(Text(verbatim: actions?.actionErrorTitle ?? ""), isPresented: errorShown, presenting: actions?.actionError) { _ in
                 Button("OK", role: .cancel) {}
-            } message: { message in
-                Text(message)
+            } message: { failure in
+                Text(failure.text)
             }
+            .reportsErrorDisplay(actions?.actionError, area: "WorkspaceActions")
     }
 
     @ViewBuilder
@@ -401,11 +400,24 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                     NewWorktreeSheet(actions: actions, workspaceID: workspaceID, workspaceLabel: label) { created in
                         presentation.chosenTarget = .terminal(paneID: created.rootPaneID)
                     }
-                case .layout(let label, let layout):
-                    SpacesLayoutSheet(workspaceLabel: label, layout: layout) { target in
-                        presentation.chosenTarget = target
-                    }
                 }
+    }
+
+    private func layoutDestination(_ route: SpacesLayoutRoute) -> some View {
+        SpacesLayoutDestination(route: route, snapshot: snapshot(route.host)) { host, target in
+            presentation.host = host
+            presentation.chosenTarget = target
+        }
+        // 返回上一頁之後才開選到的 Pane(不能在返回的同一刻 push)。
+        .onDisappear { openChosenTargetAfterPop() }
+    }
+
+    private func openChosenTargetAfterPop() {
+        guard presentation.chosenTarget != nil else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            openChosenTarget()
+        }
     }
 
     private var renameTitle: Text {
@@ -457,22 +469,6 @@ private struct WorkspaceActionsPresenter: ViewModifier {
         Binding { presentation.renameRequest != nil } set: { if !$0 { presentation.renameRequest = nil } }
     }
 
-    private var closeTitle: Text {
-        Text("Close “\(presentation.closeRequest?.label ?? "")”?")
-    }
-
-    private var closeTabTitle: Text {
-        Text("Close tab “\(presentation.closeTabRequest?.label ?? "")”?")
-    }
-
-    private var closeTabDialogShown: Binding<Bool> {
-        Binding { presentation.closeTabRequest != nil } set: { if !$0 { presentation.closeTabRequest = nil } }
-    }
-
-    private var closeDialogShown: Binding<Bool> {
-        Binding { presentation.closeRequest != nil } set: { if !$0 { presentation.closeRequest = nil } }
-    }
-
     private var errorShown: Binding<Bool> {
         Binding { actions?.actionError != nil } set: { if !$0 { actions?.actionError = nil } }
     }
@@ -520,24 +516,21 @@ struct NewWorktreeSheet: View {
                 }
                 if let error = actions.worktreeError {
                     Section {
-                        ErrorLabel(error)
+                        ErrorLabel(error.text, area: "WorkspaceActionsViews", error: error.descriptor)
                             .accessibilityIdentifier("workspace.worktree.error")
                     }
                 }
             }
-            .appGroupedList()
+            .appSheetList()
             .navigationTitle("New Worktree")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(actions.isWorking ? "Creating…" : "Create", action: create)
-                        .disabled(!canCreate)
-                }
+                SheetCloseToolbar()
+                ModalConfirmToolbar(
+                    title: actions.isWorking ? "Creating…" : "Create", identifier: "workspace.worktree.create",
+                    isEnabled: canCreate, action: create)
             }
         }
         .appSheet(detents: [.medium, .large])
@@ -553,6 +546,62 @@ struct NewWorktreeSheet: View {
             if let created = await actions.createWorktree(from: workspaceID, branch: branch) {
                 onCreated(created)
                 dismiss()
+            }
+        }
+    }
+}
+
+/// 關閉 Workspace 的確認(#625):掛在觸發的段落標題上,錨定在標題;只有發出請求的那個 Workspace 的標題顯示。
+private struct CloseWorkspaceDialog: ViewModifier {
+    @Bindable var presentation: WorkspacePresentation
+    let target: WorkspaceTarget
+    let actions: WorkspaceActionsModel?
+
+    func body(content: Content) -> some View {
+        // confirmationDialog:anchor 由段落標題的長按選單觸發,對話框錨定在那個標題
+        content.confirmationDialog(
+            Text("Close “\(presentation.closeRequest?.label ?? "")”?"),
+            isPresented: Binding(
+                get: { presentation.closeRequest?.workspaceID == target.workspaceID },
+                set: { if !$0, presentation.closeRequest?.workspaceID == target.workspaceID { presentation.closeRequest = nil } }),
+            titleVisibility: .visible, presenting: presentation.closeRequest
+        ) { request in
+            Button("Close Workspace", role: .destructive) {
+                Task { await actions?.close(workspaceID: request.workspaceID, sessionIDs: request.sessionIDs) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("Everything running in this workspace will stop, including its agents. Chat history stays on the host.")
+        }
+    }
+}
+
+/// 關閉 Tab 的確認(#534、#625):掛在觸發的 Tab 列上,錨定在那一列。
+private struct CloseTabDialog: ViewModifier {
+    @Bindable var presentation: WorkspacePresentation
+    let tab: TabTarget?
+    let actions: WorkspaceActionsModel?
+
+    func body(content: Content) -> some View {
+        // confirmationDialog:anchor 由 Tab 列的長按選單或左滑觸發,對話框錨定在那一列
+        content.confirmationDialog(
+            Text("Close tab “\(presentation.closeTabRequest?.label ?? "")”?"),
+            isPresented: Binding(
+                get: { tab != nil && presentation.closeTabRequest?.tabID == tab?.tabID },
+                set: { if !$0, presentation.closeTabRequest?.tabID == tab?.tabID { presentation.closeTabRequest = nil } }),
+            titleVisibility: .visible, presenting: presentation.closeTabRequest
+        ) { request in
+            Button(request.isLastInWorkspace ? "Close Tab and Workspace" : "Close Tab", role: .destructive) {
+                Task { await actions?.closeTab(tabID: request.tabID, sessionIDs: request.sessionIDs) }
+            }
+            .accessibilityIdentifier("closeTab.confirm")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("closeTab.cancel")
+        } message: { request in
+            if request.isLastInWorkspace {
+                Text("This is the last tab in “\(request.workspaceLabel)”, so the workspace closes too. Everything running in it will stop, including its agents. Chat history stays on the host.")
+            } else {
+                Text("Everything running in this tab will stop, including its agents. Chat history stays on the host.")
             }
         }
     }

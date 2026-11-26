@@ -14,36 +14,16 @@ struct ConversationFollowTests {
     static let transcriptPath = ".claude/projects/-Users-demo-Projects-garden-journal/\(sessionID).jsonl"
 
     /// 轉送給 SSH 主機連線，並記下停止追蹤的路徑。
-    actor StopRecordingConnection: HostConnection {
-        let wrapped: any HostConnection
+    actor StopRecordingConnection: ForwardingHostConnection {
+        let base: any HostConnection
         private(set) var stoppedPaths: [String] = []
 
-        init(_ wrapped: any HostConnection) {
-            self.wrapped = wrapped
-        }
-
-        func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-            try await wrapped.herdrRequest(request, deadline: deadline)
-        }
-
-        func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-            try await wrapped.herdrEvents(request)
-        }
-
-        func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-            try await wrapped.readTranscript(request)
+        init(_ base: any HostConnection) {
+            self.base = base
         }
 
         func stopFollowingTranscript(path: String) async {
             stoppedPaths.append(path)
-        }
-
-        func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-            try await wrapped.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
-        }
-
-        func disconnect() async {
-            await wrapped.disconnect()
         }
     }
 
@@ -68,7 +48,7 @@ struct ConversationFollowTests {
     @Test("離開對話畫面(run 結束):停止追蹤目前的對話紀錄")
     func leavingConversationStopsFollowing() async throws {
         let setup = try await Self.setup()
-        await setup.herdr.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await setup.herdr.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
 
         await setup.model.run(sleep: { _ in throw CancellationError() })
 
@@ -84,8 +64,8 @@ struct ConversationFollowTests {
         let snapshot = Fixtures.data("session.snapshot.ndjson")
         let rotated = Data(String(decoding: snapshot, as: UTF8.self)
             .replacingOccurrences(of: Self.sessionID, with: "00000000-0000-0000-0000-0000000000f1").utf8)
-        await setup.herdr.expect("session.snapshot", reply: snapshot)
-        await setup.herdr.expect("session.snapshot", reply: rotated)
+        await setup.herdr.expect(.snapshot, wire: snapshot)
+        await setup.herdr.expect(.snapshot, wire: rotated)
         await setup.model.poll()
         #expect(await setup.transcripts.stoppedPaths.isEmpty)
 

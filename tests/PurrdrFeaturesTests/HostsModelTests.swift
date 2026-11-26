@@ -45,6 +45,21 @@ struct HostsModelTests {
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
     }
 
+    @Test("冷啟動的背景載入:載入前 isLoaded 為 false(畫面顯示進度指示),讀完才套用主機並選取(#590)")
+    func backgroundLoadAppliesHostsAndMarksLoaded() async {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        #expect(!model.isLoaded)
+        #expect(model.hosts.isEmpty)
+
+        await model.loadInBackground()
+
+        #expect(model.isLoaded)
+        #expect(model.hosts == [Self.studio])
+        #expect(model.selection == .host(Self.studio.id))
+    }
+
     @Test("Windows 主機(連線測試偵測到的 OS):Agent 列表的 herdr 指令換成 PowerShell -EncodedCommand(#26)")
     func windowsHostUsesPowerShell() async throws {
         var pc = Self.studio
@@ -137,9 +152,9 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let shell = model.loginShell(on: model.selection)
+        let shell = model.member(for: model.selection).loginShell()
         shell.viewDidResize(columns: 80, rows: 24)
-        let files = model.folderBrowser(on: model.selection)
+        let files = model.member(for: model.selection).folderBrowser()
         await files.load()
         #expect(await real.waitForPTYs(1) == 1)
 
@@ -173,10 +188,10 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let first = model.folderBrowser(on: model.selection)
+        let first = model.member(for: model.selection).folderBrowser()
         await first.load()
         await first.upload(log, named: "first.log")
-        let second = model.folderBrowser(on: model.selection)
+        let second = model.member(for: model.selection).folderBrowser()
         await second.load()
         await second.upload(log, named: "second.log")
 
@@ -200,7 +215,7 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let files = model.folderBrowser(on: model.selection)
+        let files = model.member(for: model.selection).folderBrowser()
         await files.load()
         await files.upload(log, named: "build.log")
 
@@ -224,7 +239,7 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let newChat = model.newChat(on: model.selection)
+        let newChat = model.member(for: model.selection).newChat()
         newChat.folder = "~/ledger"
         newChat.message = "Fix the CSV quoting"
         let workspace = try #require(await newChat.start())
@@ -322,6 +337,24 @@ struct HostsModelTests {
         id: UUID(uuidString: "1D2E3F40-5A6B-4C7D-8E9F-0A1B2C3D4E5F")!, name: "Studio HTTPS",
         hostService: HostServiceAddress("studio.tail1234.ts.net")!)
 
+    @Test("同步後需要重新確認的主機：所有主機選單的選項都標出來，沒被標記的不標(#572)")
+    func hostOptionsFlagHostsNeedingReconfirmation() {
+        var flagged = Self.httpsStudio
+        flagged.needsReconfirmation = true
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio, flagged]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        model.load()
+
+        let flags = { (options: [HostOption]) in options.map { [$0.id: $0.needsReconfirmation] } }
+        let expected = [[HostSelection.demo: false], [.host(Self.studio.id): false], [.host(flagged.id): true]]
+        #expect(flags(model.screens.selectedHostPicker().options) == expected)
+        #expect(flags(model.screens.newChatHostPicker().options) == expected)
+        #expect(flags(model.screens.planUsage().hosts) == expected)
+        #expect(flags(model.screens.dataUsage().hosts) == expected)
+        #expect(model.agentList.hostFilterOptions.filter(\.needsReconfirmation).map(\.id) == [.host(flagged.id)])
+    }
+
     @Test("方案用量畫面：主機選單列出 Demo 與所有已存主機，預設選取中主機，記住上次選擇")
     func planUsageListsAllHosts() {
         let store = MemoryHostStore()
@@ -329,14 +362,14 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
         model.load()
 
-        let usage = model.planUsage()
+        let usage = model.screens.planUsage()
         #expect(usage.hosts.map(\.id) == [.demo, .host(Self.studio.id), .host(Self.httpsStudio.id)])
         #expect(usage.hosts.map(\.name) == ["Demo", "Studio", "Studio HTTPS"])
         #expect(usage.host == model.selection)
 
         usage.select(host: .demo)
         usage.disappeared()
-        #expect(model.planUsage().host == .demo)
+        #expect(model.screens.planUsage().host == .demo)
     }
 
     @Test("方案用量的查詢成本：Demo 主機不耗 token 與傳輸，SSH 主機需要傳輸;HTTPS 主機不支援、不連線")
@@ -348,7 +381,7 @@ struct HostsModelTests {
         hostConsent.grant(ClaudePlanUsageHost.feature.id, host: Self.httpsStudio.id.uuidString)
         let model = HostsModel(store: store, demoChannel: FakeHost(), hostConsent: hostConsent, makeChannel: ChannelFactory(real).make)
         model.load()
-        let usage = model.planUsage()
+        let usage = model.screens.planUsage()
         usage.appeared()
 
         #expect(usage.cost == .transfer)
@@ -368,7 +401,7 @@ struct HostsModelTests {
         store.hosts = [Self.studio, Self.httpsStudio]
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
         model.load()
-        let usage = model.planUsage()
+        let usage = model.screens.planUsage()
         usage.select(agent: .codex)
 
         #expect(usage.cost == .transfer)

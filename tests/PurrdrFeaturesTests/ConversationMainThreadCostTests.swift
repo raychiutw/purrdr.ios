@@ -31,7 +31,7 @@ struct ConversationMainThreadCostTests {
     @Test("補讀到 2000 則、很多小段:組快取內容是線性掃描,不隨段數平方成長")
     func cacheSnapshotWithManySegmentsIsLinear() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await R.answering(connection, lines: Self.lines(pairs: 3))
         let model = R.model(connection)
         model.isFollowingLatest = false
@@ -56,7 +56,7 @@ struct ConversationMainThreadCostTests {
     @Test("串流追加:節流期間不重複寫快取,離開時補寫最新內容")
     func throttlesCacheWritesWhileStreaming() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await R.answering(connection, lines: W.lines)
         let cache = CountingCache()
         let model = R.model(connection, cache: cache)

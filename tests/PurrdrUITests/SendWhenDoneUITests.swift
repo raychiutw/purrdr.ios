@@ -23,6 +23,22 @@ final class SendWhenDoneUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: "conversation.sendWhenDone.item").allElementsBoundByIndex.map(\.label)
     }
 
+    /// 不能用的原因直接寫在開關下方(#626),點開關不跳 alert、也不會開啟:SSH(Demo)主機沒有主機服務。
+    @MainActor
+    func testUnavailableReasonIsFooterNotAlert() {
+        let app = XCUIApplication.launchUITesting()
+        app.openConversation(paneID: "w1:p1")
+        app.conversationMoreItem("menu.sendWhenDone").tap()
+        let toggle = app.element("status.sendWhenDone")
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "做完再送 sheet 沒有開關")
+        let reason = app.element("status.sendWhenDone.reason")
+        XCTAssertTrue(reason.waitUntilExists(timeout: 10), "沒有寫在開關下方的原因")
+        XCTAssertTrue(reason.label.contains("host service"), reason.label)
+        toggle.tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitUntilExists(timeout: 2), "點停用的開關不該跳 alert")
+        XCTAssertNotEqual(toggle.value as? String, "On", "停用的開關不該開啟")
+    }
+
     @MainActor
     func testQueuedMessagesCanBeReordered() throws {
         let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
@@ -31,20 +47,18 @@ final class SendWhenDoneUITests: XCTestCase {
         row.tap()
         // 開關在「⋯」→ 做完再送的 sheet(#515),不在輸入列。
         XCTAssertFalse(app.element("composer.sendWhenDone").exists, "輸入列不該再有做完再送開關")
-        let header = app.element("conversation.header")
+        let header = app.conversationBar
         XCTAssertTrue(header.waitUntilExists(timeout: 10))
         app.conversationMoreItem("menu.sendWhenDone").tap()
         let toggle = app.element("status.sendWhenDone")
         XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "做完再送 sheet 沒有開關")
-        // 主機服務的佇列可用性讀回來之前,點開關只會說明原因:等到能打開為止。
-        sleep(3)
-        for _ in 0..<5 where toggle.value as? String != "On" {
-            toggle.tap()
-            if app.alerts.firstMatch.waitUntilExists(timeout: 1) { app.alerts.buttons["OK"].tap() }
-        }
-        // 已知問題(待查,見 PR 說明):UI 測試裡點「做完再送」膠囊沒有反應(值一直是 Off、也沒有說明對話框);
-        // 同一條接線在 model 層的 UITestingSendWhenDoneTests 是通的。查清楚前不讓它擋住整批 UI 測試。
-        try XCTSkipUnless(toggle.value as? String == "On", "做完再送膠囊點了沒有反應(待查)")
+        // 系統開關:主機服務的佇列可用性讀回來之前是停用的,等到能打開為止(停用時原因寫在下方,不跳對話框)。
+        XCTAssertTrue(UITestWait.until(timeout: 15) { toggle.isEnabled }, "做完再送開關一直是停用")
+        XCTAssertEqual(app.alerts.count, 0, "不該用對話框說明")
+        // 系統開關:點的是列尾的開關本體(點列的其他地方不會切換,與系統設定相同)。
+        let knob = toggle.switches.firstMatch
+        knob.tap()
+        XCTAssertTrue(UITestWait.until(timeout: 10) { "\(knob.value ?? "")" == "1" }, "做完再送沒有開啟:\(String(describing: knob.value))")
         app.buttons["sheet.close"].tap()
 
         queue("first message", in: app)

@@ -5,7 +5,7 @@ import SwiftUI
 /// 輸入卡片上方置中的工作中膠囊(原型 purrdr-screens 定案版:「● 工作中 0:42 [停止]」;實機回報 2026-11-20):
 /// 主色圓點、「Working…／Writing…」與經過時間、停止鈕(長按開強制結束選單);停止中與停止的結果也在這顆膠囊裡。
 ///
-/// 停止鈕是中性的淡填色膠囊，送出維持輸入列唯一的主色主要動作。結果有前導符號與文字(不只靠顏色),
+/// 停止鈕是系統 bordered 膠囊(中性色)，送出維持輸入列唯一的主色主要動作。結果有前導符號與文字(不只靠顏色),
 /// 顏色只上在符號(`StopPhase.tone`);出現時有觸覺回饋與 VoiceOver 公告;「已停止」由 model 2 秒後收起。
 /// 這顆膠囊就是輸入框上方「工作中」那一樣(`ComposerTopAccessory`),也是畫面上唯一的工作中指示。
 struct StopBar: View {
@@ -23,6 +23,7 @@ struct StopBar: View {
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("stopBar")
+            .forceQuitConfirmation(model: model)
             .sensoryFeedback(trigger: model.stopPhase) { _, phase in phase?.feedback }
             .onChange(of: model.stopPhase) { _, phase in
                 guard let phase, phase != .stopping else { return }
@@ -102,13 +103,11 @@ struct StopBar: View {
         } label: {
             Text("Stop")
                 .font(.footnote.weight(.semibold))
-                .frame(minHeight: 44)
-                .contentShape(.rect)
         } primaryAction: {
             Task { await model.stop() }
         }
         .menuStyle(.button)
-        .buttonStyle(StopBarButtonStyle())
+        .stopBarButton()
         .accessibilityLabel(Text("Stop \(model.agentName)"))
         .accessibilityHint(Text("Interrupts the agent’s current turn. Touch and hold for Force Quit."))
         .accessibilityIdentifier("stopBar.stop")
@@ -121,9 +120,8 @@ struct StopBar: View {
                 Text("Stopping…")
             }
             .font(.subheadline.weight(.semibold))
-            .frame(minHeight: 44)
         }
-        .buttonStyle(StopBarButtonStyle())
+        .stopBarButton()
         .disabled(true)
         .accessibilityLabel(Text("Stopping…"))
         .accessibilityIdentifier("stopBar.stopping")
@@ -178,34 +176,34 @@ struct StopBar: View {
             Button(role: .destructive) {
                 model.confirmsForceQuit = true
             } label: {
-                Text("Force Quit…").frame(minHeight: 44)
+                Text("Force Quit…")
             }
-            .buttonStyle(StopBarButtonStyle())
+            .stopBarButton(isDestructive: true)
             .disabled(!model.canForceQuit)
             .accessibilityIdentifier("stopBar.forceQuitResult")
         case .failed:
             Button {
                 Task { await model.stop() }
             } label: {
-                Text("Try Again").frame(minHeight: 44)
+                Text("Try Again")
             }
-            .buttonStyle(StopBarButtonStyle())
+            .stopBarButton()
             .accessibilityIdentifier("stopBar.retry")
         case .unconfirmed:
             Button {
                 Task { await model.reload() }
             } label: {
-                Text("Reload").frame(minHeight: 44)
+                Text("Reload")
             }
-            .buttonStyle(StopBarButtonStyle())
+            .stopBarButton()
             .accessibilityIdentifier("stopBar.reload")
         case .forceQuitFailed:
             Button {
                 model.confirmsForceQuit = true
             } label: {
-                Text("Try Again").frame(minHeight: 44)
+                Text("Try Again")
             }
-            .buttonStyle(StopBarButtonStyle())
+            .stopBarButton()
             .disabled(!model.canForceQuit)
             .accessibilityIdentifier("stopBar.forceQuitRetry")
         case .stopping, .stopped, .needsAnswer:
@@ -231,10 +229,11 @@ struct StopBar: View {
 
 extension View {
     /// 強制結束前的確認(#220):會送 Ctrl-C,destructive 確認，系統提供取消。
-    /// 掛在對話畫面上，不放在輸入列(`safeAreaBar` 的內容裡按了不會執行動作)。
+    /// 掛在停止列上,錨定在觸發的停止鈕(#625)。
     func forceQuitConfirmation(model: ConversationModel) -> some View {
         @Bindable var model = model
-        return confirmationDialog(Text("Force Quit \(model.agentName)?"), isPresented: $model.confirmsForceQuit, titleVisibility: .visible) {
+        // confirmationDialog:anchor 由停止鈕的選單或結果列的按鈕觸發,對話框錨定在停止列
+        return self.confirmationDialog(Text("Force Quit \(model.agentName)?"), isPresented: $model.confirmsForceQuit, titleVisibility: .visible) {
             Button("Force Quit", role: .destructive) {
                 Task { await model.forceQuit() }
             }
@@ -245,16 +244,13 @@ extension View {
     }
 }
 
-/// 停止列的中性按鈕：淡填色底與主要文字色(玻璃上的 bordered tint 對比不足),destructive 用系統紅，按下變淡。
-private struct StopBarButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        // 看得到的是 32pt 高的淡填色膠囊(原型的「停止」),點擊範圍仍是 44pt。
-        configuration.label
-            .padding(.horizontal, 12)
-            .foregroundStyle(configuration.role == .destructive ? Color.destructiveText : Color.primary)
-            .background(.fill.tertiary, in: Capsule().inset(by: 6))
-            .opacity(configuration.isPressed ? 0.6 : 1)
-            .contentShape(Capsule())
+extension View {
+    /// 停止列的按鈕:系統 `.bordered` 膠囊(spec #612、#627)。中性的用主要文字色(送出維持輸入列唯一的主色主要動作),
+    /// destructive 沿用系統角色的紅色;按壓回饋與停用外觀都由系統給。
+    fileprivate func stopBarButton(isDestructive: Bool = false) -> some View {
+        buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .tint(isDestructive ? Color.destructiveText : Color.primary)
     }
 }
 

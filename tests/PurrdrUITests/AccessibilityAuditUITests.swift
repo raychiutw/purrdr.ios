@@ -127,13 +127,11 @@ final class AccessibilityAuditUITests: XCTestCase {
             text.typeEnglish("model")
             app.element("slash.row.model").tap()
             app.element("composer.send").tap()
-            let panel = app.element("panel.card")
+            let panel = app.element("panel.bar")
             XCTAssertTrue(panel.waitUntilExists(timeout: 10))
-            // 送出就收起鍵盤(#329);還聚焦才點。
-            app.dismissKeyboard()
             // 收起鍵盤後對話還在捲回最新一列：等版面停下再稽核(#251:AX5 量到捲動中的舊位置，截圖是另一塊)。
-            XCTAssertTrue(app.waitForSettledLayout([panel, app.element("composer.text")], timeout: 5), "版面沒有停下")
-            try audit(app, "/model 面板卡片", contentSize: size)
+            XCTAssertTrue(app.waitForSettledLayout([panel, app.buttons["panel.cancel"]], timeout: 5), "版面沒有停下")
+            try audit(app, "/model 面板", contentSize: size)
             app.terminate()
         }
     }
@@ -172,7 +170,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     private func openMenu(_ item: String, in app: XCUIApplication) {
         switch item {
         case "menu.hosts": app.openHostsTab()
-        case "menu.newChat": app.openNewChatSheet()
+        case "menu.newChat": app.openNewChat()
         default: XCTFail("沒有這個入口 \(item)")
         }
     }
@@ -263,7 +261,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchAuditing(contentSize: size)
             openMenu("menu.newChat", in: app)
-            XCTAssertTrue(app.element("sheet.newChat").waitUntilExists(timeout: 10))
+            XCTAssertTrue(app.element("newChat.page").waitUntilExists(timeout: 10))
             try audit(app, "新增對話", contentSize: size)
             app.terminate()
         }

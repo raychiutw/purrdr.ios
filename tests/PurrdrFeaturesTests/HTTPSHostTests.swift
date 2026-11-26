@@ -56,7 +56,7 @@ final class HostServiceConnections {
 
     static func healthy() async -> FakeHostConnection {
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         return connection
     }
 }
@@ -125,7 +125,7 @@ struct HTTPSHostEditorTests {
 
         await model.test()
 
-        #expect(model.phase == .failed(HostErrorText.message(for: expected, connection: .https)))
+        #expect(model.phase == .failed(DisplayedError(error: expected, connection: .https)))
         #expect(!model.canSave)
     }
 
@@ -184,7 +184,7 @@ struct HTTPSHostEditorTests {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         let url = try #require(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net&code=K7QM-2XPA"))
 
-        let editor = try model.makeImportEditor(url)
+        let editor = try model.screens.makeImportEditor(url)
 
         #expect(editor.connectionMethod == .https)
         #expect(editor.address == "studio.tail1234.ts.net")
@@ -197,7 +197,7 @@ struct HTTPSHostEditorTests {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         let link = HostShareLink.url(for: HostConfiguration(name: "Studio", hostService: Self.address))
 
-        let editor = try model.makeImportEditor(link)
+        let editor = try model.screens.makeImportEditor(link)
 
         #expect(editor.connectionMethod == .https)
         #expect(editor.name == "Studio")
@@ -235,7 +235,7 @@ struct HTTPSHostEditorTests {
         let outdated = FakeHostConnection()
         let snapshot = String(decoding: Fixtures.data("session.snapshot.ndjson"), as: UTF8.self)
             .replacingOccurrences(of: #""version":"0.9.5""#, with: #""version":"0.9.4""#)
-        await outdated.expect("session.snapshot", reply: Data(snapshot.utf8))
+        await outdated.expect(.snapshot, wire: Data(snapshot.utf8))
         let connections = HostServiceConnections()
         connections.connections = [outdated]
         let model = HostEditorModel(store: MemoryHostStore(), hostService: connections.access(), makeChannel: ChannelFactory().make)
@@ -400,7 +400,7 @@ struct HTTPSHostsModelTests {
         model.load()
         #expect(model.rows.first?.needsPairing == true)
 
-        let editor = model.makeEditor(editing: synced)
+        let editor = model.screens.makeEditor(editing: synced)
         editor.pairingCode = "K7QM-2XPA"
         await editor.test()
         let saved = try #require(editor.save())
@@ -466,27 +466,20 @@ struct HTTPSHostsModelTests {
 @MainActor
 @Suite("HTTPS 主機的權杖失效")
 struct HTTPSDeviceTokenRejectionTests {
-    /// 每個請求都以權杖被撤銷失敗，並計數。
-    actor RevokedConnection: HostConnection {
+    /// 每個請求都以權杖被撤銷失敗，並計數(列表只會讀快照與訂閱事件)。
+    actor RevokedConnection: ForwardingHostConnection {
+        let base: any HostConnection = FailingHostConnection(error: HostServiceError.deviceTokenRevoked)
         private(set) var attempts = 0
 
-        func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
+        func readSnapshot() async throws -> HostSnapshot {
             attempts += 1
             throw HostServiceError.deviceTokenRevoked
         }
 
-        func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
+        func subscribeToEvents(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
             attempts += 1
             throw HostServiceError.deviceTokenRevoked
         }
-
-        func readTranscript(_ request: TranscriptRequest) async throws -> Data { throw HostServiceError.deviceTokenRevoked }
-
-        func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-            throw HostServiceError.deviceTokenRevoked
-        }
-
-        func disconnect() async {}
     }
 
     @Test("權杖被撤銷：列表說明要重新配對，即時更新停下來等使用者，不會一直重連")

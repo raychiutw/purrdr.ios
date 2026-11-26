@@ -41,11 +41,18 @@ final class ChangesUITests: XCTestCase {
         XCTAssertTrue(diff.waitUntilExists(timeout: 10), "沒有打開 diff")
         let line = app.descendants(matching: .any)["changes.line.5"].firstMatch
         XCTAssertTrue(line.waitUntilExists(timeout: 10), "沒有 diff 的行")
+        XCTAssertTrue(line.waitUntilHittable(timeout: 5), "diff 的行不能點")
         line.tap()
         let field = app.textFields["changes.comment.field"].firstMatch
         XCTAssertTrue(field.waitUntilExists(timeout: 5), "沒有評論輸入框")
+        app.assertModalToolbar(close: "sheet.close", confirm: "changes.comment.save")
+        let save = app.buttons["changes.comment.save"].firstMatch
+        XCTAssertFalse(save.isEnabled, "沒有內容時 ✓ 應停用")
+        // sheet 剛出現時欄位的第一下輸入可能還沒有焦點:以焦點為準再打字。
+        XCTAssertTrue(app.focusTextField(field), "評論輸入框沒有取得焦點")
         field.typeText("Count carriage returns too")
-        app.buttons["changes.comment.save"].firstMatch.tap()
+        XCTAssertTrue(save.wait(for: NSPredicate(format: "isEnabled == true"), timeout: 5), "有內容後 ✓ 應可按")
+        save.tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["changes.comment.5"].firstMatch.waitUntilExists(timeout: 5), "評論卡片沒有出現")
         let send = app.buttons["changes.review.send"].firstMatch

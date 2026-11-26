@@ -36,7 +36,7 @@ struct PairedDevicesModelTests {
             Issue.record("沒有失敗：\(model.state)")
             return
         }
-        #expect(message.contains("0.6.0"))
+        #expect(message.text.contains("0.6.0"))
     }
 
     @Test("撤銷別支裝置要先確認;確認才送出，之後重新列出")
@@ -108,7 +108,14 @@ struct PairedDevicesModelTests {
         #expect(model.canRemoveHost(from: Self.thisPhone))
         #expect(!model.canRemoveHost(from: Self.iPad))
         model.requestHostRemoval(from: Self.iPad)
+        #expect(model.confirmingHostRemoval == nil)
         model.requestHostRemoval(from: Self.thisPhone)
+        #expect(removals.count == 0, "要先在那一列確認,不直接移除(#625)")
+        model.cancelHostRemoval()
+        model.confirmHostRemoval()
+        #expect(removals.count == 0, "取消後確認不該移除")
+        model.requestHostRemoval(from: Self.thisPhone)
+        model.confirmHostRemoval()
 
         #expect(removals.count == 1)
         #expect(host.revoked.isEmpty)

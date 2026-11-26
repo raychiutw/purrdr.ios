@@ -51,13 +51,14 @@ struct PermissionModeSection: View {
         }
         if let failure = model.permissionModeFailure {
             Section {
-                Label(failure.text, systemImage: "exclamationmark.triangle")
+                ErrorLabel(failure.text, area: "PermissionMode", error: failure)
                     .font(.footnote)
                     .accessibilityIdentifier("permissionMode.failure")
                 if failure.target != nil {
                     Button("Try Again") {
                         Task { await model.retryPermissionMode() }
                     }
+                    .listAction()
                     .disabled(model.isSwitchingPermissionMode)
                     .accessibilityIdentifier("permissionMode.retry")
                 }

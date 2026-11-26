@@ -68,8 +68,8 @@ struct HTTPSSendExpectationTests {
     @Test("SSH 主機(沒有主機服務):herdr 請求不帶比對欄位，由 app 送前重讀 snapshot 比對")
     func sshRequestsCarryNoExpectation() async throws {
         let connection = FakeHostConnection()
-        await connection.expect("agent.prompt", reply: Data(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted"}}"#.utf8))
-        await connection.expect("pane.send_keys", reply: Data(#"{"id":"purrdr:pane.send_keys","result":{"type":"ok"}}"#.utf8))
+        await connection.expect(.agentPrompt, wire: Data(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted"}}"#.utf8))
+        await connection.expect(.sendKeys, wire: Data(#"{"id":"purrdr:pane.send_keys","result":{"type":"ok"}}"#.utf8))
         let client = HerdrClient(connection: connection)
         let expectation = SendExpectation(session: Self.session)
 

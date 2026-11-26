@@ -15,8 +15,8 @@ public struct ConversationView: View {
     @Bindable var model: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.hitchRecorder) private var hitchRecorder
+    @Environment(\.tracksReadingDrift) private var tracksReadingDrift
     @Environment(\.hostTheme) private var hostTheme
-    @Environment(\.forcesOpaqueGlass) private var forcesOpaqueGlass
     /// 列表的呼叫口(「跳到最新」、輸入列重排)與最近量到的可見高度。
     @State private var listHandle = ChatListHandle()
     /// 「跳到最新」是否已顯示(跟隨中延遲顯示,#476)。
@@ -34,7 +34,6 @@ public struct ConversationView: View {
     @State private var presentedSheet: ConversationSheetContent?
     @State private var openedRoute: DelegationRoute?
     /// 新訊息與狀態變化的 VoiceOver 公告(有節流，#35)。
-    @State private var announcer = ConversationAnnouncer()
     /// 對話的可見高度(扣掉上下 inset;輸入列依它決定鍵盤出現時要不要讓位，#196)。
     /// 放在只有輸入列(聚焦時)讀的 observable 裡：寫進這個畫面的 `@State` 會讓整個對話隨每次捲動量測重畫，
     /// 送出後大量輸出時列表停在一片空白(`testSendingThenLargeOutputKeepsMessagesVisible`)。
@@ -42,7 +41,6 @@ public struct ConversationView: View {
     /// 避開玻璃導覽列、橫幅與輸入列後的安全區域框(全域座標),列表據此算上下 inset。
     @State private var safeAreaFrame: CGRect = .zero
 
-    @Environment(\.paneWindowTitle) private var paneWindowTitle
 
     public init(model: ConversationModel) {
         self.model = model
@@ -50,28 +48,19 @@ public struct ConversationView: View {
 
     public var body: some View {
         content
-            .navigationTitle(paneWindowTitle ?? displayTitle)
+            .modifier(ConversationNavigationTitle(model: model))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                // 標題是 workspace 名稱，副標是狀態與主機名(#270);右邊只有終端機鈕，重新載入改成下拉。
-                ToolbarItem(placement: .principal) {
-                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header)
-                }
-                .sharedBackgroundVisibility(.hidden)    // 標題自己是玻璃膠囊，不讓工具列再疊一層(glass on glass)
-            }
             .safeAreaBar(edge: .top) {
                 // 狀態橫幅(斷線等)在上、跨聊天「需要你」橫幅在它下面(#530),兩者上下排列不互相蓋住。
                 VStack(spacing: 0) {
-                    banner
+                    ConversationBannerView(model: model)
                     NeedsYouBannerView()
                 }
             }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
-            .forceQuitConfirmation(model: model)
             .secretCheckSheet(model.secretCheck)
-            .slashPanelSheet(model: model)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerItem = $0 }
@@ -79,7 +68,7 @@ public struct ConversationView: View {
             .environment(\.inlineSlashNames, model.inlineSlashNames)
             .imageViewer(item: $viewerItem)
             .quickLookPreview($previewFile)
-            .sheet(item: $presentedSheet) { $0.content.appSheetBackground() }
+            .sheet(item: $presentedSheet) { $0.content }
             .navigationDestination(item: $openedRoute) { [model] route in
                 DelegationDestination(route: route, conversation: model)
             }
@@ -105,33 +94,7 @@ public struct ConversationView: View {
                 guard scenePhase == .active else { return }
                 await model.sendWhenDone?.run()
             }
-            .onChange(of: ConversationAnnouncer.Input(items: model.items, status: model.agentStatus, title: displayTitle), initial: true) { _, input in
-                announce(announcer.observe(input, now: .now))
-            }
-            // 節流期間留著的公告：時間到再念。
-            .task(id: announcer.pendingDeadline) {
-                guard let deadline = announcer.pendingDeadline else { return }
-                try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))
-                guard !Task.isCancelled else { return }
-                announce(announcer.flush(now: .now))
-            }
-    }
-
-    private func announce(_ text: String?) {
-        guard let text else { return }
-        AccessibilityNotification.Announcement(text).post()
-    }
-
-    private var displayTitle: String {
-        model.statusSummary.header.title.isEmpty ? String(localized: "Chat") : model.statusSummary.header.title
-    }
-
-    /// 沒有任何可顯示的內容:列表照常存在(常駐),說明文字畫在列表上面(#487)。
-    /// 認不出 session(#400)時,工作中指示不蓋掉說明:沒有對話可顯示,使用者需要知道原因與解法。
-    private var isEmptyState: Bool {
-        model.phase == .missingSession
-            || model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil
-            && !model.showsWorkingIndicator
+            .modifier(ConversationAnnouncement(model: model))
     }
 
     private var content: some View {
@@ -172,56 +135,9 @@ public struct ConversationView: View {
     }
 
     /// 這個待送項目有沒有東西可畫(列表不放空列,不然列間距會多出一段)。
-    private func rendersPendingRow(_ item: PendingItem) -> Bool {
-        switch item.kind {
-        case .offlineQueued, .offlineProblem: model.queuedPrompts.contains { "queued-\($0.id.uuidString)" == item.id }
-        case .sendWhenDone(let position): position == 1 && model.sendWhenDone != nil
-        case .undoCountdown: model.undoSend?.pending != nil
-        }
-    }
+    private var isEmptyState: Bool { ConversationListContentBuilder.isEmptyState(model) }
 
-    /// 每輪開頭的頭像與名稱(#351)。
-    private var agentTurnHeader: AgentTurnHeader {
-        AgentTurnHeader(kind: AgentKind(rawKind: model.agentKind ?? ""), name: model.agentName)
-    }
-
-    /// 列表由上而下的列與各列內容。列 id 取自對話時間軸(`model.rows`):回音被確認後 id 不變。
-    private var listContent: ChatListContent {
-        var rows = model.rows
-        var awayAnchorRowID: String?
-        if let summary = model.awaySummary {
-            if model.isAwayCollapsed {
-                let hiddenEntryIDs = summary.hiddenIDs(in: rows.map { $0.entry.id })
-                rows = rows.filter { !hiddenEntryIDs.contains($0.entry.id) }
-            }
-            awayAnchorRowID = rows.first { $0.entry.id == summary.anchorID }?.id
-        }
-        let turnStartIDs = ConversationEntry.turnStartTextIDs(in: rows.map(\.entry))
-        let turnHeader = agentTurnHeader
-        let pendingItems = model.pendingItems.filter { rendersPendingRow($0) }
-        let noticeText = model.sendWhenDone?.notice
-        let showsPrompt = model.lastAnswer != nil
-        let showsWorking = model.showsWorkingIndicator && model.workingSince != nil
-        let showsOlder = !isEmptyState
-
-        var rowContents: [String: ChatListRowContent] = [:]
-        if showsOlder { rowContents[ChatListRowPlan.olderID] = .older(model.older) }
-        for row in rows {
-            rowContents[row.id] = .entry(row, turnHeader: turnStartIDs.contains(row.entry.id) ? turnHeader : nil)
-        }
-        if awayAnchorRowID != nil, let summary = model.awaySummary {
-            rowContents[ChatListRowPlan.awayID] = .away(summary, isCollapsed: model.isAwayCollapsed)
-        }
-        for item in pendingItems { rowContents[item.id] = .pending(item) }
-        if let noticeText { rowContents[ChatListRowPlan.noticeID] = .notice(noticeText) }
-        if showsPrompt { rowContents[ChatListRowPlan.promptID] = .prompt }
-        if showsWorking { rowContents[ChatListRowPlan.workingID] = .working }
-
-        let ids = ChatListRowPlan.ids(
-            includesOlder: showsOlder, rowIDs: rows.map(\.id), awayAnchorID: awayAnchorRowID, pendingIDs: pendingItems.map(\.id),
-            noticeID: noticeText == nil ? nil : ChatListRowPlan.noticeID, showsPrompt: showsPrompt, showsWorking: showsWorking)
-        return ChatListContent(ids: ids, rows: rowContents)
-    }
+    private var listContent: ChatListContent { ConversationListContentBuilder.make(model) }
 
     /// 一列的畫面。列嵌在 `UIHostingConfiguration` 裡,看不到這個畫面的環境值,所以這裡重新注入列需要的那幾個。
     private func rowView(_ rowContent: ChatListRowContent) -> AnyView {
@@ -251,7 +167,6 @@ public struct ConversationView: View {
                 ))
                 .environment(\.markdownBlocks, MarkdownBlockSource(blocks: { [model] in model.markdownBlocks(for: $0) }))
                 .environment(\.hostTheme, hostTheme)
-                .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
         )
     }
 
@@ -328,8 +243,8 @@ public struct ConversationView: View {
         case .pending(let item):
             // 待送項目(#347):離線排隊、做完再送、撤回倒數統一從 `pendingItems` 讀，接在最後一則訊息後面。
             pendingRow(item)
-        case .notice(let text):
-            ErrorLabel(text)
+        case .notice(let shown):
+            ErrorLabel(shown.text, area: "ConversationView", error: shown.descriptor)
                 .font(.footnote)
                 .accessibilityIdentifier("conversation.sendWhenDone.notice")
         case .prompt:
@@ -354,13 +269,13 @@ public struct ConversationView: View {
             ChatListView(
                 content: listContent,
                 rowEnvironment: ChatListRowEnvironment(
-                    hostTheme: hostTheme, forcesOpaqueGlass: forcesOpaqueGlass, inlineSlashNames: model.inlineSlashNames),
+                    hostTheme: hostTheme, inlineSlashNames: model.inlineSlashNames),
                 isSceneActive: scenePhase == .active,
                 model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
                 smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
                 onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
                 onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) },
-                hitchRecorder: hitchRecorder
+                hitchRecorder: hitchRecorder, tracksReadingDrift: tracksReadingDrift
             )
             .ignoresSafeArea(.container, edges: .vertical)
         }
@@ -396,11 +311,11 @@ public struct ConversationView: View {
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
-                        .frame(width: 44, height: 44)
-                        .floatingGlass(in: Circle())
-                        .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                // 系統玻璃按鈕(spec #612、#627):「減少透明度」由系統處理,不自加尺寸與玻璃。
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
                 .padding(.bottom, 8)
                 .accessibilityIdentifier("conversation.jumpToLatest")
             }
@@ -433,6 +348,12 @@ public struct ConversationView: View {
                 .accessibilityIdentifier("conversation.beginning")
         case .available:
             Color.clear.frame(height: 1)
+        case .scrollbackLimitReached:
+            Text("Scroll down to the latest message to read earlier ones again.")
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("conversation.scrollbackLimit")
         }
     }
 
@@ -539,28 +460,6 @@ public struct ConversationView: View {
     }
 
     /// 非干擾式標示：不在進入畫面時跳 alert,也不只用自動消失的 toast(HIG 20.5)。
-    /// 頂列下方唯一的一條浮動橫幅(#348):對話紀錄問題、唯讀與主機服務版本都在這裡，輸入列與卡片不再重複。
-    @ViewBuilder
-    private var banner: some View {
-        if let kind = model.statusSummary.banner {
-            HStack {
-                Label {
-                    kind.text
-                } icon: {
-                    Image(systemName: kind.symbol)
-                }
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-            }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .floatingGlass(in: RoundedRectangle(cornerRadius: 20))
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("conversation.banner")
-        }
-    }
 }
 
 extension ConversationStatusSummary.Banner {

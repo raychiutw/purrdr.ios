@@ -13,26 +13,16 @@ struct ConversationScreenUpdateTests {
     static let bridge = HerdrCommand.bridge()
 
     /// 仿舊版主機服務的 HTTPS 主機：`pane.read` 一律回「需要更新主機服務」(`failsScreenReads` 為 `false` 時照常讀)。
-    final class OldHostServiceConnection: HostConnection, @unchecked Sendable {
+    final class OldHostServiceConnection: ForwardingHostConnection, @unchecked Sendable {
         let base: any HostConnection
         var failsScreenReads = true
 
         init(base: any HostConnection) { self.base = base }
 
-        func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-            let method = (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
-            if method == "pane.read", failsScreenReads {
-                throw HostServiceError.hostServiceUpdateRequired(.paneRead, installedVersion: "0.6.0")
-            }
-            return try await base.herdrRequest(request, deadline: deadline)
+        func readPaneScreen(paneID: String, lines: Int, format: PaneReadFormat) async throws -> String {
+            if failsScreenReads { throw HostServiceError.hostServiceUpdateRequired(.paneRead, installedVersion: "0.6.0") }
+            return try await base.readPaneScreen(paneID: paneID, lines: lines, format: format)
         }
-
-        func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> { try await base.herdrEvents(request) }
-        func readTranscript(_ request: TranscriptRequest) async throws -> Data { try await base.readTranscript(request) }
-        func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-            try await base.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
-        }
-        func disconnect() async { await base.disconnect() }
     }
 
     struct Setup {

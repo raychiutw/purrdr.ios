@@ -206,10 +206,10 @@ struct MultiHostTests {
         model.load()
         let paneID = "w1:pA"
 
-        model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: paneID), sessionID: Self.sessionA).draft = "studio draft"
+        model.member(for: .host(Self.studio.id)).conversation(ChatRoute(host: .host(Self.studio.id), paneID: paneID), sessionID: Self.sessionA).draft = "studio draft"
 
-        #expect(model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: paneID), sessionID: Self.sessionA).draft == "")
-        #expect(model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: paneID), sessionID: Self.sessionA).draft == "studio draft")
+        #expect(model.member(for: .host(Self.lab.id)).conversation(ChatRoute(host: .host(Self.lab.id), paneID: paneID), sessionID: Self.sessionA).draft == "")
+        #expect(model.member(for: .host(Self.studio.id)).conversation(ChatRoute(host: .host(Self.studio.id), paneID: paneID), sessionID: Self.sessionA).draft == "studio draft")
     }
 
     @Test("對話快取以主機分開：刪除一台主機只清它的快取")
@@ -234,8 +234,8 @@ struct MultiHostTests {
         model.load()
         model.select(.host(Self.studio.id))
 
-        let other = model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
-        let selected = model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
+        let other = model.member(for: .host(Self.lab.id)).conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
+        let selected = model.member(for: .host(Self.studio.id)).conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
 
         #expect(other.header.segments == ["Lab"])
         #expect(selected.header.segments == ["Studio"])
@@ -246,8 +246,8 @@ struct MultiHostTests {
         let model = Self.model(ChannelsByAddress([:]))
         model.load()
 
-        let first = model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
-        let second = model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
+        let first = model.member(for: .host(Self.studio.id)).conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
+        let second = model.member(for: .host(Self.lab.id)).conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
 
         #expect(first.secretCheck != nil)
         #expect(second.secretCheck != nil)
@@ -259,8 +259,8 @@ struct MultiHostTests {
         let model = Self.model(ChannelsByAddress([:]))
         model.load()
         model.select(.host(Self.studio.id))
-        let lab = model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
-        let studio = model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
+        let lab = model.member(for: .host(Self.lab.id)).conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
+        let studio = model.member(for: .host(Self.studio.id)).conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
 
         model.select(.host(Self.lab.id))
 
@@ -276,12 +276,12 @@ struct MultiHostTests {
         model.load()
         model.select(.host(Self.studio.id))
 
-        let lab = model.hostSettings(for: Self.lab.id)
+        let lab = model.member(for: .host(Self.lab.id)).settings()
         #expect(lab != nil)
-        #expect(lab?.youShouldKnow === model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil).youShouldKnow)
+        #expect(lab?.youShouldKnow === model.member(for: .host(Self.lab.id)).conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil).youShouldKnow)
         #expect(lab?.youShouldKnow !== model.youShouldKnow, "不該是選取中主機的")
-        #expect(model.hostSettings(for: Self.lab.id) == lab, "同一台主機每次拿到同一份(Codex 啟動器不重建)")
-        #expect(model.hostSettings(for: UUID()) == nil)
+        #expect(model.member(for: .host(Self.lab.id)).settings() == lab, "同一台主機每次拿到同一份(Codex 啟動器不重建)")
+        #expect(model.member(for: .host(UUID())).settings() == nil)
     }
 
     /// 主機頁的 navigationDestination 每次重繪都會拿主機設定;拿的時候改了被觀察的狀態，SwiftUI 就無限重繪、主執行緒卡住。
@@ -289,15 +289,15 @@ struct MultiHostTests {
     func hostSettingsRepeatDoesNotMutateObservedState() {
         let model = Self.model(ChannelsByAddress([:]))
         model.load()
-        _ = model.hostSettings(for: Self.lab.id)
+        _ = model.member(for: .host(Self.lab.id)).settings()
 
         let changed = ObservedChange()
         withObservationTracking {
-            _ = model.hostSettings(for: Self.lab.id)
+            _ = model.member(for: .host(Self.lab.id)).settings()
         } onChange: {
             changed.happened = true
         }
-        _ = model.hostSettings(for: Self.lab.id)
+        _ = model.member(for: .host(Self.lab.id)).settings()
 
         #expect(!changed.happened)
     }

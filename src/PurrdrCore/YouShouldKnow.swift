@@ -63,6 +63,7 @@ public enum YouShouldKnowError: Error, Equatable {
 /// plugin 的共用 store(`~/.claude/plugins/store/cc-plugin-you-should-know_<marketplace>-<hash>.json`)。
 ///
 /// 寫回時保留所有未知的鍵、列與欄位：只改動作需要的那幾個值。
+/// `@unchecked`:`root` 是 `[String: Any]`(保留未知鍵所以不能改成具體型別),但是 `let`、只存解析後的 JSON 值(數字、字串、陣列、字典),沒有任何參考型別,寫回時複製出新值。
 public struct YouShouldKnowStore: @unchecked Sendable {
     /// `known` 最多保留的句數(plugin 的上限)。
     static let knownLimit = 50

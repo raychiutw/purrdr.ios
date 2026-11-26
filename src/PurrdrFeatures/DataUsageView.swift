@@ -22,12 +22,11 @@ struct DataUsageScreen: View {
 /// 流量頁(#354、spec #337、#500、DESIGN.md「數據用量」)。
 ///
 /// 共用頂列:大標題「流量」,右側單顆電腦圖示圓鈕(篩選主機,預設所有主機,篩選時右上角有小圓點)與頭像,沒有「＋」;
-/// 往下滑大標題收成置中小標題。由上到下:兩個玻璃摘要方塊、期間與分類膠囊、30 天長條圖、各主機的用量、重設統計與說明。
+/// 往下滑大標題收成置中小標題。整頁是系統 List,由上到下:兩個卡片底色摘要方塊、期間與分類(系統 bordered 膠囊)、30 天長條圖、各主機的用量、重設統計與說明。
 public struct DataUsageView: View {
     @Bindable var model: DataUsageModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var optionsSheet: OptionsSheet?
-    @State private var detailHostID: String?
     @State private var confirmsReset = false
     @State private var selectedDate: Date?
     /// 流量 tab 最右上角的帳號鈕(#390)。
@@ -44,35 +43,44 @@ public struct DataUsageView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            // 邊距與其他頁一致(16pt,iPad 內容寬度上限由共用頁面給);上方起點由共用頂列給。
-            VStack(alignment: .leading, spacing: 16) {
-                summaryTiles
-                chips
-                chartCard
-                hostsSection
-                resetButton
-                footnote
+        // 整頁是系統 List(inset grouped):摘要方塊、膠囊在不帶底的列,圖表、主機、重設是系統列與 section(分隔線、
+        // 列尾 >、按壓態與註腳都由系統給)。上方起點由共用頂列給。
+        List {
+            Section {
+                summaryTiles.plainRow()
+                chips.plainRow()
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            if model.hasNoRecordedData {
+                // 統計還沒開始:系統空狀態,不只寫在註腳(#626)。
+                Section {
+                    ContentUnavailableView(
+                        "No Data Usage Yet", systemImage: "chart.bar",
+                        description: Text("Once Purrdr talks to your hosts, the data it sends and receives shows up here."))
+                        .accessibilityIdentifier("dataUsage.empty")
+                        .plainRow()
+                } footer: {
+                    footnote
+                }
+            } else {
+                Section { chartCard }
+                hostsSection
+                Section {
+                    resetButton
+                } footer: {
+                    footnote
+                }
+            }
         }
+        .appGroupedList()
+        .appPageContentWidth()
         .accessibilityIdentifier("dataUsage.page")
         .topBarPage(topBarContent)
         .sheet(item: $optionsSheet) { sheet in
             DataUsageOptionsSheet(model: model, sheet: sheet)
-                .appSheetBackground()
         }
-        .sheet(item: Binding(get: { detailHostID.map(HostDetailID.init) }, set: { detailHostID = $0?.id })) { item in
-            DataUsageHostSheet(model: model, hostID: item.id)
-                .appSheetBackground()
-        }
-        .confirmationDialog("Reset Statistics?", isPresented: $confirmsReset, titleVisibility: .visible) {
-            Button("Reset Statistics", role: .destructive) { model.reset() }
-                .accessibilityIdentifier("dataUsage.resetConfirm")
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This clears all data usage recorded on this device.")
+        // 主機明細是下一頁(#619):列尾 > 往右 push,左上「<」返回,tab bar 保留。
+        .navigationDestination(for: DataUsageHostRoute.self) { route in
+            DataUsageHostPage(model: model, hostID: route.hostID)
         }
         // 只在前景每 2 秒重讀(#498):進背景不再讓整頁失效;回前景先重讀一次再繼續。
         .task(id: scenePhase == .active) {
@@ -129,8 +137,6 @@ public struct DataUsageView: View {
                 .accessibilityIdentifier("dataUsage.chart")
             selectionDetail
         }
-        .padding(14)
-        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func legend(for bars: [DataUsageBar]) -> some View {
@@ -176,18 +182,13 @@ public struct DataUsageView: View {
     private var hostsSection: some View {
         let rows = model.hostRows
         if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(model.period.hostsHeader)
-                    .font(.footnote).foregroundStyle(.secondaryText).padding(.horizontal, 4)
-                VStack(spacing: 0) {
-                    ForEach(rows) { row in
-                        if row.id != rows.first?.id { Divider().padding(.leading, 56) }
-                        Button { detailHostID = row.id } label: { HostUsageRow(row: row) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("dataUsage.host.\(row.id)")
-                    }
+            Section {
+                ForEach(rows) { row in
+                    NavigationLink(value: DataUsageHostRoute(hostID: row.id)) { HostUsageRow(row: row) }
+                        .accessibilityIdentifier("dataUsage.host.\(row.id)")
                 }
-                .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
+            } header: {
+                Text(model.period.hostsHeader)
             }
         }
     }
@@ -195,13 +196,16 @@ public struct DataUsageView: View {
     // MARK: - 重設與說明
 
     private var resetButton: some View {
-        Button(role: .destructive) { confirmsReset = true } label: {
-            Text("Reset Statistics").frame(maxWidth: .infinity, minHeight: 44)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.destructiveText)
-        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
-        .accessibilityIdentifier("dataUsage.reset")
+        Button("Reset Statistics", role: .destructive) { confirmsReset = true }
+            .accessibilityIdentifier("dataUsage.reset")
+            // 確認對話框掛在觸發的按鈕上,錨定在按鈕(#625)。
+            .confirmationDialog("Reset Statistics?", isPresented: $confirmsReset, titleVisibility: .visible) {
+                Button("Reset Statistics", role: .destructive) { model.reset() }
+                    .accessibilityIdentifier("dataUsage.resetConfirm")
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This clears all data usage recorded on this device.")
+            }
     }
 
     private var footnote: some View {
@@ -210,18 +214,16 @@ public struct DataUsageView: View {
             if let since = model.countingSince {
                 Text("Stored on this device only, counting since \(since.formatted(date: .abbreviated, time: .omitted)).")
             } else {
-                Text("Stored on this device only. Nothing is counted yet.")
+                Text("Stored on this device only.")
             }
         }
-        .font(.footnote)
-        .foregroundStyle(.secondaryText)
-        .padding(.horizontal, 4)
         .accessibilityIdentifier("dataUsage.footnote")
     }
 }
 
-private struct HostDetailID: Identifiable {
-    var id: String
+/// 流量頁點一台主機的目的地。
+struct DataUsageHostRoute: Hashable {
+    var hostID: String
 }
 
 // MARK: - 元件
@@ -234,7 +236,7 @@ private struct DataUsageHostMenu: View {
         Picker(selection: selection) {
             Text("All Hosts").tag(HostSelection?.none)
             ForEach(model.hosts) { option in
-                HostMenuLabel(option.name, icon: option.icon).tag(HostSelection?.some(option.id))
+                HostMenuLabel(option).tag(HostSelection?.some(option.id))
             }
         } label: {
             Text("Host")
@@ -247,7 +249,7 @@ private struct DataUsageHostMenu: View {
     }
 }
 
-/// 摘要方塊(玻璃):總量與一行行動網路。
+/// 摘要方塊(卡片底色,內容層不用玻璃):總量與一行行動網路。
 private struct SummaryTile: View {
     let title: LocalizedStringKey
     let summary: DataUsageSummary
@@ -263,9 +265,18 @@ private struct SummaryTile: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(14)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
+        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+private extension View {
+    /// List 裡不帶底與分隔線的列(摘要方塊、膠囊):內容自己負責底色。
+    func plainRow() -> some View {
+        listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
     }
 }
 
@@ -283,12 +294,9 @@ private struct ChipButton: View {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold)).foregroundStyle(.secondaryText).accessibilityHidden(true)
             }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 32)
-            .glassEffect(.regular.interactive(), in: Capsule())
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
         .accessibilityHint(Text("Double-tap to change."))
         .accessibilityIdentifier(identifier)
     }
@@ -313,12 +321,7 @@ private struct HostUsageRow: View {
             }
             Spacer(minLength: 8)
             Text(DataUsageFormat.bytes(row.bytes.total)).foregroundStyle(.secondaryText).monospacedDigit()
-            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
     }
 }
 
@@ -359,44 +362,36 @@ private struct DataUsageOptionsSheet: View {
     }
 }
 
-/// 點一台主機:收到、送出、行動網路與 30 天合計。
-private struct DataUsageHostSheet: View {
+/// 點一台主機:收到、送出、行動網路與 30 天合計(下一頁,#619)。
+private struct DataUsageHostPage: View {
     let model: DataUsageModel
     let hostID: String
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            let detail = model.detail(forHost: hostID)
-            let row = model.hostRows.first { $0.id == hostID }
-            List {
-                Group {
-                    Section {
-                        LabeledContent("Received", value: DataUsageFormat.bytes(detail?.received ?? 0))
-                        LabeledContent("Sent", value: DataUsageFormat.bytes(detail?.sent ?? 0))
-                        LabeledContent("Cellular", value: DataUsageFormat.bytes(detail?.cellular ?? 0))
-                    } header: {
-                        Text(model.period.hostsHeader).foregroundStyle(.secondaryText)
-                    }
-                    Section {
-                        LabeledContent("Total", value: DataUsageFormat.bytes(detail?.thirtyDayTotal ?? 0))
-                    } header: {
-                        Text("Last 30 Days").foregroundStyle(.secondaryText)
-                    }
+        let detail = model.detail(forHost: hostID)
+        let row = model.hostRows.first { $0.id == hostID }
+        List {
+            Group {
+                Section {
+                    LabeledContent("Received", value: DataUsageFormat.bytes(detail?.received ?? 0))
+                    LabeledContent("Sent", value: DataUsageFormat.bytes(detail?.sent ?? 0))
+                    LabeledContent("Cellular", value: DataUsageFormat.bytes(detail?.cellular ?? 0))
+                } header: {
+                    Text(model.period.hostsHeader).foregroundStyle(.secondaryText)
                 }
-                // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
-                .listRowBackground(AppSurface.groupedRow)
+                Section {
+                    LabeledContent("Total", value: DataUsageFormat.bytes(detail?.thirtyDayTotal ?? 0))
+                } header: {
+                    Text("Last 30 Days").foregroundStyle(.secondaryText)
+                }
             }
-            .appGroupedList()
-            .monospacedDigit()
-            .accessibilityIdentifier("dataUsage.hostDetail")
-            .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Host") : (row?.name ?? ""))
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar { SheetCloseToolbar() }
+            // 列底色要套在列的容器上(套在 List 上不會傳給列):深色的卡片才會比頁面亮(#392)。
+            .listRowBackground(AppSurface.groupedRow)
         }
-        .appSheet(detents: [.medium])
+        .appGroupedList()
+        .monospacedDigit()
+        .accessibilityIdentifier("dataUsage.hostDetail")
+        .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Host") : (row?.name ?? ""))
     }
 }
 

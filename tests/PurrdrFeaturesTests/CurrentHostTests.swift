@@ -91,7 +91,7 @@ struct CurrentHostTests {
         let model = Self.model(planUsage: planStore)
         model.agentList.currentHost = .host(Self.https.id)
 
-        #expect(model.planUsage().host == .host(Self.https.id))
+        #expect(model.screens.planUsage().host == .host(Self.https.id))
     }
 
     @Test("目前主機是所有主機：方案用量用上次選的")
@@ -99,7 +99,7 @@ struct CurrentHostTests {
         let planStore = InMemoryPlanUsageSelectionStore(PlanUsageSelection(host: .host(Self.ssh.id), agent: .claudeCode))
         let model = Self.model(planUsage: planStore)
 
-        #expect(model.planUsage().host == .host(Self.ssh.id))
+        #expect(model.screens.planUsage().host == .host(Self.ssh.id))
     }
 
     @Test("方案用量與網路流量改主機只改自己的選取,不動聊天列表的目前主機與選取中主機(切換規則)")
@@ -108,13 +108,13 @@ struct CurrentHostTests {
         model.select(.host(Self.https.id))
         model.agentList.currentHost = .host(Self.https.id)
 
-        let plan = model.planUsage()
+        let plan = model.screens.planUsage()
         plan.select(host: .host(Self.ssh.id))
         #expect(plan.host == .host(Self.ssh.id))
         #expect(model.agentList.currentHost == .host(Self.https.id))
         #expect(model.selection == .host(Self.https.id))
 
-        let traffic = model.dataUsage()
+        let traffic = model.screens.dataUsage()
         traffic.selectHost(.host(Self.ssh.id))
         #expect(traffic.host == .host(Self.ssh.id))
         #expect(model.agentList.currentHost == .host(Self.https.id))
@@ -125,9 +125,9 @@ struct CurrentHostTests {
     func newChatStartsOnCurrentHost() {
         let model = Self.model()
         model.select(.host(Self.ssh.id))
-        #expect(model.newChatHostPicker().selection == .host(Self.ssh.id))
+        #expect(model.screens.newChatHostPicker().selection == .host(Self.ssh.id))
 
         model.agentList.currentHost = .host(Self.https.id)
-        #expect(model.newChatHostPicker().selection == .host(Self.https.id))
+        #expect(model.screens.newChatHostPicker().selection == .host(Self.https.id))
     }
 }

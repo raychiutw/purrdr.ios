@@ -35,15 +35,19 @@ final class TopNavigationUITests: XCTestCase {
     func testNewChatButtonOpensNewChat() {
         let app = XCUIApplication.launchUITesting()
 
-        app.openNewChatSheet()
-        // 新增對話是表單：左上「Cancel」,不是「完成」(HIG 檢核清單 20.3)。
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.newChat"].firstMatch.waitUntilExists(timeout: 10), "沒有開出新增對話")
-        let cancel = app.buttons["newChat.cancel"]
-        XCTAssertTrue(cancel.exists, "新增對話沒有「Cancel」")
-        XCTAssertFalse(app.buttons["sheet.close"].exists, "新增對話不該同時有關閉鈕")
+        app.openNewChat()
+        // 新增聊天是 push(#621):左上系統「<」,不是 sheet 的 X;tab bar 還在;右上是電腦圖示選單。
+        let page = app.descendants(matching: .any)["newChat.page"].firstMatch
+        XCTAssertTrue(page.waitUntilExists(timeout: 10), "沒有開出新增對話")
+        XCTAssertFalse(app.buttons["sheet.close"].exists, "新增聊天是 push,不該有關閉鈕")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "新增聊天 push 後 tab bar 要保留")
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertTrue(back.exists, "新增聊天左上沒有返回")
+        XCTAssertTrue(app.buttons["newChat.host"].firstMatch.exists, "新增聊天右上沒有主機選單")
+        XCTAssertFalse(app.buttons["newChat.cancel"].exists, "不再有 Cancel")
 
-        cancel.tap()
-        XCTAssertTrue(cancel.waitUntilGone(timeout: 5), "sheet 沒有關閉")
+        back.tap()
+        XCTAssertTrue(page.waitUntilGone(timeout: 5), "返回後新增聊天沒有收掉")
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch), "沒有回到 Agent 列表")
     }
 
@@ -79,7 +83,9 @@ final class TopNavigationUITests: XCTestCase {
         var accountFrames: [(name: String, frame: CGRect)] = []
         for tab in tabs {
             tab.open()
-            let title = app.staticTexts["topBar.title"].firstMatch
+            // 聊天列表載入完才量。
+            if tab.title == "Chats" { XCTAssertTrue(app.element(chatRowID("w1:p1")).waitUntilExists(timeout: 10)) }
+            let title = app.topBarTitle(tab.title)
             XCTAssertTrue(title.waitUntilExists(timeout: 10), "\(tab.name) tab 沒有大標題")
             XCTAssertEqual(title.label, tab.title, "\(tab.name) tab 的大標題不是 tab 名稱")
             let account = app.buttons["toolbar.account"].firstMatch
@@ -91,6 +97,7 @@ final class TopNavigationUITests: XCTestCase {
             accountFrames.append((tab.name, account.frame))
             print("TOPBAR \(tab.name) title=\(title.frame) account=\(account.frame) control=\(control.frame)")
         }
+        // 四個 tab 的大標題位置一致(#615:聊天搜尋欄平常收起,標題與其他 tab 同為大標題)。
         let titleReference = titleFrames[0]
         for entry in titleFrames.dropFirst() {
             XCTAssertEqual(entry.frame.minX, titleReference.frame.minX, accuracy: 2, "\(entry.name) tab 的大標題水平位置和\(titleReference.name)不同")

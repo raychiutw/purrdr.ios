@@ -17,10 +17,8 @@ public final class SendWhenDoneModel {
     /// 第一次讀回佇列後為 `true`。
     public private(set) var hasLoaded = false
     /// 排入、刪除失敗的說明;下一次操作成功時清掉。
-    public private(set) var notice: String?
-    /// 停用的開關被點了:畫面顯示原因。
-    public var explainsUnavailability = false
-    @ObservationIgnored private var requested = false
+    public private(set) var notice: DisplayedError?
+    private var requested = false
 
     @ObservationIgnored private let host: (any SendWhenDoneHosting)?
     @ObservationIgnored private let paneID: String
@@ -37,14 +35,19 @@ public final class SendWhenDoneModel {
     /// 「做完再送」開著，而且這支裝置能用。
     public var isEnabled: Bool { requested && availability == .available }
 
-    /// 點開關:可用時切換;停用時說明原因。
-    public func toggle() {
-        guard availability == .available else {
-            explainsUnavailability = true
-            return
+    /// 系統開關的繫結值:可用時才會被切換(停用的 `Toggle` 不會呼叫 setter)。
+    public var isRequested: Bool {
+        get { isEnabled }
+        set {
+            guard availability == .available else { return }
+            requested = newValue
+            notice = nil
         }
-        requested.toggle()
-        notice = nil
+    }
+
+    /// 點開關:可用時切換。
+    public func toggle() {
+        isRequested = !isEnabled
     }
 
     /// 讀回佇列並跟著主機的推送更新，直到取消。連線斷了就退避後重連、重讀(1 秒起倍增、上限 30 秒)。
@@ -74,7 +77,7 @@ public final class SendWhenDoneModel {
     func add(text: String, expectedSession: String?) async -> Bool {
         guard let host else { return false }
         guard let expectedSession else {
-            notice = String(localized: "This chat isn’t ready yet, so the message can’t be queued. Try again in a moment.")
+            notice = DisplayedError(String(localized: "This chat isn’t ready yet, so the message can’t be queued. Try again in a moment."), category: "SendWhenDone", code: "sessionUnknown")
             return false
         }
         do {
@@ -82,7 +85,7 @@ public final class SendWhenDoneModel {
             notice = nil
             return true
         } catch {
-            notice = HostErrorText.message(for: error)
+            notice = DisplayedError(error: error)
             return false
         }
     }
@@ -117,7 +120,7 @@ public final class SendWhenDoneModel {
             notice = nil
         } catch {
             items = before
-            notice = HostErrorText.message(for: error)
+            notice = DisplayedError(error: error)
             if let queues = try? await host.sendWhenDoneQueues() { apply(queues) }
         }
     }
@@ -134,7 +137,7 @@ public final class SendWhenDoneModel {
             if let queues = try? await host.sendWhenDoneQueues() { apply(queues) }
             return false
         } catch {
-            notice = HostErrorText.message(for: error)
+            notice = DisplayedError(error: error)
             return false
         }
     }

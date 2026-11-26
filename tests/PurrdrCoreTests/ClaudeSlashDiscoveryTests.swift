@@ -13,6 +13,11 @@ struct ClaudeSlashDiscoveryTests {
         return host
     }
 
+    /// 時間上限用永不到期的 sleep，結果不受 runner 速度影響；時限本身由 `timeLimitMarksIncomplete` 驗證。
+    static func discovery(_ host: some HostChannel) -> ClaudeSlashDiscovery {
+        ClaudeSlashDiscovery(channel: host, sleep: RecordingSleeper().sleep)
+    }
+
     static func names(in catalog: SlashCatalog, source: SlashSource) -> [String] {
         catalog.sections.first { $0.source == source }?.commands.map(\.name) ?? []
     }
@@ -22,7 +27,7 @@ struct ClaudeSlashDiscoveryTests {
     @Test("依 plugin.json 宣告的路徑找 skill:mattpocock-skills 宣告的 27 個巢狀 skill 都出現，沒宣告的不出現")
     func declaredNestedSkillsAppear() async throws {
         let host = try Self.host()
-        let catalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: nil, transcriptPath: nil)
+        let catalog = await Self.discovery(host).catalog(cwd: nil, transcriptPath: nil)
 
         let matt = Self.names(in: catalog, source: .plugin("mattpocock-skills"))
         #expect(Set(matt) == Set(ClaudePluginsFixture.mattpocockDeclared.map { "mattpocock-skills:\($0)" }))
@@ -38,7 +43,7 @@ struct ClaudeSlashDiscoveryTests {
     @Test("settings.json 的 enabledPlugins 為 false 的 plugin 不出現(專案層設定蓋過使用者層)")
     func disabledPluginsAreExcluded() async throws {
         let host = try Self.host()
-        let all = await ClaudeSlashDiscovery(channel: host).catalog(cwd: nil, transcriptPath: nil)
+        let all = await Self.discovery(host).catalog(cwd: nil, transcriptPath: nil)
         #expect(Self.names(in: all, source: .plugin("frontend-design")) == ["frontend-design:frontend-design"])
         #expect(Self.names(in: all, source: .plugin("webwright")).contains("webwright:webwright"))
 
@@ -48,7 +53,7 @@ struct ClaudeSlashDiscoveryTests {
         let project = host.home.appending(path: "Projects/ledger").path(percentEncoded: false)
         try host.write(Data(#"{"enabledPlugins":{"webwright@webwright":false}}"#.utf8), to: "Projects/ledger/.claude/settings.local.json")
 
-        let catalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: project, transcriptPath: nil)
+        let catalog = await Self.discovery(host).catalog(cwd: project, transcriptPath: nil)
         #expect(Self.names(in: catalog, source: .plugin("frontend-design")).isEmpty)
         #expect(Self.names(in: catalog, source: .plugin("webwright")).isEmpty)
         #expect(!catalog.sections.flatMap(\.commands).contains { $0.name.hasPrefix("frontend-design:") || $0.name.hasPrefix("webwright:") })
@@ -58,7 +63,7 @@ struct ClaudeSlashDiscoveryTests {
     @Test("plugin 指令:plugin.json 宣告的 commands 路徑(陣列、指向 skill 內的資料夾)與預設 commands/")
     func pluginCommands() async throws {
         let host = try Self.host()
-        let catalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: nil, transcriptPath: nil)
+        let catalog = await Self.discovery(host).catalog(cwd: nil, transcriptPath: nil)
         let agentSkills = Self.names(in: catalog, source: .plugin("agent-skills"))
         // `"commands": ["./.claude/commands", "./commands"]`:前者是 .md,後者只有 .toml(不是 Claude 的指令)。
         for command in ["build", "code-simplify", "constraints", "plan", "review", "ship", "spec", "test", "webperf"] {
@@ -74,7 +79,7 @@ struct ClaudeSlashDiscoveryTests {
     @Test("說明與參數提示取自 frontmatter(含 block scalar)")
     func summariesComeFromFrontmatter() async throws {
         let host = try Self.host()
-        let catalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: nil, transcriptPath: nil)
+        let catalog = await Self.discovery(host).catalog(cwd: nil, transcriptPath: nil)
         let commands = catalog.sections.flatMap(\.commands)
         let handoff = commands.first { $0.name == "mattpocock-skills:handoff" }
         #expect(handoff?.argumentHint == "What will the next session be used for?")
@@ -88,7 +93,7 @@ struct ClaudeSlashDiscoveryTests {
         try host.write(Data("---\nname: release\ndescription: >-\n  Cut a release\n  for the ledger app\nargument-hint: <version>\n---\nbody\n".utf8), to: "Projects/ledger/.claude/skills/release/SKILL.md")
         try host.write(Data("---\ndescription: Run the migrations\n---\n".utf8), to: "Projects/ledger/.claude/commands/db/migrate.md")
         let project = host.home.appending(path: "Projects/ledger").path(percentEncoded: false)
-        let catalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: project, transcriptPath: nil)
+        let catalog = await Self.discovery(host).catalog(cwd: project, transcriptPath: nil)
 
         let projectSection = catalog.sections.first { $0.source == .project }?.commands ?? []
         #expect(projectSection == [
@@ -105,7 +110,7 @@ struct ClaudeSlashDiscoveryTests {
         let other = host.home.appending(path: "Projects/other-project-1").path(percentEncoded: false)
         try FileManager.default.createDirectory(atPath: other, withIntermediateDirectories: true)
         // 專案層那筆 agent-skills 是 0.6.15:兩版的內容一樣，只能從「有沒有出錯」看出選了哪筆;這裡只確認仍出現。
-        let otherCatalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: other, transcriptPath: nil)
+        let otherCatalog = await Self.discovery(host).catalog(cwd: other, transcriptPath: nil)
         #expect(Self.names(in: otherCatalog, source: .plugin("agent-skills")).contains("agent-skills:build"))
     }
 
@@ -126,7 +131,7 @@ struct ClaudeSlashDiscoveryTests {
         }
         try host.write(Data((listing + delta + "\n").utf8), to: ".claude/projects/-Users-demo-Projects-ledger/s.jsonl")
         let path = host.home.appending(path: ".claude/projects/-Users-demo-Projects-ledger/s.jsonl").path(percentEncoded: false)
-        let catalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: nil, transcriptPath: path)
+        let catalog = await Self.discovery(host).catalog(cwd: nil, transcriptPath: path)
 
         let matt = Self.names(in: catalog, source: .plugin("mattpocock-skills"))
         #expect(matt.count == 27)

@@ -68,8 +68,23 @@ func chatRowID(_ paneID: String, host: String = "demo") -> String {
 }
 
 extension XCUIApplication {
-    /// 聊天 tab 共用頂列的搜尋欄(#499:自己畫的文字欄位,往下滑收成貼頂玻璃膠囊)。
-    var chatSearch: XCUIElement { textFields["agentList.search"].firstMatch }
+    /// 第一階 tab 頂列的搜尋欄(#615:系統 `searchable`,沒有自訂識別碼,一個畫面只有一個搜尋欄)。
+    var chatSearch: XCUIElement { searchFields.firstMatch }
+
+    /// 聊天搜尋欄平常收起(`displayMode: .automatic`,與系統「訊息」一致):還沒出現就在列表往下拉,再回傳搜尋欄。
+    @MainActor
+    func revealChatSearch(timeout: TimeInterval = 5) -> XCUIElement {
+        if !chatSearch.waitUntilExists(timeout: 1) {
+            let list = collectionViews.firstMatch
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+                .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+        }
+        _ = chatSearch.waitUntilExists(timeout: timeout)
+        return chatSearch
+    }
+
+    /// 第一階 tab 的大標題(#615:系統導覽列的大標題,識別碼 `topBar.title` 已不存在,以標題文字找)。
+    func topBarTitle(_ title: String) -> XCUIElement { navigationBars.staticTexts[title].firstMatch }
 
     /// 聊天列表已經出現(取代舊的 Agents／Spaces 切換鈕:用來等列表載入完成;頂列的新增聊天鈕一直都在)。
     var chatListReady: XCUIElement { buttons["toolbar.newChat"].firstMatch }
@@ -132,13 +147,46 @@ extension XCUIApplication {
         XCTAssertTrue(
             UITestWait.until(timeout: 10) { self.element("sheet.account").exists || self.element("account.signedOut").exists },
             "沒有開出帳號與設定", file: file, line: line)
+        // 帳號與設定是滿版 cover(#623):蓋住底下頁面,頂列的帳號鈕點不到。
+        // (XCUITest 的 accessibility tree 仍列出被蓋住的內容,所以不能驗「不存在」;VoiceOver 由 modal 呈現與 `.isModal` 隔開。)
+        XCTAssertTrue(
+            UITestWait.until(timeout: 5) { !self.buttons["toolbar.account"].firstMatch.isHittable },
+            "滿版帳號頁開著時,底下頁面的帳號鈕仍點得到", file: file, line: line)
     }
 
-    /// 以右上角「X」關閉帳號與設定 sheet(#503)並等它消失。
+    /// modal 的關閉鈕在左上、確認 ✓ 在右上(#613):以按鈕中心相對視窗中線判斷。
+    @MainActor
+    func assertModalToolbar(close: String, confirm: String? = nil, file: StaticString = #filePath, line: UInt = #line) {
+        let midX = windows.firstMatch.frame.midX
+        let closeButton = buttons[close].firstMatch
+        XCTAssertTrue(closeButton.waitUntilExists(timeout: 5), "沒有關閉鈕 \(close)", file: file, line: line)
+        XCTAssertLessThan(closeButton.frame.midX, midX, "關閉鈕不在左上", file: file, line: line)
+        if let confirm {
+            let confirmButton = buttons[confirm].firstMatch
+            XCTAssertTrue(confirmButton.exists, "沒有確認 ✓ \(confirm)", file: file, line: line)
+            XCTAssertGreaterThan(confirmButton.frame.midX, midX, "確認 ✓ 不在右上", file: file, line: line)
+        }
+    }
+
+    /// 硬體鍵盤 Option-Command-, 開帳號與設定(App Settings…)。
+    /// 不是 Command-,:那是 iPadOS 選單列系統自動產生、不能取代的「Settings…」(開 iOS 設定 app 裡這個 app 的頁面),
+    /// app 有設定頁後(同一輪測試第二次啟動起)系統會接走它——實測前景變成系統「設定」app(HIG〈The menu bar〉:
+    /// Reserve the YourAppName > Settings menu item for opening your app's page in iPadOS Settings)。
+    @MainActor
+    func openAccountWithShortcut(file: StaticString = #filePath, line: UInt = #line) {
+        typeKey(",", modifierFlags: [.command, .option])
+        waitForAccountSheet(file: file, line: line)
+        XCTAssertNotEqual(
+            XCUIApplication(bundleIdentifier: "com.apple.Preferences").state, .runningForeground,
+            "快捷鍵開成了系統設定 app", file: file, line: line)
+    }
+
+    /// 以左上角「X」關閉帳號與設定 sheet(#503、#613)並等它消失。
     @MainActor
     func closeAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
         let close = buttons["member.close"].exists ? buttons["member.close"] : buttons["member.signIn.cancel"]
-        XCTAssertTrue(close.waitUntilExists(timeout: 5), "帳號與設定沒有右上角 X", file: file, line: line)
+        XCTAssertTrue(close.waitUntilExists(timeout: 5), "帳號與設定沒有左上角 X", file: file, line: line)
+        XCTAssertLessThan(close.frame.midX, windows.firstMatch.frame.midX, "帳號與設定的 X 不在左上", file: file, line: line)
         close.tap()
         XCTAssertTrue(
             UITestWait.until(timeout: 5) { !self.element("sheet.account").exists && !self.element("account.signedOut").exists },
@@ -155,7 +203,7 @@ extension XCUIApplication {
 
     /// 聊天 tab 右上的新增聊天(`square.and.pencil`)。
     @MainActor
-    func openNewChatSheet(file: StaticString = #filePath, line: UInt = #line) {
+    func openNewChat(file: StaticString = #filePath, line: UInt = #line) {
         openTab(.chats, file: file, line: line)
         let button = buttons["toolbar.newChat"].firstMatch
         XCTAssertTrue(button.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天", file: file, line: line)
@@ -185,15 +233,15 @@ extension XCUIApplication {
         return row
     }
 
-    /// 主機 tab 的主機清單(#500)選了某一台(多台主機才有清單;名稱是列的標籤)。
+    /// 主機 tab 右上電腦圖示選單(#616)選了某一台(選單的項目名稱是主機名稱)。
     @MainActor
     func selectHostOnHostsTab(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let row = buttons["hosts.host.\(name)"].firstMatch
-        _ = row.waitUntilExists(timeout: 10)
-        // 清單是 lazy:主機列在畫面外時不在 accessibility tree,先捲到看得到。
-        scrollIntoView(row, search: .both, timeout: 5)
-        XCTAssertTrue(row.waitUntilExists(timeout: 5), "主機 tab 的主機清單沒有 \(name)", file: file, line: line)
-        row.tap()
+        let picker = buttons["hosts.host"].firstMatch
+        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "主機 tab 右上沒有電腦圖示選單", file: file, line: line)
+        picker.tap()
+        let item = buttons[name].firstMatch
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機選單沒有 \(name)", file: file, line: line)
+        item.tap()
     }
 
     /// 開已存主機(`-seedHost` 的 Studio Mac,啟動時就是選取中主機)的「這台主機的設定」頁(#392):
@@ -296,7 +344,6 @@ func XCTAssertHitTarget(_ element: XCUIElement, file: StaticString = #filePath, 
 /// 軟體鍵盤的輸入法。模擬器用系統鍵盤清單的第一個或上次用的(`-AppleKeyboards` 啟動參數不會換掉它)。
 enum KeyboardLayout {
     case english
-    case zhuyin
 }
 
 extension XCUIApplication {
@@ -305,10 +352,14 @@ extension XCUIApplication {
     func switchKeyboard(to layout: KeyboardLayout) {
         let keyboard = keyboards.firstMatch
         guard keyboard.exists else { return }
-        let markers = layout == .english ? ["q", "Q"] : ["ㄅ"]
+        let markers = ["q", "Q"]
         // 地球鍵在鍵盤元素外(底部 home indicator 旁)。
         let nextKeyboard = buttons["Next keyboard"].firstMatch
-        for _ in 0..<5 where !markers.contains(where: { keyboard.keys[$0].exists }) && nextKeyboard.exists {
+        // `for … where` 條件不成立時不會結束迴圈,而是空轉剩下的次數、每次還是查詢鍵盤(每次 typeEnglish 白白多約 1 秒):
+        // 已經是指定的輸入法就第一次檢查後直接返回。
+        for _ in 0..<5 {
+            // iPad 的鍵盤框在 AX 樹裡是未轉向的座標,地球鍵可能在畫面外、點不到(`Failed to scroll to visible`):點不到就放棄切換。
+            if markers.contains(where: { keyboard.keys[$0].exists }) || !nextKeyboard.exists || !nextKeyboard.isHittable { return }
             nextKeyboard.tap()
         }
     }
@@ -320,7 +371,15 @@ extension XCUIElement {
     func typeEnglish(_ text: String) {
         // 點下輸入框後焦點要一下子才到：沒有焦點就 typeText 會失敗。
         _ = wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }
-        XCUIApplication().switchKeyboard(to: .english)
+        let app = XCUIApplication()
+        app.switchKeyboard(to: .english)
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists, !keyboard.keys["q"].exists, !keyboard.keys["Q"].exists {
+            // 軟體鍵盤不是英文、也切不過去(iPad 實測:模擬器記住上次的輸入法「繁體手寫」,地球鍵在畫面外):
+            // 改以硬體鍵盤事件逐字輸入(不經軟體鍵盤的輸入法)。
+            for character in text { app.typeKey(character == "\n" ? "\r" : String(character), modifierFlags: []) }
+            return
+        }
         typeText(text)
     }
 }

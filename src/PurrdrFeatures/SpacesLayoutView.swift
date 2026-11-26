@@ -2,34 +2,57 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// Spaces 版面圖的 sheet(行為規格 F4,iPhone 版):每個 tab 一張分頁圖，點 pane 方塊開聊天或終端機。
+/// Spaces 版面圖的下一頁(行為規格 F4;#619 起列尾 > 與「顯示版面」都是 push,不再是 sheet):每個 tab 一張分頁圖，點 pane 方塊開聊天或終端機。
 ///
-/// 點方塊只記下目標並關 sheet;由列表在 sheet 關閉後才開(不能在關 sheet 的同一刻 push)。
-/// 版面圖入口:Spaces 的 Tab 列長按「Show Layout」與對話「⋯」的「Show Layout」(iPhone、iPad 一樣,#518)。
-struct SpacesLayoutSheet: View {
+/// 點方塊只記下目標並返回上一頁;由呼叫端在這一頁離開之後才開(不能在返回的同一刻 push)。
+/// 版面圖入口:Spaces 的 Tab 列(多 Pane 的 Tab 點列、長按「Show Layout」)與對話「⋯」的「Show Layout」(iPhone、iPad 一樣,#518)。
+struct SpacesLayoutPage: View {
     let workspaceLabel: String
     let layout: SpacesLayout?
     let onChoose: (PaneOpenTarget) -> Void
+    /// 推入的頁選了方塊後返回上一頁;寬視窗顯示在對話欄根(列表欄的選取)時沒有上一頁,`dismiss()` 會把選取清掉,所以不返回。
+    var popsOnChoose = true
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle(workspaceLabel)
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar { SheetCloseToolbar() }
-        }
-        .appSheet(detents: [.medium, .large])
-    }
-
-    @ViewBuilder
-    private var content: some View {
         SpacesLayoutContent(layout: layout) { target in
             onChoose(target)
-            dismiss()
+            if popsOnChoose { dismiss() }
         }
+        .navigationTitle(workspaceLabel)
+        .accessibilityIdentifier("layout.page")
+    }
+}
+
+/// 列表上「顯示版面」的目的地:只帶識別,版面在推入時才從當下的 snapshot 取(不即時更新,行為規格 F4)。
+struct SpacesLayoutRoute: Hashable {
+    var host: HostSelection
+    var workspaceID: String
+    /// 只畫這個 Tab(Tab 列);`nil` 是整個 Workspace。
+    var tabID: String?
+    var title: String
+}
+
+/// 持有版面的容器:navigationDestination 的內容可能被重建,版面只在第一次取。
+struct SpacesLayoutDestination: View {
+    let route: SpacesLayoutRoute
+    let onChoose: (HostSelection, PaneOpenTarget) -> Void
+    let popsOnChoose: Bool
+    @State private var layout: SpacesLayout?
+
+    init(
+        route: SpacesLayoutRoute, snapshot: HostSnapshot?, popsOnChoose: Bool = true,
+        onChoose: @escaping (HostSelection, PaneOpenTarget) -> Void
+    ) {
+        self.route = route
+        self.popsOnChoose = popsOnChoose
+        self.onChoose = onChoose
+        let full = snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: route.workspaceID) }
+        _layout = State(initialValue: route.tabID.map { tabID in full?.onlyTab(tabID) } ?? full)
+    }
+
+    var body: some View {
+        SpacesLayoutPage(workspaceLabel: route.title, layout: layout, onChoose: { onChoose(route.host, $0) }, popsOnChoose: popsOnChoose)
     }
 }
 

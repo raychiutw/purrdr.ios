@@ -45,6 +45,14 @@ final class AddHostGuideUITests: XCTestCase {
             XCTAssertFalse(app.textFields["guide.field.address"].exists, "第一頁不該出現欄位")
             app.buttons["guide.option.ssh"].tap()
 
+            // 每一步是 push 的一頁:左上是系統返回鈕(回上一步),沒有另外的 Cancel(#622)。
+            XCTAssertTrue(app.buttons["guide.option.macOS"].waitUntilExists(timeout: 5))
+            XCTAssertFalse(app.buttons["Cancel"].exists, "引導不該有 Cancel")
+            XCTAssertFalse(app.buttons["guide.cancel"].exists, "引導不該有 Cancel")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.buttons["guide.option.ssh"].waitUntilExists(timeout: 5), "左上 < 沒有回上一步")
+            app.buttons["guide.option.ssh"].tap()
+
             app.buttons["guide.option.macOS"].tapWhenReady()
             app.buttons["guide.option.tailscale"].tapWhenReady()
 

@@ -58,17 +58,6 @@ struct HostListFlowTests {
         #expect(flow.pendingDeletion == nil)
     }
 
-    @Test("主機頁已配對裝置的「這支裝置」(#291):關掉編輯頁，跳出移除主機的確認")
-    func removingFromHostPageUsesDeletionConfirmation() {
-        let flow = HostListFlow()
-        flow.showDetails(of: Self.studioID)
-
-        flow.requestDeletionFromEditor(of: Self.studioID, name: "Studio Mac")
-
-        #expect(flow.path.isEmpty)
-        #expect(flow.pendingDeletion == HostDeletionRequest(id: Self.studioID, name: "Studio Mac"))
-    }
-
     @Test("取消刪除：收起確認，不留等確認的刪除")
     func cancelKeepsHost() {
         let flow = HostListFlow()

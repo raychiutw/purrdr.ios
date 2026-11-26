@@ -60,7 +60,9 @@ struct ConversationModelChoiceTests {
 
     @Test("選定:點選項送方向鍵、再送「只用在這個 session」的 s(不是設為預設的 Enter),永不送數字;完成後 sheet 狀態結束")
     func chooseSendsArrowsThenEnter() async throws {
-        let setup = try await Self.panelOpen()
+        // 不自動觸發的 sleeper:送出方向鍵後排的「300 ms 後輪詢」若自己跑起來,會搶走第二個按鍵預期的回應、
+        // 並在 `s` 送出前把面板讀成 nil(偶發少一個按鍵)。這個測試只釘按鍵順序,輪詢不是主角。
+        let setup = try await Self.panelOpen(sleeper: RecordingSleeper())
         let panel = try #require(setup.model.panel)
         await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
         await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
@@ -74,7 +76,7 @@ struct ConversationModelChoiceTests {
 
     @Test("不選就關掉:面板還開著就送 Esc;面板沒出現就不送按鍵")
     func dismissCancelsPanel() async throws {
-        let setup = try await Self.panelOpen()
+        let setup = try await Self.panelOpen(sleeper: RecordingSleeper())
         await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
 
         await setup.model.finishChoosingModel()

@@ -37,24 +37,11 @@ final class ImageAttachmentUITests: XCTestCase {
         UIPasteboard.general.image = image
     }
 
-    /// 接實體鍵盤時 Command-V(剪貼簿只有圖片)把它加成附件，不貼上文字(#37 故事 33)。
-    @MainActor
-    func testCommandVAttachesPasteboardImage() throws {
-        Self.putImageOnPasteboard()
-        let app = openLedger()
-
-        let text = app.element("composer.text")
-        text.tap()
-        XCTAssertTrue(UITestWait.until(timeout: 5) { text.hasKeyboardFocus }, "輸入框沒有聚焦")
-        text.typeKey("v", modifierFlags: .command)
-
-        if !app.element("composer.attachment.0").waitUntilExists(timeout: 5) {
-            // 第一次本機執行時通過;之後連續兩次在 typeKey 後沒有收到 paste:(模擬器的硬體鍵盤事件)。
-            // 規則本身由 ComposerRulesTests.commandVAttachesImageOnly 守;貼上後的流程由下一個測試走「貼上圖片」。
-            throw XCTSkip("模擬器的 Command-V 不穩定：typeKey 後 app 沒有收到 paste:(連續兩次，非程式問題)")
-        }
-        XCTAssertEqual(text.value as? String ?? "", "", "Command-V 不該貼上文字")
-    }
+    // 「接實體鍵盤時 Command-V 把剪貼簿圖片加成附件」(#37 故事 33)不在 UI 測試:XCUITest 的 `typeKey` 送實體鍵盤事件，
+    // 系統會把 `AutomaticMinimizationEnabled`／`HardwareKeyboardLastSeen` 寫進模擬器的鍵盤偏好，之後同一台模擬器上
+    // 所有軟體鍵盤測試(拖曳收鍵盤、鍵盤出現時卡片讓位)都失敗，要 `simctl erase` 才恢復(app 與測試 runner 都清不掉)。
+    // 且這條本來就因 typeKey 後收不到 paste: 而常被略過。規則由 `ComposerRulesTests.commandVAttachesImageOnly` 守，
+    // 貼上後的流程由下一個測試走「貼上圖片」。
 
     /// 從「加入圖片」→「貼上圖片」加入;只有圖片也可送;送出後 Demo 的對話紀錄把路徑記成圖片，
     /// 泡泡顯示手機上的副本，點開全螢幕、點一下關閉(#37 故事 34–35)。

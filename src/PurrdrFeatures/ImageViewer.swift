@@ -58,7 +58,7 @@ extension AgentImageContext {
 /// 共用的全螢幕圖片檢視器(#426,GLOSSARY「圖片檢視器」),使用者送出的圖與 Agent 的圖片卡片都用它。
 /// 兩指縮放(1× 到 8×)、雙點兩下放大、放大後單指平移、1× 時往下滑關閉、左右滑看同一則訊息的其他圖片、
 /// 頁數「1 / 2」與分享(系統分享表)。縮放規則在 `ImageViewerZoom`,換頁規則在 `ImageViewerPaging`。
-/// 左上 ✕ 與 Esc 關閉;VoiceOver 有放大／縮小、上一張／下一張與「Close」動作。
+/// 左上 X(系統導覽列)與 Esc 關閉;VoiceOver 有放大／縮小、上一張／下一張與「Close」動作。
 struct ImageViewer: View {
     let item: ImageViewerItem
     @Environment(\.dismiss) private var dismiss
@@ -78,10 +78,36 @@ struct ImageViewer: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.black.opacity(1 - min(0.5, dismissDrag / 600)).ignoresSafeArea()
-            pages
-            controls
+        // 關閉、頁數、分享是系統導覽列(左上 X、中間標題、右上分享;玻璃由系統合成,不自排按鈕與佔位,#627)。
+        NavigationStack {
+            ZStack(alignment: .top) {
+                Color.black.opacity(1 - min(0.5, dismissDrag / 600)).ignoresSafeArea()
+                pages
+                footer.opacity(1 - min(1, dismissDrag / 200))
+            }
+            .toolbar {
+                SheetCloseToolbar(identifier: "imageViewer.close")
+                if let label = paging.pageLabel {
+                    ToolbarItem(placement: .principal) {
+                        Text(verbatim: label)
+                            .font(.headline.monospacedDigit())
+                            .accessibilityLabel(Text("Image \(paging.index + 1) of \(paging.count)"))
+                            .accessibilityIdentifier("imageViewer.pageLabel")
+                    }
+                }
+                if let file = shareFiles[paging.index] {
+                    ToolbarItem(placement: .primaryAction) {
+                        ShareLink(item: file) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        .accessibilityIdentifier("imageViewer.share")
+                    }
+                }
+            }
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            #endif
         }
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: Text("Close")) { dismiss() }
@@ -141,49 +167,6 @@ struct ImageViewer: View {
 
     private func settle(_ changes: () -> Void) {
         if reduceMotion { changes() } else { withAnimation(.smooth(duration: 0.25), changes) }
-    }
-
-    /// 上方一列(設計稿第 30 組):左上 ✕ 關閉(#415)、中間頁數、右上分享;底部分頁點與操作提示。
-    /// 觸控目標 44pt:frame 放在 label 裡才撐得大玻璃按鈕(#251)。
-    private var controls: some View {
-        ZStack {
-            HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark").frame(minWidth: 44, minHeight: 44)
-                }
-                .buttonStyle(.glass)
-                .keyboardShortcut(.cancelAction)
-                .accessibilityLabel(Text("Close"))
-                .accessibilityIdentifier("imageViewer.close")
-                Spacer()
-                if let file = shareFiles[paging.index] {
-                    ShareLink(item: file) {
-                        Image(systemName: "square.and.arrow.up").frame(minWidth: 44, minHeight: 44)
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityLabel(Text("Share"))
-                    .accessibilityIdentifier("imageViewer.share")
-                } else {
-                    Color.clear.frame(width: 44, height: 44)
-                }
-            }
-            .overlay {
-                if let label = paging.pageLabel {
-                    Text(verbatim: label)
-                        .font(.subheadline.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 44)
-                        .glassEffect(.regular, in: .capsule)
-                        .accessibilityLabel(Text("Image \(paging.index + 1) of \(paging.count)"))
-                        .accessibilityIdentifier("imageViewer.pageLabel")
-                }
-            }
-            .padding()
-            .frame(maxHeight: .infinity, alignment: .top)
-            footer
-        }
-        .opacity(1 - min(1, dismissDrag / 200))
     }
 
     /// 底部:分頁點(多張才有)與操作提示。

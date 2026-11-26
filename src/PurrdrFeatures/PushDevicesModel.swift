@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 
 /// 帳號頁「通知裝置」(#266):會員名下所有收通知的裝置，可遠端關閉與改名。
@@ -11,7 +12,7 @@ public final class PushDevicesModel {
     public enum Problem: Equatable {
         /// 需要 Purrdr Plus(改名要有效訂閱;清單與關閉不用，訂閱到期也能關掉遺失的裝置)。
         case needsSubscription
-        case failed(String)
+        case failed(DisplayedError)
     }
 
     public private(set) var devices: [PushDevice] = []
@@ -87,9 +88,9 @@ public final class PushDevicesModel {
         case BackendError.backend(_, "subscription_required", _), BackendError.signedOut:
             problem = .needsSubscription
         case BackendError.unreachable:
-            problem = .failed(String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again."))
+            problem = .failed(DisplayedError(String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again."), error: error))
         default:
-            problem = .failed(String(localized: "Couldn’t update notification devices. Try again."))
+            problem = .failed(DisplayedError(String(localized: "Couldn’t update notification devices. Try again."), error: error))
         }
     }
 }

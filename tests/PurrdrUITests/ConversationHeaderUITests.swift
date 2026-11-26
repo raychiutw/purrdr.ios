@@ -6,18 +6,19 @@ final class ConversationHeaderUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 標題列(#270、#514):第一行 Tab 名稱，第二行主機名與狀態(context 百分比在用量 sheet);右邊只有終端機鈕，
+    /// 標題列(#270、#618):系統標題是 Tab 名稱，系統副標題只有狀態(不含主機名稱;context 百分比在用量面板);
     /// 沒有重新載入(改成下拉重新整理)。不在工作中沒有停止列。
     @MainActor
     func testHeaderShowsWorkspaceStatusAndHost() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))
 
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 5), "沒有標題膠囊")
-        // 兩行膠囊(#514):Tab 名稱、主機、狀態、權限模式都在 VoiceOver 標籤裡。
-        XCTAssertTrue(header.label.contains("Done"), "標籤沒有狀態:\(header.label)")
-        XCTAssertTrue(header.label.contains("Demo"), "標籤沒有主機名:\(header.label)")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 5), "沒有聊天頂列")
+        // 系統副標題(#618):只有狀態;沒有自畫的標題膠囊。
+        let subtitle = app.conversationSubtitle(containing: "Done")
+        XCTAssertTrue(subtitle.waitUntilExists(timeout: 5), "副標題沒有狀態")
+        XCTAssertFalse(subtitle.label.contains("Demo"), "副標題不該帶主機名稱:\(subtitle.label)")
+        XCTAssertFalse(app.element("conversation.header").exists, "不該再有自畫的標題膠囊")
         XCTAssertFalse(app.element("conversation.reload").exists, "標題列不該再有重新載入")
         XCTAssertFalse(app.element("stopBar").exists, "不在工作中不該有停止列")
 
@@ -36,7 +37,7 @@ final class ConversationHeaderUITests: XCTestCase {
 
         let working = app.element("conversation.working")
         XCTAssertTrue(working.waitUntilExists(timeout: 10), "工作中沒有指示")
-        XCTAssertTrue(app.element("conversation.header").label.contains("Working"))
+        XCTAssertTrue(app.conversationSubtitle(containing: "Working").waitUntilExists(timeout: 5), "副標題沒有工作中")
         XCTAssertFalse(app.element("conversation.stop").exists, "標題列不該再有停止")
         XCTAssertTrue(app.element("composer.send").exists, "送出鈕應該維持原樣")
 
@@ -82,23 +83,44 @@ final class ConversationHeaderUITests: XCTestCase {
     @MainActor
     func testNeedsYouAgentHasNoStopBar() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
-        XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10))
-        XCTAssertTrue(app.element("conversation.header").label.contains("Needs"), "應該是需要你")
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.conversationSubtitle(containing: "Needs").waitUntilExists(timeout: 5), "應該是需要你")
         XCTAssertFalse(app.element("stopBar").exists, "需要你不該有停止列")
     }
 
-    /// 用量環(#513):點開用量 sheet(Context 與方案用量區塊),X 關閉。
+    /// 用量環(#513、#617):點開聊天面板(Context 與方案用量區塊),iPhone 是 sheet,X 關閉。
     @MainActor
-    func testUsageRingOpensUsageSheet() {
+    func testUsageRingOpensPanel() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let ring = app.buttons["conversation.usage"].firstMatch
         XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
 
         ring.tap()
 
-        XCTAssertTrue(app.element("usage.sheet").waitUntilExists(timeout: 5), "點用量環沒有開出用量 sheet")
-        XCTAssertTrue(app.element("usage.sheet.refresh").exists, "沒有重新整理")
-        app.buttons["usage.sheet.close"].tap()
-        XCTAssertTrue(app.element("usage.sheet").waitUntilGone(timeout: 5), "X 之後用量 sheet 還在")
+        XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
+        XCTAssertTrue(app.element("panel.refresh").exists, "沒有重新整理")
+        app.buttons["panel.close"].tap()
+        XCTAssertTrue(app.element("conversation.panel").waitUntilGone(timeout: 5), "X 之後面板還在")
+    }
+
+    /// 頂列右上只有用量環與「⋯」(#617):沒有 Inspector 開關鈕,兩顆並排(系統合成一顆膠囊)。
+    @MainActor
+    func testHeaderTrailingHasOnlyRingAndMore() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
+        let ring = app.buttons["conversation.usage"].firstMatch
+        let more = app.buttons["conversation.more"].firstMatch
+        XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
+        XCTAssertTrue(more.exists, "沒有「⋯」")
+        XCTAssertFalse(app.buttons["conversation.inspectorToggle"].exists, "不該有 Inspector 開關鈕")
+        XCTAssertLessThanOrEqual(ring.frame.maxX, more.frame.minX + 1, "用量環應該在「⋯」左邊並排")
+        // 同一個 ToolbarItemGroup 由系統合成一顆膠囊:兩顆同高、垂直置中對齊,間距是膠囊內的間距(不是兩個獨立工具列項目的距離)。
+        // XCUITest 看不到合成後的玻璃形狀,以 frame 關係佐證。
+        XCTAssertEqual(ring.frame.midY, more.frame.midY, accuracy: 2, "用量環與「⋯」垂直沒有對齊")
+        XCTAssertEqual(ring.frame.height, more.frame.height, accuracy: 4, "用量環與「⋯」不同高")
+        XCTAssertLessThanOrEqual(more.frame.minX - ring.frame.maxX, 24, "用量環與「⋯」間距太大,不像同一顆膠囊")
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.exists, back.frame.maxX < ring.frame.minX {
+            XCTAssertGreaterThan(ring.frame.minX - back.frame.maxX, more.frame.minX - ring.frame.maxX, "用量環離返回鈕比離「⋯」還近")
+        }
     }
 }

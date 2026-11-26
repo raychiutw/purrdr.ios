@@ -135,6 +135,10 @@ final class FakeHostService: Sendable {
         /// 送出前比對(#304)用的 pane → Agent session id;預設同 `server.agents-list-result.json`。
         /// 送出訊息帶 `expected_session`／`expected_screen` 時照主機服務的規則比對，不符回 `pane_changed`、不送。
         var paneSessions: [String: String] = ["w1:p6": "00000000-0000-0000-0000-000000000001"]
+        /// 有值時 `POST /v1/revoke` 回 307 導向這個網址(#574)。
+        var revokeRedirectLocation: String?
+        /// 有值時 WebSocket 握手(`GET /v1/ws`)不升級，回 307 導向這個網址(#574)。
+        var webSocketRedirectLocation: String?
     }
 
     /// 進行中的上傳(仿照主機服務的 `PendingUpload`)。
@@ -251,7 +255,9 @@ final class FakeHostService: Sendable {
                     // 上傳的一塊(1 MiB)base64 後超過預設的 16 KiB。
                     maxFrameSize: 4 * 1024 * 1024, automaticErrorHandling: true,
                     shouldUpgrade: { channel, head in
-                        guard head.uri == "/v1/ws" else { return channel.eventLoop.makeSucceededFuture(nil) }
+                        guard head.uri == "/v1/ws", box.server?.webSocketRedirectLocation == nil else {
+                            return channel.eventLoop.makeSucceededFuture(nil)
+                        }
                         // 升級前先移除 HTTP handler,升級後的 WebSocket 位元組才不會流到它。
                         return channel.pipeline.removeHandler(name: "fake-http").map { HTTPHeaders() }
                     },
@@ -705,6 +711,9 @@ final class FakeHostService: Sendable {
         }
     }
 
+    fileprivate var webSocketRedirectLocation: String? { state.withLock { $0.settings.webSocketRedirectLocation } }
+    fileprivate var revokeRedirectLocation: String? { state.withLock { $0.settings.revokeRedirectLocation } }
+
     fileprivate func revokeSelf(authorization: String?) -> (HTTPResponseStatus, String) {
         state.withLock { $0.log.revokeAuthorizations.append(authorization) }
         if let token = Self.token(authorization), state.withLock({ $0.settings.validTokens.contains(token) }) {
@@ -816,12 +825,19 @@ private final class HTTPHandler: ChannelInboundHandler, RemovableChannelHandler 
             body.append(contentsOf: buffer.readBytes(length: buffer.readableBytes) ?? [])
         case .end:
             guard let head else { return }
-            let (status, text): (HTTPResponseStatus, String) = switch (head.method, head.uri) {
-            case (.POST, "/v1/pair"): server.pair(body)
-            case (.POST, "/v1/revoke"): server.revokeSelf(authorization: head.headers.first(name: "Authorization"))
+            var headers = HTTPHeaders()
+            let redirectLocation: String? = switch (head.method, head.uri) {
+            case (.POST, "/v1/revoke"): server.revokeRedirectLocation
+            case (.GET, "/v1/ws"): server.webSocketRedirectLocation
+            default: nil
+            }
+            let (status, text): (HTTPResponseStatus, String) = switch (head.method, head.uri, redirectLocation) {
+            case (_, _, .some): (.temporaryRedirect, "")
+            case (.POST, "/v1/pair", nil): server.pair(body)
+            case (.POST, "/v1/revoke", nil): server.revokeSelf(authorization: head.headers.first(name: "Authorization"))
             default: (.notFound, "")
             }
-            var headers = HTTPHeaders()
+            if let redirectLocation { headers.add(name: "Location", value: redirectLocation) }
             headers.add(name: "Content-Length", value: String(text.utf8.count))
             if !text.isEmpty { headers.add(name: "Content-Type", value: "application/json") }
             context.write(wrapOutboundOut(.head(HTTPResponseHead(version: head.version, status: status, headers: headers))), promise: nil)

@@ -28,7 +28,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
     /// 字級只存在記憶體，不持久化(刻意，行為規格 §6.4)。
     public private(set) var fontSize: Double = PaneTerminalModel.defaultFontSize
     /// 一次性的提示(例如貼上太大)。
-    public var notice: String?
+    public var notice: DisplayedError?
     public let paneID: String
     public let title: String
 
@@ -313,7 +313,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
         guard isInteractive, !text.isEmpty else { return }
         let body = Data(text.utf8)
         guard body.count <= Self.maxPasteBytes else {
-            notice = String(localized: "This paste is too large to send to the terminal.")
+            notice = DisplayedError(String(localized: "This paste is too large to send to the terminal."), category: "Terminal", code: "pasteTooLarge")
             return
         }
         outbox?.yield(.input(.bytes(Data("\u{1B}[200~".utf8) + body + Data("\u{1B}[201~".utf8))))

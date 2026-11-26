@@ -10,7 +10,7 @@ final class ConversationStatusSheetUITests: XCTestCase {
     @MainActor
     func testMoreMenuListsItemsAndOpensPermissionSheet() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        XCTAssertTrue(app.element("conversation.header").waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
 
         let permission = app.conversationMoreItem("menu.permissionMode")
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Usage & Context")).firstMatch.exists, "「⋯」沒有用量與 Context")
@@ -26,11 +26,12 @@ final class ConversationStatusSheetUITests: XCTestCase {
     @MainActor
     func testTitleIsNotAButton() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        let header = app.element("conversation.header")
-        XCTAssertTrue(header.waitUntilExists(timeout: 10))
-        header.tap()
+        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
+        let subtitle = app.conversationSubtitle(containing: "Done")
+        XCTAssertTrue(subtitle.waitUntilExists(timeout: 10), "沒有系統副標題")
+        subtitle.tap()
         XCTAssertFalse(app.element("menu.sheet.permissionMode").exists)
-        XCTAssertFalse(app.element("usage.sheet").exists)
+        XCTAssertFalse(app.element("conversation.panel").exists)
     }
 
     /// 工作中只有一顆膠囊(同一資訊只出現一處);背景 agents 列已移除，清單在「⋯」→ 背景子 Agent。
