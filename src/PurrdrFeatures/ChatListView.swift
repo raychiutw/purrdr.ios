@@ -82,7 +82,6 @@ struct ChatListView: UIViewControllerRepresentable {
     let rowView: (ChatListRowContent) -> AnyView
     /// 一列長按選單的項目(空陣列表示這一列沒有選單,留給文字選取)。
     let menuEntries: (ChatListRowContent) -> [ChatListMenuEntry]
-    let smoothness: (any ScrollSmoothnessReporting)?
     /// 避開玻璃導覽列、橫幅與輸入列後的安全區域框(全域座標):列表延伸到玻璃底下,上下留白由它與列表框的差決定。
     let safeAreaFrame: CGRect
     let onShowsJumpToLatestChanged: (Bool) -> Void
@@ -108,7 +107,6 @@ struct ChatListView: UIViewControllerRepresentable {
         controller.rowEnvironment = rowEnvironment
         controller.setSceneActive(isSceneActive)
         controller.menuEntries = menuEntries
-        controller.smoothness = smoothness
         controller.safeAreaFrame = safeAreaFrame
         controller.onShowsJumpToLatestChanged = onShowsJumpToLatestChanged
         controller.onVisibleHeightChanged = { [handle] height in
@@ -132,7 +130,6 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
     var rowEnvironment = ChatListRowEnvironment(hostTheme: nil, inlineSlashNames: [])
     private var appliedRowEnvironment: ChatListRowEnvironment?
     var menuEntries: (ChatListRowContent) -> [ChatListMenuEntry] = { _ in [] }
-    var smoothness: (any ScrollSmoothnessReporting)?
     var safeAreaFrame: CGRect = .zero
     var onShowsJumpToLatestChanged: (Bool) -> Void = { _ in }
     var onVisibleHeightChanged: (Double) -> Void = { _ in }
@@ -664,7 +661,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
         scheduleStateReports()
     }
 
-    /// 回報給 SwiftUI 的狀態(「跳到最新」鈕、可見高度、除錯量測)延後到這次更新與排版結束後,同一批只送一次(AGENTS.md 主執行緒更新規則)。
+    /// 回報給 SwiftUI 的狀態(「跳到最新」鈕、可見高度)延後到這次更新與排版結束後,同一批只送一次(AGENTS.md 主執行緒更新規則)。
     private func scheduleStateReports() {
         guard !reportsScheduled else { return }
         reportsScheduled = true
@@ -677,11 +674,6 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
 
     private func deliverStateReports() {
         guard collectionView != nil else { return }
-        let inset = collectionView.adjustedContentInset
-        smoothness?.report(ScrollSmoothnessSnapshot(
-            contentHeight: collectionView.contentSize.height, containerHeight: visibleHeight,
-            contentOffsetY: collectionView.contentOffset.y, topInset: inset.top,
-            visibleRowCount: collectionView.indexPathsForVisibleItems.count))
         let showsJump = decider.distanceFromBottom > ConversationScrollDecider.nearBottomThreshold
         if showsJump != lastReportedShowsJump {
             lastReportedShowsJump = showsJump
