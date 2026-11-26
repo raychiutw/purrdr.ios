@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import Synchronization
 
 /// 顯示給使用者的錯誤,記進診斷記錄的樣子(操作記錄):只有類別、錯誤碼、功能區與時間,**不含訊息原文**
 /// (原文可能有主機名稱、路徑或權杖)。
@@ -67,4 +68,29 @@ final class ErrorDisplayTracker {
     }
 
     func hidden(instance: UUID) { shown[instance] = nil }
+}
+
+/// 「顯示字串 → 產生它的錯誤的類別與錯誤碼」對照(#637)。
+///
+/// 畫面只拿得到說明文字,但說明文字都是 `HostErrorText` 從錯誤值轉出來的;轉換當下把錯誤的類別與錯誤碼
+/// 記在這裡(只在記憶體、最近 64 筆),`ErrorLabel` 沒有帶錯誤值時以顯示字串查回來。
+/// 查不到(畫面自己寫的固定文字)才是 `ErrorDescriptor.message`。對照只存描述,不存也不外洩訊息原文。
+package enum ErrorMessageRegistry {
+    private struct State { var entries: [(message: String, descriptor: ErrorDescriptor)] = [] }
+    private static let state = Mutex(State())
+    private static let capacity = 64
+
+    package static func note(_ message: String, _ descriptor: ErrorDescriptor) {
+        state.withLock { state in
+            state.entries.removeAll { $0.message == message }
+            state.entries.append((message, descriptor))
+            if state.entries.count > capacity { state.entries.removeFirst(state.entries.count - capacity) }
+        }
+    }
+
+    package static func descriptor(for message: String) -> ErrorDescriptor? {
+        state.withLock { $0.entries.last { $0.message == message }?.descriptor }
+    }
+
+    package static func reset() { state.withLock { $0.entries = [] } }
 }

@@ -59,7 +59,7 @@ public struct WelcomeView: View {
                         .accessibilityIdentifier("welcome.rate")
                 }
             }
-            .appGroupedList()
+            .appSheetList()
             .accessibilityIdentifier("sheet.welcome")
             .navigationTitle("Welcome")
             .toolbar { SheetCloseToolbar(action: done) }

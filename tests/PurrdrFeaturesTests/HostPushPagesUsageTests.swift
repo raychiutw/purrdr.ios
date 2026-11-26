@@ -40,8 +40,11 @@ struct HostPushPagesUsageTests {
     @Test("連線方式是系統 .inline Picker,不是自畫的勾選列")
     func connectionMethodIsInlinePicker() throws {
         let editor = try Self.source("HostEditorView.swift")
-        #expect(editor.contains("Picker(\"Connection\", selection: $model.connectionMethod)"))
-        #expect(editor.contains(".pickerStyle(.inline)"))
+        let start = try #require(editor.range(of: "Picker(\"Connection\", selection: $model.connectionMethod)"))
+        // 樣式修飾要緊跟在這個 Picker 的內容之後(下一個 Picker 或 Section 之前),不是檔案裡別處的 .inline。
+        let following = editor[start.upperBound...]
+        let end = following.range(of: "Picker(")?.lowerBound ?? following.endIndex
+        #expect(following[..<end].contains(".pickerStyle(.inline)"), "連線方式的 Picker 要是系統 .inline")
         #expect(!editor.contains("\"checkmark\""), "不自己畫勾號")
     }
 

@@ -151,7 +151,7 @@ struct ChoosePage: View {
             }
             if let settings { SettingsSections(settings) }
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("account.signedOut")
     }
 }
@@ -305,7 +305,7 @@ struct JoinFlowPages: View {
                 }
             }
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("account.join.paywall")
         .disabled(plus.isWorking)
         .task { await plus.loadPlans() }
@@ -405,7 +405,7 @@ struct JoinFlowPages: View {
                 }
             }
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier(locked ? "account.join.notificationsLocked" : "account.join.notifications")
         .hostPushConfirmation(pushes)
         .safeAreaBar(edge: .bottom) {
@@ -463,7 +463,7 @@ struct JoinFlowPages: View {
                     .foregroundStyle(.secondaryText)
             }
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("account.join.syncPage")
         .safeAreaBar(edge: .bottom) {
             VStack(spacing: 2) {

@@ -33,7 +33,9 @@ struct GlassLevelUsageTests {
     @Test("sheet 內的清單只隱藏預設底,不鋪不透明頁面底或列底")
     func sheetListsKeepSystemSurface() throws {
         // 新增聊天(#621)已是 push 的頁面,不是 sheet,不在這裡。
-        for name in ["ModelCapsule.swift"] {
+        // 只在 sheet 裡出現的畫面(聊天選單 sheet、歡迎頁、帳號與 Plus、新 worktree、主機信任)一律如此。
+        for name in ["ModelCapsule.swift", "ConversationMenuSheets.swift", "WelcomeView.swift", "HostTrustView.swift", "PlusView.swift",
+                     "PlusFeatures.swift", "AccountEntryViews.swift", "WorkspaceActionsViews.swift"] {
             let text = try Self.source(name)
             #expect(!text.contains(".appGroupedList()"), "\(name) 的 sheet 清單改用 appSheetList()")
             #expect(text.contains(".appSheetList()"), "\(name) 找不到 appSheetList()")
@@ -42,6 +44,16 @@ struct GlassLevelUsageTests {
         let start = try #require(surface.range(of: "func appSheetList()"))
         let window = String(surface[start.lowerBound...].prefix(200))
         #expect(!window.contains("listRowBackground"), "appSheetList 不再設不透明列底")
+    }
+
+    @Test("浮動玻璃只用系統 glassEffect,輔助功能設定交給系統(#614):沒有 forcesOpaqueGlass 旗標與自畫的不透明版本")
+    func floatingGlassIsSystemOnly() throws {
+        for name in Self.featureFiles {
+            #expect(!(try Self.source(name)).contains("forcesOpaque"), "\(name) 不要再有不透明玻璃旗標")
+        }
+        let glass = try Self.source("FloatingGlass.swift")
+        #expect(glass.contains(".glassEffect(.regular"))
+        #expect(!glass.contains("accessibilityReduceTransparency"))
     }
 
     @Test("聊天面板(#617)不鋪自己的底色:iPhone sheet 透出系統玻璃,popover 用系統底")

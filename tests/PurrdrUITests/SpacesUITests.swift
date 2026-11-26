@@ -95,24 +95,31 @@ final class SpacesUITests: XCTestCase {
         let first = app.element("spaces.tab.demo/w2:t1")
         XCTAssertTrue(app.reveal(first))
 
+        // 選單、確認與滑動動作都有出現動畫:每一步等「可點」再點,取消後等確認收乾淨才做下一步。
+        let closeItem = app.buttons["menu.closeTab"].firstMatch
         first.press(forDuration: 1.2)
-        app.buttons["menu.closeTab"].tap()
+        XCTAssertTrue(closeItem.waitUntilHittable(timeout: 5), "長按沒有出現「關閉 Tab」")
+        closeItem.tap()
         let confirm = app.buttons["closeTab.confirm"].firstMatch
         XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有出現確認")
         XCTAssertEqual(confirm.label, "Close Tab and Workspace")
         app.otherElements["PopoverDismissRegion"].firstMatch.tap()
+        XCTAssertTrue(confirm.waitUntilGone(timeout: 5), "取消後確認沒有收起")
         XCTAssertTrue(first.exists, "取消後 Tab 不該消失")
 
         first.press(forDuration: 1.2)
-        app.buttons["menu.closeTab"].tap()
+        XCTAssertTrue(closeItem.waitUntilHittable(timeout: 5), "第二次長按沒有出現「關閉 Tab」")
+        closeItem.tap()
+        XCTAssertTrue(confirm.waitUntilHittable(timeout: 5), "第二次沒有出現確認")
         confirm.tap()
         XCTAssertTrue(first.waitUntilGone(timeout: 10), "從選單關閉後 Tab 還在")
 
         let second = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(second))
         second.swipeLeft()
-        app.buttons["menu.closeTab"].tap()
-        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "左滑沒有出現確認")
+        XCTAssertTrue(closeItem.waitUntilHittable(timeout: 5), "左滑沒有出現「關閉 Tab」")
+        closeItem.tap()
+        XCTAssertTrue(confirm.waitUntilHittable(timeout: 5), "左滑沒有出現確認")
         confirm.tap()
         XCTAssertTrue(second.waitUntilGone(timeout: 10), "左滑關閉後 Tab 還在")
     }

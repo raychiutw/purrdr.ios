@@ -60,26 +60,53 @@ public final class KeychainHostStore: HostStore {
     }
 
     public func loadHosts() throws -> [HostConfiguration] {
-        var query = baseQuery
+        let outcome = try Self.readHosts(keychain: keychain, service: service)
+        for problem in outcome.problems { diagnostics.error(problem) }
+        return outcome.hosts
+    }
+
+    /// 不在主執行緒讀 Keychain(#590):冷啟動時第一個 frame 不等 SecItem 讀取(解鎖後第一次讀可能要幾十毫秒以上)。
+    public func loadHostsInBackground() async throws -> [HostConfiguration] {
+        let keychain = keychain, service = service
+        let outcome = try await Self.readHostsOffMain(keychain: keychain, service: service)
+        for problem in outcome.problems { diagnostics.error(problem) }
+        return outcome.hosts
+    }
+
+    private struct ReadOutcome: Sendable {
+        var hosts: [HostConfiguration]
+        /// 讀不懂的項目(不給使用者看,由呼叫端記進診斷記錄)。
+        var problems: [String]
+    }
+
+    @concurrent
+    private static func readHostsOffMain(keychain: any KeychainAPI, service: String) async throws -> ReadOutcome {
+        try readHosts(keychain: keychain, service: service)
+    }
+
+    private nonisolated static func readHosts(keychain: any KeychainAPI, service: String) throws -> ReadOutcome {
+        var query = baseQuery(service: service)
         query[kSecMatchLimit as String] = kSecMatchLimitAll
         query[kSecReturnData as String] = true
         query[kSecReturnAttributes as String] = true
         let (status, result) = keychain.copyMatching(query)
-        if status == errSecItemNotFound { return [] }
+        if status == errSecItemNotFound { return ReadOutcome(hosts: [], problems: []) }
         guard status == errSecSuccess else { throw KeychainError(status: status) }
         let items = result as? [[String: Any]] ?? []
         let decoder = JSONDecoder()
+        var problems: [String] = []
         // 讀不懂的項目(之後版本的格式、缺欄位的舊資料)不讓整個清單讀不出來：記下來，項目留著給之後的版本讀。
-        return items.compactMap { item in
+        let hosts = items.compactMap { item -> HostConfiguration? in
             guard let data = item[kSecValueData as String] as? Data else { return nil }
             do {
                 return try decoder.decode(HostConfiguration.self, from: data)
             } catch {
                 let account = item[kSecAttrAccount as String] as? String ?? "unknown"
-                diagnostics.error("Couldn’t read the saved host \(account); it isn’t shown: \(error)")
+                problems.append("Couldn’t read the saved host \(account); it isn’t shown: \(error)")
                 return nil
             }
         }
+        return ReadOutcome(hosts: hosts, problems: problems)
     }
 
     public func save(_ host: HostConfiguration) throws {
@@ -103,7 +130,9 @@ public final class KeychainHostStore: HostStore {
         guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError(status: status) }
     }
 
-    private var baseQuery: [String: Any] {
+    private var baseQuery: [String: Any] { Self.baseQuery(service: service) }
+
+    private nonisolated static func baseQuery(service: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

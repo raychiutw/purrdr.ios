@@ -69,7 +69,6 @@ import UIKit
 /// 寫進列的 hosted view 的環境值(`ConversationView.rowView` 重新注入的那幾個會變的):變了就要讓已設定的 cell 重畫。
 struct ChatListRowEnvironment: Equatable {
     var hostTheme: HostTheme?
-    var forcesOpaqueGlass: Bool
     var inlineSlashNames: Set<String>
 }
 
@@ -130,7 +129,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
     var model: ConversationModel?
     var rowView: (ChatListRowContent) -> AnyView = { _ in AnyView(EmptyView()) }
     /// 列的環境值;與上次套用時不同就讓所有列重畫(內容相等也一樣)。
-    var rowEnvironment = ChatListRowEnvironment(hostTheme: nil, forcesOpaqueGlass: false, inlineSlashNames: [])
+    var rowEnvironment = ChatListRowEnvironment(hostTheme: nil, inlineSlashNames: [])
     private var appliedRowEnvironment: ChatListRowEnvironment?
     var menuEntries: (ChatListRowContent) -> [ChatListMenuEntry] = { _ in [] }
     var smoothness: (any ScrollSmoothnessReporting)?

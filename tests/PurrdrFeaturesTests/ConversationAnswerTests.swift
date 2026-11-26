@@ -84,6 +84,21 @@ struct ConversationAnswerTests {
         #expect(await Self.paneReads(setup) == 1)
     }
 
+    @Test("提問卡解析在背景:一輪只解析一次,且不在主執行緒(#585)")
+    func promptParsingRunsOffMain() async throws {
+        let setup = try Self.setup()
+        let screen = "Parse once?\n❯ 1. Yes\n  2. No\n"
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read(text: screen))
+
+        await setup.model.poll()
+
+        let count = AnswerFlow.parseCount(forScreen: screen)
+        #expect(setup.model.prompt?.question == "Parse once?")
+        #expect(count.total == 1)
+        #expect(count.onMain == 0)
+    }
+
     @Test("blocked 但畫面看不出選單：通用鈕的提示")
     func blockedWithoutMenuIsUnrecognized() async throws {
         let setup = try Self.setup()

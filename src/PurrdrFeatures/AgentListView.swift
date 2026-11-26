@@ -127,6 +127,13 @@ public struct AgentListView: View {
         }
         // 預先載入前幾個聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
         // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
+        // 離開期間門檻(15 分鐘)一到就重算,徽章不晚到下一次無關的更新(#583);只在前景等。
+        .task(id: AwayTransitionKey(active: scenePhase == .active, at: model.nextAwayTransition(after: now))) {
+            guard scenePhase == .active, let at = model.nextAwayTransition(after: Date()) else { return }
+            try? await Task.sleep(for: .seconds(max(0, at.timeIntervalSinceNow) + 0.05))
+            guard !Task.isCancelled else { return }
+            now = Date()
+        }
         .task(id: model.awayRoutes) {
             await model.refreshAwayTurns()
         }
@@ -702,4 +709,9 @@ private struct SelectionFillModifier: ViewModifier {
             .foregroundStyle(.primary)
             .listRowBackground(isSelected ? Rectangle().fill(.neutralSelection) : nil)
     }
+}
+
+private struct AwayTransitionKey: Equatable {
+    var active: Bool
+    var at: Date?
 }

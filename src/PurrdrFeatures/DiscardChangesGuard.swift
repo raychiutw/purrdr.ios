@@ -24,12 +24,13 @@ struct DiscardChangesGuard: ViewModifier {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Back", systemImage: "chevron.backward") { confirming = true }
                             .accessibilityIdentifier("discardGuard.back")
+                            // 確認對話框掛在觸發的返回鈕上,錨定在鈕(#625)。
+                            .confirmationDialog(title, isPresented: $confirming, titleVisibility: .visible) {
+                                Button("Discard Changes", role: .destructive) { dismiss() }
+                                Button("Keep Editing", role: .cancel) {}
+                            }
                     }
                 }
-            }
-            .confirmationDialog(title, isPresented: $confirming, titleVisibility: .visible) {
-                Button("Discard Changes", role: .destructive) { dismiss() }
-                Button("Keep Editing", role: .cancel) {}
             }
     }
 }

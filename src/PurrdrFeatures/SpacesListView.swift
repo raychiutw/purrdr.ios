@@ -32,7 +32,8 @@ struct SpacesSectionsContent: View {
                             tab: TabTarget(tabID: tab.key, snapshot: model.snapshot(for: section.host), workspaceLabel: section.workspace),
                             host: section.host, snapshot: model.snapshot(for: section.host), presentation: presentation,
                             chats: TabChatActions(actions: model.actions(for: section.host), sessionIDs: tab.chatSessionIDs),
-                            openInNewWindow: newWindowAction(tab, host: section.host))
+                            openInNewWindow: newWindowAction(tab, host: section.host),
+                            actions: model.actions(for: section.host))
                         .accessibilityIdentifier("spaces.tab.\(tab.id)")
                 }
             } header: {
@@ -40,7 +41,7 @@ struct SpacesSectionsContent: View {
                     .workspaceHeaderMenu(
                         workspaceTarget(section), host: section.host, snapshot: model.snapshot(for: section.host),
                         isReadOnly: model.actions(for: section.host)?.isReadOnly ?? false, presentation: presentation,
-                        newChatHere: newChatHere(section))
+                        newChatHere: newChatHere(section), actions: model.actions(for: section.host))
             }
         }
     }

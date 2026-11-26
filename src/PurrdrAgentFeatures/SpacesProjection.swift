@@ -137,8 +137,13 @@ extension AgentListProjection {
     /// - Parameter query: 搜尋(#391、#501):比對主機名稱、workspace、Tab 名稱與 Tab 裡的 Agent 標題。
     ///   主機或 workspace 名稱符合時整段保留;否則只留符合的 Tab,一個都沒有的段落不出現。空白時不篩選。
     package static func spacesSections(sources: [Source], visible: Set<ChatRoute> = [], query: String = "") -> [SpacesSection] {
+        filter(allSpacesSections(sources: sources, visible: visible), query: query)
+    }
+
+    /// 套用搜尋(主機、workspace、Tab 名稱,#391)。基礎投影 `allSpacesSections` 只算一次,
+    /// 「依主機篩選」與「所有主機」兩種結果各自在它上面過濾(#583)。
+    package static func filter(_ sections: [SpacesSection], query: String) -> [SpacesSection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let sections = allSpacesSections(sources: sources, visible: visible)
         guard !needle.isEmpty else { return sections }
         return sections.compactMap { section in
             if contains(needle, in: [section.workspace, section.hostName]) { return section }
@@ -148,7 +153,7 @@ extension AgentListProjection {
         }
     }
 
-    private static func allSpacesSections(sources: [Source], visible: Set<ChatRoute>) -> [SpacesSection] {
+    package static func allSpacesSections(sources: [Source], visible: Set<ChatRoute>) -> [SpacesSection] {
         sources.flatMap { source -> [SpacesSection] in
             guard let snapshot = source.snapshot else { return [] }
             var workspaceIDs = snapshot.workspaces.sorted { $0.number < $1.number }.map(\.id)

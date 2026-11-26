@@ -249,7 +249,7 @@ struct HostEditorView: View {
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.borderless)  // listAction:exempt 純圖示的輔助鈕(列尾掃描 QR code),沿用系統 borderless 的 tint
                     .accessibilityLabel("Scan QR Code")
                     .accessibilityIdentifier("hostEditor.scanPairingCode")
                 }

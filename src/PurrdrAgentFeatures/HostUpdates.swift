@@ -99,6 +99,8 @@ public final class HostUpdates {
     @ObservationIgnored private var pendingNamedPanes: Set<String> = []
     /// 還沒處理的事件裡有 `layout.updated` 以外的(它們不限速,#587)。
     @ObservationIgnored private var pendingNonLayoutEvent = false
+    /// 版面事件限速的等待:等最小間隔,但其他事件一到就叫醒,不被版面限速拖慢(#587)。
+    private let layoutThrottle: WakeSignal
     /// 這一輪訂閱收到 ack 了(退避歸零)。
     @ObservationIgnored private var subscriptionStarted = false
 
@@ -111,6 +113,7 @@ public final class HostUpdates {
         self.now = now
         connectingSince = now()
         retryDue = WakeSignal(sleep: sleep)
+        layoutThrottle = WakeSignal(sleep: sleep)
     }
 
     /// 讀一次快照。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
@@ -180,7 +183,7 @@ public final class HostUpdates {
                     pendingNonLayoutEvent = false
                     try await refresh(namedPanes: namedPanes)
                     // 拖動分隔線時 layout.updated 每一步都送:讀完後先等最小間隔,期間的事件併成下一次(尾端)讀取。
-                    if layoutOnly { try await sleep(Self.layoutMinimumInterval) }
+                    if layoutOnly, !pendingNonLayoutEvent { try await layoutThrottle.wait(atMost: Self.layoutMinimumInterval) }
                     if subscriptionStarted { isSubscribed = true }
                     if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
                 }
@@ -284,7 +287,10 @@ public final class HostUpdates {
             do {
                 for try await event in events {
                     if event == .subscriptionStarted { self?.subscriptionStarted = true }
-                    if !Self.isLayoutUpdated(event) { self?.pendingNonLayoutEvent = true }
+                    if !Self.isLayoutUpdated(event) {
+                        self?.pendingNonLayoutEvent = true
+                        if self?.layoutThrottle.isWaiting == true { self?.layoutThrottle.wake() }
+                    }
                     if case .event(_, let paneID?) = event { self?.pendingNamedPanes.insert(paneID) }
                     if self?.isReading == true { self?.hasQueuedResync = true }
                     continuation.yield()

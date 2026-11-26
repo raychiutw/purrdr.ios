@@ -33,7 +33,11 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
         return errSecSuccess
     }
 
+    /// 每次 `copyMatching` 是否在主執行緒(#590:冷啟動讀取不在主執行緒)。
+    private(set) var copiesOnMainThread: [Bool] = []
+
     func copyMatching(_ query: [String: Any]) -> (OSStatus, AnyObject?) {
+        copiesOnMainThread.append(Thread.isMainThread)
         if let copyStatus { return (copyStatus, nil) }
         if query[kSecMatchLimit as String] as? String == kSecMatchLimitOne as String {
             let account = query[kSecAttrAccount as String] as! String
@@ -88,6 +92,21 @@ struct KeychainHostStoreTests {
 
         try store.delete(Self.host.id)
         #expect(try store.loadHosts().isEmpty)
+    }
+
+    @Test("冷啟動的背景讀取與同步讀取結果相同,而且不在主執行緒讀 Keychain(#590)")
+    func backgroundLoadReadsOffMain() async throws {
+        let keychain = FakeKeychain()
+        let store = KeychainHostStore(keychain: keychain)
+        try store.save(Self.host)
+        let synchronous = try store.loadHosts()
+        let before = keychain.copiesOnMainThread.count
+
+        let background = try await store.loadHostsInBackground()
+
+        #expect(background == synchronous)
+        #expect(keychain.copiesOnMainThread.count == before + 1)
+        #expect(keychain.copiesOnMainThread.last == false, "Keychain 讀取在主執行緒")
     }
 
     @Test("Keychain 拒絕寫入時丟出錯誤(畫面要留在編輯器說明)")

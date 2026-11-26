@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import Synchronization
 
 /// 回答「需要你」的狀態機(#560):一張需要你卡片從出現到收起的生命週期,收在一個純值型別裡。
 ///
@@ -119,7 +120,35 @@ public struct AnswerFlow: Sendable, Equatable {
 
     /// 讀畫面的結果。`screen` 為 `nil` = 讀不到(未知)。
     public mutating func observe(screen: String?, dialect: ScreenDialect, _ observation: Observation) -> Outcome {
-        guard let screen else {
+        observe(parsed: screen.map { Self.parse(screen: $0, dialect: dialect) }, observation)
+    }
+
+    /// 解析畫面上的提示:純函式、不碰狀態,所以聊天 model 在背景執行(#585),不佔主執行緒;
+    /// 解析次數計入 `parseCount`,供測試確認「不在主執行緒、每輪只解析一次」。
+    public nonisolated static func parse(screen: String, dialect: ScreenDialect) -> BlockedPrompt? {
+        #if DEBUG
+        let onMain = Thread.isMainThread
+        parseCounter.withLock { counts in
+            var entry = counts[screen, default: (total: 0, onMain: 0)]
+            entry.total += 1
+            if onMain { entry.onMain += 1 }
+            counts[screen] = entry
+        }
+        #endif
+        return BlockedPromptParser.parse(screen: screen, dialect: dialect)
+    }
+
+    #if DEBUG
+    private nonisolated static let parseCounter = Mutex<[String: (total: Int, onMain: Int)]>([:])
+    /// 這份畫面文字到目前為止被 `parse` 解析的次數,與其中在主執行緒上跑的次數(測試用,只在 DEBUG;以畫面文字區分,平行測試互不影響)。
+    public nonisolated static func parseCount(forScreen screen: String) -> (total: Int, onMain: Int) {
+        parseCounter.withLock { $0[screen] ?? (0, 0) }
+    }
+    #endif
+
+    /// 讀畫面的結果(已解析)。`parsed` 為外層 `nil` = 讀不到(未知);內層 `nil` = 畫面上沒有提示。
+    public mutating func observe(parsed parsedScreen: BlockedPrompt??, _ observation: Observation) -> Outcome {
+        guard let parsedScreen else {
             // 讀不到畫面 = 未知:永不當成新提示,只看逾時。剛答完的期限內不冒通用鈕(#468)。
             var outcome = Outcome()
             let isWithinStaleWindow = staleBlockedUntil.map { observation.now < $0 } ?? false
@@ -128,7 +157,7 @@ public struct AnswerFlow: Sendable, Equatable {
             outcome.haptic = checkDeadline(observation.now)
             return outcome
         }
-        let parsed = BlockedPromptParser.parse(screen: screen, dialect: dialect)
+        let parsed = parsedScreen
         if observation.isBlocked, parsed == nil, inFlight != nil, sent == nil, prompt != nil {
             // 送出還沒返回、按鍵可能已到 Agent 而畫面重繪:維持原卡片,不換成通用鈕(#468)。
             return Outcome(agentBlocked: true)

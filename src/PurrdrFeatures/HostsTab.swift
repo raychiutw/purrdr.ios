@@ -42,25 +42,12 @@ struct HostsTab: View {
                 .topBarPage(topBarContent)
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }
-        .confirmationDialog(
-            deletionTitle, isPresented: deletionBinding, titleVisibility: .visible, presenting: flow.pendingDeletion
-        ) { request in
-            Button("Remove Host", role: .destructive) { confirmDeletion(request) }
-                .accessibilityIdentifier("hosts.delete.confirm")
-            Button("Cancel", role: .cancel) { flow.cancelDeletion() }
-        } message: { _ in
-            Text("This only removes the host from Purrdr. The host itself and the agents on it aren’t affected. Anything Purrdr added for this device on the host is put back.")
-        }
-        .confirmationDialog("Remove the Demo Host?", isPresented: $confirmingRemoveDemo, titleVisibility: .visible) {
-            Button("Remove Demo Host", role: .destructive) { hosts.removeDemo() }
-                .accessibilityIdentifier("hosts.demo.remove.confirm")
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The demo conversations disappear from the list. You can bring them back anytime from Add Host or Welcome in Settings.")
-        }
         .onAppear {
-            // 已配對裝置「這支裝置」那列:回總頁跳出同一個移除確認(#291)。
-            statusCache.removeHost = { id, name in flow.requestDeletionFromEditor(of: id, name: name) }
+            // 已配對裝置「這支裝置」那列:確認在那一列上問過了(#625),確認後回總頁移除(#291)。
+            statusCache.removeHost = { id, name in
+                flow.path.removeAll()
+                confirmDeletion(HostDeletionRequest(id: id, name: name))
+            }
         }
         .onAppear(perform: openPendingImport)
         .onChange(of: importURL) { openPendingImport() }
@@ -89,8 +76,8 @@ struct HostsTab: View {
         if let overview = hosts.overview {
             HostOverviewView(
                 hosts: hosts, overview: overview, plus: plus, openPlus: openPlus, statusCache: statusCache, actionError: actionError,
-                removeHost: { flow.requestDeletion(of: $0, name: overview.name) },
-                removeDemo: { confirmingRemoveDemo = true }, openAddHost: { flow.path.append(.add) },
+                flow: flow, confirmRemoval: confirmDeletion,
+                confirmingRemoveDemo: $confirmingRemoveDemo, confirmRemoveDemo: { hosts.removeDemo() }, openAddHost: { flow.path.append(.add) },
                 openRoute: { flow.path.append($0) })
                 // 換主機就重新建立(用量區與主機服務各自的 model 屬於那台主機)。
                 .id(overview.host)
@@ -211,14 +198,6 @@ struct HostsTab: View {
         }
     }
 
-    private var deletionTitle: Text {
-        Text("Remove “\(flow.pendingDeletion?.name ?? "")” from This Device?")
-    }
-
-    private var deletionBinding: Binding<Bool> {
-        Binding { flow.pendingDeletion != nil } set: { if !$0 { flow.cancelDeletion() } }
-    }
-
     // MARK: - 從外部開啟
 
     private func openPendingImport() {
@@ -268,7 +247,7 @@ final class HostStatusCache {
         if let existing = cache[id] { return existing }
         guard let connection = hosts.hostStatusConnection(for: id), let host = hosts.hosts.first(where: { $0.id == id }) else { return nil }
         let name = host.name
-        let models = HostStatusModels(connection: connection, removeHost: { [weak self] in self?.removeHost(id, name) })
+        let models = HostStatusModels(connection: connection, hostName: name, removeHost: { [weak self] in self?.removeHost(id, name) })
         cache[id] = models
         return models
     }

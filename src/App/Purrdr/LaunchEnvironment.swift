@@ -21,7 +21,6 @@ struct LaunchEnvironment {
 
     /// UI 測試與畫面用的開關,以環境值注入畫面。
     struct ViewFlags {
-        var forcesOpaqueGlass: Bool
         var allowsTestingLinks: Bool
         var usesTestingSignIn: Bool
         var tracksReadingDrift: Bool

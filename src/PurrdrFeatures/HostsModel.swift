@@ -527,13 +527,34 @@ public final class HostsModel {
         rebuildMembers()
     }
 
+    /// 主機清單讀過了(畫面在這之前顯示系統進度指示,不顯示「沒有主機」的空狀態,#590)。
+    public private(set) var isLoaded = false
+
     /// 從儲存讀主機清單，選回上次選取的主機。
     public func load() {
+        finishLoad(Result { try sortedHosts() })
+    }
+
+    /// 冷啟動用(#590):Keychain 在背景讀,第一個 frame 不等它;讀完才套用並設 `isLoaded`。
+    public func loadInBackground() async {
+        guard !isLoaded else { return }
+        let result: Result<[HostConfiguration], any Error>
         do {
-            hosts = try sortedHosts()
+            result = .success(try await store.loadHostsInBackground().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending })
+        } catch {
+            result = .failure(error)
+        }
+        guard !isLoaded else { return }
+        finishLoad(result)
+    }
+
+    private func finishLoad(_ result: Result<[HostConfiguration], any Error>) {
+        switch result {
+        case .success(let loaded):
+            hosts = loaded
             refreshPairing()
             loadError = nil
-        } catch {
+        case .failure(let error):
             loadError = String(localized: "Couldn’t read saved hosts on this device. \(error.localizedDescription)")
         }
         select(validSelection(selectionStore.load()))
@@ -543,6 +564,7 @@ public final class HostsModel {
         for host in hosts where host.enabledAgents == nil {
             Task { await initializeAgentSettings(for: host.id, isNewHost: false) }
         }
+        isLoaded = true
     }
 
     /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、推播設定讀哪台;

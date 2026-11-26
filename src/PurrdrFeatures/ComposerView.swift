@@ -101,6 +101,7 @@ struct ComposerBar: View {
                     keyboardHeight = frame.height
                 }
                 #endif
+                // confirmationDialog:anchor 送出鈕在輸入列(safeAreaBar)裡,對話框掛在輸入列上(掛在畫面上層按了不會執行)
                 .confirmationDialog(
                     "Use mobile data?", isPresented: cellularWarningShown, titleVisibility: .visible
                 ) {

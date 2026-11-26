@@ -68,7 +68,7 @@ public struct PlusView: View {
             }
             legalSection
         }
-        .appGroupedList()
+        .appSheetList()
         .accessibilityIdentifier("plus.list")
         .disabled(model.isWorking)
         // 功能列推入的頁面(#619)。
@@ -570,6 +570,7 @@ struct SubscriptionNoticeSection: View {
                     }
                     Spacer(minLength: 8)
                     Button("Dismiss") { plus.notice = nil }
+                        .listAction()
                         .buttonStyle(.borderless)
                         .accessibilityIdentifier("subscription.notice.dismiss")
                 }

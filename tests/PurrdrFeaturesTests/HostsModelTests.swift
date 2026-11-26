@@ -45,6 +45,21 @@ struct HostsModelTests {
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
     }
 
+    @Test("冷啟動的背景載入:載入前 isLoaded 為 false(畫面顯示進度指示),讀完才套用主機並選取(#590)")
+    func backgroundLoadAppliesHostsAndMarksLoaded() async {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        #expect(!model.isLoaded)
+        #expect(model.hosts.isEmpty)
+
+        await model.loadInBackground()
+
+        #expect(model.isLoaded)
+        #expect(model.hosts == [Self.studio])
+        #expect(model.selection == .host(Self.studio.id))
+    }
+
     @Test("Windows 主機(連線測試偵測到的 OS):Agent 列表的 herdr 指令換成 PowerShell -EncodedCommand(#26)")
     func windowsHostUsesPowerShell() async throws {
         var pc = Self.studio

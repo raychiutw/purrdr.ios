@@ -151,6 +151,7 @@ struct NewChatPushUsageTests {
         #expect(!terminal.contains("placement: .principal"))
         for (name, text) in SystemTopBarUsageTests.featureFiles {
             #expect(!text.contains("controlHeight"), "\(name) 還在用 TopBarMetrics.controlHeight")
+            #expect(!text.contains("TopBarMetrics"), "\(name) 頂列尺寸全交給系統,不再有 TopBarMetrics(#615)")
         }
     }
 }

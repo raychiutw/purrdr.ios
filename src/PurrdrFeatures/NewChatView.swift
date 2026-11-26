@@ -187,6 +187,11 @@ public struct NewChatView: View {
                             .disabled(model.isStarting)
                             .accessibilityLabel(Text("Back"))
                             .accessibilityIdentifier("newChat.back")
+                            // 確認對話框掛在觸發的返回鈕上,錨定在鈕(#625)。
+                            .confirmationDialog("Discard this new chat?", isPresented: $confirmingLeave, titleVisibility: .visible) {
+                                Button("Discard", role: .destructive, action: onLeave)
+                                Button("Keep Editing", role: .cancel) {}
+                            }
                     }
                 }
                 if let hostPicker {
@@ -196,11 +201,6 @@ public struct NewChatView: View {
                     }
                 }
             }
-            .confirmationDialog("Discard this new chat?", isPresented: $confirmingLeave, titleVisibility: .visible) {
-                Button("Discard", role: .destructive, action: onLeave)
-                Button("Keep Editing", role: .cancel) {}
-            }
-
         }
     }
 

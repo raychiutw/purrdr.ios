@@ -8,9 +8,17 @@ import Testing
 @Suite("清單動作列顏色用法")
 struct ListActionColorUsageTests {
     /// 已自己指定樣式的按鈕(主要動作、純圖示、自訂樣式)不吃 List 的 tint,不需要 `.listAction()`。
-    /// 其餘例外要在按鈕修飾鏈上寫 `// listAction:exempt <原因>`。
+    /// `.buttonStyle(.plain)` 與 `.borderless` **不算**自己指定樣式(#639):前者包 `HostRowLabel` 的動作列顏色沒人檢查過,
+    /// 後者在 List 裡仍吃 tint;這兩種要套 `.listAction()`,或在按鈕修飾鏈上寫 `// listAction:exempt <原因>`。
+    static let styledMarkers = [
+        "listAction()", "filledProminentButtonStyle()", "listAction:exempt",
+        ".buttonStyle(.bordered)", ".buttonStyle(.bordered).", ".buttonStyle(.borderedProminent)", ".buttonStyle(.glass)",
+        ".buttonStyle(.glassProminent)", ".buttonStyle(.pressable", ".buttonStyle(ComposerCircleButtonStyle", ".buttonStyle(HeaderPressStyle",
+        ".buttonStyle(NeutralDisabledSendButtonStyle", ".buttonStyle(TerminalKeyButtonStyle",
+    ]
+
     static func isStyled(_ button: ListButton) -> Bool {
-        ["listAction()", ".buttonStyle(", "filledProminentButtonStyle()", "listAction:exempt"].contains { button.text.contains($0) }
+        styledMarkers.contains { button.text.contains($0) }
     }
 
     static let redLiterals = [".foregroundStyle(.red)", "Color.red", ".tint(.red)", "foregroundColor(.red)"]
@@ -96,6 +104,34 @@ struct ListActionColorUsageTests {
         }
         """)
         #expect(good.allSatisfy(Self.isStyled))
+    }
+
+    @Test("掃描器:帶 label 閉包、包 HostRowLabel 且 .buttonStyle(.plain) 的動作列要被檢查(#639)")
+    func plainStyledLabelRowsAreChecked() {
+        let bad = Self.scan("""
+        List {
+            Section {
+                Button {
+                    open()
+                } label: {
+                    HostRowLabel(title: "Add Your Own Host")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("hosts.demo.addOwn")
+            }
+        }
+        """)
+        #expect(bad.count == 1)
+        #expect(bad.allSatisfy { !Self.isStyled($0) }, ".plain 不能讓動作列跳過顏色檢查")
+        let borderless = Self.scan("""
+        List {
+            Section {
+                Button("Open") { open() }
+                    .buttonStyle(.borderless)
+            }
+        }
+        """)
+        #expect(borderless.allSatisfy { !Self.isStyled($0) })
     }
 
     @Test("掃描器:選單、swipe、對話框裡的 Button 由系統畫,不算清單列")

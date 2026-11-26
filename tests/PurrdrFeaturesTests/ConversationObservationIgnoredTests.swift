@@ -32,15 +32,15 @@ struct ConversationObservationIgnoredTests {
 
     private let message = TranscriptMessage(id: "m1", role: .user, date: nil, parts: [.text("hi")])
 
-    @Test("內部欄位(沒有畫面讀):寫入不通知觀察者")
-    func internalStateWritesDoNotNotify() {
+    @Test("內部欄位(沒有畫面讀):逐欄位寫入都不通知觀察者,失敗時點名是哪個欄位", arguments: ConversationModel.ObservationIgnoredField.allCases)
+    func internalStateWritesDoNotNotify(field: ConversationModel.ObservationIgnoredField) {
         let model = makeModel()
         let fired = Fired()
-        withObservationTracking { model.readObservationIgnoredStateForTesting() } onChange: { fired.isOn = true }
+        withObservationTracking { model.readForTesting(field) } onChange: { fired.isOn = true }
 
-        model.writeObservationIgnoredStateForTesting(message: message, now: Date())
+        model.writeForTesting(field, message: message, now: Date())
 
-        #expect(!fired.isOn)
+        #expect(!fired.isOn, "\(field.rawValue) 的寫入通知了觀察者(缺 @ObservationIgnored?)")
     }
 
     @Test("畫面讀的欄位(phase、isSending 等)寫入仍然通知")

@@ -119,6 +119,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
     /// `-uiTestingOversizedClipboard`:剪貼簿先放一段超過終端機貼上上限的文字(#626)。
     public let seedsOversizedClipboard: Bool
     public let hasNoPasscode: Bool
+    /// `-uiTestingHostKeyPrompt`:還沒有 host key pin 的 SSH 主機第一次連線時出示未信任的 host key,走到「信任這台主機?」(#613)。
+    public let promptsHostKey: Bool
     public let appLockEnabled: Bool
     public let pushTestFails: Bool
     public let hidesDebugOverlay: Bool
@@ -182,6 +184,7 @@ public struct LaunchConfiguration: Equatable, Sendable {
         simulatesFileUpload = has("-uiTestingSimulatedFileUpload")
         seedsOversizedClipboard = isUITesting && has("-uiTestingOversizedClipboard")
         hasNoPasscode = has("-uiTestingNoPasscode")
+        promptsHostKey = has("-uiTestingHostKeyPrompt")
         appLockEnabled = has("-uiTestingAppLock")
         pushTestFails = has("-uiTestingPushTestFails")
         hidesDebugOverlay = has("-uiTestingHidesDebugOverlay")

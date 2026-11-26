@@ -25,12 +25,18 @@ public final class PairedDevicesModel {
     /// 上一次撤銷失敗的說明。
     public private(set) var revocationError: String?
 
+    /// 等使用者確認要從這支裝置移除主機的那一列(「這支裝置」)。
+    public private(set) var confirmingHostRemoval: PairedDeviceRecord?
+    /// 確認對話框標題用的主機名稱。
+    public let hostName: String
+
     private let host: any PairedDevicesManaging
     private let removeHost: (@MainActor () -> Void)?
 
     /// - Parameter removeHost: 開移除主機的確認(主機清單的流程);`nil` 時「這支裝置」那列沒有動作。
-    public init(host: any PairedDevicesManaging, removeHost: (@MainActor () -> Void)? = nil) {
+    public init(host: any PairedDevicesManaging, hostName: String = "", removeHost: (@MainActor () -> Void)? = nil) {
         self.host = host
+        self.hostName = hostName
         self.removeHost = removeHost
     }
 
@@ -39,8 +45,19 @@ public final class PairedDevicesModel {
         device.isCurrentDevice && removeHost != nil
     }
 
+    /// 先問(確認對話框掛在那一列上,#625);確認才進移除主機的流程。
     public func requestHostRemoval(from device: PairedDeviceRecord) {
         guard canRemoveHost(from: device) else { return }
+        confirmingHostRemoval = device
+    }
+
+    public func cancelHostRemoval() {
+        confirmingHostRemoval = nil
+    }
+
+    public func confirmHostRemoval() {
+        guard confirmingHostRemoval != nil else { return }
+        confirmingHostRemoval = nil
         removeHost?()
     }
 

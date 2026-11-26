@@ -82,13 +82,6 @@ public struct DataUsageView: View {
         .navigationDestination(for: DataUsageHostRoute.self) { route in
             DataUsageHostPage(model: model, hostID: route.hostID)
         }
-        .confirmationDialog("Reset Statistics?", isPresented: $confirmsReset, titleVisibility: .visible) {
-            Button("Reset Statistics", role: .destructive) { model.reset() }
-                .accessibilityIdentifier("dataUsage.resetConfirm")
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This clears all data usage recorded on this device.")
-        }
         // 只在前景每 2 秒重讀(#498):進背景不再讓整頁失效;回前景先重讀一次再繼續。
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
@@ -205,6 +198,14 @@ public struct DataUsageView: View {
     private var resetButton: some View {
         Button("Reset Statistics", role: .destructive) { confirmsReset = true }
             .accessibilityIdentifier("dataUsage.reset")
+            // 確認對話框掛在觸發的按鈕上,錨定在按鈕(#625)。
+            .confirmationDialog("Reset Statistics?", isPresented: $confirmsReset, titleVisibility: .visible) {
+                Button("Reset Statistics", role: .destructive) { model.reset() }
+                    .accessibilityIdentifier("dataUsage.resetConfirm")
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This clears all data usage recorded on this device.")
+            }
     }
 
     private var footnote: some View {

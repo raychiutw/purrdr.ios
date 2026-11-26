@@ -23,6 +23,7 @@ struct StopBar: View {
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("stopBar")
+            .forceQuitConfirmation(model: model)
             .sensoryFeedback(trigger: model.stopPhase) { _, phase in phase?.feedback }
             .onChange(of: model.stopPhase) { _, phase in
                 guard let phase, phase != .stopping else { return }
@@ -228,10 +229,11 @@ struct StopBar: View {
 
 extension View {
     /// 強制結束前的確認(#220):會送 Ctrl-C,destructive 確認，系統提供取消。
-    /// 掛在對話畫面上，不放在輸入列(`safeAreaBar` 的內容裡按了不會執行動作)。
+    /// 掛在停止列上,錨定在觸發的停止鈕(#625)。
     func forceQuitConfirmation(model: ConversationModel) -> some View {
         @Bindable var model = model
-        return confirmationDialog(Text("Force Quit \(model.agentName)?"), isPresented: $model.confirmsForceQuit, titleVisibility: .visible) {
+        // confirmationDialog:anchor 由停止鈕的選單或結果列的按鈕觸發,對話框錨定在停止列
+        return self.confirmationDialog(Text("Force Quit \(model.agentName)?"), isPresented: $model.confirmsForceQuit, titleVisibility: .visible) {
             Button("Force Quit", role: .destructive) {
                 Task { await model.forceQuit() }
             }
