@@ -10,15 +10,33 @@ struct WindowDetail: View {
     let navigation: TopNavigationModel
     /// 寬視窗時帳號頭像掛在這一欄的工具列右側(最右邊那欄,視窗右上角;#520);`nil` 時由列表頂列放。
     var account: AnyView?
+    /// 新增聊天頁(#621):寬視窗推進這一欄(對話欄)的堆疊,左上系統返回離開。
+    var newChat: (() -> AnyView)?
 
     var body: some View {
+        @Bindable var navigation = navigation
         NavigationStack {
-            WindowDetailContent(hosts: hosts, navigation: navigation, route: navigation.selectedChat)
-                .appNavigationBackground()
-                .accountToolbarItem(account)
+            Group {
+                if let layout = navigation.selectedLayout {
+                    // 列表欄選了多 Pane 的 Tab:版面圖顯示在對話欄;選了 Pane 就換成那個聊天。
+                    SpacesLayoutDestination(route: layout, snapshot: hosts.agentList.snapshot(for: layout.host)) { host, target in
+                        switch target {
+                        case .chat(let paneID), .terminal(let paneID): navigation.selectedChat = ChatRoute(host: host, paneID: paneID)
+                        }
+                    }
+                } else {
+                    WindowDetailContent(hosts: hosts, navigation: navigation, route: navigation.selectedChat)
+                }
+            }
+            .appNavigationBackground()
+            .accountToolbarItem(account)
+            .navigationDestination(isPresented: $navigation.isNewChatOpen) {
+                if let newChat { newChat() }
+            }
         }
-        // 換一個聊天就整個重建(對話 model、推入的終端機)。
-        .id(navigation.selectedChat)
+        // 換一個聊天(或版面圖)就整個重建(對話 model、推入的終端機)。
+        .id(navigation.sidebarSelection)
+        .onChange(of: navigation.sidebarSelection) { navigation.isNewChatOpen = false }
     }
 }
 

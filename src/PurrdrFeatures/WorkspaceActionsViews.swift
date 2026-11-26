@@ -170,10 +170,12 @@ extension View {
     func workspaceActionsPresentation(
         actions: @escaping (HostSelection) -> WorkspaceActionsModel?, snapshot: @escaping (HostSelection) -> HostSnapshot?,
         presentation: WorkspacePresentation, path: Binding<[ChatsDestination]>,
+        showLayoutInDetail: ((SpacesLayoutRoute) -> Void)? = nil,
         chatDestination: @escaping (ChatRoute) -> AnyView, onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
     ) -> some View {
         modifier(WorkspaceActionsPresenter(
-            resolve: actions, snapshot: snapshot, presentation: presentation, path: path, chatDestination: chatDestination, onOpen: onOpen))
+            resolve: actions, snapshot: snapshot, presentation: presentation, path: path, showLayoutInDetail: showLayoutInDetail, chatDestination: chatDestination,
+            onOpen: onOpen))
     }
 }
 
@@ -347,6 +349,8 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     let snapshot: (HostSelection) -> HostSnapshot?
     @Bindable var presentation: WorkspacePresentation
     @Binding var path: [ChatsDestination]
+    /// 寬視窗:版面圖顯示在對話欄(列表欄的選取),不進路徑。
+    let showLayoutInDetail: ((SpacesLayoutRoute) -> Void)?
     /// 路徑上聊天目的地的畫面(窄視窗才有聊天進路徑;寬視窗給空畫面)。
     let chatDestination: (ChatRoute) -> AnyView
     let onOpen: (HostSelection, PaneOpenTarget) -> Void
@@ -370,7 +374,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             .onChange(of: presentation.layoutRoute) { _, route in
                 guard let route else { return }
                 presentation.layoutRoute = nil
-                path.append(.layout(route))
+                if let showLayoutInDetail { showLayoutInDetail(route) } else { path.append(.layout(route)) }
             }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)

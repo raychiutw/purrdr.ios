@@ -228,7 +228,8 @@ public struct TopNavigationView: View {
         } detail: {
             WindowDetail(
                 hosts: hosts, navigation: navigation,
-                account: AccountButtonPlacement.showsInDetailToolbar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil)
+                account: AccountButtonPlacement.showsInDetailToolbar(for: .chats, isWideWindow: isWideWindow) ? accountButton : nil,
+                newChat: { AnyView(newChatPage) })
         }
     }
 
@@ -262,20 +263,25 @@ public struct TopNavigationView: View {
             hosts.member(for: route.host).terminal(paneID: route.paneID, title: title)
         }
         // 新增聊天從右推入(#621):左上「<」離開;開好後先退回列表再開新聊天。
-        .navigationDestination(isPresented: $navigation.isNewChatOpen) {
-            NewChatPage(
-                hosts: hosts, picker: hosts.screens.newChatHostPicker(preferring: navigation.newChatPreselection?.host),
-                preselection: navigation.newChatPreselection
-            ) {
-                navigation.isNewChatOpen = false
-            } onStarted: { workspace, host, unsentMessage in
-                navigation.isNewChatOpen = false
-                // agent 停在啟動問題時沒送的第一則訊息：放進聊天的輸入框，回答後自己送(#272)。
-                if let unsentMessage { hosts.member(for: host).keepDraft(unsentMessage, paneID: workspace.rootPaneID) }
-                Task { await hosts.openStartedChat(workspace, on: host) }
-            }
-            .appNavigationBackground()
+        // 窄視窗推進列表堆疊;寬視窗推進對話欄的堆疊(`WindowDetail`),所以這裡只在窄視窗開。
+        .navigationDestination(isPresented: sizeClass == .compact ? $navigation.isNewChatOpen : .constant(false)) {
+            newChatPage
         }
+    }
+
+    private var newChatPage: some View {
+        NewChatPage(
+            hosts: hosts, picker: hosts.screens.newChatHostPicker(preferring: navigation.newChatPreselection?.host),
+            preselection: navigation.newChatPreselection
+        ) {
+            navigation.isNewChatOpen = false
+        } onStarted: { workspace, host, unsentMessage in
+            navigation.isNewChatOpen = false
+            // agent 停在啟動問題時沒送的第一則訊息：放進聊天的輸入框，回答後自己送(#272)。
+            if let unsentMessage { hosts.member(for: host).keepDraft(unsentMessage, paneID: workspace.rootPaneID) }
+            Task { await hosts.openStartedChat(workspace, on: host) }
+        }
+        .appNavigationBackground()
     }
 
     /// 4 個 tab。徽章數字在小 View `RootTabs` 讀(#581)。

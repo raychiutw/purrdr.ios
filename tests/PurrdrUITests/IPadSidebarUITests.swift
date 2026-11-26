@@ -24,65 +24,69 @@ final class IPadSidebarUITests: XCTestCase {
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 15), "對話沒有開在對話欄")
     }
 
-    /// 版面圖(多 Pane 的 Tab)推進列表欄:系統返回一次就回到列表,對話欄的對話不受影響;
-    /// 返回後點別的聊天列仍能換對話(#641:選取列表內的 NavigationLink 返回行為)。
+    /// 對話欄的導覽列(不是列表欄的「Chats」那條)。
     @MainActor
-    func testLayoutPushesInListColumnAndBackReturnsInOneTap() {
+    private func detailBackButton(_ app: XCUIApplication) -> XCUIElement {
+        app.navigationBars.matching(NSPredicate(format: "identifier != 'Chats'")).buttons.firstMatch
+    }
+
+    /// 版面圖(多 Pane 的 Tab):列表欄的系統選取,版面圖顯示在對話欄、列表欄留著;選版面圖裡的 Pane 就換成那個聊天,
+    /// 之後再選別的聊天列也正常(#641:選取列表內不再有推入的連結,沒有「第一下返回被吃掉」)。
+    @MainActor
+    func testLayoutRowSelectsLayoutInDetailColumn() {
         let app = launch()
         openChat(app)
         let tab = app.element("spaces.tab.demo/w3:t1")
         XCTAssertTrue(app.reveal(tab), "沒有看到多 Pane 的 Tab")
 
         tab.tap()
-        XCTAssertTrue(app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 5), "點多 Pane 的 Tab 沒有推出版面圖")
-        XCTAssertTrue(app.element("composer.text").exists, "推版面圖不該動到對話欄")
+        XCTAssertTrue(app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 5), "點多 Pane 的 Tab 沒有在對話欄顯示版面圖")
+        XCTAssertTrue(tab.exists, "版面圖不該把列表欄推走")
+        XCTAssertFalse(app.element("composer.text").exists, "對話欄應該換成版面圖")
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(UITestWait.until(timeout: 5) { tab.exists && !app.buttons["layout.block.w3:p1"].exists }, "返回一次沒有回到列表")
-        XCTAssertTrue(app.element("composer.text").exists, "返回後對話欄不見了")
+        app.buttons["layout.block.w3:p1"].tap()
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "選版面圖裡的 Agent 沒有開成對話")
+        XCTAssertFalse(app.buttons["layout.block.w3:p1"].exists, "對話開了之後版面圖該收起")
 
-        // 再推再退一次(第一下返回被吃掉的問題會在第二輪才看得出來)。
+        // 再回頭選版面圖、再選別的聊天列。
         tab.tap()
-        XCTAssertTrue(app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 5))
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(UITestWait.until(timeout: 5) { tab.exists && !app.buttons["layout.block.w3:p1"].exists }, "第二次返回沒有回到列表")
-
-        // 返回後點別的聊天列:對話欄換內容。
+        XCTAssertTrue(app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 5), "第二次選版面圖沒有顯示")
         let other = app.element("spaces.tab.demo/w2:t1")
         XCTAssertTrue(app.reveal(other))
         other.tap()
-        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "返回後點聊天列沒有開在對話欄")
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "選別的聊天列沒有開在對話欄")
+        XCTAssertFalse(app.buttons["layout.block.w3:p1"].exists)
     }
 
-    /// 新增聊天推進列表欄(#621):對話欄原本的對話留著;「<」回到列表,對話欄不變。
+    /// 新增聊天推進對話欄的堆疊(#621):列表欄留著;對話欄左上系統返回離開,回到原本的對話。
     @MainActor
-    func testNewChatPushesInListColumnAndBackKeepsChat() {
+    func testNewChatPushesInDetailColumnAndBackKeepsChat() {
         let app = launch()
         openChat(app)
 
         app.buttons["toolbar.newChat"].firstMatch.tap()
         let page = app.element("newChat.page")
         XCTAssertTrue(page.waitUntilExists(timeout: 10), "新增聊天沒有開出")
-        XCTAssertTrue(app.element("composer.text").exists, "新增聊天不該蓋掉對話欄")
-        XCTAssertFalse(app.element("spaces.tab.demo/w1:t1").exists, "新增聊天應推進列表欄、把列表推走")
+        XCTAssertTrue(app.element("spaces.tab.demo/w1:t1").exists, "新增聊天不該把列表欄推走")
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(UITestWait.until(timeout: 5) { !page.exists }, "「<」沒有離開新增聊天")
-        XCTAssertTrue(app.element("spaces.tab.demo/w1:t1").waitUntilExists(timeout: 5), "回到的不是列表")
-        XCTAssertTrue(app.element("composer.text").exists, "返回後對話欄不見了")
+        let back = detailBackButton(app)
+        XCTAssertTrue(back.waitUntilExists(timeout: 5), "對話欄沒有系統返回")
+        back.tap()
+        XCTAssertTrue(UITestWait.until(timeout: 5) { !page.exists }, "返回沒有離開新增聊天")
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "返回後沒有回到原本的對話")
     }
 
-    /// Command-, 開帳號與設定(滿版 cover)後關閉,對話欄的對話還在(#623)。
+    /// Command-, 開帳號與設定:寬視窗是 page sheet(不是全螢幕),關閉後對話欄的對話還在(#623)。
     @MainActor
-    func testCommandCommaCoverClosesBackToChat() {
+    func testCommandCommaOpensPageSheetAndClosesBackToChat() {
         let app = launch()
         openChat(app)
 
         app.typeKey(",", modifierFlags: .command)
         app.waitForAccountSheet()
-        let close = app.buttons["member.close"].firstMatch
-        XCTAssertTrue(close.waitUntilExists(timeout: 5), "帳號頁沒有關閉鈕")
-        close.tap()
+        let sheet = app.element("account.signedOut")
+        XCTAssertLessThan(sheet.frame.width, app.windows.firstMatch.frame.width, "寬視窗的帳號與設定應是 page sheet、不是滿版")
+        app.closeAccountSheet()
         XCTAssertTrue(UITestWait.until(timeout: 5) { app.buttons["toolbar.account"].firstMatch.isHittable }, "關閉後底下頁面點不到")
         XCTAssertTrue(app.element("composer.text").exists, "關閉帳號頁後對話不見了")
     }

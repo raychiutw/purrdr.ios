@@ -172,8 +172,8 @@ public struct AgentListView: View {
         var needsTicks: Bool
     }
 
-    private var selection: Binding<ChatRoute?> {
-        Binding { window?.selectedChat } set: { window?.selectedChat = $0 }
+    private var sidebarSelection: Binding<SidebarSelection?> {
+        Binding { window?.sidebarSelection } set: { window?.sidebarSelection = $0 }
     }
 
     /// Agent 的 pane 開對話;agent 以外的 pane(終端機列、版面圖的終端機方塊)開它的 Pane 終端機(#37 故事 14)。
@@ -304,15 +304,17 @@ public struct AgentListView: View {
         let sections = model.spacesSections
         let prefetchRoutes = AgentListProjection.prefetchRoutes(from: sections, limit: Self.prefetchCount)
         return Group {
-            // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
-            // 寬視窗(split view 的內容欄)的列是選取;窄視窗的堆疊是推入,List 不能有 selection
+            // 寬視窗(split view 的列表欄):列是系統選取(`List(selection:)` 加同型別的 `NavigationLink(value:)`,持續高亮,HIG 20.9),
+            // 聊天與多 Pane Tab 的版面圖都顯示在對話欄;窄視窗的堆疊是推入,List 不能有 selection
             // (NavigationLink 在有 selection 的 List 裡,push 後第一下返回會被吃掉,#641 查出的根因)。
+            // 推入或選取看**視窗層級**的 size class(`pushesChats`):列表欄自己的環境值在 split view 的欄內可能是 compact(實測)。
             if window != nil && !pushesChats {
-                List(selection: selection) {
+                List(selection: sidebarSelection) {
                     hostStatusRows
                     listRows(sections)
                 }
                 .environment(\.selectedChatRoute, window?.selectedChat)
+                .environment(\.usesSidebarSelection, true)
             } else {
                 List {
                     hostStatusRows
@@ -340,6 +342,7 @@ public struct AgentListView: View {
         .workspaceActionsPresentation(
             actions: { model.actions(for: $0) }, snapshot: { model.snapshot(for: $0) }, presentation: presentation,
             path: Binding { window?.chatsPath ?? [] } set: { window?.chatsPath = $0 },
+            showLayoutInDetail: window != nil && !pushesChats ? { [weak window] route in window?.selectedLayout = route } : nil,
             chatDestination: chatDestination) { host, target in
             // 版面圖選的 Pane:Agent 開對話，終端機方塊開它的 Pane 終端機(兩者都以 pane 指定，見 `conversationScreen`)。
             switch target {
@@ -702,6 +705,8 @@ extension EnvironmentValues {
     @Entry var pushesChatsByPath = false
     /// iPad split view 列表目前選取的聊天(`selectionFill(for:)` 用);獨立的 NavigationStack 沒有選取。
     @Entry var selectedChatRoute: ChatRoute?
+    /// 列是寬視窗列表欄的系統選取(值是 `SidebarSelection`);`false` 是窄視窗的推入或沒有視窗狀態的列表。
+    @Entry var usesSidebarSelection = false
 }
 
 extension View {

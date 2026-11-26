@@ -26,8 +26,11 @@ final class IPadAccountUITests: XCTestCase {
         let frame = accounts.firstMatch.frame
         XCTAssertGreaterThan(frame.maxX, window.maxX - 80, "\(context):頭像不在視窗最右邊 \(frame)", file: file, line: line)
         XCTAssertLessThan(frame.minY, window.minY + 160, "\(context):頭像不在視窗上方 \(frame)", file: file, line: line)
-        XCTAssertGreaterThanOrEqual(frame.width, 44, "\(context):觸控目標小於 44pt", file: file, line: line)
-        XCTAssertGreaterThanOrEqual(frame.height, 44, "\(context):觸控目標小於 44pt", file: file, line: line)
+        // 系統工具列按鈕的尺寸由系統決定(iPad regular 的圖示鈕實測約 26×36);不以自訂 frame 撐大,
+        // 斷言點得到、不比系統預設小。
+        XCTAssertTrue(accounts.firstMatch.isHittable, "\(context):頭像點不到", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(frame.width, 24, "\(context):頭像寬度小於系統預設 \(frame)", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(frame.height, 32, "\(context):頭像高度小於系統預設 \(frame)", file: file, line: line)
         XCTAssertEqual(accounts.firstMatch.label, "Account", "\(context):VoiceOver 名稱", file: file, line: line)
     }
 

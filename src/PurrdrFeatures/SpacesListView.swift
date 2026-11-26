@@ -18,6 +18,7 @@ struct SpacesSectionsContent: View {
     var newChatInWorkspace: ((HostSelection, String) -> Void)?
     var canNewChatInWorkspace: ((HostSelection) -> Bool)?
     @Environment(\.pushesChatsByPath) private var pushesByPath
+    @Environment(\.usesSidebarSelection) private var usesSelection
 
     var body: some View {
         if let needsYou {
@@ -85,6 +86,8 @@ struct SpacesSectionsContent: View {
             Group {
                 if pushesByPath {
                     NavigationLink(value: ChatsDestination.chat(route)) { chatRow(tab, justNow: justNow) }
+                } else if usesSelection {
+                    NavigationLink(value: SidebarSelection.chat(route)) { chatRow(tab, justNow: justNow) }
                 } else {
                     NavigationLink(value: route) { chatRow(tab, justNow: justNow) }
                 }
@@ -94,9 +97,14 @@ struct SpacesSectionsContent: View {
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
             // 多 Pane 的 Tab:點列往右 push 版面圖頁(#619、#641):系統 NavigationLink,列尾的 > 由系統給。
-            NavigationLink(value: ChatsDestination.layout(
-                SpacesLayoutRoute(host: host, workspaceID: workspaceID, tabID: tabID, title: tab.title))) {
-                chatRow(tab, justNow: justNow)
+            let layoutRoute = SpacesLayoutRoute(host: host, workspaceID: workspaceID, tabID: tabID, title: tab.title)
+            Group {
+                if usesSelection {
+                    // 寬視窗:版面圖是列表欄的系統選取,顯示在對話欄。
+                    NavigationLink(value: SidebarSelection.layout(layoutRoute)) { chatRow(tab, justNow: justNow) }
+                } else {
+                    NavigationLink(value: ChatsDestination.layout(layoutRoute)) { chatRow(tab, justNow: justNow) }
+                }
             }
             .listRowInsets(ChatRowView.rowInsets)
             .accessibilityLabel(Text(verbatim: ChatRowView.accessibilityText(tab, justNow: justNow)))

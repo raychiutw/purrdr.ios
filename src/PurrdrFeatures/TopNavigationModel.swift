@@ -17,6 +17,12 @@ enum ChatsDestination: Hashable {
     }
 }
 
+/// 寬視窗列表欄的選取(`List(selection:)` 的值):聊天,或多 Pane Tab 的版面圖。兩者都顯示在對話欄。
+enum SidebarSelection: Hashable {
+    case chat(ChatRoute)
+    case layout(SpacesLayoutRoute)
+}
+
 @MainActor
 @Observable
 public final class TopNavigationModel {
@@ -40,7 +46,31 @@ public final class TopNavigationModel {
     /// 對話欄顯示的 Agent(主機 + pane id,#39)。iPhone 與窄視窗時是推入的對話。
     public var selectedChat: ChatRoute? {
         // 一次只有一個詳細(行為規格 F20):換聊天時，前一個聊天推入的終端機收起。
-        didSet { if selectedChat != oldValue { openedTerminal = nil } }
+        didSet {
+            if selectedChat != oldValue { openedTerminal = nil }
+            if selectedChat != nil, selectedLayout != nil { selectedLayout = nil }
+        }
+    }
+
+    /// 寬視窗對話欄顯示的版面圖(列表欄選了多 Pane 的 Tab,系統選取,不是推入);與 `selectedChat` 互斥。
+    var selectedLayout: SpacesLayoutRoute? {
+        didSet { if selectedLayout != nil, selectedChat != nil { selectedChat = nil } }
+    }
+
+    /// 寬視窗列表欄選取的內容(聊天或版面圖)。
+    var sidebarSelection: SidebarSelection? {
+        get {
+            if let selectedChat { return .chat(selectedChat) }
+            if let selectedLayout { return .layout(selectedLayout) }
+            return nil
+        }
+        set {
+            switch newValue {
+            case .chat(let route): selectedChat = route
+            case .layout(let route): selectedLayout = route
+            case nil: selectedChat = nil; selectedLayout = nil
+            }
+        }
     }
 
     /// 聊天 tab 導覽堆疊的路徑(#641):窄視窗是 `NavigationStack(path:)` 的路徑(聊天、版面圖);寬視窗只放列表欄推入的版面圖。
