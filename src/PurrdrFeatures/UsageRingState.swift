@@ -6,12 +6,13 @@ enum UsageRingState: Equatable {
     case empty
 
     /// - Parameters:
-    ///   - summary: 目前拿得到的用量(任一來源先到就先顯示)。
+    ///   - summary: 目前拿得到的用量(讀完後才有結果)。
     ///   - isContextLoading: 這個聊天的 session 狀態還沒讀到第一次結果。
     ///   - isPlanLoading: 方案用量還有 Agent 在第一次載入。
     static func make(summary: UsageSummary?, isContextLoading: Bool, isPlanLoading: Bool) -> UsageRingState {
-        if let summary { return .value(summary) }
-        return isContextLoading || isPlanLoading ? .loading : .empty
+        // 第一次讀取還沒回來就先轉圈:對話紀錄算出的 context 只是退回值,不搶在讀取結果之前顯示。
+        if isContextLoading || isPlanLoading { return .loading }
+        return summary.map(UsageRingState.value) ?? .empty
     }
 
     var summary: UsageSummary? {

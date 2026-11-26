@@ -12,9 +12,7 @@ final class ConversationUsageLoadingUITests: XCTestCase {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoUsageReadPending"])
         let ring = app.buttons["conversation.usage"].firstMatch
         XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
-        XCTAssertTrue(app.activityIndicators["conversation.usage.loading"].waitUntilExists(timeout: 5)
-            || app.progressIndicators["conversation.usage.loading"].waitUntilExists(timeout: 1),
-            "一進聊天右上就該是載入動畫")
+        // 按鈕把裡面的系統載入動畫併成一個元素,所以以按鈕的值「Loading」確認載入中。
         XCTAssertEqual(ring.value as? String, "Loading", "載入中 VoiceOver 要念「讀取中」")
 
         ring.tap()
@@ -27,8 +25,9 @@ final class ConversationUsageLoadingUITests: XCTestCase {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let ring = app.buttons["conversation.usage"].firstMatch
         XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
-        let loading = app.activityIndicators["conversation.usage.loading"]
-        XCTAssertTrue(loading.waitUntilGone(timeout: 20), "讀完後載入動畫還在")
+        let settled = NSPredicate(format: "value != %@", "Loading")
+        expectation(for: settled, evaluatedWith: ring)
+        waitForExpectations(timeout: 20)
         XCTAssertTrue(ring.exists, "載入結束後用量環要還在")
         XCTAssertNotEqual(ring.value as? String, "Loading")
     }

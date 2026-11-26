@@ -8,12 +8,13 @@ import Testing
 struct UsageRingStateTests {
     static let summary = UsageSummary(source: .context, percent: 40, display: .used, level: .normal)
 
-    @Test("資料還沒回來:載入中;任一來源先到就先顯示百分比")
+    @Test("任一來源還沒讀完:載入中(即使已有退回算法的數字);都讀完才顯示百分比")
     func loadingThenValue() {
         #expect(UsageRingState.make(summary: nil, isContextLoading: true, isPlanLoading: true) == .loading)
         #expect(UsageRingState.make(summary: nil, isContextLoading: true, isPlanLoading: false) == .loading)
         #expect(UsageRingState.make(summary: nil, isContextLoading: false, isPlanLoading: true) == .loading)
-        #expect(UsageRingState.make(summary: Self.summary, isContextLoading: true, isPlanLoading: true) == .value(Self.summary))
+        #expect(UsageRingState.make(summary: Self.summary, isContextLoading: true, isPlanLoading: true) == .loading)
+        #expect(UsageRingState.make(summary: Self.summary, isContextLoading: false, isPlanLoading: false) == .value(Self.summary))
     }
 
     @Test("都讀完還是沒有資料(沒有用量、未安裝、錯誤):空環")
