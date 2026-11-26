@@ -8,7 +8,7 @@ import SwiftUI
 /// - 點選項只移動游標(送方向鍵),由面板的 ✓ 確定;**永不送數字**(數字在模型選擇器會直接存成預設)。
 /// - 目前使用中以「Current」文字標示(不只靠顏色),游標所在列由 Picker 打勾。
 /// - ✓ = 面板提示行的 Enter;左 X = Esc(取消)。其餘動作(例如 `s` 只用於此 session)是清單裡的按鈕,文字取自提示行原文。
-/// iPhone(窄視窗)面板取代輸入框、佔住鍵盤位置(`SlashPanelBar`);iPad 寬視窗仍是 sheet(`slashPanelSheet`),內容共用這個 view。
+/// iPhone(窄視窗)面板取代輸入框、佔住鍵盤位置(`SlashPanelBar`);iPad 寬視窗也一樣(對話保持可見,不另開 modal;高度依內容、不沿用鍵盤高度,實體鍵盤沒有鍵盤高度)。
 struct SlashPanelContent: View {
     let model: ConversationModel
     let panel: SlashPanel
@@ -137,13 +137,13 @@ struct SlashPanelContent: View {
     }
 }
 
-/// slash 面板在哪裡呈現(#624):窄視窗(iPhone)取代輸入框,寬視窗(iPad)是 sheet;模型膠囊自己的 sheet 開著時由它處理,這裡不呈現。
+/// slash 面板在哪裡呈現(#624):窄視窗(iPhone)與寬視窗(iPad)都取代輸入框(HIG iPad 減少 modal、對話保持可見);
+/// 模型膠囊自己的 sheet 開著時由它處理,這裡不呈現。
 package enum SlashPanelPresentation: Equatable {
-    case none, inline, sheet
+    case none, inline
 
-    package static func resolve(hasPanel: Bool, isChoosingModel: Bool, isRegularWidth: Bool) -> SlashPanelPresentation {
-        guard hasPanel, !isChoosingModel else { return .none }
-        return isRegularWidth ? .sheet : .inline
+    package static func resolve(hasPanel: Bool, isChoosingModel: Bool) -> SlashPanelPresentation {
+        hasPanel && !isChoosingModel ? .inline : .none
     }
 }
 
@@ -152,9 +152,11 @@ enum SlashPanelLayout {
     static let defaultHeight: CGFloat = 300
     /// 小於這個高度的鍵盤框(快捷列、浮動鍵盤)不當作鍵盤高度。
     static let minimumHeight: CGFloat = 200
+    /// 寬視窗(iPad)的面板高度:不跟鍵盤(常接實體鍵盤、沒有鍵盤高度),固定一個放得下清單與標題的高度。
+    static let regularHeight: CGFloat = 360
 }
 
-/// 面板的左 X(取消 = Esc)與右 ✓(確定 = Enter);sheet 與輸入框位置的面板共用(#624)。
+/// 面板的左 X(取消 = Esc)與右 ✓(確定 = Enter);輸入框位置的面板用(#624)。
 package struct SlashPanelControls {
     let model: ConversationModel
     let panel: SlashPanel
@@ -239,49 +241,5 @@ struct SlashPanelBar: View {
         .padding(.horizontal, 12)
         .padding(.top, 12)
         .padding(.bottom, 4)
-    }
-}
-
-/// iPad 寬視窗的 slash 面板仍是底部 sheet(#366):內容同上,左上 X = Esc、右上 ✓ = Enter(#613 modal 規則)。
-/// 面板關掉(選定或 Esc)時 sheet 跟著收起;使用者下滑關掉時按 Esc 取消,不改設定。從模型膠囊開的面板另有自己的 sheet(#350)。
-private struct SlashPanelSheet: ViewModifier {
-    let model: ConversationModel
-    @Environment(\.horizontalSizeClass) private var sizeClass
-
-    func body(content: Content) -> some View {
-        content.sheet(isPresented: Binding(
-            get: {
-                SlashPanelPresentation.resolve(
-                    hasPanel: model.panel != nil, isChoosingModel: model.isChoosingModel, isRegularWidth: sizeClass == .regular) == .sheet
-            },
-            set: { shown in if !shown { Task { await model.dismissPanel() } } }
-        )) {
-            if let panel = model.panel {
-                let controls = SlashPanelControls(model: model, panel: panel)
-                NavigationStack {
-                    SlashPanelContent(model: model, panel: panel)
-                        .navigationTitle(Text(verbatim: panel.title ?? ""))
-                        #if os(iOS)
-                        .navigationBarTitleDisplayMode(.inline)
-                        #endif
-                        .toolbar {
-                            SheetCloseToolbar(identifier: "panel.cancel", action: { Task { await controls.cancel() } })
-                            if controls.hasConfirm {
-                                ModalConfirmToolbar(
-                                    title: "Confirm", identifier: "panel.confirm", isEnabled: !model.isOperatingPanel,
-                                    action: { Task { await controls.confirm() } })
-                            }
-                        }
-                }
-                .appSheet(detents: [.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
-        }
-    }
-}
-
-extension View {
-    func slashPanelSheet(model: ConversationModel) -> some View {
-        modifier(SlashPanelSheet(model: model))
     }
 }

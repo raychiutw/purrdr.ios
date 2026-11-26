@@ -75,7 +75,7 @@ private struct TopBarPageModifier: ViewModifier {
 }
 
 /// 頂列右側:[電腦圖示｜＋] 放同一個 `ToolbarItemGroup`(系統合成無分隔線膠囊),頭像是另一個項目、用固定 `ToolbarSpacer` 隔開。
-/// 項目不自加寬度,交給系統排版。iOS 27 起釘在 `topBarPinnedTrailing`,工具列收合時仍留著;iOS 26 用 `topBarTrailing`。
+/// 項目不自加寬度,交給系統排版。目前一律用 `topBarTrailing`(不依 OS 版本分流,`topBarPinnedTrailing` 尚未採用:空間不夠時系統會把項目收進 overflow,iPad 窄視窗與 tab bar 同列時要留意)。
 /// 顏色一律系統單色(`.primary`),不吃外層 tint。
 private struct TopBarToolbar: ToolbarContent {
     let content: TopBarContent

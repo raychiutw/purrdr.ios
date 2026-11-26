@@ -11,18 +11,16 @@ import Testing
 @Suite("slash 面板輸入框位置")
 struct SlashPanelInputPanelTests {
     @Test(
-        "窄視窗取代輸入框、寬視窗是 sheet、沒有面板或模型膠囊的 sheet 開著時不呈現",
+        "窄視窗與寬視窗都取代輸入框、沒有面板或模型膠囊的 sheet 開著時不呈現",
         arguments: [
-            (true, false, false, SlashPanelPresentation.inline),
-            (true, false, true, SlashPanelPresentation.sheet),
-            (false, false, false, SlashPanelPresentation.none),
-            (false, false, true, SlashPanelPresentation.none),
-            (true, true, false, SlashPanelPresentation.none),
-            (true, true, true, SlashPanelPresentation.none),
+            (true, false, SlashPanelPresentation.inline),
+            (false, false, SlashPanelPresentation.none),
+            (true, true, SlashPanelPresentation.none),
+            (false, true, SlashPanelPresentation.none),
         ]
     )
-    func presentation(hasPanel: Bool, isChoosingModel: Bool, isRegularWidth: Bool, expected: SlashPanelPresentation) {
-        #expect(SlashPanelPresentation.resolve(hasPanel: hasPanel, isChoosingModel: isChoosingModel, isRegularWidth: isRegularWidth) == expected)
+    func presentation(hasPanel: Bool, isChoosingModel: Bool, expected: SlashPanelPresentation) {
+        #expect(SlashPanelPresentation.resolve(hasPanel: hasPanel, isChoosingModel: isChoosingModel) == expected)
     }
 
     @Test("右 ✓ 送面板提示行的 Enter,不送 `s`,也不送數字")

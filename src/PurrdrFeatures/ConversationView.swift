@@ -61,7 +61,6 @@ public struct ConversationView: View {
             }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .secretCheckSheet(model.secretCheck)
-            .slashPanelSheet(model: model)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerItem = $0 }

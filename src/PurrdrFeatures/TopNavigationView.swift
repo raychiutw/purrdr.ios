@@ -492,15 +492,31 @@ private struct CompactChatPage: View {
 }
 
 private extension View {
-    /// 帳號與設定的滿版 modal(#623):iOS 是 `fullScreenCover`;`fullScreenCover` 在 macOS 不存在(只為了讓 `swift test` 編得過),退回 sheet。
-    @ViewBuilder
+    /// 帳號與設定的 modal(#623):窄視窗(compact)是 `fullScreenCover`(滿版,同 iPhone);寬視窗(regular,iPad)是
+    /// `.sheet` 加 `presentationSizing(.page)`(HIG〈Sheets〉:iPadOS 優先 page／form sheet,減少全螢幕轉場)。
+    /// `fullScreenCover` 在 macOS 不存在(只為了讓 `swift test` 編得過),退回 sheet。
     func accountCover<Item: Identifiable, Content: View>(
         item: Binding<Item?>, @ViewBuilder content: @escaping (Item) -> Content
     ) -> some View {
+        modifier(AccountCoverModifier(item: item, presented: content))
+    }
+}
+
+private struct AccountCoverModifier<Item: Identifiable, Presented: View>: ViewModifier {
+    @Binding var item: Item?
+    let presented: (Item) -> Presented
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    func body(content: Content) -> some View {
         #if os(iOS)
-        fullScreenCover(item: item, content: content)
+        let isCompact = sizeClass == .compact
+        content
+            .fullScreenCover(item: isCompact ? $item : .constant(nil), content: presented)
+            .sheet(item: isCompact ? .constant(nil) : $item) { item in
+                presented(item).presentationSizing(.page)
+            }
         #else
-        sheet(item: item, content: content)
+        content.sheet(item: $item, content: presented)
         #endif
     }
 }

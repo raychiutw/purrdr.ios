@@ -83,7 +83,7 @@ struct ComposerBar: View {
             Group {
                 if let panel = inlinePanel {
                     // 輸入框變成面板(#624):面板取代輸入框、佔住鍵盤位置,草稿留在 model。
-                    SlashPanelBar(model: model, panel: panel, height: keyboardHeight)
+                    SlashPanelBar(model: model, panel: panel, height: sizeClass == .regular ? SlashPanelLayout.regularHeight : keyboardHeight)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
                 } else {
@@ -125,10 +125,10 @@ struct ComposerBar: View {
         }
     }
 
-    /// iPhone(窄視窗)上 slash 指令開出的面板;模型膠囊自己的 sheet 與寬視窗(sheet)不在這裡。
+    /// slash 指令開出的面板(窄視窗與寬視窗都取代輸入框);模型膠囊自己的 sheet 不在這裡。
     private var inlinePanel: SlashPanel? {
         let presentation = SlashPanelPresentation.resolve(
-            hasPanel: model.panel != nil, isChoosingModel: model.isChoosingModel, isRegularWidth: sizeClass == .regular)
+            hasPanel: model.panel != nil, isChoosingModel: model.isChoosingModel)
         return presentation == .inline ? model.panel : nil
     }
 

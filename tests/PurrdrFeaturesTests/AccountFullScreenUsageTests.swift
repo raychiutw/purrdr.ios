@@ -14,11 +14,12 @@ struct AccountFullScreenUsageTests {
         try String(contentsOf: featuresFolder.appending(path: name), encoding: .utf8)
     }
 
-    @Test("帳號與設定用 fullScreenCover 開,sheet 的內容不含帳號頁")
+    @Test("帳號與設定:窄視窗 fullScreenCover、寬視窗 page sheet,一般 sheet 的內容不含帳號頁")
     func accountIsFullScreenCover() throws {
         let top = try Self.source("TopNavigationView.swift")
         let cover = try #require(top.range(of: ".accountCover("), "帳號與設定要用 accountCover(iOS 是 fullScreenCover)")
-        #expect(top.contains("fullScreenCover(item: item"), "accountCover 在 iOS 必須是 fullScreenCover")
+        #expect(top.contains(".fullScreenCover(item: isCompact"), "窄視窗的 accountCover 必須是 fullScreenCover")
+        #expect(top.contains("presentationSizing(.page)"), "寬視窗(iPad)的帳號與設定是 page sheet(HIG〈Sheets〉)")
         let memberView = try #require(top.range(of: "MemberView("))
         let sheet = try #require(top.range(of: ".sheet(item:"))
         #expect(cover.lowerBound < memberView.lowerBound && memberView.lowerBound < sheet.lowerBound,

@@ -26,20 +26,21 @@ struct SlashPanelUsageTests {
     @Test("窄視窗面板取代輸入框:ComposerBar 以 SlashPanelBar 換掉 composer,高度同鍵盤")
     func panelReplacesComposer() throws {
         let composer = try Self.source("ComposerView.swift")
-        #expect(composer.contains("SlashPanelBar(model: model, panel: panel, height: keyboardHeight)"))
+        #expect(composer.contains("SlashPanelBar(model: model, panel: panel, height:"))
         #expect(composer.contains("keyboardWillChangeFrameNotification"), "要記住最近一次鍵盤高度")
         let panel = try Self.source("SlashPanelCard.swift")
         #expect(panel.contains(".frame(height: height)"))
     }
 
-    @Test("寬視窗才用 sheet;sheet 內左上 X、右上 ✓ 用共用的 modal 工具列")
-    func sheetOnlyOnRegularWidth() throws {
+    @Test("寬視窗也取代輸入框(不另開 sheet),高度不跟鍵盤")
+    func regularWidthAlsoReplacesComposer() throws {
         let panel = try Self.source("SlashPanelCard.swift")
-        #expect(panel.contains("== .sheet"))
-        #expect(panel.contains("SheetCloseToolbar(identifier: \"panel.cancel\""))
-        #expect(panel.contains("ModalConfirmToolbar("))
+        #expect(!panel.contains("SlashPanelSheet"), "寬視窗不再用 sheet(HIG iPad 減少 modal)")
+        #expect(panel.contains("regularHeight"))
+        let composer = try Self.source("ComposerView.swift")
+        #expect(composer.contains("sizeClass == .regular ? SlashPanelLayout.regularHeight : keyboardHeight"))
         let conversation = try Self.source("ConversationView.swift")
-        #expect(conversation.contains(".slashPanelSheet(model: model)"))
+        #expect(!conversation.contains("slashPanelSheet"))
     }
 
     @Test("輸入框位置的 ✓ 用 prominent 填色樣式、X 是系統玻璃圓鈕")

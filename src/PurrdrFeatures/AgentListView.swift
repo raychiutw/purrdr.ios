@@ -451,13 +451,17 @@ struct ConversationScreen: View {
             .hidesTabBarWhenCompact()
             .toolbar {
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
-                ToolbarItemGroup(placement: .primaryAction) {
-                    UsageRingButton(
-                        summary: usageSummary, showsPopover: panelBinding(compact: false), tap: { showsUsage = true },
-                        model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used)
-                    ConversationMoreMenu(
-                        model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
-                        canShowLayout: layoutSnapshot != nil, select: selectMenuItem)
+                if horizontalSizeClass == .compact {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        usageRing
+                        moreMenu
+                    }
+                } else {
+                    // 寬視窗:用量環的 popover 與「⋯」選單放在同一組時,popover 開著點「⋯」會互相卡住(從工具列按鈕開的 popover
+                    // 會讓同列其他按鈕穿透、不先關掉 popover);拆成兩個獨立項目(UIKit 文件:同列項目點了不會關 popover)。
+                    ToolbarItem(placement: .primaryAction) { usageRing }
+                    ToolbarSpacer(.fixed, placement: .primaryAction)
+                    ToolbarItem(placement: .primaryAction) { moreMenu }
                 }
             }
             .task(id: UsageLifecycleKey(active: scenePhase == .active, agentKind: model.agentKind)) { startUsage() }
@@ -524,6 +528,18 @@ struct ConversationScreen: View {
     private struct UsageLifecycleKey: Hashable {
         var active: Bool
         var agentKind: String?
+    }
+
+    private var usageRing: some View {
+        UsageRingButton(
+            summary: usageSummary, showsPopover: panelBinding(compact: false), tap: { showsUsage = true },
+            model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used)
+    }
+
+    private var moreMenu: some View {
+        ConversationMoreMenu(
+            model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
+            canShowLayout: layoutSnapshot != nil, select: selectMenuItem)
     }
 
     /// 聊天面板的開關(#617):compact 是 sheet、regular 是 popover,只有符合目前 size class 的那個開。
