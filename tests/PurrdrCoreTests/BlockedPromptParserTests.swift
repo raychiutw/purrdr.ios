@@ -55,6 +55,15 @@ struct BlockedPromptParserTests {
         #expect(prompt.details?.title == nil)
     }
 
+    @Test("AskUserQuestion 單題(Claude Code 2026-11 真實畫面結構):題目前的「│ 」不算題目文字;「Chat about this」另列")
+    func askUserQuestionSingle() throws {
+        let prompt = try Self.parse("claude-ask-single")
+
+        #expect(prompt.question == "Which color should the chart use?")
+        #expect(Self.labels(prompt) == ["Blue", "Orange", "Green", "Type something.", "Chat about this"])
+        #expect(prompt.chatOption?.number == 5)
+    }
+
     @Test("AskUserQuestion 多選：勾選列與勾選狀態")
     func askUserQuestionMultiSelect() throws {
         let prompt = try Self.parse("claude-ask-multiselect")
