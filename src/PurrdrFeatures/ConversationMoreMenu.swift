@@ -42,8 +42,7 @@ private struct ConversationMoreMenuItems: View, Equatable {
         ForEach(Array(plan.groups.enumerated()), id: \.offset) { _, group in
             Section {
                 ForEach(group) { entry in
-                    // listAction:exempt 這是 Menu 裡的項目(系統選單由系統畫),不是清單動作列
-                    Button { select(entry.item) } label: {
+                    Button { select(entry.item) } label: { // listAction:exempt Menu 裡的項目(系統選單由系統畫)
                         item(entry)
                     }
                     .disabled(!entry.isEnabled)
