@@ -124,11 +124,14 @@ private final class DeadlineRace<Resource: Sendable, Value: Sendable>: @unchecke
         }
     }
 
-    /// 操作自己結束：關閉資源後交出結果。
+    /// 操作自己結束：先交出結果，再關閉資源。
+    ///
+    /// 不能等關閉完成才交結果(#635):真 SSH 的 `channel.close()` 要等主機回 CHANNEL_CLOSE，主機收尾慢(例如 Tailscale SSH、
+    /// 負載高的主機)時每個請求都多等那段時間，續接時 `tab.create` 到 `agent.start` 因此空了約 10 秒。
     func finish(_ result: Result<Value, any Error>) async {
         guard let claimed = claim(result) else { return }
-        if let resource = claimed.resource { await close(resource) }
         claimed.continuation?.resume(with: result)
+        if let resource = claimed.resource { await close(resource) }
     }
 
     /// 期限到或外層取消：立刻交出錯誤，資源在背景關閉(關閉可能要等主機回應)。
