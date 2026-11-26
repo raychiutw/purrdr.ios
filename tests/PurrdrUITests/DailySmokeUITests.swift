@@ -34,7 +34,7 @@ final class DailySmokeUITests: XCTestCase {
             let search = app.revealChatSearch()
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
-            search.typeEnglish("weather")
+            search.typeEnglishAndConfirm("weather", expecting: "weather")
             XCTAssertTrue(app.element("spaces.tab.demo/w2:t1").waitUntilExists(timeout: 5))
             XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "不符合的列仍在")
             search.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 7) + "\n")
@@ -46,10 +46,10 @@ final class DailySmokeUITests: XCTestCase {
             let search = app.revealChatSearch()
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
             search.tap()
-            search.typeEnglish("weather")
+            search.typeEnglishAndConfirm("weather", expecting: "weather")
             XCTAssertTrue(app.element("spaces.section.demo/w2").waitUntilExists(timeout: 5), "搜尋 workspace 名稱找不到 weather-app")
             XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilGone(timeout: 5), "不符合的 workspace 仍在")
-            search.typeEnglish("zzz")
+            search.typeEnglishAndConfirm("zzz", expecting: "weatherzzz")
             XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "Spaces 搜尋不到時沒有說明")
             let clear = app.buttons["Clear text"].firstMatch
             XCTAssertTrue(clear.waitUntilExists(timeout: 5), "搜尋欄沒有清除鈕")
@@ -468,6 +468,16 @@ final class DailySmokeUITests: XCTestCase {
     }
 }
 
+
+extension XCUIElement {
+    /// 在搜尋欄打字後等欄位真的收到完整內容(`expecting`)才繼續:避免篩選斷言在輸入還沒落地前就查(偶發的「不符合的列仍在」)。
+    @MainActor
+    func typeEnglishAndConfirm(_ text: String, expecting expected: String, file: StaticString = #filePath, line: UInt = #line) {
+        typeEnglish(text)
+        XCTAssertTrue(UITestWait.until(timeout: 5) { (self.value as? String) == expected },
+                      "搜尋欄內容不是「\(expected)」:\(String(describing: value))", file: file, line: line)
+    }
+}
 
 extension XCUIApplication {
     /// 搜尋啟用時導覽列換成搜尋欄與取消:取消後才看得到頂列(已經收起就不動)。

@@ -74,7 +74,8 @@ extension XCUIApplication {
     /// 聊天搜尋欄平常收起(`displayMode: .automatic`,與系統「訊息」一致):還沒出現就在列表往下拉,再回傳搜尋欄。
     @MainActor
     func revealChatSearch(timeout: TimeInterval = 5) -> XCUIElement {
-        if !chatSearch.waitUntilExists(timeout: 1) {
+        // 往下拉一次可能被捲動慣性或轉場吃掉:最多拉三次,每次等搜尋欄出現再決定要不要再拉。
+        for _ in 0..<3 where !chatSearch.waitUntilExists(timeout: 1) {
             let list = collectionViews.firstMatch
             list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
                 .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
@@ -376,8 +377,9 @@ extension XCUIElement {
         let keyboard = app.keyboards.firstMatch
         if keyboard.exists, !keyboard.keys["q"].exists, !keyboard.keys["Q"].exists {
             // 軟體鍵盤不是英文、也切不過去(iPad 實測:模擬器記住上次的輸入法「繁體手寫」,地球鍵在畫面外):
-            // 改以硬體鍵盤事件逐字輸入(不經軟體鍵盤的輸入法)。
-            for character in text { app.typeKey(character == "\n" ? "\r" : String(character), modifierFlags: []) }
+            // 不退回 `typeKey`——它會把 `HardwareKeyboardLastSeen` 寫進模擬器的鍵盤偏好,之後所有軟體鍵盤測試都失敗。
+            // 直接清楚失敗,請人在模擬器的「設定 > 一般 > 鍵盤」把英文放第一個(或 `xcrun simctl erase "iPhone 17"`)。
+            XCTFail("軟體鍵盤不是英文、地球鍵也切不過去,無法輸入「\(text)」。請在模擬器的鍵盤設定把英文放第一個,或 xcrun simctl erase \"iPhone 17\" 後重跑")
             return
         }
         typeText(text)

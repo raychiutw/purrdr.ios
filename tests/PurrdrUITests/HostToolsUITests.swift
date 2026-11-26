@@ -100,16 +100,6 @@ final class HostToolsUITests: XCTestCase {
 
     // MARK: - 主機挑選鈕(#245)
 
-    @MainActor
-    private func pickHost(_ name: String, with pickerID: String, in app: XCUIApplication) {
-        let picker = app.buttons[pickerID].firstMatch
-        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "沒有主機挑選鈕 \(pickerID)")
-        picker.tap()
-        let option = app.buttons[name].firstMatch
-        XCTAssertTrue(option.waitUntilExists(timeout: 5), "主機選單沒有 \(name)")
-        option.tap()
-    }
-
     /// 登入 Shell 標題列可換主機，不改選取中主機;下次打開選回同一台，檔案各記各的。
     @MainActor
     func testLoginShellPicksHostAndRemembersIt() {

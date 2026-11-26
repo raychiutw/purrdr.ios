@@ -43,7 +43,7 @@ Contact: lean.lean@gmail.com
 
 | 備註內容 | 依據(送審前逐項確認) |
 |---|---|
-| 第一次開啟出現歡迎頁，有「Try the Demo」 | `WelcomeView`(`welcome.demo`)、`TopNavigationModel.launched(welcome:)`;UI 測試 `WelcomeUITests` |
+| 第一次開啟出現歡迎頁，有「Try the Demo」 | `WelcomeView`(`welcome.demo`)、`TopNavigationModel.launched(welcome:)`;UI 測試 `DailySmokeUITests.testWelcome` |
 | 設定頁「Show Welcome」可再看 | `SettingsView`(`settings.welcome`) |
 | 沒有主機時自動選 Demo | `HostsModel.validSelection`(沒有已存主機回 `.demo`)、`rebuildMembers` |
 | 三個 workspace:weather-app 需要你、notes 工作中(Codex)、ledger 完成 | `AGENTS.md`「Demo 主機」;`src/PurrdrDemo/DemoAnswers.swift` 開頭說明;截圖 01 |
