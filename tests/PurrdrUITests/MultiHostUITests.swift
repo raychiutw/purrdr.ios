@@ -85,7 +85,9 @@ final class MultiHostUITests: XCTestCase {
         let studioRow = app.element("spaces.tab.DE300000-0000-4000-8000-000000000001/w2:t1")
         XCTAssertTrue(app.reveal(studioRow, timeout: 20), "沒有示範主機 Studio Mac 的列")
         let error = app.element("agentList.error.DE300000-0000-4000-8000-000000000002")
-        XCTAssertTrue(app.reveal(error, timeout: 20), "沒有連不上的示範主機")
+        // 錯誤行在列表最底下(App 讀不到主機後立刻就有,與時間無關):以系統的快速滑動捲到底。
+        // 慢速的 press-drag(`reveal`)在這個長度的列表上偶爾整段時間都捲不動,所以不用它。
+        XCTAssertTrue(app.scrollIntoView(error, search: .down, limit: 4, timeout: 10), "沒有連不上的示範主機")
         XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
     }
 

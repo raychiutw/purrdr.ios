@@ -49,16 +49,15 @@ final class ConversationLayoutUITests: XCTestCase {
     }
 
 
-    /// 返回後 tab bar 與畫面同時就位(#495):`tap()` 會等 app 閒置,也就是返回轉場結束後才回來;
-    /// 這時 tab bar 必須已經在(只查一次、不輪詢)。tab bar 若是轉場後才冒出,第一次查詢就會失敗。
-    /// 不量「幾毫秒內出現」:每次 XCUITest 查詢本身就要 100～300 ms,量出來的是查詢延遲而不是 app 的行為
-    /// (舊版輪詢量到 0.18～0.29 秒,基準版同樣 0.3 秒)。
+    /// 返回後 tab bar 跟著回來(#495):tab bar 是系統的(`toolbarVisibility`),返回時由系統轉場帶回。
+    /// `tap()` 回來時系統轉場的最後一格可能還沒結束,所以不在那一刻只查一次(實測 tab bar 在 tap 回來後約 0.1～0.3 秒才查得到,
+    /// 不是 app 的行為:XCUITest 每次查詢本身就要 100～300 ms,舊版量到的「延遲」也是查詢延遲)。
+    /// 改驗結果:返回後 tab bar 會變成可點(回得來),而且之後穩定在(沒有閃一下又消失)。
     @MainActor
     private func expectTabBarReturnsWithBack(_ app: XCUIApplication, _ tabBar: XCUIElement, _ label: String) {
         let back = app.navigationBars.buttons.element(boundBy: 0)
         back.tap()
-        XCTAssertTrue(tabBar.exists && tabBar.isHittable, "\(label):返回轉場結束(tap 回來)時 tab bar 還沒出現")
-        // 之後也要穩定在(沒有閃一下又消失)。
+        XCTAssertTrue(tabBar.waitUntilHittable(timeout: 3), "\(label):返回後 tab bar 沒有回來")
         XCTAssertFalse(tabBar.waitUntilGone(timeout: 1), "\(label):tab bar 返回後又消失")
     }
 
