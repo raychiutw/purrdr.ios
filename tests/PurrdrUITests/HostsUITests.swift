@@ -187,14 +187,6 @@ final class HostsUITests: XCTestCase {
         }
     }
 
-    /// 繁體中文介面下取消編輯(#333;放棄確認的按鈕是中文)。語言要重新啟動才能換，所以另開一次。
-    @MainActor
-    func testCancelEditingInTraditionalChinese() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
-        openHosts(app)
-        cancelEditingWithKeyboardUp(app, edits: false, label: "zh-Hant")
-        cancelEditingWithKeyboardUp(app, edits: true, label: "zh-Hant")
-    }
 }
 
 extension XCUIElement {

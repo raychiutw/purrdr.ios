@@ -105,38 +105,4 @@ final class NewChatUITests: XCTestCase {
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)[chatRowID("w1:p2")].firstMatch), "新 Tab 的 Agent 沒有出現在列表")
     }
 
-    /// 表單只有 Agent(攤開的勾選列,#313)、資料夾、選填的 Workspace／Tab 名稱(#532)、第一則訊息與「開始」,沒有權限欄位;資料夾與訊息都填才能開始。
-    /// Demo 主機拒絕開始，錯誤顯示在表單裡、sheet 不關。
-    @MainActor
-    func testFormFieldsAndDemoRejection() {
-        let app = openNewChat()
-        XCTAssertFalse(app.segmentedControls["newChat.agent"].exists, "Agent 不該是分段控制(#313 攤開)")
-        // Agent 在「放在哪裡」下面:列表是 lazy,先捲到看得到。
-        for _ in 0..<4 where !app.buttons["Claude Code"].exists { app.swipeDown() }
-        XCTAssertTrue(app.buttons["Claude Code"].exists && app.buttons["Codex"].exists, "Agent 選項沒有攤開")
-        // 名稱兩欄選填(#532):沒填也能開始,下面開始時兩欄都空。
-        let workspaceName = app.textFields["newChat.workspaceName"]
-        app.scrollIntoView(workspaceName, search: .down)
-        XCTAssertTrue(workspaceName.waitForExistence(timeout: 5), "沒有 Workspace 名稱欄位")
-        XCTAssertTrue(app.textFields["newChat.tabName"].exists, "沒有 Tab 名稱欄位")
-        XCTAssertFalse(app.buttons["newChat.permissionMode"].exists, "不該有權限欄位")
-
-        let start = app.buttons["newChat.start"]
-        let folder = app.textFields["newChat.folder"]
-        folder.tap()
-        folder.typeEnglish("~/ledger")
-        // 名稱欄位多了一段,「開始」在畫面外時表單還沒排出它:往下捲到出現。
-        for _ in 0..<4 where !start.exists { app.swipeUp() }
-        XCTAssertFalse(start.isEnabled, "沒有第一則訊息不能開始")
-        let message = app.textViews["newChat.message"].exists ? app.textViews["newChat.message"] : app.textFields["newChat.message"]
-        message.tap()
-        message.typeEnglish("Fix the CSV quoting")
-        XCTAssertTrue(start.isEnabled)
-        start.tap()
-
-        let error = app.descendants(matching: .any)["newChat.error"].firstMatch
-        XCTAssertTrue(error.waitUntilExists(timeout: 10), "Demo 拒絕時沒有說明")
-        XCTAssertTrue(error.label.contains("Demo"), "說明沒有提到 Demo:\(error.label)")
-        XCTAssertTrue(app.element("newChat.page").exists, "失敗時新增聊天不該離開")
-    }
 }

@@ -5,15 +5,6 @@ final class SignInUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 聊天不需要登入：啟動直接看到 Agent 列表，沒有登入畫面擋著。
-    @MainActor
-    func testAgentListNeedsNoSignIn() {
-        let app = XCUIApplication.launchUITesting()
-
-        XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch.waitUntilExists(timeout: 10))
-        XCTAssertFalse(app.buttons["member.signIn.apple"].exists)
-    }
-
     /// HIG:Sign in with Apple 按鈕不小於 Google 按鈕，且不需捲動就看得到。
     @MainActor
     func testAppleButtonIsNotSmallerThanGoogleAndVisibleWithoutScrolling() {

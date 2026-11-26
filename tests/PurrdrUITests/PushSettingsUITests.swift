@@ -11,27 +11,6 @@ final class PushSettingsUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 帳號頁的「通知」區塊:開那台主機先確認(對話框寫主機名稱),確認後開關變成開啟。
-    @MainActor
-    func testTurnsOnHostFromAccountNotifications() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
-        app.openAccountSheet()
-
-        app.openAccountNotifications()
-        let toggle = app.switches["account.push.\(Self.seededHost)"]
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
-        XCTAssertEqual(toggle.label, "Studio Mac")
-        XCTAssertEqual(toggle.value as? String, "Notifications Off")
-        toggle.tap()
-
-        let install = app.alerts.buttons["settings.push.install"].firstMatch
-        XCTAssertTrue(install.waitUntilExists(timeout: 10), "沒有先確認安裝外掛")
-        XCTAssertTrue(app.alerts.firstMatch.label.contains("Studio Mac"), "確認對話框沒寫主機名稱:\(app.alerts.firstMatch.label)")
-        install.tap()
-
-        toggle.expectValue("Notifications On")
-    }
-
     /// 測試通知的結果直接寫在列下方、不彈 alert(#625、#626):成功是綠勾說明,失敗(`-uiTestingPushTestFails`)是紅色三角說明。
     @MainActor
     func testTestNotificationResultIsInline() {

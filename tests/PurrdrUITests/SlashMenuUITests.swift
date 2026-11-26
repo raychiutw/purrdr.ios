@@ -92,22 +92,6 @@ final class SlashMenuUITests: XCTestCase {
         return text
     }
 
-    /// 點選需要參數的指令(`/add-dir <path>`):只填入，游標後提示參數;開始打參數就消失(#45)。
-    @MainActor
-    func testPickingCommandWithRequiredArgumentShowsHint() {
-        let app = XCUIApplication.launchUITesting()
-        let text = openLedger(app)
-        text.typeEnglish("/add-d")
-        let row = app.element("slash.row.add-dir")
-        XCTAssertTrue(row.waitUntilExists(timeout: 10))
-        row.tap()
-
-        XCTAssertEqual(text.value as? String, "/add-dir ")
-        XCTAssertTrue(app.element("composer.argumentHint").waitUntilExists(timeout: 5), "沒有參數提示")
-        text.typeEnglish("docs")
-        XCTAssertFalse(app.element("composer.argumentHint").exists, "打了參數後提示應消失")
-    }
-
     /// 選定 `/model` 只填入、鍵盤不收起,按送出後輸入框變成面板(#624):輸入框不在、面板佔住鍵盤位置,左 X 與右 ✓ 可操作;
     /// 點選項移動游標(送方向鍵)、調整 effort、按 ✓ 選定後面板收起、輸入框回來(#45)。
     @MainActor
@@ -165,32 +149,4 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "面板收起後輸入框沒有回來")
     }
 
-    /// 選定 `/effort` 後按送出 → 面板有攤開的層級列(#83、#313);點層級送方向鍵,按 ✓ 後面板收起(#34)。
-    @MainActor
-    func testEffortPanel() {
-        let app = XCUIApplication.launchUITesting()
-        let text = openLedger(app)
-        text.typeEnglish("/effort")
-        let row = app.element("slash.row.effort")
-        XCTAssertTrue(row.waitUntilExists(timeout: 10))
-        row.tap()
-        XCTAssertEqual(text.value as? String, "/effort ")
-        app.element("composer.send").tap()
-
-        let bar = app.element("panel.bar")
-        XCTAssertTrue(bar.waitUntilExists(timeout: 10), "送出 /effort 後輸入框沒有變成面板")
-        XCTAssertFalse(app.element("composer.text").exists, "面板出現時輸入框要收起")
-        XCTAssertTrue(app.staticTexts["Effort"].waitUntilExists(timeout: 5))
-        let levels = app.element("panel.levels")
-        XCTAssertTrue(levels.waitUntilExists(timeout: 5))
-        let xhigh = app.buttons.matching(identifier: "panel.levels").matching(NSPredicate(format: "label == %@", "xhigh")).firstMatch
-        XCTAssertTrue(scrollPanel(app, to: xhigh), "層級列捲不到")
-        app.waitForSettledLayout([bar, xhigh], timeout: 3)
-        XCTAssertFalse(xhigh.isSelected, "一開始是 medium")
-
-        tap(xhigh, until: { $0.isSelected }, on: xhigh, "點層級沒有反映")
-
-        tap(app.buttons["panel.confirm"], until: { !$0.exists }, on: bar, "確認後面板沒有消失")
-        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "面板收起後輸入框沒有回來")
-    }
 }

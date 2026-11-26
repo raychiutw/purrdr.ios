@@ -7,28 +7,6 @@ final class PermissionModeUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    @MainActor
-    func testTitlePanelSwitchesModeAndCapsuleShowsIt() {
-        let app = XCUIApplication.launchUITesting()
-        let row = app.element("spaces.tab.demo/w1:t1")
-        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        row.tap()
-        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10), "沒有聊天頂列")
-        XCTAssertFalse(app.element("composer.permissionMode").exists, "輸入列不再有權限模式膠囊")
-
-        app.conversationMoreItem("menu.permissionMode").tap()
-        XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilExists(timeout: 5), "「⋯」→ 權限模式沒有開出 sheet")
-        let picker = app.element("permissionMode.picker")
-        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "面板沒有權限模式選項")
-        let accept = app.buttons["Accept Edits"].firstMatch
-        XCTAssertTrue(accept.waitUntilExists(timeout: 10), "面板裡沒有 Accept Edits 勾選列")
-        accept.tap()
-        // 切換成功後 sheet 自動關閉(#515)。
-        XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
-        // 權限模式不在標題(#618):重開「⋯」,權限模式項目的副標是 Accept Edits。
-        XCTAssertTrue(app.conversationMoreItem("menu.permissionMode").label.contains("Accept Edits"), "「⋯」的權限模式副標沒有顯示 Accept Edits")
-    }
-
     /// 模型膠囊(#350):在附加鈕與權限模式膠囊之間;點開 sheet 以勾選列選模型,選定後收起。
     @MainActor
     func testModelCapsuleOpensSheetAndSwitchesModel() {

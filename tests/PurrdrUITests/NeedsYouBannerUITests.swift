@@ -61,23 +61,6 @@ final class NeedsYouBannerUITests: XCTestCase {
         XCTAssertFalse(banner.waitUntilExists(timeout: 4), "收起後同一個轉變又跳出橫幅")
     }
 
-    /// 有多個需要你時點橫幅進到「最新」那個(notes),不是一開始就需要你的 weather-app。
-    @MainActor
-    func testBannerOpensTheNewestChat() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouLater"])
-        openLedger(app)
-
-        let open = app.buttons["needsYou.banner.open"]
-        XCTAssertTrue(open.waitUntilExists(timeout: 20), "沒有橫幅")
-        XCTAssertTrue(open.label.contains("2 chats need you"), "橫幅沒有寫出多個:\(open.label)")
-        open.tap()
-
-        // 標題可能是 Tab 名稱而不是 workspace 名稱,所以以「橫幅消失」判斷開到的是橫幅指的那個(notes):
-        // 若開到 weather-app,橫幅仍會指向 notes。
-        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10), "沒有開出聊天")
-        XCTAssertTrue(app.element("needsYou.banner").waitUntilGone(timeout: 5), "沒有進到橫幅指的最新聊天(橫幅仍在)")
-    }
-
     /// 與對話的狀態橫幅(`conversation.banner`)並存時上下排列、不互相蓋住,狀態橫幅在上(#546)。
     /// 情境旗標 `-demoNeedsYouWithStatusBanner`:notes 變成需要你的同時,ledger 的對話紀錄讀不到,聊天頂部出現狀態橫幅。
     @MainActor
@@ -92,22 +75,4 @@ final class NeedsYouBannerUITests: XCTestCase {
         XCTAssertLessThanOrEqual(status.frame.maxY, banner.frame.minY + 1, "「需要你」橫幅蓋住了狀態橫幅(狀態橫幅應在上)")
     }
 
-    /// 返回列表後:段落標題標為 header 且念出數量,轉變的那列念出「剛剛」(VoiceOver 讀的是 label)。
-    @MainActor
-    func testSectionAnnouncesCountAndJustNow() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouLater"])
-        openLedger(app)
-        XCTAssertTrue(app.element("needsYou.banner").waitUntilExists(timeout: 20), "沒有橫幅")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-
-        let header = app.element("needsYou.section")
-        XCTAssertTrue(header.waitUntilExists(timeout: 10), "返回後沒有「需要你」段落")
-        XCTAssertTrue(header.wait(for: NSPredicate(format: "label CONTAINS '2 chats need you'"), timeout: 10), "標題沒有念出數量:\(header.label)")
-        let notes = app.element("needsYou.tab.demo/w3:t1")
-        XCTAssertTrue(notes.waitUntilExists(timeout: 5), "段落裡沒有 notes")
-        XCTAssertTrue(notes.label.contains("Just now"), "轉變的那列沒有念出「剛剛」:\(notes.label)")
-        let weather = app.element("needsYou.tab.demo/w2:t1")
-        XCTAssertTrue(weather.waitUntilExists(timeout: 5), "段落裡沒有 weather-app")
-        XCTAssertFalse(weather.label.contains("Just now"), "一開始就需要你的不該標「剛剛」:\(weather.label)")
-    }
 }

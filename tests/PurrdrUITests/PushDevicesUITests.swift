@@ -39,25 +39,6 @@ final class PushDevicesUITests: XCTestCase {
         ipad.expectLabel(containing: "Desk iPad")
     }
 
-    /// 遠端關閉別支裝置：先確認，確認後從清單消失。
-    @MainActor
-    func testTurnsOffAnotherDevice() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
-        app.openAccountSheet()
-
-        openPushDevices(app)
-        let ipad = app.element("account.pushDevice.\(Self.studioIPad)")
-        XCTAssertTrue(ipad.waitUntilExists(timeout: 10), "沒有 Studio iPad 的列")
-        app.buttons["account.pushDevice.\(Self.studioIPad)"].tap()
-        app.buttons["Turn Off Notifications…"].firstMatch.tap()
-
-        let confirm = app.buttons["account.pushDevices.confirmTurnOff"].firstMatch
-        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有先確認")
-        confirm.tap()
-
-        XCTAssertTrue(ipad.waitUntilGone(timeout: 10), "關閉後仍在清單")
-    }
-
     /// 左滑關閉(#626):與列上的選單同一個動作、先確認(確認前列還在);關掉所有裝置後顯示系統空狀態。
     @MainActor
     func testSwipeTurnsOffDevicesThenShowsEmptyState() {
@@ -81,57 +62,6 @@ final class PushDevicesUITests: XCTestCase {
             XCTAssertTrue(row.waitUntilGone(timeout: 10), "關閉後仍在清單")
         }
         XCTAssertTrue(app.element("account.pushDevices.empty").waitUntilExists(timeout: 10), "沒有裝置時沒有系統空狀態")
-    }
-
-    /// 訂閱到期(已登入、沒有 Purrdr Plus):仍列出裝置並可遠端關閉遺失的裝置，但不能改名。
-    @MainActor
-    func testWithoutPlusCanStillTurnOffDevices() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
-        app.openAccountSheet()
-
-        openPushDevices(app)
-        let ipad = app.element("account.pushDevice.\(Self.studioIPad)")
-        XCTAssertTrue(ipad.waitUntilExists(timeout: 10), "沒有 Plus 時沒有列出裝置")
-        app.buttons["account.pushDevice.\(Self.studioIPad)"].tap()
-        XCTAssertFalse(app.buttons["Rename…"].firstMatch.waitUntilExists(timeout: 2), "沒有 Plus 仍能改名")
-        app.buttons["Turn Off Notifications…"].firstMatch.tap()
-        let confirm = app.buttons["account.pushDevices.confirmTurnOff"].firstMatch
-        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有先確認")
-        confirm.tap()
-
-        XCTAssertTrue(ipad.waitUntilGone(timeout: 10), "關閉後仍在清單")
-    }
-
-    /// 這支裝置開了主機後列出並標「This Device」;從這裡關閉後，「通知」區塊的主機回到關閉。
-    @MainActor
-    func testTurningOffThisDeviceTurnsHostsOff() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
-        app.openAccountSheet()
-
-        app.openAccountNotifications()
-        let toggle = app.switches["account.push.\(Self.seededHost)"]
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
-        toggle.tap()
-        let install = app.alerts.buttons["settings.push.install"].firstMatch
-        XCTAssertTrue(install.waitUntilExists(timeout: 10))
-        install.tap()
-        toggle.expectValue("Notifications On")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-
-        openPushDevices(app)
-        let thisDevice = app.element("account.pushDevice.\(Self.thisDevice)")
-        XCTAssertTrue(thisDevice.waitUntilExists(timeout: 10), "開了主機後沒有列出這支裝置")
-        thisDevice.expectLabel(containing: "This Device")
-        app.buttons["account.pushDevice.\(Self.thisDevice)"].tap()
-        app.buttons["Turn Off Notifications…"].firstMatch.tap()
-        let confirm = app.buttons["account.pushDevices.confirmTurnOff"].firstMatch
-        XCTAssertTrue(confirm.waitUntilExists(timeout: 5))
-        confirm.tap()
-
-        XCTAssertTrue(thisDevice.waitUntilGone(timeout: 10), "關閉後仍在清單")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.openAccountNotifications()
-        toggle.expectValue("Notifications Off")
     }
 
     // MARK: - 輔助

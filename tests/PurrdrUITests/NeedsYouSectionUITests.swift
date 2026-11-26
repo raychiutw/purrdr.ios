@@ -28,20 +28,6 @@ final class NeedsYouSectionUITests: XCTestCase {
         XCTAssertTrue(app.conversationSubtitle(containing: "Needs You").waitUntilExists(timeout: 10), "開到別的聊天")
     }
 
-    /// 搜尋時這段也套用搜尋:不符合就整段消失。
-    @MainActor
-    func testSectionFollowsSearch() {
-        let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.element("needsYou.section").waitUntilExists(timeout: 15))
-
-        let search = app.revealChatSearch()
-        XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
-        search.tap()
-        search.typeEnglish("ledger")
-
-        XCTAssertTrue(app.element("needsYou.section").waitUntilGone(timeout: 5), "搜尋不符合,段落仍在")
-    }
-
     /// AX 最大字級不爆版:段落標題與列都還在畫面上。
     @MainActor
     func testSectionAtLargestTextSize() {

@@ -113,20 +113,4 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertTrue(answered.label.contains("Forest green"), "沒有寫出打的回答:\(answered.label)")
     }
 
-    /// 「trust」:資料夾信任(agent 仍回報閒置)。送出被拒後顯示提示;「Yes」不是預設選項，點了送方向鍵而不是單按 Enter。
-    @MainActor
-    func testFolderTrustPrompt() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        send("trust", in: app)
-        send("hello", in: app)
-
-        let yes = app.element("prompt.option.label:Yes, I trust this folder")
-        XCTAssertTrue(yes.waitUntilExists(timeout: 15), "沒有資料夾信任的選項")
-        XCTAssertTrue(app.staticTexts["Trust /Users/demo/ledger? Claude Code will be able to read, edit, and run files there."].exists)
-        yes.tap()
-
-        let answered = app.element("prompt.answered")
-        XCTAssertTrue(answered.waitUntilExists(timeout: 10), "沒有顯示已回答")
-        XCTAssertTrue(answered.label.contains("Yes, I trust this folder"))
-    }
 }

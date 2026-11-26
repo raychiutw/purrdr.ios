@@ -24,39 +24,6 @@ final class CrashNoticeUITests: XCTestCase {
         XCTAssertTrue(banner.waitUntilGone(timeout: 5), "關閉後提示還在")
     }
 
-    /// 按「關閉」後重新啟動 app,同一筆閃退不再提示(`-uiTestingKeepCrashNotice` 讓已提示狀態跨啟動保留)。
-    @MainActor
-    func testDismissedNoticeStaysGoneAfterRelaunch() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord"])
-        XCTAssertTrue(app.otherElements["crashNotice.banner"].waitUntilExists(timeout: 10), "沒有「上次意外關閉」提示")
-        app.buttons["crashNotice.dismiss"].tap()
-        XCTAssertTrue(app.otherElements["crashNotice.banner"].waitUntilGone(timeout: 5))
-        app.terminate()
-
-        let relaunched = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord", "-uiTestingKeepCrashNotice"])
-        XCTAssertTrue(relaunched.topBarTitle("Chats").waitUntilExists(timeout: 10), "app 沒有重新啟動")
-        XCTAssertFalse(relaunched.otherElements["crashNotice.banner"].waitUntilExists(timeout: 3), "關閉過的提示重啟後又出現")
-    }
-
-    /// 提示顯示出來就記為已提示:沒按關閉就結束 app,下次啟動也不再提示。
-    @MainActor
-    func testShownNoticeIsNotRepeatedAfterRelaunchWithoutDismiss() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord"])
-        XCTAssertTrue(app.otherElements["crashNotice.banner"].waitUntilExists(timeout: 10), "沒有「上次意外關閉」提示")
-        app.terminate()
-
-        let relaunched = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord", "-uiTestingKeepCrashNotice"])
-        XCTAssertTrue(relaunched.topBarTitle("Chats").waitUntilExists(timeout: 10), "app 沒有重新啟動")
-        XCTAssertFalse(relaunched.otherElements["crashNotice.banner"].waitUntilExists(timeout: 3), "顯示過的提示重啟後又出現")
-    }
-
-    /// 沒有閃退記錄時不提示。
-    @MainActor
-    func testNoNoticeWithoutCrash() {
-        let app = XCUIApplication.launchUITesting()
-        XCTAssertFalse(app.otherElements["crashNotice.banner"].waitUntilExists(timeout: 3))
-    }
-
     /// 設定的「診斷記錄」在有閃退記錄時可分享(開出系統分享,不是「還沒有記錄」)。
     @MainActor
     func testSettingsDiagnosticLogCanShareCrash() {

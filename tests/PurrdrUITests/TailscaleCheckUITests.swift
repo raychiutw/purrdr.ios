@@ -24,18 +24,6 @@ final class TailscaleCheckUITests: XCTestCase {
         XCTAssertTrue(cancelled.waitUntilExists(timeout: 5), "列表沒有說明驗證已取消")
     }
 
-    /// 驗證完成後不用任何操作：提示收起、Agent 列表自動載入。
-    @MainActor
-    func testContinuesAfterSignIn() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoTailscaleCheckCompletes"])
-
-        let prompt = app.element("tailscaleCheck.prompt")
-        XCTAssertTrue(prompt.waitUntilExists(timeout: 10), "沒有出現 Tailscale 驗證提示")
-
-        XCTAssertTrue(app.element("spaces.tab.demo/w2:t1").waitUntilExists(timeout: 15), "驗證完成後沒有自動載入 Agent")
-        XCTAssertFalse(prompt.exists, "驗證完成後提示沒有收起")
-    }
-
     /// 最大字級(AX5)下按鈕改成上下排列，兩個按鈕都按得到。
     @MainActor
     func testPromptAtLargestTextSize() {

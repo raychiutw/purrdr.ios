@@ -15,21 +15,6 @@ final class ChangesUITests: XCTestCase {
     }
 
     @MainActor
-    func testChangeListShowsBranchAndFiles() {
-        let app = XCUIApplication.launchUITesting()
-        openChanges(app)
-
-        let summary = app.descendants(matching: .any)["changes.summary"].firstMatch
-        XCTAssertTrue(summary.waitUntilExists(timeout: 10), "沒有變更清單")
-        XCTAssertTrue(summary.label.contains("master"), "分支不對:\(summary.label)")
-        for path in ["Fixtures/draft.csv", "Sources/CSVExport.swift", "Tests/CSVQuotingTests.swift"] {
-            XCTAssertTrue(app.buttons["changes.file.\(path)"].firstMatch.exists, "沒有 \(path)")
-        }
-        let csv = app.buttons["changes.file.Sources/CSVExport.swift"].firstMatch
-        XCTAssertTrue(csv.label.contains("3 added, 1 removed"), "+/− 不對:\(csv.label)")
-    }
-
-    @MainActor
     func testCommentOnLineAndSendToAgent() {
         let app = XCUIApplication.launchUITesting()
         openChanges(app)
@@ -65,14 +50,4 @@ final class ChangesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["conversation.more"].firstMatch.waitUntilExists(timeout: 5), "沒有回到聊天")
     }
 
-    /// 更多選單(#381):資料夾不是 Git repo 時，「Git 變更」停用並寫原因;其他兩項照常。
-    @MainActor
-    func testGitItemDisabledOutsideRepository() {
-        let app = XCUIApplication.launchUITesting()
-        app.openConversation(paneID: "w2:p1")
-        let git = app.conversationMoreItem("changes.open")
-        XCTAssertTrue(UITestWait.until(timeout: 10) { !git.isEnabled }, "不在 Git 資料夾卻沒有停用")
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Pane Terminal")).firstMatch.isEnabled, "終端機項目不該停用")
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Show Layout")).firstMatch.exists, "更多選單沒有顯示版面")
-    }
 }

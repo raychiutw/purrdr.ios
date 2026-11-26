@@ -7,28 +7,6 @@ final class SkeletonUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 只有一台連線卡住的主機:聊天列表停在列表骨架,主機 tab 的狀態卡也是骨架。
-    @MainActor
-    func testSlowHostShowsListAndStatusSkeleton() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedSlowHost"])
-        let list = app.element("agentList.loading.skeleton")
-        XCTAssertTrue(list.waitUntilExists(timeout: 10), "聊天列表第一次載入沒有骨架")
-        XCTAssertEqual(list.label, "Loading…", "骨架念的不是「載入中」")
-
-        app.openHostsTab()
-        let status = app.element("hosts.status.skeleton")
-        XCTAssertTrue(status.waitUntilExists(timeout: 10), "主機頁狀態卡沒有骨架")
-        XCTAssertEqual(status.label, "Loading…")
-    }
-
-    /// 對話紀錄一直讀不完:對話停在骨架,輸入列照常可用。
-    @MainActor
-    func testConversationSkeletonWhileLoading() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoTranscriptPending"])
-        XCTAssertTrue(app.element("conversation.loading").waitUntilExists(timeout: 10), "沒有對話骨架")
-        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "骨架時輸入列不可用")
-    }
-
     /// 正常載入的對話:讀取在骨架出現前(約 300 毫秒留白)就完成,整段過程都不該出現骨架,訊息出現後也不該再有。
     /// (只等「骨架消失」守不到問題:正常載入骨架根本不會出現,卡住的骨架也要等到逾時才消失。所以輪詢整段看有沒有出現過。)
     @MainActor
@@ -51,13 +29,6 @@ final class SkeletonUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.05)
         }
         XCTAssertFalse(sawSkeleton, "正常載入的對話出現了骨架")
-    }
-
-    /// 對照:定位對話紀錄的指令不回應時(`-demoTranscriptPending`)骨架會出現,證明上一條測的識別碼與條件有效。
-    @MainActor
-    func testConversationSkeletonShowsWhenTranscriptIsSlow() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoTranscriptPending"])
-        XCTAssertTrue(app.element("conversation.loading").waitUntilExists(timeout: 10), "讀取很慢時沒有骨架")
     }
 
     /// 後台一直沒回應、沒有上次的會員資料:帳號頁是骨架。

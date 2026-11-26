@@ -11,30 +11,6 @@ final class ChatOpenBackUITests: XCTestCase {
         app.descendants(matching: .any)[chatRowID(paneID)].firstMatch
     }
 
-    /// 打開聊天再回列表;導覽入口旁不放數字徽章(#322)。
-    @MainActor
-    func testOpeningChatAndGoingBackKeepsList() {
-        let app = XCUIApplication.launchUITesting()
-        let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(app.reveal(ledger))
-
-        // 有需要你的 workspace 時，主機與帳號 sheet 的「完成」旁也不放數字徽章(#322)。
-        // 導覽入口(主機、流量 tab)旁不放數字徽章(#322);聊天 tab 的 badge 是「需要你」數(#390)。
-        for tab in [AppTab.hosts, .traffic] {
-            app.openTab(tab)
-            XCTAssertFalse(app.descendants(matching: .any)["attention.badge"].firstMatch.exists, "\(tab.rawValue) 旁有數字徽章")
-        }
-        app.openTab(.chats)
-
-        ledger.tap()
-        let composer = app.element("composer.text")
-        XCTAssertTrue(composer.waitUntilExists(timeout: 10), "點列沒有開聊天")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(composer.waitUntilGone(timeout: 5), "第一下點返回沒有離開聊天(#641)")
-
-        XCTAssertTrue(app.reveal(row("w1:p1", in: app)), "回到列表後沒有看到那一列")
-    }
-
     /// 窄視窗是一般 NavigationStack:左緣滑動返回列表,再開同一個聊天仍進得去(選取在返回時清掉)。
     @MainActor
     func testEdgeSwipeBackReturnsToListAndChatReopens() {

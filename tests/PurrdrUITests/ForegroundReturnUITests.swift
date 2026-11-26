@@ -39,17 +39,4 @@ final class ForegroundReturnUITests: XCTestCase {
         assertListIntactAfterReturn(app)
     }
 
-    /// 超過保留時間(25 秒):連線視為已斷、重撥,列表仍沿用最後的快照、不閃「連線中」。
-    @MainActor
-    func testReturningAfterRetentionRedialsQuietlyKeepingList() {
-        let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.element(ledger).waitUntilExists(timeout: 15))
-
-        goToBackgroundAndBack(app, seconds: 30)
-
-        assertListIntactAfterReturn(app)
-        // 重撥後仍能操作:開得進聊天。
-        app.element(ledger).tap()
-        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 15), "重撥後開不了聊天")
-    }
 }

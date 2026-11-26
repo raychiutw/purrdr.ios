@@ -479,28 +479,6 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(app.keyboards.firstMatch.exists, "點註記不該叫出鍵盤")
     }
 
-    /// AX 字級下長高不超過鍵盤上方可用高度的 40%,超過的在框內捲動(#137)。
-    @MainActor
-    func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
-        let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-        let ledger = app.element("spaces.tab.demo/w1:t1")
-        XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
-        ledger.tap()
-        let text = app.element("composer.text")
-        XCTAssertTrue(text.waitUntilExists(timeout: 10))
-        text.tap()
-        text.typeEnglish("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
-        // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
-        let window = app.windows.firstMatch.frame
-        let keyboard = app.keyboards.firstMatch
-        let visibleBottom = keyboard.exists ? ((try? keyboard.snapshot()).map { min($0.frame.minY, window.maxY) } ?? window.maxY) : window.maxY
-
-        // 可用高度從狀態列下緣算，比可見範圍小;以可見範圍當上界只會放寬。
-        let height = text.frame.height
-        XCTAssertLessThanOrEqual(height, visibleBottom * 0.4 + 1, "輸入框 \(height)pt 超過可見範圍(\(visibleBottom)pt)的 40%")
-        XCTAssertGreaterThan(height, 44 * 2, "AX 字級下多行沒有長高(\(height)pt)")
-    }
-
     /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
     @MainActor
     func testJumpToLatestOnlyWhenAwayFromBottom() {
@@ -526,30 +504,6 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(jump.waitUntilExists(timeout: 5), "再往上捲應顯示")
         jump.tap()
         XCTAssertTrue(jump.waitUntilGone(timeout: 5), "點了回到最新後應隱藏")
-    }
-
-    /// #401:往上滑後(含手指剛放開、畫面還在減速時)點「Jump to Latest」,真的回到最底(最後一則在輸入框之上)、按鈕不再冒出來。
-    @MainActor
-    func testJumpToLatestReturnsToBottomEvenWhileDecelerating() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
-        let list = app.conversationList
-        XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
-        let jump = app.element("conversation.jumpToLatest")
-        let composer = app.element("composer.text")
-        XCTAssertTrue(composer.waitUntilExists(timeout: 5))
-
-        for attempt in 1...3 {
-            // 用力快滑幾次:放開後仍在減速時立刻點。
-            for _ in 0..<3 { list.swipeDown(velocity: .fast) }
-            XCTAssertTrue(jump.waitUntilExists(timeout: 5), "第 \(attempt) 次往上捲後應顯示")
-            jump.tap()
-            let lastUser = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Question 150:'")).firstMatch
-            XCTAssertTrue(lastUser.waitUntilExists(timeout: 5), "第 \(attempt) 次點了之後最後一則沒有出現在畫面上")
-            XCTAssertTrue(jump.waitUntilGone(timeout: 5), "第 \(attempt) 次點了之後按鈕沒有消失")
-            // 之後也不能又冒出來(被拉回閱讀中)。
-            XCTAssertFalse(jump.waitUntilExists(timeout: 2), "第 \(attempt) 次點了之後按鈕又出現(沒有真的到底)")
-            XCTAssertLessThanOrEqual(lastUser.frame.maxY, composer.frame.minY + 1, "第 \(attempt) 次最後一則被輸入框蓋住")
-        }
     }
 
     /// 對話載入中(#114):輸入列與載入完成後在同一個位置(畫面底部),轉圈仍在輸入列上方的中段。

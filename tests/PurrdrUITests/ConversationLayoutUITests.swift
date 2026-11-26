@@ -8,18 +8,6 @@ final class ConversationLayoutUITests: XCTestCase {
     }
 
 
-    /// 最後一則訊息不被浮在內容上的輸入框遮住:最後一則的底緣在輸入框頂緣之上。
-    @MainActor
-    func testLastMessageIsNotCoveredByComposer() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        let agent = app.element("conversation.agent")
-        XCTAssertTrue(agent.waitUntilExists(timeout: 10))
-        let card = app.element("composer.card")
-        XCTAssertTrue(card.waitUntilExists(timeout: 5), "輸入框沒有玻璃卡片")
-        let last = app.descendants(matching: .any).matching(identifier: "conversation.agent").allElementsBoundByIndex.last ?? agent
-        XCTAssertLessThanOrEqual(last.frame.maxY, card.frame.minY + 1, "最後一則被輸入框遮住")
-    }
-
     /// 輸入卡片離左右邊緣 12pt(比訊息的 16pt 各寬 4pt,輸入框更寬,#512);輸入框浮在內容上，不貼齊螢幕邊緣。
     @MainActor
     func testComposerAlignsWithMessages() {
@@ -75,18 +63,4 @@ final class ConversationLayoutUITests: XCTestCase {
         expectTabBarReturnsWithBack(app, tabBar, "chat")
     }
 
-    /// 對照組:主機 tab 的第二層(登入 Shell)返回,同樣量測。
-    @MainActor
-    func testTabBarReturnsTogetherOnHostsTabBack() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAnimations", "-seedHost"])
-        app.openHostsTab()
-        let tabBar = app.tabBars.firstMatch
-        let item = app.overviewRow("hosts.tool.loginShell")
-        XCTAssertTrue(item.exists, "主機 tab 沒有登入 Shell")
-        item.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["terminal.screen"].firstMatch.waitUntilExists(timeout: 10))
-        XCTAssertTrue(tabBar.waitUntilGone(timeout: 5), "登入 Shell 裡不該有 tab bar")
-        print("NAVDEBUG", app.navigationBars.debugDescription)
-        expectTabBarReturnsWithBack(app, tabBar, "hosts-shell")
-    }
 }

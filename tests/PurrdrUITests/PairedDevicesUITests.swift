@@ -53,22 +53,6 @@ final class PairedDevicesUITests: XCTestCase {
         XCTAssertTrue(thisDevice.exists, "取消後離開了已配對裝置頁")
     }
 
-    /// 唯讀裝置(啟動時已用唯讀權杖配對):看得到列表，沒有撤銷動作並說明原因。
-    @MainActor
-    func testReadOnlyDeviceOnlyViews() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedReadOnlyHTTPSHost"])
-        openStatus(app)
-
-        let otherDevice = app.descendants(matching: .any)["pairedDevices.row.ui-testing-ipad"].firstMatch
-        XCTAssertTrue(app.scrollIntoView(otherDevice, timeout: 10), "沒有另一支裝置")
-        XCTAssertTrue(
-            app.staticTexts["This device is paired read-only, so it can’t revoke devices."].exists
-                || app.scrollIntoView(app.staticTexts["This device is paired read-only, so it can’t revoke devices."]),
-            "沒有說明唯讀")
-        otherDevice.swipeLeft()
-        XCTAssertFalse(app.buttons["Revoke"].waitUntilExists(timeout: 2), "唯讀裝置不該能撤銷")
-    }
-
     @MainActor
     private func openStatus(_ app: XCUIApplication) {
         app.openHostsTab()

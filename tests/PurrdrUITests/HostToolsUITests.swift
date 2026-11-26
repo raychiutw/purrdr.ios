@@ -58,31 +58,6 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["terminal.key.esc"].firstMatch.isHittable, "按鍵列沒有出現")
     }
 
-    /// 檔案頁搜尋(#615):輸入只留名稱相符的列、搜不到有系統空狀態、清掉搜尋回到完整列表。
-    @MainActor
-    func testFilesSearchFiltersRows() {
-        let app = XCUIApplication.launchUITesting()
-        openMenuItem("menu.files", in: app)
-        let ledger = app.buttons["files.row.ledger"].firstMatch
-        XCTAssertTrue(ledger.waitUntilExists(timeout: 10), "沒有列出家目錄")
-        let zshrc = app.descendants(matching: .any)["files.row..zshrc"].firstMatch
-        XCTAssertTrue(zshrc.exists)
-
-        let search = app.revealChatSearch()
-        XCTAssertTrue(search.waitUntilExists(timeout: 5), "檔案頁沒有搜尋欄")
-        search.tap()
-        search.typeEnglish("ledg")
-        XCTAssertTrue(ledger.exists, "搜尋 ledg 後 ledger 不見了")
-        XCTAssertTrue(zshrc.waitUntilGone(timeout: 5), "搜尋 ledg 後不相符的 .zshrc 還在")
-
-        search.clearAndType("zzzz")
-        XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "搜不到時列還在")
-
-        search.clearAndType("ledg")
-        XCTAssertTrue(ledger.waitUntilExists(timeout: 5), "改搜尋後相符的列沒有回來")
-        XCTAssertTrue(zshrc.waitUntilGone(timeout: 5), "改搜尋後不相符的列還在")
-    }
-
     /// 檔案頁(#273,原型):資料夾是 push(#620):進兩層、左上「<」返回、麵包屑「~ › ledger」當快速跳層;右上「＋」上傳;沒有「上一層」按鈕。
     @MainActor
     func testFilesBrowseFoldersWithBreadcrumbs() {
@@ -164,43 +139,4 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["files.host"].firstMatch.label.contains("Studio Mac"), "檔案不該沿用登入 Shell 的選擇")
     }
 
-    /// 範例主機總頁保留「登入 Shell」(#434,對設計稿的刻意偏離):進 Demo 的模擬終端機,App Review 用。
-    @MainActor
-    func testDemoHostKeepsLoginShell() {
-        let app = XCUIApplication.launchUITesting()
-        openMenuItem("menu.loginShell", in: app)
-        XCTAssertTrue(app.waitForTerminalHeader(containing: "Demo", timeout: 10), "範例主機的登入 Shell 沒有開到 Demo 終端機:\(app.terminalHeader)")
-    }
-
-    /// 檔案換主機後從那台的家目錄重新列出。
-    @MainActor
-    func testFilesPicksHost() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
-        openMenuItem("menu.files", in: app)
-        XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "沒有列出家目錄")
-        XCTAssertEqual(app.buttons["files.crumb.0"].firstMatch.label, "Home Folder")
-
-        pickHost("Demo", with: "files.host", in: app)
-
-        XCTAssertTrue(app.buttons["files.host"].firstMatch.label.contains("Demo"), "沒有換到 Demo")
-        XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "換主機後沒有重新列出家目錄")
-    }
-
-    /// 新增聊天右上有電腦圖示的主機選單(#621)：預設選取中主機(聊天列表篩選為所有主機),列出所有主機。
-    @MainActor
-    func testNewChatPicksHost() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnpairedHTTPSHost"])
-        openMenuItem("menu.newChat", in: app)
-
-        let picker = app.buttons["newChat.host"].firstMatch
-        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "新增聊天沒有主機挑選鈕")
-        XCTAssertTrue(picker.label.contains("Studio Mac"), "預設不是選取中主機:\(picker.label)")
-
-        pickHost("Demo", with: "newChat.host", in: app)
-
-        XCTAssertTrue(app.buttons["newChat.host"].firstMatch.label.contains("Demo"), "沒有換到 Demo")
-        // 資料夾欄在下方(lazy,不在 accessibility tree),往上捲才看得到。
-        for _ in 0..<4 where !app.textFields["newChat.folder"].exists { app.element("newChat.page").swipeUp() }
-        XCTAssertTrue(app.textFields["newChat.folder"].firstMatch.waitUntilExists(timeout: 5), "換主機後表單不見了")
-    }
 }

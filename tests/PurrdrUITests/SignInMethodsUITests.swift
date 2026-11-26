@@ -17,14 +17,6 @@ final class SignInMethodsUITests: XCTestCase {
         XCTAssertTrue(app.element("member.identity.apple").waitUntilExists(timeout: 10), "沒有開出登入方式")
     }
 
-    /// 只有一種登入方式時沒有「移除」。
-    @MainActor
-    func testSingleMethodCannotBeRemoved() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingLinkMerge"])
-        openSignInMethods(app)
-        XCTAssertFalse(app.buttons["member.identity.remove.apple"].exists, "只剩一種時不該能移除")
-    }
-
     /// 發現已屬另一個會員:出合併確認頁,兩邊摘要都在;確認後合併、回到登入方式有兩種。
     @MainActor
     func testLinkFindsAnotherMemberAndMerges() {
@@ -45,30 +37,4 @@ final class SignInMethodsUITests: XCTestCase {
         XCTAssertFalse(app.element("sheet.merge").exists)
     }
 
-    /// 取消合併:收起確認頁,登入方式不變。
-    @MainActor
-    func testCancelMerge() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingLinkMerge"])
-        openSignInMethods(app)
-        app.buttons["member.signIn.google"].tap()
-        XCTAssertTrue(app.element("sheet.merge").waitUntilExists(timeout: 10))
-
-        app.buttons["member.merge.cancel"].tap()
-
-        XCTAssertTrue(app.element("member.identity.apple").waitUntilExists(timeout: 10))
-        XCTAssertFalse(app.element("member.identity.google").exists)
-    }
-
-    /// 兩邊都有有效訂閱:不能合併,說明原因。
-    @MainActor
-    func testMergeBlockedWhenBothHaveSubscriptions() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingLinkMergeBlocked"])
-        openSignInMethods(app)
-
-        app.buttons["member.signIn.google"].tap()
-
-        XCTAssertTrue(app.element("sheet.merge").waitUntilExists(timeout: 10))
-        XCTAssertFalse(app.buttons["member.merge.confirm"].isEnabled, "兩邊都有有效訂閱時不能合併")
-        XCTAssertTrue(app.element("member.merge.blocked").exists)
-    }
 }

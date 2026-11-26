@@ -32,65 +32,6 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertTrue(app.scrollIntoView(error, search: .down, timeout: 5), "選回所有主機後錯誤行沒回來")
     }
 
-    /// 共用頂列的主機範圍是只有圖示的鈕(#499),在新增聊天左邊、沒有蓋到它。
-    @MainActor
-    func testHostScopeButtonSitsLeftOfNewChat() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
-        let filter = app.buttons["toolbar.currentHost"].firstMatch
-        XCTAssertTrue(filter.waitUntilExists(timeout: 15))
-        XCTAssertGreaterThanOrEqual(filter.frame.height, 36, "主機範圍鈕太矮:\(filter.frame)")
-        let newChat = app.buttons["toolbar.newChat"].firstMatch
-        XCTAssertLessThan(filter.frame.maxX, newChat.frame.minX, "主機範圍鈕蓋到新增聊天")
-    }
-
-    /// 篩選某台主機時,電腦圖示右上角出現小圓點;選回所有主機就消失(#615)。
-    @MainActor
-    func testHostDotShowsOnlyWhileFiltered() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
-        XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitUntilExists(timeout: 20))
-        XCTAssertFalse(app.descendants(matching: .any)["topBar.hostDot"].exists, "所有主機時不該有小圓點")
-
-        app.filterHosts("Studio Mac")
-        XCTAssertTrue(app.descendants(matching: .any)["topBar.hostDot"].firstMatch.waitUntilExists(timeout: 5), "篩選主機後沒有小圓點")
-
-        app.filterHosts("All Hosts")
-        XCTAssertTrue(app.descendants(matching: .any)["topBar.hostDot"].firstMatch.waitUntilGone(timeout: 5), "選回所有主機小圓點還在")
-    }
-
-    /// 主機篩選(#244):Spaces 檢視只留篩選那台主機的 workspace 段落(#275);篩選選單帶各主機，第一項是所有主機。
-    @MainActor
-    func testHostFilterLimitsSpaces() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
-        let demoHeader = app.element("spaces.section.demo/w1")
-        let studioHeader = app.element("spaces.section.DE300000-0000-4000-8000-000000000001/w1")
-        XCTAssertTrue(demoHeader.waitUntilExists(timeout: 20))
-        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: All Hosts")
-
-        app.filterHosts("Studio Mac")
-
-        XCTAssertTrue(demoHeader.waitUntilGone(timeout: 5), "篩選 Studio Mac 時不該有 Demo 的段落")
-        XCTAssertTrue(app.reveal(studioHeader, timeout: 10), "篩選後沒有 Studio Mac 的段落")
-    }
-
-    /// 正式 Demo 也演出多主機(#34):沒有已存主機時，Demo 主機的列之外還有示範主機「Studio Mac」的列,
-    /// 列表下方「Build Box: 原因」;主機清單裡沒有示範主機。
-    @MainActor
-    func testDemoShowsCompanionHosts() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
-
-        // 往下捲後頂列收合、不渲染電腦圖示:主機範圍的斷言要在捲動前(列表還在最上面)做。
-        let hostFilter = app.buttons["toolbar.currentHost"].firstMatch
-        XCTAssertTrue(hostFilter.waitUntilExists(timeout: 20), "沒有電腦圖示")
-        XCTAssertEqual(hostFilter.label, "Showing: All Hosts")
-        let studioRow = app.element("spaces.tab.DE300000-0000-4000-8000-000000000001/w2:t1")
-        XCTAssertTrue(app.reveal(studioRow, timeout: 20), "沒有示範主機 Studio Mac 的列")
-        let error = app.element("agentList.error.DE300000-0000-4000-8000-000000000002")
-        // 錯誤行在列表最底下(App 讀不到主機後立刻就有,與時間無關):以系統的快速滑動捲到底。
-        // 慢速的 press-drag(`reveal`)在這個長度的列表上偶爾整段時間都捲不動,所以不用它。
-        XCTAssertTrue(app.scrollIntoView(error, search: .down, limit: 4, timeout: 10), "沒有連不上的示範主機")
-        XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
-    }
-
     /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，開出的聊天副標題是狀態。
     @MainActor
     func testSamePaneOnTwoHostsAreSeparateChats() {

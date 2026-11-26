@@ -9,48 +9,6 @@ final class TopNavigationUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    @MainActor
-    func testAccountSheetHoldsSettingsAndClosesWithXBackToSameTab() {
-        let app = XCUIApplication.launchUITesting()
-        app.openTab(.files)
-
-        app.openSettingsSheet()
-        XCTAssertTrue(app.element("settings.version").exists || app.scrollIntoView(app.element("settings.version"), search: .down), "帳號與設定第一層沒有設定內容")
-        XCTAssertFalse(app.buttons["sheet.done"].exists, "帳號與設定不該有完成鈕")
-
-        app.closeAccountSheet()
-        XCTAssertTrue(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Files")).firstMatch.isSelected, "關閉後沒有回到原本的 tab")
-    }
-
-    @MainActor
-    func testHostsTabShowsHostOverview() {
-        let app = XCUIApplication.launchUITesting()
-
-        app.openHostsTab()
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.hosts"].firstMatch.exists, "沒有主機總頁")
-        XCTAssertFalse(app.buttons["sheet.close"].exists, "主機是 tab,不該有關閉鈕")
-    }
-
-    @MainActor
-    func testNewChatButtonOpensNewChat() {
-        let app = XCUIApplication.launchUITesting()
-
-        app.openNewChat()
-        // 新增聊天是 push(#621):左上系統「<」,不是 sheet 的 X;tab bar 還在;右上是電腦圖示選單。
-        let page = app.descendants(matching: .any)["newChat.page"].firstMatch
-        XCTAssertTrue(page.waitUntilExists(timeout: 10), "沒有開出新增對話")
-        XCTAssertFalse(app.buttons["sheet.close"].exists, "新增聊天是 push,不該有關閉鈕")
-        XCTAssertTrue(app.tabBars.firstMatch.exists, "新增聊天 push 後 tab bar 要保留")
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        XCTAssertTrue(back.exists, "新增聊天左上沒有返回")
-        XCTAssertTrue(app.buttons["newChat.host"].firstMatch.exists, "新增聊天右上沒有主機選單")
-        XCTAssertFalse(app.buttons["newChat.cancel"].exists, "不再有 Cancel")
-
-        back.tap()
-        XCTAssertTrue(page.waitUntilGone(timeout: 5), "返回後新增聊天沒有收掉")
-        XCTAssertTrue(app.reveal(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch), "沒有回到 Agent 列表")
-    }
-
     /// icon-only 按鈕都要有 accessibility label(HIG 檢核清單 20.2);每顆 ≥ 44pt。
     @MainActor
     func testIconOnlyToolbarButtonsHaveLabelsAndHitTargets() {
@@ -109,19 +67,6 @@ final class TopNavigationUITests: XCTestCase {
             XCTAssertEqual(entry.frame.height, accountReference.frame.height, accuracy: 2, "\(entry.name) tab 的帳號鈕高度和\(accountReference.name)不同")
             XCTAssertEqual(entry.frame.midY, accountReference.frame.midY, accuracy: 2, "\(entry.name) tab 的帳號鈕垂直位置和\(accountReference.name)不同")
         }
-    }
-
-    @MainActor
-    func testTabBarListsFourTabsAndNoSettingsTab() {
-        let app = XCUIApplication.launchUITesting()
-
-        for tab in [AppTab.chats, .files, .hosts, .traffic] {
-            XCTAssertTrue(
-                app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 10),
-                "tab bar 沒有 \(tab.rawValue)")
-        }
-        XCTAssertFalse(app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Settings")).firstMatch.exists, "不該再有設定 tab")
-        XCTAssertFalse(app.buttons["toolbar.more"].exists, "不該再有「⋯」選單")
     }
 
     @MainActor

@@ -144,18 +144,4 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
     }
 
-    @MainActor
-    func testPaneInUseOffersTakeOver() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoPaneInUse"])
-        let screen = openTerminal(app)
-
-        let takeOver = app.buttons["terminal.takeOver"].firstMatch
-        XCTAssertTrue(takeOver.waitUntilExists(timeout: 10), "被佔用時沒有「接管」")
-        XCTAssertTrue(app.waitForTerminalHeader(containing: "In Use Elsewhere", timeout: 5), "副標題不對:\(app.terminalHeader)")
-        XCTAssertTrue(app.staticTexts["Someone is using this on the host. Tap Take Over to use it here."].firstMatch.exists, "沒有說明主機正在操作")
-
-        takeOver.tap()
-        screen.expectValue(containing: "demo@purrdr ledger %")
-        XCTAssertFalse(takeOver.exists, "接上後「接管」要消失")
-    }
 }

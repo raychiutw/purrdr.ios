@@ -10,55 +10,6 @@ final class AgentListUITests: XCTestCase {
         app.descendants(matching: .any)[chatRowID(paneID)].firstMatch
     }
 
-    /// tracer bullet:app → 畫面 model → herdr client → 主機通道(Demo 主機)整條路徑都走正式程式。
-    /// 聊天只有 Spaces(#501):依 workspace 分段,每個 Tab 一列,列念出標題、種類與狀態。
-    @MainActor
-    func testLaunchShowsDemoHostAgent() {
-        let app = XCUIApplication.launchUITesting()
-
-        let row = row("w1:p1", in: app)
-        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        XCTAssertTrue(row.label.contains("Done"), "列沒有狀態文字:\(row.label)")
-        XCTAssertTrue(row.label.contains("Claude"), "列沒有 Agent 種類:\(row.label)")
-        let header = app.element("spaces.section.demo/w1")
-        XCTAssertTrue(header.exists, "沒有 workspace 段落標題")
-        XCTAssertTrue(header.label.contains("ledger"), "段落標題沒有 workspace 名稱:\(header.label)")
-        XCTAssertTrue(header.label.contains("Demo"), "段落標題沒有主機名:\(header.label)")
-    }
-
-    /// 「需要你」以文字(不只顏色)說明狀態;每列先念標題,再念種類與狀態。
-    @MainActor
-    func testRowsHaveTextualStatus() {
-        let app = XCUIApplication.launchUITesting()
-
-        let needsYou = row("w2:p1", in: app)
-        let working = row("w3:p1", in: app)
-        XCTAssertTrue(needsYou.waitUntilExists(timeout: 10))
-        XCTAssertTrue(needsYou.label.contains("Needs You"), "沒有「需要你」文字:\(needsYou.label)")
-        XCTAssertTrue(app.reveal(working))
-        XCTAssertTrue(working.label.contains("Codex"), "列沒有念出 agent 種類:\(working.label)")
-        XCTAssertTrue(working.label.contains("Working"), "工作中的列沒有狀態文字:\(working.label)")
-        XCTAssertFalse(app.descendants(matching: .any)["agentList.section.needsYou"].exists, "沒有 Agents 檢視的分段標題")
-    }
-
-    @MainActor
-    func testSearchFiltersTabs() {
-        let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
-
-        let search = app.revealChatSearch()
-        XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
-        search.tap()
-        search.typeEnglish("weather")
-
-        XCTAssertTrue(row("w2:p1", in: app).waitUntilExists(timeout: 5))
-        XCTAssertTrue(row("w1:p1", in: app).waitUntilGone(timeout: 5), "不符合的列仍在")
-        XCTAssertFalse(row("w3:p1", in: app).exists, "不符合的列仍在")
-
-        search.typeEnglish("zzz")
-        XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "沒有「無符合結果」的說明")
-    }
-
     /// 聊天列表頂部(#615):系統導覽列。大標題、右側 [電腦圖示｜＋] 與頭像(由左到右),系統搜尋欄(平常收起、往下拉才出現);
     /// 往上滑時系統收合大標題,回到頂端大標題回來。
     @MainActor

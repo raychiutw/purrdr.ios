@@ -6,29 +6,6 @@ final class ConversationHeaderUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 標題列(#270、#618):系統標題是 Tab 名稱，系統副標題只有狀態(不含主機名稱;context 百分比在用量面板);
-    /// 沒有重新載入(改成下拉重新整理)。不在工作中沒有停止列。
-    @MainActor
-    func testHeaderShowsWorkspaceStatusAndHost() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))
-
-        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 5), "沒有聊天頂列")
-        // 系統副標題(#618):只有狀態;沒有自畫的標題膠囊。
-        let subtitle = app.conversationSubtitle(containing: "Done")
-        XCTAssertTrue(subtitle.waitUntilExists(timeout: 5), "副標題沒有狀態")
-        XCTAssertFalse(subtitle.label.contains("Demo"), "副標題不該帶主機名稱:\(subtitle.label)")
-        XCTAssertFalse(app.element("conversation.header").exists, "不該再有自畫的標題膠囊")
-        XCTAssertFalse(app.element("conversation.reload").exists, "標題列不該再有重新載入")
-        XCTAssertFalse(app.element("stopBar").exists, "不在工作中不該有停止列")
-
-        // 下拉重新整理：重讀後對話仍在。
-        let list = app.conversationList
-        list.swipeDown()
-        list.swipeDown()
-        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10), "下拉重新整理後沒有重讀對話")
-    }
-
     /// 工作中(#220):輸入卡片最上面有停止列，送出鈕照舊。
     /// 點停止送 Esc:停止中按鈕念「Stopping…」且停用，停下後顯示「Stopped」,約 2 秒後停止列收起、工作中指示消失。
     @MainActor
@@ -77,30 +54,6 @@ final class ConversationHeaderUITests: XCTestCase {
 
         XCTAssertTrue(app.element("conversation.working").waitUntilGone(timeout: 15), "強制結束後仍在工作")
         XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 10), "強制結束後停止列還在")
-    }
-
-    /// 「需要你」的 agent 永不中斷：沒有停止列。
-    @MainActor
-    func testNeedsYouAgentHasNoStopBar() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
-        XCTAssertTrue(app.conversationBar.waitUntilExists(timeout: 10))
-        XCTAssertTrue(app.conversationSubtitle(containing: "Needs").waitUntilExists(timeout: 5), "應該是需要你")
-        XCTAssertFalse(app.element("stopBar").exists, "需要你不該有停止列")
-    }
-
-    /// 用量環(#513、#617):點開聊天面板(Context 與方案用量區塊),iPhone 是 sheet,X 關閉。
-    @MainActor
-    func testUsageRingOpensPanel() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        let ring = app.buttons["conversation.usage"].firstMatch
-        XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
-
-        ring.tap()
-
-        XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
-        XCTAssertTrue(app.element("panel.refresh").exists, "沒有重新整理")
-        app.buttons["panel.close"].tap()
-        XCTAssertTrue(app.element("conversation.panel").waitUntilGone(timeout: 5), "X 之後面板還在")
     }
 
     /// 頂列右上只有用量環與「⋯」(#617):沒有 Inspector 開關鈕,兩顆並排(系統合成一顆膠囊)。

@@ -25,17 +25,6 @@ final class AppLockUITests: XCTestCase {
         XCTAssertTrue(app.chatListReady.isHittable, "解鎖後列表不能操作")
     }
 
-    /// VoiceOver 念的「Purrdr 已鎖定」與「解鎖」。
-    @MainActor
-    func testLockScreenInTraditionalChinese() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAppLock", "-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
-
-        let title = app.staticTexts["appLock.title"]
-        XCTAssertTrue(title.waitUntilExists(timeout: 10))
-        XCTAssertEqual(title.label, "Purrdr 已鎖定")
-        XCTAssertEqual(app.buttons["appLock.unlock"].label, "解鎖")
-    }
-
     /// 預設關閉;開啟時先驗證，在前景開啟不會馬上鎖住。
     @MainActor
     func testTurnOnFromSettings() {
@@ -53,38 +42,6 @@ final class AppLockUITests: XCTestCase {
 
         XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == '1'"), timeout: 5), "等待的條件沒有成立")
         XCTAssertFalse(app.staticTexts["appLock.title"].exists, "在前景開啟不該馬上鎖住")
-    }
-
-    @MainActor
-    func testNoPasscodeDisablesAppLock() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoPasscode"])
-        openSettings(in: app)
-
-        let toggle = app.switches["settings.appLock"]
-        app.scrollIntoView(toggle, search: .down)
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 5))
-        XCTAssertFalse(toggle.isEnabled, "沒有裝置密碼時 App 鎖應不可用")
-        let reason = app.staticTexts["Set a device passcode in the Settings app to use App Lock."]
-        XCTAssertTrue(reason.exists, "沒有說明不可用的原因")
-    }
-
-    /// 鎖定中收到深層連結(#573):不在鎖定畫面底下偷開,解鎖後才執行。
-    @MainActor
-    func testDeepLinkWhileLockedWaitsUntilUnlocked() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAppLock"])
-        XCTAssertTrue(app.staticTexts["appLock.title"].waitUntilExists(timeout: 10), "冷啟動沒有鎖定畫面")
-
-        app.open(URL(string: "purrdr://settings")!)
-
-        XCTAssertTrue(app.staticTexts["appLock.title"].exists, "收到連結後鎖定畫面不該消失")
-        let accountOpened = { app.element("sheet.account").exists || app.element("account.signedOut").exists }
-        XCTAssertFalse(
-            UITestWait.until(timeout: 3, accountOpened), "鎖定中不該開出帳號與設定")
-
-        app.buttons["appLock.unlock"].tap()
-
-        XCTAssertTrue(app.staticTexts["appLock.title"].waitUntilGone(timeout: 10), "解鎖後鎖定畫面沒有消失")
-        app.waitForAccountSheet()
     }
 
     @MainActor

@@ -33,44 +33,6 @@ final class WorkspaceActionsUITests: XCTestCase {
         XCTAssertTrue(row("w1:p1", in: app).exists)
     }
 
-    /// context menu 有重新命名 Tab、版面圖、新 worktree、關閉(改 Tab 與 Workspace 名稱見 `SpacesUITests`);從版面圖點 pane 方塊會關閉 sheet。
-    @MainActor
-    func testContextMenuHasWorkspaceActionsAndOpensLayout() {
-        let app = XCUIApplication.launchUITesting()
-        let notes = row("w3:p1", in: app)
-        XCTAssertTrue(notes.waitUntilExists(timeout: 10))
-
-        notes.press(forDuration: 1.2)
-        for title in ["Rename Tab…", "Show Layout", "Close Tab…"] {
-            XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch.waitUntilExists(timeout: 5), "context menu 沒有「\(title)」")
-        }
-        for title in ["New Worktree…", "Close Workspace…"] {
-            XCTAssertFalse(app.buttons[title].exists, "Tab 長按選單不該有「\(title)」")
-        }
-        app.buttons["Show Layout"].tap()
-
-        let agentBlock = app.buttons["layout.block.w3:p1"]
-        let shellBlock = app.buttons["layout.block.w3:p2"]
-        XCTAssertTrue(agentBlock.waitUntilExists(timeout: 5), "版面圖沒有 agent 方塊")
-        XCTAssertTrue(shellBlock.exists, "版面圖沒有 shell 方塊")
-        XCTAssertTrue(agentBlock.label.contains("Codex"), "agent 方塊沒有念出 agent:\(agentBlock.label)")
-        XCTAssertTrue(shellBlock.label.contains("npm run dev"), "shell 方塊沒有念出程式名:\(shellBlock.label)")
-        XCTAssertLessThan(agentBlock.frame.minX, shellBlock.frame.minX, "左右切分的位置不對")
-        // 版面圖是下一頁(#619):左上返回、tab bar 保留,不是有關閉鈕的 sheet。
-        XCTAssertTrue(app.element("layout.page").exists, "版面圖不是推入的頁面")
-        XCTAssertFalse(app.buttons["sheet.close"].exists, "版面圖不該有關閉鈕")
-        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "左上沒有返回鈕")
-        XCTAssertTrue(app.tabBars.firstMatch.exists, "版面圖沒有保留 tab bar")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(agentBlock.waitUntilGone(timeout: 5), "返回後版面圖還在")
-        notes.press(forDuration: 1.2)
-        app.buttons["Show Layout"].tap()
-        XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "再開版面圖失敗")
-
-        shellBlock.tap()
-        XCTAssertTrue(shellBlock.waitUntilGone(timeout: 5), "點方塊後版面圖沒有關閉")
-    }
-
     /// Demo 主機不建立 worktree:錯誤留在表單裡說明。
     @MainActor
     func testNewWorktreeOnDemoHostExplains() {

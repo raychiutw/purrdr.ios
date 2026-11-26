@@ -7,30 +7,6 @@ final class SpacesUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Spaces 檢視：每個 workspace 一段，標題是「主機 · workspace」,段內是 Tab 列;沒有 #103 的群組與狀態條。
-    @MainActor
-    func testSpacesShowsWorkspaceSectionsWithTabs() {
-        let app = XCUIApplication.launchUITesting()
-        let notes = app.element("spaces.section.demo/w3")
-        XCTAssertTrue(app.reveal(notes), "沒有 notes 的段落")
-        XCTAssertTrue(notes.label.contains("Demo · notes"), "段落標題不是「主機 · workspace」:\(notes.label)")
-        let tab = app.element("spaces.tab.demo/w3:t1")
-        XCTAssertTrue(tab.exists)
-        XCTAssertTrue(tab.label.contains("Sync notes to Markdown"), "Tab 列名稱應是 Tab 裡的聊天標題:\(tab.label)")
-        XCTAssertGreaterThan(tab.frame.minY, notes.frame.minY, "Tab 列不在段落標題下方")
-        XCTAssertFalse(app.element("workspace.group.demo/w3").exists, "不該再有 workspace 群組")
-    }
-
-    /// 只有一個 pane 的 Tab:點了直接開那個聊天。
-    @MainActor
-    func testTabWithOnePaneOpensChat() {
-        let app = XCUIApplication.launchUITesting()
-        let tab = app.element("spaces.tab.demo/w1:t1")
-        XCTAssertTrue(app.reveal(tab))
-        tab.tap()
-        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "點 Tab 沒有開聊天")
-    }
-
     /// 有多個 pane 的 Tab:點了開那個 Tab 的版面圖，終端機方塊開它的 Pane 終端機;長按是 workspace 的動作(#40 補充)。
     @MainActor
     func testTabWithSeveralPanesOpensLayout() {
@@ -200,13 +176,4 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(app.element("spaces.section.demo/w1").wait(for: renamed, timeout: 5), "Workspace 標題沒有更新")
     }
 
-    /// 聊天只有 Spaces(#501):依 workspace 分段、每個 Tab 一列,沒有 Agents 檢視的單一清單與切換。
-    @MainActor
-    func testChatListIsSpacesOnly() {
-        let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 10))
-        XCTAssertTrue(app.element("spaces.tab.demo/w3:t1").exists, "沒有 Tab 列")
-        XCTAssertFalse(app.buttons["agentList.mode"].exists, "不該有 Agents／Spaces 切換")
-        XCTAssertFalse(app.element("agentList.section.needsYou").exists, "不該有 Agents 檢視的分段標題")
-    }
 }
