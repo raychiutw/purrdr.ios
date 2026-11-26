@@ -80,12 +80,11 @@ final class IPadSidebarUITests: XCTestCase {
 
     /// Command-, 開帳號與設定:寬視窗是 page sheet(不是全螢幕),關閉後對話欄的對話還在(#623)。
     @MainActor
-    func testCommandCommaOpensPageSheetAndClosesBackToChat() {
+    func testCommandCommaOpensPageSheetAndClosesBackToChat() throws {
         let app = launch()
         openChat(app)
 
-        app.typeKey(",", modifierFlags: .command)
-        app.waitForAccountSheet()
+        try app.openAccountWithCommandComma()
         let sheet = app.element("account.signedOut")
         XCTAssertLessThan(sheet.frame.width, app.windows.firstMatch.frame.width, "寬視窗的帳號與設定應是 page sheet、不是滿版")
         app.closeAccountSheet()

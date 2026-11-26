@@ -168,6 +168,23 @@ extension XCUIApplication {
         }
     }
 
+    /// 硬體鍵盤 Command-, 開帳號與設定(App Settings…)。
+    /// 已知問題(缺口批次 G1,有證據):iPad 模擬器同一輪測試裡**第二次啟動起**,系統會把 Command-, 當成「開 iOS 設定 app」
+    /// (前景變成系統「設定」,選單內容每次啟動都相同、只有 App Settings… 帶 Command-,,設 `wantsPriorityOverSystemBehavior`、
+    /// 拿掉「Settings…」項目、選單項目不因無視窗而停用、延後送鍵都沒用)。遇到時收掉系統設定 app 並 skip,不當成通過;
+    /// 選單指令對應的導覽邏輯由單元測試(`KeyboardCommandTests`)守住。
+    @MainActor
+    func openAccountWithCommandComma(file: StaticString = #filePath, line: UInt = #line) throws {
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        typeKey(",", modifierFlags: .command)
+        let opened = UITestWait.until(timeout: 6) { self.element("sheet.account").exists || self.element("account.signedOut").exists }
+        if !opened, settings.state == .runningForeground {
+            settings.terminate()
+            throw XCTSkip("Command-, 被系統當成開 iOS 設定 app(第二次啟動起,未解決;見 openAccountWithCommandComma 說明)")
+        }
+        waitForAccountSheet(file: file, line: line)
+    }
+
     /// 以左上角「X」關閉帳號與設定 sheet(#503、#613)並等它消失。
     @MainActor
     func closeAccountSheet(file: StaticString = #filePath, line: UInt = #line) {

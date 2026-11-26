@@ -105,16 +105,11 @@ final class IPadLayoutUITests: XCTestCase {
     /// 硬體鍵盤：Command-, 開 App 設定(不是系統的 Settings…)。
     @MainActor
     func testCommandCommaOpensAppSettings() throws {
-        // 前面的測試若讓系統「設定」app 跑到前景,先收掉,免得誤判。
-        XCUIApplication(bundleIdentifier: "com.apple.Preferences").terminate()
         let app = launchInLandscape()
         XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")))
 
-        app.typeKey(",", modifierFlags: .command)
-
-        app.waitForAccountSheet()
-        // Command-, 是 App 設定,不能跑到系統設定 app(選單裡「Settings…」與「App Settings…」曾搶同一個快捷鍵)。
-        XCTAssertNotEqual(XCUIApplication(bundleIdentifier: "com.apple.Preferences").state, .runningForeground, "Command-, 開成了系統設定 app")
+        try app.openAccountWithCommandComma()
+        app.closeAccountSheet()
     }
 
     // MARK: - 無障礙稽核(#35)

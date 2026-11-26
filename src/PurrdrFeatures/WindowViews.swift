@@ -214,11 +214,13 @@ public struct PurrdrCommands: Commands {
     }
 
     private func button(_ command: KeyboardCommand) -> some View {
-        let active = window ?? WindowCommandsHub.shared.latest
-        let context = active?.context ?? KeyboardCommandContext()
-        return Button(command.title(in: context)) { active?.perform(command) }
+        let focused = window
+        let context = (focused ?? WindowCommandsHub.shared.latest)?.context ?? KeyboardCommandContext()
+        // 動作在按下當下才找視窗(選單建立時可能還沒有焦點值,也還沒登記視窗)。選單項目不因「還沒有視窗」而停用:
+        // 停用的項目會讓快捷鍵落到系統預設(Command-, 變成開 iOS 設定 app,iPad 實測第二次啟動起發生)。
+        return Button(command.title(in: context)) { (focused ?? WindowCommandsHub.shared.latest)?.perform(command) }
             .keyboardShortcut(command.shortcut)
-            .disabled(active == nil || !command.isEnabled(in: context))
+            .disabled(!command.isEnabled(in: context))
     }
 }
 
