@@ -193,6 +193,7 @@ public struct TopNavigationView: View {
         return NavigationStack(path: $navigation.chatsPath) {
             agentList
         }
+        .tabBarHidden(for: navigation.chatsPath)
         // 路徑與選取的聊天雙向對齊(#641):路徑上最後一個聊天就是選取的聊天(返回時清成 `nil`);
         // 外部設定選取(推播、新增聊天、版面圖選 Pane)時把聊天放進路徑。
         .onChange(of: navigation.chatsPath) { _, path in
