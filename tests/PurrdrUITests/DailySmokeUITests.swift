@@ -18,13 +18,21 @@ final class DailySmokeUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
-    /// 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機 → 跨聊天「需要你」橫幅(#530)→ 返回後列表置頂段落(#531)。
+    /// 聊天 tab 徽章 → 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機 → 跨聊天「需要你」橫幅(#530)→ 返回後列表置頂段落(#531)。
     /// 帶 `-demoNeedsYouLater`:打開第一個聊天 3 秒後 notes 變成需要你(weather-app 一開始就需要你,不觸發橫幅)。
     @MainActor
     func testListAndChat() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo", "-demoNeedsYouLater"])
         let ledger = app.element("spaces.tab.demo/w1:t1")
 
+        // 放在第一步(開任何聊天之前):`-demoNeedsYouLater` 要開聊天 3 秒後才多一個需要你,所以現在只有 weather-app。
+        step("聊天 tab 的 badge 是需要你的 Agent 數") {
+            let tab = app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chats")).firstMatch
+            XCTAssertTrue(tab.waitUntilExists(timeout: 10))
+            // badge 可能念在標籤尾端,也可能是元素的 value。
+            let shows = UITestWait.until(timeout: 15) { tab.exists && (tab.label.contains("1") || (tab.value as? String)?.contains("1") == true) }
+            XCTAssertTrue(shows, "聊天 tab 沒有標示 1 個需要你:\(tab.label) / \(String(describing: tab.value))")
+        }
         step("列表看到 Demo 的 Agent") {
             XCTAssertTrue(app.reveal(ledger), "沒有看到 Demo 主機的 Agent")
             XCTAssertTrue(ledger.label.contains("Done"), "列沒有狀態文字:\(ledger.label)")
@@ -335,17 +343,6 @@ final class DailySmokeUITests: XCTestCase {
 
         app.openTab(.chats)
         XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac", "換選取中主機不該改聊天的目前主機")
-    }
-
-    /// 聊天 tab 的 badge 是「需要你」的 Agent 數。
-    @MainActor
-    func testChatsTabBadgeCountsNeedsYou() {
-        let app = XCUIApplication.launchUITesting()
-        let tab = app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chats")).firstMatch
-        XCTAssertTrue(tab.waitUntilExists(timeout: 10))
-        // badge 可能念在標籤尾端,也可能是元素的 value。
-        let shows = UITestWait.until(timeout: 15) { tab.exists && (tab.label.contains("1") || (tab.value as? String)?.contains("1") == true) }
-        XCTAssertTrue(shows, "聊天 tab 沒有標示 1 個需要你:\(tab.label) / \(String(describing: tab.value))")
     }
 
     /// Purrdr Plus 會員：帳號頁、通知、通知裝置。

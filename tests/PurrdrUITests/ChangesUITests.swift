@@ -35,7 +35,7 @@ final class ChangesUITests: XCTestCase {
         XCTAssertFalse(save.isEnabled, "沒有內容時 ✓ 應停用")
         // sheet 剛出現時欄位的第一下輸入可能還沒有焦點:以焦點為準再打字。
         XCTAssertTrue(app.focusTextField(field), "評論輸入框沒有取得焦點")
-        field.typeText("Count carriage returns too")
+        field.typeEnglish("Count carriage returns too")
         XCTAssertTrue(save.wait(for: NSPredicate(format: "isEnabled == true"), timeout: 5), "有內容後 ✓ 應可按")
         save.tap()
 

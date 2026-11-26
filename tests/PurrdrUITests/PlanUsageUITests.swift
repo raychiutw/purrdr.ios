@@ -57,9 +57,12 @@ final class PlanUsageUITests: XCTestCase {
 
         // 在帳號與設定改成剩餘,關掉回來就是剩餘比例(#393、#420、#503)。
         // 用量頁是從主機設定推進去的子頁,頂列的頭像鈕不在這一頁:先退回主機 tab 的第一層再開帳號與設定。
-        for _ in 0..<4 where app.navigationBars.buttons.firstMatch.waitUntilExists(timeout: 2) {
-            app.navigationBars.buttons.element(boundBy: 0).tap()
+        // 只在還沒回到第一層(主機 tab 右上的新增主機鈕還點不到)時才點系統返回,不多點。
+        for _ in 0..<4 where !app.buttons["hosts.add"].isHittable {
+            app.buttons["BackButton"].firstMatch.tap()
+            _ = app.buttons["hosts.add"].waitUntilHittable(timeout: 1)
         }
+        XCTAssertTrue(app.buttons["hosts.add"].isHittable, "沒有退回主機 tab 的第一層")
         app.openSettingsSheet()
         let showRemaining = app.buttons["Remaining"]
         XCTAssertTrue(app.scrollIntoView(showRemaining), "設定沒有「Remaining」選項")
