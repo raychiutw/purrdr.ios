@@ -343,9 +343,16 @@ private struct WindowCommandsModifier: ViewModifier {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+    @Environment(\.scenePhase) private var scenePhase
 
     func body(content: Content) -> some View {
-        content.focusedSceneValue(\.windowCommands, windowCommands)
+        content
+            .focusedSceneValue(\.windowCommands, windowCommands)
+            // 沒有焦點值時(焦點在 UIKit 視圖)選單退回這份;視窗出現、前景、聊天或 tab 變了就更新。
+            .onAppear { WindowCommandsHub.shared.latest = windowCommands }
+            .onChange(of: scenePhase) { _, phase in if phase == .active { WindowCommandsHub.shared.latest = windowCommands } }
+            .onChange(of: navigation.selectedChat) { WindowCommandsHub.shared.latest = windowCommands }
+            .onChange(of: navigation.tab) { WindowCommandsHub.shared.latest = windowCommands }
     }
 
     private var windowCommands: WindowCommands {

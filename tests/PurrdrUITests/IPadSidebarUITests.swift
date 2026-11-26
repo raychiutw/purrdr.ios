@@ -83,7 +83,6 @@ final class IPadSidebarUITests: XCTestCase {
         openChat(app)
 
         app.typeKey(",", modifierFlags: .command)
-        sleep(3); try? app.debugDescription.write(toFile: "/tmp/g1-dump-cc2.txt", atomically: true, encoding: .utf8) // TMP-DEBUG
         app.waitForAccountSheet()
         let sheet = app.element("account.signedOut")
         XCTAssertLessThan(sheet.frame.width, app.windows.firstMatch.frame.width, "寬視窗的帳號與設定應是 page sheet、不是滿版")

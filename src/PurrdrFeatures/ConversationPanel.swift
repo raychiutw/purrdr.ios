@@ -116,6 +116,9 @@ extension View {
     ) -> some View {
         popover(isPresented: isPresented) {
             ConversationPanelView(model: model, usageSection: usageSection, display: display)
+                // popover 內容是 List,沒有固有尺寸:`presentationSizing(.form)` 單獨用時 iPad 實測 popover 縮成 68×68
+                // (內容全被擠掉,g1 傾印)。明確給寬度與理想高度,內容多時 List 自己捲動。
+                .frame(minWidth: 360, idealWidth: 400, maxWidth: 440, minHeight: 400, idealHeight: 600)
                 .presentationSizing(.form)
         }
     }

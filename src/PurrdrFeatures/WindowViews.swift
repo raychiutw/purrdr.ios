@@ -155,6 +155,15 @@ extension FocusedValues {
     @Entry public var windowCommands: WindowCommands?
 }
 
+/// 最近一個登記快捷鍵入口的視窗。`@FocusedValue` 在焦點落在 UIKit 的視圖(點了列表的列、聊天的輸入框)時會是 `nil`,
+/// 選單項目就停用、Command-, 等快捷鍵沒反應(iPad 實測:點了聊天列之後 Command-, 無效),所以沒有焦點值時退回這一份。
+@MainActor
+@Observable
+final class WindowCommandsHub {
+    static let shared = WindowCommandsHub()
+    var latest: WindowCommands?
+}
+
 /// app 的選單列與快捷鍵(#31,HIG 檢核清單 20.9)。作用在有焦點的視窗。
 ///
 /// - 「新增對話」用 Command-N(系統慣例的「新增」),「新視窗」改用 Option-Command-N(同「郵件」)。
@@ -202,10 +211,11 @@ public struct PurrdrCommands: Commands {
     }
 
     private func button(_ command: KeyboardCommand) -> some View {
-        let context = window?.context ?? KeyboardCommandContext()
-        return Button(command.title(in: context)) { window?.perform(command) }
+        let active = window ?? WindowCommandsHub.shared.latest
+        let context = active?.context ?? KeyboardCommandContext()
+        return Button(command.title(in: context)) { active?.perform(command) }
             .keyboardShortcut(command.shortcut)
-            .disabled(window == nil || !command.isEnabled(in: context))
+            .disabled(active == nil || !command.isEnabled(in: context))
     }
 }
 
