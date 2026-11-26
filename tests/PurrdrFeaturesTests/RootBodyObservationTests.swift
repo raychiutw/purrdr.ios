@@ -18,11 +18,13 @@ private final class Flag: @unchecked Sendable {
 @Suite("根畫面的觀察範圍")
 struct RootBodyObservationTests {
     /// 第一次讀到 `first` 的 snapshot,第二次讀到 `second`(同一個指令依序消耗)。
-    static func model(first: [String], second: [String]) async -> HostsModel {
+    /// `quiet`:第二次讀取時把這些 pane 改成閒置(列表內容變了、但「需要你」的數量不變)。
+    static func model(first: [String], second: [String], quiet: [String] = []) async -> HostsModel {
         let host = FakeHost()
-        for blocked in [first, second] {
+        for (blocked, idle) in [(first, [String]()), (second, quiet)] {
             await host.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson") { response in
                 for pane in blocked { SnapshotEdit.agent(pane, in: &response) { $0["agent_status"] = "blocked" } }
+                for pane in idle { SnapshotEdit.agent(pane, in: &response) { $0["agent_status"] = "idle" } }
             })
         }
         let model = HostsModel(store: MemoryHostStore(), demoChannel: host, makeChannel: { _, _, _ in FakeHost() })
@@ -51,9 +53,10 @@ struct RootBodyObservationTests {
         #expect(badge.count == 2)
     }
 
-    @Test("徽章數字不變時不通知讀它的畫面")
+    @Test("徽章數字不變時不通知讀它的畫面(列表其他內容變了也一樣)")
     func badgeDoesNotNotifyWhenCountUnchanged() async {
-        let model = await Self.model(first: ["w1:pA"], second: ["w1:pA"])
+        // 第二次讀取時 pB 從工作中變成閒置:列表變了,需要你的數量(pA)不變。若徽章直接讀整份列表,這個測試就會轉紅。
+        let model = await Self.model(first: ["w1:pA"], second: ["w1:pA"], quiet: ["w1:pB"])
         let badge = NeedsYouBadge(merged: model.agentList)
         badge.start()
 

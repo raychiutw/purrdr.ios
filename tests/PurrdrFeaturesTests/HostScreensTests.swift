@@ -36,9 +36,10 @@ struct HostScreensTests {
     func selectedHostPickerOnlyChangesSelection() {
         let model = Self.model()
         model.agentList.currentHost = nil
+        model.select(.host(Self.https.id))
         let picker = model.screens.selectedHostPicker()
-        picker.select(.host(Self.https.id))
-        #expect(model.selection == .host(Self.https.id))
+        picker.select(.host(Self.ssh.id))
+        #expect(model.selection == .host(Self.ssh.id))
         #expect(model.agentList.currentHost == nil)
     }
 
