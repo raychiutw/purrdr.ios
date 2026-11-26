@@ -28,23 +28,13 @@ final class NeedsYouBannerUITests: XCTestCase {
         XCTAssertTrue(open.label.hasPrefix("notes — 2 chats need you"), "橫幅沒有寫出最新的 notes 與總數(含一開始就需要你的 weather-app):\(open.label)")
         XCTAssertFalse(open.label.hasPrefix("weather-app"), "打開聊天時已經需要你的不該是觸發橫幅的那個:\(open.label)")
 
+        // 橫幅停著不會自己消失(HIG:少用限時的介面元素):等超過常見的自動消失時間(toast 約 4~6 秒)後仍在。
+        XCTAssertFalse(UITestWait.until(timeout: 8) { !banner.exists }, "橫幅自己消失了")
+
         app.buttons["needsYou.banner.dismiss"].tap()
         XCTAssertTrue(banner.waitUntilGone(timeout: 5), "按 ✕ 後橫幅沒有收起")
         // 收起後同一個轉變不再出現。
         XCTAssertFalse(banner.waitUntilExists(timeout: 4), "收起後同一個轉變又跳出橫幅")
-    }
-
-    /// 橫幅停著不會自己消失(HIG:少用限時的介面元素)。
-    @MainActor
-    func testBannerStaysUntilDismissed() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouLater"])
-        openLedger(app)
-
-        let banner = app.element("needsYou.banner")
-        XCTAssertTrue(banner.waitUntilExists(timeout: 20), "沒有橫幅")
-        // 等超過常見的自動消失時間(toast 約 4~6 秒)後仍在。
-        Thread.sleep(forTimeInterval: 8)
-        XCTAssertTrue(banner.exists, "橫幅自己消失了")
     }
 
     /// 上滑收起(HIG 的「滑掉」手勢,與 ✕ 等效);收起後同一個轉變不再出現。

@@ -131,22 +131,15 @@ final class SlashMenuUITests: XCTestCase {
 
         tap(app.buttons["panel.confirm"], until: { !$0.exists }, on: bar, "選定後面板沒有消失")
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "面板收起後輸入框沒有回來")
-    }
 
-    /// 左 X = Esc:不改設定,面板收起、輸入框回來(#624)。
-    @MainActor
-    func testPanelCancelRestoresComposer() {
-        let app = XCUIApplication.launchUITesting()
-        let text = openLedger(app)
+        // 左 X = Esc:不改設定,面板收起、輸入框回來(#624)(同一次啟動,再開一次 /model)。
+        text.tap()
         text.typeEnglish("/model")
         app.element("slash.row.model").tap()
         app.element("composer.send").tap()
-
-        let bar = app.element("panel.bar")
         XCTAssertTrue(bar.waitUntilExists(timeout: 10))
         XCTAssertFalse(app.element("composer.text").exists)
         tap(app.buttons["panel.cancel"], until: { !$0.exists }, on: bar, "按 X 後面板沒有消失")
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 5), "面板收起後輸入框沒有回來")
     }
-
 }

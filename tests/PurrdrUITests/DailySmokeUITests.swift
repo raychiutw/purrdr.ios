@@ -457,6 +457,11 @@ final class DailySmokeUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"])
         step("歡迎頁試用 Demo") {
             XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10), "沒有歡迎頁")
+            // 準備事項的主機包含 Windows(#26 已支援、#35)。
+            let host = app.descendants(matching: .any)["welcome.requirement.host"].firstMatch
+            XCTAssertTrue(host.waitUntilExists(timeout: 5), "沒有主機的準備事項")
+            XCTAssertTrue(host.label.contains("Windows"), "沒提到 Windows:\(host.label)")
+            XCTAssertTrue(host.label.contains("Linux"), host.label)
             app.buttons["welcome.demo"].tap()
             XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有回到列表")
         }

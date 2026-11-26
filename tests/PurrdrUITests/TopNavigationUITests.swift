@@ -51,6 +51,11 @@ final class TopNavigationUITests: XCTestCase {
             let control = app.descendants(matching: .any)[tab.control].firstMatch
             XCTAssertTrue(control.waitUntilExists(timeout: 5), "\(tab.name) tab 沒有右側控制項(\(tab.control))")
             XCTAssertLessThan(control.frame.maxX, account.frame.minX, "\(tab.name) tab 的右側控制項和帳號鈕重疊")
+            // 帳號圓圈與同列的系統工具列鈕一樣高(#615:都是系統玻璃鈕,不自加尺寸;XCUI 的 frame 只報內容 36pt)。
+            if tab.title == "Chats" {
+                let newChat = app.buttons["toolbar.newChat"].firstMatch
+                XCTAssertEqual(account.frame.height, newChat.frame.height, accuracy: 1, "帳號圓圈 \(account.frame) 與工具列鈕 \(newChat.frame) 不一樣高")
+            }
             titleFrames.append((tab.name, title.frame))
             accountFrames.append((tab.name, account.frame))
             print("TOPBAR \(tab.name) title=\(title.frame) account=\(account.frame) control=\(control.frame)")

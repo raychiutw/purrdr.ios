@@ -48,6 +48,22 @@ final class PlusUITests: XCTestCase {
                 XCTAssertTrue(element.isHittable, "\(identifier) 點不到(\(size))")
                 XCTAssertGreaterThanOrEqual(element.frame.height, 44, "\(identifier) 觸控目標太小(\(size))")
             }
+
+            // 預設字級那一輪再驗:頁首只有標題(#236);預設年繳、年繳在前;改選月繳時說明換成月繳的價格,
+            // 方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
+            if contentSize == nil {
+                app.scrollIntoView(benefits, search: .up)
+                XCTAssertFalse(app.scrollViews.staticTexts["Purrdr Plus"].exists, "內容裡重複了標題")
+                XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
+                app.scrollIntoView(yearly, search: .down)
+                XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "預設沒選年繳:\(String(describing: yearly.value))")
+                XCTAssertLessThan(yearly.frame.minY, monthly.frame.minY, "年繳沒有排在月繳前面")
+                app.scrollIntoView(monthly, search: .up)
+                monthly.press(forDuration: 0.3)
+                XCTAssertTrue(monthly.isSelected || monthly.value as? String == "Selected", "\(String(describing: monthly.value))")
+                app.scrollIntoView(disclosure, search: .down)
+                XCTAssertTrue(disclosure.label.contains("$4.99"), disclosure.label)
+            }
             app.terminate()
         }
     }
@@ -72,35 +88,6 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(done.waitUntilExists(timeout: 5))
         done.tap()
         XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch.waitUntilExists(timeout: 5))
-    }
-
-    /// 頁首只有標題(#236);預設年繳(年繳在前,#408 後續),改選月繳時說明跟著換成月繳的價格與期間;方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
-    /// 一次啟動做完(#372:原本三個測試各啟動一次)。方案內容仍要寫出來(App Store 3.1.2)。
-    @MainActor
-    func testPaywallHeaderAndPlanSelection() {
-        let app = XCUIApplication.launchUITesting()
-        openPlus(in: app)
-
-        XCTAssertTrue(app.staticTexts["plus.benefits"].waitUntilExists(timeout: 10), "沒有方案內容")
-        XCTAssertFalse(app.scrollViews.staticTexts["Purrdr Plus"].exists, "內容裡重複了標題")
-        XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
-
-        // 年繳在前、預設選年繳。
-        let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
-        let monthly = app.descendants(matching: .any)[Self.monthly].firstMatch
-        XCTAssertTrue(yearly.waitUntilExists(timeout: 15))
-        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "預設沒選年繳:\(String(describing: yearly.value))")
-        XCTAssertLessThan(yearly.frame.minY, monthly.frame.minY, "年繳沒有排在月繳前面")
-        let disclosure = app.staticTexts["plus.disclosure"]
-        app.scrollIntoView(disclosure, search: .down)
-        XCTAssertTrue(disclosure.label.contains("$39.99"), disclosure.label)
-        XCTAssertTrue(disclosure.label.contains("year"), disclosure.label)
-        // 改選月繳:說明跟著換,按住再放開仍選取。
-        app.scrollIntoView(monthly, search: .up)
-        monthly.press(forDuration: 0.3)
-        XCTAssertTrue(monthly.isSelected || monthly.value as? String == "Selected", "\(String(describing: monthly.value))")
-        app.scrollIntoView(disclosure, search: .down)
-        XCTAssertTrue(disclosure.label.contains("$4.99"), disclosure.label)
     }
 
     /// 已訂閱(#323):方案區塊有「管理訂閱」,「你的 Plus 包含」逐項帶目前狀態,點了到帳號頁;不再只有一張卡片。

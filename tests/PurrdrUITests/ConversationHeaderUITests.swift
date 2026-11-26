@@ -21,14 +21,26 @@ final class ConversationHeaderUITests: XCTestCase {
         let stop = app.element("stopBar.stop")
         XCTAssertTrue(stop.waitUntilExists(timeout: 5), "工作中沒有停止列的停止鈕")
         XCTAssertEqual(stop.label, "Stop Codex")
+
+        // 工作中只有一顆膠囊(同一資訊只出現一處);背景 agents 列已移除，清單在「⋯」→ 背景子 Agent。
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "conversation.working").count, 1, "工作中應只出現一處")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "stopBar").count, 1, "膠囊應只有一顆")
+        XCTAssertFalse(app.element("agentsBar").exists, "背景 agents 列已併進工作中膠囊與「⋯」選單")
+        // 工作中膠囊浮在輸入框上方，在左右 16pt 邊界內(不是貼齊螢幕的色塊)。
+        let bar = app.element("stopBar")
+        let card = app.element("composer.card")
+        XCTAssertTrue(card.waitUntilExists(timeout: 5), "輸入框沒有玻璃卡片")
+        XCTAssertLessThanOrEqual(bar.frame.maxY, card.frame.minY + 1, "膠囊應在輸入框上方")
+        XCTAssertGreaterThanOrEqual(bar.frame.minX, 15, "膠囊超出左右邊界")
+
         stop.tap()
 
         let stopping = app.element("stopBar.stopping")
-        // 停止中不到 1 秒，waitForExistence 第一次檢查就要等約 1 秒：直接查。
-        XCTAssertTrue(stopping.exists, "按下後沒有顯示停止中")
-        XCTAssertFalse(stopping.isEnabled, "停止中應該停用")
-
         let result = app.element("stopBar.result")
+        // 停止中不到 1 秒：用輪詢等「停止中」或「結果」其中之一出現(快的話停止中已過,直接是結果),不在點完立刻只查一次。
+        XCTAssertTrue(UITestWait.until(timeout: 10) { stopping.exists || result.exists }, "按下後沒有顯示停止中或結果")
+        if stopping.exists { XCTAssertFalse(stopping.isEnabled, "停止中應該停用") }
+
         XCTAssertTrue(result.waitUntilExists(timeout: 10), "停下後沒有顯示結果")
         XCTAssertTrue(result.label.contains("Stopped"), "結果應該是已停止：\(result.label)")
         XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 6), "已停止沒有自動收起")

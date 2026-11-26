@@ -114,13 +114,8 @@ final class ConversationUITests: XCTestCase {
         app.element("imageViewer.image").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
         XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5), "下滑沒有關閉圖片檢視器")
-    }
 
-    /// 使用者送出的兩份檔案(#429):一份經主機讀回縮小檔案卡片(大小、點開以 QuickLook),一份已被主機清掉顯示說明。
-    @MainActor
-    func testSentFilesShowCards() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
-        XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
+        // 使用者送出的兩份檔案(#429):一份經主機讀回縮小檔案卡片(大小、點開以 QuickLook),一份已被主機清掉顯示說明。
         let size = app.element("conversation.userFile.size")
         XCTAssertTrue(app.revealInConversation(size), "使用者送出的檔案沒有顯示大小")
         XCTAssertTrue(app.element("conversation.userFile.note").waitUntilExists(timeout: 10), "被主機清掉的檔案沒有說明")

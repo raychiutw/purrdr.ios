@@ -108,16 +108,10 @@ final class ImageAttachmentUITests: XCTestCase {
         // 關閉在左上 xmark:關掉後輸入列的「＋」回來可點(#386)。
         app.element("attach.close").tap()
         XCTAssertTrue(app.element("attach.panel").waitUntilGone(timeout: 5), "xmark 沒有關閉加入 sheet")
-    }
 
-    /// 最近的照片可多選，「加入 N」把它們放進輸入框成小卡，可個別移除。
-    @MainActor
-    func testPickRecentPhotosAddsCardsAndRemoves() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingRecentPhotos"])
-        openLedger(in: app)
+        // 最近的照片可多選，「加入 N」把它們放進輸入框成小卡，可個別移除(重新打開面板再選)。
         app.element("composer.attach").tap()
         XCTAssertTrue(app.element("attach.recent.0").waitUntilExists(timeout: 5))
-
         app.element("attach.recent.0").tap()
         app.element("attach.recent.1").tap()
         XCTAssertTrue(app.element("attach.selectedCount").waitUntilExists(timeout: 5), "沒顯示已選數量")

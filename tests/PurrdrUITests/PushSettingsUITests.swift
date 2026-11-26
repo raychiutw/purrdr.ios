@@ -14,8 +14,10 @@ final class PushSettingsUITests: XCTestCase {
     /// 測試通知的結果直接寫在列下方、不彈 alert(#625、#626):成功是綠勾說明,失敗(`-uiTestingPushTestFails`)是紅色三角說明。
     @MainActor
     func testTestNotificationResultIsInline() {
-        for fails in [false, true] {
-            let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"] + (fails ? ["-uiTestingPushTestFails"] : []))
+        // 只留失敗那輪(成功的說明文字由 PushModelTests 守):一次啟動,證明結果在頁內、不彈 alert。
+        do {
+            let fails = true
+            let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost", "-uiTestingPushTestFails"])
             app.openAccountSheet()
             app.openAccountNotifications()
             let toggle = app.switches["account.push.\(Self.seededHost)"]
@@ -32,7 +34,6 @@ final class PushSettingsUITests: XCTestCase {
             let result = app.descendants(matching: .any)["account.push.\(Self.seededHost).test.result"].firstMatch
             XCTAssertTrue(result.waitUntilExists(timeout: 10), "測試通知沒有頁內結果(fails=\(fails))")
             XCTAssertFalse(app.alerts.firstMatch.exists, "測試通知結果不該彈 alert(fails=\(fails))")
-            app.terminate()
         }
     }
 

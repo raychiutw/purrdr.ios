@@ -33,25 +33,6 @@ final class AddHostUITests: XCTestCase {
 
     // MARK: - 收鍵盤(#312)
 
-    /// 密碼登入：輸入密碼後按鍵盤上方的「完成」收起鍵盤，下面的「下一步」點得到。
-    @MainActor
-    func testDoneDismissesKeyboardAfterPassword() {
-        let app = XCUIApplication.launchUITesting()
-        openNativeSSHLogin(app)
-        app.buttons["guide.option.password"].tapWhenReady()
-
-        let password = app.secureTextFields["guide.field.password"]
-        XCTAssertTrue(password.waitUntilExists(timeout: 5), "沒有密碼欄")
-        password.tap()
-        password.typeEnglish("hunter2")
-        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現軟體鍵盤")
-
-        tapKeyboardDone(app)
-
-        XCTAssertTrue(app.waitForKeyboardToHide(), "按「完成」後鍵盤沒有收起")
-        XCTAssertTrue(app.buttons["guide.next"].isHittable, "鍵盤收起後「Next」點不到")
-    }
-
     /// 連接埠是數字鍵盤(沒有 return):「完成」一樣收得起來。
     @MainActor
     func testDoneDismissesNumberPad() {
@@ -85,11 +66,25 @@ final class AddHostUITests: XCTestCase {
         XCTAssertTrue(app.waitForKeyboardToHide(), "最後一個欄位(配對碼)按 return 沒有收起鍵盤")
     }
 
-    /// 匯入私鑰是多行輸入(沒有 return):鍵盤上方的「完成」收得起來。
+    /// 密碼欄與匯入私鑰(多行輸入、沒有 return)同一次啟動:輸入後按鍵盤上方的「完成」都收得起來,
+    /// 密碼那一輪還要確認下面的「下一步」點得到。
     @MainActor
-    func testDoneDismissesKeyboardAfterPrivateKey() {
+    func testDoneDismissesKeyboardAfterPasswordAndPrivateKey() {
         let app = XCUIApplication.launchUITesting()
         openNativeSSHLogin(app)
+        app.buttons["guide.option.password"].tapWhenReady()
+
+        let password = app.secureTextFields["guide.field.password"]
+        XCTAssertTrue(password.waitUntilExists(timeout: 5), "沒有密碼欄")
+        password.tap()
+        password.typeEnglish("hunter2")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現軟體鍵盤")
+
+        tapKeyboardDone(app)
+
+        XCTAssertTrue(app.waitForKeyboardToHide(), "按「完成」後鍵盤沒有收起")
+        XCTAssertTrue(app.buttons["guide.next"].isHittable, "鍵盤收起後「Next」點不到")
+
         app.buttons["Other Ways"].firstMatch.tapWhenReady()  // 系統 DisclosureGroup 的展開鈕(#622)
         app.buttons["guide.option.importedKey"].tapWhenReady()
 

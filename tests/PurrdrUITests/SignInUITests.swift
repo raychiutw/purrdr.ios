@@ -26,21 +26,16 @@ final class SignInUITests: XCTestCase {
             XCTAssertTrue(window.contains(google.frame), "Google 按鈕超出畫面:\(google.frame)")
             XCTAssertTrue(apple.isHittable)
             XCTAssertTrue(google.isHittable)
+
+            // 預設字級那一輪再驗(#328,原型 A):標題與簡短說明，不放舊版的功能說明文字。
+            if contentSize == nil {
+                XCTAssertTrue(app.staticTexts["Sign In to Purrdr"].exists, "沒有標題")
+                let description = app.staticTexts.matching(
+                    NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "A member account is only needed", "never need an account"))
+                XCTAssertEqual(description.count, 0, "登入頁仍有說明文字")
+            }
             app.terminate()
         }
-    }
-
-    /// 沒登入的帳號頁(#328,原型 A):標題與簡短說明，不放舊版的功能說明文字。
-    @MainActor
-    func testSignInShowsOnlyTitle() {
-        let app = XCUIApplication.launchUITesting()
-        openSignIn(in: app)
-
-        XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Sign In to Purrdr"].exists, "沒有標題")
-        let description = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "A member account is only needed", "never need an account"))
-        XCTAssertEqual(description.count, 0, "登入頁仍有說明文字")
     }
 
     @MainActor

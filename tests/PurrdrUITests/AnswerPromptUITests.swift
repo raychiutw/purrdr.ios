@@ -33,6 +33,12 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertEqual(yes.frame.width, no.frame.width, accuracy: 1, "同一組選項應同尺寸")
         // #271(原型 purrdr-screens 定案版):選項不編號。
         XCTAssertEqual(yes.label, "Yes", "選項不該帶編號:\(yes.label)")
+        // 選項是同寬的圓角長方形選項卡,長文字多行完整顯示(#93)。
+        let long = app.element("prompt.option.2")
+        XCTAssertTrue(long.exists)
+        XCTAssertEqual(yes.frame.width, long.frame.width, accuracy: 1, "同一組選項應同寬")
+        XCTAssertGreaterThan(long.frame.height, yes.frame.height + 10, "長選項應多行顯示，不截斷")
+        XCTAssertTrue(long.label.contains("/Users/demo/weather-app"), "長選項的朗讀內容應完整:\(long.label)")
 
         yes.tap()
 
@@ -40,41 +46,6 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertTrue(answered.waitUntilExists(timeout: 10), "沒有顯示已回答")
         XCTAssertTrue(answered.label.contains("You chose: Yes"), "沒有寫出選了什麼:\(answered.label)")
         XCTAssertTrue(card.waitUntilGone(timeout: 10), "回答後提示卡應消失")
-    }
-
-    /// 選項是同寬的圓角長方形選項卡，長文字多行完整顯示(#93)。外觀以截圖附件確認。
-    @MainActor
-    func testLongOptionWrapsOnMultipleLines() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
-        let card = app.element("prompt.card")
-        XCTAssertTrue(card.waitUntilExists(timeout: 10), "沒有提示卡")
-        let short = app.element("prompt.option.1")
-        let long = app.element("prompt.option.2")
-        XCTAssertTrue(long.exists)
-        XCTAssertEqual(short.frame.width, long.frame.width, accuracy: 1, "同一組選項應同寬")
-        XCTAssertGreaterThan(long.frame.height, short.frame.height + 10, "長選項應多行顯示，不截斷")
-        XCTAssertTrue(long.label.contains("/Users/demo/weather-app"), "長選項的朗讀內容應完整:\(long.label)")
-
-    }
-
-    /// 「ask me」:兩題 AskUserQuestion 逐題作答，再到檢閱畫面送出。
-    @MainActor
-    func testAskUserQuestionStepByStep() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        send("ask me", in: app)
-
-        XCTAssertTrue(app.staticTexts["Which color should the chart use?"].waitUntilExists(timeout: 15), "沒有第一題")
-        app.element("prompt.option.2").tap()
-        XCTAssertTrue(app.staticTexts["How large should the chart be?"].waitUntilExists(timeout: 10), "沒有第二題")
-        app.element("prompt.option.1").tap()
-        XCTAssertTrue(app.staticTexts["Ready to submit your answers?"].waitUntilExists(timeout: 10), "沒有檢閱畫面")
-        let submit = app.element("prompt.option.1")
-        XCTAssertTrue(submit.waitUntilExistsAndSettled(timeout: 5))
-        submit.tap()
-
-        let answered = app.element("prompt.answered")
-        XCTAssertTrue(app.element("prompt.card").waitUntilGone(timeout: 10), "送出後提示卡應消失")
-        XCTAssertTrue(answered.label.contains("Submit answers"), "沒有寫出最後的選擇:\(answered.label)")
     }
 
     /// 「Type something.」(#120):點了以後輸入框取得焦點、提示改成打回答;送出後進到下一題並寫出打的字。
@@ -111,6 +82,14 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["How large should the chart be?"].waitUntilExists(timeout: 10), "自訂回答後應進到第二題")
         let answered = app.element("prompt.answered")
         XCTAssertTrue(answered.label.contains("Forest green"), "沒有寫出打的回答:\(answered.label)")
-    }
 
+        // 接著第二題選選項 → 檢閱畫面送出(兩題 AskUserQuestion 逐題作答)。
+        app.element("prompt.option.1").tap()
+        XCTAssertTrue(app.staticTexts["Ready to submit your answers?"].waitUntilExists(timeout: 10), "沒有檢閱畫面")
+        let submit = app.element("prompt.option.1")
+        XCTAssertTrue(submit.waitUntilExistsAndSettled(timeout: 5))
+        submit.tap()
+        XCTAssertTrue(app.element("prompt.card").waitUntilGone(timeout: 10), "送出後提示卡應消失")
+        XCTAssertTrue(answered.label.contains("Submit answers"), "沒有寫出最後的選擇:\(answered.label)")
+    }
 }

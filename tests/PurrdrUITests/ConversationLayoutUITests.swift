@@ -24,19 +24,6 @@ final class ConversationLayoutUITests: XCTestCase {
         XCTAssertLessThan(card.frame.maxY, screen.maxY, "輸入框應浮在畫面底部上方")
     }
 
-    /// 工作中膠囊浮在輸入框上方，在左右 16pt 邊界內(不是貼齊螢幕的色塊)。
-    @MainActor
-    func testWorkingCapsuleFloatsAboveComposer() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w3:p1")
-        let bar = app.element("stopBar")
-        XCTAssertTrue(bar.waitUntilExists(timeout: 10), "工作中沒有膠囊")
-        let card = app.element("composer.card")
-        XCTAssertTrue(card.waitUntilExists(timeout: 5), "輸入框沒有玻璃卡片")
-        XCTAssertLessThanOrEqual(bar.frame.maxY, card.frame.minY + 1, "膠囊應在輸入框上方")
-        XCTAssertGreaterThanOrEqual(bar.frame.minX, 15, "膠囊超出左右邊界")
-    }
-
-
     /// 返回後 tab bar 跟著回來(#495):tab bar 是系統的(`toolbarVisibility`),返回時由系統轉場帶回。
     /// `tap()` 回來時系統轉場的最後一格可能還沒結束,所以不在那一刻只查一次(實測 tab bar 在 tap 回來後約 0.1～0.3 秒才查得到,
     /// 不是 app 的行為:XCUITest 每次查詢本身就要 100～300 ms,舊版量到的「延遲」也是查詢延遲)。
