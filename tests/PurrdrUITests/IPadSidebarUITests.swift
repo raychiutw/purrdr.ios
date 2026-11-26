@@ -22,6 +22,8 @@ final class IPadSidebarUITests: XCTestCase {
         XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
         row.tap()
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 15), "對話沒有開在對話欄")
+        // 對話頂列(用量環)可點才算畫面穩定:剛開好就送硬體鍵盤快捷鍵,焦點系統還沒接上、Command-, 偶爾沒反應(實測)。
+        XCTAssertTrue(UITestWait.until(timeout: 10) { app.buttons["conversation.usage"].firstMatch.isHittable }, "對話頂列沒有就緒")
     }
 
     /// 對話欄的導覽列(不是列表欄的「Chats」那條)。

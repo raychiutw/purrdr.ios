@@ -52,7 +52,7 @@ final class IPadConversationPanelUITests: XCTestCase {
         XCTAssertTrue(app.element("conversation.panel").exists, "切換權限模式把面板關掉了")
     }
 
-    /// popover 開著時點「⋯」:popover 收掉、「⋯」選單正常開出(不互相卡住);再開用量環也正常(#617)。
+    /// popover 開著時「⋯」被 popover 蓋住;點外面收掉 popover 後「⋯」選單正常開出(不被剛關掉的 popover 卡住);再開用量環也正常(#617)。
     @MainActor
     func testMoreMenuWorksWhilePanelPopoverIsOpen() {
         let app = openChat()
@@ -61,13 +61,18 @@ final class IPadConversationPanelUITests: XCTestCase {
         ring.tap()
         XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
 
-        // popover 開著時點「⋯」(popover 外的點擊先關掉 popover,再次點才開選單,兩種行為都接受,但最後選單一定要開得出來)。
+        // iPadOS 26 的 popover 從來源按鈕「長出來並取代它」(實測:popover 蓋住頂列的用量環與「⋯」,頂端貼著工具列),
+        // 所以 popover 開著時「⋯」被蓋住、點不到(不會與選單疊在一起);關閉方式是點外面(系統行為)。
         let more = app.buttons["conversation.more"].firstMatch
         XCTAssertTrue(more.waitUntilExists(timeout: 5), "popover 開著時找不到「⋯」")
-        more.tap()
-        _ = app.element("conversation.panel").waitUntilGone(timeout: 5)
+        XCTAssertFalse(more.isHittable, "popover 開著時「⋯」不該點得到(會與 popover 疊在一起)")
+        app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.7)).tap()
+        XCTAssertTrue(app.element("conversation.panel").waitUntilGone(timeout: 5), "點 popover 外面沒有關掉面板")
+
+        // popover 收掉後再點「⋯」:選單一定要開得出來(不被剛關掉的 popover 卡住)。
         let changes = app.buttons.matching(NSPredicate(format: "identifier == 'changes.open' OR label BEGINSWITH 'Git Changes,'")).firstMatch
-        if !changes.waitUntilExists(timeout: 3) { more.tap() }
+        XCTAssertTrue(UITestWait.until(timeout: 5) { more.isHittable }, "popover 關掉後「⋯」點不到")
+        more.tap()
         XCTAssertTrue(changes.waitUntilExists(timeout: 5), "popover 收掉後「⋯」選單沒有開出")
         XCTAssertFalse(app.element("conversation.panel").exists, "「⋯」選單開著時面板 popover 不該還在")
 
