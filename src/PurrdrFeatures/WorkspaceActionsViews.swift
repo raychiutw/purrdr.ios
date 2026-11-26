@@ -378,6 +378,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
             }
             .alert(renameTitle, isPresented: renameShown, presenting: presentation.renameRequest) { request in
                 TextField(renamePlaceholder(request), text: $presentation.renameText)
+                    .inputFieldTint()
                     .autocorrectionDisabled()
                 Button("Cancel", role: .cancel) {}
                 Button("Rename") { submitRename(request) }
@@ -501,6 +502,7 @@ struct NewWorktreeSheet: View {
             Form {
                 Section {
                     TextField("Branch", text: $branch)
+                        .inputFieldTint()
                         .font(.body.monospaced())
                         .focused($focused)
                         .autocorrectionDisabled()

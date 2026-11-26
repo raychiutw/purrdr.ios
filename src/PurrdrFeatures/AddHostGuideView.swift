@@ -293,6 +293,7 @@ struct AddHostGuideView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondaryText)
             TextField(label, text: text, prompt: Text(verbatim: prompt))
+                .inputFieldTint()
                 .font(.title3)
                 #if os(iOS)
                 .keyboardType(numeric ? .numberPad : .asciiCapable)
@@ -352,6 +353,7 @@ struct AddHostGuideView: View {
                 .font(.body)
             if model.authentication == .importedKey {
                 TextEditor(text: $model.privateKey)
+                    .inputFieldTint()
                     .font(.footnote.monospaced())
                     .frame(minHeight: 140)
                     .scrollContentBackground(.hidden)
@@ -371,6 +373,7 @@ struct AddHostGuideView: View {
                 }
             } else {
                 SecureField("Password", text: $model.password)
+                    .inputFieldTint()
                     .font(.title3)
                     .textContentType(.password)
                     .focused($focus, equals: .password)
@@ -410,6 +413,7 @@ struct AddHostGuideView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondaryText)
             TextField(label, text: text, prompt: Text(verbatim: prompt))
+                .inputFieldTint()
                 .font(.title3)
                 #if os(iOS)
                 .keyboardType(numeric ? .numberPad : .asciiCapable)

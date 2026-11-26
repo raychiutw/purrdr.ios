@@ -312,6 +312,7 @@ struct HostEditorView: View {
             case .password:
                 LabeledContent("Password") {
                     SecureField("Password", text: $model.password, prompt: Text(model.hasStoredSecret ? "Unchanged" : "Required"))
+                        .inputFieldTint()
                         .multilineTextAlignment(.leading)
                         .existingPasswordContent()
                         .focusOrder(.password, focus: $focus, next: nextField(after: .password))
@@ -398,6 +399,7 @@ struct HostEditorView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondaryText)
                 TextEditor(text: $model.privateKeyText)
+                    .inputFieldTint()
                     .font(.footnote.monospaced())
                     .frame(minHeight: 120)
                     .autocorrectionDisabled()
@@ -527,6 +529,7 @@ struct HostEditorView: View {
             // 輸入值靠左：靠右時尾端空白會被吃掉、看不見(#250)。
             let field = TextField(label, text: text, prompt: Text(prompt))
                 .multilineTextAlignment(.leading)
+                .inputFieldTint()
                 .autocorrectionDisabled()
             Group {
                 if uppercase {

@@ -102,6 +102,7 @@ private struct PushDevicesDialogs: ViewModifier {
                 presenting: renaming
             ) { device in
                 TextField("Device Name", text: $newName)
+                    .inputFieldTint()
                     .accessibilityIdentifier("account.pushDevices.name")
                 Button("Save") { Task { await model.rename(device, to: newName) } }
                     .disabled(PushDeviceIdentity.validName(newName) == nil)
