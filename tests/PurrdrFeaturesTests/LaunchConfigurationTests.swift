@@ -122,13 +122,13 @@ struct LaunchConfigurationTests {
         let config = parse(
             "-uiTesting", "-demoCompanions", "-selectDemo", "-demoOutdatedHostService", "-uiTestingNoHosts", "-seedDataUsage",
             "-uiTestingUndoSend", "-showWelcome", "-uiTestingSimulatedVideo", "-uiTestingNoPasscode",
-            "-uiTestingAppLock", "-uiTestingPushTestFails", "-uiTestingHidesDebugOverlay", "-uiTestingOwnedByOtherMember",
+            "-uiTestingAppLock", "-uiTestingPushTestFails", "-uiTestingOwnedByOtherMember",
             "-seedPairedHTTPSHost", "-seedReadOnlyHTTPSHost", "-uiTestingSimulatedFileUpload", "-uiTestingOversizedClipboard", "-uiTestingHostKeyPrompt")
         #expect(config.promptsHostKey)
         #expect(config.showsDemoCompanions && config.selectsDemo && config.hostServiceIsOutdated && config.hasNoHosts)
         #expect(config.seedsDataUsage && config.undoSendCountdown && config.showsWelcome)
         #expect(config.simulatesVideo && config.hasNoPasscode && config.appLockEnabled && config.pushTestFails)
-        #expect(config.hidesDebugOverlay && config.storeOwnedByOtherMember)
+        #expect(config.storeOwnedByOtherMember)
         #expect(config.simulatesFileUpload && config.seedsOversizedClipboard)
         #expect(config.seededHosts.contains(.pairedHTTPS) && config.seededHosts.contains(.readOnlyHTTPS))
         let none = parse("-uiTesting")

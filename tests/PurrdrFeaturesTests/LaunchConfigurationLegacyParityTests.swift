@@ -75,7 +75,6 @@ struct LaunchConfigurationLegacyParityTests {
         ("-uiTestingNoPasscode", [], { $0.hasNoPasscode }),
         ("-uiTestingAppLock", [], { $0.appLockEnabled }),
         ("-uiTestingPushTestFails", [], { $0.pushTestFails }),
-        ("-uiTestingHidesDebugOverlay", [], { $0.hidesDebugOverlay }),
         ("-uiTestingCrashRecord", ["-uiTesting"], { $0.recordsUITestingCrash }),
         ("-uiTestingKeepCrashNotice", [], { $0.keepsCrashNotice }),
         ("-uiTestingOwnedByOtherMember", [], { $0.storeOwnedByOtherMember }),

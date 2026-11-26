@@ -23,10 +23,6 @@ public struct ConversationView: View {
     @State private var jumpToLatestVisible = false
     /// 列表量到離底超過門檻(只在跨過門檻時才寫入,不隨每次捲動重畫)。
     @State private var isAwayFromBottom = false
-    #if DEBUG
-    /// 順暢度除錯層(#484):只在除錯建置。
-    @State private var smoothnessProbe = ScrollSmoothnessProbe()
-    #endif
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
     @State private var viewerItem: ImageViewerItem?
     /// 列內要呈現的預覽、sheet 與導覽:列嵌在 `UIHostingConfiguration` 裡沒有可靠的呈現者,改由這個畫面呈現(`ConversationPresenter`)。
@@ -272,7 +268,7 @@ public struct ConversationView: View {
                     hostTheme: hostTheme, inlineSlashNames: model.inlineSlashNames),
                 isSceneActive: scenePhase == .active,
                 model: model, handle: listHandle, rowView: { rowView($0) }, menuEntries: { menuEntries(for: $0) },
-                smoothness: smoothnessReporter, safeAreaFrame: safeAreaFrame,
+                safeAreaFrame: safeAreaFrame,
                 onShowsJumpToLatestChanged: { isAwayFromBottom = $0 },
                 onVisibleHeightChanged: { conversationHeight.update(isEmptyState ? nil : $0) },
                 hitchRecorder: hitchRecorder, tracksReadingDrift: tracksReadingDrift
@@ -287,9 +283,6 @@ public struct ConversationView: View {
                     .accessibilityIdentifier("conversation.refreshing")
             }
         }
-        #if DEBUG
-        .overlay(alignment: .topLeading) { ScrollSmoothnessOverlay(probe: smoothnessProbe) }
-        #endif
         .onChange(of: conversationHeight.arrangementRevision) { listHandle.inputBarArranged() }
         // 跳到最新(#476):顯示只看離底距離。跟隨中新內容撐長的瞬間也會量到很遠,
         // 延遲一下才顯示,避免閃現;閱讀中(往上捲)立刻顯示。位置在輸入列上方正中間(#476)。
@@ -322,14 +315,6 @@ public struct ConversationView: View {
         }
         #else
         Color.clear
-        #endif
-    }
-
-    private var smoothnessReporter: (any ScrollSmoothnessReporting)? {
-        #if DEBUG
-        smoothnessProbe
-        #else
-        nil
         #endif
     }
 

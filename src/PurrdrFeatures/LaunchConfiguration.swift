@@ -123,7 +123,6 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let promptsHostKey: Bool
     public let appLockEnabled: Bool
     public let pushTestFails: Bool
-    public let hidesDebugOverlay: Bool
     /// 預放一筆「上次異常結束」的閃退記錄(#632)。
     public let recordsUITestingCrash: Bool
     /// 沿用上一次啟動留下的閃退提示狀態(測重啟後不再出現)。
@@ -187,7 +186,6 @@ public struct LaunchConfiguration: Equatable, Sendable {
         promptsHostKey = has("-uiTestingHostKeyPrompt")
         appLockEnabled = has("-uiTestingAppLock")
         pushTestFails = has("-uiTestingPushTestFails")
-        hidesDebugOverlay = has("-uiTestingHidesDebugOverlay")
         recordsUITestingCrash = isUITesting && has("-uiTestingCrashRecord")
         keepsCrashNotice = has("-uiTestingKeepCrashNotice")
         storeOwnedByOtherMember = has("-uiTestingOwnedByOtherMember")

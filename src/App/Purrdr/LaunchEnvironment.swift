@@ -24,7 +24,6 @@ struct LaunchEnvironment {
         var allowsTestingLinks: Bool
         var usesTestingSignIn: Bool
         var tracksReadingDrift: Bool
-        var hidesDebugOverlay: Bool
     }
 
     /// 平台輸入來源(掃描、相簿、影片)。
