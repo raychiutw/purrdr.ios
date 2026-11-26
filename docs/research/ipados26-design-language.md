@@ -208,3 +208,12 @@ WWDC26 沒有找到 iPad 視窗控制鈕、選單列結構、sheet／popover 在
 - **視窗控制鈕本身的尺寸／需避開的寬度**:沒有公布數字，只能用 layout guide／系統元件自動避開。
 - **iPadOS 27 對 iPad sheet、popover、context menu 外觀的變化**:WWDC26 與 HIG 都沒有。
 - **iPadOS 27.1 Release Notes**:JSON 端點不存在(27.2 有，但沒有相關項目)。
+
+
+---
+
+## 2026-11-26 更新註記
+
+本文件內容保留當時的研究結果,不改寫。之後的決議:
+- 帳號與設定快捷鍵是 **Option-Command-,**,不用 Command-,(系統自動產生的「App 名稱 > Settings…」保留給 iOS 設定 app),見 DESIGN.md「選單列與快捷鍵」。
+- 列表欄標題:iPad 照系統預設(`topBarPage` 改為 `.automatic`,不再強制大標題),見 `ipados27-hig-research.md` 末尾註記與 DESIGN.md「iPad 與寬視窗」。
