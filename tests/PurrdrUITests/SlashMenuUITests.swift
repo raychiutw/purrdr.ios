@@ -111,6 +111,7 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertTrue(quick.waitUntilExists(timeout: 10), "sheet 裡沒有 Quick 勾選列")
         quick.tap()
         XCTAssertTrue(picker.waitUntilGone(timeout: 10), "選定模型後 sheet 沒有收起")
+    }
 
     /// 點面板卡片上的控制項，直到 `done` 成立。
     ///
@@ -134,3 +135,4 @@ final class SlashMenuUITests: XCTestCase {
         }
         XCTFail(message)
     }
+}
