@@ -23,16 +23,20 @@ struct SelectionAppearanceTests {
 
     @Test("選取列的主要與次要文字對中性灰底 ≥ 4.5:1")
     func textOnSelectionMeetsHIG() {
-        let secondary = AccessibleColors.secondaryText
+        let secondary = AccessibleColors.secondaryTextLight
+        // 深色次要文字是系統 secondaryLabel(#EBEBF5 α0.6、增加對比 α0.7),先疊到選取底上再算對比。
+        let label = ThemeColor(red: 0xEB, green: 0xEB, blue: 0xF5)
+        let darkSecondary = SuggestionFillInContrastTests.composite(label, over: Self.systemGray5.dark, opacity: 0.6)
+        let darkHighContrastSecondary = SuggestionFillInContrastTests.composite(label, over: Self.systemGray5.darkHighContrast, opacity: 0.7)
         let cases: [(String, ThemeColor, ThemeColor)] = [
             ("淺色主要", Self.black, Self.systemGray5.light),
             ("深色主要", Self.white, Self.systemGray5.dark),
             ("淺色高對比主要", Self.black, Self.systemGray5.lightHighContrast),
             ("深色高對比主要", Self.white, Self.systemGray5.darkHighContrast),
-            ("淺色次要", secondary.light, Self.systemGray5.light),
-            ("深色次要", secondary.dark, Self.systemGray5.dark),
-            ("淺色高對比次要", secondary.lightHighContrast, Self.systemGray5.lightHighContrast),
-            ("深色高對比次要", secondary.darkHighContrast, Self.systemGray5.darkHighContrast),
+            ("淺色次要", secondary.normal, Self.systemGray5.light),
+            ("深色次要", darkSecondary, Self.systemGray5.dark),
+            ("淺色高對比次要", secondary.highContrast, Self.systemGray5.lightHighContrast),
+            ("深色高對比次要", darkHighContrastSecondary, Self.systemGray5.darkHighContrast),
         ]
         for (name, text, background) in cases {
             let ratio = text.contrastRatio(with: background)

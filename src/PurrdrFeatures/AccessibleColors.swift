@@ -45,24 +45,21 @@ struct ContrastPalette: Sendable {
     }
 }
 
+/// 只在淺色外觀使用的自訂色(深色交給系統色):一般與增加對比兩個值。
+struct LightColorPair: Sendable {
+    var normal: ThemeColor
+    var highContrast: ThemeColor
+}
+
 /// 承載文字的系統色對比不足時的替代色(#35)。
 enum AccessibleColors {
-    /// 承載資訊的次要文字(副標、時間、說明、預覽、參數提示等;#67)。
-    /// 系統 `.secondary`(secondaryLabel)在白底只有 3.4:1、在 grouped 背景 #F2F2F7 3.1:1;
-    /// `.tertiary` 更淡(約 2:1)。純裝飾(圖示、分隔線、底色)仍可用系統階層色。
-    static let secondaryText = ContrastPalette(
-        light: ThemeColor(red: 0x63, green: 0x63, blue: 0x66),             // 白底 6.0:1、#F2F2F7 5.4:1、#EFEFF0 5.2:1
-        dark: ThemeColor(red: 0xAE, green: 0xAE, blue: 0xB2),              // 黑底 9.5:1、#1C1C1E 7.7:1、#2C2C2E 6.3:1
-        lightHighContrast: ThemeColor(red: 0x48, green: 0x48, blue: 0x4A), // 白底 9.1:1、#F2F2F7 8.2:1、#EFEFF0 7.9:1
-        darkHighContrast: ThemeColor(red: 0xD1, green: 0xD1, blue: 0xD6)   // 黑底 13.8:1、#1C1C1E 11.2:1、#2C2C2E 9.2:1
-    )
-
-    /// tab bar 選取態的圖示與標籤(DESIGN.md「深色層次與新色票」):淺色 `#075C45`(對白 8.0:1)、深色 `#3CCF9E`。
-    static let tabSelection = ContrastPalette(
-        light: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
-        dark: ThemeColor(red: 0x3C, green: 0xCF, blue: 0x9E),
-        lightHighContrast: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
-        darkHighContrast: ThemeColor(red: 0x5D, green: 0xE0, blue: 0xB3)
+    /// 承載資訊的次要文字(副標、時間、說明、預覽、參數提示等;#67、#646)。
+    /// 深色(含增加對比)用系統 `secondaryLabel`(對純黑 6.4:1、對 elevated 的 `#3A3A3C` 4.6:1,已達 4.5:1);
+    /// 淺色系統 `secondaryLabel` 在白底只有 3.4:1、在 grouped 背景 #F2F2F7 3.1:1,所以淺色維持自訂灰。
+    /// `.tertiary` 更淡(約 2:1);純裝飾(圖示、分隔線、底色)仍可用系統階層色。
+    static let secondaryTextLight = LightColorPair(
+        normal: ThemeColor(red: 0x63, green: 0x63, blue: 0x66),        // 白底 6.0:1、#F2F2F7 5.4:1、#EFEFF0 5.2:1
+        highContrast: ThemeColor(red: 0x48, green: 0x48, blue: 0x4A)   // 白底 9.1:1、增加對比的 #EBEBF0 7.7:1
     )
 
     /// 主色上的字與符號(ADR-0011):主色本身只有 Asset Catalog 的 `AccentColor` 一份，這組只配它當底。
@@ -76,13 +73,14 @@ enum AccessibleColors {
 }
 
 extension AccessibleColors {
-    /// 紅字按鈕(刪除、重設、強制結束;#379):系統紅 #FF453A 在深色的 #2C2C2E 以上只有約 4.1:1,
-    /// 所以文字改用這組(圖示、填色與分隔等非文字仍用系統紅)。
+    /// 紅字按鈕(刪除、重設、強制結束;#379、#646):系統紅 #FF453A 在深色的 #2C2C2E 以上只有約 4.1:1,
+    /// 所以文字改用這組(圖示、填色與分隔等非文字仍用系統紅)。對實際出現的系統背景
+    /// (淺色 #FFFFFF／#F2F2F7／#EBEBF0、深色 base 與 elevated 含增加對比至 #444446)一般 ≥ 4.5:1、增加對比 ≥ 7:1(`AccessibleColorsTests`)。
     static let destructiveText = ContrastPalette(
         light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白底 5.4:1
         dark: ThemeColor(red: 0xFF, green: 0x8A, blue: 0x82),              // 設計稿 redtext;對 #3A3A3C 以上 ≥ 4.5:1
-        lightHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11), // 白底 8.1:1
-        darkHighContrast: ThemeColor(red: 0xFF, green: 0xC7, blue: 0xC2)
+        lightHighContrast: ThemeColor(red: 0x9C, green: 0x00, blue: 0x10), // 白底 8.7:1、#EBEBF0 7.3:1
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0xD3, blue: 0xCF)  // #444446 7.2:1
     )
 }
 
@@ -101,7 +99,17 @@ extension ShapeStyle where Self == Color {
     static var destructiveText: Color { AccessibleColors.destructiveText.color }
 
     /// 承載資訊的次要文字顏色(取代系統 `.secondary`／`.tertiary` 文字)。圖示、分隔線、底色等純裝飾仍用系統階層色。
-    static var secondaryText: Color { AccessibleColors.secondaryText.color }
+    static var secondaryText: Color {
+        #if canImport(UIKit)
+        Color(uiColor: UIColor { traits in
+            if traits.userInterfaceStyle == .dark { return .secondaryLabel.resolvedColor(with: traits) }
+            let pair = AccessibleColors.secondaryTextLight
+            return UIColor(traits.accessibilityContrast == .high ? pair.highContrast : pair.normal)
+        })
+        #else
+        Color(AccessibleColors.secondaryTextLight.normal)
+        #endif
+    }
 
     /// 主色(`AccentColor`)底上的字與符號。
     static var onAccent: Color { AccessibleColors.onAccent.color }
