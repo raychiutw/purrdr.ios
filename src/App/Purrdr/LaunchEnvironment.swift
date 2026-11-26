@@ -99,6 +99,7 @@ extension LaunchConfiguration.DemoScenario {
         case .tailscaleCheck: .tailscaleCheck(completesAfter: nil)
         case .tailscaleCheckCompletes: .tailscaleCheck(completesAfter: .seconds(3))
         case .transcriptPending: .transcriptPending
+        case .usageReadPending: .usageReadPending
         case .largeOutput: .largeOutput(after: .seconds(5))
         case .largeOutputOnPrompt: .largeOutputOnPrompt
         case .toolBurst: .toolBurst(after: .seconds(10))

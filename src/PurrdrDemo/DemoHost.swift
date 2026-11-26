@@ -48,6 +48,8 @@ public actor DemoHost: HostChannel {
         /// 「需要你」橫幅與對話狀態橫幅並存(#546):同 `needsYouLater`,而且 notes 變成需要你的同時,ledger 的對話紀錄變成讀不到(權限),
         /// 聊天頂部出現狀態橫幅(`conversation.banner`)。給「兩條橫幅上下排列、不互相蓋住」。
         case needsYouWithStatusBanner(after: Duration)
+        /// 聊天的用量(session 狀態檔)讀取一直沒有回應(#644):頂列用量環停在載入動畫。其他讀取照常。
+        case usageReadPending
         /// Antigravity 情境(#446):列表多一個 Antigravity Agent「garden」(w4:p1),畫面狀態列是 accept-edits · Gemini 4 Neon · medium。
         case antigravity
     }
@@ -195,6 +197,7 @@ public actor DemoHost: HostChannel {
             return DemoFinishedSession(events: (git.stdout.isEmpty ? [] : [.stdout(git.stdout)]) + [.exit(code: git.exitCode)])
         }
         if let request = HostFileRequest(command: command) {
+            if scenario == .usageReadPending, Self.readsSessionStatus(request) { return DemoPendingSession() }
             let result = files.handle(request, now: Date())
             return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
@@ -427,6 +430,17 @@ public actor DemoHost: HostChannel {
     }
 
     /// 大量輸出情境：第一次定位 ledger 時定下寫出的時間;時間到了，下一個對話紀錄指令之前接上大量的行。
+    /// 讀的是 Claude status line 的 session 狀態檔(`~/.purrdr/claude-usage/sessions/<id>.json`,#644 情境用)。
+    private static func readsSessionStatus(_ request: HostFileRequest) -> Bool {
+        let paths: [HostPath]
+        switch request {
+        case .read(let read): paths = read
+        case .readIfChanged(let read, _): paths = read
+        default: return false
+        }
+        return paths.contains { $0.relative.contains("claude-usage/sessions/") }
+    }
+
     private func writeLargeOutputIfDue(_ command: String) {
         guard !largeOutputWritten, let delay = burstDelay else { return }
         let ledger = DemoTranscripts.ledger

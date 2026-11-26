@@ -442,7 +442,7 @@ struct ConversationScreen: View {
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItemGroup(placement: .primaryAction) {
                     UsageRingButton(
-                        summary: usageSummary, showsPopover: panelBinding(compact: false), tap: { showsUsage = true },
+                        state: usageRingState, showsPopover: panelBinding(compact: false), tap: { showsUsage = true },
                         model: model, usageSection: usageSection, display: usageContext?.display.display ?? .used)
                     ConversationMoreMenu(
                         model: model, usageSummary: usageSummary, canOpenTerminal: makeTerminal != nil,
@@ -528,6 +528,13 @@ struct ConversationScreen: View {
             contextUsed: model.displayProgress.contextPercent,
             planRows: usageSection?.entries.filter { $0.state == .rows }.flatMap(\.rows) ?? [],
             display: usageContext?.display.display ?? .used)
+    }
+
+    /// 頂列用量環的狀態(#644):context 或方案用量還沒讀到第一次結果前是載入中。
+    private var usageRingState: UsageRingState {
+        UsageRingState.make(
+            summary: usageSummary, isContextLoading: model.isSessionStatusLoading,
+            isPlanLoading: usageSection?.entries.contains { $0.state == .loading } ?? false)
     }
 
     /// 聊天在畫面上才查方案用量,離開或進背景就停(沒有來源的 Agent 種類不查)。
