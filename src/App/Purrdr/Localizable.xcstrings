@@ -11160,17 +11160,6 @@
         }
       }
     },
-    "Settings…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定…"
-          }
-        }
-      }
-    },
     "Setup Complete" : {
       "extractionState" : "manual",
       "localizations" : {
