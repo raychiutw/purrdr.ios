@@ -167,3 +167,10 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFa
 .titlecap .dot.need{background:var(--orange)}.titlecap .dot.work{background:var(--accent)}.titlecap .dot.done,.titlecap .dot.unk,.titlecap .dot.off{background:var(--gray)}
 .titlecap .tn{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .titlecap .tm{font-size:15px;color:var(--sec);white-space:nowrap;display:flex;align-items:center;gap:4px;flex-shrink:0}
+
+/* #612 決議:聊天頂列是系統標題＋副標題(無膠囊、無狀態點、無權限盾牌),右上是〔用量環｜⋯〕合成的一顆玻璃膠囊(沒有 Inspector 鈕) */
+.titlesys{position:absolute;left:50%;top:0;height:52px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:210px;color:var(--text)}
+.titlesys .tn{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.titlesys .ts{font-size:12px;color:var(--sec);white-space:nowrap}
+.topcap{position:absolute;right:0;top:4px;height:44px;border-radius:22px;display:flex;align-items:center;padding:0 2px}
+.topcap > button{width:44px;height:44px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;justify-content:center;padding:0}

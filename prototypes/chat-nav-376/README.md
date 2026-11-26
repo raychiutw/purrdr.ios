@@ -62,3 +62,16 @@
 
 - 2026-11-23 補齊已實作畫面:`Attach`(#474 影片:加入面板「影片」項目、準備中「正在取得影片…」與取消、影片卡、壓縮後仍太大的提示;#475 拉高的加入 sheet 照片填滿與「載入更多」)、`ChatStates`(#400 Codex 找不到 session 的空狀態,含 `codex --no-daemon` 與 Copy)、`Terminal`(#357 顯示時以手機格數接上、鍵盤升起只上移不改列數、「主機正在操作 · 接管」橫幅與連線中斷)。
 - 2026-11-23(二)補齊已實作並定案的畫面:`Attach`(#474 影片卡縮圖／長度／大小、「關於影片」收起只有 chevron 與展開說明、上傳進度百分比與取消、行動網路上傳 ≥ 10 MiB 的送出前確認)、`Terminal`(#357 「主機上有人正在使用。點「接管」就能在這裡使用。」橫幅文字)、`ChatStates`(#400 缺 session 白話說明「請在主機上貼上下面的指令」)、`HostAgents`(#477 加方案用量頁:沒有啟用任何 Agent 的說明)、`AddHost`(連線方式「OpenSSH」改為「SSH」)、`Traffic`(#477 頂端主機膠囊文字與 chevron 為 app 主色綠)。
+
+## #612 決議(2026-11-26,全 app 操作一致性;以下覆蓋上面舊的畫面與定稿決定)
+
+已重畫:聊天頂列(`Header`、`Main`、`Menu`、`NeedsYou`、`ChatStates`、`ChatGlass`、`ChatMedia`、`PanelStates`、`Offline`、`Skeleton`、`DarkCompare`)——標題改成系統標題＋副標題(`.titlesys`,沒有標題膠囊、狀態點、橘色權限盾牌),右上只剩〔用量環｜⋯〕一顆系統合成的玻璃膠囊(`.topcap`,沒有 Inspector／側欄鈕)。面板從用量環展開:iPad／寬視窗是 popover、iPhone 是 sheet(左上 X)。權限模式資訊在面板與「⋯」選單裡,不在標題。
+
+**其餘畫面以這份決議為準(尚未逐張重畫,實作與 `DESIGN.md` 是權威)**:
+
+- **第一階頂列**(`Tabs`、`Spaces`、`Host`、`Files`、`Traffic`、`Settings` 的舊頂列):系統大標題(聊天、檔案、主機、流量)、右上〔電腦圖示｜＋〕由系統合成、無分隔線的膠囊加獨立頭像圓鈕、系統搜尋(往下拉才出現);沒有左上主機膠囊、沒有 Agents／Spaces 切換、沒有設定 tab(設定併在帳號 modal)。電腦圖示選單是全 app 唯一選主機的地方(含主機 tab、新增聊天、登入 Shell);主機頁內沒有主機清單。
+- **列尾 `>` 一律 push**:往右推入下一頁、左上系統「<」、tab bar 保留(聊天對話與 Pane 終端機隱藏)。聊天列的「顯示版面」、流量主機明細、檔案資料夾、新增聊天、編輯主機、新增主機引導都是 push;新增主機引導沒有右上 Cancel。
+- **modal 一律左上 X**;有確認動作的 modal 右上是唯一的 ✓(prominent,主色底,不能按時灰);選擇類 sheet 點選即套用、只有左上 X。帳號與設定是滿版 modal(左上 X)。sheet 回到系統 Liquid Glass(半高透出玻璃、全高不透明),不再自訂不透明底色(推翻 #533)。
+- **slash 面板(iPhone)**:輸入框變成面板(`prototypes/slash-panel-612` 版本 C),左 X = 取消、右 ✓ = 確定。
+- **確認與提示**:破壞性確認用底部 `confirmationDialog`(刪除會員保留中央 alert);alert 只在需要決定或擋住流程時用,純告知改頁內 `ErrorLabel`;可刪的列都有左滑。空狀態 `ContentUnavailableView`、頁內錯誤紅三角加說明、第一次載入骨架。
+- **小控制項系統化**:做完再送是系統開關(不能用的原因寫在下方註腳)、流量期間與分類是 `.bordered` 膠囊、跳到最新是 `.glass` 鈕。
