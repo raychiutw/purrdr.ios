@@ -264,12 +264,9 @@ struct UsageBarRow: View {
 struct UsageBar: View {
     let fraction: Double
     let level: PlanUsageLevel
-    @Environment(\.colorScheme) private var colorScheme
 
-    /// 軌道:`rgba(120,120,128)`,淺色 .16、深色 .28(DESIGN.md「低飽和用量色」)。
-    private var track: Color {
-        Color(red: 120 / 255, green: 120 / 255, blue: 128 / 255).opacity(colorScheme == .dark ? 0.28 : 0.16)
-    }
+    /// 軌道:系統 `tertiarySystemFill`(DESIGN.md「低飽和用量色」)。
+    private var track: Color { AccessibleColors.usageTrack }
 
     var body: some View {
         GeometryReader { proxy in

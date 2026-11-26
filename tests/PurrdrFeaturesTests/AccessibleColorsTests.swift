@@ -7,18 +7,26 @@ import Testing
 /// 承載文字的自訂顏色對比(#35;HIG 20.2:文字對比 ≥ 4.5:1,Increase Contrast 時 ≥ 7:1)。
 @Suite("無障礙配色")
 struct AccessibleColorsTests {
-    /// 次要文字可能落在的背景(固定值，取自 iOS 系統色):
-    /// 淺色：主要背景 `systemBackground`／grouped 的列 #FFFFFF、grouped 背景 `systemGroupedBackground` #F2F2F7、
-    /// 卡片與 shell 區塊的淡填色疊在白底上 #EFEFF0;
-    /// 深色：主要背景 #000000、grouped 背景與 `secondarySystemBackground` #1C1C1E、grouped 的列 #2C2C2E。
+    /// 文字可能落在的系統背景(#646;值是 iOS 27.0 模擬器實測,見 docs/research/ios27-dark-mode-colors.md §1.2):
+    /// 淺色:`systemBackground` #FFFFFF、grouped 背景與 `secondarySystemBackground` #F2F2F7、
+    /// 卡片與 shell 區塊的淡填色疊在白底上 #EFEFF0;增加對比時 grouped／secondary 為 #EBEBF0。
+    /// 深色:base 的 #000000／#1C1C1E／#2C2C2E 與 elevated 的 #1C1C1E／#2C2C2E／#3A3A3C;
+    /// 增加對比 base #000000／#242426／#363638、elevated #242426／#363638／#444446。
     static let lightSecondaryBackgrounds = [
         ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), ThemeColor(red: 0xF2, green: 0xF2, blue: 0xF7),
         ThemeColor(red: 0xEF, green: 0xEF, blue: 0xF0),
     ]
-    /// 深色底提亮(#379):頁面 #1C1C1E、卡片 #2C2C2E、再內一層 #3A3A3C(AppSurface);純黑留給終端機與全螢幕圖片。
+    static let lightHighContrastBackgrounds = [
+        ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), ThemeColor(red: 0xEB, green: 0xEB, blue: 0xF0),
+        ThemeColor(red: 0xEF, green: 0xEF, blue: 0xF0),
+    ]
     static let darkSecondaryBackgrounds = [
         ThemeColor(red: 0x00, green: 0x00, blue: 0x00), ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E),
         ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E), ThemeColor(red: 0x3A, green: 0x3A, blue: 0x3C),
+    ]
+    static let darkHighContrastBackgrounds = [
+        ThemeColor(red: 0x00, green: 0x00, blue: 0x00), ThemeColor(red: 0x24, green: 0x24, blue: 0x26),
+        ThemeColor(red: 0x36, green: 0x36, blue: 0x38), ThemeColor(red: 0x44, green: 0x44, blue: 0x46),
     ]
 
     @Test("紅字按鈕文字:深淺色對主要、grouped、卡片與再內一層背景 ≥ 4.5:1,高對比 ≥ 7:1(#379)")
@@ -42,17 +50,37 @@ struct AccessibleColorsTests {
         #expect(white.contrastRatio(with: ThemeColor(red: 0xFF, green: 0x45, blue: 0x3A)) < 4.5)
     }
 
-    @Test("次要文字：深淺色對主要與 grouped 背景 ≥ 4.5:1,高對比 ≥ 7:1")
-    func secondaryTextContrast() {
-        Self.expectReadable(AccessibleColors.secondaryText)
+    @Test("次要文字淺色:自訂灰對實際背景 ≥ 4.5:1,增加對比 ≥ 7:1(系統 secondaryLabel 白底只有 3.4:1,所以淺色不用)")
+    func secondaryTextLightContrast() {
+        let pair = AccessibleColors.secondaryTextLight
+        for background in Self.lightSecondaryBackgrounds {
+            #expect(pair.normal.contrastRatio(with: background) >= 4.5, "淺色 \(pair.normal) 對 \(background)")
+        }
+        for background in Self.lightHighContrastBackgrounds {
+            #expect(pair.highContrast.contrastRatio(with: background) >= 7, "淺色高對比 \(pair.highContrast) 對 \(background)")
+        }
+        // 記下為什麼淺色不用系統色:secondaryLabel #3C3C43 α0.6 疊在白底約 #8A8A8E。
+        #expect(ThemeColor(red: 0x8A, green: 0x8A, blue: 0x8E).contrastRatio(with: Self.lightSecondaryBackgrounds[0]) < 4.5)
+    }
+
+    @Test("次要文字深色:系統 secondaryLabel(#EBEBF5 α0.6／增加對比 α0.7)疊在實際深色背景 ≥ 4.5:1,所以不另設自訂色")
+    func secondaryTextDarkSystemLabelIsReadable() {
+        let label = ThemeColor(red: 0xEB, green: 0xEB, blue: 0xF5)
+        for (backgrounds, alpha) in [(Self.darkSecondaryBackgrounds, 0.6), (Self.darkHighContrastBackgrounds, 0.7)] {
+            for background in backgrounds {
+                let composed = SuggestionFillInContrastTests.composite(label, over: background, opacity: alpha)
+                let ratio = composed.contrastRatio(with: background)
+                #expect(ratio >= 4.5, "深色 secondaryLabel α\(alpha) 對 \(background) 只有 \(ratio)")
+            }
+        }
     }
 
     static func expectReadable(_ palette: ContrastPalette) {
         let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
             ("淺色", palette.light, Self.lightSecondaryBackgrounds, 4.5),
             ("深色", palette.dark, Self.darkSecondaryBackgrounds, 4.5),
-            ("淺色高對比", palette.lightHighContrast, Self.lightSecondaryBackgrounds, 7),
-            ("深色高對比", palette.darkHighContrast, Self.darkSecondaryBackgrounds, 7),
+            ("淺色高對比", palette.lightHighContrast, Self.lightHighContrastBackgrounds, 7),
+            ("深色高對比", palette.darkHighContrast, Self.darkHighContrastBackgrounds, 7),
         ]
         for (name, color, backgrounds, minimum) in cases {
             for background in backgrounds {
@@ -167,7 +195,7 @@ struct SpacesColorsTests {
     func avatarColorsAreMutedPalette() {
         let expected: [(AgentKind, String, String)] = [
             (.claudeCode, "#8A5A48", "#6D4739"), (.codex, "#55565C", "#4F5056"), (.gemini, "#4A5F86", "#3E5071"),
-            (.openCode, "#5C6B4A", "#48533A"), (.copilot, "#6A5884", "#58496E"), (.unknown("grok"), "#5A5A5F", "#505055"),
+            (.openCode, "#8A4F66", "#6D3A4F"), (.copilot, "#6A5884", "#58496E"), (.unknown("grok"), "#5A5A5F", "#505055"),
         ]
         for (kind, normal, highContrast) in expected {
             let palette = AgentKindAvatarStyle(kind: kind).palette
@@ -199,19 +227,19 @@ struct SpacesColorsTests {
 @Suite("方案用量的配色")
 struct PlanUsageColorsTests {
     static let white = ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)
-    static let groupedTrack = ThemeColor(red: 0xDE, green: 0xDE, blue: 0xE4)   // rgba(120,120,128,.16) 疊在 #F2F2F7
-    static let whiteTrack = ThemeColor(red: 0xE9, green: 0xE9, blue: 0xEB)     // 疊在白色卡片
-    static let darkTracks = [ThemeColor(red: 0x36, green: 0x36, blue: 0x39), ThemeColor(red: 0x41, green: 0x41, blue: 0x45)] // .28 疊在 #1C1C1E、#2C2C2E
+    // 軌道是系統 tertiarySystemFill(118,118,128;淺色 α.12、深色 α.24)疊在實際底上的合成值
+    static let groupedTrack = ThemeColor(red: 0xE3, green: 0xE3, blue: 0xE9)   // 疊在 grouped 底 #F2F2F7
+    static let whiteTrack = ThemeColor(red: 0xEF, green: 0xEF, blue: 0xF0)     // 疊在白色卡片
+    static let darkTracks = [ThemeColor(red: 0x32, green: 0x32, blue: 0x36), ThemeColor(red: 0x3E, green: 0x3E, blue: 0x42)] // 疊在 #1C1C1E、#2C2C2E
     static let darkCards = [ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E), ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E)]
 
     /// 非文字圖形(WCAG 1.4.11):對軌道與卡片底 ≥ 3:1,高對比 ≥ 4.5:1。
-    /// 偏高、將用完兩級在淺色 grouped 軌道上略低於 3:1(DESIGN.md 已註明,靠三角形符號與數字傳達),所以只要求對白卡片的軌道;
-    /// 「正常」級對 grouped 軌道也要 ≥ 3:1(#389)。
-    @Test("三級:對軌道與卡片 ≥ 3:1,高對比 ≥ 4.5:1;正常級對 grouped 軌道也 ≥ 3:1")
+    /// 三級在淺色對白卡、白卡軌道與 grouped 軌道都要 ≥ 3:1(軌道改系統填色後,70% 淺色調深為 #9E6E40 才達標)。
+    @Test("三級:對軌道與卡片 ≥ 3:1(含淺色 grouped 軌道),高對比 ≥ 4.5:1")
     func levelContrast() {
         for level in [PlanUsageLevel.ample, .low, .depleted] {
             let palette = AccessibleColors.planUsage(level)
-            let lightBackgrounds = [Self.white, Self.whiteTrack] + (level == .ample ? [Self.groupedTrack] : [])
+            let lightBackgrounds = [Self.white, Self.whiteTrack, Self.groupedTrack]
             let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
                 ("淺色", palette.light, lightBackgrounds, 3), ("深色", palette.dark, Self.darkCards + Self.darkTracks, 3),
                 ("淺色高對比", palette.lightHighContrast, [Self.white, Self.whiteTrack, Self.groupedTrack], 4.5),
@@ -226,6 +254,30 @@ struct PlanUsageColorsTests {
         }
     }
 
+    @Test("「充足」就是主色(#649):四個值等於 AccentColor Asset,不是另一種灰綠")
+    func ampleIsAccent() throws {
+        let accent = try AccentColorTests.accentColorAsset()
+        let ample = AccessibleColors.planUsageAmple
+        #expect(ample.light == accent.light && ample.dark == accent.dark)
+        #expect(ample.lightHighContrast == accent.lightHighContrast && ample.darkHighContrast == accent.darkHighContrast)
+    }
+
+    /// 70% 級距深色優先用系統橙(#649):系統橙(約 #FF9230,增加對比約 #FFB340)對深色軌道與卡片底都 ≥ 3:1,所以深色用系統色
+    /// (近似值在這裡驗對比;「解析出的就是實際 UIColor.systemOrange」在 tests/PurrdrIOSTests 的 `PlanUsageSystemColorTests`);
+    /// 淺色系統橙對白底只有 2.2:1,不足,維持自訂色。85% 級距系統紅對深色軌道只有 2.8～3.0:1(淺色 2.6～3.0:1),不足,維持自訂色。
+    @Test("70% 級距:深色(含增加對比)是系統橙,對軌道與卡片底 ≥ 3:1;淺色系統橙 < 3:1 所以自訂")
+    func lowLevelUsesSystemOrangeInDark() {
+        let low = AccessibleColors.planUsageLow
+        #expect(low.dark == ThemeColor(hex: "#FF9230"))
+        #expect(low.darkHighContrast == ThemeColor(hex: "#FFB340"))
+        #expect(low.usesSystemInDark, "深色外觀交給系統橙")
+        for background in Self.darkCards + Self.darkTracks {
+            #expect(low.dark.contrastRatio(with: background) >= 3, "\(background)")
+        }
+        #expect(ThemeColor(red: 0xFF, green: 0x95, blue: 0x00).contrastRatio(with: Self.white) < 3, "淺色系統橙不足才用自訂")
+        #expect(!AccessibleColors.planUsageDepleted.usesSystemInDark)
+    }
+
     @Test("三級的顏色彼此不同(低飽和的綠、棕橘、紅)")
     func levelsAreDistinct() {
         let palettes = [PlanUsageLevel.ample, .low, .depleted].map { AccessibleColors.planUsage($0) }
@@ -233,6 +285,42 @@ struct PlanUsageColorsTests {
         #expect(palettes[1].light.red > palettes[1].light.green && palettes[1].light.green > palettes[1].light.blue, "偏高不是橘棕色")
         #expect(Int(palettes[2].light.red) > Int(palettes[2].light.green), "將用完不是紅色")
         #expect(palettes[1].light != palettes[2].light)
+    }
+}
+
+/// 流量圖兩階綠(#649):行動網路 = 主色,Wi-Fi = 同色相的另一階;對頁面 ≥ 3:1、兩者看得出差別。
+@Suite("流量圖的配色")
+struct DataUsageColorsTests {
+    /// 長條實際出現的背景:grouped 頁(淺色 `#F2F2F7`、深色 base 純黑)與卡片(白、`#1C1C1E`、`#2C2C2E`),增加對比用系統的增強值。
+    static let light = [ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), ThemeColor(red: 0xF2, green: 0xF2, blue: 0xF7)]
+    static let lightHighContrast = [ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), ThemeColor(red: 0xEB, green: 0xEB, blue: 0xF0)]
+    static let dark = Array(AccessibleColorsTests.darkSecondaryBackgrounds.dropLast())
+    static let darkHighContrast = AccessibleColorsTests.darkHighContrastBackgrounds
+
+    @Test("行動網路就是主色(四值等於 AccentColor Asset)")
+    func cellularIsAccent() throws {
+        let accent = try AccentColorTests.accentColorAsset()
+        let cellular = AccessibleColors.dataUsageCellular
+        #expect(cellular.light == accent.light && cellular.dark == accent.dark)
+        #expect(cellular.lightHighContrast == accent.lightHighContrast && cellular.darkHighContrast == accent.darkHighContrast)
+    }
+
+    @Test("Wi-Fi:深淺色與增加對比對頁面與卡片底 ≥ 3:1,與行動網路至少差 1.5:1,且是同色相的綠")
+    func wifiContrast() {
+        let wifi = AccessibleColors.dataUsageWifi
+        let cellular = AccessibleColors.dataUsageCellular
+        let cases: [(String, ThemeColor, ThemeColor, [ThemeColor])] = [
+            ("淺色", wifi.light, cellular.light, Self.light), ("淺色高對比", wifi.lightHighContrast, cellular.lightHighContrast, Self.lightHighContrast),
+            ("深色", wifi.dark, cellular.dark, Self.dark), ("深色高對比", wifi.darkHighContrast, cellular.darkHighContrast, Self.darkHighContrast),
+        ]
+        for (name, color, cell, backgrounds) in cases {
+            for background in backgrounds {
+                #expect(color.contrastRatio(with: background) >= 3, "\(name) Wi-Fi \(color) 對 \(background)")
+            }
+            let gap = color.contrastRatio(with: cell)
+            #expect(gap >= 1.5, "\(name) Wi-Fi \(color) 與行動網路 \(cell) 只差 \(gap)")
+            #expect(color.green > color.red && color.green >= color.blue, "\(name) 不是綠色")
+        }
     }
 }
 

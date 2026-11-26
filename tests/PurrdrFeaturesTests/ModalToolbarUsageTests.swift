@@ -33,7 +33,7 @@ struct ModalToolbarUsageTests {
 
     @Test("有確認動作的 modal 右上用 ModalConfirmToolbar")
     func confirmModalsUseSharedToolbar() throws {
-        let required = ["HostTrustView.swift", "ChangesView.swift", "WorkspaceActionsViews.swift", "MemberView.swift"]
+        let required = ["HostTrustView.swift", "ChangesView.swift", "WorkspaceActionsViews.swift", "MemberView.swift", "HostEditorView.swift"]
         let sources = try Self.sources()
         for file in required {
             let text = try #require(sources.first { $0.name == file }?.text, "找不到 \(file)")
@@ -44,7 +44,7 @@ struct ModalToolbarUsageTests {
     @Test("信任主機、行評論、新增 worktree 不再自己放文字的 Cancel 與確認鈕")
     func noHandMadeConfirmation() throws {
         let sources = try Self.sources()
-        for file in ["HostTrustView.swift", "ChangesView.swift", "WorkspaceActionsViews.swift"] {
+        for file in ["HostTrustView.swift", "ChangesView.swift", "WorkspaceActionsViews.swift", "HostEditorView.swift"] {
             let text = try #require(sources.first { $0.name == file }?.text)
             #expect(!text.contains("ToolbarItem(placement: .confirmationAction)"), "\(file) 不自己放 confirmationAction")
         }

@@ -40,7 +40,7 @@ private struct AppAppearanceModifier: ViewModifier {
         // 設在所在 UIWindow 的 overrideUserInterfaceStyle,不用 `preferredColorScheme`(#322):
         // 後者不會更新已經開著的 sheet(sheet 停在開啟時的深淺色)。視窗層級的覆寫同一個視窗裡的
         // sheet、alert 都跟著變，自動(`.unspecified`)也確實回到系統值。
-        // 頁面底色:深色是提亮的 #1C1C1E(#379,見 `AppSurface`);畫面自己沒有底色的地方(對話、檔案)靠這一層。
+        // 頁面底色:系統 base(`AppSurface.page`,#646);畫面自己沒有底色的地方(對話、檔案)靠這一層。
         content
             .background { AppSurface.page.ignoresSafeArea() }
             .background { WindowAppearanceApplier(style: appearance.userInterfaceStyle) }

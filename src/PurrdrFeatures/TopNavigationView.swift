@@ -329,8 +329,6 @@ private struct RootTabs<Chats: View>: View {
                     .tint(ProminentFillStyle())
             }
         }
-        // tab bar 選取態的顏色(DESIGN.md「深色層次與新色票」);內容各自把 tint 還原成主色。
-        .tint(AccessibleColors.tabSelection.color)
         .task { badge.start() }
     }
 }

@@ -72,6 +72,7 @@ public struct NewChatView: View {
                 if model.selectedWorkspace == nil {
                 Section {
                     TextField("Folder", text: $model.folder, prompt: Text(verbatim: model.canBrowseFolders ? "~/projects/app" : "/Users/you/projects/app"))
+                        .inputFieldTint()
                         .font(.body.monospaced())
                         .autocorrectionDisabled()
                         #if os(iOS)
@@ -104,9 +105,11 @@ public struct NewChatView: View {
                 Section {
                     if model.selectedWorkspace == nil {
                         TextField("Workspace Name", text: $model.workspaceName, prompt: Text("Optional"))
+                            .inputFieldTint()
                             .accessibilityIdentifier("newChat.workspaceName")
                     }
                     TextField("Tab Name", text: $model.tabName, prompt: Text("Optional"))
+                        .inputFieldTint()
                         .accessibilityIdentifier("newChat.tabName")
                 } header: {
                     Text(model.selectedWorkspace == nil ? "Names" : "Name")
@@ -123,6 +126,7 @@ public struct NewChatView: View {
                     TextField(
                         "First Message", text: $model.message,
                         prompt: model.isResuming ? Text("Say what’s next…") : Text("What should the agent do?"), axis: .vertical)
+                        .inputFieldTint()
                         .lineLimit(3...8)
                         .accessibilityIdentifier("newChat.message")
                 } header: {
