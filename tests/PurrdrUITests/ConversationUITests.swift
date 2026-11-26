@@ -518,7 +518,7 @@ final class ConversationUITests: XCTestCase {
         // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
         let window = app.windows.firstMatch.frame
         let keyboard = app.keyboards.firstMatch
-        let visibleBottom = (try? keyboard.snapshot()).map { min($0.frame.minY, window.maxY) } ?? window.maxY
+        let visibleBottom = keyboard.exists ? ((try? keyboard.snapshot()).map { min($0.frame.minY, window.maxY) } ?? window.maxY) : window.maxY
 
         // 可用高度從狀態列下緣算，比可見範圍小;以可見範圍當上界只會放寬。
         let height = text.frame.height

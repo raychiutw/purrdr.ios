@@ -198,7 +198,7 @@ extension XCUIApplication {
             // 鍵盤的存在與位置要一次取(snapshot):先 `exists` 再讀 `frame` 是兩次查詢,
             // 鍵盤正好在收起時第二次找不到("No matches found … Descendants matching type Keyboard"),整個測試就失敗。
             // snapshot 找不到鍵盤會丟錯,等於沒有鍵盤擋著。
-            guard let keyboardTop = (try? keyboard.snapshot())?.frame.minY else { return true }
+            guard keyboard.exists, let keyboardTop = (try? keyboard.snapshot())?.frame.minY else { return true }
             return target.frame.maxY < keyboardTop
         }
         if isReachable() { return true }
