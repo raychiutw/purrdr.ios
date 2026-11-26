@@ -22,7 +22,7 @@ struct WindowsPathDisplayTests {
     }
 
     @Test("檔案瀏覽：標題是最後一段;打開子資料夾用反斜線組路徑;往上一層到磁碟機根目錄為止")
-    func folderBrowser() async {
+    func folderBrowser() async throws {
         let host = FakeHost()
         await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
         await host.expect(HostFolderCommand.list(#"C:\Users\demo\ledger"#), reply: Self.listing(#"C:\Users\demo\ledger"#))
@@ -33,19 +33,20 @@ struct WindowsPathDisplayTests {
 
         await model.load()
         #expect(model.title == "demo")
-        await model.open(FolderEntry(name: "ledger", kind: .folder, size: 96))
-        #expect(model.title == "ledger")
-        await model.goUp()
-        await model.goUp()
-        #expect(model.title == "Users")
-        await model.goUp()
-        #expect(model.title == #"C:\"#)
-        #expect(!model.canGoUp)
-        #expect(await host.unmetExpectations.isEmpty)
+        let child = model.child(at: try #require(model.childPath(for: FolderEntry(name: "ledger", kind: .folder, size: 96))))
+        await child.load()
+        #expect(child.title == "ledger")
+        #expect(child.path == #"C:\Users\demo\ledger"#)
+        #expect(FolderNavigation(current: child.path).parent == #"C:\Users\demo"#)
+        await child.go(to: FolderBreadcrumb(title: "Users", path: #"C:\Users"#))
+        #expect(child.title == "Users")
+        await child.go(to: FolderBreadcrumb(title: #"C:\"#, path: #"C:\"#))
+        #expect(child.title == #"C:\"#)
+        #expect(!child.canGoUp)
     }
 
     @Test("路徑麵包屑：Windows 家目錄以「~」開頭，家目錄外從磁碟機根目錄開始")
-    func breadcrumbs() async {
+    func breadcrumbs() async throws {
         let host = FakeHost()
         await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
         await host.expect(HostFolderCommand.list(#"C:\Users\demo\ledger"#), reply: Self.listing(#"C:\Users\demo\ledger"#))
@@ -53,11 +54,12 @@ struct WindowsPathDisplayTests {
         let model = FolderBrowserModel(folders: HostFolders(channel: host), hostName: "PC")
 
         await model.load()
-        await model.open(FolderEntry(name: "ledger", kind: .folder, size: 96))
-        #expect(model.breadcrumbs.map(\.title) == ["~", "ledger"])
-        await model.go(to: FolderBreadcrumb(title: "Users", path: #"C:\Users"#))
-        #expect(model.breadcrumbs.map(\.title) == [#"C:\"#, "Users"])
-        #expect(model.breadcrumbs.map(\.path) == [#"C:\"#, #"C:\Users"#])
+        let child = model.child(at: try #require(model.childPath(for: FolderEntry(name: "ledger", kind: .folder, size: 96))))
+        await child.load()
+        #expect(child.breadcrumbs.map(\.title) == ["~", "ledger"])
+        await child.go(to: FolderBreadcrumb(title: "Users", path: #"C:\Users"#))
+        #expect(child.breadcrumbs.map(\.title) == [#"C:\"#, "Users"])
+        #expect(child.breadcrumbs.map(\.path) == [#"C:\"#, #"C:\Users"#])
     }
 
     @Test("新增對話的資料夾選擇：子資料夾與上一層都用 Windows 路徑")

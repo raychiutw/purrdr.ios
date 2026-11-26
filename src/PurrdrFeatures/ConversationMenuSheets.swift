@@ -18,7 +18,7 @@ struct PermissionModeContentView: View {
 
     var body: some View {
         List { PermissionModeSections(model: model, onSwitched: onSwitched) }
-            .appGroupedList()
+            .appSheetList()
     }
 }
 
@@ -42,7 +42,7 @@ struct SendWhenDoneContentView: View {
 
     var body: some View {
         List { SendWhenDoneSections(model: model) }
-            .appGroupedList()
+            .appSheetList()
     }
 }
 
@@ -78,7 +78,7 @@ struct TodosContentView: View {
 
     var body: some View {
         List { TodoRows(progress: progress) }
-            .appGroupedList()
+            .appSheetList()
             .accessibilityIdentifier("status.todos")
     }
 }
@@ -101,7 +101,7 @@ struct BackgroundAgentsContentView: View {
 
     var body: some View {
         List { BackgroundAgentRows(model: model, pane: pane) }
-            .appGroupedList()
+            .appSheetList()
             .accessibilityIdentifier("status.backgroundAgents")
     }
 }

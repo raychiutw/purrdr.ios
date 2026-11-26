@@ -140,9 +140,11 @@ private struct TopBarHostScopeMenu: View {
             Image(systemName: "desktopcomputer")
                 .overlay(alignment: .topTrailing) {
                     if content.hostScope.showsDot {
-                        Circle()
-                            .fill(Color.appAccent)
-                            .frame(maxWidth: TopBarMetrics.dotDiameter, maxHeight: TopBarMetrics.dotDiameter)
+                        // 系統符號當小圓點(隨字級縮放,不寫死直徑,#615)。
+                        Image(systemName: "circle.fill")
+                            .font(.caption2)
+                            .imageScale(.small)
+                            .foregroundStyle(Color.appAccent)
                             .offset(x: 3, y: -3)
                             .accessibilityHidden(true)
                             .accessibilityIdentifier("topBar.hostDot")

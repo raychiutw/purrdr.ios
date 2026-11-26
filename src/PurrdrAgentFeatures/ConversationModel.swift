@@ -56,6 +56,8 @@ public final class ConversationModel {
         case available
         case loading
         case reachedStart
+        /// 往上翻已讀滿 `scrollbackMessageLimit` 則(不跟隨最新時舊頁的上限,#586);回到最新後會修剪並可再往上讀。
+        case scrollbackLimitReached
     }
 
     public private(set) var phase: Phase = .loading
@@ -615,6 +617,9 @@ public final class ConversationModel {
     @ObservationIgnored public var isFollowingLatest = true
     /// 跟隨尾端時記憶體裡最多保留的訊息數(含往上翻的舊頁;與快取的上限相同)。超過時整段修剪最舊的，可以往上翻回來。
     public static let followingMessageLimit = CachedConversation.maxMessages
+    /// 往上翻讀到的舊訊息上限:不跟隨最新時不修剪(使用者正在讀),以這個上限擋住無限成長;
+    /// 回到最新(`trimIfFollowing`)才丟掉舊頁。
+    public static let scrollbackMessageLimit = 4 * CachedConversation.maxMessages
     /// 往上翻載入的舊訊息(不寫入快取)。
     @ObservationIgnored private var olderMessages: [TranscriptMessage] = []
     /// 對話時間軸:列身分由它分配,新內容只以增量餵給它(#481)。
@@ -1351,6 +1356,7 @@ public final class ConversationModel {
             }
             file?.windowStart = page.start
             older = page.start > 0 ? .available : .reachedStart
+            if older == .available, !intoWindow, olderMessages.count >= Self.scrollbackMessageLimit { older = .scrollbackLimitReached }
             // 補讀屬於開啟視窗:跟隨最新時維持在底部(「整份取代」的捲動規則),不當成往上翻而停在原列、讓位置跳動(#508)。
             // 補讀(intoWindow)連讀好幾頁時不逐頁重建,由 `readEarlierUntilMessages` 補讀完整份重建一次(#586)。
             if !intoWindow { applyTimeline(timeline.prependOlder(olderPage)) }
@@ -1821,8 +1827,17 @@ public final class ConversationModel {
             observed.now = clock.now()
             observed.draft = draft
             let dialect = AgentCatalog.profile(forHerdrName: agent.kind).screen
-            apply(mutateAnswerFlow { $0.observe(screen: screen, dialect: dialect, observed) })
+            // 提問卡解析在背景做(#585),回主執行緒只套用結果。
+            let parsed: BlockedPrompt?? = if let screen { .some(await Self.parsePrompt(screen: screen, dialect: dialect)) } else { nil }
+            observed.now = clock.now()
+            observed.draft = draft
+            apply(mutateAnswerFlow { $0.observe(parsed: parsed, observed) })
         }
+    }
+
+    @concurrent
+    private nonisolated static func parsePrompt(screen: String, dialect: ScreenDialect) async -> BlockedPrompt? {
+        AnswerFlow.parse(screen: screen, dialect: dialect)
     }
 
     private func apply(_ outcome: AnswerFlow.Outcome) {

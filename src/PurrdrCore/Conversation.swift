@@ -261,8 +261,46 @@ public enum Conversation {
         return name.dropFirst(5).split(separator: "__").joined(separator: " ")
     }
 
+    /// 建構器的項目:記錄自上次 `resetTouched()` 以來被改動(原地更新或附加)的最小位置,
+    /// 讓增量輸入只重算那一段(#586);其他行為與陣列相同。
+    struct TrackedItems: RandomAccessCollection, MutableCollection, ExpressibleByArrayLiteral {
+        private(set) var values: [ConversationItem]
+        /// 自上次重設以來被改動的最小位置;沒有改動時等於 `count`。
+        private(set) var lowestTouched: Int
+
+        init(_ values: [ConversationItem] = []) {
+            self.values = values
+            lowestTouched = values.count
+        }
+
+        init(arrayLiteral elements: ConversationItem...) { self.init(elements) }
+
+        var startIndex: Int { 0 }
+        var endIndex: Int { values.count }
+
+        subscript(position: Int) -> ConversationItem {
+            get { values[position] }
+            set {
+                values[position] = newValue
+                lowestTouched = Swift.min(lowestTouched, position)
+            }
+        }
+
+        mutating func append(_ item: ConversationItem) {
+            lowestTouched = Swift.min(lowestTouched, values.count)
+            values.append(item)
+        }
+
+        mutating func resetTouched() { lowestTouched = values.count }
+        /// 取代整份(往上補、整份重建):視為全部改動。
+        mutating func replaceAll(_ newValues: [ConversationItem]) {
+            values = newValues
+            lowestTouched = 0
+        }
+    }
+
     struct Builder {
-        var items: [ConversationItem] = []
+        var items = TrackedItems()
         /// 正在累積的工具串(在 `items` 中的位置)。
         var openRun: Int?
         /// 呼叫 id → (項目位置, 步驟位置),結果可以晚到。
@@ -626,7 +664,7 @@ public enum Conversation {
             generatedImages.formUnion(older.generatedImages)
             orphans = older.orphans + remaining
             needsFullRebuildToPrepend = older.needsFullRebuildToPrepend
-            items = newItems
+            items.replaceAll(newItems.values)
             return true
         }
 

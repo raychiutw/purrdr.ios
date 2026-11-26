@@ -49,9 +49,19 @@ struct PurrdrApp: App {
     var body: some Scene {
         // 主視窗(三欄)。iPad 可以開好幾個，每個視窗有自己的導覽狀態;主機與 Agent 列表共用。
         WindowGroup(id: PurrdrCommands.mainWindowID) {
-            TopNavigationView(
-                hosts: hosts, member: root.member, settings: root.settings, plus: root.plus, hostSync: root.hostSync, notifications: PushAppDelegate.router,
-                welcome: root.welcome, appLock: root.appLock, crashNotice: root.crashNotice)
+            // 主機清單在第一個 frame 之後於背景讀 Keychain(#590);讀完前顯示系統進度指示,不顯示「沒有主機」。
+            Group {
+                if hosts.isLoaded {
+                    TopNavigationView(
+                        hosts: hosts, member: root.member, settings: root.settings, plus: root.plus, hostSync: root.hostSync, notifications: PushAppDelegate.router,
+                        welcome: root.welcome, appLock: root.appLock, crashNotice: root.crashNotice)
+                } else {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityIdentifier("app.loadingHosts")
+                }
+            }
+            .task { await hosts.loadInBackground() }
             .appAppearance()
             // 第一個 frame 排版完成後才做冷啟動可延後的寫入(#590)。
             .onAppear { DispatchQueue.main.async { root.launchGate.open() } }
@@ -62,7 +72,6 @@ struct PurrdrApp: App {
             .environment(\.recentPhotoSource, root.inputSources.recentPhotos)
             .environment(\.videoSource, root.inputSources.video)
             .environment(\.fileUploadSource, root.inputSources.fileUpload)
-            .environment(\.forcesOpaqueGlass, root.viewFlags.forcesOpaqueGlass)
             .environment(\.skeletonAnimationsEnabled, !root.disablesAnimations)
             .environment(\.allowsTestingLinks, root.viewFlags.allowsTestingLinks)
             .environment(\.usesTestingSignIn, root.viewFlags.usesTestingSignIn)

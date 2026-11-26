@@ -158,3 +158,41 @@ struct ConversationTimelineIncrementalTests {
         #expect(timeline.builtMessageCount < all.count + 60, "實際 \(timeline.builtMessageCount)")
     }
 }
+
+/// 附加新訊息只重算被改動的那一段(#586):重算列數計數,與整份重建的輸出等價。
+@Suite("對話時間軸:附加增量")
+struct ConversationTimelineAppendTests {
+    @Test("長對話附加一則:只重算尾端幾列,不走訪全部")
+    func appendRecomputesOnlyTheTail() {
+        let all = (0..<1_000).map { index in
+            TranscriptMessage(id: "m\(index)", role: index % 2 == 0 ? .user : .assistant, date: nil, parts: [.text("t\(index)")])
+        }
+        var timeline = ConversationTimeline()
+        _ = timeline.reset(Array(all[..<999]))
+        let before = timeline.recomputedRowCount
+        let update = timeline.append([all[999]])
+        #expect(timeline.recomputedRowCount - before <= 2, "實際 \(timeline.recomputedRowCount - before)")
+        #expect(update.changes.count == 1)
+        #expect(timeline.rows.count == 1_000)
+    }
+
+    @Test("隨機訊息(含跨頁工具結果)逐批附加,項目與列數和一次整份重建相同")
+    func incrementalAppendEqualsRebuild() {
+        for seed in 1...20 as ClosedRange<UInt64> {
+            let all = ConversationTimelineIncrementalTests.messages(count: 120, seed: seed)
+            var incremental = ConversationTimeline()
+            var start = 0
+            var random = ConversationTimelineIncrementalTests.Generator(state: seed &+ 99)
+            while start < all.count {
+                let end = min(all.count, start + 1 + random.next(6))
+                _ = incremental.append(Array(all[start..<end]))
+                start = end
+            }
+            var whole = ConversationTimeline()
+            _ = whole.reset(all)
+            #expect(ConversationTimelineIncrementalTests.normalized(incremental.items) == ConversationTimelineIncrementalTests.normalized(whole.items), "seed \(seed)")
+            #expect(incremental.rows.count == whole.rows.count, "seed \(seed)")
+            #expect(incremental.rows.map { $0.item } == incremental.items.map { Optional($0) }, "seed \(seed)")
+        }
+    }
+}

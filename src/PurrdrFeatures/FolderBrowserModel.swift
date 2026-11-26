@@ -101,17 +101,6 @@ public final class FolderBrowserModel {
         await list(path)
     }
 
-    /// 打開資料夾或 symlink(指向資料夾才打得開);檔案不能打開。
-    public func open(_ entry: FolderEntry) async {
-        guard entry.kind == .folder || entry.kind == .symlink, let child = navigation.child(entry.name) else { return }
-        await list(child)
-    }
-
-    public func goUp() async {
-        guard let parent = navigation.parent else { return }
-        await list(parent)
-    }
-
     private func list(_ target: String?) async {
         generation += 1
         let generation = generation

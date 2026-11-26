@@ -113,5 +113,14 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertTrue(more.exists, "沒有「⋯」")
         XCTAssertFalse(app.buttons["conversation.inspectorToggle"].exists, "不該有 Inspector 開關鈕")
         XCTAssertLessThanOrEqual(ring.frame.maxX, more.frame.minX + 1, "用量環應該在「⋯」左邊並排")
+        // 同一個 ToolbarItemGroup 由系統合成一顆膠囊:兩顆同高、垂直置中對齊,間距是膠囊內的間距(不是兩個獨立工具列項目的距離)。
+        // XCUITest 看不到合成後的玻璃形狀,以 frame 關係佐證。
+        XCTAssertEqual(ring.frame.midY, more.frame.midY, accuracy: 2, "用量環與「⋯」垂直沒有對齊")
+        XCTAssertEqual(ring.frame.height, more.frame.height, accuracy: 4, "用量環與「⋯」不同高")
+        XCTAssertLessThanOrEqual(more.frame.minX - ring.frame.maxX, 24, "用量環與「⋯」間距太大,不像同一顆膠囊")
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        if back.exists, back.frame.maxX < ring.frame.minX {
+            XCTAssertGreaterThan(ring.frame.minX - back.frame.maxX, more.frame.minX - ring.frame.maxX, "用量環離返回鈕比離「⋯」還近")
+        }
     }
 }

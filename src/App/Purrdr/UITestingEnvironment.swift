@@ -51,7 +51,6 @@ enum UITestingEnvironment {
             UIPasteboard.general.string = String(repeating: "x", count: 300 * 1024)
         }
         let viewFlags = LaunchEnvironment.ViewFlags(
-            forcesOpaqueGlass: UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency"),
             allowsTestingLinks: true, usesTestingSignIn: configuration.usesTestingSignIn,
             tracksReadingDrift: configuration.tracksReadingDrift, hidesDebugOverlay: configuration.hidesDebugOverlay)
         let hitchLog = DiagnosticLogFile(
