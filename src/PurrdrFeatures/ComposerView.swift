@@ -1144,9 +1144,10 @@ final class KeyHandlingTextView: UITextView {
     /// 繼承來的主色(跟著 SwiftUI 的 tint 與主機主題):指令著色用它。
     private var accentTint: UIColor { super.tintColor }
 
-    /// 系統畫的輸入法指示膠囊(聽寫、「國」)以這個色為底、白字(#396):深色模式換成白字夠對比的同色相;游標與選取也跟著用它。
+    /// 輸入元件的 tint 是系統文字色(#647):輸入法指示膠囊(聽寫、「國」)、游標與選取反白都跟著,深色白底深字、淺色黑底淺字。
+    /// 指令著色仍用繼承來的主色(`accentTint`)。
     override var tintColor: UIColor! {
-        get { super.tintColor.indicatorTint(for: traitCollection.userInterfaceStyle) }
+        get { UIColor.label }
         set { super.tintColor = newValue }
     }
 
@@ -1273,6 +1274,7 @@ struct ComposerTextEditor: View {
     var body: some View {
         TextField("", text: $text, axis: .vertical)
             .lineLimit(Int(ComposerSizing.emptyLines)...Int(ComposerSizing.maxLines))
+            .inputFieldTint()
             .textFieldStyle(.plain)
             .padding(.horizontal, 13)
             .padding(.vertical, 11)

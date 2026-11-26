@@ -26,6 +26,7 @@ struct PurrdrApp: App {
         let environment = configuration.isUITesting
             ? UITestingEnvironment.make(configuration) : ProductionEnvironment.make(configuration)
         if environment.disablesAnimations { UIView.setAnimationsEnabled(false) }
+        InputFieldAppearance.install()
         let root = AppAssembly.assemble(environment)
         self.root = root
         let scheduler = SystemBackgroundTaskScheduler()

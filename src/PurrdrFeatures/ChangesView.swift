@@ -396,6 +396,7 @@ private struct ChangesCommentEditor: View {
                 }
                 Section {
                     TextField("Comment", text: $text, axis: .vertical)
+                        .inputFieldTint()
                         .lineLimit(3...10)
                         .focused($focused)
                         .accessibilityIdentifier("changes.comment.field")
