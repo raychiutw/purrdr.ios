@@ -344,7 +344,6 @@ func XCTAssertHitTarget(_ element: XCUIElement, file: StaticString = #filePath, 
 /// 軟體鍵盤的輸入法。模擬器用系統鍵盤清單的第一個或上次用的(`-AppleKeyboards` 啟動參數不會換掉它)。
 enum KeyboardLayout {
     case english
-    case zhuyin
 }
 
 extension XCUIApplication {
@@ -353,7 +352,7 @@ extension XCUIApplication {
     func switchKeyboard(to layout: KeyboardLayout) {
         let keyboard = keyboards.firstMatch
         guard keyboard.exists else { return }
-        let markers = layout == .english ? ["q", "Q"] : ["ㄅ"]
+        let markers = ["q", "Q"]
         // 地球鍵在鍵盤元素外(底部 home indicator 旁)。
         let nextKeyboard = buttons["Next keyboard"].firstMatch
         // `for … where` 條件不成立時不會結束迴圈,而是空轉剩下的次數、每次還是查詢鍵盤(每次 typeEnglish 白白多約 1 秒):

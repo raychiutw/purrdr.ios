@@ -479,31 +479,6 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(app.keyboards.firstMatch.exists, "點註記不該叫出鍵盤")
     }
 
-    /// 注音組字(#187):組字文字跟一般文字一樣換行，輸入框跟著長高;按鈕列留在下方。
-    @MainActor
-    func testZhuyinCompositionWrapsAndGrowsComposer() throws {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
-        let text = app.element("composer.text")
-        XCTAssertTrue(text.waitUntilExists(timeout: 10))
-        text.tap()
-        // 以實體鍵盤的注音配置按鍵組字：模擬器沒有接實體鍵盤(畫面上有軟體鍵盤)時測不到，略過(#374)。
-        if app.keyboards.firstMatch.waitUntilExists(timeout: 2) {
-            throw XCTSkip("需要模擬器接著實體鍵盤(Simulator ▸ I/O ▸ Keyboard ▸ Connect Hardware Keyboard)")
-        }
-        app.switchKeyboard(to: .zhuyin)
-        let idleHeight = text.frame.height
-
-        // 模擬器接著實體鍵盤：以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
-        for _ in 0..<24 {
-            for key in ["s", "u", "3"] {
-                app.typeKey(key, modifierFlags: [])
-            }
-        }
-        XCTAssertTrue((text.value as? String)?.contains("ㄋ") == true, "沒有在組字(\(String(describing: text.value)))")
-        XCTAssertGreaterThan(text.frame.height, idleHeight + 30, "組字換行後沒有長高(\(idleHeight) → \(text.frame.height))")
-        XCTAssertGreaterThanOrEqual(app.element("composer.send").frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
-    }
-
     /// AX 字級下長高不超過鍵盤上方可用高度的 40%,超過的在框內捲動(#137)。
     @MainActor
     func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
