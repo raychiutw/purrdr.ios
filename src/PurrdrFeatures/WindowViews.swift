@@ -185,15 +185,18 @@ public struct PurrdrCommands: Commands {
             Button("New Window") { openWindow(id: Self.mainWindowID) }
                 .keyboardShortcut("n", modifiers: [.command, .option])
         }
-        // 系統的「Settings…」預設也用 Command-,(同一個快捷鍵兩項會讓選單建立失敗而 crash):
-        // 換成不帶快捷鍵、一樣打開系統設定 app 的項目，Command-, 給 app 內設定。
+        // 系統的「Settings…」預設也用 Command-,:`appSettings` 群組只放 app 內設定(App Settings…,Command-,)。
+        // 開系統設定 app 的「Settings…」放在群組之後、不帶快捷鍵——兩項同在 `appSettings` 群組時,系統會把 Command-,
+        // 配給其中之一,iPad 實測第二次起 Command-, 會跑到「開 iOS 設定 app」(截圖證據:前景是系統「設定」)。
         CommandGroup(replacing: .appSettings) {
+            button(.settings)
+        }
+        CommandGroup(after: .appSettings) {
             #if canImport(UIKit)
             Button("Settings…") {
                 if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
             }
             #endif
-            button(.settings)
         }
         // 「顯示方式」:系統「View」選單的最前面(#522)。項目不顯示圖示(iPadOS 27 預設)。
         CommandGroup(before: .toolbar) {
