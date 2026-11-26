@@ -19,7 +19,7 @@ struct WindowDetail: View {
             Group {
                 if let layout = navigation.selectedLayout {
                     // 列表欄選了多 Pane 的 Tab:版面圖顯示在對話欄;選了 Pane 就換成那個聊天。
-                    SpacesLayoutDestination(route: layout, snapshot: hosts.agentList.snapshot(for: layout.host)) { host, target in
+                    SpacesLayoutDestination(route: layout, snapshot: hosts.agentList.snapshot(for: layout.host), popsOnChoose: false) { host, target in
                         switch target {
                         case .chat(let paneID), .terminal(let paneID): navigation.selectedChat = ChatRoute(host: host, paneID: paneID)
                         }

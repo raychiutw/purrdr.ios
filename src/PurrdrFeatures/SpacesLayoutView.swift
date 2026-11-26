@@ -10,12 +10,14 @@ struct SpacesLayoutPage: View {
     let workspaceLabel: String
     let layout: SpacesLayout?
     let onChoose: (PaneOpenTarget) -> Void
+    /// 推入的頁選了方塊後返回上一頁;寬視窗顯示在對話欄根(列表欄的選取)時沒有上一頁,`dismiss()` 會把選取清掉,所以不返回。
+    var popsOnChoose = true
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         SpacesLayoutContent(layout: layout) { target in
             onChoose(target)
-            dismiss()
+            if popsOnChoose { dismiss() }
         }
         .navigationTitle(workspaceLabel)
         .accessibilityIdentifier("layout.page")
@@ -35,17 +37,22 @@ struct SpacesLayoutRoute: Hashable {
 struct SpacesLayoutDestination: View {
     let route: SpacesLayoutRoute
     let onChoose: (HostSelection, PaneOpenTarget) -> Void
+    let popsOnChoose: Bool
     @State private var layout: SpacesLayout?
 
-    init(route: SpacesLayoutRoute, snapshot: HostSnapshot?, onChoose: @escaping (HostSelection, PaneOpenTarget) -> Void) {
+    init(
+        route: SpacesLayoutRoute, snapshot: HostSnapshot?, popsOnChoose: Bool = true,
+        onChoose: @escaping (HostSelection, PaneOpenTarget) -> Void
+    ) {
         self.route = route
+        self.popsOnChoose = popsOnChoose
         self.onChoose = onChoose
         let full = snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: route.workspaceID) }
         _layout = State(initialValue: route.tabID.map { tabID in full?.onlyTab(tabID) } ?? full)
     }
 
     var body: some View {
-        SpacesLayoutPage(workspaceLabel: route.title, layout: layout) { onChoose(route.host, $0) }
+        SpacesLayoutPage(workspaceLabel: route.title, layout: layout, onChoose: { onChoose(route.host, $0) }, popsOnChoose: popsOnChoose)
     }
 }
 
