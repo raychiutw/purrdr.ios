@@ -147,6 +147,11 @@ extension XCUIApplication {
         XCTAssertTrue(
             UITestWait.until(timeout: 10) { self.element("sheet.account").exists || self.element("account.signedOut").exists },
             "沒有開出帳號與設定", file: file, line: line)
+        // 帳號與設定是滿版 cover(#623):蓋住底下頁面,頂列的帳號鈕點不到。
+        // (XCUITest 的 accessibility tree 仍列出被蓋住的內容,所以不能驗「不存在」;VoiceOver 由 modal 呈現與 `.isModal` 隔開。)
+        XCTAssertTrue(
+            UITestWait.until(timeout: 5) { !self.buttons["toolbar.account"].firstMatch.isHittable },
+            "滿版帳號頁開著時,底下頁面的帳號鈕仍點得到", file: file, line: line)
     }
 
     /// modal 的關閉鈕在左上、確認 ✓ 在右上(#613):以按鈕中心相對視窗中線判斷。

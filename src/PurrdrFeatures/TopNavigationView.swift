@@ -84,6 +84,9 @@ public struct TopNavigationView: View {
                     settings: AccountSettings(model: settings, openWelcome: { navigation.showWelcome() }, appLock: appLock))
                     // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
                     .task { await hosts.checkHostServiceVersions() }
+                    // 滿版帳號頁是 modal:底下被蓋住的頁面(含頂列帳號鈕)不給 VoiceOver 讀(#623)。XCUITest 的 accessibility tree
+                    // 仍列出底下的內容(`accessibilityHidden` 對 UIKit 的導覽列與列表無效),所以測試只驗「點不到」。
+                    .accessibilityAddTraits(.isModal)
             }
             .sheet(item: Binding(
                 get: { navigation.sheet == .member ? nil : navigation.sheet },

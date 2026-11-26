@@ -79,6 +79,20 @@ struct PairedDevicesSection: View {
                     .accessibilityIdentifier("pairedDevices.removeHost")
             }
         }
+        // confirmationDialog:anchor 移除主機由列的滑動或長按選單觸發,對話框錨定在那一列
+        .confirmationDialog(
+            Text("Remove “\(model.hostName)” from This Device?"),
+            isPresented: Binding(
+                get: { model.confirmingHostRemoval?.id == device.id },
+                set: { if !$0, model.confirmingHostRemoval?.id == device.id { model.cancelHostRemoval() } }),
+            titleVisibility: .visible
+        ) {
+            Button("Remove Host", role: .destructive) { model.confirmHostRemoval() }
+                .accessibilityIdentifier("hosts.delete.confirm")
+            Button("Cancel", role: .cancel) { model.cancelHostRemoval() }
+        } message: {
+            Text("This only removes the host from Purrdr. The host itself and the agents on it aren’t affected. Anything Purrdr added for this device on the host is put back.")
+        }
         .contextMenu {
             if model.canRevoke(device) {
                 Button("Revoke…", systemImage: "xmark.circle", role: .destructive) { model.requestRevocation(of: device) }

@@ -43,8 +43,11 @@ struct HostsTab: View {
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }
         .onAppear {
-            // 已配對裝置「這支裝置」那列:回總頁跳出同一個移除確認(#291)。
-            statusCache.removeHost = { id, name in flow.requestDeletionFromEditor(of: id, name: name) }
+            // 已配對裝置「這支裝置」那列:確認在那一列上問過了(#625),確認後回總頁移除(#291)。
+            statusCache.removeHost = { id, name in
+                flow.path.removeAll()
+                confirmDeletion(HostDeletionRequest(id: id, name: name))
+            }
         }
         .onAppear(perform: openPendingImport)
         .onChange(of: importURL) { openPendingImport() }
@@ -244,7 +247,7 @@ final class HostStatusCache {
         if let existing = cache[id] { return existing }
         guard let connection = hosts.hostStatusConnection(for: id), let host = hosts.hosts.first(where: { $0.id == id }) else { return nil }
         let name = host.name
-        let models = HostStatusModels(connection: connection, removeHost: { [weak self] in self?.removeHost(id, name) })
+        let models = HostStatusModels(connection: connection, hostName: name, removeHost: { [weak self] in self?.removeHost(id, name) })
         cache[id] = models
         return models
     }

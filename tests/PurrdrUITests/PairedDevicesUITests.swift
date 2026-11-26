@@ -32,7 +32,7 @@ final class PairedDevicesUITests: XCTestCase {
         XCTAssertTrue(otherDevice.waitUntilGone(timeout: 10), "撤銷後還在列表")
     }
 
-    /// 「這支裝置」滑動是「移除主機」:回到主機 tab 跳出移除主機的確認(撤銷自己沿用移除主機流程)。
+    /// 「這支裝置」滑動是「移除主機」:在那一列上跳出移除主機的確認,確認後回到主機 tab 並移除(撤銷自己沿用移除主機流程)。
     @MainActor
     func testThisDeviceRowOpensHostRemoval() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
@@ -45,7 +45,12 @@ final class PairedDevicesUITests: XCTestCase {
         XCTAssertTrue(remove.waitUntilExists(timeout: 5), "這支裝置沒有移除主機")
         remove.tap()
 
-        XCTAssertTrue(app.buttons["hosts.delete.confirm"].waitUntilExists(timeout: 5), "沒有移除主機的確認")
+        let confirm = app.buttons["hosts.delete.confirm"].firstMatch
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有移除主機的確認")
+        // 系統的確認對話框錨定在那一列,沒有 Cancel 鈕:點外面取消,不移除、留在這一頁。
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+        XCTAssertTrue(UITestWait.until(timeout: 5) { !confirm.exists }, "取消後確認沒有收起")
+        XCTAssertTrue(thisDevice.exists, "取消後離開了已配對裝置頁")
     }
 
     /// 唯讀裝置(啟動時已用唯讀權杖配對):看得到列表，沒有撤銷動作並說明原因。

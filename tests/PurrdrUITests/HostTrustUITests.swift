@@ -25,8 +25,10 @@ final class HostTrustUITests: XCTestCase {
         XCTAssertTrue(password.waitUntilExists(timeout: 5))
         password.tap()
         password.typeEnglish("hunter2")
+        let keyboardDone = app.buttons["hostEditor.keyboardDone"]
+        if keyboardDone.exists { keyboardDone.tap() }
 
-        let test = app.buttons["hostEditor.test"]
+        let test = app.buttons["Test Connection"].firstMatch
         app.scrollIntoView(test, timeout: 5)
         test.tap()
 
