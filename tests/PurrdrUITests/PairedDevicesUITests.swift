@@ -8,7 +8,7 @@ final class PairedDevicesUITests: XCTestCase {
 
     /// 滑動別支裝置「撤銷」→ 確認後從列表消失;這支裝置沒有撤銷動作。
     @MainActor
-    func testRevokeOtherDeviceAfterConfirmation() {
+    func testRevokeOtherDeviceAfterConfirmationThenThisDeviceRowOpensHostRemoval() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
         openStatus(app)
 
@@ -30,26 +30,18 @@ final class PairedDevicesUITests: XCTestCase {
         confirm.tap()
 
         XCTAssertTrue(otherDevice.waitUntilGone(timeout: 10), "撤銷後還在列表")
-    }
 
-    /// 「這支裝置」滑動是「移除主機」:在那一列上跳出移除主機的確認,確認後回到主機 tab 並移除(撤銷自己沿用移除主機流程)。
-    @MainActor
-    func testThisDeviceRowOpensHostRemoval() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
-        openStatus(app)
-
-        let thisDevice = app.descendants(matching: .any)["pairedDevices.row.ui-testing"].firstMatch
-        XCTAssertTrue(app.scrollIntoView(thisDevice, timeout: 10), "沒有這支裝置")
+        // 「這支裝置」滑動是「移除主機」:在那一列上跳出移除主機的確認(撤銷自己沿用移除主機流程)。
+        XCTAssertTrue(app.scrollIntoView(thisDevice, timeout: 10), "撤銷後找不到這支裝置")
         thisDevice.swipeLeft()
         let remove = app.buttons["pairedDevices.removeHost"]
         XCTAssertTrue(remove.waitUntilExists(timeout: 5), "這支裝置沒有移除主機")
         remove.tap()
-
-        let confirm = app.buttons["hosts.delete.confirm"].firstMatch
-        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有移除主機的確認")
-        // 系統的確認對話框錨定在那一列,沒有 Cancel 鈕:點外面取消,不移除、留在這一頁。
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
-        XCTAssertTrue(UITestWait.until(timeout: 5) { !confirm.exists }, "取消後確認沒有收起")
+        let removeConfirm = app.buttons["hosts.delete.confirm"].firstMatch
+        XCTAssertTrue(removeConfirm.waitUntilExists(timeout: 5), "沒有移除主機的確認")
+        // 系統的確認對話框錨定在那一列,沒有 Cancel 鈕:點外面(系統的收起區域)取消,不移除、留在這一頁。
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
+        XCTAssertTrue(removeConfirm.waitUntilGone(timeout: 5), "取消後確認沒有收起")
         XCTAssertTrue(thisDevice.exists, "取消後離開了已配對裝置頁")
     }
 

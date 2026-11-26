@@ -7,11 +7,14 @@ final class SpacesUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 有多個 pane 的 Tab:點了開那個 Tab 的版面圖，終端機方塊開它的 Pane 終端機;長按是 workspace 的動作(#40 補充)。
+    /// 有多個 pane 的 Tab:長按是 Tab 的動作(#40 補充),選「Show Layout」開版面圖,終端機方塊開它的 Pane 終端機。
+    /// 版面圖是系統 NavigationLink 推入的頁面(#641):連續進去三次,第一下點返回鈕就要回到列表;
+    /// 再用左緣滑動返回一次;最後點終端機方塊(同一次啟動,原本 2 個測試合併)。
     @MainActor
-    func testTabWithSeveralPanesOpensLayout() {
+    func testTabWithSeveralPanesOpensLayoutBackWorksOnFirstTapAndEdgeSwipe() {
         let app = XCUIApplication.launchUITesting()
         let tab = app.element("spaces.tab.demo/w3:t1")
+        let shellBlock = app.buttons["layout.block.w3:p2"]
         XCTAssertTrue(app.reveal(tab))
 
         tab.press(forDuration: 1.2)
@@ -22,34 +25,17 @@ final class SpacesUITests: XCTestCase {
         for title in ["New Worktree…", "Close Workspace…"] {
             XCTAssertFalse(app.buttons[title].exists, "Tab 長按選單不該有「\(title)」")
         }
-        // 點螢幕下方的空白處關選單(列變高後選單位置會移動，點正中央可能點到選單項目)。
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)).tap()
-        XCTAssertTrue(app.buttons["Show Layout"].waitUntilGone(timeout: 5))
-
-        tab.tap()
-        let shellBlock = app.buttons["layout.block.w3:p2"]
-        XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "點 Tab 沒有開版面圖")
-        // 列尾 > 是 push(#619):左上返回、tab bar 保留;返回後回到列表,再點一次進去選方塊。
+        // 直接點選單的「Show Layout」(同時驗了這個項目,不靠點座標收選單)。
+        app.buttons["Show Layout"].tap()
+        XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "選「Show Layout」沒有開版面圖")
+        // 列尾 > 是 push(#619):左上返回、tab bar 保留;返回後回到列表,再點 Tab 進去。
         XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "版面圖左上沒有返回鈕")
         XCTAssertTrue(app.tabBars.firstMatch.exists, "版面圖沒有保留 tab bar")
         XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5))
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(shellBlock.waitUntilGone(timeout: 5), "返回後版面圖還在")
-        XCTAssertTrue(app.reveal(tab))
-        tab.tap()
-        XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "再點 Tab 沒有開版面圖")
-        shellBlock.tap()
+        XCTAssertTrue(shellBlock.waitUntilGone(timeout: 3), "第 1 輪第一下點返回沒有返回")
 
-        XCTAssertTrue(app.waitForTerminalHeader(containing: "npm run dev", timeout: 10), "點終端機方塊沒有開 Pane 終端機,或標題不是程式名:\(app.terminalHeader)")
-    }
-
-    /// 版面圖是系統 NavigationLink 推入的頁面(#641):連續三次進去,第一下點返回鈕就要回到列表;最後再用左緣滑動返回一次。
-    @MainActor
-    func testLayoutPushBackWorksOnFirstTapAndEdgeSwipe() {
-        let app = XCUIApplication.launchUITesting()
-        let tab = app.element("spaces.tab.demo/w3:t1")
-        let shellBlock = app.buttons["layout.block.w3:p2"]
-        for round in 1...3 {
+        for round in 2...3 {
             XCTAssertTrue(app.reveal(tab), "第 \(round) 輪找不到 Tab 列")
             tab.tap()
             XCTAssertTrue(app.element("layout.page").waitUntilExistsAndSettled(timeout: 5), "第 \(round) 輪沒有開版面圖")
@@ -62,12 +48,34 @@ final class SpacesUITests: XCTestCase {
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))
         start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
         XCTAssertTrue(shellBlock.waitUntilGone(timeout: 3), "左緣滑動沒有返回")
+
+        XCTAssertTrue(app.reveal(tab))
+        tab.tap()
+        XCTAssertTrue(shellBlock.waitUntilExists(timeout: 5), "再點 Tab 沒有開版面圖")
+        shellBlock.tap()
+
+        XCTAssertTrue(app.waitForTerminalHeader(containing: "npm run dev", timeout: 10), "點終端機方塊沒有開 Pane 終端機,或標題不是程式名:\(app.terminalHeader)")
     }
 
-    /// 長按選單與左滑都能關閉 Tab,關之前先確認;Demo 每個 Workspace 只有一個 Tab,所以確認文字是「連 Workspace 一起關」(#534)。
+    /// 先以段落標題「Close Workspace…」關掉 notes(w3):關閉是破壞性動作,先確認,確認後列消失。
+    /// 再測長按選單與左滑都能關閉 Tab,關之前先確認;Demo 每個 Workspace 只有一個 Tab,所以確認文字是「連 Workspace 一起關」(#534)
+    /// (同一次啟動,原本 2 個測試合併)。
     @MainActor
-    func testCloseTabFromMenuAndSwipe() {
+    func testCloseWorkspaceAsksFirstThenCloseTabFromMenuAndSwipe() {
         let app = XCUIApplication.launchUITesting()
+        let notes = app.element("spaces.tab.demo/w3:t1")
+        XCTAssertTrue(app.reveal(notes))
+        // Workspace 的關閉只在段落標題的長按選單(#536)。
+        let notesHeader = app.element("spaces.section.demo/w3")
+        XCTAssertTrue(app.reveal(notesHeader))
+        notesHeader.press(forDuration: 1.2)
+        app.buttons["Close Workspace…"].firstMatch.tap()
+        let closeWorkspace = app.buttons["Close Workspace"]
+        XCTAssertTrue(closeWorkspace.waitUntilExists(timeout: 5), "沒有先確認就關閉")
+        XCTAssertTrue(notes.exists, "確認前列就不見了")
+        closeWorkspace.tap()
+        XCTAssertTrue(notes.waitUntilGone(timeout: 5), "關閉 Workspace 後列仍在")
+
         let first = app.element("spaces.tab.demo/w2:t1")
         XCTAssertTrue(app.reveal(first))
 
@@ -118,7 +126,7 @@ final class SpacesUITests: XCTestCase {
         let start = app.buttons["newChat.start"]
         app.scrollIntoView(start, search: .down)
         start.tap()
-        XCTAssertTrue(sheet.waitForNonExistence(timeout: 15))
+        XCTAssertTrue(sheet.waitUntilGone(timeout: 15))
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w2:t2")), "沒有第二個 Tab")
@@ -139,9 +147,9 @@ final class SpacesUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground, "關掉需要你的 Tab 後 app 閃退了")
     }
 
-    /// 長按 Tab 列改的是那個 Tab;長按 Workspace 標題改 Workspace(#456)。
+    /// 長按 Tab 列改的是那個 Tab;長按 Workspace 標題出現選單:New Worktree(同一次啟動,原本與 WorkspaceActionsUITests 合併)與改 Workspace(#456)。
     @MainActor
-    func testRenameTabAndWorkspaceFromSpaces() {
+    func testRenameTabNewWorktreeErrorThenRenameWorkspaceFromSpaces() {
         let app = XCUIApplication.launchUITesting()
         let tab = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(tab))
@@ -166,6 +174,21 @@ final class SpacesUITests: XCTestCase {
             XCTAssertTrue(app.buttons[title].waitUntilExists(timeout: 5), "標題長按選單沒有「\(title)」")
         }
         XCTAssertFalse(app.alerts["Rename Workspace"].exists, "選單還沒選就開了提示框")
+
+        // Demo 主機不建立 worktree:錯誤留在表單裡說明(關掉 sheet 後再改名)。
+        app.buttons["New Worktree…"].tap()
+        let branch = app.textFields["workspace.worktree.branch"]
+        XCTAssertTrue(branch.waitUntilExists(timeout: 5))
+        app.assertModalToolbar(close: "sheet.close", confirm: "workspace.worktree.create")
+        XCTAssertFalse(app.buttons["workspace.worktree.create"].isEnabled, "沒有分支名稱時 ✓ 應停用")
+        branch.typeEnglish("try-sorting")
+        app.buttons["workspace.worktree.create"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["workspace.worktree.error"].waitUntilExists(timeout: 5), "沒有顯示錯誤")
+        app.buttons["sheet.close"].tap()
+        XCTAssertTrue(branch.waitUntilGone(timeout: 5), "關閉後 worktree 表單還在")
+
+        header.press(forDuration: 1.2)
+        XCTAssertTrue(app.buttons["menu.renameWorkspace"].waitUntilExists(timeout: 5), "標題再次長按沒有出現選單")
         app.buttons["menu.renameWorkspace"].tap()
         let workspaceAlert = app.alerts["Rename Workspace"]
         XCTAssertTrue(workspaceAlert.waitUntilExists(timeout: 5))
