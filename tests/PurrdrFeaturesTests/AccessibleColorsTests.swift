@@ -195,7 +195,7 @@ struct SpacesColorsTests {
     func avatarColorsAreMutedPalette() {
         let expected: [(AgentKind, String, String)] = [
             (.claudeCode, "#8A5A48", "#6D4739"), (.codex, "#55565C", "#4F5056"), (.gemini, "#4A5F86", "#3E5071"),
-            (.openCode, "#5C6B4A", "#48533A"), (.copilot, "#6A5884", "#58496E"), (.unknown("grok"), "#5A5A5F", "#505055"),
+            (.openCode, "#8A4F66", "#6D3A4F"), (.copilot, "#6A5884", "#58496E"), (.unknown("grok"), "#5A5A5F", "#505055"),
         ]
         for (kind, normal, highContrast) in expected {
             let palette = AgentKindAvatarStyle(kind: kind).palette
@@ -254,6 +254,29 @@ struct PlanUsageColorsTests {
         }
     }
 
+    @Test("「充足」就是主色(#649):四個值等於 AccentColor Asset,不是另一種灰綠")
+    func ampleIsAccent() throws {
+        let accent = try AccentColorTests.accentColorAsset()
+        let ample = AccessibleColors.planUsageAmple
+        #expect(ample.light == accent.light && ample.dark == accent.dark)
+        #expect(ample.lightHighContrast == accent.lightHighContrast && ample.darkHighContrast == accent.darkHighContrast)
+    }
+
+    /// 70% 級距深色優先用系統橙(#649):系統橙(約 #FF9230,增加對比約 #FFB340)對深色軌道與卡片底都 ≥ 3:1,所以深色用系統色;
+    /// 淺色系統橙對白底只有 2.2:1,不足,維持自訂色。85% 級距系統紅對深色軌道只有 2.8～3.0:1(淺色 2.6～3.0:1),不足,維持自訂色。
+    @Test("70% 級距:深色(含增加對比)是系統橙,對軌道與卡片底 ≥ 3:1;淺色系統橙 < 3:1 所以自訂")
+    func lowLevelUsesSystemOrangeInDark() {
+        let low = AccessibleColors.planUsageLow
+        #expect(low.dark == ThemeColor(hex: "#FF9230"))
+        #expect(low.darkHighContrast == ThemeColor(hex: "#FFB340"))
+        #expect(low.usesSystemInDark, "深色外觀交給系統橙")
+        for background in Self.darkCards + Self.darkTracks {
+            #expect(low.dark.contrastRatio(with: background) >= 3, "\(background)")
+        }
+        #expect(ThemeColor(red: 0xFF, green: 0x95, blue: 0x00).contrastRatio(with: Self.white) < 3, "淺色系統橙不足才用自訂")
+        #expect(!AccessibleColors.planUsageDepleted.usesSystemInDark)
+    }
+
     @Test("三級的顏色彼此不同(低飽和的綠、棕橘、紅)")
     func levelsAreDistinct() {
         let palettes = [PlanUsageLevel.ample, .low, .depleted].map { AccessibleColors.planUsage($0) }
@@ -261,6 +284,42 @@ struct PlanUsageColorsTests {
         #expect(palettes[1].light.red > palettes[1].light.green && palettes[1].light.green > palettes[1].light.blue, "偏高不是橘棕色")
         #expect(Int(palettes[2].light.red) > Int(palettes[2].light.green), "將用完不是紅色")
         #expect(palettes[1].light != palettes[2].light)
+    }
+}
+
+/// 流量圖兩階綠(#649):行動網路 = 主色,Wi-Fi = 同色相的另一階;對頁面 ≥ 3:1、兩者看得出差別。
+@Suite("流量圖的配色")
+struct DataUsageColorsTests {
+    /// 長條實際出現的背景:grouped 頁(淺色 `#F2F2F7`、深色 base 純黑)與卡片(白、`#1C1C1E`、`#2C2C2E`),增加對比用系統的增強值。
+    static let light = [ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), ThemeColor(red: 0xF2, green: 0xF2, blue: 0xF7)]
+    static let lightHighContrast = [ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), ThemeColor(red: 0xEB, green: 0xEB, blue: 0xF0)]
+    static let dark = Array(AccessibleColorsTests.darkSecondaryBackgrounds.dropLast())
+    static let darkHighContrast = AccessibleColorsTests.darkHighContrastBackgrounds
+
+    @Test("行動網路就是主色(四值等於 AccentColor Asset)")
+    func cellularIsAccent() throws {
+        let accent = try AccentColorTests.accentColorAsset()
+        let cellular = AccessibleColors.dataUsageCellular
+        #expect(cellular.light == accent.light && cellular.dark == accent.dark)
+        #expect(cellular.lightHighContrast == accent.lightHighContrast && cellular.darkHighContrast == accent.darkHighContrast)
+    }
+
+    @Test("Wi-Fi:深淺色與增加對比對頁面與卡片底 ≥ 3:1,與行動網路至少差 1.5:1,且是同色相的綠")
+    func wifiContrast() {
+        let wifi = AccessibleColors.dataUsageWifi
+        let cellular = AccessibleColors.dataUsageCellular
+        let cases: [(String, ThemeColor, ThemeColor, [ThemeColor])] = [
+            ("淺色", wifi.light, cellular.light, Self.light), ("淺色高對比", wifi.lightHighContrast, cellular.lightHighContrast, Self.lightHighContrast),
+            ("深色", wifi.dark, cellular.dark, Self.dark), ("深色高對比", wifi.darkHighContrast, cellular.darkHighContrast, Self.darkHighContrast),
+        ]
+        for (name, color, cell, backgrounds) in cases {
+            for background in backgrounds {
+                #expect(color.contrastRatio(with: background) >= 3, "\(name) Wi-Fi \(color) 對 \(background)")
+            }
+            let gap = color.contrastRatio(with: cell)
+            #expect(gap >= 1.5, "\(name) Wi-Fi \(color) 與行動網路 \(cell) 只差 \(gap)")
+            #expect(color.green > color.red && color.green >= color.blue, "\(name) 不是綠色")
+        }
     }
 }
 

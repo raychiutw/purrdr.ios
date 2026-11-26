@@ -11,6 +11,8 @@ struct ContrastPalette: Sendable {
     var dark: ThemeColor
     var lightHighContrast: ThemeColor
     var darkHighContrast: ThemeColor
+    /// 深色外觀(含增加對比)用系統橙而不是自訂色(#649):`dark`／`darkHighContrast` 記的是系統橙的約值,給對比測試用。
+    var usesSystemInDark = false
 
     /// 依外觀與「增加對比」取值的顏色。
     #if canImport(UIKit)
@@ -18,6 +20,7 @@ struct ContrastPalette: Sendable {
     var uiColor: UIColor {
         UIColor { traits in
             let high = traits.accessibilityContrast == .high
+            if usesSystemInDark, traits.userInterfaceStyle == .dark { return UIColor.systemOrange.resolvedColor(with: traits) }
             return switch (traits.userInterfaceStyle == .dark, high) {
             case (false, false): UIColor(light)
             case (true, false): UIColor(dark)
@@ -32,6 +35,7 @@ struct ContrastPalette: Sendable {
         #if canImport(UIKit)
         Color(uiColor: UIColor { traits in
             let high = traits.accessibilityContrast == .high
+            if usesSystemInDark, traits.userInterfaceStyle == .dark { return UIColor.systemOrange.resolvedColor(with: traits) }
             return switch (traits.userInterfaceStyle == .dark, high) {
             case (false, false): UIColor(light)
             case (true, false): UIColor(dark)
@@ -168,17 +172,18 @@ extension AccessibleColors {
     }
 
     static let planUsageAmple = ContrastPalette(
-        light: ThemeColor(red: 0x3D, green: 0x75, blue: 0x61),             // 對軌道 4.0:1(設計稿 #4F8572 只有 3.2:1)
-        dark: ThemeColor(red: 0x6F, green: 0xAE, blue: 0x98),
-        lightHighContrast: ThemeColor(red: 0x2F, green: 0x5E, blue: 0x4E),
-        darkHighContrast: ThemeColor(red: 0x9F, green: 0xDC, blue: 0xC4)
+        light: ThemeColor(red: 0x0B, green: 0x7A, blue: 0x5C),             // 主色(ADR-0011),與 AccentColor Asset 同值,`PlanUsageColorsTests` 比對
+        dark: ThemeColor(red: 0x3C, green: 0xCF, blue: 0x9E),
+        lightHighContrast: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
+        darkHighContrast: ThemeColor(red: 0x5D, green: 0xE0, blue: 0xB3)
     )
 
     static let planUsageLow = ContrastPalette(
-        light: ThemeColor(red: 0xA9, green: 0x78, blue: 0x4A),
-        dark: ThemeColor(red: 0xC9, green: 0x9A, blue: 0x6A),
+        light: ThemeColor(red: 0xA9, green: 0x78, blue: 0x4A),             // 系統橙對白底 2.2:1 不足,淺色自訂
+        dark: ThemeColor(red: 0xFF, green: 0x92, blue: 0x30),              // 深色用系統橙(對軌道與卡片底 ≥ 4.3:1)
         lightHighContrast: ThemeColor(red: 0x7D, green: 0x52, blue: 0x30),
-        darkHighContrast: ThemeColor(red: 0xEB, green: 0xC4, blue: 0x98)
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0xB3, blue: 0x40),
+        usesSystemInDark: true
     )
 
     static let planUsageDepleted = ContrastPalette(
@@ -190,19 +195,19 @@ extension AccessibleColors {
 }
 
 extension AccessibleColors {
-    /// 數據用量長條圖的兩階綠(#354,原型 `prototypes/data-usage/`,已以色盲檢查腳本驗證):
-    /// 行動網路(淺色深綠、深色亮綠)與 Wi-Fi(淺色淺綠、深色暗綠)。亮度差別讓兩段不只靠色相分辨;圖例與數值另有文字。
+    /// 數據用量長條圖的兩階綠(#354、#649):行動網路 = 主色(翡翠綠),Wi-Fi = 主色同色相的另一階
+    /// (淺色較淺、深色較暗,各自對頁面 ≥ 3:1,與行動網路亮度差 ≥ 1.5:1);圖例與數值另有文字。
     static let dataUsageCellular = ContrastPalette(
-        light: ThemeColor(red: 0x0B, green: 0x7A, blue: 0x5C),
-        dark: ThemeColor(red: 0x2B, green: 0xB3, blue: 0x83),
+        light: ThemeColor(red: 0x0B, green: 0x7A, blue: 0x5C),             // 主色(ADR-0011)
+        dark: ThemeColor(red: 0x3C, green: 0xCF, blue: 0x9E),
         lightHighContrast: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
         darkHighContrast: ThemeColor(red: 0x5D, green: 0xE0, blue: 0xB3)
     )
 
     static let dataUsageWifi = ContrastPalette(
-        light: ThemeColor(red: 0x5B, green: 0xB8, blue: 0x94),
-        dark: ThemeColor(red: 0x12, green: 0x7A, blue: 0x59),
-        lightHighContrast: ThemeColor(red: 0x4A, green: 0xA8, blue: 0x84),
-        darkHighContrast: ThemeColor(red: 0x1A, green: 0x8F, blue: 0x6A)
+        light: ThemeColor(red: 0x2E, green: 0x9C, blue: 0x7A),             // 主色同色相較淺一階:對白 3.4:1、對 #F2F2F7 3.1:1,與行動網路差 1.6:1
+        dark: ThemeColor(red: 0x22, green: 0x9C, blue: 0x77),              // 較暗一階:對黑 6.1:1、對 #2C2C2E 4.0:1
+        lightHighContrast: ThemeColor(red: 0x1F, green: 0x8A, blue: 0x6B),
+        darkHighContrast: ThemeColor(red: 0x28, green: 0xA6, blue: 0x7F)
     )
 }
