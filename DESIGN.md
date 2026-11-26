@@ -9,21 +9,35 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 ## 顏色(ADR-0011,取代 ADR-0008)
 
-主色只有一組(翡翠綠);語意色只用系統紅、系統橙;其餘一律中性。對比只要符合 HIG(一般文字 4.5:1、大字 3:1),不追求更高;要降低刺眼感從飽和色的**面積**下手，不調暗文字。
+**系統色優先,自訂色只在系統色對比不足時用**(#646,依 HIG〈Dark Mode〉「Prefer the system background colors」「Use the system-provided label colors」、〈Color〉「Avoid redefining the semantic meanings of dynamic system colors」;一手來源與實測色碼見 `docs/research/ios27-dark-mode-colors.md`)。底色、主要文字、分隔線一律系統語意色;主色只有一組(翡翠綠);語意色只用系統紅、系統橙;其餘中性。對比只要符合 HIG(一般文字 4.5:1、大字與圖形 3:1),不追求更高;要降低刺眼感從飽和色的**面積**下手，不調暗文字。
+
+**底色與文字**(#646,取代 #379):
+
+| 用途 | 系統色(`AppSurface`) | 深色 base／elevated | 淺色 |
+|---|---|---|---|
+| 頁面 `page` | `systemBackground` | `#000000`／`#1C1C1E` | `#FFFFFF` |
+| grouped 頁面 `groupedPage` | `systemGroupedBackground` | `#000000`／`#1C1C1E` | `#F2F2F7` |
+| 卡片 `card` | `secondarySystemBackground` | `#1C1C1E`／`#2C2C2E` | `#F2F2F7` |
+| grouped 列 `groupedRow` | `secondarySystemGroupedBackground` | `#1C1C1E`／`#2C2C2E` | `#FFFFFF` |
+| 內層 `inner` | `tertiarySystemBackground` | `#2C2C2E`／`#3A3A3C` | `#FFFFFF` |
+| 主要文字 | `label`(深色純白、淺色黑,不自訂柔白) | | |
+
+深色頁面是系統 base 純黑;sheet 與 popover 由系統自動 elevated 提亮一階;「增加對比」跟著系統(深色第二、三階 `#242426`／`#363638`／`#444446`,淺色 grouped `#EBEBF0`)。數值是 iOS 27.0 模擬器實測(Apple 未公布),`AppAppearanceTests` 在深色 base／elevated、淺色、增加對比下斷言每個用途等於對應的系統色;`SystemSurfaceUsageTests` 擋畫面寫死底色色碼。
 
 | 用途 | 色碼 | 說明 |
 |---|---|---|
 | 主色(Asset Catalog `AccentColor`,即系統 tint;唯一來源) | light `#0B7A5C`／dark `#3CCF9E`／light 高對比 `#075C45`／dark 高對比 `#5DE0B3` | tint、連結、勾選、選取態、主要按鈕與送出鍵的填色。淺色對白底 5.3:1、`#F2F2F7` 4.8:1、`#EFEFF0` 4.6:1;深色對黑底 10.6:1、`#1C1C1E` 8.6:1、`#2C2C2E` 7.0:1;高對比值對同一組背景都比一般值更強。程式碼不另存一份色值，對比測試直接讀 Asset |
 | 主色上的字 `onAccent` | 淺色(含高對比)白、深色(含高對比)黑 | 主色填色上的字與符號。白字對 `#0B7A5C` 5.3:1、對 `#075C45` 8.0:1;黑字對 `#3CCF9E` 10.6:1、對 `#5DE0B3` 12.8:1 |
-| 次要文字 `secondaryText`(#67) | light `#636366`／dark `#AEAEB2`／light 高對比 `#48484A`／dark 高對比 `#D1D1D6` | 取代承載資訊的系統 `.secondary`／`.tertiary` 文字(系統 secondaryLabel 白底只有 3.4:1)。淺色對白底 6.0:1、grouped `#F2F2F7` 5.4:1、淡填色卡片 `#EFEFF0` 5.2:1;深色對黑底 9.5:1、`#1C1C1E` 7.7:1、grouped 列 `#2C2C2E` 6.3:1;高對比兩值對同一組背景都 ≥ 7.9:1 |
+| 次要文字 `secondaryText`(#67、#646) | 深色(含增加對比):系統 `secondaryLabel`;淺色:light `#636366`／light 高對比 `#48484A` | 系統 `secondaryLabel` 深色對純黑 6.4:1、對 elevated `#3A3A3C` 4.6:1,已達 4.5:1,所以深色不自訂;淺色 `secondaryLabel` 白底只有 3.4:1、grouped `#F2F2F7` 3.1:1,不足,所以淺色用自訂灰:對白底 6.0:1、`#F2F2F7` 5.4:1、淡填色卡片 `#EFEFF0` 5.2:1;高對比 `#48484A` 對白底 9.1:1、`#EBEBF0` 7.7:1。`AccessibleColorsTests`、`AppAppearanceTests` 守門 |
 
+- **保留的自訂色(其餘都是系統色)**:淺色 `secondaryText`(系統 3.4:1 不足)、`destructiveText`(系統紅當文字在深色 `#2C2C2E` 以上約 4.1:1)、`unreadBadge`(系統紅底白字 3.3～3.6:1)、`onAccent`(主色上的字)、主色本身(ADR-0011)。每個保留值都對它**實際出現的系統背景**(淺色 `#FFFFFF`／`#F2F2F7`／`#EBEBF0`、深色 base 與 elevated 含增加對比至 `#444446`)計算:一般 ≥ 4.5:1、增加對比 ≥ 7:1(`AccessibleColorsTests`)。`tabSelection` 已移除(#646):tab 選取態由系統以主色(`AccentColor`)畫。
 - 每個自訂顏色都要有 light／dark／各自 high contrast 四個值，放在 Asset Catalog 或程式碼的 `ContrastPalette`(`AccessibleColors`)都可以;四個值都要有對比測試(對它實際出現的背景計算，見 `AccessibleColorsTests`)。
 - 每個畫面 prominent 按鈕最多 2 個。
 - **清單動作列不被主色染色**(#638、spec #634;HIG Branding「Apply your app's accent color judiciously … Minimize its use on controls」、WWDC25 219「Avoid tinting all your elements」):SwiftUI 的 List 會自動把 Button 染成主色,整頁動作列會一片綠。List 內的一般動作 Button(非導覽、非破壞性)一律加 `.listAction()`(`ListActionStyle.swift`):文字主要標籤色、圖示次要色,明確指定、不吃 tint。主色只留給主要動作(prominent)、連結、勾選／選取與狀態圖示。`ListActionColorUsageTests` 直接掃原始碼(`ListButtonScanner`:大括號深度追蹤,找 List／Section 內、不在 Menu／swipe／contextMenu／alert／toolbar 裡的 Button),新增的動作列自動被發現;已指定 `.buttonStyle(…)`、`filledProminentButtonStyle()` 的不用加,其餘例外在按鈕那行寫 `// listAction:exempt <原因>`。
 - **破壞性動作統一紅色**(#639):List 內的破壞性 Button(清除記錄、刪除會員、移除主機…)保留 `role: .destructive`(VoiceOver 與系統行為不變),再加 `.destructiveListAction()`(`ListActionStyle.swift`):文字與圖示同為 `destructiveText`。不直接吃系統 role 的紅:系統紅 `#FF453A` 在深色卡片 `#2C2C2E` 只有約 4.1:1,文字要 4.5:1。不用 `.listAction()`(圖示會變次要色、與紅字不同色),也不寫死 `.red`。選單、swipe、對話框由系統畫,不改。守門:`ListActionColorUsageTests`。
 - **不能點的狀態文字不用主色**(#639):主色代表可以點。Plus「使用中」用主要標籤色加粗;狀態要有顏色就上色圖示、文字保持中性。`StatusTextColorUsageTests` 守門。
 - **未讀數字徽章**(#639):聊天 tab 的徽章仍是系統 tab bar 畫的,只經 `UITabBarItem.appearance()` 換底色為 `AccessibleColors.unreadBadge`(白字對底 ≥ 4.5:1,高對比 ≥ 7:1;系統紅底白字只有約 3.3～3.6:1)。`AccessibleColorsTests` 守門。
-- **深色底層次**(#379):深色頁面不用純黑。頁面 `#1C1C1E`、卡片與 grouped 列 `#2C2C2E`、再內一層 `#3A3A3C`;淺色沿用系統語意色。值集中在 Features 的 `AppSurface`(`page`、`groupedPage`、`card`、`groupedRow`、`inner`),畫面不寫死色碼:清單與表單套 `.appGroupedList()`,卡片底用 `AppSurface.card`、頁面底用 `AppSurface.page`,`appAppearance()` 在每個視窗根底下鋪 `page`。**不用視窗的 `userInterfaceLevel = .elevated`**:實測 UIKit 的 level 雖然是 elevated,SwiftUI 的 `.background` 與 `List` 預設底色仍畫純黑,所以必須明確指定。純黑只留給終端機與全螢幕圖片。sheet 的系統底色本來就是 elevated,與頁面同色階、列是 `#2C2C2E`。**與設計稿的偏離(使用者決定接受)**:設計稿的 sheet `#2C2C2E`、sheet 內卡片 `#3A3A3C` 需要逐列自訂背景,不做,另開後續票。紅字按鈕文字用 `destructiveText`(深色 `#FF8A82`,系統紅對深色卡片不到 4.5:1);`AccessibleColorsTests` 對 `#3A3A3C` 以內的背景守門。
+- **深色底層次**(#379,**已被 #646 取代**):原本深色頁面用提亮的 `#1C1C1E`／`#2C2C2E`／`#3A3A3C`(整組等於系統 elevated),代價是 sheet 與頁面同色階。改回系統色的理由:HIG〈Dark Mode〉「Prefer the system background colors … Using a custom background color can make it harder for people to perceive these system-provided visual distinctions」,系統 base 就是純黑、elevated 由系統在 sheet／popover 提亮;寫死三個值也沒有「增加對比」變體,層次比系統弱(研究:`docs/research/ios27-dark-mode-colors.md` §1、對 Purrdr 的建議 1、2)。`AppSurface` 現在只是系統語意背景色的命名。純黑原本只留給終端機與全螢幕圖片,現在也是深色頁面底。紅字按鈕文字仍用 `destructiveText`(深色 `#FF8A82`,系統紅對深色卡片不到 4.5:1)。
 - **輸入列按鈕無陰影**:一律 bordered 系列與 `ComposerCircleButtonStyle`(不用玻璃按鈕);送出中仍是主色填色但不可點(`ComposerSendAppearance.sending`,不套系統 disabled,深色不會變黑色圓),「＋」停用時仍看得見(次要文字色)。未選的最近照片有白色圈框加半透明黑底。
 - 主色填色一律經 `prominentFill`(有主機主題時是主題填色)與 `onProminentFill`(主題填色上白字，主色上 `onAccent`):填色寫 `hostFill(in:)` 或 `.prominentFill`,prominent 按鈕用 `filledProminentButtonStyle()`／`filledGlassProminentButtonStyle()`;不要直接用 tint／`Color.accentColor` 當底(`ProminentFillUsageTests` 擋),否則深色模式會變成白字配亮綠。
 - iPad 列表(兩欄 split view 的列表欄)的選取列加 `selectionFill(for:)`:中性灰底 `neutralSelection`(系統 `systemGray5`:`#E5E5EA`／`#2C2C2E`／高對比 `#D8D8DC`／`#363638`),不用主色或主機主題的填色;列內文字維持主要色與 `secondaryText`,不另換字色(#238)。主要文字與 `secondaryText` 對四值都 ≥ 4.5:1(淺色次要 4.8:1 最低，`SelectionAppearanceTests`)。
@@ -32,7 +46,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 聊天與導覽改版(#376,設計稿 `purrdr.css` 的 token 為準)新增或改定下列色值;每個自訂顏色一樣要有 light／dark／各自 high contrast 四個值與對比測試。
 
-**深色底分三階**(取代純黑,整個 app 統一;沿用系統語意色的 base／elevated 概念):
+**深色底分三階**(**已被 #646 取代**,現在是系統語意背景色,見上方「底色與文字」;下表保留作歷史):
 
 | 層 | 深色 | 淺色 | 用在 |
 |---|---|---|---|
@@ -42,8 +56,8 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 - **語意底色分兩組**:非 grouped(一般內容頁:聊天、列表)與 grouped(設定、主機、流量這類 inset grouped 清單),兩組各自有「頁面底、卡片底」,不混用;sheet 底(elevated)另算,不另外手寫第三組。
 - 深色頁面提亮後,所有既有對比檢查(次要文字、主色、狀態色)對 `#1C1C1E`、`#2C2C2E`、`#3A3A3C` 都要通過,「增加對比」下一樣可讀。
-- **紅色**:圖示、圖形與填色(錯誤、刪除、未讀 badge)用系統 `.red`;承載文字的破壞性動作標籤(「重設統計」「移除主機」這類 destructive 列)用定稿紅字 token——淺色 `#D70015`(對 `#FFFFFF` 5.4:1、`#F2F2F7` 4.8:1)、深色 `#FF8A82`(對 `#1C1C1E` 7.5:1、`#2C2C2E` 6.1:1、`#3A3A3C` 5.0:1),高對比 淺 `#A8000F`(對白 7.9:1)、深 `#FFB4AE`(對 `#2C2C2E` 8.2:1)。系統 `.red` 深色 `#FF453A` 對 `#2C2C2E` 只有 4.1:1,所以不拿它承載文字。
-- **tab 選取**:選取態的圖示與標籤文字淺色 `#075C45`(對白 8.0:1)、深色 `#3CCF9E`;一般態用系統預設。
+- **紅色**:圖示、圖形與填色(錯誤、刪除、未讀 badge)用系統 `.red`;承載文字的破壞性動作標籤(「重設統計」「移除主機」這類 destructive 列)用定稿紅字 token——淺色 `#D70015`(對 `#FFFFFF` 5.4:1、`#F2F2F7` 4.8:1)、深色 `#FF8A82`(對 `#1C1C1E` 7.5:1、`#2C2C2E` 6.1:1、`#3A3A3C` 5.0:1),高對比 淺 `#9C0010`(對白 8.7:1、`#EBEBF0` 7.3:1)、深 `#FFD3CF`(對 `#444446` 7.2:1)。系統 `.red` 深色 `#FF453A` 對 `#2C2C2E` 只有 4.1:1,所以不拿它承載文字。
+- **tab 選取**(#646 改):不再有自訂 tab 選取色(原淺色 `#075C45`、深色 `#3CCF9E`),選取態由系統 TabView 以主色(`AccentColor`)畫。
 - **橙色警示**:「3.5× 使用量」這類警示用主要文字色配橙色三角形(`exclamationmark.triangle.fill`,淺色 `#FF9500`、深色 `#FF9F0A`),不用橙色文字(系統橙對白底只有 2.2:1)。三角形是圖形、不承載文字,對 3:1 的圖形要求,淺色橙對白底不足時一律改靠旁邊的主要文字色與符號形狀傳達。
 
 **低飽和用量色**(用量環與進度條,#389;顏色只上圖形,數字與文字另寫、不只靠顏色;到門檻加三角形符號;每個值對軌道、卡片底都 ≥ 3:1,高對比值 ≥ 4.5:1):
@@ -122,7 +136,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 ## 畫面重點
 
-- **iPhone 頂層導覽**(#376,取代舊的「不採 tab bar」與「⋯」選單):底部 **4 個 tab——聊天、檔案、主機、流量**(#503 起設定併進帳號 sheet)(系統 `TabView`,iOS 26 浮動 Liquid Glass tab bar,圖示是 filled SF Symbols,選取態用 tab 選取色,見「深色層次與新色票」;底層只用 iOS 26 就有的 API,iOS 27 專屬 API 只作 `#available` 加分)。「⋯」選單移除:新增聊天是聊天 tab 頂列膠囊的「＋」,檔案、流量是 tab,設定在帳號與設定 sheet,方案用量與登入 Shell 在主機 tab。
+- **iPhone 頂層導覽**(#376,取代舊的「不採 tab bar」與「⋯」選單):底部 **4 個 tab——聊天、檔案、主機、流量**(#503 起設定併進帳號 sheet)(系統 `TabView`,iOS 26 浮動 Liquid Glass tab bar,圖示是 filled SF Symbols,選取態由系統以主色畫(#646);底層只用 iOS 26 就有的 API,iOS 27 專屬 API 只作 `#available` 加分)。「⋯」選單移除:新增聊天是聊天 tab 頂列膠囊的「＋」,檔案、流量是 tab,設定在帳號與設定 sheet,方案用量與登入 Shell 在主機 tab。
   - **共用頂列與共用頁面**(#475、#499、#500、#615,spec #491、#612;#612 改成**全系統原生**,推翻 #499／#491 的自繪頂列):四個 tab 的頂端由共用頁面 `topBarPage` 一律用系統導覽列元件,畫面不自畫、不隱藏系統導覽列。**大標題**是系統 `navigationTitle` 加 `.large`(文字等於 tab 名稱:聊天、檔案、主機、流量),往下滑由系統收成 inline 標題;**右側**電腦圖示與「＋」放同一個 `ToolbarItemGroup`(`topBarTrailing`),由系統合成**無分隔線**的玻璃膠囊,頭像是另一個 `ToolbarItem`、中間用固定 `ToolbarSpacer` 隔開;**搜尋**(聊天、檔案)是系統 `searchable`(`navigationBarDrawer(displayMode: .automatic)`:iOS 26 預設會移到底部工具列,所以明確指定放在大標題下;平常收起、往下拉才出現,與系統「訊息」「備忘錄」一致,所以四個 tab 的大標題都是正常大標題),焦點接 `searchFocused`。**不自加尺寸**:工具列項目不設寬高、字級與間距,全交給系統(實測 iPhone 17:膠囊寬約 120pt、頭像圓鈕 44pt、膠囊與頭像間距約 12pt,與 Apple Music 的 117–122／44／12 一致);沒有漸層遮罩、自畫膠囊與自畫搜尋欄,沒有 `TopBarMetrics`(小圓點是系統符號 `circle.fill`,隨字級縮放,不寫死直徑,#615)。**顏色**:電腦圖示篩選小圓點用 app 主色,其餘維持系統單色。**iOS 27 注意**:`ToolbarItemPlacement.topBarPinnedTrailing` 目前會讓同一個位置只顯示第一個項目(實測頭像與「＋」消失),**不使用**,一律 `topBarTrailing`(`contentMarginsRemoved`、`toolbarMinimizationBehavior` 同樣不加,等實測確認再以 `#available` 引入)。UI 測試識別碼:大標題系統導覽列不接受識別碼,以 `app.topBarTitle("Chats")`(導覽列內的標題文字)找;搜尋欄以 `searchFields` 找(`agentList.search`／`files.search` 已不存在);`toolbar.currentHost`、`toolbar.newChat`、`files.upload`、`hosts.add`、`toolbar.account` 照舊,小圓點 `topBar.hostDot` 保留(系統工具列按鈕可掛 overlay,但未實測會被系統去色)。原始碼守門 `SystemTopBarUsageTests`。**頭像鈕**(#246):會員名稱第一個字(沒有字是 `person.fill`),未加入會員是系統人頭圖 `person.crop.circle`(不用問號),VoiceOver「帳號」,開帳號與設定 sheet。
   - **確認對話框與 alert**(#625、spec #612,HIG Alerts):使用者自己發起的刪除、登出、關閉(移除主機、移除範例主機、登出、重設統計、關閉 Workspace／Tab…)一律底部 `confirmationDialog`(取消鈕 `.cancel`、破壞性鈕 `.destructive`),只有**刪除會員**因後果最嚴重保留中央 alert。alert 只在需要使用者決定或擋住流程時出現:純告知(終端機無法貼上、檔案無法上傳、測試通知結果、轉移完成等訂閱告知)改成頁內說明(`ErrorLabel` 或列上狀態、`SubscriptionNoticeSection`),失敗與需要決定的訂閱結果(`SubscriptionNotice.isInformational` 為 false)保留 alert。按鈕用動詞;有其他動作時取消鈕不用「OK」(要先登入、需要 Plus 的鎖定提示用「Not Now」);標題具體(Workspace 關閉失敗寫「Couldn’t Close Workspace／Tab」)。原始碼守門 `AlertUsageTests`(每檔 `.alert(` 數量上限,新增要登記)。已核對 2026-11-26 的 HIG Alerts(developer.apple.com):沒有 iOS 27 專屬更新,只寫「純告知才用 OK」、破壞性選項用 action sheet,與本規則一致。
   - **「＋」與電腦圖示依 tab**(使用者定案:「＋」一律是 `plus`,不再用 `square.and.pencil`,各 tab 靠 VoiceOver 名稱區分):聊天 = 新增聊天(「New Chat」);檔案 = 上傳(「Upload File」,上傳中換成進度圈;目前只有上傳,沒有「新增資料夾」);主機 = 新增主機(「Add Host」,與聊天、檔案一樣是 [電腦圖示｜＋] 膠囊,電腦圖示選單選看哪一台,#616);流量 = 沒有「＋」,單顆電腦圖示圓鈕(篩選主機)。**電腦圖示**只有圖示、點開才是主機選單(選項帶主機圖示;最下面「新增主機…」);**篩選某台主機時圖示右上角有 9pt 小圓點**(聊天與流量的目前主機;沒篩選時沒有),VoiceOver 念「顯示:主機名」或「顯示:所有主機」。檔案 tab 的電腦圖示是「這頁看哪一台」的選擇、永遠有一台,不畫小圓點,念「主機:名稱」。
