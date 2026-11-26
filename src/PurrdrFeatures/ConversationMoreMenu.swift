@@ -42,7 +42,7 @@ private struct ConversationMoreMenuItems: View, Equatable {
         ForEach(Array(plan.groups.enumerated()), id: \.offset) { _, group in
             Section {
                 ForEach(group) { entry in
-                    Button { select(entry.item) } label: {
+                    Button { select(entry.item) } label: { // listAction:exempt Menu 裡的項目(系統選單由系統畫)
                         item(entry)
                     }
                     .disabled(!entry.isEnabled)
