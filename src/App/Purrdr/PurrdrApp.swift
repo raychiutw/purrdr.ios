@@ -77,7 +77,6 @@ struct PurrdrApp: App {
             .environment(\.allowsTestingLinks, root.viewFlags.allowsTestingLinks)
             .environment(\.usesTestingSignIn, root.viewFlags.usesTestingSignIn)
             .environment(\.tracksReadingDrift, root.viewFlags.tracksReadingDrift)
-            .environment(\.hidesDebugOverlay, root.viewFlags.hidesDebugOverlay)
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in
@@ -99,7 +98,6 @@ struct PurrdrApp: App {
                     .transaction { if root.disablesAnimations { $0.disablesAnimations = true; $0.animation = nil } }
                     .appLockCover(root.appLock)
                     .environment(\.tracksReadingDrift, root.viewFlags.tracksReadingDrift)
-                    .environment(\.hidesDebugOverlay, root.viewFlags.hidesDebugOverlay)
             }
         }
     }

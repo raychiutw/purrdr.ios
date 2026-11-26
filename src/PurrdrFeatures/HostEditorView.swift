@@ -471,8 +471,16 @@ struct HostEditorView: View {
                 Text("Updating herdr on \(model.address)…")
             }
         default:
-            Button("Test Connection") { Task { await model.test() } }
-                .listAction()
+            // 編輯主機的主要動作(存檔前要先測):填色底的大按鈕，一眼看得出能點(0.53 截圖：一般文字看不出是按鈕)。
+            Button { Task { await model.test() } } label: {
+                Text("Test Connection")
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity, minHeight: 36)
+            }
+                .filledProminentButtonStyle()
+                .buttonBorderShape(.capsule)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
                 .disabled(!model.canTest)
                 .accessibilityIdentifier("hostEditor.test")
             switch model.phase {

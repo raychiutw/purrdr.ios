@@ -52,7 +52,7 @@ enum UITestingEnvironment {
         }
         let viewFlags = LaunchEnvironment.ViewFlags(
             allowsTestingLinks: true, usesTestingSignIn: configuration.usesTestingSignIn,
-            tracksReadingDrift: configuration.tracksReadingDrift, hidesDebugOverlay: configuration.hidesDebugOverlay)
+            tracksReadingDrift: configuration.tracksReadingDrift)
         let hitchLog = DiagnosticLogFile(
             directory: FileManager.default.temporaryDirectory.appending(path: "purrdr-ui-testing-hitch-\(UUID().uuidString)"))
         return LaunchEnvironment(

@@ -582,17 +582,6 @@
         }
       }
     },
-    "%lld min ago" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 分鐘前"
-          }
-        }
-      }
-    },
     "%lld months" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4476,6 +4465,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網路流量"
+          }
+        }
+      }
+    },
+    "Data from %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@的資料"
           }
         }
       }
@@ -16974,28 +16974,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "年"
-          }
-        }
-      }
-    },
-    "· %lld min ago" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· %lld 分鐘前"
-          }
-        }
-      }
-    },
-    "· Resets %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· %@ 重設"
           }
         }
       }

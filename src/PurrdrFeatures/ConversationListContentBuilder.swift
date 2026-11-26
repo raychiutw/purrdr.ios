@@ -67,17 +67,39 @@ enum ConversationListContentBuilder {
     }
 }
 
-/// 系統導覽列的標題與副標題(#618):標題是 Tab 名稱,副標題是「主機 · 狀態」。自己讀狀態摘要,變化只重畫這個修飾,不波及列表。
-/// 名稱過長、大字級與 VoiceOver 都交給系統標題處理;不自畫標題膠囊。
+/// 聊天標題:Tab 名稱與「主機 · 狀態」放在工具列 principal,以共用的系統玻璃(`floatingGlass`)成為膠囊(principal 項目沒有系統工具列膠囊)(使用者 2026-11-26 改決定，
+/// 取代 #618 的純系統標題);只有外觀、不能點。仍設 `navigationTitle`,給返回鈕與視窗標題用。
+/// 自己讀狀態摘要，變化只重畫這個修飾，不波及列表。
 struct ConversationNavigationTitle: ViewModifier {
     let model: ConversationModel
     @Environment(\.paneWindowTitle) private var paneWindowTitle
 
+    private var title: String { paneWindowTitle ?? ConversationTitle.display(model) }
+
     func body(content: Content) -> some View {
         content
-            .navigationTitle(paneWindowTitle ?? ConversationTitle.display(model))
+            .navigationTitle(title)
             #if os(iOS)
-            .navigationSubtitle(model.statusSummary.header.subtitle)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 0) {
+                        Text(verbatim: title)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text(verbatim: model.statusSummary.header.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                    .floatingGlass(in: .capsule)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("conversation.title")
+                }
+                .sharedBackgroundVisibility(.hidden)
+            }
             #endif
     }
 }

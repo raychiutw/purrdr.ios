@@ -36,6 +36,16 @@ struct SystemTopBarUsageTests {
         #expect(text.contains("ToolbarSpacer"), "頭像要用 ToolbarSpacer 與膠囊隔開")
     }
 
+    @Test("頂列按鈕一律系統單色:電腦圖示、＋、頭像都明確 .tint(.primary),不吃 tab 內容的主色 tint")
+    func toolbarItemsAreMonochrome() throws {
+        let text = try String(contentsOf: Self.featuresFolder.appending(path: "TopBarViews.swift"), encoding: .utf8)
+        let start = try #require(text.range(of: "private struct TopBarToolbar"))
+        let end = try #require(text.range(of: "private struct TopBarSearchModifier", range: start.upperBound..<text.endIndex))
+        let toolbar = String(text[start.lowerBound..<end.lowerBound])
+        // 每個 tab 的內容都套了 .tint(ProminentFillStyle()),工具列項目不自己指定就會變成主色(0.52 TestFlight 截圖)。
+        #expect(toolbar.components(separatedBy: ".tint(.primary)").count - 1 >= 2, "電腦圖示＋「＋」的群組與頭像都要 .tint(.primary)")
+    }
+
     @Test("標題樣式交給系統:不強制 .large(iPad 列表欄照 iPadOS 預設 inline)")
     func titleDisplayModeFollowsSystem() throws {
         let text = try String(contentsOf: Self.featuresFolder.appending(path: "TopBarViews.swift"), encoding: .utf8)

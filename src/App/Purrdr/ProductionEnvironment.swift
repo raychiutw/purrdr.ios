@@ -116,8 +116,7 @@ enum ProductionEnvironment {
             welcomeStore: UserDefaultsWelcomeStore(),
             inputSources: LaunchEnvironment.InputSources(pairingCodeScan: .camera, recentPhotos: .system, video: .system, fileUpload: .system),
             viewFlags: LaunchEnvironment.ViewFlags(
-                allowsTestingLinks: false, usesTestingSignIn: false, tracksReadingDrift: false,
-                hidesDebugOverlay: false),
+                allowsTestingLinks: false, usesTestingSignIn: false, tracksReadingDrift: false),
             appLock: AppLock(authenticator: SystemDeviceOwnerAuthenticator(), defaults: .standard))
     }
 }

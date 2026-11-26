@@ -15,10 +15,10 @@ extension XCUIApplication {
         return row.waitUntilExists(timeout: 3)
     }
 
-    /// 稽核用的啟動:關掉 Debug 建置才有的除錯層(順暢度量測文字),稽核只看使用者會看到的畫面(Release 沒有那一層)。
+    /// 稽核用的啟動。
     @MainActor
     static func launchAuditing(flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
-        launchUITesting(flags: flags + ["-uiTestingHidesDebugOverlay"], contentSize: contentSize)
+        launchUITesting(flags: flags, contentSize: contentSize)
     }
 }
 
