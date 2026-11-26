@@ -227,19 +227,19 @@ struct SpacesColorsTests {
 @Suite("方案用量的配色")
 struct PlanUsageColorsTests {
     static let white = ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)
-    static let groupedTrack = ThemeColor(red: 0xDE, green: 0xDE, blue: 0xE4)   // rgba(120,120,128,.16) 疊在 #F2F2F7
-    static let whiteTrack = ThemeColor(red: 0xE9, green: 0xE9, blue: 0xEB)     // 疊在白色卡片
-    static let darkTracks = [ThemeColor(red: 0x36, green: 0x36, blue: 0x39), ThemeColor(red: 0x41, green: 0x41, blue: 0x45)] // .28 疊在 #1C1C1E、#2C2C2E
+    // 軌道是系統 tertiarySystemFill(118,118,128;淺色 α.12、深色 α.24)疊在實際底上的合成值
+    static let groupedTrack = ThemeColor(red: 0xE3, green: 0xE3, blue: 0xE9)   // 疊在 grouped 底 #F2F2F7
+    static let whiteTrack = ThemeColor(red: 0xEF, green: 0xEF, blue: 0xF0)     // 疊在白色卡片
+    static let darkTracks = [ThemeColor(red: 0x32, green: 0x32, blue: 0x36), ThemeColor(red: 0x3E, green: 0x3E, blue: 0x42)] // 疊在 #1C1C1E、#2C2C2E
     static let darkCards = [ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E), ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E)]
 
     /// 非文字圖形(WCAG 1.4.11):對軌道與卡片底 ≥ 3:1,高對比 ≥ 4.5:1。
-    /// 偏高、將用完兩級在淺色 grouped 軌道上略低於 3:1(DESIGN.md 已註明,靠三角形符號與數字傳達),所以只要求對白卡片的軌道;
-    /// 「正常」級對 grouped 軌道也要 ≥ 3:1(#389)。
-    @Test("三級:對軌道與卡片 ≥ 3:1,高對比 ≥ 4.5:1;正常級對 grouped 軌道也 ≥ 3:1")
+    /// 三級在淺色對白卡、白卡軌道與 grouped 軌道都要 ≥ 3:1(軌道改系統填色後,70% 淺色調深為 #9E6E40 才達標)。
+    @Test("三級:對軌道與卡片 ≥ 3:1(含淺色 grouped 軌道),高對比 ≥ 4.5:1")
     func levelContrast() {
         for level in [PlanUsageLevel.ample, .low, .depleted] {
             let palette = AccessibleColors.planUsage(level)
-            let lightBackgrounds = [Self.white, Self.whiteTrack] + (level == .ample ? [Self.groupedTrack] : [])
+            let lightBackgrounds = [Self.white, Self.whiteTrack, Self.groupedTrack]
             let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
                 ("淺色", palette.light, lightBackgrounds, 3), ("深色", palette.dark, Self.darkCards + Self.darkTracks, 3),
                 ("淺色高對比", palette.lightHighContrast, [Self.white, Self.whiteTrack, Self.groupedTrack], 4.5),
@@ -262,7 +262,8 @@ struct PlanUsageColorsTests {
         #expect(ample.lightHighContrast == accent.lightHighContrast && ample.darkHighContrast == accent.darkHighContrast)
     }
 
-    /// 70% 級距深色優先用系統橙(#649):系統橙(約 #FF9230,增加對比約 #FFB340)對深色軌道與卡片底都 ≥ 3:1,所以深色用系統色;
+    /// 70% 級距深色優先用系統橙(#649):系統橙(約 #FF9230,增加對比約 #FFB340)對深色軌道與卡片底都 ≥ 3:1,所以深色用系統色
+    /// (近似值在這裡驗對比;「解析出的就是實際 UIColor.systemOrange」在 tests/PurrdrIOSTests 的 `PlanUsageSystemColorTests`);
     /// 淺色系統橙對白底只有 2.2:1,不足,維持自訂色。85% 級距系統紅對深色軌道只有 2.8～3.0:1(淺色 2.6～3.0:1),不足,維持自訂色。
     @Test("70% 級距:深色(含增加對比)是系統橙,對軌道與卡片底 ≥ 3:1;淺色系統橙 < 3:1 所以自訂")
     func lowLevelUsesSystemOrangeInDark() {

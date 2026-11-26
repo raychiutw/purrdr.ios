@@ -19,37 +19,53 @@ struct InputTintUsageTests {
         return result
     }
 
-    @Test("UIKit 輸入元件的 tintColor 覆寫回傳系統文字色,不從主色推導")
+    /// 一個 UIKit 輸入元件:檔案裡頂層宣告、繼承或遵循文字輸入型別的 class,與它的原始碼範圍(到下一個頂層 `}`)。
+    private static var uikitInputDeclaration: Regex<(Substring, Substring, Substring)> { #/^(?:final )?class (\w+)\s*:[^{]*\b(UITextView|UITextField|UISearchTextField|UITextInput|UIKeyInput)\b/# }
+
+    @Test("每個 UIKit 輸入元件的 tintColor 覆寫都回傳系統文字色,不從主色推導")
     func uikitInputsUseLabelTint() throws {
-        var overrides = 0
+        var inputs: [String] = []
         var violations: [String] = []
         for (name, text) in try Self.sources() {
-            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-            for (index, line) in lines.enumerated() where line.contains("override var tintColor") {
-                overrides += 1
-                let body = lines[index..<min(index + 4, lines.count)].joined(separator: "\n")
-                if !body.contains("UIColor.label") || body.contains("get { super.tintColor") || body.contains("indicatorTint") {
-                    violations.append("\(name):\(index + 1)")
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            for (index, line) in lines.enumerated() {
+                guard let match = line.firstMatch(of: Self.uikitInputDeclaration) else { continue }
+                let end = lines[index...].firstIndex { $0 == "}" } ?? lines.endIndex
+                let range = lines[index..<end]
+                inputs.append("\(name):\(match.output.1)")
+                guard let override = range.firstIndex(where: { $0.contains("override var tintColor") }) else {
+                    violations.append("\(name):\(match.output.1) 沒有 tintColor 覆寫")
+                    continue
                 }
+                let body = lines[override..<min(override + 4, lines.count)].joined(separator: "\n")
+                if !body.contains("get { UIColor.label }") { violations.append("\(name):\(override + 1) getter 不是 UIColor.label") }
             }
             if text.contains("indicatorTint") { violations.append("\(name) 仍有 indicatorTint") }
         }
-        #expect(overrides == 2, "聊天輸入框與終端機輸入元件各一個 tintColor 覆寫")
+        #expect(inputs.count >= 2, "至少找得到聊天輸入框與終端機輸入元件(找到 \(inputs)),偵測規則失效")
         #expect(violations.isEmpty, "tint 改回傳 UIColor.label:\n\(violations.joined(separator: "\n"))")
     }
 
-    @Test("用 SwiftUI 文字輸入元件的畫面檔都套 inputFieldTint")
+    @Test("每個 SwiftUI 文字輸入元件都各自套 inputFieldTint")
     func swiftUIInputsApplyInputFieldTint() throws {
-        let markers = ["TextField(", "SecureField(", "TextEditor("]
+        let marker = #/\b(?:TextField|SecureField|TextEditor)\(/#
+        var found = 0
         var missing: [String] = []
         for (name, text) in try Self.sources() where name != "InputFieldTint.swift" {
-            // 只掃真正的程式行(略過註解)。
-            let code = text.split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            let used = code.filter { line in markers.contains { line.contains($0) } }.count
-            let applied = code.filter { $0.contains(".inputFieldTint()") }.count
-            if used > 0 && applied == 0 { missing.append(name) }
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            let isCode = { (line: String) in !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            for (index, line) in lines.enumerated() where isCode(line) && line.contains(marker) {
+                found += 1
+                // 往後看到下一個輸入元件(不含)為止,最多 8 行:這段修飾子裡要有 .inputFieldTint()。
+                var window = lines[(index + 1)...].prefix(8)
+                if let next = window.firstIndex(where: { isCode($0) && $0.contains(marker) }) { window = lines[(index + 1)..<next] }
+                if !(line.contains(".inputFieldTint()") || window.contains { $0.contains(".inputFieldTint()") }) {
+                    missing.append("\(name):\(index + 1)")
+                }
+            }
         }
-        #expect(missing.isEmpty, "這些檔案有文字輸入元件卻沒有 .inputFieldTint():\n\(missing.joined(separator: "\n"))")
+        #expect(found >= 10, "找到的 SwiftUI 輸入元件數量不對(\(found)),偵測規則失效")
+        #expect(missing.isEmpty, "這些輸入元件沒有 .inputFieldTint():\n\(missing.joined(separator: "\n"))")
     }
 
     @Test("搜尋欄(.searchable)的輸入框 tint 經 UISearchTextField 外觀代理設成系統文字色")

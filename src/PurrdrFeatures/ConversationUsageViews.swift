@@ -164,11 +164,8 @@ private struct UsageCard: View {
     let tint: AnyShapeStyle
     let detail: Text?
     let identifier: String
-    @Environment(\.colorScheme) private var colorScheme
 
-    private var track: Color {
-        Color(red: 120 / 255, green: 120 / 255, blue: 128 / 255).opacity(colorScheme == .dark ? 0.28 : 0.16)
-    }
+    private var track: Color { AccessibleColors.usageTrack }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

@@ -123,3 +123,13 @@
 - `.topBarPinnedTrailing` 用於帳號鈕的官方範例(WWDC26 範例放的是 Share)。
 - support.apple.com 指定 iPadOS 26 版的手冊文字(回 429);Apple TV app 在 iPad 上的帳號鈕位置。
 - WWDC26 Group Lab 提到的「移除 toolbar 按鈕內容邊距」API 名稱。
+
+
+---
+
+## 2026-11-26 更新註記
+
+本文件內容保留當時的研究結果,不改寫。之後的決議如下:
+
+- **帳號鈕**:採用建議 (b)——寬視窗聊天頭像在對話欄工具列右側(#520);帳號與設定在 iPad 是 page sheet(#623)。
+- **帳號與設定快捷鍵**:決議是 **Option-Command-,**,不用 Command-,(iPadOS 選單列「App 名稱 > Settings…」是系統自動產生、保留給 iOS 設定 app 裡這個 app 的頁面,依 HIG〈The menu bar〉),見 DESIGN.md「選單列與快捷鍵」。

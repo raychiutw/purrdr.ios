@@ -33,16 +33,7 @@ struct ContrastPalette: Sendable {
 
     var color: Color {
         #if canImport(UIKit)
-        Color(uiColor: UIColor { traits in
-            let high = traits.accessibilityContrast == .high
-            if usesSystemInDark, traits.userInterfaceStyle == .dark { return UIColor.systemOrange.resolvedColor(with: traits) }
-            return switch (traits.userInterfaceStyle == .dark, high) {
-            case (false, false): UIColor(light)
-            case (true, false): UIColor(dark)
-            case (false, true): UIColor(lightHighContrast)
-            case (true, true): UIColor(darkHighContrast)
-            }
-        })
+        Color(uiColor: uiColor)
         #else
         Color(light)
         #endif
@@ -59,7 +50,7 @@ struct LightColorPair: Sendable {
 enum AccessibleColors {
     /// 承載資訊的次要文字(副標、時間、說明、預覽、參數提示等;#67、#646)。
     /// 深色(含增加對比)用系統 `secondaryLabel`(對純黑 6.4:1、對 elevated 的 `#3A3A3C` 4.6:1,已達 4.5:1);
-    /// 淺色系統 `secondaryLabel` 在白底只有 3.4:1、在 grouped 背景 #F2F2F7 3.1:1,所以淺色維持自訂灰。
+    /// 淺色系統 `secondaryLabel` 在白底只有 3.4:1、在 grouped 背景 #F2F2F7 3.3:1,所以淺色維持自訂灰。
     /// `.tertiary` 更淡(約 2:1);純裝飾(圖示、分隔線、底色)仍可用系統階層色。
     static let secondaryTextLight = LightColorPair(
         normal: ThemeColor(red: 0x63, green: 0x63, blue: 0x66),        // 白底 6.0:1、#F2F2F7 5.4:1、#EFEFF0 5.2:1
@@ -79,7 +70,8 @@ enum AccessibleColors {
 extension AccessibleColors {
     /// 紅字按鈕(刪除、重設、強制結束;#379、#646):系統紅 #FF453A 在深色的 #2C2C2E 以上只有約 4.1:1,
     /// 所以文字改用這組(圖示、填色與分隔等非文字仍用系統紅)。對實際出現的系統背景
-    /// (淺色 #FFFFFF／#F2F2F7／#EBEBF0、深色 base 與 elevated 含增加對比至 #444446)一般 ≥ 4.5:1、增加對比 ≥ 7:1(`AccessibleColorsTests`)。
+    /// (淺色 #FFFFFF／#F2F2F7／#EBEBF0、深色 base 與 elevated 含增加對比至 #444446):一般值對一般外觀會出現的背景(最亮到 #3A3A3C)≥ 4.5:1
+    /// (對只在增加對比才出現的 #444446 只有 4.3:1,那裡改用高對比值 7.2:1),增加對比 ≥ 7:1(`AccessibleColorsTests`)。
     static let destructiveText = ContrastPalette(
         light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白底 5.4:1
         dark: ThemeColor(red: 0xFF, green: 0x8A, blue: 0x82),              // 設計稿 redtext;對 #3A3A3C 以上 ≥ 4.5:1
@@ -91,8 +83,8 @@ extension AccessibleColors {
 extension AccessibleColors {
     /// 聊天 tab 未讀數字徽章的底色(白字;#639)。
     static let unreadBadge = ContrastPalette(
-        light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白字 5.4:1(系統紅 #FF3B30 只有 3.6:1)
-        dark: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),              // 白字 5.4:1(系統紅 #FF453A 只有 3.3:1)
+        light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白字 5.4:1(系統紅 #FF3B30 只有 3.55:1)
+        dark: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),              // 白字 5.4:1(系統紅 #FF453A 只有 3.41:1)
         lightHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11), // 白字 8.1:1
         darkHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11)
     )
@@ -178,8 +170,17 @@ extension AccessibleColors {
         darkHighContrast: ThemeColor(red: 0x5D, green: 0xE0, blue: 0xB3)
     )
 
+    /// 用量條與用量環的軌道:系統 `tertiarySystemFill`(rgba 118,118,128,淺色 α.12、深色 α.24),不手刻顏色(#646)。
+    static var usageTrack: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .tertiarySystemFill)
+        #else
+        Color.gray.opacity(0.2)
+        #endif
+    }
+
     static let planUsageLow = ContrastPalette(
-        light: ThemeColor(red: 0xA9, green: 0x78, blue: 0x4A),             // 系統橙對白底 2.2:1 不足,淺色自訂
+        light: ThemeColor(red: 0x9E, green: 0x6E, blue: 0x40),             // 系統橙對白底 2.2:1 不足,淺色自訂;對白 4.4:1、白卡軌道 3.8:1、grouped 軌道 3.4:1
         dark: ThemeColor(red: 0xFF, green: 0x92, blue: 0x30),              // 深色用系統橙(對軌道與卡片底 ≥ 4.3:1)
         lightHighContrast: ThemeColor(red: 0x7D, green: 0x52, blue: 0x30),
         darkHighContrast: ThemeColor(red: 0xFF, green: 0xB3, blue: 0x40),

@@ -1146,6 +1146,7 @@ final class KeyHandlingTextView: UITextView {
 
     /// 輸入元件的 tint 是系統文字色(#647):輸入法指示膠囊(聽寫、「國」)、游標與選取反白都跟著,深色白底深字、淺色黑底淺字。
     /// 指令著色仍用繼承來的主色(`accentTint`)。
+    /// getter 固定回傳 label:setter 照存給 super,但外部設定 tint 不會讓這個元件變色(刻意,#647)。
     override var tintColor: UIColor! {
         get { UIColor.label }
         set { super.tintColor = newValue }
