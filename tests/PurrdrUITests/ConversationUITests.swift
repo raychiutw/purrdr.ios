@@ -39,7 +39,7 @@ final class ConversationUITests: XCTestCase {
     /// 只有 http(s) 連結可點(R-V03)、程式碼複製鈕(≥44pt)與每輪開頭的 Agent 頭像與名稱。
     /// 最後才點開工具串(會改版面)。原本 6 個測試合併(#374),再併入頂列膠囊、輸入框對齊與訊息單一元素。
     @MainActor
-    func testConversationRendering() {
+    func testConversationHeaderComposerMessagesAndRendering() {
         let app = openLedger()
 
         // 頂列右上只有用量環與「⋯」(#617):沒有 Inspector 開關鈕,兩顆並排(系統合成一顆膠囊)。
@@ -130,7 +130,7 @@ final class ConversationUITests: XCTestCase {
 
     /// 使用者送出的三張圖：兩張經主機取檔讀回縮圖、可點開圖片檢視器;一張已被主機清掉，顯示「主機上已找不到」。
     @MainActor
-    func testSentImagesReadBackFromHost() {
+    func testSentImagesReadBackFromHostAndRowHeightStaysStable() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
         XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
         let thumbnail = app.element("conversation.sentImage.thumbnail")
@@ -454,7 +454,7 @@ final class ConversationUITests: XCTestCase {
     /// 對話至少留 132pt、看得到訊息;收起鍵盤後是一行(不在鍵盤動畫中長回來),點一行的註記才換回完整卡片。
     /// 模擬器接著硬體鍵盤(只有快捷列)時空間夠，卡片不收，這段不適用(略過這段、送出照常驗)。
     @MainActor
-    func testSending() {
+    func testSoftKeyboardMakesRoomThenSending() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
         let note = app.element("youShouldKnow.note")
         XCTAssertTrue(note.waitUntilExists(timeout: 15), "沒有註記")

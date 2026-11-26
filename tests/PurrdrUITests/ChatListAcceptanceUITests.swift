@@ -1,6 +1,6 @@
 import XCTest
 
-/// 聊天列表重做(spec #480、驗收 #489)的驗收情境:捲動位置、開啟不閃、跳到最新與跟隨底部(圖片列高在 `ConversationUITests.testSentImagesReadBackFromHost`)。
+/// 聊天列表重做(spec #480、驗收 #489)的驗收情境:捲動位置、開啟不閃、跳到最新與跟隨底部(圖片列高在 `ConversationUITests.testSentImagesReadBackFromHostAndRowHeightStaysStable`)。
 ///
 /// 斷言都量 accessibility frame(列的位置與高度),不看截圖;跳動會直接表現成位置差。
 final class ChatListAcceptanceUITests: XCTestCase {
@@ -61,7 +61,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
     /// 返回用左緣滑動(窄視窗是一般 NavigationStack,選取在返回時清掉);第二次開啟(快取命中)必須同步還原:
     /// 畫面一出現就有訊息,整段過程沒有載入中,而且第一則訊息的位置不再變動。
     @MainActor
-    func testOpeningChatNeverShowsSkeletonThenSwapsToList() {
+    func testOpeningChatNeverShowsSkeletonAndReopensAfterEdgeSwipeBack() {
         let app = XCUIApplication.launchUITesting()
         let row = app.element(chatRowID("w1:p1"))
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
@@ -119,7 +119,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
     /// 往上快滑再點跳到最新:最後一則完整在輸入框上方,且與輸入框之間沒有大片空白(沒有停在內容外)。
     /// 最後在底部送出 prompt:回覆與 160 個工具步驟接上,畫面要跟到收尾訊息,不出現跳到最新鈕。
     @MainActor
-    func testJumpToLatestLandsOnLastMessage() {
+    func testJumpToLatestLandsOnLastMessageAndFollowsNewMessages() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
         let list = app.conversationList
         XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")

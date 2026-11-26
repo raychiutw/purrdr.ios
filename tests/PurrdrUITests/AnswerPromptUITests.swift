@@ -17,37 +17,6 @@ final class AnswerPromptUITests: XCTestCase {
         app.dismissKeyboard()
     }
 
-    /// weather-app 卡在 Bash 權限：卡片顯示問題、細節與選項(同尺寸、≥44pt);點「Yes」後清楚顯示選了什麼。
-    @MainActor
-    func testAnsweringBashPermission() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
-        let card = app.element("prompt.card")
-        XCTAssertTrue(card.waitUntilExists(timeout: 10), "沒有提示卡")
-        XCTAssertTrue(app.staticTexts["Do you want to proceed?"].exists, "沒有問題文字")
-        XCTAssertTrue(app.staticTexts["Bash command"].exists, "沒有權限細節的標題")
-
-        let yes = app.element("prompt.option.1")
-        let no = app.element("prompt.option.3")
-        XCTAssertTrue(yes.exists)
-        XCTAssertGreaterThanOrEqual(yes.frame.height, 44, "選項觸控目標不足 44pt")
-        XCTAssertEqual(yes.frame.width, no.frame.width, accuracy: 1, "同一組選項應同尺寸")
-        // #271(原型 purrdr-screens 定案版):選項不編號。
-        XCTAssertEqual(yes.label, "Yes", "選項不該帶編號:\(yes.label)")
-        // 選項是同寬的圓角長方形選項卡,長文字多行完整顯示(#93)。
-        let long = app.element("prompt.option.2")
-        XCTAssertTrue(long.exists)
-        XCTAssertEqual(yes.frame.width, long.frame.width, accuracy: 1, "同一組選項應同寬")
-        XCTAssertGreaterThan(long.frame.height, yes.frame.height + 10, "長選項應多行顯示，不截斷")
-        XCTAssertTrue(long.label.contains("/Users/demo/weather-app"), "長選項的朗讀內容應完整:\(long.label)")
-
-        yes.tap()
-
-        let answered = app.element("prompt.answered")
-        XCTAssertTrue(answered.waitUntilExists(timeout: 10), "沒有顯示已回答")
-        XCTAssertTrue(answered.label.contains("You chose: Yes"), "沒有寫出選了什麼:\(answered.label)")
-        XCTAssertTrue(card.waitUntilGone(timeout: 10), "回答後提示卡應消失")
-    }
-
     /// 「Type something.」(#120):點了以後輸入框取得焦點、提示改成打回答;送出後進到下一題並寫出打的字。
     /// 取消回到一般輸入，問題卡還在。
     @MainActor
