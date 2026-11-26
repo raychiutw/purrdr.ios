@@ -49,21 +49,17 @@ final class ConversationLayoutUITests: XCTestCase {
     }
 
 
-    /// 返回後 tab bar 與畫面同時就位(#495):點返回時轉場已結束(tap 會等 app 閒置),
-    /// tab bar 落後超過 0.1 秒就是「轉場後才冒出」。
+    /// 返回後 tab bar 與畫面同時就位(#495):`tap()` 會等 app 閒置,也就是返回轉場結束後才回來;
+    /// 這時 tab bar 必須已經在(只查一次、不輪詢)。tab bar 若是轉場後才冒出,第一次查詢就會失敗。
+    /// 不量「幾毫秒內出現」:每次 XCUITest 查詢本身就要 100～300 ms,量出來的是查詢延遲而不是 app 的行為
+    /// (舊版輪詢量到 0.18～0.29 秒,基準版同樣 0.3 秒)。
     @MainActor
     private func expectTabBarReturnsWithBack(_ app: XCUIApplication, _ tabBar: XCUIElement, _ label: String) {
         let back = app.navigationBars.buttons.element(boundBy: 0)
-        let start = Date()
         back.tap()
-        let tapReturned = Date().timeIntervalSince(start)
-        var lag: TimeInterval?
-        while Date().timeIntervalSince(start) < 5 {
-            if tabBar.exists, tabBar.isHittable { lag = Date().timeIntervalSince(start) - tapReturned; break }
-        }
-        print("TABBAR-LATENCY \(label) tapReturned=\(String(format: "%.3f", tapReturned)) lag=\(lag.map { String(format: "%.3f", $0) } ?? "never")")
-        XCTAssertNotNil(lag, "\(label):返回後 tab bar 沒有回來")
-        XCTAssertLessThanOrEqual(lag ?? 99, 0.1, "\(label):tab bar 在返回轉場結束後才出現")
+        XCTAssertTrue(tabBar.exists && tabBar.isHittable, "\(label):返回轉場結束(tap 回來)時 tab bar 還沒出現")
+        // 之後也要穩定在(沒有閃一下又消失)。
+        XCTAssertFalse(tabBar.waitUntilGone(timeout: 1), "\(label):tab bar 返回後又消失")
     }
 
     /// 帶動畫從聊天返回列表,tab bar 與列表同時出現;對話裡不能有 tab bar。

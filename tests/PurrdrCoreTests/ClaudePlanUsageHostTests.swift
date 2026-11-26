@@ -199,10 +199,13 @@ struct ClaudePlanUsageHostTests {
 
         try await usage.install()
 
-        // 若把包裝腳本存成原本的，執行時會無限遞迴呼叫自己，直到程序數用盡才失敗(要好幾秒)。
-        let started = ContinuousClock.now
+        // 若把包裝腳本存成原本的，執行時會無限遞迴呼叫自己。不量時間(慢機器會誤判):
+        // 直接斷言根因——沒有把包裝腳本記成 original-command——並確認執行有結果返回。
+        let originalURL = host.home.appendingPathComponent(".purrdr/claude-usage/original-command")
+        let recorded = (try? String(contentsOf: originalURL, encoding: .utf8)) ?? ""
+        // 用 #require:根因成立前不執行腳本(真的遞迴會一直 fork 程序)。
+        try #require(!recorded.contains("statusline.sh"), "包裝腳本被存成原本的 status line:\(recorded)")
         #expect(try await runStatusLine(input: Self.statusLineInput) == "")
-        #expect(ContinuousClock.now - started < .seconds(3), "status line 執行太久，可能在遞迴呼叫自己")
     }
 
     @Test("安裝後使用者又改了 settings.json:還原只換回 status line,保留使用者的修改")

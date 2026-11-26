@@ -25,7 +25,7 @@ final class HostsUITests: XCTestCase {
         edit.tap()
         let name = app.textFields["hostEditor.name"]
         XCTAssertTrue(name.waitUntilExists(timeout: 5))
-        name.tap()
+        XCTAssertTrue(app.focusTextField(name), "名稱欄沒有取得焦點")
         XCTAssertTrue(app.waitForKeyboard(), "沒有叫出鍵盤")
         if edits { name.typeEnglish("2") }
 

@@ -338,7 +338,10 @@ extension XCUIApplication {
         let markers = layout == .english ? ["q", "Q"] : ["ㄅ"]
         // 地球鍵在鍵盤元素外(底部 home indicator 旁)。
         let nextKeyboard = buttons["Next keyboard"].firstMatch
-        for _ in 0..<5 where !markers.contains(where: { keyboard.keys[$0].exists }) && nextKeyboard.exists {
+        // `for … where` 條件不成立時不會結束迴圈,而是空轉剩下的次數、每次還是查詢鍵盤(每次 typeEnglish 白白多約 1 秒):
+        // 已經是指定的輸入法就第一次檢查後直接返回。
+        for _ in 0..<5 {
+            if markers.contains(where: { keyboard.keys[$0].exists }) || !nextKeyboard.exists { return }
             nextKeyboard.tap()
         }
     }
