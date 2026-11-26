@@ -115,15 +115,11 @@ struct HostEditorView: View {
                     .accessibilityIdentifier("hostEditor.keyboardDone")
             }
             #endif
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
-                    // 只改名稱或圖示:主機設定沒變,不必重新連線。
-                    let changesOnlyAppearance = model.changesOnlyAppearance
-                    guard let host = model.save() else { return }
-                    if changesOnlyAppearance { onIconSaved() } else { onSaved(host) }
-                }
-                .disabled(!model.canSave)
-                .accessibilityIdentifier("hostEditor.save")
+            ModalConfirmToolbar(title: "Save", identifier: "hostEditor.save", isEnabled: model.canSave) {
+                // 只改名稱或圖示:主機設定沒變,不必重新連線。
+                let changesOnlyAppearance = model.changesOnlyAppearance
+                guard let host = model.save() else { return }
+                if changesOnlyAppearance { onIconSaved() } else { onSaved(host) }
             }
         }
         .sheet(isPresented: presenting(\.isConfirmingHostKey)) {

@@ -83,26 +83,67 @@ struct AppAppearanceTests {
         try await choose(.light, expecting: .light, in: [first, second])
     }
 
-    // MARK: - 底色層次(#379)
+    // MARK: - 底色回到系統語意色(#646,取代 #379)
 
-    private static func hex(_ color: Color, style: UIUserInterfaceStyle) -> String {
+    private static func hex(_ color: Color, traits: UITraitCollection) -> String {
         var (red, green, blue, alpha) = (CGFloat(0), CGFloat(0), CGFloat(0), CGFloat(0))
-        UIColor(color).resolvedColor(with: UITraitCollection(userInterfaceStyle: style))
-            .getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        UIColor(color).resolvedColor(with: traits).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         func h(_ value: CGFloat) -> String { String(format: "%02X", Int((value * 255).rounded())) }
         return "#" + h(red) + h(green) + h(blue)
     }
 
-    @Test("深色底色層次:頁面 #1C1C1E、卡片與 grouped 列 #2C2C2E、再內一層 #3A3A3C(不再是純黑);淺色沿用系統")
-    func surfaceValues() {
-        #expect(Self.hex(AppSurface.page, style: .dark) == "#1C1C1E")
-        #expect(Self.hex(AppSurface.groupedPage, style: .dark) == "#1C1C1E")
-        #expect(Self.hex(AppSurface.card, style: .dark) == "#2C2C2E")
-        #expect(Self.hex(AppSurface.groupedRow, style: .dark) == "#2C2C2E")
-        #expect(Self.hex(AppSurface.inner, style: .dark) == "#3A3A3C")
-        #expect(Self.hex(AppSurface.page, style: .light) == "#FFFFFF")
-        #expect(Self.hex(AppSurface.groupedPage, style: .light) == "#F2F2F7")
-        #expect(Self.hex(AppSurface.groupedRow, style: .light) == "#FFFFFF")
+    private static func traits(_ style: UIUserInterfaceStyle, highContrast: Bool = false, elevated: Bool = false) -> UITraitCollection {
+        UITraitCollection(traitsFrom: [
+            UITraitCollection(userInterfaceStyle: style),
+            UITraitCollection(accessibilityContrast: highContrast ? .high : .normal),
+            UITraitCollection(userInterfaceLevel: elevated ? .elevated : .base),
+        ])
+    }
+
+    /// 每個底色用途 → (系統語意色, 預期值:深色 base、深色 elevated、深色 base 增加對比、深色 elevated 增加對比、淺色、淺色增加對比;
+    /// 值是 iOS 27.0 模擬器實測,見 docs/research/ios27-dark-mode-colors.md §1.2)。
+    private static let surfaces: [(name: String, color: Color, system: UIColor, expected: [String])] = [
+        ("page", AppSurface.page, .systemBackground,
+         ["#000000", "#1C1C1E", "#000000", "#242426", "#FFFFFF", "#FFFFFF"]),
+        ("groupedPage", AppSurface.groupedPage, .systemGroupedBackground,
+         ["#000000", "#1C1C1E", "#000000", "#242426", "#F2F2F7", "#EBEBF0"]),
+        ("card", AppSurface.card, .secondarySystemBackground,
+         ["#1C1C1E", "#2C2C2E", "#242426", "#363638", "#F2F2F7", "#EBEBF0"]),
+        ("groupedRow", AppSurface.groupedRow, .secondarySystemGroupedBackground,
+         ["#1C1C1E", "#2C2C2E", "#242426", "#363638", "#FFFFFF", "#FFFFFF"]),
+        ("inner", AppSurface.inner, .tertiarySystemBackground,
+         ["#2C2C2E", "#3A3A3C", "#363638", "#444446", "#FFFFFF", "#FFFFFF"]),
+    ]
+
+    @Test("底色各用途在深色 base／elevated、淺色、增加對比下,等於對應的系統語意色(深色頁面是純黑)")
+    func surfacesAreSystemColors() {
+        let appearances: [(String, UITraitCollection)] = [
+            ("深色 base", Self.traits(.dark)), ("深色 elevated", Self.traits(.dark, elevated: true)),
+            ("深色 base 增加對比", Self.traits(.dark, highContrast: true)),
+            ("深色 elevated 增加對比", Self.traits(.dark, highContrast: true, elevated: true)),
+            ("淺色", Self.traits(.light)), ("淺色增加對比", Self.traits(.light, highContrast: true)),
+        ]
+        for surface in Self.surfaces {
+            for (index, (label, traits)) in appearances.enumerated() {
+                let actual = Self.hex(surface.color, traits: traits)
+                let system = Self.hex(Color(uiColor: surface.system), traits: traits)
+                #expect(actual == system, "\(surface.name) \(label):\(actual) 不等於系統色 \(system)")
+                #expect(actual == surface.expected[index], "\(surface.name) \(label):\(actual),預期 \(surface.expected[index])")
+            }
+        }
+    }
+
+    @Test("次要文字:深色(含增加對比)是系統 secondaryLabel,淺色是自訂灰")
+    func secondaryTextIsSystemInDark() {
+        for highContrast in [false, true] {
+            let dark = Self.traits(.dark, highContrast: highContrast)
+            let actual = UIColor(Color.secondaryText).resolvedColor(with: dark)
+            let system = UIColor.secondaryLabel.resolvedColor(with: dark)
+            #expect(actual == system, "深色\(highContrast ? "增加對比" : "") 次要文字不是系統 secondaryLabel")
+        }
+        #expect(Self.hex(Color.secondaryText, traits: Self.traits(.light)) == "#636366")
+        #expect(Self.hex(Color.secondaryText, traits: Self.traits(.light, highContrast: true)) == "#48484A")
     }
 }
 #endif
+

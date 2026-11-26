@@ -242,7 +242,7 @@ public enum AgentCatalog {
         case .gemini:
             AgentPresentation(displayName: "Gemini", symbolName: "star", avatar: AgentAvatar(letter: "G", normal: color(0x4A, 0x5F, 0x86), highContrast: color(0x3E, 0x50, 0x71)))
         case .opencode:
-            AgentPresentation(displayName: "opencode", symbolName: "curlybraces", avatar: AgentAvatar(letter: "O", normal: color(0x5C, 0x6B, 0x4A), highContrast: color(0x48, 0x53, 0x3A)))
+            AgentPresentation(displayName: "opencode", symbolName: "curlybraces", avatar: AgentAvatar(letter: "O", normal: color(0x8A, 0x4F, 0x66), highContrast: color(0x6D, 0x3A, 0x4F)))
         case .copilot:
             AgentPresentation(displayName: "GitHub Copilot", symbolName: "airplane", avatar: AgentAvatar(letter: "P", normal: color(0x6A, 0x58, 0x84), highContrast: color(0x58, 0x49, 0x6E)))
         case .grok: AgentPresentation(displayName: "Grok", symbolName: "bolt")
