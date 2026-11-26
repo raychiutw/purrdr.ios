@@ -5,7 +5,7 @@ import PurrdrCore
 /// 離線佇列裡的一則訊息(#301)。
 public struct QueuedPrompt: Codable, Equatable, Sendable, Identifiable {
     /// 重連後沒有補送的原因(泡泡紅框，下方寫原因與「放回輸入框」「刪除」)。
-    public enum Problem: String, Codable, Sendable {
+    public enum Problem: String, Error, Codable, Sendable {
         /// 排隊超過 10 分鐘。
         case expired
         /// 對象的 pane 不在了、換了 Workspace,或 session 換了。

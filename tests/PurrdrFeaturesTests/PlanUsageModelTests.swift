@@ -177,7 +177,7 @@ struct PlanUsageModelTests {
 
         model.appeared()
         await model.untilIdle()
-        #expect(model.state == .failed(.connection("The host didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices.")))
+        #expect(model.state == .failed(.connection(DisplayedError(error: SSHConnectionError.timedOut))))
 
         await gate.connect()
         await model.refresh()
@@ -495,7 +495,7 @@ struct PlanUsageModelTests {
         await model.requestConsent()
 
         #expect(model.state == .needsConsent)
-        #expect(model.message?.contains("are damaged") == true)
+        #expect(model.message?.text.contains("are damaged") == true)
         #expect(try DirectorySnapshot(of: host.home) == before)
     }
 

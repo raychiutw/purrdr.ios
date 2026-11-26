@@ -19,22 +19,37 @@ struct ConversationMoreMenu: View {
         let plan = ConversationMoreMenuPlan(
             model.moreMenuInput(usageSummary: usageSummary, canOpenTerminal: canOpenTerminal, canShowLayout: canShowLayout))
         Menu {
-            ForEach(Array(plan.groups.enumerated()), id: \.offset) { _, group in
-                Section {
-                    ForEach(group) { entry in
-                        Button { select(entry.item) } label: {
-                            item(entry)
-                        }
-                        .disabled(!entry.isEnabled)
-                        .accessibilityIdentifier(entry.item.identifier)
-                    }
-                }
-            }
+            // 內容只在計畫(項目、副標、停用)真的變了才重算:輪詢每次寫入同一個值也會讓這裡重新求值,
+            // 項目的動作閉包每次都是新的,SwiftUI 會當成內容改變而重建選單,開著的選單就收起或吃掉點擊。
+            ConversationMoreMenuItems(plan: plan, select: select)
+                .equatable()
         } label: {
             Label("More", systemImage: "ellipsis")
                 .labelStyle(.iconOnly)
         }
         .accessibilityIdentifier("conversation.more")
+    }
+}
+
+/// 「更多」選單的項目;`Equatable` 只比計畫(動作閉包不比),配合 `.equatable()` 讓沒變的計畫不重建選單內容。
+private struct ConversationMoreMenuItems: View, Equatable {
+    let plan: ConversationMoreMenuPlan
+    let select: (ConversationMoreMenuPlan.Item) -> Void
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.plan == rhs.plan }
+
+    var body: some View {
+        ForEach(Array(plan.groups.enumerated()), id: \.offset) { _, group in
+            Section {
+                ForEach(group) { entry in
+                    Button { select(entry.item) } label: {
+                        item(entry)
+                    }
+                    .disabled(!entry.isEnabled)
+                    .accessibilityIdentifier(entry.item.identifier)
+                }
+            }
+        }
     }
 
     @ViewBuilder

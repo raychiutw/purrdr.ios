@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -93,7 +94,7 @@ struct ShellRunView: View {
                                 .accessibilityIdentifier("conversation.shell.stdout")
                         }
                         if !visible.stderr.isEmpty {
-                            ErrorLabel(visible.stderr.joined(separator: "\n"), area: "ShellRunView")
+                            ErrorLabel(visible.stderr.joined(separator: "\n"), area: "ShellRunView", error: ErrorDescriptor(category: "ShellRun", code: "stderr"))
                                 .accessibilityIdentifier("conversation.shell.stderr")
                         }
                     }

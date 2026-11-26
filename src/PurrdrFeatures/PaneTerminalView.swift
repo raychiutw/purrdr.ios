@@ -59,7 +59,7 @@ public struct TerminalSessionView: View {
             if let notice = model.notice {
                 // 純告知不彈 alert(#625):貼上失敗等直接顯示在終端機上方。
                 HStack {
-                    ErrorLabel(notice, area: "PaneTerminal")
+                    ErrorLabel(notice.text, area: "PaneTerminal", error: notice.descriptor)
                     Spacer(minLength: 8)
                     Button("Dismiss") { model.notice = nil }
                         .buttonStyle(.borderless)

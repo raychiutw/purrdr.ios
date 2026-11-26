@@ -1,13 +1,12 @@
 import Foundation
 import PurrdrCore
-import Synchronization
 
 /// 顯示給使用者的錯誤,記進診斷記錄的樣子(操作記錄):只有類別、錯誤碼、功能區與時間,**不含訊息原文**
 /// (原文可能有主機名稱、路徑或權杖)。
 public struct ErrorRecord: Equatable, Sendable {
-    /// 錯誤類別:型別名(例如 `HostServiceError`);只有字串時是 `Message`。
+    /// 錯誤類別:型別名(例如 `HostServiceError`);不是 Swift 錯誤的情境用領域名稱(例如 `HostKeyChanged`)。
     public var category: String
-    /// 錯誤碼:case 名稱、herdr 的 code 或 NSError 的 code;不知道時是 `unspecified`。
+    /// 錯誤碼:case 名稱、herdr 的 code 或 NSError 的 code;
     public var code: String
     /// 功能區:顯示錯誤的畫面識別(例如 `NewChat`)。
     public var area: String
@@ -22,7 +21,7 @@ public struct ErrorRecord: Equatable, Sendable {
 }
 
 /// 從錯誤值取出可以記錄的類別與錯誤碼(不取關聯值裡的文字,herdr 的 code 除外)。
-public struct ErrorDescriptor: Equatable, Sendable {
+public struct ErrorDescriptor: Hashable, Sendable {
     public var category: String
     public var code: String
 
@@ -31,12 +30,15 @@ public struct ErrorDescriptor: Equatable, Sendable {
         self.code = code
     }
 
-    /// 只有顯示字串、沒有錯誤值的呼叫端。
-    public static let message = ErrorDescriptor(category: "Message", code: "unspecified")
+    /// 型別名,巢狀型別帶外層(例如 `QueuedPrompt.Problem`),不帶 module 名稱。
+    static func typeName(of error: any Error) -> String {
+        let parts = String(reflecting: Swift.type(of: error)).split(separator: ".")
+        return parts.count > 1 ? parts.dropFirst().joined(separator: ".") : parts.joined(separator: ".")
+    }
 
     public init(_ error: any Error) {
         let mirror = Mirror(reflecting: error)
-        let type = String(describing: Swift.type(of: error))
+        let type = Self.typeName(of: error)
         if mirror.displayStyle == .enum {
             if case .herdr(let code, _)? = error as? HerdrError {
                 // herdr 的錯誤碼是短識別字,可以留;訊息原文不留。
@@ -70,27 +72,31 @@ final class ErrorDisplayTracker {
     func hidden(instance: UUID) { shown[instance] = nil }
 }
 
-/// 「顯示字串 → 產生它的錯誤的類別與錯誤碼」對照(#637)。
-///
-/// 畫面只拿得到說明文字,但說明文字都是 `HostErrorText` 從錯誤值轉出來的;轉換當下把錯誤的類別與錯誤碼
-/// 記在這裡(只在記憶體、最近 64 筆),`ErrorLabel` 沒有帶錯誤值時以顯示字串查回來。
-/// 查不到(畫面自己寫的固定文字)才是 `ErrorDescriptor.message`。對照只存描述,不存也不外洩訊息原文。
-package enum ErrorMessageRegistry {
-    private struct State { var entries: [(message: String, descriptor: ErrorDescriptor)] = [] }
-    private static let state = Mutex(State())
-    private static let capacity = 64
+/// 畫面上顯示的錯誤(#637):說明文字與記錄用的描述出自同一個值,畫面 model 保留它,
+/// 顯示(`ErrorLabel`)與操作記錄都讀它,不必由文字反查。
+public struct DisplayedError: Hashable, Sendable {
+    /// 給使用者看的說明(不進記錄)。
+    public let text: String
+    /// 記錄用的類別與錯誤碼(不含訊息原文)。
+    public let descriptor: ErrorDescriptor
 
-    package static func note(_ message: String, _ descriptor: ErrorDescriptor) {
-        state.withLock { state in
-            state.entries.removeAll { $0.message == message }
-            state.entries.append((message, descriptor))
-            if state.entries.count > capacity { state.entries.removeFirst(state.entries.count - capacity) }
-        }
+    /// 由錯誤值產生說明與描述。
+    public init(_ text: String, error: any Error) {
+        self.text = text
+        descriptor = ErrorDescriptor(error)
     }
 
-    package static func descriptor(for message: String) -> ErrorDescriptor? {
-        state.withLock { $0.entries.last { $0.message == message }?.descriptor }
+    /// 不是 Swift 錯誤、但有明確領域類別的情境(例如主機身分變了、Agent 在對話紀錄回報的失敗)。
+    public init(_ text: String, category: String, code: String) {
+        self.text = text
+        descriptor = ErrorDescriptor(category: category, code: code)
     }
 
-    package static func reset() { state.withLock { $0.entries = [] } }
+    /// 以 `HostErrorText` 把錯誤值轉成白話說明。
+    public init(
+        error: any Error, connection: HostConfiguration.ConnectionMethod? = nil,
+        authentication: HostConfiguration.OpenSSHAuthentication? = nil
+    ) {
+        self.init(HostErrorText.message(for: error, connection: connection, authentication: authentication), error: error)
+    }
 }

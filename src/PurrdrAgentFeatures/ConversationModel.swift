@@ -94,6 +94,9 @@ public final class ConversationModel {
     /// 各 Agent 種類自己的 session 狀態來源(Antigravity 的 statusline 包裝,#448);沒有的種類用 `sessionStatusReader`。
     public let agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading]
 
+    /// 還沒讀到第一次結果(有資料、沒資料或錯誤都算讀到)前是 `true`(#644):頂列用量環這段時間顯示系統載入動畫。
+    /// 沒有讀取來源、不是支援的 Agent 或不知道 session 時讀不到東西,第一次輪詢就結束載入。
+    public private(set) var isSessionStatusLoading = true
     @ObservationIgnored private var sessionStatusReadAt: Date?
     /// 追蹤事件觸發的快取寫入最短間隔(秒);離開聊天時一定補寫(#510)。
     package static let cacheSaveInterval: TimeInterval = 5
@@ -898,6 +901,7 @@ public final class ConversationModel {
         guard let reader, dialect.readsSessionStatus, let session = boundSessionID ?? knownSessionID,
               ClaudeSessionStatus.isValidSessionID(session) else {
             sessionStatus = nil
+            if isSessionStatusLoading { isSessionStatusLoading = false }
             return
         }
         let now = clock.now()
@@ -907,6 +911,7 @@ public final class ConversationModel {
         guard !Task.isCancelled else { return }
         let status = statuses?[session].flatMap { $0.isFresh(at: now) ? $0 : nil }
         if status != sessionStatus { sessionStatus = status }
+        if isSessionStatusLoading { isSessionStatusLoading = false }
     }
 
     /// 載入超過 `loadingSkeletonDelay` 還沒有內容才畫骨架。

@@ -52,7 +52,7 @@ struct HTTPSStructureActionsTests {
 
         await actions.closeTab(tabID: "w1:t1", sessionIDs: [])
 
-        #expect(actions.actionError == HostErrorText.message(for: error))
+        #expect(actions.actionError == DisplayedError(error: error))
     }
 
     @Test("唯讀裝置：Tab 改名被拒時說明唯讀(#458)")
@@ -74,7 +74,7 @@ struct HTTPSStructureActionsTests {
         await actions.close(workspaceID: "w1", sessionIDs: [])
 
         #expect(actions.isReadOnly)
-        #expect(actions.actionError == WorkspaceActionsModel.readOnlyMessage)
+        #expect(actions.actionError?.text == WorkspaceActionsModel.readOnlyMessage)
         #expect(WorkspaceActionsModel.readOnlyMessage == HostErrorText.message(for: HostServiceError.readOnlyDevice))
     }
 

@@ -117,8 +117,8 @@ struct HostPushRow: View {
             case .checking, .confirming, .turningOn:
                 Text("Setting up notifications…")
             case .off:
-                if case .failed(let message) = model.problem {
-                    ErrorLabel(String(localized: "\(message) Tap the switch to try again."), area: "HostPush")
+                if case .failed(let shown) = model.problem {
+                    ErrorLabel(String(localized: "\(shown.text) Tap the switch to try again."), area: "HostPush", error: shown.descriptor)
                 } else if model.otherDevices > 0 {
                     Text("Off · Other devices here: \(model.otherDevices)")
                 } else if push.installsViaHostService {
@@ -180,8 +180,8 @@ struct HostPushTestRow: View {
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
                     .accessibilityIdentifier("account.push.\(push.host.storedValue).test.result")
-            case .failed(let message):
-                ErrorLabel(message, area: "PushTest")
+            case .failed(let shown):
+                ErrorLabel(shown.text, area: "PushTest", error: shown.descriptor)
                     .font(.footnote)
                     .accessibilityIdentifier("account.push.\(push.host.storedValue).test.result")
             case .idle, .sending:
@@ -299,16 +299,16 @@ struct PushProblemRow: View {
             }
             .accessibilityIdentifier("settings.push.problem")
         case .unsupportedDevice(let detail):
-            ErrorLabel(String(localized: "This device can’t receive notifications. \(detail)"), area: "HostPush")
+            ErrorLabel(String(localized: "This device can’t receive notifications. \(detail.text)"), area: "HostPush", error: detail.descriptor)
                 .accessibilityIdentifier("settings.push.problem")
         case .hostServiceOutdated(let update):
             HostServicePushUpdateRow(update: update)
                 .accessibilityIdentifier("settings.push.problem")
-        case .deviceIDUnavailable:
-            ErrorLabel(String(localized: "Couldn’t read this device’s ID. Unlock this device and try again."), area: "HostPush")
+        case .deviceIDUnavailable(let shown):
+            ErrorLabel(shown.text, area: "HostPush", error: shown.descriptor)
                 .accessibilityIdentifier("settings.push.problem")
         case .failed(let message), .mutedSyncFailed(let message), .kindsUpdateFailed(let message):
-            ErrorLabel(message, area: "HostPush")
+            ErrorLabel(message.text, area: "HostPush", error: message.descriptor)
                 .accessibilityIdentifier("settings.push.problem")
         }
     }

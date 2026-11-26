@@ -105,6 +105,7 @@ public struct PlusView: View {
         } message: { notice in
             Text(notice.message)
         }
+        .reportsErrorDisplay(model.notice?.displayedError, area: "PlusView")
     }
 
     private var noticePresented: Binding<Bool> {

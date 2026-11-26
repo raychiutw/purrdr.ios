@@ -13,7 +13,7 @@ public final class FolderPickerModel {
     public enum State: Equatable {
         case loading
         case loaded(NewChatFolderListing)
-        case failed(String)
+        case failed(DisplayedError)
     }
 
     public private(set) var state: State = .loading
@@ -90,7 +90,7 @@ public final class FolderPickerModel {
             if path == nil || path?.isEmpty == true, home == nil { home = listing.path }
             state = .loaded(listing)
         } catch {
-            state = .failed(Self.message(for: error))
+            state = .failed(DisplayedError(Self.message(for: error), error: error))
         }
     }
 
@@ -128,7 +128,9 @@ public final class NewChatModel {
     public private(set) var unsentMessage: String?
     public private(set) var isStarting = false
     /// 開始失敗的原因(顯示在表單裡)。
-    public private(set) var error: String?
+    public private(set) var failure: DisplayedError?
+    /// `failure` 的說明文字。
+    public var error: String? { failure?.text }
     /// 唯讀裝置不能新增聊天的說明(`loadAccess()` 讀到唯讀時才有)。
     public private(set) var readOnlyReason: String?
 
@@ -147,7 +149,7 @@ public final class NewChatModel {
         case loaded([ResumableSession])
         /// 主機服務版本不足:畫面附更新指令。
         case updateRequired(HostServiceUpdateCommands)
-        case failed(String)
+        case failed(DisplayedError)
     }
 
     public var choice: Choice = .new
@@ -224,7 +226,7 @@ public final class NewChatModel {
     public func selectWorkspace(_ id: String) {
         guard workspaces.contains(where: { $0.id == id }) else { return }
         placement = .existing(id)
-        error = nil
+        failure = nil
     }
 
     /// 開啟前就指定要放在哪個既有 Workspace(清單還沒讀到時先記著,`loadWorkspaces()` 後套用)。
@@ -267,7 +269,7 @@ public final class NewChatModel {
             } catch {
                 // 連不上不等於「需要主機服務」:說明原因、不記住,按「再試一次」或換資料夾時重讀。
                 guard folder == trimmedFolder, agent == self.agent else { return }
-                sessions = .failed(Self.message(for: error))
+                sessions = .failed(DisplayedError(Self.message(for: error), error: error))
                 return
             }
             // 只記住不會變的結果(能續接);版本太舊時使用者更新後要能立刻再讀到。
@@ -287,7 +289,7 @@ public final class NewChatModel {
                 return
             } catch {
                 guard folder == trimmedFolder, agent == self.agent else { return }
-                sessions = .failed(Self.message(for: error))
+                sessions = .failed(DisplayedError(Self.message(for: error), error: error))
             }
         }
     }
@@ -308,7 +310,7 @@ public final class NewChatModel {
     /// 資料夾瀏覽按了「使用這個資料夾」。
     public func choose(_ path: String) {
         folder = path
-        error = nil
+        failure = nil
     }
 
     /// 開始。成功回傳新 workspace(聊天開在它的 root pane);失敗時原因放在 `error`。
@@ -320,7 +322,7 @@ public final class NewChatModel {
             folder: trimmedFolder, label: selectedWorkspace == nil ? Self.optional(workspaceName) : nil, tabLabel: Self.optional(tabName), agent: agent,
             message: trimmedMessage, resumeSession: resumeSession, target: selectedWorkspace.map { .existingWorkspace(id: $0.id) } ?? .newWorkspace)
         isStarting = true
-        error = nil
+        failure = nil
         unsentMessage = nil
         defer { isStarting = false }
         do {
@@ -329,7 +331,7 @@ public final class NewChatModel {
             if !started.sentMessage, !trimmedMessage.isEmpty { unsentMessage = trimmedMessage }
             return started.workspace
         } catch {
-            self.error = Self.message(for: error)
+            failure = DisplayedError(Self.message(for: error), error: error)
             return nil
         }
     }

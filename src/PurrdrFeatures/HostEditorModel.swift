@@ -99,7 +99,7 @@ public final class HostEditorModel {
     /// 這支裝置的公鑰(含註解),`loadDeviceKey()` 之後才有。
     public private(set) var devicePublicKey: SSHPublicKey?
     /// 拿不到裝置金鑰時的說明。
-    public private(set) var deviceKeyProblem: String?
+    public private(set) var deviceKeyProblem: DisplayedError?
 
     /// 是否是編輯既有主機。
     public var isEditing: Bool { existing != nil }
@@ -396,7 +396,7 @@ public final class HostEditorModel {
             devicePublicKey = key
             deviceKeyProblem = nil
         case .failure(let error):
-            deviceKeyProblem = HostErrorText.message(for: error)
+            deviceKeyProblem = DisplayedError(error: error)
         }
     }
 

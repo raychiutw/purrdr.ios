@@ -150,7 +150,8 @@ struct FolderBrowserModelTests {
 
         await model.load()
 
-        #expect(model.phase == .failed("The host didn’t respond with a folder listing."))
+        guard case .failed(let listingFailure) = model.phase else { Issue.record("應該是失敗"); return }
+        #expect(listingFailure.text == "The host didn’t respond with a folder listing.")
     }
 
     @Test("打開資料夾、回上一層")
@@ -235,7 +236,7 @@ struct FolderBrowserModelTests {
 
         await model.upload(fileAt: file)
 
-        #expect(model.notice == "Files over 25 MB can’t be uploaded.")
+        #expect(model.notice?.text == "Files over 25 MB can’t be uploaded.")
         #expect(await host.executions.count == 1)
     }
 
@@ -249,6 +250,6 @@ struct FolderBrowserModelTests {
 
         await model.upload(Data("x".utf8), named: ".zshrc")
 
-        #expect(model.notice == "There’s already an item named “.zshrc” in this folder. Rename the file and try again.")
+        #expect(model.notice?.text == "There’s already an item named “.zshrc” in this folder. Rename the file and try again.")
     }
 }

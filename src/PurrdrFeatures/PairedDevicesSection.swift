@@ -27,14 +27,14 @@ struct PairedDevicesSection: View {
             // 整頁第一次載入:骨架(#626)。
             RowsSkeleton(identifier: "pairedDevices.loading")
         case .failed(let message):
-            ErrorLabel(message, area: "PairedDevicesSection")
+            ErrorLabel(message.text, area: "PairedDevicesSection", error: message.descriptor)
                 .accessibilityIdentifier("pairedDevices.error")
         case .loaded(let devices):
             ForEach(devices) { device in
                 row(device)
             }
             if let error = model.revocationError {
-                ErrorLabel(error, area: "PairedDevicesSection")
+                ErrorLabel(error.text, area: "PairedDevicesSection", error: error.descriptor)
                     .accessibilityIdentifier("pairedDevices.revokeError")
             }
         }

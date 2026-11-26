@@ -97,7 +97,7 @@ struct HostNotificationsPage: View {
             case .on:
                 return push.model.otherDevices > 0 ? Text("Other devices here: \(push.model.otherDevices)") : nil
             case .off:
-                if case .failed(let message) = push.model.problem { return Text("\(message) Tap the switch to try again.") }
+                if case .failed(let shown) = push.model.problem { return Text("\(shown.text) Tap the switch to try again.") }
                 return nil
             }
         }

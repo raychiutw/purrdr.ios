@@ -250,7 +250,7 @@ struct AddHostGuidePrivateKeyProblemTests {
 
         model.privateKey = "-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----"
 
-        #expect(model.privateKeyProblem?.contains("supported") == true)
+        #expect(model.privateKeyProblem?.text.contains("supported") == true)
         #expect(model.privateKeyOffersDeviceKey)
         model.useDeviceKeyInstead()
         #expect(model.authentication == .deviceKey)

@@ -37,7 +37,8 @@ struct KeyboardMenuTests {
         #expect(key(.newChat) == "n|\(EventModifiers.command.rawValue)")
         #expect(key(.search) == "f|\(EventModifiers.command.rawValue)")
         #expect(key(.openTerminal) == "t|\(EventModifiers([.command, .shift]).rawValue)")
-        #expect(key(.settings) == ",|\(EventModifiers.command.rawValue)")
+        // App Settings… 是 Option-Command-,(Command-, 是 iPadOS 系統自動的 Settings…,見 KeyboardCommandTests)。
+        #expect(key(.settings) == ",|\(EventModifiers([.command, .option]).rawValue)")
     }
 
     @Test("快捷鍵不與「新視窗」(Option-Command-N)重複")

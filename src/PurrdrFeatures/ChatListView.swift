@@ -8,7 +8,7 @@ enum ChatListRowContent: Equatable {
     case away(AwaySummary, isCollapsed: Bool)
     case entry(ConversationRow, turnHeader: AgentTurnHeader?)
     case pending(PendingItem)
-    case notice(String)
+    case notice(DisplayedError)
     case prompt
     case working
 }

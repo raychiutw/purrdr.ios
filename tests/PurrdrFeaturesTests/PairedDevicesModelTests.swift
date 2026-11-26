@@ -36,7 +36,7 @@ struct PairedDevicesModelTests {
             Issue.record("沒有失敗：\(model.state)")
             return
         }
-        #expect(message.contains("0.6.0"))
+        #expect(message.text.contains("0.6.0"))
     }
 
     @Test("撤銷別支裝置要先確認;確認才送出，之後重新列出")

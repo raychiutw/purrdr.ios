@@ -143,7 +143,7 @@ public struct PlanUsageView: View {
             }
         }
         if let message = model.message {
-            ErrorLabel(message, area: "PlanUsage")
+            ErrorLabel(message.text, area: "PlanUsage", error: message.descriptor)
                 .font(.footnote)
                 .accessibilityIdentifier("planUsage.message")
         }
@@ -266,8 +266,8 @@ extension PlanUsageFailure {
             String(localized: "Codex didn’t answer in time.")
         case .codexRequestFailed(let message):
             String(localized: "Codex couldn’t get plan usage: \(message)")
-        case .connection(let message):
-            message
+        case .connection(let shown):
+            shown.text
         }
     }
 }

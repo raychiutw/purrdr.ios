@@ -168,7 +168,7 @@ public final class UserDefaultsPlanUsageSelectionStore: PlanUsageSelectionStore 
 }
 
 /// 查不到方案用量的原因;說明文字由畫面翻譯。
-public enum PlanUsageFailure: Equatable, Sendable {
+public enum PlanUsageFailure: Error, Equatable, Sendable {
     case codexNotFound
     case codexNotSignedIn
     case codexUnreadableResponse
@@ -177,7 +177,12 @@ public enum PlanUsageFailure: Equatable, Sendable {
     /// app-server 回報查詢失敗(帶它的說明)。
     case codexRequestFailed(String)
     /// 主機連線的錯誤(已是 `HostErrorText` 的說明)。
-    case connection(String)
+    case connection(DisplayedError)
+
+    /// 記錄用的類別與錯誤碼:主機連線的錯誤沿用原本的錯誤值,其他是這個列舉的 case。
+    var descriptor: ErrorDescriptor {
+        if case .connection(let shown) = self { shown.descriptor } else { ErrorDescriptor(self) }
+    }
 
     /// Codex 自己的錯誤與 app-server 逾時;其他是主機連線的錯誤。
     init(_ error: any Error, agent: PlanUsageAgent) {
@@ -187,7 +192,7 @@ public enum PlanUsageFailure: Equatable, Sendable {
         case CodexPlanUsageError.unreadableResponse: .codexUnreadableResponse
         case CodexPlanUsageError.requestFailed(let message): .codexRequestFailed(message)
         case HostCommandError.deadlineExceeded where agent == .codex: .codexTimedOut
-        default: .connection(HostErrorText.message(for: error))
+        default: .connection(DisplayedError(error: error))
         }
     }
 }
@@ -239,7 +244,7 @@ public final class PlanUsageModel {
     /// 已用或剩餘(全域偏好,在設定 tab 改;這裡只讀,畫面每次出現時重讀)。
     public private(set) var display: Display
     /// 同意或關閉失敗的說明。
-    public private(set) var message: String?
+    public private(set) var message: DisplayedError?
     public let hosts: [HostOption]
 
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
@@ -452,7 +457,11 @@ public final class PlanUsageModel {
         }
     }
 
-    static func describe(_ error: any Error, agent: PlanUsageAgent) -> String {
+    static func describe(_ error: any Error, agent: PlanUsageAgent) -> DisplayedError {
+        DisplayedError(text(for: error, agent: agent), error: error)
+    }
+
+    private static func text(for error: any Error, agent: PlanUsageAgent) -> String {
         switch error {
         case ClaudeUsageError.settingsNotJSON:
             String(localized: "Claude Code’s settings on this host are damaged, so Purrdr left them unchanged. Fix them there and try again.")

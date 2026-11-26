@@ -51,7 +51,7 @@ struct PermissionModeSection: View {
         }
         if let failure = model.permissionModeFailure {
             Section {
-                ErrorLabel(failure.text, area: "PermissionMode")
+                ErrorLabel(failure.text, area: "PermissionMode", error: failure)
                     .font(.footnote)
                     .accessibilityIdentifier("permissionMode.failure")
                 if failure.target != nil {

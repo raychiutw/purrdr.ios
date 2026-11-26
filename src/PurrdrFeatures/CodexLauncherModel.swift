@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrSSH
 
@@ -24,7 +25,7 @@ public final class CodexLauncherModel {
 
     public private(set) var state: State = .off
     /// 上一次操作失敗的說明。
-    public private(set) var message: String?
+    public private(set) var message: DisplayedError?
 
     private let host: CodexLauncherHost
     private let hostID: String
@@ -94,7 +95,11 @@ public final class CodexLauncherModel {
         }
     }
 
-    static func describe(_ error: any Error) -> String {
+    static func describe(_ error: any Error) -> DisplayedError {
+        DisplayedError(text(for: error), error: error)
+    }
+
+    private static func text(for error: any Error) -> String {
         switch error {
         case CodexLauncherError.codexAlreadyThere:
             String(localized: "A Codex launcher that Purrdr didn’t add is already on this host, so Purrdr left it unchanged.")

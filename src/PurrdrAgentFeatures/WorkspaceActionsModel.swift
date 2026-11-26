@@ -13,9 +13,9 @@ public final class WorkspaceActionsModel {
     /// 重新命名失敗的原因，顯示在重新命名表單裡。
     public private(set) var renameError: String?
     /// 建立 worktree 失敗的原因，顯示在表單裡。
-    public private(set) var worktreeError: String?
+    public private(set) var worktreeError: DisplayedError?
     /// 關閉等已結束的動作失敗時的訊息，以可關閉的橫幅顯示(與連線錯誤分開)。
-    public var actionError: String?
+    public var actionError: DisplayedError?
     /// `actionError` 的標題,寫明失敗的是哪個動作(#625)。
     public private(set) var actionErrorTitle = ""
     /// 有操作正在主機上執行。
@@ -122,7 +122,7 @@ public final class WorkspaceActionsModel {
         return await perform {
             try await client.renameWorkspace(workspaceID, to: label.trimmingCharacters(in: .whitespacesAndNewlines))
         } onError: {
-            renameError = $0
+            renameError = $0.text
         }
     }
 
@@ -132,7 +132,7 @@ public final class WorkspaceActionsModel {
         return await perform {
             try await client.renameTab(tabID, to: label.trimmingCharacters(in: .whitespacesAndNewlines))
         } onError: {
-            renameError = $0
+            renameError = $0.text
         }
     }
 
@@ -220,17 +220,22 @@ public final class WorkspaceActionsModel {
 
     // MARK: -
 
-    private func perform(_ operation: () async throws -> Void, onError: (String) -> Void) async -> Bool {
+    private func perform(_ operation: () async throws -> Void, onError: (DisplayedError) -> Void) async -> Bool {
         isWorking = true
         defer { isWorking = false }
         do {
             try await operation()
         } catch {
-            onError(Self.message(for: error))
+            onError(Self.displayed(for: error))
             return false
         }
         await refresh()
         return true
+    }
+
+    /// `message(for:)` 的說明文字加上記錄用的類別與錯誤碼(同一個值)。
+    package static func displayed(for error: any Error) -> DisplayedError {
+        DisplayedError(message(for: error), error: error)
     }
 
     /// 需要另外說明的碼換成使用者看得懂的話;其他保留 herdr 原文(行為規格 §3.8)。

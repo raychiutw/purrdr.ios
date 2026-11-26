@@ -112,7 +112,8 @@ struct NewChatModelTests {
         let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: "~/gone")
 
         await picker.load()
-        #expect(picker.state == .failed(String(localized: "This folder isn’t on the host, or you can’t open it.")))
+        guard case .failed(let notFound) = picker.state else { Issue.record("應該是錯誤"); return }
+        #expect(notFound.text == String(localized: "This folder isn’t on the host, or you can’t open it."))
         #expect(picker.chosenPath == nil)
 
         await picker.load()
@@ -120,7 +121,7 @@ struct NewChatModelTests {
             Issue.record("應該是錯誤，不是 \(picker.state)")
             return
         }
-        #expect(!message.isEmpty)
+        #expect(!message.text.isEmpty)
 
         await picker.load()
         #expect(picker.state == .loaded(NewChatFolderListing(path: "/Users/demo/gone", folders: [])))

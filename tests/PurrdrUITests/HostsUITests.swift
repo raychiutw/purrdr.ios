@@ -48,6 +48,8 @@ final class HostsUITests: XCTestCase {
         }
         XCTAssertTrue(app.overviewRow("hosts.edit").waitUntilExists(timeout: 5), "沒有回到主機總頁")
         XCTAssertEqual(app.state, .runningForeground)
+        // 編輯頁收起時鍵盤還在往下收:等它收完再做下一件事(否則下一次找元素時鍵盤正好消失,查詢會失敗)。
+        XCTAssertTrue(app.waitForKeyboardToHide(timeout: 5), "離開編輯頁後鍵盤沒有收起")
     }
 
     /// 已存主機的總頁與編輯一次啟動走完(#374 瘦身;原本各自啟動):總頁、開編輯器、取消編輯(#333)、

@@ -137,7 +137,7 @@ struct AddHostGuideHTTPSTests {
         rig.model.pairingCode = "ZZZZ-ZZZZ"
         rig.model.advance()
         await rig.model.testConnection()
-        #expect(rig.model.phase == .failed(HostErrorText.message(for: HostServiceError.pairingCodeInvalid, connection: .https)))
+        #expect(rig.model.phase == .failed(DisplayedError(error: HostServiceError.pairingCodeInvalid, connection: .https)))
         #expect(rig.model.save() == nil)
         rig.model.back()
         #expect(rig.model.step == .pair)
