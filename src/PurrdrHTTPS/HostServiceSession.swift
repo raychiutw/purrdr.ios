@@ -33,6 +33,9 @@ actor HostServiceSession {
     /// 心跳之間的等待;換心跳節奏時叫醒(立刻 ping 一次，之後照新間隔)。
     private let heartbeatSignal: WakeSignal
     private let sleep: Sleep
+    /// 連線結束的原因(診斷,#689)與觀察者;只通知一次。
+    private var endReason: HTTPSDropReason?
+    private var endObserver: (@Sendable (HTTPSDropReason) -> Void)?
 
     typealias Messages = AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>
 
@@ -203,8 +206,14 @@ actor HostServiceSession {
         }
     }
 
+    /// 連線結束時通知一次(握手完成後才接上;已經結束就立刻通知)。
+    func observeEnd(_ observer: @escaping @Sendable (HTTPSDropReason) -> Void) {
+        if let endReason { return observer(endReason) }
+        endObserver = observer
+    }
+
     func close() async {
-        end(with: HostServiceError.connectionLost)
+        end(with: HostServiceError.connectionLost, reason: .disconnectRequested)
         await socket.close()
     }
 
@@ -231,7 +240,7 @@ actor HostServiceSession {
             guard ending == nil else { return }
             let pong = await Self.outcome(of: { [socket] in try await socket.sendPing() }, within: heartbeat.timeout, sleep: sleep)
             guard case .success = pong else {
-                end(with: HostServiceError.connectionLost)
+                end(with: HostServiceError.connectionLost, reason: .heartbeatTimeout)
                 await socket.close()
                 return
             }
@@ -272,10 +281,10 @@ actor HostServiceSession {
             case .failure(let error):
                 // 主機關閉前送的原因(例如權杖被拒)可能還沒讀到：讀取端先結束就以它的原因為準。
                 await waitForReader(within: Self.sendFailureGrace)
-                end(with: error as? HostServiceError ?? .connectionLost)
+                end(with: error as? HostServiceError ?? .connectionLost, reason: Self.reason(for: error))
                 return
             case nil:
-                end(with: HostServiceError.connectionLost)
+                end(with: HostServiceError.connectionLost, reason: .heartbeatTimeout)
                 await socket.close()
                 return
             }
@@ -322,12 +331,15 @@ actor HostServiceSession {
             do {
                 message = try await socket.receive()
             } catch {
-                end(with: error as? HostServiceError ?? .connectionLost)
+                end(with: error as? HostServiceError ?? .connectionLost, reason: Self.reason(for: error))
                 break
             }
             switch message {
             case .closed(let code):
-                end(with: code == Self.unauthorizedCloseCode ? HostServiceError.deviceTokenInvalid : HostServiceError.connectionLost)
+                let unauthorized = code == Self.unauthorizedCloseCode
+                end(
+                    with: unauthorized ? HostServiceError.deviceTokenInvalid : HostServiceError.connectionLost,
+                    reason: unauthorized ? .tokenRejected : .closedByPeer)
             case .text(let text):
                 deliver(text)
             }
@@ -366,7 +378,7 @@ actor HostServiceSession {
             for continuation in queueObservers.values { continuation.yield(change) }
         case .errorMessage(let error) where error.requestId == nil:
             // 權杖無效或已撤銷：主機服務接著會以 4401 關閉。
-            if let rejection = HostServiceError(tokenRejection: error.code) { end(with: rejection) }
+            if let rejection = HostServiceError(tokenRejection: error.code) { end(with: rejection, reason: .tokenRejected) }
         default:
             if let requestID = message.requestID {
                 closingOnAbandon[requestID] = nil
@@ -389,9 +401,13 @@ actor HostServiceSession {
     }
 
     /// 連線結束：等待中的請求、串流與等待者都以 `error` 結束。
-    private func end(with error: any Error) {
+    private func end(with error: any Error, reason: HTTPSDropReason) {
         guard ending == nil else { return }
         ending = error
+        endReason = reason
+        let observer = endObserver
+        endObserver = nil
+        observer?(reason)
         beating?.cancel()
         writer?.cancel()
         outgoingQueue.finish()
@@ -408,6 +424,14 @@ actor HostServiceSession {
         let waiters = closeWaiters
         closeWaiters = [:]
         for continuation in waiters.values { continuation.resume(returning: error) }
+    }
+
+    /// 錯誤換成診斷原因:權杖被拒就是 `tokenRejected`,主機服務的其他錯誤視為對端關閉,其餘是網路錯誤(描述只給開發者看)。
+    private static func reason(for error: any Error) -> HTTPSDropReason {
+        if let rejected = error as? HostServiceError {
+            return rejected.requiresPairing ? .tokenRejected : .closedByPeer
+        }
+        return .networkError("\(error)")
     }
 
     /// 權杖無效或已撤銷時主機服務關閉連線的 close code。
