@@ -481,7 +481,8 @@ package final class TranscriptFeed {
 
     /// 讀上一頁(F5.4)。失敗靜默;session 改變後才到的頁丟棄(R-B05)。
     package func loadOlder() async {
-        guard older == .available, let file, file.windowStart > 0 else { return }
+        // 還沒綁定 Agent(只從快取還原、尚無方言)時解析不了舊頁:不動狀態,綁定後再讀。
+        guard older == .available, dialect != nil, let file, file.windowStart > 0 else { return }
         let generation = generation
         older = .loading
         emit(.none)

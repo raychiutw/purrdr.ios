@@ -176,6 +176,28 @@ struct TranscriptFeedTests {
         #expect(await setup.cache.load(chatKey: "w1:p6") == nil)
     }
 
+    @Test("換 session:過期的讀取就算失敗也算過期,不回報讀取失敗")
+    func supersededFailureIsNotReported() async throws {
+        let connection = FakeHostConnection()
+        await connection.serveTranscript(.init(
+            locate: { _ in throw FakeHostConnectionError.unsupported },
+            window: { _, _, _, _ in throw FakeHostConnectionError.unsupported },
+            tail: { _, _, _, _ in throw FakeHostConnectionError.unsupported }))
+        await connection.holdTranscripts()
+        let feed = TranscriptFeed(
+            reader: TranscriptReader(connection: connection), cache: InMemoryConversationCache(), chatKey: "w1:p6", knownSessionID: nil,
+            clock: TestClock().clock, openLines: 40, openMaxBytes: 0, pageLines: 200, timings: nil, onSkips: nil)
+        let target = Self.target()
+        _ = await feed.bind(to: target)
+        let inFlight = Task { await feed.read(target) }
+        try await waitUntil { await connection.heldTranscriptCount == 1 }
+
+        _ = await feed.bind(to: Self.target(session: "00000000-0000-0000-0000-000000000002"))
+        await connection.releaseTranscripts()
+
+        #expect(await inFlight.value == .superseded)
+    }
+
     @Test("讀取失敗:交給聊天顯示;找不到檔案時來源自己放掉檔案")
     func readFailureIsReported() async throws {
         let connection = FakeHostConnection()
