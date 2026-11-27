@@ -27,11 +27,18 @@ final class AgentListUITests: XCTestCase {
         XCTAssertLessThan(newChat.frame.minX, account.frame.minX, "＋不在頭像左邊")
         XCTAssertTrue(app.navigationBars.firstMatch.exists, "系統導覽列不見了")
 
+        let expandedTitleMinY = title.frame.minY
         let list = app.collectionViews.firstMatch
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
         XCTAssertTrue(app.revealChatSearch().exists, "往下拉後沒有搜尋欄(平常收起)")
-        XCTAssertTrue(title.waitUntilGone(timeout: 5), "往下滑後大標題沒有收合")
+        // 第一次拖動只展開搜尋欄;再往上捲才收合大標題。
+        list.swipeUp()
+        list.swipeUp()
+        // 收合後系統的大標題 label 可能還留在 tree 裡:以「不見、點不到,或位置離開展開時的位置」判定。
+        XCTAssertTrue(UITestWait.until(timeout: 5) {
+            !title.existsWithoutIdle || !title.isHittable || title.frame.minY < expandedTitleMinY - 10
+        }, "往下滑後大標題沒有收合 frame=\(title.frame) 展開時=\(expandedTitleMinY)")
         XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "往下滑後頭像不見了")
 
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))

@@ -46,9 +46,7 @@ final class DelegationUITests: XCTestCase {
         XCTAssertTrue(app.element("conversation.working").waitUntilGone(timeout: 15), "強制結束後仍在工作")
         XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 10), "強制結束後停止列還在")
 
-        // 返回列表(多個 Pane 的 Tab 先回版面圖,再回列表),再開 weather-app。
-        app.buttons["BackButton"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 10), "沒有回到版面圖")
+        // 返回列表:在版面圖點方塊時版面圖自己先收掉(`popsOnChoose`),所以多 Pane 的 Tab 也是一次返回就回到列表。
         app.buttons["BackButton"].firstMatch.tap()
         XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有回到列表")
         openWeather(in: app)
