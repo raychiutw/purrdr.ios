@@ -250,9 +250,12 @@ package final class TranscriptFeed {
                 }
                 result = isCurrent(generation) ? .caughtUp : .superseded
             } else {
-                let located = try await timings.timed("locate") { try await reader.locate(target) }
+                // 定位加讀檔尾合成一次往返(#656);主機不支援合併時連線層自己退回兩步。
+                let opening = try await timings.timed("open") {
+                    try await reader.open(target, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
+                }
                 guard isCurrent(generation) else { return .superseded }
-                try await openWindow(path: located.path, size: located.size, generation: generation)
+                try await openWindow(path: opening.file.path, size: opening.file.size, generation: generation, preloaded: opening.chunk)
                 result = isCurrent(generation) ? .caughtUp : .superseded
             }
             if result == .caughtUp { startFollowing() }
@@ -282,10 +285,15 @@ package final class TranscriptFeed {
     }
 
     /// 讀最後 `openLines` 行並**取代**目前的訊息。
-    private func openWindow(path: String, size: Int, generation: Int) async throws {
-        // 以剛探測到的大小為上限:agent 同時在寫也不會變成無上限的補讀(§4.7)。
-        var chunk = try await timings.timed("window") {
-            try await reader.window(path: path, endingAt: size, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
+    private func openWindow(path: String, size: Int, generation: Int, preloaded: TranscriptChunk? = nil) async throws {
+        // 以剛探測到的大小為上限:agent 同時在寫也不會變成無上限的補讀(§4.7)。已經在開啟時一併讀到的就直接用。
+        var chunk: TranscriptChunk
+        if let preloaded {
+            chunk = preloaded
+        } else {
+            chunk = try await timings.timed("window") {
+                try await reader.window(path: path, endingAt: size, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
+            }
         }
         guard isCurrent(generation) else { return }
         if chunk.lines.isEmpty, chunk.start > 0 {
