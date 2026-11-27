@@ -439,11 +439,33 @@ public final class HostsModel {
         HostScopedConversationCache(base: conversationCache, scope: selection.storedValue)
     }
 
+    /// 背景預讀(#663):連上主機後把列表前幾個聊天讀進快取。行動網路不預讀、前景正在看的主機不預讀。
+    @ObservationIgnored private var conversationPrefetcher: ConversationPrefetcher?
+
     /// 把這些聊天的快取讀進記憶體層(Agent 列表顯示時呼叫),打開時同步還原。
-    public func prefetchConversations(_ routes: [ChatRoute]) async {
+    /// `readsTranscripts`(列表在前景時):再把還沒有新快取的聊天從主機讀進來(`ConversationPrefetcher`,數量與網路有上限)。
+    public func prefetchConversations(_ routes: [ChatRoute], readsTranscripts: Bool = false) async {
         for route in routes where !Task.isCancelled {
             _ = await conversationCache(for: route.host).load(chatKey: route.paneID)
         }
+        guard readsTranscripts, !Task.isCancelled else { return }
+        let prefetcher = conversationPrefetcher ?? ConversationPrefetcher(
+            isCellular: { [weak self] in self?.trafficMeter?.currentNetwork == .cellular },
+            isBlocked: { [weak self] route in self?.agentList.visibleChats.contains { $0.host == route.host } ?? true },
+            read: { [weak self] candidate in await self?.prefetchTranscript(candidate) ?? false })
+        conversationPrefetcher = prefetcher
+        let candidates = routes.compactMap { route -> ConversationPrefetcher.Candidate? in
+            guard let agent = members[route.host]?.list.updates.snapshot?.agents.first(where: { $0.paneID == route.paneID }),
+                  let target = agent.transcriptTarget else { return nil }
+            return ConversationPrefetcher.Candidate(route: route, target: target, signature: "\(target.sessionKey)|\(agent.status)")
+        }
+        await prefetcher.prefetch(candidates)
+    }
+
+    private func prefetchTranscript(_ candidate: ConversationPrefetcher.Candidate) async -> Bool {
+        guard let member = members[candidate.route.host] else { return false }
+        return await ConversationPrefetcher.read(
+            candidate, reader: member.transcripts, cache: conversationCache(for: candidate.route.host))
     }
 
     public var rows: [HostRow] {
@@ -716,6 +738,7 @@ public final class HostsModel {
         hosts.removeAll { $0.id == id }
         let dropping = [sshAdapter.drop(id), httpsAdapter.drop(id)]
         members[.host(id)] = nil
+        conversationPrefetcher?.forget(host: .host(id))
         preferences.removeAll(for: .host(id))
         hostIcons.setIcon(nil, for: id)
         try? FileManager.default.removeItem(at: AgentFileLoads.defaultDownloadDirectory.appending(path: id.uuidString, directoryHint: .isDirectory))
