@@ -6,27 +6,9 @@ final class ConversationUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 唯讀測試共用的一次啟動(#373):不送出、不改 Demo 主機狀態的測試共用同一個 app,測試之間回到列表再開聊天。
-    /// 會送出訊息、帶情境旗標或改字級的測試照舊各自啟動。
-    nonisolated(unsafe) private static var sharedApp: XCUIApplication?
-
-    override class func tearDown() {
-        MainActor.assumeIsolated {
-            sharedApp?.terminate()
-            sharedApp = nil
-        }
-    }
-
-    /// 回到列表後開 `paneID` 的聊天。第一次或 app 已不在前景時才啟動。
-    @MainActor
-    private func openSharedConversation(paneID: String) -> XCUIApplication {
-        // 共用同一個 app 會被同類別其他測試的狀態干擾(提示卡、草稿、sheet),每個測試各自啟動。
-        XCUIApplication.launchUITestingConversation(paneID: paneID)
-    }
-
     @MainActor
     private func openLedger() -> XCUIApplication {
-        openSharedConversation(paneID: "w1:p1")
+        XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
     }
 
     /// 送出的訊息：還沒確認的回音，或對話紀錄已確認的使用者泡泡(追蹤可能立刻讀到，#165)。
@@ -37,9 +19,10 @@ final class ConversationUITests: XCTestCase {
 
     /// 閱讀(共用啟動的 ledger):使用者泡泡、skill、工具串摘要、表格與程式碼(#351:不超出視窗寬度)、
     /// 只有 http(s) 連結可點(R-V03)、程式碼複製鈕(≥44pt)與每輪開頭的 Agent 頭像與名稱。
-    /// 最後才點開工具串(會改版面)。原本 6 個測試合併(#374),再併入頂列膠囊、輸入框對齊與訊息單一元素。
+    /// 最後才點開工具串(會改版面),再接送出訊息(輸入框空白時送出鈕停用、送出後回音與回覆)。
+    /// 原本 6 個測試合併(#374),再併入頂列膠囊、輸入框對齊、訊息單一元素與送出。
     @MainActor
-    func testConversationHeaderComposerMessagesAndRendering() {
+    func testConversationHeaderComposerMessagesRenderingAndSending() {
         let app = openLedger()
 
         // 頂列右上只有用量環與「⋯」(#617):沒有 Inspector 開關鈕,兩顆並排(系統合成一顆膠囊)。
@@ -124,6 +107,33 @@ final class ConversationUITests: XCTestCase {
         }
         summary.tap()
         XCTAssertTrue(app.staticTexts["Edit"].waitUntilExists(timeout: 5), "展開後沒有看到每個呼叫")
+
+        // 送出(接在閱讀之後,不讀閱讀段留下的狀態;原本 3 個測試合併,#374):輸入框清空、回音出現,
+        // agent 收下後對話紀錄接上回覆、回音消失;送出後立刻收起鍵盤(#329)。
+        let text = app.element("composer.text")
+        let send = app.element("composer.send")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
+        XCTAssertFalse(send.isEnabled, "空白時送出鈕應停用")
+        XCTAssertHitTarget(send)
+
+        text.tap()
+        text.typeEnglish("Add a header row too?")
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
+        send.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "送出後鍵盤沒有收起")
+        XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
+        app.dismissKeyboard()
+        // 追蹤可能立刻讀到對話紀錄(#165):回音很快被確認，所以回覆接上也算。
+        let echoOrReply = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label CONTAINS %@ OR (identifier == 'conversation.agent' AND label CONTAINS 'This is the demo host')",
+            "Add a header row too?")).firstMatch
+        XCTAssertTrue(echoOrReply.waitUntilExists(timeout: 5), "沒有回音")
+        // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
+        let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
+            .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
+        XCTAssertTrue(reply.waitUntilExists(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
+        XCTAssertTrue(app.element("conversation.echo").waitUntilGone(timeout: 5), "對話紀錄確認後回音應消失")
     }
 
     // MARK: - 已送出圖片情境(`-demoSentImages`,#428:手機沒有副本，經主機讀回縮圖)
@@ -145,13 +155,9 @@ final class ConversationUITests: XCTestCase {
         let image = app.element("imageViewer.image")
         XCTAssertTrue(image.waitUntilExists(timeout: 5))
         image.swipeLeft()
-        let second = NSPredicate(format: "label == %@", "Image 2 of 2")
-        let moved = XCTNSPredicateExpectation(predicate: second, object: app.element("imageViewer.pageLabel"))
-        XCTAssertEqual(XCTWaiter().wait(for: [moved], timeout: 5), .completed, "左滑沒有切到第 2 張")
+        XCTAssertTrue(app.element("imageViewer.pageLabel").waitForLabel("Image 2 of 2", timeout: 5), "左滑沒有切到第 2 張")
         image.swipeRight()
-        let first = NSPredicate(format: "label == %@", "Image 1 of 2")
-        let back = XCTNSPredicateExpectation(predicate: first, object: app.element("imageViewer.pageLabel"))
-        XCTAssertEqual(XCTWaiter().wait(for: [back], timeout: 5), .completed, "右滑沒有回到第 1 張")
+        XCTAssertTrue(app.element("imageViewer.pageLabel").waitForLabel("Image 1 of 2", timeout: 5), "右滑沒有回到第 1 張")
         app.element("imageViewer.image").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
         XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5), "下滑沒有關閉圖片檢視器")
@@ -243,10 +249,11 @@ final class ConversationUITests: XCTestCase {
         let image = app.element("imageViewer.image")
         XCTAssertEqual(image.value as? String, "Not zoomed")
         image.doubleTap()
-        let zoomed = waitForValue(of: image, beginning: "Zoomed in")
-        XCTAssertTrue(zoomed?.hasPrefix("Zoomed in") == true, "雙點兩下沒有放大：\(String(describing: zoomed))")
+        XCTAssertTrue(
+            UITestWait.until(timeout: 3) { (image.value as? String)?.hasPrefix("Zoomed in") == true },
+            "雙點兩下沒有放大：\(String(describing: image.value))")
         image.doubleTap()
-        _ = waitForValue(of: image, beginning: "Not zoomed")
+        _ = UITestWait.until(timeout: 3) { (image.value as? String)?.hasPrefix("Not zoomed") == true }
         XCTAssertEqual(image.value as? String, "Not zoomed", "再雙點兩下沒有縮回")
         image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
@@ -419,37 +426,6 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(text.value as? String, "1\n2\n3\n4\n5\n6\n7\n8", "草稿不完整")
     }
 
-    /// 送出(單一啟動,原本 3 個測試合併,#374):輸入框清空、回音出現，agent 收下後對話紀錄接上回覆、回音消失;
-    /// 送出後立刻收起鍵盤(#329)。
-    @MainActor
-    func testSending() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        let text = app.element("composer.text")
-        let send = app.element("composer.send")
-        XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
-        XCTAssertFalse(send.isEnabled, "空白時送出鈕應停用")
-        XCTAssertHitTarget(send)
-
-        text.tap()
-        text.typeEnglish("Add a header row too?")
-        XCTAssertTrue(send.isEnabled)
-        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
-        send.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "送出後鍵盤沒有收起")
-        XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
-        app.dismissKeyboard()
-        // 追蹤可能立刻讀到對話紀錄(#165):回音很快被確認，所以回覆接上也算。
-        let echoOrReply = app.descendants(matching: .any).matching(NSPredicate(
-            format: "label CONTAINS %@ OR (identifier == 'conversation.agent' AND label CONTAINS 'This is the demo host')",
-            "Add a header row too?")).firstMatch
-        XCTAssertTrue(echoOrReply.waitUntilExists(timeout: 5), "沒有回音")
-        // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
-        let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
-            .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
-        XCTAssertTrue(reply.waitUntilExists(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
-        XCTAssertTrue(app.element("conversation.echo").waitUntilGone(timeout: 5), "對話紀錄確認後回音應消失")
-    }
-
     /// 送出可撤回(#300):送出後訊息先以倒數泡泡出現，撤回把文字放回輸入框;再送一次按「立即送出」就變成回音。
     @MainActor
     func testUndoSendRestoresDraftAndSendNowDelivers() {
@@ -569,16 +545,5 @@ final class ConversationUITests: XCTestCase {
         list.swipeUp()
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w1:t1"].firstMatch.waitUntilExists(timeout: 10), "斷網後點返回沒有回到列表")
-    }
-
-    /// 等元素的 accessibility value 以指定文字開頭(縮放有動畫)。
-    @MainActor
-    private func waitForValue(of element: XCUIElement, beginning prefix: String, timeout: TimeInterval = 3) -> String? {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if let value = element.value as? String, value.hasPrefix(prefix) { return value }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        return element.value as? String
     }
 }
