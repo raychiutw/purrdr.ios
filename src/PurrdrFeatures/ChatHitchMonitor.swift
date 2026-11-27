@@ -180,11 +180,13 @@ extension DiagnosticEnvironment {
 public final class HitchMetricKitSubscriber: NSObject, MXMetricManagerSubscriber {
     private let recorder: DiagnosticRecorder
     private let crashIntake: MetricKitCrashIntake
+    private let hangIntake: MetricKitHangIntake
 
     @MainActor
     public init(recorder: DiagnosticRecorder) {
         self.recorder = recorder
         crashIntake = MetricKitCrashIntake(recorder: recorder)
+        hangIntake = MetricKitHangIntake(recorder: recorder)
         super.init()
     }
 
@@ -193,9 +195,20 @@ public final class HitchMetricKitSubscriber: NSObject, MXMetricManagerSubscriber
 
     public func didReceive(_ payloads: [MXMetricPayload]) {
         let digests = payloads.map { payload in
-            HitchMetricsDigest(
+            // 卡頓次數與最長秒數取自指標的卡頓時間直方圖(沒有時是 0,真的沒卡頓)。
+            let buckets = payload.applicationResponsivenessMetrics.map { metrics -> [(start: Double, end: Double, count: Int)] in
+                var result: [(start: Double, end: Double, count: Int)] = []
+                for bucket in metrics.histogrammedApplicationHangTime.bucketEnumerator {
+                    guard let bucket = bucket as? MXHistogramBucket<UnitDuration> else { continue }
+                    result.append((
+                        bucket.bucketStart.converted(to: .seconds).value, bucket.bucketEnd.converted(to: .seconds).value, bucket.bucketCount))
+                }
+                return result
+            } ?? []
+            let hangs = HangHistogramSummary(buckets: buckets)
+            return HitchMetricsDigest(
                 periodStart: payload.timeStampBegin, periodEnd: payload.timeStampEnd,
-                scrollHitchTimeRatio: payload.animationMetrics?.scrollHitchTimeRatio.value, hangCount: 0, longestHangSeconds: 0,
+                scrollHitchTimeRatio: payload.animationMetrics?.scrollHitchTimeRatio.value, hangCount: hangs.count, longestHangSeconds: hangs.longestSeconds,
                 app: payload.metaData?.applicationBuildVersion ?? "?", os: payload.metaData?.osVersion ?? "?")
         }
         deliver(digests)
@@ -207,6 +220,13 @@ public final class HitchMetricKitSubscriber: NSObject, MXMetricManagerSubscriber
         if !crashJSON.isEmpty {
             Task { @MainActor [crashIntake] in
                 for json in crashJSON { crashIntake.ingest(payloadJSON: json) }
+            }
+        }
+        // 卡頓診斷:次數、最長秒數與主執行緒堆疊一律記錄(比照閃退,不看操作記錄開關)。
+        let hangJSON = payloads.filter { ($0.hangDiagnostics ?? []).isEmpty == false }.map { $0.jsonRepresentation() }
+        if !hangJSON.isEmpty {
+            Task { @MainActor [hangIntake] in
+                for json in hangJSON { hangIntake.ingest(payloadJSON: json) }
             }
         }
         let digests = payloads.compactMap { payload -> HitchMetricsDigest? in
