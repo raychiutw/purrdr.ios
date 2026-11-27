@@ -4,16 +4,6 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrSSH
 
-/// 方案用量畫面可以查的 Agent 種類。
-public enum PlanUsageAgent: String, CaseIterable, Sendable {
-    case claudeCode
-    case codex
-    case antigravity
-
-    /// 主機服務(HTTPS 主機)有這個 Agent 的方案用量;Antigravity 的 statusline 包裝只有 SSH(#448)。
-    var supportsHostService: Bool { self != .antigravity }
-}
-
 /// 一台主機上一種 Agent 的方案用量來源。
 public struct PlanUsageSource: Sendable {
     public var cost: PlanUsageQueryCost
@@ -114,9 +104,9 @@ extension PlanUsageSource {
 /// 方案用量畫面上次選的主機與 Agent。
 public struct PlanUsageSelection: Equatable, Sendable {
     public var host: HostSelection
-    public var agent: PlanUsageAgent
+    public var agent: AgentID
 
-    public init(host: HostSelection, agent: PlanUsageAgent) {
+    public init(host: HostSelection, agent: AgentID) {
         self.host = host
         self.agent = agent
     }
@@ -158,12 +148,12 @@ public final class UserDefaultsPlanUsageSelectionStore: PlanUsageSelectionStore 
     public func load() -> PlanUsageSelection? {
         guard let stored = defaults.dictionary(forKey: key) as? [String: String],
               let host = stored["host"].flatMap(HostSelection.init(storedValue:)),
-              let agent = stored["agent"].flatMap(PlanUsageAgent.init(rawValue:)) else { return nil }
+              let agent = stored["agent"].flatMap(AgentID.init(planUsageKey:)) else { return nil }
         return PlanUsageSelection(host: host, agent: agent)
     }
 
     public func save(_ selection: PlanUsageSelection) {
-        defaults.set(["host": selection.host.storedValue, "agent": selection.agent.rawValue], forKey: key)
+        defaults.set(["host": selection.host.storedValue, "agent": selection.agent.planUsageKey], forKey: key)
     }
 }
 
@@ -185,7 +175,7 @@ public enum PlanUsageFailure: Error, Equatable, Sendable {
     }
 
     /// Codex 自己的錯誤與 app-server 逾時;其他是主機連線的錯誤。
-    init(_ error: any Error, agent: PlanUsageAgent) {
+    init(_ error: any Error, agent: AgentID) {
         self = switch error {
         case CodexPlanUsageError.codexNotFound: .codexNotFound
         case CodexPlanUsageError.notSignedIn: .codexNotSignedIn
@@ -240,14 +230,14 @@ public final class PlanUsageModel {
 
     public private(set) var state: State = .loading
     public private(set) var host: HostSelection
-    public private(set) var agent: PlanUsageAgent
+    public private(set) var agent: AgentID
     /// 已用或剩餘(全域偏好,在設定 tab 改;這裡只讀,畫面每次出現時重讀)。
     public private(set) var display: Display
     /// 同意或關閉失敗的說明。
     public private(set) var message: DisplayedError?
     public let hosts: [HostOption]
 
-    private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
+    private let source: (HostSelection, AgentID) -> PlanUsageSource?
     private let enabledAgents: (HostSelection) -> Set<AgentID>
     private let store: any PlanUsageSelectionStore
     private let defaults: UserDefaults
@@ -263,12 +253,12 @@ public final class PlanUsageModel {
     public init(
         hosts: [HostOption], fallback: HostSelection, store: any PlanUsageSelectionStore,
         currentHost: HostSelection? = nil, 
-        initialAgent: PlanUsageAgent? = nil,
+        initialAgent: AgentID? = nil,
         now: @escaping () -> Date = Date.init,
         sleep: @escaping Sleep = Sleeping.task,
         defaults: UserDefaults = .standard,
         enabledAgents: @escaping (HostSelection) -> Set<AgentID> = { _ in Set(HostAgentSettings.configurable) },
-        source: @escaping (HostSelection, PlanUsageAgent) -> PlanUsageSource?
+        source: @escaping (HostSelection, AgentID) -> PlanUsageSource?
     ) {
         self.hosts = hosts
         self.source = source
@@ -282,14 +272,14 @@ public final class PlanUsageModel {
         let remembered = savedSelection.map(\.host).flatMap { savedHost in hosts.contains { $0.id == savedHost } ? savedHost : nil }
         // 目前主機有值就優先(#334);所有主機時用上次在這裡選的。
         host = currentHost.flatMap { current in hosts.contains { $0.id == current } ? current : nil } ?? remembered ?? fallback
-        agent = initialAgent ?? savedSelection?.agent ?? .claudeCode
+        agent = initialAgent ?? savedSelection?.agent ?? .claude
         if initialAgent == nil { reconcileAgent() }
     }
 
     /// 目前這台主機啟用的 Agent(依主機的 Agent 設定,#477);可以選的就這些。
-    public var agents: [PlanUsageAgent] {
+    public var agents: [AgentID] {
         let enabled = enabledAgents(host)
-        return PlanUsageAgent.allCases.filter { HostAgentSettings.showsUsage(of: $0.agentID, enabled: enabled) }
+        return AgentHostCapabilities.planUsageAgents.filter { HostAgentSettings.showsUsage(of: $0, enabled: enabled) }
     }
 
     /// 目前選的 Agent 這台主機沒啟用時,改選第一個啟用的(都沒有就維持原樣,畫面說明沒有可看的 Agent)。
@@ -457,11 +447,11 @@ public final class PlanUsageModel {
         }
     }
 
-    static func describe(_ error: any Error, agent: PlanUsageAgent) -> DisplayedError {
+    static func describe(_ error: any Error, agent: AgentID) -> DisplayedError {
         DisplayedError(text(for: error, agent: agent), error: error)
     }
 
-    private static func text(for error: any Error, agent: PlanUsageAgent) -> String {
+    private static func text(for error: any Error, agent: AgentID) -> String {
         switch error {
         case ClaudeUsageError.settingsNotJSON:
             String(localized: "Claude Code’s settings on this host are damaged, so Purrdr left them unchanged. Fix them there and try again.")
@@ -474,11 +464,11 @@ public final class PlanUsageModel {
         case AntigravityUsageError.windowsUnsupported:
             String(localized: "Antigravity plan usage isn’t available on Windows hosts yet.")
         case HostFilesError.changedSinceRead:
-            agent == .antigravity
+            agent == .agy
                 ? String(localized: "Antigravity’s settings changed while Purrdr was updating them. Nothing was changed; try again.")
                 : String(localized: "Claude Code’s settings changed while Purrdr was updating them. Nothing was changed; try again.")
         case HostWriteError.unusableFile, HostFilesError.tooLarge:
-            agent == .antigravity
+            agent == .agy
                 ? String(localized: "Purrdr can’t safely change Antigravity’s settings on this host.")
                 : String(localized: "Purrdr can’t safely change Claude Code’s settings on this host.")
         default:
@@ -496,7 +486,7 @@ public final class PlanUsageModel {
     }
 
     /// 改選 Agent。
-    public func select(agent: PlanUsageAgent) {
+    public func select(agent: AgentID) {
         guard agent != self.agent else { return }
         self.agent = agent
         store.save(PlanUsageSelection(host: host, agent: agent))

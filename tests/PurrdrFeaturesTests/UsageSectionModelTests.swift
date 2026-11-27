@@ -36,8 +36,8 @@ struct UsageSectionModelTests {
     }
 
     func model(
-        display: UsageDisplaySetting = Self.remainingSetting(), agents: [PlanUsageAgent] = [.claudeCode],
-        sources: [PlanUsageAgent: PlanUsageSource]
+        display: UsageDisplaySetting = Self.remainingSetting(), agents: [AgentID] = [.claude],
+        sources: [AgentID: PlanUsageSource]
     ) -> UsageSectionModel {
         UsageSectionModel(
             hostName: "Ray Mac Mini", agents: agents, display: display, now: { Self.now }, sleep: { _ in try await Task.sleep(for: .seconds(3600)) }
@@ -67,7 +67,7 @@ struct UsageSectionModelTests {
     @Test("切換已用／剩餘同時套用到 5 小時、7 天與 context")
     func displayAppliesToEveryNumber() async {
         let setting = UsageDisplaySetting()
-        let model = model(display: setting, sources: [.claudeCode: Self.source(Self.usage())])
+        let model = model(display: setting, sources: [.claude: Self.source(Self.usage())])
         model.appeared()
         await model.untilIdle()
         #expect(model.entries[0].rows.map(\.percent) == [38, 74])
@@ -80,13 +80,13 @@ struct UsageSectionModelTests {
 
     @Test("過了重設時間的視窗不顯示;全部過期時當作沒有資料")
     func expiredWindowsAreHidden() async {
-        let model = model(sources: [.claudeCode: Self.source(Self.usage(fiveHourResets: -1))])
+        let model = model(sources: [.claude: Self.source(Self.usage(fiveHourResets: -1))])
         model.appeared()
         await model.untilIdle()
         #expect(model.entries[0].rows.map(\.period) == [.week])
         model.disappeared()
 
-        let allExpired = self.model(sources: [.claudeCode: Self.source(Self.usage(fiveHourResets: -1, weekResets: -5))])
+        let allExpired = self.model(sources: [.claude: Self.source(Self.usage(fiveHourResets: -1, weekResets: -5))])
         allExpired.appeared()
         await allExpired.untilIdle()
         #expect(allExpired.entries[0].state == .noData)
@@ -95,13 +95,13 @@ struct UsageSectionModelTests {
 
     @Test("資料超過 10 分鐘標「N 分鐘前」,10 分鐘內不標")
     func staleMinutes() async {
-        let fresh = model(sources: [.claudeCode: Self.source(Self.usage(capturedAgo: 600))])
+        let fresh = model(sources: [.claude: Self.source(Self.usage(capturedAgo: 600))])
         fresh.appeared()
         await fresh.untilIdle()
         #expect(fresh.entries[0].staleMinutes == nil)
         fresh.disappeared()
 
-        let stale = model(sources: [.claudeCode: Self.source(Self.usage(capturedAgo: 12 * 60 + 20))])
+        let stale = model(sources: [.claude: Self.source(Self.usage(capturedAgo: 12 * 60 + 20))])
         stale.appeared()
         await stale.untilIdle()
         #expect(stale.entries[0].staleMinutes == 12)
@@ -110,7 +110,7 @@ struct UsageSectionModelTests {
 
     @Test("主機尚未同意包裝腳本時顯示「啟用用量顯示」,不讀取")
     func needsEnableWhenNotGranted() async {
-        let model = model(sources: [.claudeCode: Self.source(Self.usage(), granted: false)])
+        let model = model(sources: [.claude: Self.source(Self.usage(), granted: false)])
         model.appeared()
         await model.untilIdle()
         #expect(model.entries[0].state == .needsEnable)
@@ -120,7 +120,7 @@ struct UsageSectionModelTests {
 
     @Test("同意後顯示用量")
     func grantedShowsRows() async {
-        let model = model(sources: [.claudeCode: Self.source(Self.usage(), granted: true)])
+        let model = model(sources: [.claude: Self.source(Self.usage(), granted: true)])
         model.appeared()
         await model.untilIdle()
         #expect(model.entries[0].rows.count == 2)
@@ -134,37 +134,37 @@ struct UsageSectionModelTests {
     @Test("主機 tab(#465):主機上沒偵測到 Antigravity 就不列它那一列,Claude 照常")
     func antigravityHiddenWhenNotDetected() async {
         let model = UsageSectionModel(
-            hostName: "Ray Mac Mini", agents: [.claudeCode, .antigravity], display: Self.remainingSetting(), now: { Self.now },
+            hostName: "Ray Mac Mini", agents: [.claude, .agy], display: Self.remainingSetting(), now: { Self.now },
             sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, detectsInstallation: true
-        ) { [.claudeCode: Self.source(Self.usage()), .antigravity: Self.detected(false)][$0] }
+        ) { [.claude: Self.source(Self.usage()), .agy: Self.detected(false)][$0] }
         model.appeared()
         await model.untilIdle()
-        #expect(model.entries.map(\.agent) == [.claudeCode])
+        #expect(model.entries.map(\.agent) == [.claude])
         model.disappeared()
     }
 
     @Test("主機 tab(#465):偵測到 Antigravity 才列它那一列;偵測失敗(主機離線)也不列")
     func antigravityShownWhenDetected() async {
-        func entries(found: Bool?) async -> [PlanUsageAgent] {
+        func entries(found: Bool?) async -> [AgentID] {
             let model = UsageSectionModel(
-                hostName: "Ray Mac Mini", agents: [.claudeCode, .antigravity], display: Self.remainingSetting(), now: { Self.now },
+                hostName: "Ray Mac Mini", agents: [.claude, .agy], display: Self.remainingSetting(), now: { Self.now },
                 sleep: { _ in try await Task.sleep(for: .seconds(3600)) }, detectsInstallation: true
-            ) { [.claudeCode: Self.source(Self.usage()), .antigravity: Self.detected(found)][$0] }
+            ) { [.claude: Self.source(Self.usage()), .agy: Self.detected(found)][$0] }
             model.appeared()
             await model.untilIdle()
             defer { model.disappeared() }
             return model.entries.map(\.agent)
         }
-        #expect(await entries(found: true) == [.claudeCode, .antigravity])
-        #expect(await entries(found: nil) == [.claudeCode])
+        #expect(await entries(found: true) == [.claude, .agy])
+        #expect(await entries(found: nil) == [.claude])
     }
 
     @Test("面板(單一 Agent)不偵測:聊天裡正在跑 Antigravity,直接列")
     func panelSkipsDetection() async {
-        let model = model(agents: [.antigravity], sources: [.antigravity: Self.detected(false)])
+        let model = model(agents: [.agy], sources: [.agy: Self.detected(false)])
         model.appeared()
         await model.untilIdle()
-        #expect(model.entries.map(\.agent) == [.antigravity])
+        #expect(model.entries.map(\.agent) == [.agy])
         model.disappeared()
     }
 
@@ -176,7 +176,7 @@ struct UsageSectionModelTests {
         let usage = PlanUsage(
             periods: [period(.fiveHour, .gemini, used: 10), period(.week, .gemini, used: 20), period(.fiveHour, .thirdParty, used: 30), period(.week, .thirdParty, used: 40)],
             capturedAt: Self.now, activeGroup: .gemini)
-        let model = model(agents: [.antigravity], sources: [.antigravity: Self.source(usage)])
+        let model = model(agents: [.agy], sources: [.agy: Self.source(usage)])
         model.appeared()
         await model.untilIdle()
         #expect(model.entries[0].rows.map(\.group) == [.gemini, .gemini])
@@ -188,7 +188,7 @@ struct UsageSectionModelTests {
 
     @Test("HTTPS 主機沒有用量來源:整區是「等主機服務支援」,不是壞畫面")
     func httpsIsUnsupported() async {
-        let model = model(agents: [.claudeCode, .codex], sources: [:])
+        let model = model(agents: [.claude, .codex], sources: [:])
         model.appeared()
         await model.untilIdle()
         #expect(model.isUnsupported)
@@ -205,7 +205,7 @@ struct UsageSectionModelTests {
             if calls.next() == 1 { return usage }
             throw Offline()
         }
-        let model = model(sources: [.claudeCode: flaky])
+        let model = model(sources: [.claude: flaky])
         model.appeared()
         await model.untilIdle()
         #expect(model.entries[0].state == .rows)
@@ -223,7 +223,7 @@ struct UsageSectionModelTests {
     @Test("從來沒讀到過就讀不到:仍是失敗,不是最後的資料")
     func failureWithoutEarlierDataIsAFailure() async {
         struct Offline: Error {}
-        let model = model(sources: [.claudeCode: PlanUsageSource(cost: .free) { throw Offline() }])
+        let model = model(sources: [.claude: PlanUsageSource(cost: .free) { throw Offline() }])
         model.appeared()
         await model.untilIdle()
         guard case .failed = model.entries[0].state else {
@@ -237,11 +237,11 @@ struct UsageSectionModelTests {
     @Test("主機 tab 同時列 Claude 與 Codex,各自的狀態互不影響")
     func twoAgentsAreIndependent() async {
         let model = model(
-            agents: [.claudeCode, .codex],
-            sources: [.claudeCode: Self.source(Self.usage(), granted: false), .codex: Self.source(Self.usage(fiveHourUsed: 12, weekUsed: 90))])
+            agents: [.claude, .codex],
+            sources: [.claude: Self.source(Self.usage(), granted: false), .codex: Self.source(Self.usage(fiveHourUsed: 12, weekUsed: 90))])
         model.appeared()
         await model.untilIdle()
-        #expect(model.entries.map(\.agent) == [.claudeCode, .codex])
+        #expect(model.entries.map(\.agent) == [.claude, .codex])
         #expect(model.entries[0].state == .needsEnable)
         #expect(model.entries[1].rows.map(\.percent) == [88, 10])
         model.disappeared()
@@ -251,7 +251,7 @@ struct UsageSectionModelTests {
     func failureIsPerAgent() async {
         struct Boom: Error {}
         let failing = PlanUsageSource(cost: .free) { throw Boom() }
-        let model = model(agents: [.claudeCode, .codex], sources: [.claudeCode: Self.source(Self.usage()), .codex: failing])
+        let model = model(agents: [.claude, .codex], sources: [.claude: Self.source(Self.usage()), .codex: failing])
         model.appeared()
         await model.untilIdle()
         #expect(model.entries[0].rows.count == 2)
