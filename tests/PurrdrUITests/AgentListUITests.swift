@@ -31,6 +31,7 @@ final class AgentListUITests: XCTestCase {
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
         XCTAssertTrue(app.revealChatSearch().exists, "往下拉後沒有搜尋欄(平常收起)")
+        XCTAssertTrue(title.waitUntilGone(timeout: 5), "往下滑後大標題沒有收合")
         XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "往下滑後頭像不見了")
 
         list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))

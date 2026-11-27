@@ -367,6 +367,7 @@ final class ConversationUITests: XCTestCase {
         // 聚焦與一行內的字不展開(#512):維持一列、沒有模型膠囊;草稿收起鍵盤後還在、沒有送出。
         text.tap()
         text.typeEnglish("Line one")
+        XCTAssertTrue(app.waitForSettledLayout([text, send], timeout: 3), "輸入後版面沒有停下")
         XCTAssertFalse(app.element("composer.model").exists, "聚焦與一行內的字不該展開")
         XCTAssertEqual(text.frame.midY, send.frame.midY, accuracy: 4, "一行內仍是同一列")
         XCTAssertFalse(app.element("composer.hideKeyboard").exists, "聚焦時也沒有收起鍵盤鈕")
@@ -374,6 +375,7 @@ final class ConversationUITests: XCTestCase {
         text.typeEnglish("\nLine two")
         let capsule = app.element("composer.model")
         XCTAssertTrue(capsule.waitUntilExists(timeout: 5), "換行後沒有展開出模型膠囊")
+        XCTAssertTrue(app.waitForSettledLayout([text, send, addImage, capsule], timeout: 3), "展開後版面沒有停下")
         XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "展開時送出鈕要在輸入框下方")
         XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "展開時加入圖片鈕要在輸入框下方")
         XCTAssertGreaterThan(capsule.frame.minX, addImage.frame.maxX - 1, "模型膠囊在加入圖片右邊")

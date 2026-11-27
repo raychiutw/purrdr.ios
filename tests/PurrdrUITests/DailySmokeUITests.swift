@@ -330,14 +330,14 @@ final class DailySmokeUITests: XCTestCase {
     func testFilesHostMenuDoesNotChangeChatFilter() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost"])
         app.filterHosts("Studio Mac")
-        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac")
+        XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitForLabel(containing: "Showing: Studio Mac", timeout: 5))
 
         app.openTab(.files)
         let picker = app.buttons["files.host"].firstMatch
         XCTAssertTrue(picker.waitUntilExists(timeout: 10), "檔案 tab 沒有主機選單")
         picker.tap()
+        XCTAssertTrue(app.buttons["hostMenu.addHost"].firstMatch.waitUntilExists(timeout: 5), "主機選單沒有新增主機…")
         XCTAssertFalse(app.buttons["All Hosts"].exists, "檔案 tab 的主機選單不該列所有主機")
-        XCTAssertTrue(app.buttons["hostMenu.addHost"].firstMatch.exists, "主機選單沒有新增主機…")
         app.buttons["Build Box"].firstMatch.tap()
         XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForLabel(containing: "Build Box", timeout: 5))
 

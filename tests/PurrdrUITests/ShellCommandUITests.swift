@@ -1,9 +1,15 @@
+import UIKit
 import XCTest
 
 /// Shell `!` 指令(行為規格 F5.9、F6.4;#43)。只對 Demo 主機送出，走正式程式路徑。
 final class ShellCommandUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
+    }
+
+    /// 「Copy Command」會寫入全域剪貼簿,測完清掉,不影響之後的測試。
+    override func tearDown() {
+        UIPasteboard.general.items = []
     }
 
     /// 打 `!` 開頭時輸入列上方有提示;送出後出現終端機風格的區塊，長按可複製輸出或指令。

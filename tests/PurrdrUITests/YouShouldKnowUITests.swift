@@ -11,9 +11,9 @@ final class YouShouldKnowUITests: XCTestCase {
     @MainActor
     func testNoteActionsLayoutThenDiscussInChat() {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertFalse(app.buttons["youShouldKnow.summary"].exists, "列表不該有註記卡")
         let ledger = app.element("spaces.tab.demo/w1:t1")
         XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
+        XCTAssertFalse(app.buttons["youShouldKnow.summary"].exists, "列表不該有註記卡")
         ledger.tap()
 
         let note = app.element("youShouldKnow.note")

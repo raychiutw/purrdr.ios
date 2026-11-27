@@ -77,6 +77,7 @@ final class SpacesUITests: XCTestCase {
             XCTAssertTrue(app.reveal(tab))
 
             tab.press(forDuration: 1.2)
+            XCTAssertTrue(app.buttons["menu.renameTab"].waitUntilExists(timeout: 5), "Tab 列沒有跳出選單")
             XCTAssertFalse(app.buttons["menu.renameWorkspace"].exists, "Tab 列的選單不該改 Workspace")
             app.buttons["menu.renameTab"].tap()
             let tabAlert = app.alerts["Rename Tab"]

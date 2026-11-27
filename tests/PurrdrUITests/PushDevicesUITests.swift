@@ -40,7 +40,7 @@ final class PushDevicesUITests: XCTestCase {
         signOutConfirm.tap()
         XCTAssertTrue(sessionIPad.waitUntilGone(timeout: 10), "登出後裝置還在清單")
         app.buttons["BackButton"].firstMatch.tap()
-        XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 5), "返回後沒有回到帳號頁")
+        XCTAssertTrue(app.element("account.signInDevices").waitUntilGone(timeout: 5), "返回後登入中的裝置子頁還在")
 
         // 通知裝置:列出、改名。
         openPushDevices(app)
@@ -63,8 +63,7 @@ final class PushDevicesUITests: XCTestCase {
 
         ipad.expectLabel(containing: "Desk iPad")
 
-        // 左滑關閉、空狀態。
-        openPushDevices(app)
+        // 左滑關閉、空狀態(改名後仍在子頁)。
         for id in [Self.studioIPad, Self.legacyDevice] {
             let row = app.element("account.pushDevice.\(id)")
             XCTAssertTrue(row.waitUntilExists(timeout: 10), "沒有 \(id) 的列")
@@ -82,7 +81,7 @@ final class PushDevicesUITests: XCTestCase {
         }
         XCTAssertTrue(app.element("account.pushDevices.empty").waitUntilExists(timeout: 10), "沒有裝置時沒有系統空狀態")
         app.buttons["BackButton"].firstMatch.tap()
-        XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 5), "返回後沒有回到帳號頁")
+        XCTAssertTrue(app.element("account.pushDevices").waitUntilGone(timeout: 5), "返回後通知裝置子頁還在")
 
         // 刪除會員:有訂閱先處理訂閱。
         let delete = app.buttons["member.delete"]

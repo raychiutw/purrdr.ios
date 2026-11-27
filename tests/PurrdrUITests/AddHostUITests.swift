@@ -72,9 +72,9 @@ final class AddHostUITests: XCTestCase {
         returnToGuideStart(app)
         openTailscaleDetails(app)
         let port = app.textFields["guide.field.port"]
-        port.tap()
+        XCTAssertTrue(app.focusTextField(port), "連接埠欄沒有取得焦點")
         port.typeText("0")
-        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現數字鍵盤")
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilExists(timeout: 5), "沒有出現數字鍵盤")
 
         tapKeyboardDone(app)
 

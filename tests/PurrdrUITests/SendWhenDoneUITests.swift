@@ -32,9 +32,9 @@ final class SendWhenDoneUITests: XCTestCase {
         XCTAssertTrue(app.reveal(row), "沒有看到 HTTPS 主機的 Agent")
         row.tap()
         // 開關在「⋯」→ 做完再送的 sheet(#515),不在輸入列。
-        XCTAssertFalse(app.element("composer.sendWhenDone").exists, "輸入列不該再有做完再送開關")
         let header = app.conversationBar
         XCTAssertTrue(header.waitUntilExists(timeout: 10))
+        XCTAssertFalse(app.element("composer.sendWhenDone").exists, "輸入列不該再有做完再送開關")
         app.conversationMoreItem("menu.sendWhenDone").tap()
         let toggle = app.element("status.sendWhenDone")
         XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "做完再送 sheet 沒有開關")

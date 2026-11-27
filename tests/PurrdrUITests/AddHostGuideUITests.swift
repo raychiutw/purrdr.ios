@@ -32,7 +32,7 @@ final class AddHostGuideUITests: XCTestCase {
             app.buttons["guide.done"].tapWhenReady()
             app.openHostsTab()
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 5))
-            XCTAssertFalse(app.staticTexts["Not Paired on This Device"].exists, "配對後不應該再標示")
+            XCTAssertTrue(app.staticTexts["Not Paired on This Device"].waitUntilGone(timeout: 5), "配對後不應該再標示")
             app.selectHostOnHostsTab("Demo")
         }
 

@@ -8,6 +8,11 @@ final class SettingsUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// 「Copy Diagnostics」會寫入全域剪貼簿,測完清掉,不影響之後的測試。
+    override func tearDown() {
+        UIPasteboard.general.items = []
+    }
+
     /// 設定頁的內容(#32、#246、#274、#276):只有 App 層級的段落(外觀、鍵盤與觸覺、送出可撤回、App 鎖、支援、關於);
     /// 外觀下的「自動」與送出可撤回的秒數說明、支援段的隱私揭露是例外，數據用量列下沒有說明;主機設定與會員不在這裡。
     /// 一次啟動由上而下檢查(#372:原本四個測試各啟動一次)。

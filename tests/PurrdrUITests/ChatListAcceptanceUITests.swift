@@ -123,6 +123,8 @@ final class ChatListAcceptanceUITests: XCTestCase {
             let last = app.staticTexts.matching(NSPredicate(format: "identifier == 'conversation.agent' AND label CONTAINS 'Row 150 looks right.'")).firstMatch
             XCTAssertTrue(last.waitUntilExists(timeout: 5), "第 \(attempt) 次沒有停在最後一則")
             XCTAssertTrue(jump.waitUntilGone(timeout: 5), "第 \(attempt) 次到底後按鈕沒有消失")
+            // 捲動動畫停下再量落點。
+            XCTAssertTrue(app.waitForSettledLayout([last, composer], timeout: 3), "第 \(attempt) 次落點量測前版面沒有停下")
             XCTAssertLessThanOrEqual(last.frame.maxY, composer.frame.minY + 1, "第 \(attempt) 次最後一則被輸入框蓋住")
             // 最後一列底緣與列表可見底緣(列表底緣扣掉 app 內實際量到的下方 inset)的距離:不能是負的(被蓋住),
             // 也不能大到像停在內容外(不超過最後一則自己的高度);三次落點要一致,不依賴設計稿的常數。

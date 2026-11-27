@@ -33,8 +33,8 @@ final class TailscaleCheckUITests: XCTestCase {
         XCTAssertTrue(app.element("tailscaleCheck.prompt").waitUntilExists(timeout: 10))
         let open = app.element("tailscaleCheck.open")
         let cancel = app.element("tailscaleCheck.cancel")
-        XCTAssertTrue(open.isHittable, "AX5 下開啟驗證頁的按鈕按不到")
-        XCTAssertTrue(cancel.isHittable, "AX5 下取消按鈕按不到")
+        XCTAssertTrue(open.waitUntilHittable(timeout: 5), "AX5 下開啟驗證頁的按鈕按不到")
+        XCTAssertTrue(cancel.waitUntilHittable(timeout: 5), "AX5 下取消按鈕按不到")
         XCTAssertGreaterThanOrEqual(open.frame.height, 44)
         XCTAssertGreaterThanOrEqual(cancel.frame.height, 44)
     }
