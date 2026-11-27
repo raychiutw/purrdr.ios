@@ -409,10 +409,29 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
-    /// 沒有主機：空狀態的「新增主機」開引導，取消後體驗範例主機;可從主機 tab 移除,也可從新增主機引導再啟用(#394)。
+    /// 第一次開啟(歡迎頁,沒有主機):歡迎頁試用 Demo → 移除範例主機回到空狀態 → 空狀態的「新增主機」開引導,
+    /// 取消後體驗範例主機;可從主機 tab 移除,也可從新增主機引導再啟用(#394)。
     @MainActor
-    func testNoHostsGuideAndDemo() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"])
+    func testWelcomeNoHostsGuideAndDemo() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts", "-showWelcome"])
+        step("歡迎頁試用 Demo") {
+            XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10), "沒有歡迎頁")
+            // 準備事項的主機包含 Windows(#26 已支援、#35)。
+            let host = app.descendants(matching: .any)["welcome.requirement.host"].firstMatch
+            XCTAssertTrue(host.waitUntilExists(timeout: 5), "沒有主機的準備事項")
+            XCTAssertTrue(host.label.contains("Windows"), "沒提到 Windows:\(host.label)")
+            XCTAssertTrue(host.label.contains("Linux"), host.label)
+            app.buttons["welcome.demo"].tap()
+            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有回到列表")
+        }
+        step("移除範例主機回到空狀態") {
+            app.openTab(.hosts)
+            app.buttons["hosts.demo.remove"].tapWhenReady()
+            app.buttons["hosts.demo.remove.confirm"].firstMatch.tapWhenReady()
+            XCTAssertTrue(app.element("hosts.noHost").waitUntilExists(timeout: 5), "移除後主機 tab 沒有回到沒有主機的空狀態")
+            app.openTab(.chats)
+            XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 5), "移除後沒有回到空狀態")
+        }
         step("空狀態開新增主機引導") {
             XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 10), "沒有沒有主機的空狀態")
             app.buttons["agentList.addHost"].tap()
@@ -440,22 +459,6 @@ final class DailySmokeUITests: XCTestCase {
             app.buttons["hosts.add"].tapWhenReady()
             app.buttons["guide.tryDemo"].tapWhenReady()
             XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有列出範例主機的 Agent")
-        }
-    }
-
-    /// 第一次開啟的歡迎頁。
-    @MainActor
-    func testWelcome() {
-        let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"])
-        step("歡迎頁試用 Demo") {
-            XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10), "沒有歡迎頁")
-            // 準備事項的主機包含 Windows(#26 已支援、#35)。
-            let host = app.descendants(matching: .any)["welcome.requirement.host"].firstMatch
-            XCTAssertTrue(host.waitUntilExists(timeout: 5), "沒有主機的準備事項")
-            XCTAssertTrue(host.label.contains("Windows"), "沒提到 Windows:\(host.label)")
-            XCTAssertTrue(host.label.contains("Linux"), host.label)
-            app.buttons["welcome.demo"].tap()
-            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有回到列表")
         }
     }
 }

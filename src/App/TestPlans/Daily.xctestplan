@@ -24,8 +24,7 @@
         "DailySmokeUITests/testTabsAndSignedOutAccount()",
         "DailySmokeUITests/testPlusMemberAccount()",
         "DailySmokeUITests/testDataUsageThenFilesHostMenuDoesNotChangeChatFilter()",
-        "DailySmokeUITests/testNoHostsGuideAndDemo()",
-        "DailySmokeUITests/testWelcome()"
+        "DailySmokeUITests/testWelcomeNoHostsGuideAndDemo()"
       ]
     }
   ],
