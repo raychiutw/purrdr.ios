@@ -6,8 +6,8 @@ import SwiftUI
 /// 由 `TopNavigationView` 依 `HostsModel` 設定;沒設定(預覽)時不顯示用量區。
 struct UsageSectionContext {
     var display: UsageDisplaySetting
-    var section: @MainActor (HostSelection, [PlanUsageAgent], Bool) -> UsageSectionModel
-    var planUsage: @MainActor (HostSelection, PlanUsageAgent) -> PlanUsageModel
+    var section: @MainActor (HostSelection, [AgentID], Bool) -> UsageSectionModel
+    var planUsage: @MainActor (HostSelection, AgentID) -> PlanUsageModel
 }
 
 extension EnvironmentValues {
@@ -25,24 +25,20 @@ extension UsageSectionContext {
     }
 }
 
-extension PlanUsageAgent {
+extension AgentID {
     /// 用量條上的短名稱(Claude · 5 小時)。
-    var shortName: String {
+    var planUsageShortName: String {
         switch self {
-        case .claudeCode: "Claude"
-        case .codex: "Codex"
-        case .antigravity: "Antigravity"
+        case .claude: "Claude"
+        case .agy: "Antigravity"
+        default: planUsageName
         }
     }
 
-    /// 聊天 Agent 種類(herdr 回報的 `kind`)對應的用量來源;沒有的種類不顯示用量區。
-    init?(agentKind: String?) {
-        switch agentKind.map(AgentID.init(herdrName:)) {
-        case .claude: self = .claudeCode
-        case .codex: self = .codex
-        case .agy: self = .antigravity
-        default: return nil
-        }
+    /// 聊天 Agent 種類(herdr 回報的 `kind`)對應的用量 Agent;沒有方案用量的種類不顯示用量區。
+    static func planUsageAgent(agentKind: String?) -> AgentID? {
+        let agent = agentKind.map(AgentID.init(herdrName:))
+        return agent.flatMap { AgentHostCapabilities.planUsageAgents.contains($0) ? $0 : nil }
     }
 }
 
@@ -102,7 +98,7 @@ struct UsageSectionView: View {
         }
         guard scopedTitle else { return Text("Plan Usage") }
         if !model.isUnsupported, let agent = model.entries.first?.agent, model.entries.count == 1 {
-            return Text("Plan Usage · \(agent.shortName) · \(model.hostName)")
+            return Text("Plan Usage · \(agent.planUsageShortName) · \(model.hostName)")
         }
         return Text("Plan Usage · \(model.hostName)")
     }
@@ -118,15 +114,15 @@ struct UsageSectionView: View {
             // 第一次讀、還沒有資料:同形狀的用量列骨架(#496),資料到時原地換成內容。
             UsageBarRow(agent: entry.agent, row: .skeletonPlaceholder, display: model.displaySetting.display, staleMinutes: nil)
                 // 同一個 Section 好幾個 Agent 都在載入時只讓第一個念「載入中」。
-                .skeleton(identifier: "usage.loading.\(entry.agent.rawValue)", announces: entry.id == visibleEntries.first { $0.state == .loading }?.id)
+                .skeleton(identifier: "usage.loading.\(entry.agent.planUsageKey)", announces: entry.id == visibleEntries.first { $0.state == .loading }?.id)
         case .noData:
-            Text("\(entry.agent.shortName) hasn’t reported plan usage yet.")
+            Text("\(entry.agent.planUsageShortName) hasn’t reported plan usage yet.")
                 .foregroundStyle(.secondaryText)
                 .frame(minHeight: 44, alignment: .leading)
-                .accessibilityIdentifier("usage.noData.\(entry.agent.rawValue)")
+                .accessibilityIdentifier("usage.noData.\(entry.agent.planUsageKey)")
         case .needsEnable:
             VStack(alignment: .leading, spacing: 8) {
-                Text("To see \(entry.agent.shortName)’s plan usage, turn on usage display for \(model.hostName).")
+                Text("To see \(entry.agent.planUsageShortName)’s plan usage, turn on usage display for \(model.hostName).")
                     .foregroundStyle(.secondaryText)
                 if let context {
                     NavigationLink {
@@ -136,14 +132,14 @@ struct UsageSectionView: View {
                             .fontWeight(.semibold)
                             .frame(minHeight: 44)
                     }
-                    .accessibilityIdentifier("usage.enable.\(entry.agent.rawValue)")
+                    .accessibilityIdentifier("usage.enable.\(entry.agent.planUsageKey)")
                 }
             }
             .padding(.vertical, 4)
         case .failed(let failure):
             ErrorLabel(failure.text, area: "UsageSection", error: failure.descriptor)
                 .frame(minHeight: 44, alignment: .leading)
-                .accessibilityIdentifier("usage.failed.\(entry.agent.rawValue)")
+                .accessibilityIdentifier("usage.failed.\(entry.agent.planUsageKey)")
         }
     }
 }
@@ -158,7 +154,7 @@ struct UsageSectionContainer: View {
     /// - Parameter activeGroup: 聊天目前模型所屬的用量群組(面板用;主機 tab 不傳,用來源回報的)。
     /// - Parameter detectsInstallation: 主機 tab 只列主機上偵測到的 Agent(Antigravity,#465)。
     init(
-        host: HostSelection, agents: [PlanUsageAgent], context: UsageSectionContext, scopedTitle: Bool, activeGroup: PlanUsage.Group? = nil,
+        host: HostSelection, agents: [AgentID], context: UsageSectionContext, scopedTitle: Bool, activeGroup: PlanUsage.Group? = nil,
         detectsInstallation: Bool = false
     ) {
         self.host = host
@@ -199,7 +195,7 @@ extension PlanUsageRow {
 }
 
 struct UsageBarRow: View {
-    let agent: PlanUsageAgent
+    let agent: AgentID
     let row: PlanUsageRow
     let display: PlanUsageModel.Display
     let staleMinutes: Int?
@@ -209,7 +205,7 @@ struct UsageBarRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("\(agent.shortName) · \(String(localized: row.period.name))")
+                Text("\(agent.planUsageShortName) · \(String(localized: row.period.name))")
                     .font(.subheadline)
                 Spacer(minLength: 8)
                 HStack(spacing: 4) {
@@ -234,7 +230,7 @@ struct UsageBarRow: View {
         // 唯讀的進度列:列高用 List 的標準列高,不再疊 minHeight 44(設計稿 Host 的用量列是緊湊的)。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: accessibilityText))
-        .accessibilityIdentifier("usage.row.\(agent.rawValue).\(row.period.accessibilityKey)")
+        .accessibilityIdentifier("usage.row.\(agent.planUsageKey).\(row.period.accessibilityKey)")
     }
 
     private var amount: Text {
@@ -259,7 +255,7 @@ struct UsageBarRow: View {
 
     /// VoiceOver:「Claude · 5 小時, 38% 已用, 14:00 重設」;偏高時先說明,過舊時加上資料時間。
     private var accessibilityText: String {
-        var parts = ["\(agent.shortName) · \(String(localized: row.period.name))"]
+        var parts = ["\(agent.planUsageShortName) · \(String(localized: row.period.name))"]
         parts.append(display == .used ? String(localized: "\(row.percent)% used") : String(localized: "\(row.percent)% left"))
         if row.showsWarning {
             parts.append(String(localized: "Running high"))
