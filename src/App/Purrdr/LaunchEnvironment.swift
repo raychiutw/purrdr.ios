@@ -62,6 +62,8 @@ struct LaunchEnvironment {
     var undoSendSeconds: (@MainActor () -> Int)?
     var hostSyncStore: any HostSyncStore
     var hitchLog: DiagnosticLogFile
+    /// 診斷事件(#688):連線、網路切換、回前景決策、會員流程;正式寫進 `hitchLog`(受「操作記錄」開關控制),UI 測試不記。
+    var diagnosticEvents: DiagnosticEvents
     /// 啟動提示「上次 Purrdr 意外關閉」的已提示狀態(#632)。
     var crashNoticeStore: any CrashNoticeStoring
     /// UI 測試:預放一筆閃退記錄(#632)。

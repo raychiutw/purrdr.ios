@@ -269,6 +269,7 @@ struct ChangesFileView: View {
             }
             .padding(.vertical, 8)
         }
+            .appPageTopEdge()
         .accessibilityIdentifier("changes.diff")
     }
 

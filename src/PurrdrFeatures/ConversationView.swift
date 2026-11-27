@@ -44,6 +44,7 @@ public struct ConversationView: View {
 
     public var body: some View {
         content
+            .appPageTopEdge()
             .modifier(ConversationNavigationTitle(model: model))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

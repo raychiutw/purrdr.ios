@@ -355,6 +355,7 @@ struct SubagentScreen: View {
                 .padding(.horizontal)
                 .padding(.vertical, 12)
             }
+                .appPageTopEdge()
             .defaultScrollAnchor(.bottom)
             .accessibilityIdentifier("subagent.messages")
         }
