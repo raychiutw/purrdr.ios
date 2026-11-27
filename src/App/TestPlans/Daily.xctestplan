@@ -21,11 +21,9 @@
       },
       "selectedTests": [
         "DailySmokeUITests/testListAndChat()",
-        "DailySmokeUITests/testNeedsYouAndSubagent()",
         "DailySmokeUITests/testTabsAndSignedOutAccount()",
-        "DailySmokeUITests/testFilesHostMenuDoesNotChangeChatFilter()",
         "DailySmokeUITests/testPlusMemberAccount()",
-        "DailySmokeUITests/testDataUsage()",
+        "DailySmokeUITests/testDataUsageThenFilesHostMenuDoesNotChangeChatFilter()",
         "DailySmokeUITests/testNoHostsGuideAndDemo()",
         "DailySmokeUITests/testWelcome()"
       ]

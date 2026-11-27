@@ -377,7 +377,12 @@ extension XCUIElement {
     @MainActor
     func typeEnglish(_ text: String) {
         // 點下輸入框後焦點要一下子才到：沒有焦點就 typeText 會失敗。
-        _ = wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }
+        // 接收者是 app(終端機的輸入元件不是 XCUIElement 欄位,沒有 `hasKeyboardFocus`):以軟體鍵盤出現為準,不固定白等。
+        if elementType == .application {
+            _ = XCUIApplication().waitForKeyboard(timeout: 3)
+        } else {
+            _ = wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }
+        }
         let app = XCUIApplication()
         app.switchKeyboard(to: .english)
         let keyboard = app.keyboards.firstMatch
