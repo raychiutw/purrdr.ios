@@ -49,6 +49,10 @@ public protocol HostConnection: Sendable {
     /// 讀以 `end` 為終點的最後 `lines` 行；`maxBytes` 大於 0 時範圍不超過該 byte 數。
     func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk
 
+    /// 開啟聊天:定位對話紀錄並讀最後 `lines` 行(`maxBytes` 大於 0 時範圍不超過該 byte 數),#656。
+    /// 預設是「定位、再讀視窗」兩次往返;SSH 的 POSIX 主機合成一個指令(`TranscriptCommand.open`)。
+    func openTranscript(_ location: TranscriptLocation, lines: Int, maxBytes: Int) async throws -> TranscriptOpening
+
     // MARK: - 型別化操作:herdr 的結構與 Agent 操作(ADR-0015、#595 第二批)
 
     /// 主機上 herdr 的版本(健康檢查,herdr 的 `ping`)。
@@ -128,6 +132,14 @@ public protocol HostConnection: Sendable {
 }
 
 extension HostConnection {
+    public func openTranscript(_ location: TranscriptLocation, lines: Int, maxBytes: Int) async throws -> TranscriptOpening {
+        let file = try await locateTranscript(location)
+        let chunk = try await readTranscriptWindow(path: file.path, end: file.size, lines: lines, maxBytes: maxBytes)
+        return TranscriptOpening(file: file, chunk: chunk)
+    }
+}
+
+extension HostConnection {
     public func beginQuickDisconnectDetection() async {}
     public func endQuickDisconnectDetection() async {}
 }
@@ -175,6 +187,9 @@ extension ForwardingHostConnection {
     public func locateTranscript(_ location: TranscriptLocation) async throws -> TranscriptFile { try await base.locateTranscript(location) }
     public func readTranscriptWindow(path: String, end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
         try await base.readTranscriptWindow(path: path, end: end, lines: lines, maxBytes: maxBytes)
+    }
+    public func openTranscript(_ location: TranscriptLocation, lines: Int, maxBytes: Int) async throws -> TranscriptOpening {
+        try await base.openTranscript(location, lines: lines, maxBytes: maxBytes)
     }
     public func herdrVersion() async throws -> String { try await base.herdrVersion() }
     public func listIntegrations() async throws -> [AgentIntegration] { try await base.listIntegrations() }

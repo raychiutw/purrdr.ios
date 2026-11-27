@@ -59,6 +59,9 @@ public enum TranscriptCommand {
         return script
     }
 
+    /// 開啟聊天(#656,暫位)。
+    public static func open(_ location: TranscriptLocation, lines: Int, maxBytes: Int) -> String { locate(location) }
+
     /// 視窗：以 `end` 為終點，往前取恰好 `lines` 行完整的行(行為規格 §4.7「開啟：讀最後 N 行」)。
     ///
     /// 從 `end` 往前取一塊(預設 4MB)數換行，不夠就把塊放大 4 倍再數，直到檔頭。視窗終點是塊內最後一個換行之後

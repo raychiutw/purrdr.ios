@@ -10,6 +10,17 @@ public struct TranscriptFile: Sendable, Equatable {
     }
 }
 
+/// 開啟聊天一次讀到的:對話紀錄的位置與大小,加上以那個大小為終點的最後幾行(#656)。
+public struct TranscriptOpening: Sendable, Equatable {
+    public var file: TranscriptFile
+    public var chunk: TranscriptChunk
+
+    public init(file: TranscriptFile, chunk: TranscriptChunk) {
+        self.file = file
+        self.chunk = chunk
+    }
+}
+
 public struct TranscriptChunk: Sendable, Equatable {
     public var start: Int
     public var end: Int
@@ -122,6 +133,14 @@ public struct TranscriptReader: Sendable {
     public func window(path: String, endingAt end: Int, lines: Int, maxBytes: Int? = nil) async throws -> TranscriptChunk {
         guard Self.isValidPath(path), end >= 0, lines > 0, (maxBytes ?? 1) > 0 else { throw TranscriptReadError.invalidReference }
         return try await connection.readTranscriptWindow(path: path, end: end, lines: lines, maxBytes: maxBytes ?? 0)
+    }
+
+    /// 開啟聊天:定位並讀以檔案大小為終點的最後 `lines` 行(`maxBytes` 的意義同 `window`)。SSH 一次往返;失敗丟 `TranscriptReadError`。
+    public func open(_ target: TranscriptTarget, lines: Int, maxBytes: Int? = nil) async throws -> TranscriptOpening {
+        guard lines > 0, (maxBytes ?? 1) > 0 else { throw TranscriptReadError.invalidReference }
+        let opening = try await connection.openTranscript(target.location, lines: lines, maxBytes: maxBytes ?? 0)
+        guard Self.isValidPath(opening.file.path) else { throw TranscriptReadError.invalidReference }
+        return opening
     }
 
     public static let defaultWindowChunkBytes = 4 << 20
