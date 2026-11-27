@@ -102,7 +102,7 @@ final class PushDevicesUITests: XCTestCase {
     @MainActor
     private func openPushDevices(_ app: XCUIApplication) {
         let link = app.element("member.pushDevices")
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: link, search: .down, timeout: 10), "帳號頁沒有通知裝置入口")
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: link, search: .both, timeout: 10), "帳號頁沒有通知裝置入口")
         link.tap()
         XCTAssertTrue(app.element("account.pushDevices").waitUntilExists(timeout: 10), "沒有進到通知裝置子頁")
     }

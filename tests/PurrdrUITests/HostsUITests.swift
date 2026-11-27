@@ -31,11 +31,11 @@ final class HostsUITests: XCTestCase {
     /// 從主機設定的子頁退回主機 tab 總頁(只在還沒回到時才點系統返回)。
     @MainActor
     private func backToHostOverview(_ app: XCUIApplication) {
-        for _ in 0..<4 where !app.element("hosts.status").isHittable {
+        for _ in 0..<4 where !app.buttons["hosts.add"].isHittable {
             app.buttons["BackButton"].firstMatch.tap()
-            _ = app.element("hosts.status").waitUntilHittable(timeout: 1)
+            _ = app.buttons["hosts.add"].waitUntilHittable(timeout: 1)
         }
-        XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 5), "沒有回到主機總頁")
+        XCTAssertTrue(app.buttons["hosts.add"].isHittable, "沒有回到主機總頁")
     }
 
     @MainActor
