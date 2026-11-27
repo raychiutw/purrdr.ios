@@ -175,7 +175,8 @@ enum ChannelCapabilities {
     ) -> HostCapabilities {
         let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
         let connection = SSHHostConnection(
-            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"), timings: timings)
+            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"), timings: timings,
+            opensViaFollowChannel: true)
         return HostCapabilities(
             connection: connection, channel: channel, hostFiles: hostFiles,
             files: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")),

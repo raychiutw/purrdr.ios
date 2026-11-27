@@ -102,7 +102,7 @@ public enum TranscriptCommand {
         """# + "\n" + windowBody
 
     /// 視窗腳本設定好 `f`(檔案)、`e`(終點)、`n`(行數)、`c`(區塊大小)、`g`(1 = 不放大區塊)之後的本體;`window` 與 `open` 共用。
-    private static let windowBody = #"""
+    package static let windowBody = #"""
         if [ ! -r "$f" ]; then exit 5; fi
         while :; do
         s=$((e - c))
@@ -175,12 +175,19 @@ public enum TranscriptCommand {
         anchor=$(tail -c +$((anchor_start + 1)) "$1" | head -c $(($2 - anchor_start)) | cksum)
         anchor=${anchor%% *}
         }
+        @OPENFUNCTIONS@
         purrdr_limit "$$" "$3" < /dev/null > /dev/null 2>&1 &
         idle_limit=$!
         while IFS= read -r request; do
         kill "$idle_limit" 2>/dev/null
         purrdr_limit "$$" "$3" < /dev/null > /dev/null 2>&1 &
         idle_limit=$!
+        case $request in
+        "open "*)
+        purrdr_open_request "$request"
+        continue
+        ;;
+        esac
         cursor=${request%% *}
         request=${request#* }
         known_stamp=${request%% *}
@@ -212,7 +219,67 @@ public enum TranscriptCommand {
         fi
         printf 'end %s %s\n' "$end" "$anchor"
         done
-        """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
+        """#.replacingOccurrences(of: "@OPENFUNCTIONS@", with: openFunctions).replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
+
+    /// 長駐追蹤通道上的「點進聊天」請求(#662):`open <種類> <行數> <maxBytes> <資料夾名或~> <id 或路徑>`(路徑在最後，可含空白)。
+    /// 回應:成功是 `opened`、與一次性 `open` 指令相同的輸出(定位輸出、`openMarker`、視窗輸出)、最後一行 `openEnd <exit code>`;
+    /// 定位失敗是 `error <exit code>`(3 缺席、4 不可搜尋、5 不可讀、6 有歧義、7 只有壓縮檔)。種類是 `TranscriptLocator.name`。
+    /// 定位的片段是 `locateScript`(位置參數 `$1` id、`$2` 資料夾名),視窗是 `windowBody`,與一次性指令共用。
+    package static func openRequest(_ location: TranscriptLocation, lines: Int, maxBytes: Int) -> String {
+        let folder = location.locator.usesProjectFolder ? ClaudeTranscript.projectFolder(forCWD: location.cwd) : "~"
+        return "open \(location.locator.name) \(lines) \(maxBytes) \(folder) \(location.reference.value)"
+    }
+
+    /// 回應「點進聊天」的第一行的關鍵字。
+    package static let openedKeyword = "opened"
+
+    /// 回應「點進聊天」的最後一行的關鍵字。
+    package static let openEndKeyword = "openEnd"
+
+    private static let openFunctions: String = {
+        let branches = TranscriptLocator.all.map { "\($0.name))\n\(locateScript($0))\n;;" }.joined(separator: "\n")
+        let head = #"""
+            purrdr_locate() {
+            case $purrdr_kind in
+            """#
+        let middle = #"""
+            *) exit 127 ;;
+            esac
+            }
+            purrdr_open() {
+            located=$(purrdr_locate "$@")
+            located_status=$?
+            if [ "$located_status" -ne 0 ]; then printf 'error %s\n' "$located_status"; return; fi
+            printf 'OPENED\n%s\n%s\n' "$located" OPENMARKER
+            f=$(printf '%s\n' "$located" | sed -n 1p)
+            e=$(printf '%s\n' "$located" | sed -n 2p)
+            (
+            n=$3
+            c=$4
+            g=1
+            if [ "$c" -le 0 ]; then c=4194304; g=0; fi
+            """#
+        let tail = #"""
+            )
+            printf 'OPENEND %s\n' "$?"
+            }
+            purrdr_open_request() {
+            open_rest=${1#open }
+            purrdr_kind=${open_rest%% *}
+            open_rest=${open_rest#* }
+            open_lines=${open_rest%% *}
+            open_rest=${open_rest#* }
+            open_max=${open_rest%% *}
+            open_rest=${open_rest#* }
+            open_folder=${open_rest%% *}
+            open_ref=${open_rest#* }
+            if [ "$open_folder" = '~' ]; then open_folder=; fi
+            purrdr_open "$open_ref" "$open_folder" "$open_lines" "$open_max"
+            }
+            """#
+        return [head, branches, middle.replacingOccurrences(of: "OPENMARKER", with: openMarker).replacingOccurrences(of: "OPENED", with: openedKeyword), windowBody, tail.replacingOccurrences(of: "OPENEND", with: openEndKeyword)]
+            .joined(separator: "\n")
+    }()
 
     /// Claude Code 聊天的列表預覽(參數：每個請求的 key、session id、資料夾名)。見 `previews(marker:entries:)`。
     public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {
