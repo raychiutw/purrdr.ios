@@ -287,6 +287,10 @@ public final class ConversationModel {
             transcriptPaths: transcriptPath.map { [$0] } ?? [], promptMentionedPaths: HostFileAccessScope.promptMentionedPaths(in: items))
     }
 
+    /// 存取範圍有沒有工作目錄:快取先還原時(輪詢前)還不知道 Agent 的工作目錄(對話紀錄路徑已由快取還原),
+    /// 此時載入工作目錄底下的圖片會被拒(#663)。
+    public var hasFileAccessAnchor: Bool { currentAgent?.cwd != nil }
+
     /// 輸入列上方的註記：只顯示這個輸入框要送往的 session 的那則(行為規格 F17)。
     public var note: YouShouldKnowNote? {
         guard let session = boundSessionID ?? knownSessionID else { return nil }

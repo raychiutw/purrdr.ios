@@ -9,6 +9,15 @@ import SwiftUI
 struct AgentImageContext {
     var loads: AgentFileLoads?
     var scope: @MainActor () -> HostFileAccessScope = { HostFileAccessScope(workingDirectories: [], mentionedPaths: []) }
+    /// 存取範圍已有 Agent 的工作目錄。從快取先還原的聊天,卡片比第一次輪詢早出現,
+    /// 那時載入會被拒;錨點出現後以它換 task id 重載(#663 預讀後每次開啟都走快取)。
+    var isAnchored: @MainActor () -> Bool = { true }
+
+    /// 卡片載入 task 的身分:路徑加上範圍是否已有錨點。
+    struct LoadKey: Hashable {
+        var path: String
+        var anchored: Bool
+    }
 }
 
 extension EnvironmentValues {
@@ -149,7 +158,7 @@ struct AgentImageCardView: View {
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: Text("Copy Path")) { Clipboard.copy(card.file.path) }
         .accessibilityIdentifier("conversation.agentImage")
-        .task(id: card.file.path) {
+        .task(id: AgentImageContext.LoadKey(path: card.file.path, anchored: context.isAnchored())) {
             if let size = card.file.pixelSize { context.loads?.thumbnails.recordTranscriptSize(size, forPath: card.file.path) }
             await load(userRequested: false)
         }

@@ -28,7 +28,7 @@ struct AgentFileThumbnailView: View {
             .frame(width: Self.size.width, height: Self.size.height)
             .accessibilityHidden(true)
             .accessibilityIdentifier("conversation.agentFile.thumbnail")
-            .task(id: card.file.path) {
+            .task(id: AgentImageContext.LoadKey(path: card.file.path, anchored: context.isAnchored())) {
                 guard display.preview == .thumbnail, let loads = context.loads else { return }
                 await loads.load(card.file.path, scope: context.scope(), userRequested: false, decodesWithImageIO: card.file.kind == .image)
             }
