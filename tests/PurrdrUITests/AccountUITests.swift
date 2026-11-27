@@ -1,19 +1,22 @@
 import XCTest
 
 /// 帳號頁(#246、#409):右上角帳號鈕、Purrdr Plus 卡、未開通時通知與同步鎖住。
-/// 預設未加入會員;`-uiTestingMember`／`-uiTestingPlusMember` 以假後台的會員啟動。
+/// 預設未加入會員;`-uiTestingMember`／`-uiTestingPlusMember`／`-uiTestingLinkMerge` 以假後台的會員啟動。
 final class AccountUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
-    /// 已加入會員、未開通(`-uiTestingMember`,同一次啟動由上而下,原本 4 個測試合併):
+    /// 已加入會員、未開通(`-uiTestingLinkMerge`:假後台的會員與 `-uiTestingMember` 相同,只多了連結 Google 時發現已屬另一個會員;
+    /// 同一次啟動由上而下,原本 5 個測試合併):
     /// 顯示會員 email 與登入方式;刪除會員(#322)按鈕寫「Delete Member」不帶刪節號、按下仍先跳確認(取消);
     /// 登出(#412)先說明會停止這支裝置的通知、確認後才登出(取消);已登入、未開通時通知與同步鎖定:列仍可點,
-    /// 說明原因與下一步,沒有開關(#409),說明裡的連結開付費牆;返回後 Plus 卡主按鈕開通,點了推入付費牆。
+    /// 說明原因與下一步,沒有開關(#409),說明裡的連結開付費牆;返回後 Plus 卡主按鈕開通,點了推入付費牆;
+    /// 最後(合併後登入方式多了 Google,所以放最後)返回帳號頁、推入「登入方式」(#410),新增 Google 發現已屬另一個會員:
+    /// 出合併確認頁、兩邊摘要都在,確認後合併、回到登入方式有兩種。
     @MainActor
-    func testMemberDeleteSignOutLockedFeaturesAndActivationFromPaywall() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
+    func testMemberDeleteSignOutLockedFeaturesActivationFromPaywallAndLinkMerge() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingLinkMerge"])
         app.openAccountSheet()
 
         XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.waitUntilExists(timeout: 10), "沒有顯示會員")
@@ -60,12 +63,29 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(app.element("plus.benefits").waitUntilExists(timeout: 10), "說明裡的「Purrdr Plus」沒有開付費牆")
 
         // 返回帳號頁,Plus 卡主按鈕開通,點了推入付費牆(#409)。
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].firstMatch.tap()
         XCTAssertTrue(app.scrollSheet("sheet.account", to: action, search: .both, timeout: 10), "返回後沒有回到帳號頁的開通按鈕")
         action.tap()
         XCTAssertTrue(app.element("plus.benefits").waitUntilExists(timeout: 10), "沒有推入付費牆")
+
+        // 登入方式與合併(#410):從付費牆返回帳號頁,推入「登入方式」。
+        app.buttons["BackButton"].firstMatch.tap()
+        let methods = app.element("member.signInMethods")
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: methods, search: .down, timeout: 10), "帳號頁沒有登入方式")
+        methods.tap()
+        XCTAssertTrue(app.element("member.identity.apple").waitUntilExists(timeout: 10), "沒有開出登入方式")
+
+        app.buttons["member.signIn.google"].tap()
+
+        XCTAssertTrue(app.element("sheet.merge").waitUntilExists(timeout: 10), "沒有開出合併確認")
+        XCTAssertTrue(app.element("member.merge.current").exists)
+        XCTAssertTrue(app.element("member.merge.other").exists)
+        app.assertModalToolbar(close: "member.merge.cancel", confirm: "member.merge.confirm")
+        let confirm = app.buttons["member.merge.confirm"]
+        XCTAssertTrue(confirm.isEnabled)
+        confirm.tap()
+
+        XCTAssertTrue(app.element("member.identity.google").waitUntilExists(timeout: 10), "合併後應該有 Google 這種登入方式")
+        XCTAssertFalse(app.element("sheet.merge").exists)
     }
-
-    // MARK: - 輔助
-
 }
