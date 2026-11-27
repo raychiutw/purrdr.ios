@@ -72,6 +72,7 @@ struct LaunchConfigurationLegacyParityTests {
         ("-uiTestingSimulatedVideo", [], { $0.simulatesVideo }),
         ("-uiTestingSimulatedFileUpload", [], { $0.simulatesFileUpload }),
         ("-uiTestingOversizedClipboard", ["-uiTesting"], { $0.seedsOversizedClipboard }),
+        ("-uiTestingLargeImageClipboard", ["-uiTesting"], { $0.seedsLargeImageClipboard }),
         ("-uiTestingNoPasscode", [], { $0.hasNoPasscode }),
         ("-uiTestingAppLock", [], { $0.appLockEnabled }),
         ("-uiTestingPushTestFails", [], { $0.pushTestFails }),

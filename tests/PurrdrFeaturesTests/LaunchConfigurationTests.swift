@@ -123,17 +123,17 @@ struct LaunchConfigurationTests {
             "-uiTesting", "-demoCompanions", "-selectDemo", "-demoOutdatedHostService", "-uiTestingNoHosts", "-seedDataUsage",
             "-uiTestingUndoSend", "-showWelcome", "-uiTestingSimulatedVideo", "-uiTestingNoPasscode",
             "-uiTestingAppLock", "-uiTestingPushTestFails", "-uiTestingOwnedByOtherMember",
-            "-seedPairedHTTPSHost", "-seedReadOnlyHTTPSHost", "-uiTestingSimulatedFileUpload", "-uiTestingOversizedClipboard", "-uiTestingHostKeyPrompt")
+            "-seedPairedHTTPSHost", "-seedReadOnlyHTTPSHost", "-uiTestingSimulatedFileUpload", "-uiTestingOversizedClipboard", "-uiTestingLargeImageClipboard", "-uiTestingHostKeyPrompt")
         #expect(config.promptsHostKey)
         #expect(config.showsDemoCompanions && config.selectsDemo && config.hostServiceIsOutdated && config.hasNoHosts)
         #expect(config.seedsDataUsage && config.undoSendCountdown && config.showsWelcome)
         #expect(config.simulatesVideo && config.hasNoPasscode && config.appLockEnabled && config.pushTestFails)
         #expect(config.storeOwnedByOtherMember)
-        #expect(config.simulatesFileUpload && config.seedsOversizedClipboard)
+        #expect(config.simulatesFileUpload && config.seedsOversizedClipboard && config.seedsLargeImageClipboard)
         #expect(config.seededHosts.contains(.pairedHTTPS) && config.seededHosts.contains(.readOnlyHTTPS))
         let none = parse("-uiTesting")
         #expect(!none.showsDemoCompanions && !none.selectsDemo && !none.hasNoHosts && !none.showsWelcome)
-        #expect(!none.simulatesFileUpload && !none.seedsOversizedClipboard && !none.promptsHostKey)
+        #expect(!none.simulatesFileUpload && !none.seedsOversizedClipboard && !none.seedsLargeImageClipboard && !none.promptsHostKey)
     }
 
     @Test("閱讀位移量測只在 UI 測試開啟")

@@ -118,6 +118,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let simulatesFileUpload: Bool
     /// `-uiTestingOversizedClipboard`:剪貼簿先放一段超過終端機貼上上限的文字(#626)。
     public let seedsOversizedClipboard: Bool
+    /// `-uiTestingLargeImageClipboard`:剪貼簿先放一張 12MP 的大照片(JPEG 原始資料),貼上圖片走原始資料、不卡畫面(#687)。
+    public let seedsLargeImageClipboard: Bool
     public let hasNoPasscode: Bool
     /// `-uiTestingHostKeyPrompt`:還沒有 host key pin 的 SSH 主機第一次連線時出示未信任的 host key,走到「信任這台主機?」(#613)。
     public let promptsHostKey: Bool
@@ -182,6 +184,7 @@ public struct LaunchConfiguration: Equatable, Sendable {
         simulatesVideo = has("-uiTestingSimulatedVideo")
         simulatesFileUpload = has("-uiTestingSimulatedFileUpload")
         seedsOversizedClipboard = isUITesting && has("-uiTestingOversizedClipboard")
+        seedsLargeImageClipboard = isUITesting && has("-uiTestingLargeImageClipboard")
         hasNoPasscode = has("-uiTestingNoPasscode")
         promptsHostKey = has("-uiTestingHostKeyPrompt")
         appLockEnabled = has("-uiTestingAppLock")
