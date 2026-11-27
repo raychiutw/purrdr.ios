@@ -166,6 +166,8 @@ public final class HostsModel {
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
     private let diagnostics: DiagnosticLog
+    /// 診斷事件(#688):網路切換、回前景的重撥決策等記進可分享的診斷檔;組合根設定,沒設定就不記。
+    public var diagnosticEvents: DiagnosticEvents = .discarding
     /// 等待(HTTPS 偵測 Agent 的重試間隔);測試注入。
     private let sleep: Sleep
     /// 各清單骨架的列數(上次的數量,#496)。
@@ -807,6 +809,7 @@ public final class HostsModel {
         let channelCount = sshAdapter.liveChannels.count
         // 診斷(#133):實機斷線時分辨是不是網路切換丟掉了連線。
         diagnostics.error("Network path changed (\(previous) → \(signature)): dropping \(channelCount) host connection(s)")
+        diagnosticEvents.record(.networkChanged(droppedConnections: channelCount, detail: "\(previous) → \(signature)"))
         let agentList = agentList
         return Task {
             for disconnect in disconnectors { await disconnect() }
@@ -828,6 +831,7 @@ public final class HostsModel {
         let decision = ForegroundReconnectPolicy.decision(backgroundSeconds: backgroundSeconds)
         // 診斷(#133、#550):實機量測回前景的重連走哪條路。
         diagnostics.error(ForegroundReconnectPolicy.logLine(backgroundSeconds: backgroundSeconds, decision: decision))
+        diagnosticEvents.record(.foregroundDecision(backgroundSeconds: Int(backgroundSeconds), redial: decision == .redial))
         guard decision == .redial else { return }
         let disconnectors = sshAdapter.disconnectors() + httpsAdapter.disconnectors()
         let prewarmers = sshAdapter.prewarmers() + httpsAdapter.prewarmers()
