@@ -40,6 +40,8 @@ struct LaunchEnvironment {
         var store: any PushPairingStore
         var loadDevice: @MainActor () throws -> PushDeviceIdentity
         var hostNames: (any PushHostNameSharing)?
+        /// 撤銷失敗待重送的推播配對(#691);正式版存 Keychain。
+        var pendingRevocations: any PendingPushRevocations = InMemoryPendingPushRevocations()
         /// UI 測試的全域測試通知替身;正式沒有。
         var testSender: (any PushTestNotificationSending)?
     }
