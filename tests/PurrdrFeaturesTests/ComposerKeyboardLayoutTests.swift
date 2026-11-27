@@ -157,3 +157,49 @@ struct ComposerKeyboardLayoutTests {
         #expect(Self.arrange(conversation: 417, current: current) == .full)
     }
 }
+
+/// 問題卡的高度上限(#680):鍵盤出現時照可用空間縮小，收起恢復 300pt。
+@Suite("問題卡的高度上限")
+struct QuestionCardMaximumHeightTests {
+    private static func maximum(
+        keyboard: Bool = true, conversation: Double? = 400, card: Double? = 300, minimum: Double = 132
+    ) -> Double {
+        ComposerKeyboardLayout.questionCardMaximumHeight(
+            keyboardShown: keyboard, conversationHeight: conversation, displayedCardHeight: card,
+            minimumConversationHeight: minimum, minimumCardHeight: 100)
+    }
+
+    @Test("鍵盤收起：恢復 300pt 上限，不看對話高度")
+    func keyboardHiddenRestores() {
+        #expect(Self.maximum(keyboard: false, conversation: nil) == 300)
+        #expect(Self.maximum(keyboard: false, conversation: 10, card: 120) == 300)
+    }
+
+    @Test("鍵盤出現：可用高度 = 對話 + 目前的卡片 + 間距 - 最小對話可見高度，最多 300pt")
+    func keyboardShownShrinks() {
+        // 100 + 300 + 8 - 132 = 276
+        #expect(Self.maximum(conversation: 100) == 276)
+        // 空間充裕時不超過 300。
+        #expect(Self.maximum(conversation: 900) == 300)
+    }
+
+    @Test("問題卡不能拿掉：空間再小也保留題目一行加一個選項的最小高度")
+    func neverBelowMinimum() {
+        #expect(Self.maximum(conversation: -500) == 100)
+        #expect(Self.maximum(conversation: 0, card: 0) == 100)
+    }
+
+    @Test("鍵盤高度改變(注音選字列出現)：對話變矮就再縮小，與卡片目前多高無關")
+    func followsKeyboardChange() {
+        #expect(Self.maximum(conversation: 150, card: 250) == 276)
+        // 卡片縮到 226 時對話長高 50：加總不變，上限穩定不來回跳。
+        #expect(Self.maximum(conversation: 200, card: 200) == 276)
+        #expect(Self.maximum(conversation: 60, card: 250) == 186)
+    }
+
+    @Test("鍵盤在但還沒量到對話高度：維持 300pt")
+    func unmeasured() {
+        #expect(Self.maximum(conversation: nil) == 300)
+        #expect(Self.maximum(conversation: 100, card: nil) == 300)
+    }
+}

@@ -60,6 +60,17 @@ struct ComposerBar: View {
     @State private var suggestionHeights = ComposerAccessoryHeights(full: nil)
     /// 停止列一開始只有停止鈕一行，完整高度先以一行估(量到結果再更新)。
     @State private var stopBarHeights = ComposerAccessoryHeights(full: ComposerKeyboardLayout.compactHeight)
+    /// 問題卡目前實際的高度(#680;高度上限依它與對話可見高度算)。
+    @State private var questionCardHeight: Double?
+
+    /// 問題卡的高度上限:鍵盤出現時縮小讓輸入列完整留在鍵盤上方(#680)。
+    private var questionCardMaximumHeight: Double {
+        ComposerKeyboardLayout.questionCardMaximumHeight(
+            keyboardShown: isFocused, conversationHeight: isFocused ? conversationHeight.value : nil,
+            displayedCardHeight: questionCardHeight,
+            minimumConversationHeight: ComposerKeyboardLayout.minimumConversationHeight(bodyLineHeight: bodyLineHeight),
+            minimumCardHeight: ComposerKeyboardLayout.compactHeight + bodyLineHeight + 2 * ComposerKeyboardLayout.spacing)
+    }
 
     /// 讓位規則的輸入;變了就重新決定顯示方式。
     private struct ArrangementInput: Equatable {
@@ -198,7 +209,8 @@ struct ComposerBar: View {
                     }
                     // 「需要你」浮動卡(#424):取代建議卡與工作中膠囊，與輸入卡片同一個玻璃容器。
                     if case .needsYou = model.topAccessory {
-                        NeedsYouCard(model: model)
+                        NeedsYouCard(model: model, maximumHeight: questionCardMaximumHeight)
+                            .onGeometryChange(for: Double.self) { $0.size.height } action: { questionCardHeight = $0 }
                     }
                     // 卡片比內容各寬 4pt(離邊緣 12pt),輸入框更寬(#512)。
                     card
@@ -226,6 +238,8 @@ struct ComposerBar: View {
             arrangement = next
             conversationHeight.arrangementChanged()
         }
+        // 問題卡的上限變了(鍵盤升降、注音選字列):通知列表重新量對話可見高度並貼底(#680)。
+        .onChange(of: questionCardMaximumHeight) { conversationHeight.arrangementChanged() }
         // 換了註記、建議或字級：量過的高度不再準。
         .onChange(of: model.note?.line) { noteHeights = ComposerAccessoryHeights(full: nil) }
         .onChange(of: model.suggestion) { suggestionHeights = ComposerAccessoryHeights(full: nil) }
