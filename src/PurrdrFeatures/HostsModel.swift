@@ -163,6 +163,8 @@ public final class HostsModel {
     private let pushService: PushService?
     /// 帳號頁「通知裝置」(#266);沒有推播時是 `nil`。
     public let pushDevices: PushDevicesModel?
+    /// 「通知」頁的今日推播用量(#677)。
+    public let pushUsage: PushUsageModel?
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
     private let diagnostics: DiagnosticLog
@@ -230,6 +232,7 @@ public final class HostsModel {
         self.hostConsent = hostConsent
         self.pushService = pushService
         pushDevices = pushService.map(PushDevicesModel.init(service:))
+        pushUsage = pushService.map(PushUsageModel.init(service:))
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics

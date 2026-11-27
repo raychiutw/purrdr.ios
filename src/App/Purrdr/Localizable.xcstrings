@@ -10522,6 +10522,17 @@
         }
       }
     },
+    "Resets at %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 歸零"
+          }
+        }
+      }
+    },
     "Restore Purchases" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14734,6 +14745,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天"
+          }
+        }
+      }
+    },
+    "Today %lld of %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日 %1$lld／%2$lld 則"
+          }
+        }
+      }
+    },
+    "Today’s limit reached" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日已達上限"
           }
         }
       }

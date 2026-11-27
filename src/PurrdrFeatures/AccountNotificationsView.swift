@@ -10,7 +10,7 @@ struct AccountNotificationsView: View {
 
     var body: some View {
         List {
-            HostPushSection(pushes: pushes, pair: { pairingHost = $0 })
+            HostPushSection(pushes: pushes, usage: hosts?.pushUsage?.usage, pair: { pairingHost = $0 })
         }
         .appGroupedList()
         .accessibilityIdentifier("account.notifications.page")
@@ -18,6 +18,8 @@ struct AccountNotificationsView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .task { await hosts?.pushUsage?.load() }
+        .refreshable { await hosts?.pushUsage?.load() }
         .hostPushConfirmation(pushes)
         .navigationDestination(item: $pairingHost) { id in
             if let hosts, let host = hosts.hosts.first(where: { $0.id == id }) {
