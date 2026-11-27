@@ -753,11 +753,11 @@ public final class HostsModel {
         return open(route, pairings: pushService.store)
     }
 
-    /// 引導最後一頁判斷有沒有 Purrdr Plus 用的檢查(同推播開關:重讀後台後的結果)。沒有推播服務就當沒有。
-    var guidePlusCheck: @MainActor () async -> Bool {
+    /// 引導最後一頁判斷有沒有登入用的檢查(同推播開關)。沒有推播服務就當沒登入。
+    var guideSignedInCheck: @MainActor () async -> Bool {
         { [pushService] in
             guard let pushService else { return false }
-            return await pushService.isPlusActive()
+            return await pushService.isSignedIn()
         }
     }
 

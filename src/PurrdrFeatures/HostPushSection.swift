@@ -8,8 +8,6 @@ import SwiftUI
 /// 最後一支裝置關閉才移除外掛(#264)。不能開的主機寫出原因。
 struct HostPushSection: View {
     let pushes: [HostPush]
-    /// 沒有 Purrdr Plus 時開付費牆。
-    let openPlus: () -> Void
     /// 還沒配對的 HTTPS 主機：開那台主機的配對(#295)。
     var pair: (UUID) -> Void = { _ in }
 
@@ -27,7 +25,7 @@ struct HostPushSection: View {
                     HostServicePushUpdateRow(update: update)
                 }
                 if push.support == .supported, let problem = push.model.problem, problem.needsOwnRow {
-                    PushProblemRow(problem: problem, model: push.model, openPlus: openPlus)
+                    PushProblemRow(problem: problem, model: push.model)
                 }
             }
         } header: {
@@ -265,7 +263,7 @@ extension PushModel.Problem {
     var needsOwnRow: Bool {
         switch self {
         case .failed, .demoHost: false
-        case .needsSubscription, .permissionDenied, .unsupportedDevice, .hostServiceOutdated, .deviceIDUnavailable, .mutedSyncFailed,
+        case .needsSignIn, .permissionDenied, .unsupportedDevice, .hostServiceOutdated, .deviceIDUnavailable, .mutedSyncFailed,
              .kindsUpdateFailed: true
         }
     }
@@ -275,19 +273,22 @@ extension PushModel.Problem {
 struct PushProblemRow: View {
     let problem: PushModel.Problem
     let model: PushModel
-    let openPlus: () -> Void
+    /// 帳號頁已在登入畫面時不需要;主機頁給開登入的動作。
+    var openAccount: (() -> Void)?
 
     var body: some View {
         switch problem {
         case .demoHost:
             Label("Choose your own host first. The demo host can’t send notifications.", systemImage: "info.circle")
                 .accessibilityIdentifier("settings.push.problem")
-        case .needsSubscription:
+        case .needsSignIn:
             VStack(alignment: .leading, spacing: 8) {
-                Label("Notifications need Purrdr Plus.", systemImage: "bell.badge")
-                Button("See Purrdr Plus", action: openPlus)
-                    .listAction()
-                    .accessibilityIdentifier("settings.push.plus")
+                Label("Sign in to use notifications.", systemImage: "person.crop.circle")
+                if let openAccount {
+                    Button("Sign In", action: openAccount)
+                        .listAction()
+                        .accessibilityIdentifier("settings.push.signIn")
+                }
             }
             .accessibilityIdentifier("settings.push.problem")
         case .permissionDenied:

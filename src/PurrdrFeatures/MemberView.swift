@@ -566,7 +566,19 @@ struct AccountView: View {
     }
 
     private var notificationsPage: some View {
-        AccountNotificationsView(pushes: pushes, openPlus: { showingPlus = true }, hosts: hosts)
+        AccountNotificationsView(pushes: pushes, hosts: hosts)
+    }
+
+    /// 通知列(#675:登入就能用,不要求 Plus)。
+    private var notificationsLink: some View {
+        NavigationLink {
+            notificationsPage
+        } label: {
+            LabeledContent("Notifications") {
+                Text(verbatim: plusFeatures.status.value(for: .notifications) ?? "")
+            }
+        }
+        .accessibilityIdentifier("account.notifications")
     }
 
     /// 「Plus 功能」區(設計稿第 27 組):主機同步與通知併在同一區。
@@ -578,14 +590,7 @@ struct AccountView: View {
                 if let hostSync {
                     HostSyncRows(model: hostSync, plus: plus, member: model)
                 }
-                NavigationLink {
-                    notificationsPage
-                } label: {
-                    LabeledContent("Notifications") {
-                        Text(verbatim: plusFeatures.status.value(for: .notifications) ?? "")
-                    }
-                }
-                .accessibilityIdentifier("account.notifications")
+                notificationsLink
             } header: {
                 Text("Plus Features")
                     .foregroundStyle(.secondaryText)
@@ -598,7 +603,7 @@ struct AccountView: View {
         } else if signedInMember != nil {
             Section {
                 lockedRow(.hostSync, symbol: "arrow.triangle.2.circlepath", title: "Host Sync", identifier: "account.locked.hostSync")
-                lockedRow(.notifications, symbol: "bell.badge", title: "Notifications", identifier: "account.locked.notifications")
+                notificationsLink
             } header: {
                 Text("Plus Features")
                     .foregroundStyle(.secondaryText)

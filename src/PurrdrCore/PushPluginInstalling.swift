@@ -69,6 +69,8 @@ public enum PushTestNotificationError: Error, Equatable {
     case notPaired
     /// 後台 403 `subscription_required`:需要 Purrdr Plus。
     case subscriptionRequired
+    /// 後台 429 `daily_limit_reached`:今天的測試通知次數用完了(#675;推播不再要 Plus，改以每日上限防濫用)。
+    case dailyLimitReached
     /// 後台 429 `rate_limited`:每組配對每 60 秒 10 次(與狀態推播共用)。
     case rateLimited
     /// 後台 502 `apns_failed`:Apple 推播服務拒絕。
@@ -88,6 +90,7 @@ public enum PushTestNotificationError: Error, Equatable {
         case "pairing_not_found", "pairing_revoked": self = .notPaired
         case "subscription_required": self = .subscriptionRequired
         case "rate_limited": self = .rateLimited
+        case "daily_limit_reached": self = .dailyLimitReached
         case "apns_failed": self = .apnsFailed
         default: return nil
         }

@@ -35,14 +35,14 @@ struct PushModelTests {
     }
 
     func service(
-        plusActive: Bool = true, store: (any PushPairingStore)? = nil, deviceID: PushDeviceID = Self.deviceID
+        signedIn: Bool = true, store: (any PushPairingStore)? = nil, deviceID: PushDeviceID = Self.deviceID
     ) -> PushService {
         PushService(
             session: MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens),
             platform: platform, store: store ?? self.store,
             device: PushDeviceIdentity(id: deviceID, name: "iPhone", model: .iPhone),
             configuration: PushConfiguration(endpoint: Self.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
-            isPlusActive: { plusActive })
+            isSignedIn: { signedIn })
     }
 
     func model(
@@ -138,14 +138,26 @@ struct PushModelTests {
         #expect(platform.authorizationRequests == 0)
     }
 
-    @Test("沒有 Purrdr Plus:提示訂閱，不請求權限、不碰主機")
-    func needsSubscription() async throws {
-        let model = model(service(plusActive: false))
+    @Test("沒有 Purrdr Plus 也能開通知(#675):照常請求權限並進入確認")
+    func worksWithoutPlus() async throws {
+        // 這個 service 只知道「有沒有登入」;會員沒有 Plus(後台訂閱為空)也一樣能開。
+        let model = model(service())
+
+        await model.requestOn()
+
+        #expect(model.problem == nil)
+        #expect(model.state == .confirming(user: NSUserName()))
+        #expect(platform.authorizationRequests == 1)
+    }
+
+    @Test("沒登入:提示先登入，不請求權限、不碰主機")
+    func needsSignIn() async throws {
+        let model = model(service(signedIn: false))
 
         await model.requestOn()
 
         #expect(model.state == .off)
-        #expect(model.problem == .needsSubscription)
+        #expect(model.problem == .needsSignIn)
         #expect(platform.authorizationRequests == 0)
         #expect(try FakeHerdrPluginCLI.calls(on: host).isEmpty)
     }
@@ -176,17 +188,18 @@ struct PushModelTests {
         #expect(detail.text == "no aps-environment entitlement")
     }
 
-    @Test("後台說沒有有效訂閱(403):提示訂閱，主機不動")
-    func backendRequiresSubscription() async throws {
+    @Test("後台回 429 daily_limit_reached:說明今天的次數用完，主機不動")
+    func backendDailyLimit() async throws {
         backend.on("POST", "/v1/members/me/push-pairings",
-            .json(403, #"{"error":{"code":"subscription_required","message":"This needs an active Purrdr Plus subscription."}}"#))
+            .json(429, #"{"error":{"code":"daily_limit_reached","message":"Daily limit reached."}}"#))
         let before = try FakeHerdrPluginCLI.snapshot(of: host)
         let model = model(service())
 
         await turnOn(model)
 
         #expect(model.state == .off)
-        #expect(model.problem == .needsSubscription)
+        guard case .failed(let detail)? = model.problem else { Issue.record("沒有說明"); return }
+        #expect(detail.text.contains("today"), "說明今天的次數用完")
         #expect(try FakeHerdrPluginCLI.snapshot(of: host) == before)
         #expect(store.keyHash(forHost: "studio") == nil)
     }
@@ -592,7 +605,7 @@ struct PushModelTests {
                 return PushDeviceIdentity(id: Self.deviceID, name: "iPhone", model: .iPhone)
             },
             configuration: PushConfiguration(endpoint: Self.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
-            isPlusActive: { true })
+            isSignedIn: { true })
         let model = model(service, installer: pluginHost.installer(deviceID: Self.deviceID))
 
         await model.requestOn()
@@ -1078,13 +1091,15 @@ struct PushRouteTests {
     func testNotificationFailuresAreExplainedSeparately() {
         let errors: [PushTestNotificationError] = [
             .notPaired, .subscriptionRequired, .rateLimited, .apnsFailed, .curlMissing,
-            .backendUnreachable("curl: (7)"), .backendRejected(statusCode: 500), .failed("x"),
+            .backendUnreachable("curl: (7)"), .backendRejected(statusCode: 500), .failed("x"), .dailyLimitReached,
         ]
         let messages = errors.map { PushModel.describeTestFailure($0) }
 
         #expect(messages.allSatisfy { !$0.isEmpty && !$0.contains("curl: (7)") })
         #expect(Set(messages.prefix(5)).count == 5, "前五種各有專屬說明")
         #expect(messages[1].contains("Plus"))
+        #expect(messages[8].contains("today"), "每日上限(#675)說明今天用完")
+        #expect(messages[8] != messages[2], "每日上限與每分鐘上限說明不同")
     }
 
     @Test("Agent 通知仍回傳開了哪個聊天")

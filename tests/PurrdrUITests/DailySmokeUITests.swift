@@ -367,11 +367,9 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
             XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有「啟用用量顯示」(#389)")
             XCTAssertTrue(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有 Codex 5 小時")
-            // 沒登入就沒有 Plus(#405):通知鎖定並寫出原因,不是可開關的列。
-            let locked = app.overviewRow("hosts.tool.notifications.locked")
-            XCTAssertTrue(locked.exists, "沒有 Plus 時主機 tab 的通知沒有鎖定")
-            XCTAssertTrue((locked.value as? String)?.contains("Needs Purrdr Plus") == true, "鎖定的通知沒有說明需要 Purrdr Plus:\(String(describing: locked.value))")
-            XCTAssertFalse(app.buttons["hosts.notifications"].exists, "沒有 Plus 不該能進通知開關")
+            // 沒有 Plus 也能進通知(#675):不再鎖定。
+            XCTAssertFalse(app.buttons["hosts.tool.notifications.locked"].exists, "通知不再需要 Plus,不該鎖定")
+            XCTAssertTrue(app.overviewRow("hosts.notifications").exists, "沒有 Plus 時主機 tab 的通知也要能進入")
             XCTAssertTrue(app.overviewRow("hosts.tool.loginShell").exists, "總頁沒有登入 Shell")
         }
         step("主機的 Agent 設定:關掉 Codex 後用量區不再列、新增聊天不再出現 Codex(#477)") {

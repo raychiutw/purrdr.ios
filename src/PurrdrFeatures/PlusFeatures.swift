@@ -76,7 +76,7 @@ struct PlusFeatureDestination: View {
         switch feature {
         case .notifications:
             // 已在付費牆上,所以通知頁裡「需要 Plus」的入口不另外開。
-            AccountNotificationsView(pushes: pushes, openPlus: {}, hosts: hosts)
+            AccountNotificationsView(pushes: pushes, hosts: hosts)
         case .hostSync:
             if let hostSync {
                 List {

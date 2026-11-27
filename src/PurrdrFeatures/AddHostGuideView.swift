@@ -543,7 +543,7 @@ struct AddHostGuideView: View {
         }
     }
 
-    /// 最後一頁:有 Plus 給這台主機的通知開關,沒有就一行加入提示;SSH 主機另提主機服務。都不擋完成。
+    /// 最後一頁:登入了給這台主機的通知開關,沒登入就一行登入提示;SSH 主機另提主機服務。都不擋完成。
     @ViewBuilder
     private var finishedContent: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -556,14 +556,14 @@ struct AddHostGuideView: View {
                         .clipShape(.rect(cornerRadius: 18))
                         .accessibilityIdentifier("guide.notifications")
                 }
-            case .joinPlus?:
+            case .signIn?:
                 Button {
-                    if let url = URL(string: "purrdr://plus") { openURL(url) }
+                    if let url = URL(string: "purrdr://settings") { openURL(url) }
                 } label: {
-                    Label("Want notifications? Join Purrdr Plus", systemImage: "bell.badge")
+                    Label("Want notifications? Sign in", systemImage: "bell.badge")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .accessibilityIdentifier("guide.joinPlus")
+                .accessibilityIdentifier("guide.signIn")
             case nil:
                 EmptyView()
             }

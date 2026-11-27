@@ -9,13 +9,13 @@ struct AccountStateTests {
         AccountState(authentication: authentication, plus: plus)
     }
 
-    @Test("重現迴圈：已登入、沒有 Plus、本機有通知與同步，兩者都不得算完成")
-    func memberWithoutPlusDoesNotCompleteNotificationsOrSync() {
+    @Test("已登入、沒有 Plus(#675):通知可用、本機開著算完成;主機同步仍鎖住、不得算完成")
+    func memberWithoutPlusKeepsNotificationsButNotSync() {
         let account = state(.signedIn, .none)
 
-        #expect(!account.isDone(.notifications, isOnLocally: true))
+        #expect(account.isDone(.notifications, isOnLocally: true))
         #expect(!account.isDone(.hostSync, isOnLocally: true))
-        #expect(account.availability(of: .notifications) == .locked(.plusRequired))
+        #expect(account.availability(of: .notifications) == .available)
         #expect(account.availability(of: .hostSync) == .locked(.plusRequired))
     }
 
@@ -90,8 +90,9 @@ struct AccountStateTests {
 
         #expect(!account.hasPlus)
         #expect(account.needsRenewal)
-        #expect(account.availability(of: .notifications) == .locked(.subscriptionEnded))
-        #expect(!account.isDone(.notifications, isOnLocally: true))
+        #expect(account.availability(of: .hostSync) == .locked(.subscriptionEnded))
+        #expect(!account.isDone(.hostSync, isOnLocally: true))
+        #expect(account.availability(of: .notifications) == .available)
         #expect(account.availableActions == [.activatePlus, .restorePurchases])
     }
 
@@ -100,7 +101,7 @@ struct AccountStateTests {
         let account = state(.signedIn, .ownedByAnotherMember(maskedEmail: "r***@example.com"))
 
         #expect(!account.hasPlus)
-        #expect(account.availability(of: .notifications) == .locked(.subscriptionOwnedByAnotherMember))
+        #expect(account.availability(of: .hostSync) == .locked(.subscriptionOwnedByAnotherMember))
         #expect(account.availableActions == [.transferSubscription])
     }
 

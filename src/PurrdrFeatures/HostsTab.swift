@@ -76,7 +76,7 @@ struct HostsTab: View {
     private var content: some View {
         if let overview = hosts.overview {
             HostOverviewView(
-                hosts: hosts, overview: overview, plus: plus, openPlus: openPlus, statusCache: statusCache, actionError: actionError,
+                hosts: hosts, overview: overview, statusCache: statusCache, actionError: actionError,
                 flow: flow, confirmRemoval: confirmDeletion,
                 confirmingRemoveDemo: $confirmingRemoveDemo, confirmRemoveDemo: { hosts.removeDemo() }, openAddHost: { flow.path.append(.add) },
                 openRoute: { flow.path.append($0) })
@@ -149,7 +149,7 @@ struct HostsTab: View {
                 }
             case .notifications:
                 HostNotificationsPage(
-                    hosts: hosts, host: hosts.selection, signedIn: signedIn, openAccount: openAccount, openPlus: openPlus,
+                    hosts: hosts, host: hosts.selection, openAccount: openAccount,
                     pair: { flow.path.append(.pairGuide($0)) })
                     .appPageContentWidth()
             case .hostSettings(let id):

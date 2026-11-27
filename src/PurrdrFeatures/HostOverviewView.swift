@@ -6,8 +6,6 @@ import SwiftUI
 struct HostOverviewView: View {
     let hosts: HostsModel
     let overview: HostOverview
-    let plus: SubscriptionModel?
-    let openPlus: () -> Void
     let statusCache: HostStatusCache
     let actionError: DisplayedError?
     /// 移除主機的確認狀態與動作;確認對話框掛在「Remove Host」按鈕上,讓它錨定在觸發的按鈕(#625)。
@@ -181,35 +179,12 @@ struct HostOverviewView: View {
         .accessibilityIdentifier("hosts.agents")
     }
 
-    /// 通知(#405):有 Plus 才能進去開關;沒有 Plus 顯示鎖定與原因,點了開付費牆,不誤導成已開啟。
-    @ViewBuilder
+    /// 通知(#405、#675):登入會員就能進去開關,不再要求 Purrdr Plus。
     private func notificationsRow(_ push: HostPush) -> some View {
-        if plus?.isPlusActive == true || push.support == .needsPairing {
-            NavigationLink(value: HostRoute.notifications) {
-                HostRowLabel(title: "Notifications", detail: notificationDetail(push))
-            }
-            .accessibilityIdentifier("hosts.notifications")
-        } else {
-            Button(action: openPlus) {
-                // 設計稿第 28 組:標題下一行寫原因,鎖頭在列的最右邊。
-                HStack {
-                    HostRowLabel(title: "Notifications", subtitle: "Needs Purrdr Plus")
-                    Spacer(minLength: 8)
-                    Image(systemName: "lock.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondaryText)
-                }
-            }
-            .foregroundStyle(.primary)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text("Notifications"))
-            .accessibilityValue(Text("Locked. Needs Purrdr Plus"))
-            .accessibilityHint(Text("Opens Purrdr Plus."))
-            .accessibilityAddTraits(.isButton)
-            .accessibilityIdentifier("hosts.tool.notifications.locked")
-            // 剛開 app 時還沒讀過訂閱:讀一次(沒登入不連網路)。
-            .task { await plus?.refresh() }
+        NavigationLink(value: HostRoute.notifications) {
+            HostRowLabel(title: "Notifications", detail: notificationDetail(push))
         }
+        .accessibilityIdentifier("hosts.notifications")
     }
 
     private var showsNotifications: Bool {

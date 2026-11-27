@@ -7002,17 +7002,6 @@
         }
       }
     },
-    "Locked. Needs Purrdr Plus" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已鎖定。需要 Purrdr Plus"
-          }
-        }
-      }
-    },
     "Log" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8256,17 +8245,6 @@
         }
       }
     },
-    "Notifications need Purrdr Plus." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知需要 Purrdr Plus。"
-          }
-        }
-      }
-    },
     "Notifications need Purrdr Plus. You chose to activate it later, so this step is skipped for now." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8714,17 +8692,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機目前還不能開啟檔案。"
-          }
-        }
-      }
-    },
-    "Opens Purrdr Plus." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟 Purrdr Plus。"
           }
         }
       }
@@ -10837,17 +10804,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋 Tab、Workspace、主機"
-          }
-        }
-      }
-    },
-    "See Purrdr Plus" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看 Purrdr Plus"
           }
         }
       }
@@ -15915,13 +15871,13 @@
         }
       }
     },
-    "Want notifications? Join Purrdr Plus" : {
+    "Want notifications? Sign in" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "想收到通知？加入 Purrdr Plus"
+            "value" : "想收到通知？先登入"
           }
         }
       }
@@ -16634,6 +16590,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你已付款，但無法連上 Purrdr 來開啟 Purrdr Plus。下次在連網狀態下開啟 Purrdr 時會自動完成。"
+          }
+        }
+      }
+    },
+    "You’ve reached today’s limit for notification setups. Try again tomorrow." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天開啟通知的次數已達上限，請明天再試。"
+          }
+        }
+      }
+    },
+    "You’ve reached today’s limit for test notifications. Try again tomorrow." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天傳送測試通知的次數已達上限，請明天再試。"
           }
         }
       }
