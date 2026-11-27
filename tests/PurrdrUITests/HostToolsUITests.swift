@@ -22,30 +22,12 @@ final class HostToolsUITests: XCTestCase {
         }
     }
 
-    /// 上傳失敗的說明顯示在列表上、不彈 alert(#625、#626):`-uiTestingSimulatedFileUpload` 上傳與家目錄已有項目同名的檔案,
-    /// Demo 主機回「已有同名項目」;說明可關閉。
-    @MainActor
-    func testUploadFailureShowsInlineNoticeNotAlert() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedFileUpload"])
-        openMenuItem("menu.files", in: app)
-        let upload = app.buttons["files.upload"].firstMatch
-        XCTAssertTrue(upload.waitUntilExists(timeout: 10), "檔案 tab 沒有上傳")
-        upload.tap()
-
-        let notice = app.descendants(matching: .any)["files.uploadNotice"].firstMatch
-        XCTAssertTrue(notice.waitUntilExists(timeout: 10), "上傳失敗沒有顯示頁內說明")
-        XCTAssertTrue(notice.label.contains("README.md"), "說明沒有指出哪個檔案:\(notice.label)")
-        XCTAssertFalse(app.alerts.firstMatch.exists, "上傳失敗不該彈 alert")
-        app.buttons["Dismiss"].firstMatch.tap()
-        XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
-    }
-
     // MARK: - 主機挑選鈕(#245)
 
     /// 登入 Shell 先開在選取中主機;標題列可換主機，不改選取中主機;下次打開選回同一台，檔案各記各的;最後檔案頁走兩層與麵包屑(同一次啟動,原本 3 個測試合併)。
     @MainActor
     func testLoginShellOpensOnSelectedHostPicksHostAndRemembersItThenFilesBrowseFolders() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnpairedHTTPSHost"])
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnpairedHTTPSHost", "-uiTestingSimulatedFileUpload"])
         openMenuItem("menu.loginShell", in: app)
 
         // 已存主機的通道是 Demo 主機,回顯 shell(範例主機自己的入口見 testDemoHostKeepsLoginShell):
@@ -117,6 +99,15 @@ final class HostToolsUITests: XCTestCase {
         app.buttons["files.crumb.0"].firstMatch.tap()
         XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "點「~」沒有回到家目錄")
         XCTAssertEqual(app.topBarTitle("Files").label, "Files")
-    }
 
+        // 上傳失敗的說明顯示在列表上、不彈 alert(#625、#626):`-uiTestingSimulatedFileUpload` 上傳與家目錄已有項目同名的檔案
+        // (此時在家目錄),Demo 主機回「已有同名項目」;說明可關閉。旗標只改上傳這顆鈕,前面只讀它的 label。
+        app.buttons["files.upload"].firstMatch.tap()
+        let notice = app.descendants(matching: .any)["files.uploadNotice"].firstMatch
+        XCTAssertTrue(notice.waitUntilExists(timeout: 10), "上傳失敗沒有顯示頁內說明")
+        XCTAssertTrue(notice.label.contains("README.md"), "說明沒有指出哪個檔案:\(notice.label)")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "上傳失敗不該彈 alert")
+        app.buttons["Dismiss"].firstMatch.tap()
+        XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
+    }
 }

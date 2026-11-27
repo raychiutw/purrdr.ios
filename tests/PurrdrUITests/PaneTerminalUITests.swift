@@ -25,7 +25,7 @@ final class PaneTerminalUITests: XCTestCase {
     /// 順序刻意排好:先捲動(還沒打字)，再打字，之後的步驟接著前面輸入的內容往下斷言。
     @MainActor
     func testTerminalBehaviorsThenReturningFromBackgroundReappliesControl() {
-        let app = XCUIApplication.launchUITesting()
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingOversizedClipboard"])
         let screen = openTerminal(app)
 
         step("連線後標題列下方顯示狀態") {
@@ -109,6 +109,17 @@ final class PaneTerminalUITests: XCTestCase {
             XCTAssertEqual(ctrl.value as? String, "Off", "送出後 Ctrl 要放開")
         }
 
+        // 貼上失敗的說明顯示在終端機上方、不彈 alert(#625、#626):`-uiTestingOversizedClipboard` 讓剪貼簿一開始就超過貼上上限
+        // (旗標只放剪貼簿內容,前面的按鍵列步驟只讀貼上鍵的 label、不按)。
+        step("超量貼上顯示頁內說明、不彈 alert") {
+            app.buttons["terminal.key.paste"].firstMatch.tap()
+            let notice = app.descendants(matching: .any)["terminal.notice"].firstMatch
+            XCTAssertTrue(notice.waitUntilExists(timeout: 10), "貼上失敗沒有顯示頁內說明")
+            XCTAssertFalse(app.alerts.firstMatch.exists, "貼上失敗不該彈 alert")
+            app.buttons["Dismiss"].firstMatch.tap()
+            XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
+        }
+
         // 只在畫面顯示時持有 Pane 的尺寸(#357):進背景(鎖定也是)放開控制,回到前景自動以手機的格數重新接上,不必按「重新連線」。
         step("進背景再回前景自動接回") {
             XCUIDevice.shared.press(.home)
@@ -120,23 +131,4 @@ final class PaneTerminalUITests: XCTestCase {
             screen.expectValue(containing: "demo@purrdr ledger %")
         }
     }
-
-    /// 貼上失敗的說明顯示在終端機上方、不彈 alert(#625、#626):`-uiTestingOversizedClipboard` 讓剪貼簿一開始就超過貼上上限。
-    @MainActor
-    func testOversizedPasteShowsInlineNoticeNotAlert() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingOversizedClipboard"])
-        let screen = openTerminal(app)
-        screen.expectValue(containing: "demo@purrdr ledger %")
-        let paste = app.buttons["terminal.key.paste"].firstMatch
-        if !paste.waitUntilExists(timeout: 3) { screen.tap() }
-        XCTAssertTrue(paste.waitUntilExists(timeout: 10), "沒有貼上鍵")
-        paste.tap()
-
-        let notice = app.descendants(matching: .any)["terminal.notice"].firstMatch
-        XCTAssertTrue(notice.waitUntilExists(timeout: 10), "貼上失敗沒有顯示頁內說明")
-        XCTAssertFalse(app.alerts.firstMatch.exists, "貼上失敗不該彈 alert")
-        app.buttons["Dismiss"].firstMatch.tap()
-        XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
-    }
-
 }
