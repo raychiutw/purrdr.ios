@@ -13,6 +13,7 @@ struct HostScriptTimeLimitTests {
         let oneShot = [
             TranscriptCommand.locate(sessionID: "s", projectFolder: "p"),
             TranscriptCommand.window(path: "/t.jsonl", end: 10, lines: 5),
+            TranscriptCommand.open(TranscriptLocation(locator: .claude, reference: .id("s"), cwd: "/w"), lines: 300, maxBytes: 1 << 19),
             ClaudeSlashCommand.discover(cwd: "/w", transcriptPath: nil),
             HostFileScript.command(HostFileScript.read, arguments: ["a"]),
             HostFolderCommand.list(nil),

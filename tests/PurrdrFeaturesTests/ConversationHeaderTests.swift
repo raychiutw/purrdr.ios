@@ -234,7 +234,7 @@ struct ConversationHeaderTests {
         await setup.model.reload()
 
         let commands = await setup.host.shellCommands
-        #expect(commands.count == before + 2)
+        #expect(commands.count == before + 1)  // 重新定位加讀視窗是一個指令(#656)
         #expect(setup.model.items.count < ConversationModelTests.fixtureItemCount)
         #expect(await setup.cache.load(chatKey: Self.paneID)?.cursor == replaced.count)
     }
