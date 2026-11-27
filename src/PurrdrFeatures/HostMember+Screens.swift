@@ -64,7 +64,8 @@ extension HostMember {
                 agentSessionStatusReaders: antigravityStatus.map { [.agy: $0] } ?? [:],
                 onTranscriptSkips: TranscriptSkipLog.shared.report,
                 onPromptDelivered: { environment.reviewPrompt()?.promptDelivered() },
-                awayStart: { environment.awayStart(route) }),
+                awayStart: { environment.awayStart(route) },
+                operationTimings: environment.operationTimings()),
             // 模型目錄(#385):主機快取 → 公開目錄 → 內建對照表。
             modelCatalog: ModelCatalogResolver(host: SSHModelCatalogReader(channel: channel), publicCatalog: environment.publicModelCatalog))
         return model

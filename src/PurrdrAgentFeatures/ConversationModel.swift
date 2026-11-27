@@ -509,6 +509,11 @@ public final class ConversationModel {
     private let transcripts: TranscriptReader
     private let cache: any ConversationCache
     private let clock: ConversationClock
+    /// 點進聊天的步驟計時(#659);`nil` 時不量。
+    private let timings: OperationTimingSink?
+    /// 點進聊天(model 建立)的時間,算到第一次顯示可讀訊息。
+    private let openedAt = ContinuousClock.now
+    @ObservationIgnored private var openTiming = OpenTimingState()
     private let openLines: Int
     private let openMaxBytes: Int
     private let pageLines: Int
@@ -706,13 +711,16 @@ public final class ConversationModel {
         public var onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
         public var onPromptDelivered: (@MainActor () -> Void)?
         public var awayStart: (@MainActor () -> Date?)?
+        /// 點進聊天的步驟計時(#659);`nil` 時不量。
+        public var operationTimings: OperationTimingSink?
 
         public init(
             youShouldKnow: YouShouldKnowModel? = nil, agentFiles: AgentFileLoads? = nil,
             gitChanges: (any GitChangesReading)? = nil, sessionStatusReader: (any ClaudeSessionStatusReading)? = nil,
             agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:],
             onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)? = nil,
-            onPromptDelivered: (@MainActor () -> Void)? = nil, awayStart: (@MainActor () -> Date?)? = nil
+            onPromptDelivered: (@MainActor () -> Void)? = nil, awayStart: (@MainActor () -> Date?)? = nil,
+            operationTimings: OperationTimingSink? = nil
         ) {
             self.youShouldKnow = youShouldKnow
             self.agentFiles = agentFiles
@@ -722,6 +730,7 @@ public final class ConversationModel {
             self.onTranscriptSkips = onTranscriptSkips
             self.onPromptDelivered = onPromptDelivered
             self.awayStart = awayStart
+            self.operationTimings = operationTimings
         }
     }
 
@@ -746,6 +755,7 @@ public final class ConversationModel {
         self.paneID = paneID
         self.knownSessionID = knownSessionID
         self.cache = cache
+        self.timings = links.operationTimings
         self.clock = clock
         self.openLines = openLines
         self.openMaxBytes = openMaxBytes
@@ -778,7 +788,10 @@ public final class ConversationModel {
         slash.update(draft: draft, caret: draftCaret)
         controlSwitcher.host = self
         // 記憶體層有這個聊天最近的內容:同步還原,打開時第一幀就有內容(不閃骨架)。
-        if let cached = cache.cachedConversation(chatKey: paneID), accepts(cached) { restore(cached) }
+        if let cached = cache.cachedConversation(chatKey: paneID) {
+            noteCache(cached)
+            if accepts(cached) { restore(cached) }
+        }
     }
 
     /// 這個 agent 的 slash 清單(#15):Claude 在主機上發現;Grok、Antigravity 用固定清單;其他沒有選單(`nil`)。
@@ -819,8 +832,51 @@ public final class ConversationModel {
     /// 列表還沒給 session(冷啟動、從推播打開)時也先顯示這個聊天上次的快取(#356):之後快照回報的 session 不同，
     /// 輪詢綁定新 session 時丟掉快取，舊內容留著到新內容讀回來(#329)。
     public func restoreFromCache() async {
-        guard items.isEmpty, let cached = await cache.load(chatKey: chatKey), accepts(cached) else { return }
+        guard items.isEmpty else { return }
+        let cached = await cache.load(chatKey: chatKey)
+        noteCache(cached)
+        guard let cached, accepts(cached) else { return }
         restore(cached)
+    }
+
+    // MARK: - 點進聊天的步驟計時(#659)
+
+    /// 記一步(名稱固定 `chatOpen.*`,只有毫秒與成敗,不含內容);沒接計時時直接執行。
+    private func timed<T>(_ name: String, _ body: () async throws -> T) async throws -> T {
+        try await OperationTimer.measure("chatOpen.\(name)", sink: timings, body)
+    }
+
+    private func noteTiming(_ name: String, milliseconds: Int = 0) {
+        timings?(OperationTiming(name: "chatOpen.\(name)", milliseconds: milliseconds, at: Date()))
+    }
+
+    /// 本機快取有沒有命中、命中後有沒有被採用(每個 model 只記第一次)。
+    private func noteCache(_ cached: CachedConversation?) {
+        guard timings != nil, !openTiming.cacheNoted else { return }
+        openTiming.cacheNoted = true
+        guard let cached else { return noteTiming("cache miss") }
+        noteTiming("cache hit")
+        if !(knownSessionID.map { cached.matches(sessionID: $0) } ?? (cached.parserVersion == CachedConversation.parserVersion)) {
+            noteTiming("cache rejected session")
+        } else if !Self.isWorthRestoring(cached) {
+            noteTiming("cache rejected content")
+        } else {
+            noteTiming("cache used")
+        }
+    }
+
+    /// 第一次有可讀訊息可看(快取或主機讀回來的)時記從點進聊天起的總時間,只記一次。
+    private func noteFirstReadableIfNeeded() {
+        guard timings != nil, !openTiming.firstReadableNoted, Self.hasReadableMessage(in: items) else { return }
+        openTiming.firstReadableNoted = true
+        let elapsed = ContinuousClock.now - openedAt
+        noteTiming("firstReadable", milliseconds: Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000))
+    }
+
+    private struct OpenTimingState {
+        var cacheNoted = false
+        var snapshotNoted = false
+        var firstReadableNoted = false
     }
 
     /// 快取符合列表給的 session(沒給時只看解析器版本)且值得還原。
@@ -954,9 +1010,15 @@ public final class ConversationModel {
         let snapshot: HostSnapshot
         if let liveSnapshot {
             snapshot = liveSnapshot
+            openTiming.snapshotNoted = true
         } else {
             do {
-                snapshot = try await snapshotRetryingOnce()
+                if openTiming.snapshotNoted {
+                    snapshot = try await snapshotRetryingOnce()
+                } else {
+                    openTiming.snapshotNoted = true
+                    snapshot = try await timed("snapshot") { try await snapshotRetryingOnce() }
+                }
             } catch {
                 await showOffline()
                 return
@@ -1077,7 +1139,7 @@ public final class ConversationModel {
                     try await openWindow(path: file.path, size: size, generation: generation)
                 }
             } else {
-                let located = try await transcripts.locate(target)
+                let located = try await timed("locate") { try await transcripts.locate(target) }
                 guard generation == self.generation else { return }
                 try await openWindow(path: located.path, size: located.size, generation: generation)
             }
@@ -1211,7 +1273,9 @@ public final class ConversationModel {
     /// 讀最後 `openLines` 行並**取代**目前的訊息。
     private func openWindow(path: String, size: Int, generation: Int) async throws {
         // 以剛探測到的大小為上限:agent 同時在寫也不會變成無上限的補讀(§4.7)。
-        var chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
+        var chunk = try await timed("window") {
+            try await transcripts.window(path: path, endingAt: size, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
+        }
         guard generation == self.generation else { return }
         if chunk.lines.isEmpty, chunk.start > 0 {
             // 最後一行比 byte 上限還大：放寬成只讀那一行(上限的目的是慢網路下別讀太多，但一行都沒有就沒東西可看)。
@@ -1249,7 +1313,7 @@ public final class ConversationModel {
             pages += 1
             // 每頁加倍(上限 `maximumBackfillPageLines`):尾端一長串工具步驟時，往返次數是使用者在等的時間(#508)。
             let lines = min(pageLines << min(pages - 1, 4), max(pageLines, Self.maximumBackfillPageLines))
-            let page = try await transcripts.window(path: path, endingAt: start, lines: lines)
+            let page = try await timed("earlier#\(pages)") { try await transcripts.window(path: path, endingAt: start, lines: lines) }
             guard generation == self.generation else { return }
             // 補讀的頁屬於「開啟視窗」而不是往上翻的舊頁:要進快取，下次開啟才立刻有可讀訊息(#508)。
             await prepend(page, generation: generation, intoWindow: true)
@@ -2482,6 +2546,7 @@ public final class ConversationModel {
         guard !update.changes.isEmpty else { return }
         items = timeline.items
         refreshEntries()
+        noteFirstReadableIfNeeded()
         onTimelineUpdate?(update)
         for change in update.changes {
             switch change {
