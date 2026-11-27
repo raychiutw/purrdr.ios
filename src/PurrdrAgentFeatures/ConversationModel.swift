@@ -98,11 +98,6 @@ public final class ConversationModel {
     /// 沒有讀取來源、不是支援的 Agent 或不知道 session 時讀不到東西,第一次輪詢就結束載入。
     public private(set) var isSessionStatusLoading = true
     @ObservationIgnored private var sessionStatusReadAt: Date?
-    /// 追蹤事件觸發的快取寫入最短間隔(秒);離開聊天時一定補寫(#510)。
-    package static let cacheSaveInterval: TimeInterval = 5
-    @ObservationIgnored private var lastCacheSaveAt: Date?
-    /// 有已套用但還沒寫進快取的內容。
-    @ObservationIgnored package private(set) var cacheIsDirty = false
     /// 兩次讀 session 狀態的最短間隔(秒):輪詢每 2 秒一輪,不必每輪都問主機。
     nonisolated public static let sessionStatusInterval: TimeInterval = 10
 
@@ -137,18 +132,18 @@ public final class ConversationModel {
     /// Subagent 卡的畫面 model。還沒有 session 資料夾(對話紀錄未定位)或卡片沒有呼叫 id 時沒有(箭頭停用)。
     /// subagent 的 subagent 平放在同一個主 session 下，所以巢狀的卡也從這裡開。
     public func subagentModel(for card: SubagentCard) -> SubagentModel? {
-        guard let path = file?.path, card.callID != nil else { return nil }
+        guard let path = transcriptPath, card.callID != nil else { return nil }
         return SubagentModel(transcripts: transcripts, parentTranscript: path, card: currentCard(card))
     }
 
     /// 卡片的箭頭能不能開(不建立 model)。
     public func canOpen(_ card: SubagentCard) -> Bool {
-        file != nil && card.callID != nil
+        transcriptPath != nil && card.callID != nil
     }
 
     /// Workflow 的進度 model:每個 run 一個，卡片與畫面共用(每個 run 同時只有一個讀取在途)。
     public func workflowModel(for card: WorkflowCard) -> WorkflowModel? {
-        guard let path = file?.path else { return nil }
+        guard let path = transcriptPath else { return nil }
         if let existing = workflowModels[card.id] { return existing }
         let model = WorkflowModel(transcripts: transcripts, sessionFolder: ClaudeTranscript.sessionFolder(ofTranscript: path), card: card, clock: clock)
         workflowModels[card.id] = model
@@ -157,7 +152,7 @@ public final class ConversationModel {
 
     /// Workflow 裡某個 agent 的對話紀錄畫面。
     public func workflowAgentModel(card: WorkflowCard, agent: WorkflowAgent) -> SubagentModel? {
-        guard let path = file?.path, let runID = card.runID, let agentID = agent.agentID,
+        guard let path = transcriptPath, let runID = card.runID, let agentID = agent.agentID,
               let transcript = ClaudeTranscript.workflowAgentTranscript(
                   sessionFolder: ClaudeTranscript.sessionFolder(ofTranscript: path), runID: runID, agentID: agentID
               ) else { return nil }
@@ -289,7 +284,7 @@ public final class ConversationModel {
     public var fileAccessScope: HostFileAccessScope {
         HostFileAccessScope(
             workingDirectories: currentAgent?.cwd.map { [$0] } ?? [], mentionedPaths: HostFileAccessScope.mentionedPaths(in: items),
-            transcriptPaths: file.map { [$0.path] } ?? [], promptMentionedPaths: HostFileAccessScope.promptMentionedPaths(in: items))
+            transcriptPaths: transcriptPath.map { [$0] } ?? [], promptMentionedPaths: HostFileAccessScope.promptMentionedPaths(in: items))
     }
 
     /// 輸入列上方的註記：只顯示這個輸入框要送往的 session 的那則(行為規格 F17)。
@@ -507,16 +502,14 @@ public final class ConversationModel {
     private let hostName: @MainActor () -> String?
     private let client: HerdrClient
     private let transcripts: TranscriptReader
-    private let cache: any ConversationCache
+    /// 對話紀錄來源(#684):讀取、跟隨、往前補讀、修剪與快取都在裡面,對外只交出增量(`apply(_:)` 套到時間軸)。
+    private let feed: TranscriptFeed
     private let clock: ConversationClock
     /// 點進聊天的步驟計時(#659);`nil` 時不量。
     private let timings: OperationTimingSink?
     /// 點進聊天(model 建立)的時間,算到第一次顯示可讀訊息。
     private let openedAt = ContinuousClock.now
     @ObservationIgnored private var openTiming = OpenTimingState()
-    private let openLines: Int
-    private let openMaxBytes: Int
-    private let pageLines: Int
     /// 列表傳來的 session:快取只在與它相同時秒開或離線顯示(F5.3、#97)。
     private let knownSessionID: String?
     private let drafts: DraftStore
@@ -575,61 +568,39 @@ public final class ConversationModel {
     /// `run()` 期間下一次輪詢的等待(間隔到或被叫醒)。
     @ObservationIgnored private var pollDue: WakeSignal?
     /// `run()` 期間對話紀錄追蹤的節奏(內部輪詢的連線方式用);不在 `run()` 裡時沒有，`poll()` 自己讀尾端。
-    @ObservationIgnored private var followPace: TranscriptFollowPace?
-    /// 追蹤中的對話紀錄(#165):有它時新內容由追蹤送來，輪詢不讀尾端。
-    @ObservationIgnored private var following: ActiveTranscriptFollow?
-
-    /// 一個進行中的對話紀錄追蹤。`id` 讓結束的追蹤只清掉自己(不清後來開的)。
-    private struct ActiveTranscriptFollow {
-        let path: String
-        let id: UUID
-        let task: Task<Void, Never>
-
-        init(path: String, start: (UUID) -> Task<Void, Never>) {
-            self.path = path
-            id = UUID()
-            task = start(id)
-        }
+    private var followPace: TranscriptFollowPace? {
+        get { feed.followPace }
+        set { feed.followPace = newValue }
     }
 
-    /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
-    private var boundSessionID: String?
-    /// 對話紀錄的方言，依 Agent 設定檔(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
-    @ObservationIgnored private var dialect: TranscriptDialect = .claude
+    /// 來源每交出一次事件就加一:畫面讀的路徑、session 與即時預覽(都來自來源,來源本身不被觀察)靠它重算。
+    private var feedRevision = 0
+    /// 目前綁定的 session(herdr 回報的 id 或路徑)。
+    private var boundSessionID: String? {
+        _ = feedRevision
+        return feed.boundSessionID
+    }
+    /// 對話紀錄在主機上的路徑。
+    private var transcriptPath: String? {
+        _ = feedRevision
+        return feed.path
+    }
     /// 解析時略過認不得的行(#449):交給診斷紀錄(只含種類名稱與數量);`nil` 不回報。
     public let onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
     /// 對話紀錄的解析與重建在背景做(#498);測試用:每次背景計算開頭呼叫(在背景執行緒上)。
-    @ObservationIgnored package var onTranscriptWork: (@Sendable () -> Void)?
-    /// 對話紀錄各段依到達順序套用的鎖:解析在背景做,結果回主執行緒以時間軸增量套用(`applyTimeline`)。
-    private let applyGate = TranscriptSerialGate()
-    /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
-    /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
-    /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
-    private var file: (path: String, follow: TranscriptFollow, windowStart: Int)? {
-        // 對話紀錄的路徑出現或換了:清單要連同 session 內的 skill 一起重讀(#469)。
-        didSet {
-            guard let path = file?.path, path != oldValue?.path else { return }
-            slash.markStale()
-            preloadSlash()
-        }
+    package var onTranscriptWork: (@Sendable () -> Void)? {
+        get { feed.onTranscriptWork }
+        set { feed.onTranscriptWork = newValue }
     }
-    /// 兩份訊息清單各有單一職責(不是兩個真相):`recent`／`olderMessages` 是**讀取與快取的真相**(分段、修剪、寫快取、重整都以它們為準),
-    /// `timeline`(`ConversationTimeline`)的 `messages` 只是**畫面列的建構輸入**,由這裡以增量(`append`／`prepend`)或整份(`rebuild()`)餵進去;
-    /// 時間軸自己再依 id 去重(它的 `knownMessageIDs`),所以餵重複的訊息不會讓列重複。要改訊息內容或順序一律改這裡,再交給時間軸。
-    /// 開啟視窗與之後追蹤到的訊息(會寫入快取)。
-    private var recent: [TranscriptMessage] = []
-    /// `recent` 由哪幾段讀取組成(每段的 byte 起點與訊息數，依序、加總等於 `recent.count`)。修剪與寫快取都以整段為單位，
-    /// 視窗起點因此是某一段的開頭，往上翻接得上、不缺訊息(#130)。
-    @ObservationIgnored private var segments: [(start: Int, count: Int)] = []
     /// 畫面跟隨尾端(由畫面告知)。只有跟隨中才修剪最舊的訊息：讀者正在看的不會被拿掉。
-    @ObservationIgnored public var isFollowingLatest = true
-    /// 跟隨尾端時記憶體裡最多保留的訊息數(含往上翻的舊頁;與快取的上限相同)。超過時整段修剪最舊的，可以往上翻回來。
-    public static let followingMessageLimit = CachedConversation.maxMessages
-    /// 往上翻讀到的舊訊息上限:不跟隨最新時不修剪(使用者正在讀),以這個上限擋住無限成長;
-    /// 回到最新(`trimIfFollowing`)才丟掉舊頁。
-    public static let scrollbackMessageLimit = 4 * CachedConversation.maxMessages
-    /// 往上翻載入的舊訊息(不寫入快取)。
-    @ObservationIgnored private var olderMessages: [TranscriptMessage] = []
+    public var isFollowingLatest: Bool {
+        get { feed.isFollowingLatest }
+        set { feed.isFollowingLatest = newValue }
+    }
+    /// 跟隨尾端時記憶體裡最多保留的訊息數(含往上翻的舊頁;與快取的上限相同)。
+    public static let followingMessageLimit = TranscriptFeed.followingMessageLimit
+    /// 往上翻讀到的舊訊息上限(見 `TranscriptFeed.scrollbackMessageLimit`)。
+    public static let scrollbackMessageLimit = TranscriptFeed.scrollbackMessageLimit
     /// 對話時間軸:列身分由它分配,新內容只以增量餵給它(#481)。
     @ObservationIgnored private var timeline = ConversationTimeline()
     @ObservationIgnored private var waitingSince: Date?
@@ -646,7 +617,7 @@ public final class ConversationModel {
     /// 預載 slash 清單:要等 Agent 已知、對話紀錄路徑也找到(session 內的 skill 才讀得到)才開始,
     /// 不為預載自己讀 snapshot 或定位。
     private func preloadSlash() {
-        guard currentAgent != nil, file != nil else { return }
+        guard currentAgent != nil, feed.path != nil else { return }
         slash.refreshIfNeeded()
     }
     /// 最近一次輪詢看到的 Agent 種類(畫面依種類調整說明，例如 Codex 等 session 的提示)。
@@ -698,9 +669,6 @@ public final class ConversationModel {
         if awayLatch == nil, !items.isEmpty, let from = awayStart?() { awayLatch = (from, clock.now()) }
         awaySummary = awayLatch.flatMap { AwaySummary.make(items: items, awayFrom: $0.from, cutoff: $0.cutoff) }
     }
-    /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
-    @ObservationIgnored private var generation = 0
-
     /// 聊天所在主機接上的來源與回呼(#566):建立時一次給齊,之後畫面不能改。
     public struct HostLinks {
         public var youShouldKnow: YouShouldKnowModel?
@@ -754,12 +722,11 @@ public final class ConversationModel {
         self.transcripts = transcripts
         self.paneID = paneID
         self.knownSessionID = knownSessionID
-        self.cache = cache
         self.timings = links.operationTimings
         self.clock = clock
-        self.openLines = openLines
-        self.openMaxBytes = openMaxBytes
-        self.pageLines = pageLines
+        feed = TranscriptFeed(
+            reader: transcripts, cache: cache, chatKey: paneID, knownSessionID: knownSessionID, clock: clock, openLines: openLines,
+            openMaxBytes: openMaxBytes, pageLines: pageLines, timings: links.operationTimings, onSkips: links.onTranscriptSkips)
         self.drafts = drafts
         self.haptics = haptics
         self.hostName = hostName
@@ -787,11 +754,14 @@ public final class ConversationModel {
         slash.onPick = { [weak self] command in self?.pick(slash: command) }
         slash.update(draft: draft, caret: draftCaret)
         controlSwitcher.host = self
-        // 記憶體層有這個聊天最近的內容:同步還原,打開時第一幀就有內容(不閃骨架)。
-        if let cached = cache.cachedConversation(chatKey: paneID) {
-            noteCache(cached)
-            if accepts(cached) { restore(cached) }
+        feed.onEvent = { [weak self] event in self?.handle(event) }
+        feed.onPathChange = { [weak self] _ in
+            // 對話紀錄的路徑出現或換了:清單要連同 session 內的 skill 一起重讀(#469)。
+            self?.slash.markStale()
+            self?.preloadSlash()
         }
+        // 記憶體層有這個聊天最近的內容:同步還原,打開時第一幀就有內容(不閃骨架)。
+        if feed.restoreFromMemory() { phase = .ready }
     }
 
     /// 這個 agent 的 slash 清單(#15):Claude 在主機上發現;Grok、Antigravity 用固定清單;其他沒有選單(`nil`)。
@@ -811,7 +781,7 @@ public final class ConversationModel {
             return SlashCatalog(fixed: commands)
         case .discovered:
             guard let slashDiscovery else { return SlashCatalog(sections: [SlashSection(source: .builtIn, commands: ClaudeBuiltinCommands.all)], isComplete: false) }
-            return await slashDiscovery.catalog(cwd: agent.cwd, transcriptPath: file?.path)
+            return await slashDiscovery.catalog(cwd: agent.cwd, transcriptPath: feed.path)
         }
     }
 
@@ -823,7 +793,7 @@ public final class ConversationModel {
     /// 畫面變成可見(開啟聊天、回到前景;`run()` 一開始):當作重新開啟。已在追蹤時，離開期間落後太多就讀新視窗，
     /// 不逐段重播積壓(R-B08、F5.3 第 3 點);畫面還空著時先顯示快取。
     public func reopen() async {
-        file?.follow.reopen()
+        feed.reopen()
         preloadSlash()
         await restoreFromCache()
     }
@@ -833,10 +803,7 @@ public final class ConversationModel {
     /// 輪詢綁定新 session 時丟掉快取，舊內容留著到新內容讀回來(#329)。
     public func restoreFromCache() async {
         guard items.isEmpty else { return }
-        let cached = await cache.load(chatKey: chatKey)
-        noteCache(cached)
-        guard let cached, accepts(cached) else { return }
-        restore(cached)
+        if await feed.restoreFromCache() { phase = .ready }
     }
 
     // MARK: - 點進聊天的步驟計時(#659)
@@ -850,21 +817,6 @@ public final class ConversationModel {
         timings?(OperationTiming(name: "chatOpen.\(name)", milliseconds: milliseconds, at: Date()))
     }
 
-    /// 本機快取有沒有命中、命中後有沒有被採用(每個 model 只記第一次)。
-    private func noteCache(_ cached: CachedConversation?) {
-        guard timings != nil, !openTiming.cacheNoted else { return }
-        openTiming.cacheNoted = true
-        guard let cached else { return noteTiming("cache miss") }
-        noteTiming("cache hit")
-        if !(knownSessionID.map { cached.matches(sessionID: $0) } ?? (cached.parserVersion == CachedConversation.parserVersion)) {
-            noteTiming("cache rejected session")
-        } else if !Self.isWorthRestoring(cached) {
-            noteTiming("cache rejected content")
-        } else {
-            noteTiming("cache used")
-        }
-    }
-
     /// 第一次有可讀訊息可看(快取或主機讀回來的)時記從點進聊天起的總時間,只記一次。
     private func noteFirstReadableIfNeeded() {
         guard timings != nil, !openTiming.firstReadableNoted, Self.hasReadableMessage(in: items) else { return }
@@ -874,27 +826,8 @@ public final class ConversationModel {
     }
 
     private struct OpenTimingState {
-        var cacheNoted = false
         var snapshotNoted = false
         var firstReadableNoted = false
-    }
-
-    /// 快取符合列表給的 session(沒給時只看解析器版本)且值得還原。
-    private func accepts(_ cached: CachedConversation) -> Bool {
-        (knownSessionID.map { cached.matches(sessionID: $0) } ?? (cached.parserVersion == CachedConversation.parserVersion))
-            && Self.isWorthRestoring(cached)
-    }
-
-    private func restore(_ cached: CachedConversation) {
-        boundSessionID = cached.sessionID
-        file = (cached.path, TranscriptFollow(cursor: cached.cursor, isLive: false), cached.windowStart)
-        recent = cached.messages
-        segments = [(cached.windowStart, cached.messages.count)]
-        metadata = cached.metadata
-        noteTranscriptPermissionMode()
-        older = cached.windowStart > 0 ? .available : .reachedStart
-        phase = .ready
-        rebuild()
     }
 
     // MARK: - 輪詢
@@ -939,22 +872,22 @@ public final class ConversationModel {
         let isCurrentRun = currentRunID == runID
         if isCurrentRun {
             currentRunID = nil
-            stopFollowingUpdates()
+            feed.stopFollowing()
             followPace = nil
             self.pollDue = nil
         }
         if isCurrentRun { slash.cancelBackgroundReload() }
-        await flushCache()
+        await feed.flushCache()
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
-        if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
+        if isCurrentRun, currentRunID == nil { await feed.stopHostFollowing() }
     }
 
     /// 讀這個 session 的 status line 狀態(#388):只有 Claude Code、知道 session id 時;至少隔 `sessionStatusInterval` 秒才再讀。
     /// 讀不到(沒有檔案、未安裝、舊版主機服務、連線錯誤)一律清成 `nil`,畫面退回對話紀錄算法、不空白。
     package func refreshSessionStatusIfDue() async {
         let reader = agentKind.flatMap { agentSessionStatusReaders[AgentID(herdrName: $0)] } ?? sessionStatusReader
-        guard let reader, dialect.readsSessionStatus, let session = boundSessionID ?? knownSessionID,
+        guard let reader, feed.dialect?.readsSessionStatus == true, let session = boundSessionID ?? knownSessionID,
               ClaudeSessionStatus.isValidSessionID(session) else {
             sessionStatus = nil
             if isSessionStatusLoading { isSessionStatusLoading = false }
@@ -1070,13 +1003,11 @@ public final class ConversationModel {
             return
         }
         waitingSince = nil
-        if boundSessionID != target.sessionKey {
-            // 新的 session(輪替，或回收 slot 中的新聊天):丟掉舊對話、游標與快取(F5.1 第 4 點)。
-            if boundSessionID != nil { await cache.remove(chatKey: chatKey) }
-            unbind(keepingDisplay: true)
-            boundSessionID = target.sessionKey
+        // 新的 session(輪替，或回收 slot 中的新聊天):來源丟掉舊對話、游標與快取(F5.1 第 4 點),畫面留著舊內容到新內容讀回來(#329)。
+        if await feed.bind(to: target) {
+            workflowModels = [:]
+            isRefreshing = true
         }
-        dialect = target.dialect
         followPace?.interval = pollInterval
         await read(target)
         await readScreens()
@@ -1117,132 +1048,71 @@ public final class ConversationModel {
         return AgentCatalog.profile(forHerdrName: kind).session.launchCommand
     }
 
+    /// 讀對話紀錄(交給來源);來源只交出目前 session 的增量(由 `apply(_:)` 套用),過期的讀取它已丟掉。
     private func read(_ target: TranscriptTarget) async {
-        let generation = generation
-        defer { if generation == self.generation { isRefreshing = false } }
-        do {
-            if let file, following?.path == file.path {
-                // 新內容由追蹤送來(#165),不讀尾端。
-            } else if let file {
-                // 已追上：落後多少都從游標分段接著讀，不改讀新視窗取代已顯示與往上翻的訊息(#130、R-B09)。
-                // 還沒追上(剛從快取恢復、畫面重新可見):落後太多不逐段重播積壓，讀新視窗(R-B08)。
-                let read = try await transcripts.follow(path: file.path, file.follow)
-                guard generation == self.generation else { return }
-                switch read.tail {
-                case .unchanged:
-                    self.file?.follow = read.next
-                case .appended(let chunk):
-                    self.file?.follow = read.next
-                    await append(chunk)
-                case .tooFarBehind(let size), .shrank(let size):
-                    // 還沒追上時落後太多，或檔案被換掉(變小,真正的斷層):重讀視窗並重建列表。
-                    try await openWindow(path: file.path, size: size, generation: generation)
-                }
-            } else {
-                let located = try await timed("locate") { try await transcripts.locate(target) }
-                guard generation == self.generation else { return }
-                try await openWindow(path: located.path, size: located.size, generation: generation)
-            }
+        switch await feed.read(target) {
+        case .superseded:
+            return
+        case .caughtUp:
             banner = nil
             phase = .ready
-            startFollowingUpdates()
-        } catch {
-            showReadFailure(error, generation: generation)
+        case .failed(let error):
+            showReadFailure(error)
         }
-        if generation == self.generation, boundSessionID == target.sessionKey { await saveCache() }
+        isRefreshing = false
     }
 
     // MARK: - 離開中(返回列表的轉場)
 
-    /// 畫面正在離開(返回列表的轉場、推入子頁):追蹤到的新內容先不套用。
-    @ObservationIgnored private var isLeaving = false
-    @ObservationIgnored private var leavingWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
-
-    /// 畫面開始離開或回來時呼叫(聊天列表的 `viewWillDisappear`／`viewWillAppear`)。
-    /// 離開中每則追加都讓整個聊天畫面重算與重排,全塞進返回動畫(開頭停滯、尾段凍結),而這個畫面馬上就釋放;
-    /// 所以暫停套用,回來(取消返回、從子頁回來)再接上。
+    /// 畫面開始離開或回來時呼叫(聊天列表的 `viewWillDisappear`／`viewWillAppear`):離開中追蹤到的新內容先不套用。
     package func setLeaving(_ leaving: Bool) {
-        guard isLeaving != leaving else { return }
-        isLeaving = leaving
-        if !leaving { resumeLeavingWaiters() }
+        feed.setLeaving(leaving)
     }
 
-    private func resumeLeavingWaiters() {
-        let waiters = leavingWaiters
-        leavingWaiters = [:]
-        for waiter in waiters.values { waiter.resume() }
+    // MARK: - 對話紀錄來源的增量
+
+    private func handle(_ event: TranscriptFeed.Event) {
+        switch event {
+        case .delta(let delta): apply(delta)
+        case .readFailed(let error): showReadFailure(error)
+        case .recovered: if banner == .readFailed { banner = nil }
+        }
     }
 
-    /// 離開中就等到回來或被取消。
-    private func waitWhileLeaving() async {
-        guard isLeaving else { return }
-        let id = UUID()
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                if isLeaving, !Task.isCancelled {
-                    leavingWaiters[id] = continuation
-                } else {
-                    continuation.resume()
-                }
+    /// 把來源交出的增量套到對話時間軸;metadata、進度與「往上還有沒有」跟著更新。
+    private func apply(_ delta: TranscriptDelta) {
+        feedRevision &+= 1
+        if delta.metadata != metadata { metadata = delta.metadata }
+        if delta.progress != progress { progress = delta.progress }
+        if delta.older != older { older = delta.older }
+        switch delta.permissionModes {
+        case .none: break
+        case .lines(let lines): notePermissionModes(in: lines)
+        case .metadata: noteTranscriptPermissionMode()
+        }
+        switch delta.timeline {
+        case .none:
+            break
+        case .rebuild(let messages):
+            applyTimeline(timeline.reset(messages))
+        case .append(let added, let dropped):
+            let appendUpdate = timeline.append(added)
+            if let dropped {
+                let trimUpdate = timeline.dropOldest(messageCount: dropped)
+                applyTimeline(ConversationTimeline.Update(cause: appendUpdate.cause, changes: appendUpdate.changes + trimUpdate.changes))
+            } else {
+                applyTimeline(appendUpdate)
             }
-        } onCancel: {
-            Task { @MainActor in self.leavingWaiters.removeValue(forKey: id)?.resume() }
+        case .prepend(let page):
+            applyTimeline(timeline.prependOlder(page))
         }
     }
 
-    /// 已追上主機且在 `run()` 裡：開始追蹤目前的對話紀錄，之後的新內容由追蹤送來(#165)。
-    private func startFollowingUpdates() {
-        guard let followPace, let file, file.follow.isLive, following?.path != file.path else { return }
-        following?.task.cancel()
-        let path = file.path
-        let cursor = file.follow.cursor
-        let generation = generation
-        let started = ActiveTranscriptFollow(path: path) { id in
-            Task { await self.applyUpdates(path: path, from: cursor, pace: followPace, generation: generation, id: id) }
-        }
-        following = started
-    }
-
-    private func stopFollowingUpdates() {
-        following?.task.cancel()
-        following = nil
-    }
-
-    /// 套用追蹤事件：新增接在後面;接不上時重讀視窗並從新游標再追蹤。追蹤以錯誤結束時回到輪詢讀一次再開始。
-    private func applyUpdates(path: String, from cursor: Int, pace: TranscriptFollowPace, generation: Int, id: UUID) async {
-        var isReplaced = false
-        do {
-            isReplaced = try await TranscriptFollowUpdates.apply(
-                await transcripts.followTranscript(path: path, from: cursor, pace: pace),
-                isCurrent: { generation == self.generation && file?.path == path },
-                appended: { chunk in
-                    // 畫面離開中先不套用(返回轉場期間不做整份重算);被取消就不套了。
-                    await waitWhileLeaving()
-                    guard !Task.isCancelled else { return }
-                    file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
-                    await append(chunk)
-                },
-                replaced: { size in try await openWindow(path: path, size: size, generation: generation) },
-                afterEach: {
-                    if banner == .readFailed { banner = nil }
-                    await saveCacheThrottled()
-                })
-        } catch is CancellationError {
-        } catch {
-            showReadFailure(error, generation: generation)
-        }
-        guard following?.id == id else { return }
-        following = nil
-        if isReplaced, !Task.isCancelled { startFollowingUpdates() }
-    }
-
-    /// 讀對話紀錄失敗時的畫面狀態。
-    private func showReadFailure(_ error: any Error, generation: Int) {
+    /// 讀對話紀錄失敗時的畫面狀態(找不到檔案、不只一個、壓縮了:來源已放掉檔案)。
+    private func showReadFailure(_ error: any Error) {
         switch error {
         case TranscriptReadError.absent:
             // 新 session 在第一個 prompt 前可能還沒有檔案：可用的空聊天，下次輪詢再找(R-I09)。
-            guard generation == self.generation else { return }
-            file = nil
             if isRefreshing { clearDisplay() }
             banner = nil
             phase = .newConversation
@@ -1251,15 +1121,11 @@ public final class ConversationModel {
             phase = .ready
         case TranscriptReadError.ambiguous:
             // 不開任何檔、不依新舊猜;下次輪詢重新定位(使用者可能已刪掉多餘的檔)。
-            guard generation == self.generation else { return }
-            file = nil
             if isRefreshing { clearDisplay() }
             banner = .ambiguous
             phase = .ready
         case TranscriptReadError.compressed:
             // 只有 `.zst`:不是「還沒有檔案」,也不在手機上解壓;下次輪詢重新定位(Codex 可能又寫了新的 rollout)。
-            guard generation == self.generation else { return }
-            file = nil
             if isRefreshing { clearDisplay() }
             banner = .compressed
             phase = .ready
@@ -1270,59 +1136,6 @@ public final class ConversationModel {
         }
     }
 
-    /// 讀最後 `openLines` 行並**取代**目前的訊息。
-    private func openWindow(path: String, size: Int, generation: Int) async throws {
-        // 以剛探測到的大小為上限:agent 同時在寫也不會變成無上限的補讀(§4.7)。
-        var chunk = try await timed("window") {
-            try await transcripts.window(path: path, endingAt: size, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
-        }
-        guard generation == self.generation else { return }
-        if chunk.lines.isEmpty, chunk.start > 0 {
-            // 最後一行比 byte 上限還大：放寬成只讀那一行(上限的目的是慢網路下別讀太多，但一行都沒有就沒東西可看)。
-            chunk = try await transcripts.window(path: path, endingAt: size, lines: 1)
-            guard generation == self.generation else { return }
-        }
-        let opened = chunk
-        await applyGate.run {
-            guard generation == self.generation else { return }
-            let dialect = self.dialect
-            let prepared = await TranscriptProcessing.prepareWindow(lines: opened.lines, dialect: dialect, probe: onTranscriptWork)
-            guard generation == self.generation else { return }
-            if !prepared.skips.isEmpty { onTranscriptSkips?(dialect, prepared.skips) }
-            file = (path, TranscriptFollow(cursor: opened.end, isLive: true), opened.start)
-            recent = prepared.messages
-            segments = [(opened.start, recent.count)]
-            olderMessages = []
-            metadata = prepared.metadata
-            notePermissionModes(in: opened.lines)
-            progress = prepared.progress
-            older = opened.start > 0 ? .available : .reachedStart
-            rebuild()
-        }
-        guard generation == self.generation else { return }
-        try await readEarlierUntilMessages(path: path, generation: generation)
-    }
-
-    /// 開啟視窗內沒有任何使用者／Agent 文字(最後幾十行都是 system、api-request-blob、file-history-snapshot 這類不產生訊息的紀錄)
-    /// 但檔案前面有:往前一頁一頁讀到有訊息為止，不顯示「還沒有訊息」(#418)。有上限，避免超大檔案讀不完。
-    private func readEarlierUntilMessages(path: String, generation: Int) async throws {
-        var pages = 0
-        // 補讀期間只更新訊息清單,補讀完(或中途失敗)才整份重建時間軸一次(#586);可讀與否看訊息,不看還沒更新的畫面項目。
-        defer { if pages > 0, generation == self.generation { rebuild() } }
-        while !Self.hasReadableMessage(in: olderMessages + recent), older == .available, let start = file?.windowStart, start > 0, pages < Self.maximumEmptyWindowPages {
-            pages += 1
-            // 每頁加倍(上限 `maximumBackfillPageLines`):尾端一長串工具步驟時，往返次數是使用者在等的時間(#508)。
-            let lines = min(pageLines << min(pages - 1, 4), max(pageLines, Self.maximumBackfillPageLines))
-            let page = try await timed("earlier#\(pages)") { try await transcripts.window(path: path, endingAt: start, lines: lines) }
-            guard generation == self.generation else { return }
-            // 補讀的頁屬於「開啟視窗」而不是往上翻的舊頁:要進快取，下次開啟才立刻有可讀訊息(#508)。
-            await prepend(page, generation: generation, intoWindow: true)
-        }
-    }
-
-    /// 補讀單頁行數上限。
-    package static let maximumBackfillPageLines = 1_600
-
     /// 畫面上有沒有「可讀訊息」(#473):使用者訊息、Agent 文字、備註、skill、subagent、workflow、shell、檔案卡都算;
     /// 只有摺起來的工具串(`.toolRun`)不算。
     private var hasReadableMessage: Bool { Self.hasReadableMessage(in: items) }
@@ -1331,120 +1144,19 @@ public final class ConversationModel {
         items.contains { if case .toolRun = $0 { false } else { true } }
     }
 
-    /// 訊息裡有沒有會變成「可讀項目」的內容(`hasReadableMessage(in: items)` 的線性版本,不重建畫面項目,#510):
-    /// 使用者文字(去掉上傳圖片路徑後非空)或圖片、Agent 文字、委派卡、skill、備註、shell 指令、檔案卡都算;
-    /// 工具呼叫、結果、thinking、通知不算;sidechain 訊息不顯示所以不算。
+    /// 訊息裡有沒有會變成「可讀項目」的內容(見 `TranscriptFeed.hasReadableMessage(in:)`)。
     package static func hasReadableMessage<Messages: Sequence>(in messages: Messages) -> Bool where Messages.Element == TranscriptMessage {
-        messages.contains { message in
-            guard !message.isSidechain else { return false }
-            var userTexts: [String] = []
-            var images = 0
-            for part in message.parts {
-                switch part {
-                case .text(let text):
-                    if message.role == .user { userTexts.append(text) } else { return true }
-                case .delegation, .skill, .note, .shellInput, .agentFile: return true
-                case .images(let count): images += count
-                default: break
-                }
-            }
-            guard !userTexts.isEmpty || images > 0 else { return false }
-            let (text, paths) = UploadedImages.extract(from: userTexts.joined(separator: "\n"))
-            return !text.isEmpty || max(images, paths.count) > 0
-        }
-    }
-
-    /// 快取的訊息組出的畫面有可讀訊息(或根本沒有訊息)才值得還原:尾端只有工具步驟的快取會讓開啟時看到一片空白的步驟串(#473)。
-    private static func isWorthRestoring(_ cached: CachedConversation) -> Bool {
-        cached.messages.isEmpty || hasReadableMessage(in: cached.messages)
+        TranscriptFeed.hasReadableMessage(in: messages)
     }
 
     /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
-    package static let maximumEmptyWindowPages = 25
-
-    private func append(_ chunk: TranscriptChunk) async {
-        let generation = generation
-        await applyGate.run {
-            guard generation == self.generation else { return }
-            let dialect = self.dialect
-            let prepared = await TranscriptProcessing.prepareAppended(
-                lines: chunk.lines, dialect: dialect, metadata: metadata, progress: progress, probe: onTranscriptWork)
-            guard generation == self.generation else { return }
-            if !prepared.skips.isEmpty { onTranscriptSkips?(dialect, prepared.skips) }
-            let known = Set(recent.map(\.id))
-            let added = prepared.messages.filter { !known.contains($0.id) }
-            recent += added
-            let appendUpdate = timeline.append(added)
-            if !added.isEmpty { segments.append((chunk.start, added.count)) }
-            metadata = prepared.metadata
-            progress = prepared.progress
-            notePermissionModes(in: chunk.lines)
-            if let trimUpdate = trimIfFollowing() {
-                applyTimeline(ConversationTimeline.Update(cause: appendUpdate.cause, changes: appendUpdate.changes + trimUpdate.changes))
-            } else {
-                applyTimeline(appendUpdate)
-            }
-        }
-    }
-
-    /// 跟隨尾端時訊息超過上限：丟掉往上翻的舊頁，再整段丟掉最舊的(至少留最後一段),視窗起點移到留下的第一段開頭，
-    /// 之後往上翻可以讀回來(#130)。
-    private func trimIfFollowing() -> ConversationTimeline.Update? {
-        guard isFollowingLatest, olderMessages.count + recent.count > Self.followingMessageLimit, let first = segments.first else { return nil }
-        var droppedMessageCount = olderMessages.count
-        olderMessages = []
-        var start = first.start
-        while recent.count > Self.followingMessageLimit, segments.count > 1 {
-            let droppedSegment = segments.removeFirst()
-            recent.removeFirst(droppedSegment.count)
-            droppedMessageCount += droppedSegment.count
-            start = segments[0].start
-        }
-        file?.windowStart = start
-        older = start > 0 ? .available : .reachedStart
-        return timeline.dropOldest(messageCount: droppedMessageCount)
-    }
-
-    // MARK: - 往上翻
-
-    /// 把往上翻讀到的一頁接在最前面(解析在背景做，依到達順序套用)。
-    private func prepend(_ page: TranscriptChunk, generation: Int, intoWindow: Bool = false) async {
-        await applyGate.run {
-            guard generation == self.generation else { return }
-            let dialect = self.dialect
-            let prepared = await TranscriptProcessing.prepareOlder(lines: page.lines, dialect: dialect, probe: onTranscriptWork)
-            guard generation == self.generation else { return }
-            if !prepared.skips.isEmpty { onTranscriptSkips?(dialect, prepared.skips) }
-            let known = Set((olderMessages + recent).map(\.id))
-            let olderPage = prepared.messages.filter { !known.contains($0.id) }
-            if intoWindow {
-                recent = olderPage + recent
-                segments.insert((page.start, olderPage.count), at: 0)
-            } else {
-                olderMessages = olderPage + olderMessages
-            }
-            file?.windowStart = page.start
-            older = page.start > 0 ? .available : .reachedStart
-            if older == .available, !intoWindow, olderMessages.count >= Self.scrollbackMessageLimit { older = .scrollbackLimitReached }
-            // 補讀屬於開啟視窗:跟隨最新時維持在底部(「整份取代」的捲動規則),不當成往上翻而停在原列、讓位置跳動(#508)。
-            // 補讀(intoWindow)連讀好幾頁時不逐頁重建,由 `readEarlierUntilMessages` 補讀完整份重建一次(#586)。
-            if !intoWindow { applyTimeline(timeline.prependOlder(olderPage)) }
-        }
-    }
+    package static let maximumEmptyWindowPages = TranscriptFeed.maximumEmptyWindowPages
+    /// 補讀單頁行數上限。
+    package static let maximumBackfillPageLines = TranscriptFeed.maximumBackfillPageLines
 
     /// 讀上一頁(F5.4)。失敗靜默;session 改變後才到的頁丟棄(R-B05)。
     public func loadOlder() async {
-        guard older == .available, let file, file.windowStart > 0 else { return }
-        let generation = generation
-        older = .loading
-        do {
-            let chunk = try await transcripts.window(path: file.path, endingAt: file.windowStart, lines: pageLines)
-            guard generation == self.generation else { return }
-            await prepend(chunk, generation: generation)
-        } catch {
-            guard generation == self.generation else { return }
-            older = .available
-        }
+        await feed.loadOlder()
     }
 
     // MARK: - 離線
@@ -1474,14 +1186,7 @@ public final class ConversationModel {
         clearSuggestion()
         banner = .offline
         updateWorkingSince()
-        if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID),
-            Self.isWorthRestoring(cached) {
-            recent = cached.messages
-            segments = [(cached.windowStart, cached.messages.count)]
-            metadata = cached.metadata
-            noteTranscriptPermissionMode()
-            rebuild()
-        }
+        if items.isEmpty { _ = await feed.showCachedWhileOffline() }
         if phase == .loading { phase = .ready }
     }
 
@@ -2460,7 +2165,7 @@ public final class ConversationModel {
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
     public func reload() async {
-        await cache.remove(chatKey: chatKey)
+        await feed.removeCache()
         unbind(keepingDisplay: true)
         banner = nil
         await poll()
@@ -2478,7 +2183,8 @@ public final class ConversationModel {
     /// 從 pane 可見畫面擷取到的散文(只在 working 時);沒有真正的散文，或已寫進對話紀錄的最後一則回覆時為 `nil`(#208)。
     public var livePreview: String? {
         guard let screenPreview else { return nil }
-        guard let reply = Conversation.latestReplyText(in: recent) else { return screenPreview }
+        _ = feedRevision
+        guard let reply = Conversation.latestReplyText(in: feed.recent) else { return screenPreview }
         return LivePreview.isWritten(screenPreview, in: reply) ? nil : screenPreview
     }
 
@@ -2510,35 +2216,15 @@ public final class ConversationModel {
 
     /// 解除目前的對話綁定。`keepingDisplay` 時畫面上的訊息留到新內容讀回來(#329),`isRefreshing` 標示讀取中。
     private func unbind(keepingDisplay: Bool = false) {
-        stopFollowingUpdates()
-        if let path = file?.path {
-            let transcripts = transcripts
-            Task { await transcripts.stopFollowing(path: path) }
-        }
-        generation += 1
         workflowModels = [:]
-        boundSessionID = nil
-        file = nil
+        feed.unbind(keepingDisplay: keepingDisplay)
         isRefreshing = keepingDisplay
-        if keepingDisplay { return }
-        clearDisplay()
     }
 
     /// 清掉顯示中的訊息(沒有新內容可換上時，例如新 session 還沒有對話紀錄)。
     private func clearDisplay() {
         isRefreshing = false
-        recent = []
-        segments = []
-        olderMessages = []
-        metadata = TranscriptMetadata()
-        progress = AgentProgress()
-        older = .reachedStart
-        rebuild()
-    }
-
-    /// 以目前的訊息整份取代時間軸(開啟、重新整理、清空);已存在的列沿用身分。
-    private func rebuild() {
-        applyTimeline(timeline.reset(olderMessages + recent))
+        feed.clear()
     }
 
     /// 把時間軸的變更交給畫面:沒有變更就不動 `items`(不觸發重繪)。
@@ -2557,62 +2243,19 @@ public final class ConversationModel {
         }
     }
 
-    /// 寫入快取：最多 `CachedConversation.maxMessages` 則(R-B13),以整段為單位從尾端取，視窗起點是取到的第一段開頭，
-    /// 從快取恢復後往上翻接得上;往上翻的舊頁不寫入(F5.2)。最後一段本身就超過上限時只存它的最後幾則(往上翻會缺這段的前面)。
-    package func saveCache() async {
-        guard let snapshot = cacheSnapshot() else { return }
-        lastCacheSaveAt = clock.now()
-        cacheIsDirty = false
-        await cache.save(snapshot, chatKey: chatKey)
-    }
+    /// 追蹤事件觸發的快取寫入最短間隔(秒);離開聊天時一定補寫(#510)。
+    package static let cacheSaveInterval: TimeInterval = TranscriptFeed.cacheSaveInterval
+    /// 有已套用但還沒寫進快取的內容。
+    package var cacheIsDirty: Bool { feed.cacheIsDirty }
 
-    /// 追蹤事件套用後的寫入:距離上次寫入不到 `cacheSaveInterval` 就只記下「有未寫入的內容」,
-    /// 之後的事件、`flushCache()`(離開聊天時)再寫;串流中每則事件都重組、重新編碼最多 2000 則訊息會一直占主執行緒(#510)。
-    private func saveCacheThrottled() async {
-        if let last = lastCacheSaveAt, clock.now().timeIntervalSince(last) < Self.cacheSaveInterval {
-            cacheIsDirty = true
-            return
-        }
-        await saveCache()
-    }
+    /// 寫入快取(交給來源)。
+    package func saveCache() async { await feed.saveCache() }
 
     /// 把節流期間累積、還沒寫入的內容寫進快取(離開聊天、進背景時呼叫)。
-    package func flushCache() async {
-        guard cacheIsDirty else { return }
-        await saveCache()
-    }
+    package func flushCache() async { await feed.flushCache() }
 
-    /// 在主執行緒組出要存的內容(只做同步的整理;編碼與寫入在快取 actor)。
-    package func cacheSnapshot() -> CachedConversation? {
-        guard let boundSessionID, let file else { return nil }
-        var count = 0
-        var first = segments.count
-        while first > 0, count + segments[first - 1].count <= CachedConversation.maxMessages {
-            first -= 1
-            count += segments[first].count
-        }
-        if first == segments.count, let last = segments.last {
-            first = segments.count - 1
-            count = last.count
-        }
-        // 尾端只有工具步驟(補讀過才找到可讀訊息):多留到包含可讀訊息，否則下次開啟的快取不值得還原、又得整段補讀(#508)。
-        // 只掃新納入那一段的訊息(線性),不重建畫面項目(#510)。
-        var limit = CachedConversation.maxMessages
-        if count > 0, !Self.hasReadableMessage(in: recent.suffix(count)) {
-            while first > 0, count < CachedConversation.maxMessagesWithReadable {
-                first -= 1
-                let added = segments[first].count
-                count += added
-                limit = CachedConversation.maxMessagesWithReadable
-                if Self.hasReadableMessage(in: recent[(recent.count - count)..<(recent.count - count + added)]) { break }
-            }
-        }
-        let windowStart = first < segments.count ? segments[first].start : file.windowStart
-        return CachedConversation(
-            sessionID: boundSessionID, messages: Array(recent.suffix(count)), metadata: metadata, path: file.path,
-            cursor: file.follow.cursor, windowStart: windowStart, limit: limit
-        )
-    }
+    /// 要存的內容(來源在主執行緒組出)。
+    package func cacheSnapshot() -> CachedConversation? { feed.cacheSnapshot() }
 }
 
 /// 停止列的停止進度與結果(#220)。
@@ -2690,15 +2333,15 @@ extension ConversationModel {
 
     package func readForTesting(_ field: ObservationIgnoredField) {
         switch field {
-        case .olderMessages: _ = olderMessages
-        case .segments: _ = segments
+        case .olderMessages: _ = feed.olderMessages
+        case .segments: _ = feed.segments
         case .waitingSince: _ = waitingSince
         case .lastPolledStatus: _ = lastPolledStatus
         case .lastPresenceSeq: _ = lastPresenceSeq
         case .awayLatch: _ = awayLatch
         case .backgroundedAt: _ = backgroundedAt
-        case .generation: _ = generation
-        case .dialect: _ = dialect
+        case .generation: _ = feed.generation
+        case .dialect: _ = feed.dialect
         case .panelWatchUntil: _ = panelWatchUntil
         case .entriesRevision: _ = entriesRevision
         case .onTranscriptWork: _ = onTranscriptWork
@@ -2708,15 +2351,12 @@ extension ConversationModel {
     /// 寫入那個欄位(換成不同的值,確保沒標 ignored 時一定會通知)。
     package func writeForTesting(_ field: ObservationIgnoredField, message: TranscriptMessage, now: Date) {
         switch field {
-        case .olderMessages: olderMessages = [message]
-        case .segments: segments = [(0, 1)]
+        case .olderMessages, .segments, .generation, .dialect: feed.touchForTesting(field, message: message)
         case .waitingSince: waitingSince = now
         case .lastPolledStatus: lastPolledStatus = .working
         case .lastPresenceSeq: lastPresenceSeq += 1
         case .awayLatch: awayLatch = (now, now)
         case .backgroundedAt: backgroundedAt = now
-        case .generation: generation += 1
-        case .dialect: dialect = dialect == .claude ? .codex : .claude
         case .panelWatchUntil: panelWatchUntil = now
         case .entriesRevision: entriesRevision &+= 1
         case .onTranscriptWork: onTranscriptWork = {}
