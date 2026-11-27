@@ -122,7 +122,7 @@ struct TrafficGuardTests {
                 return (inFlight, [await clock.sleepCount, await host.activity])
             }
         }
-        try await waitUntil { await host.count("transcript.window") == 1 }
+        try await waitUntil { await host.count("transcript.open") == 1 }
         try await settle()
 
         var lines = Fixtures.transcriptLines().makeIterator()
@@ -181,7 +181,9 @@ struct TrafficGuardTests {
         #expect((hostFileRounds["hostFiles.notes"]?.count ?? 0) + counts["hostFiles.notes.locate", default: 0] <= Self.sshCaps.notes, "註記")
         #expect(bytesByKind["hostFiles.follow", default: 0] <= Self.sshCaps.hostFileBytes, "主機檔案位元組")
         #expect(keepalives <= Self.sshCaps.keepalives, "keepalive")
-        #expect(counts["transcript.locate", default: 0] <= Self.sshCaps.locates, "定位：只有開聊天 1(定期更新預覽不另外問大小)")
+        #expect(counts["transcript.locate", default: 0] + counts["transcript.open", default: 0] <= Self.sshCaps.locates, "定位：只有開聊天 1(定期更新預覽不另外問大小)")
+        #expect(counts["transcript.open", default: 0] == 1, "開聊天定位加讀視窗合成一個指令(#656)")
+        #expect(counts["transcript.window", default: 0] == 0, "開聊天不另外讀視窗")
         #expect(bytes <= Self.sshHourBudget)
     }
 
