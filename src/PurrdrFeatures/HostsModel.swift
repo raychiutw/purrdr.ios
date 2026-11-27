@@ -423,11 +423,10 @@ public final class HostsModel {
             }
     }
 
-    /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
-    public func openStartedChat(_ workspace: CreatedWorkspace, on host: HostSelection) async {
-        let list = agentList
-        await list.load()
-        list.openedChat = ChatRoute(host: host, paneID: workspace.rootPaneID)
+    /// 新對話開始後：重讀列表，回傳那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步),由呼叫端交給導覽 model 開啟。
+    public func startedChat(_ workspace: CreatedWorkspace, on host: HostSelection) async -> ChatRoute {
+        await agentList.load()
+        return ChatRoute(host: host, paneID: workspace.rootPaneID)
     }
 
     /// 某台主機的對話快取(key 加上主機身分)。
@@ -728,7 +727,7 @@ public final class HostsModel {
         hosts.first { $0.id == id }.map(HostShareLink.url(for:))
     }
 
-    /// 點了推播通知：開配對主機上該 Agent 的聊天;主機服務通知回傳要開編輯頁的主機。所有主機都在同一個列表，所以不改選取中主機。
+    /// 點了推播通知(純函式,不改畫面狀態)：轉成配對主機上該 Agent 的聊天目的地;主機服務通知回傳要開編輯頁的主機。所有主機都在同一個列表，所以不改選取中主機。
     /// 不認得的配對(主機已移除)不動。
     @discardableResult
     public func open(_ route: PushRoute, pairings: any PushPairingStore) -> PushDestination? {
@@ -737,9 +736,7 @@ public final class HostsModel {
               hosts.contains(where: { $0.id == id }) else { return nil }
         if route.event != nil { return .hostEditor(id) }
         guard let paneID = route.paneID else { return nil }
-        let chat = ChatRoute(host: .host(id), paneID: paneID)
-        agentList.openedChat = chat
-        return .chat(chat)
+        return .chat(ChatRoute(host: .host(id), paneID: paneID))
     }
 
     /// 啟動時：這支裝置被別支關閉了就把「通知」區塊改回關閉，之後才補註冊(APNs token 換了、舊版 app 的配對)。

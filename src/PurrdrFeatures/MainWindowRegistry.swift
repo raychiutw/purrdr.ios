@@ -11,6 +11,9 @@ import UIKit
 final class MainWindowRegistry {
     static let shared = MainWindowRegistry()
 
+    /// 最近出現的主視窗的導覽 model(Pane 視窗的橫幅開聊天用,#685)。
+    weak var navigation: TopNavigationModel?
+
     #if os(iOS)
     private struct Entry { weak var scene: UIWindowScene? }
     private var entries: [ObjectIdentifier: Entry] = [:]
