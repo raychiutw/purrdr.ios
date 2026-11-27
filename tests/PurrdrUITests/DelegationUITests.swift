@@ -8,12 +8,10 @@ final class DelegationUITests: XCTestCase {
     }
 
     @MainActor
-    private func openWeather() -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting()
+    private func openWeather(in app: XCUIApplication) {
         let row = app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 weather-app Agent")
         row.tap()
-        return app
     }
 
     /// 內容含某段文字的訊息(使用者泡泡或 agent 訊息;每則訊息合成一個元素，label 有作者前綴)。
@@ -22,13 +20,38 @@ final class DelegationUITests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
-    /// 打開 workflow 卡看到摘要與各 phase,每個 phase 列出其中的 agent,可再打開 agent 的對話(#37 故事 37,G25)。
+    /// 開頭(不同的 pane、彼此不影響;Demo 的 notes 停下後就回不到工作中,一次啟動只能停一次,所以放同一次啟動的最前面):
+    /// notes(`w3:p1`)長按停止鈕開出選單,「Force Quit…」要先在確認對話框確認才送 Ctrl-C;確認後停下,返回列表。
+    /// 接著打開 workflow 卡看到摘要與各 phase,每個 phase 列出其中的 agent,可再打開 agent 的對話(#37 故事 37,G25)。
     /// 返回後 subagent 卡片:顯示標題、類型 · 模型、時長 · tokens · 工具數;點本體展開結果;箭頭開唯讀的 subagent 畫面。
     /// 最後(會改狀態,放最後)weather-app 卡在 Bash 權限(行為規格 F8、§5;HIG 20.7):卡片顯示問題、細節與選項(同尺寸、≥44pt);
     /// 點「Yes」後清楚顯示選了什麼。
     @MainActor
-    func testWorkflowScreenThenSubagentCardThenAnsweringBashPermission() {
-        let app = openWeather()
+    func testForceQuitConfirmationThenWorkflowScreenThenSubagentCardThenAnsweringBashPermission() {
+        let app = XCUIApplication.launchUITesting()
+        app.openConversation(paneID: "w3:p1")
+        let stop = app.element("stopBar.stop")
+        XCTAssertTrue(stop.waitUntilExists(timeout: 10))
+
+        stop.press(forDuration: 1.0)
+        let menuItem = app.buttons["Force Quit…"]
+        XCTAssertTrue(menuItem.waitUntilExists(timeout: 5), "長按沒有強制結束的選項")
+        menuItem.tap()
+
+        let confirm = app.buttons["stopBar.forceQuit.confirm"].firstMatch
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "強制結束沒有先確認")
+        XCTAssertTrue(app.staticTexts["Force Quit Codex?"].exists, "確認對話框標題不對")
+        confirm.tap()
+
+        XCTAssertTrue(app.element("conversation.working").waitUntilGone(timeout: 15), "強制結束後仍在工作")
+        XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 10), "強制結束後停止列還在")
+
+        // 返回列表(多個 Pane 的 Tab 先回版面圖,再回列表),再開 weather-app。
+        app.buttons["BackButton"].firstMatch.tap()
+        if app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 2) {
+            app.buttons["BackButton"].firstMatch.tap()
+        }
+        openWeather(in: app)
 
         XCTAssertTrue(app.staticTexts["forecast-audit"].waitUntilExists(timeout: 10), "沒有 workflow 卡")
         XCTAssertTrue(app.staticTexts["1 of 3 agents done"].waitUntilExists(timeout: 10), "卡片沒有顯示 agent 進度")
@@ -45,9 +68,9 @@ final class DelegationUITests: XCTestCase {
         XCTAssertTrue(message(containing: "Check that cached forecasts expire after an hour.", in: app).waitUntilExists(timeout: 5),
                       "agent 的對話紀錄內容不對")
         // agent 對話 → workflow 畫面 → 聊天。
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].firstMatch.tap()
         XCTAssertTrue(app.element("workflow.summary").waitUntilExists(timeout: 10), "返回後沒有回到 workflow 畫面")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].firstMatch.tap()
         XCTAssertTrue(app.element("conversation.workflow.open").waitUntilExists(timeout: 10), "返回後沒有回到聊天")
 
         XCTAssertTrue(app.staticTexts["Check how the widget refreshes"].waitUntilExists(timeout: 10), "沒有 subagent 卡")
@@ -72,7 +95,7 @@ final class DelegationUITests: XCTestCase {
         XCTAssertTrue(message(containing: "The timeline refreshes every 15 minutes and fetches each time.", in: app).waitUntilExists(timeout: 5),
                       "subagent 畫面沒有顯示它的對話紀錄")
         // subagent 畫面 → 聊天。
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].firstMatch.tap()
         XCTAssertTrue(app.element("prompt.card").waitUntilExists(timeout: 10), "返回後沒有回到聊天")
 
         let card = app.element("prompt.card")

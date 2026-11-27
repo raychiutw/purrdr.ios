@@ -2,6 +2,7 @@ import XCTest
 
 /// 帳號頁的「通知」區塊(#29、#246;#263 起每台主機一個開關)。UI 測試不連網路：`-uiTestingPlusMember` 以假後台的已開通會員啟動，
 /// 通知權限當作已允許;`-seedHost` 的主機以 Demo 主機回應，外掛安裝只在記憶體。
+/// 測試通知的頁內結果併在 `PlusUITests`(旗標 `-uiTestingPushTestFails`)。
 final class PushSettingsUITests: XCTestCase {
     static let seededHost = "5EED0000-0000-4000-8000-000000000001"
     static let unreachableHost = "5EED0000-0000-4000-8000-000000000002"
@@ -9,32 +10,6 @@ final class PushSettingsUITests: XCTestCase {
 
     override func setUp() {
         continueAfterFailure = false
-    }
-
-    /// 測試通知的結果直接寫在列下方、不彈 alert(#625、#626):成功是綠勾說明,失敗(`-uiTestingPushTestFails`)是紅色三角說明。
-    @MainActor
-    func testTestNotificationResultIsInline() {
-        // 只留失敗那輪(成功的說明文字由 PushModelTests 守):一次啟動,證明結果在頁內、不彈 alert。
-        do {
-            let fails = true
-            let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost", "-uiTestingPushTestFails"])
-            app.openAccountSheet()
-            app.openAccountNotifications()
-            let toggle = app.switches["account.push.\(Self.seededHost)"]
-            XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
-            toggle.tap()
-            let install = app.alerts.buttons["settings.push.install"].firstMatch
-            XCTAssertTrue(install.waitUntilExists(timeout: 10), "沒有先確認安裝外掛")
-            install.tap()
-            toggle.expectValue("Notifications On")
-
-            let test = app.buttons["account.push.\(Self.seededHost).test"].firstMatch
-            XCTAssertTrue(test.waitUntilExists(timeout: 10), "開啟後沒有「Send Test Notification」")
-            test.tap()
-            let result = app.descendants(matching: .any)["account.push.\(Self.seededHost).test.result"].firstMatch
-            XCTAssertTrue(result.waitUntilExists(timeout: 10), "測試通知沒有頁內結果(fails=\(fails))")
-            XCTAssertFalse(app.alerts.firstMatch.exists, "測試通知結果不該彈 alert(fails=\(fails))")
-        }
     }
 
     /// 還沒配對的 HTTPS 主機(#295):點通知列開與主機頁相同的配對;配對存好回到帳號頁，開關就能點。

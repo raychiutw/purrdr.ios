@@ -1,6 +1,6 @@
 import XCTest
 
-/// 對話標題列資訊、重新載入、停止列與強制結束(#44、#220)、工作中指示。資料來自 Demo 主機:停止只送到 Demo 的假 agent。
+/// 對話標題列資訊、重新載入、停止列(#44、#220)、工作中指示;強制結束的確認併在 `DelegationUITests`(同一次啟動,Demo 的 notes 一次啟動只能停一次)。資料來自 Demo 主機:停止只送到 Demo 的假 agent。
 final class ConversationHeaderUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -45,26 +45,5 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertTrue(result.label.contains("Stopped"), "結果應該是已停止：\(result.label)")
         XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 6), "已停止沒有自動收起")
         XCTAssertTrue(working.waitUntilGone(timeout: 5), "停下後指示沒有消失")
-    }
-
-    /// 長按停止鈕開出選單，「Force Quit…」要先在確認對話框確認才送 Ctrl-C。
-    @MainActor
-    func testForceQuitFromLongPressNeedsConfirmation() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w3:p1")
-        let stop = app.element("stopBar.stop")
-        XCTAssertTrue(stop.waitUntilExists(timeout: 10))
-
-        stop.press(forDuration: 1.0)
-        let menuItem = app.buttons["Force Quit…"]
-        XCTAssertTrue(menuItem.waitUntilExists(timeout: 5), "長按沒有強制結束的選項")
-        menuItem.tap()
-
-        let confirm = app.buttons["stopBar.forceQuit.confirm"].firstMatch
-        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "強制結束沒有先確認")
-        XCTAssertTrue(app.staticTexts["Force Quit Codex?"].exists, "確認對話框標題不對")
-        confirm.tap()
-
-        XCTAssertTrue(app.element("conversation.working").waitUntilGone(timeout: 15), "強制結束後仍在工作")
-        XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 10), "強制結束後停止列還在")
     }
 }

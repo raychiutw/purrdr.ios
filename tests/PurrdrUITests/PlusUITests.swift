@@ -103,9 +103,11 @@ final class PlusUITests: XCTestCase {
     }
 
     /// 已訂閱(#323):方案區塊有「管理訂閱」,「你的 Plus 包含」逐項帶目前狀態,點了到帳號頁;不再只有一張卡片。
+    /// 通知列尾是 Off 必須在開通知之前驗,所以通知頁的測試通知放在推入通知頁之後(`-uiTestingPushTestFails` 只改測試通知的結果):
+    /// 測試通知的結果直接寫在列下方、不彈 alert(#625、#626),失敗是紅色三角說明(成功的說明文字由 PushModelTests 守)。
     @MainActor
-    func testSubscribedPageListsFeaturesWithStatus() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
+    func testSubscribedPageListsFeaturesWithStatusAndTestNotificationResultIsInline() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost", "-uiTestingPushTestFails"])
         openPlus(in: app)
 
         XCTAssertTrue(app.buttons["plus.manage"].waitUntilExists(timeout: 15), "沒有管理訂閱")
@@ -134,7 +136,23 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["account.notifications.page"].firstMatch.waitUntilExists(timeout: 10), "點功能列沒有推入通知頁")
         XCTAssertFalse(app.descendants(matching: .any)["sheet.account"].firstMatch.exists, "點功能列不該換成帳號 sheet")
         XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "左上沒有返回鈕")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        // 通知頁:開 Studio Mac 的開關(先確認安裝外掛),傳送測試通知,結果在頁內、不彈 alert。
+        let toggle = app.switches["account.push.\(PushSettingsUITests.seededHost)"]
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
+        toggle.tap()
+        let install = app.alerts.buttons["settings.push.install"].firstMatch
+        XCTAssertTrue(install.waitUntilExists(timeout: 10), "沒有先確認安裝外掛")
+        install.tap()
+        toggle.expectValue("Notifications On")
+        let test = app.buttons["account.push.\(PushSettingsUITests.seededHost).test"].firstMatch
+        XCTAssertTrue(test.waitUntilExists(timeout: 10), "開啟後沒有「Send Test Notification」")
+        test.tap()
+        let result = app.descendants(matching: .any)["account.push.\(PushSettingsUITests.seededHost).test.result"].firstMatch
+        XCTAssertTrue(result.waitUntilExists(timeout: 10), "測試通知沒有頁內結果")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "測試通知結果不該彈 alert")
+
+        app.buttons["BackButton"].firstMatch.tap()
         let devices2 = app.descendants(matching: .any)["plus.feature.devices"].firstMatch
         XCTAssertTrue(app.scrollIntoView(devices2, search: .down, limit: 8), "返回後沒有回到 Plus 頁")
         devices2.tap()
