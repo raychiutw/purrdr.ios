@@ -174,8 +174,27 @@ public struct SSHHostConnection: HostConnection {
     /// 期限(`TranscriptPlan`)到了丟 `HostCommandError.deadlineExceeded`。
     public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
         let plan = TranscriptPlan(request)
-        let result = try await channel.runOnce(plan.command, deadline: plan.deadline, sleep: sleep) { session in
-            try await session.read()
+        // 點進聊天的定位與視窗讀取記下開通道與整個指令的耗時(#659);追蹤、預覽等頻繁的讀取不記。
+        let timedName: String? = switch request {
+        case .locate: "transcript.locate"
+        case .window: "transcript.window"
+        default: nil
+        }
+        let result: CommandResult
+        if let timings, let timedName {
+            let clock = ContinuousClock()
+            let start = clock.now
+            let begunAt = Date()
+            result = try await OperationTimer.measure("ssh.request \(timedName)", sink: timings) {
+                try await channel.runOnce(plan.command, deadline: plan.deadline, sleep: sleep) { session in
+                    timings(OperationTiming(name: "ssh.open \(timedName)", milliseconds: Self.milliseconds(clock.now - start), at: begunAt))
+                    return try await session.read()
+                }
+            }
+        } else {
+            result = try await channel.runOnce(plan.command, deadline: plan.deadline, sleep: sleep) { session in
+                try await session.read()
+            }
         }
         if let error = TranscriptReadError(exitStatus: result.exitStatus) { throw error }
         return result.stdout

@@ -18,6 +18,10 @@ enum ProductionEnvironment {
         ReinstallGuard.system().run()
         // Tailscale SSH check mode 的提示:所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
+        // 診斷事件(#688):連線事件進可分享的診斷檔,受「操作記錄」開關控制(閃退照舊一律記錄)。
+        let hitchLog = DiagnosticLogFile.applicationSupport()
+        let diagnosticEvents = DiagnosticEvents(
+            sink: hitchLog, isEnabled: { HitchLogSettings.isEnabled(.standard) }, ordinals: .userDefaults(.standard))
         let demo = DemoHost(scenario: configuration.demoScenario.demoHostScenario, tailscaleCheck: tailscaleCheck.observer)
         // 對話快取(#356):存在這支裝置的本機 SQLite(Caches,排除備份);前面再放一層記憶體快取(最近開過的聊天)。
         let cache: any ConversationCache = MemoryFrontedConversationCache(
@@ -32,7 +36,7 @@ enum ProductionEnvironment {
                 guard let id = try? KeychainPushDeviceID().load() else { return nil }
                 return id.backendValue
             },
-            diagnostics: MemberLog.system,
+            diagnostics: MemberLog.events(diagnosticEvents),
             // 後台 `createMember: false`(purrdr.server#34 已上線):登入頁查無會員不新建,改問要不要加入(#434、#453)。
             supportsSignInOnly: true)
         let demoKey = "demoHostEnabled"
@@ -86,7 +90,7 @@ enum ProductionEnvironment {
                             SSHHostChannel(
                                 endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer,
                                 // 連線診斷(#133):Console 篩 subsystem com.raychiu.purrdr、category ssh。
-                                diagnostics: SSHConnectionLog.system(host: endpoint.host))
+                                diagnostics: SSHConnectionLog.events(diagnosticEvents, host: endpoint.host))
                         }),
                     services: HostsServices(
                         push: push, attachmentStore: FileAttachmentStore.app(),
@@ -109,7 +113,8 @@ enum ProductionEnvironment {
             },
             undoSendSeconds: nil,
             hostSyncStore: UserDefaultsHostSyncStore(partition: partition),
-            hitchLog: DiagnosticLogFile.applicationSupport(),
+            hitchLog: hitchLog,
+            diagnosticEvents: diagnosticEvents,
             crashNoticeStore: UserDefaultsCrashNoticeStore(),
             recordsUITestingCrash: false,
             subscribesToMetricKit: true,

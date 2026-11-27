@@ -40,6 +40,7 @@ extension View {
         scrollContentBackground(.hidden)
             .background(AppSurface.groupedPage)
             .listRowBackground(AppSurface.groupedRow)
+            .appPageTopEdge()
     }
 }
 
@@ -58,6 +59,7 @@ extension View {
     /// 列底用系統預設,不自訂不透明底色。可讀性交給系統,「減少透明度」也由系統處理。
     func appSheetList() -> some View {
         scrollContentBackground(.hidden)
+            .appScrollTopEdge()
     }
 
     /// 有 detent 的 sheet:只設 `presentationDetents`,不蓋 sheet 的系統玻璃(`GlassLevelUsageTests` 守門)。
