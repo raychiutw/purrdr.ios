@@ -46,6 +46,7 @@ public struct TopNavigationView: View {
     ) {
         self.crashNotice = crashNotice
         let navigation = TopNavigationModel(appLock: appLock)
+        navigation.offersPlus = plus != nil
         _navigation = State(initialValue: navigation)
         _actions = State(initialValue: RootActions(navigation: navigation, hosts: hosts))
         _badge = State(initialValue: NeedsYouBadge(merged: hosts.agentList))

@@ -78,6 +78,7 @@ struct LaunchConfigurationLegacyParityTests {
         ("-uiTestingCrashRecord", ["-uiTesting"], { $0.recordsUITestingCrash }),
         ("-uiTestingKeepCrashNotice", [], { $0.keepsCrashNotice }),
         ("-uiTestingOwnedByOtherMember", [], { $0.storeOwnedByOtherMember }),
+        ("-uiTestingPlusOff", ["-uiTesting"], { $0.disablesPlus }),
         ("-uiTestingSignUp", ["-uiTesting"], { $0.usesTestingSignIn }),
         ("-uiTestingNoMember", ["-uiTesting"], { $0.usesTestingSignIn }),
         ("-uiTestingLinkMerge", ["-uiTesting"], { $0.usesTestingSignIn }),

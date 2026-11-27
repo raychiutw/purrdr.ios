@@ -28,6 +28,16 @@ struct LaunchConfigurationTests {
         #expect(!parse("-uiTestingAnimations").disablesAnimations)
     }
 
+    @Test("-uiTestingPlusOff 模擬上架版(Plus 關閉),與會員情境互不影響;沒帶 -uiTesting 不生效")
+    func plusOffFlag() {
+        #expect(parse("-uiTesting", "-uiTestingPlusOff").disablesPlus)
+        #expect(!parse("-uiTesting").disablesPlus)
+        #expect(!parse("-uiTestingPlusOff").disablesPlus)
+        let config = parse("-uiTesting", "-uiTestingPlusOff", "-uiTestingMember")
+        #expect(config.disablesPlus)
+        #expect(config.member == .member)
+    }
+
     @Test("Demo 情境每個旗標單獨出現時各自對應")
     func eachDemoScenario() {
         let table: [(String, LaunchConfiguration.DemoScenario)] = [

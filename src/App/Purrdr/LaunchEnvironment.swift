@@ -49,6 +49,8 @@ struct LaunchEnvironment {
     var partition: MemberPartition
     var deviceOwner: any DeviceOwnerAuthenticating
     var plusStore: any PlusStore
+    /// Purrdr Plus 編譯開關(#676):正式讀 Info.plist,UI 測試由 `-uiTestingPlusOff` 決定。
+    var plusAvailability: PlusAvailability
     var push: PushParts
     /// 主機清單的依賴(要推播服務,所以是工廠)。
     var makeHosts: @MainActor (PushService) -> HostsDependencies

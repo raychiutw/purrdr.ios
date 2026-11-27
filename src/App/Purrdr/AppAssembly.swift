@@ -9,9 +9,9 @@ import UIKit
 struct AppRoot {
     let hosts: HostsModel
     let member: MemberModel
-    let plus: SubscriptionModel
+    let plus: SubscriptionModel?
     let settings: SettingsModel
-    let hostSync: HostSyncModel
+    let hostSync: HostSyncModel?
     let welcome: WelcomeModel
     let hitchRecorder: DiagnosticRecorder
     /// 啟動提示「上次 Purrdr 意外關閉」(#632)。
@@ -44,7 +44,6 @@ enum AppAssembly {
             localState: localState,
             confirmOwner: confirmOwner,
             ownerVerificationAvailable: { owner.availability().canAuthenticate })
-        let plus = SubscriptionModel(session: session, store: environment.plusStore, confirmOwner: confirmOwner)
         let push = PushService(
             session: session, platform: environment.push.platform, store: environment.push.store,
             loadDevice: environment.push.loadDevice,
@@ -75,7 +74,12 @@ enum AppAssembly {
         hosts.operationTimings = { timing in Task { @MainActor in hitchRecorder.recordTiming(timing) } }
         // 主機清單(Keychain)在第一個 frame 之後於背景讀(#590),見 `PurrdrApp` 的 `loadInBackground()`。
 
-        let hostSync = HostSyncModel(session: session, plus: plus, hosts: hosts, store: environment.hostSyncStore)
+        // Purrdr Plus 編譯開關(#676):關閉時不建立訂閱與主機同步 model,畫面沿用「nil 就不顯示」。
+        let plusModels = environment.plusAvailability.assemble(
+            session: session, store: environment.plusStore, confirmOwner: confirmOwner, hosts: hosts,
+            hostSyncStore: environment.hostSyncStore)
+        let plus = plusModels.plus
+        let hostSync = plusModels.hostSync
         localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
         var hitchMetrics: HitchMetricKitSubscriber?
         if environment.subscribesToMetricKit {

@@ -63,6 +63,8 @@ enum UITestingEnvironment {
             // 轉移訂閱、撤銷其他裝置前確認是本人(#409);替身一律通過。
             deviceOwner: UITestingDeviceOwnerAuthenticator(hasPasscode: !configuration.hasNoPasscode),
             plusStore: UITestingPlusStore(hasCurrentTransaction: configuration.storeOwnedByOtherMember),
+            // 預設開啟(Debug 的值),`-uiTestingPlusOff` 模擬上架版。
+            plusAvailability: configuration.disablesPlus ? .disabled : .enabled,
             // 推播(#29):不請求權限、不註冊 APNs、配對只在記憶體;假後台的會員把通知權限當作已允許。
             push: pushParts,
             makeHosts: { push in hosts(configuration, demo: demo, tailscaleCheck: tailscaleCheck, push: push) },
