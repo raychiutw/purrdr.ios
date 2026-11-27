@@ -70,7 +70,7 @@ struct SubscriptionProvisionalTests {
 
         #expect(!model.isPlusProvisional)
         #expect(!model.isPlusActive)
-        #expect(model.plusStatus == .ownedByAnotherMember(maskedEmail: "r***@icloud.com"))
+        #expect(model.plusStatus == .ownedByAnotherMember(maskedEmail: "r***@example.net"))
     }
 
     @Test("後台讀到訂閱狀態(沒有訂閱)就以後台為準,清掉先行生效")
