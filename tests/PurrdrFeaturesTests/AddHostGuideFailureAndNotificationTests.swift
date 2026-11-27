@@ -101,9 +101,9 @@ struct AddHostGuideFailureAndNotificationTests {
 
     // MARK: - 最後一頁
 
-    static func saved(plus: Bool) async throws -> AddHostGuideModel {
+    static func saved(signedIn: Bool) async throws -> AddHostGuideModel {
         let model = AddHostGuideModel(
-            store: MemoryHostStore(), isPlusActive: { plus }, makeChannel: ChannelFactory(await HostEditorModelTests.healthyHost()).make)
+            store: MemoryHostStore(), isSignedIn: { signedIn }, makeChannel: ChannelFactory(await HostEditorModelTests.healthyHost()).make)
         model.choose(.ssh)
         model.choose(.macOS)
         model.choose(.tailscale)
@@ -117,24 +117,24 @@ struct AddHostGuideFailureAndNotificationTests {
         return model
     }
 
-    @Test("有 Purrdr Plus:最後一頁給這台主機的開啟通知開關")
+    @Test("登入了(不需要 Plus):最後一頁給這台主機的開啟通知開關")
     func plusOffersToggle() async throws {
-        let model = try await Self.saved(plus: true)
+        let model = try await Self.saved(signedIn: true)
         #expect(model.step == .finished)
         #expect(model.notificationOffer == .toggle)
     }
 
-    @Test("沒有 Plus:一行加入提示,不擋完成")
-    func noPlusOffersJoin() async throws {
-        let model = try await Self.saved(plus: false)
-        #expect(model.notificationOffer == .joinPlus)
+    @Test("沒登入:一行登入提示,不擋完成")
+    func signedOutOffersSignIn() async throws {
+        let model = try await Self.saved(signedIn: false)
+        #expect(model.notificationOffer == .signIn)
         #expect(model.step == .finished)
         #expect(model.savedHost != nil)
     }
 
     @Test("SSH 主機提示可再裝主機服務;HTTPS 主機不提")
     func hostServiceHintOnlyForSSH() async throws {
-        let ssh = try await Self.saved(plus: true)
+        let ssh = try await Self.saved(signedIn: true)
         #expect(ssh.suggestsHostService)
         let rig = try await AddHostGuideHTTPSTests.rig(shortcut: .importLink(AddHostGuideHTTPSTests.pairingURL))
         await rig.model.testConnection()
@@ -144,7 +144,7 @@ struct AddHostGuideFailureAndNotificationTests {
 
     @Test("最後一頁以前不提供通知選項")
     func noOfferBeforeFinish() async {
-        let model = AddHostGuideModel(store: MemoryHostStore(), isPlusActive: { true }, makeChannel: ChannelFactory().make)
+        let model = AddHostGuideModel(store: MemoryHostStore(), isSignedIn: { true }, makeChannel: ChannelFactory().make)
         await model.loadNotificationOffer()
         #expect(model.notificationOffer == nil)
         #expect(!model.suggestsHostService)

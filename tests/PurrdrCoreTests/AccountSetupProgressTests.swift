@@ -95,15 +95,15 @@ struct AccountSetupProgressTests {
         #expect(progress.currentStep == .joinMember)
     }
 
-    @Test("已登入、沒有 Plus：本機有通知與同步也不打勾，只顯示 1/4(#404)")
+    @Test("已登入、沒有 Plus：通知(#675 起只要登入)打勾,主機同步不打勾,顯示 2/4(#404)")
     func memberWithoutPlusDoesNotCountNotificationsOrSync() {
         let progress = AccountSetupProgress(account: AccountState(authentication: .signedIn, plus: .none), isNotificationsOn: true, isHostSyncOn: true)
 
         #expect(progress.state(of: .joinMember) == .done)
         #expect(progress.state(of: .activatePlus) == .current)
-        #expect(progress.state(of: .turnOnNotifications) == .upcoming)
+        #expect(progress.state(of: .turnOnNotifications) == .done)
         #expect(progress.state(of: .syncHosts) == .upcoming)
-        #expect(progress.completedCount == 1)
+        #expect(progress.completedCount == 2)
         #expect(!progress.isComplete)
     }
 }

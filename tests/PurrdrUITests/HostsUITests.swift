@@ -81,7 +81,7 @@ final class HostsUITests: XCTestCase {
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
             XCTAssertTrue(app.element("hosts.status").exists, "沒有連線狀態")
             XCTAssertTrue(app.buttons["hosts.host"].firstMatch.exists, "主機 tab 右上要有電腦圖示選單(#616)")
-            for id in ["hosts.tool.notifications.locked", "hosts.share", "hosts.settings", "hosts.edit", "hosts.delete"] {
+            for id in ["hosts.notifications", "hosts.share", "hosts.settings", "hosts.edit", "hosts.delete"] {
                 XCTAssertTrue(app.overviewRow(id).exists, "總頁沒有 \(id)")
             }
             XCTAssertFalse(app.buttons["hosts.demo"].exists, "不該再有主機清單")
