@@ -944,6 +944,8 @@ public final class ConversationModel {
         // 沒有新的列時，卡片也要依經過時間收起。
         defer { refreshAnsweredCard() }
         let snapshot: HostSnapshot
+        // 列表已知對話目標時,找對話檔與讀主機狀態同時開始(#661);session 換了的話 `feed.read` 會丟掉這次結果重找。
+        if liveSnapshot == nil, let knownTarget { feed.prefetchLocate(knownTarget) }
         if let liveSnapshot {
             snapshot = liveSnapshot
             openTiming.snapshotNoted = true

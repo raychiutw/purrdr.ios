@@ -11,12 +11,12 @@ struct ConversationParallelLocateTests {
     typealias W = ConversationWorkingOpenTests
     typealias R = ConversationReadableMessageTests
 
-    /// 列表看到的對話目標(Claude Code、W 的 session 與資料夾)。
-    static func listTarget(session: String = W.sessionID) -> TranscriptTarget {
-        TranscriptTarget(
-            dialect: AgentCatalog.profile(for: .claude).transcript!,
-            location: TranscriptLocation(locator: .claude, reference: .id(session), cwd: "/Users/demo/Projects/garden-journal"),
-            sessionKey: session)
+    /// 列表看到的對話目標:與 snapshot 回報同一個 pane 時算出的相同(取自錄製的 snapshot)。
+    static func listTarget() async throws -> TranscriptTarget {
+        let connection = FakeHostConnection()
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
+        let snapshot = try await HerdrClient(connection: connection).snapshot()
+        return try #require(snapshot.agents.first { $0.paneID == W.paneID }?.transcriptTarget)
     }
 
     static func model(_ connection: FakeHostConnection, target: TranscriptTarget?) -> ConversationModel {
@@ -35,7 +35,7 @@ struct ConversationParallelLocateTests {
         await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await R.answering(connection, lines: W.lines)
         await connection.hold("session.snapshot")
-        let model = Self.model(connection, target: Self.listTarget())
+        let model = Self.model(connection, target: try await Self.listTarget())
         let poll = Task { await model.poll() }
         defer { poll.cancel() }
 
@@ -43,7 +43,8 @@ struct ConversationParallelLocateTests {
         #expect(await connection.heldCount == 1, "snapshot 仍卡著,定位已先送出")
         await connection.releaseHeld()
         await poll.value
-        #expect(await Self.locateCount(connection) == 1, "session 相符:沿用並行讀到的定位,不重送")
+        let calls = await connection.typedCalls
+        #expect(calls.filter { $0 == "locateTranscript" }.count == 1, "session 相符:沿用並行讀到的定位,不重送 \(calls)")
         #expect(!model.items.isEmpty)
     }
 
@@ -51,14 +52,13 @@ struct ConversationParallelLocateTests {
     func sessionChangedRelocates() async throws {
         let newSession = "00000000-0000-0000-0000-0000000000cc"
         let connection = FakeHostConnection()
-        await connection.expect("session.snapshot", reply: .recorded("session.snapshot.ndjson") {
-            SnapshotEdit.agent(W.paneID, in: &$0) {
-                $0["agent_session"] = ["source": "herdr:claude", "agent": "claude", "kind": "id", "value": newSession]
-            }
-        })
+        // 以真實回應為底,只把這個 pane 的 session 換成新的(`/clear` 之後的樣子)。
+        let original = String(decoding: Fixtures.data("session.snapshot.ndjson"), as: UTF8.self)
+        #expect(original.contains(W.sessionID))
+        await connection.expect(.snapshot, wire: Data(original.replacingOccurrences(of: W.sessionID, with: newSession).utf8))
         await R.answering(connection, lines: W.lines)
         await connection.hold("session.snapshot")
-        let model = Self.model(connection, target: Self.listTarget())
+        let model = Self.model(connection, target: try await Self.listTarget())
         let poll = Task { await model.poll() }
         defer { poll.cancel() }
 

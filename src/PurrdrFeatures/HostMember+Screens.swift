@@ -38,6 +38,8 @@ extension HostMember {
         let host = host
         let model = ConversationModel(
             client: client, transcripts: transcripts, paneID: route.paneID, knownSessionID: sessionID,
+            // 列表已有這個 pane 的對話目標:找對話檔與讀主機狀態並行(#661)。
+            knownTarget: sessionID == nil ? nil : list.updates.snapshot?.agents.first { $0.paneID == route.paneID }?.transcriptTarget,
             cache: conversationCache, drafts: drafts,
             slashDiscovery: environment.agentHostServices.slashDiscovery(for: .claude, channel: channel),
             haptics: environment.haptics(),

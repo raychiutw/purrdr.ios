@@ -128,6 +128,8 @@ package final class TranscriptFeed {
     package private(set) var generation = 0
 
     private var following: ActiveFollow?
+    /// 並行定位(#661):列表已知這個聊天的對話目標時,在讀主機狀態的同時就先找對話檔。
+    private var prefetchedLocate: (target: TranscriptTarget, task: Task<TranscriptFile, any Error>)?
     /// 對話紀錄各段依到達順序套用的鎖:解析在背景做,結果回主執行緒以增量交出。
     private let applyGate = TranscriptSerialGate()
     private var isLeaving = false
@@ -180,7 +182,9 @@ package final class TranscriptFeed {
         if boundSessionID != target.sessionKey {
             // F5.1 第 4 點。
             if boundSessionID != nil { await cache.remove(chatKey: chatKey) }
-            unbind(keepingDisplay: true)
+            // 並行定位(#661)的結果屬於這個 session 時留著(第一次綁定就是這樣),別的 session 的丟掉。
+            if prefetchedLocate?.target.sessionKey != target.sessionKey { discardPrefetchedLocate() }
+            resetBinding(keepingDisplay: true)
             boundSessionID = target.sessionKey
             changed = true
         }
@@ -190,6 +194,11 @@ package final class TranscriptFeed {
 
     /// 解除綁定:停止追蹤、讓進行中的讀取過期。`keepingDisplay` 時內容留到新內容讀回來,否則清空。
     package func unbind(keepingDisplay: Bool) {
+        discardPrefetchedLocate()
+        resetBinding(keepingDisplay: keepingDisplay)
+    }
+
+    private func resetBinding(keepingDisplay: Bool) {
         stopFollowing()
         if let path = file?.path {
             let reader = reader
@@ -225,6 +234,21 @@ package final class TranscriptFeed {
 
     // MARK: - 讀取
 
+    /// 列表已知對話目標時,不等主機狀態回來就先找對話檔(#661)。已經定位過就不送;上一輪沒用到的結果丟掉(可能過時)。
+    /// 之後 `read` 的目標相同就沿用結果,不同(session 換了)就丟掉重找。
+    package func prefetchLocate(_ target: TranscriptTarget) {
+        guard file == nil else { return }
+        discardPrefetchedLocate()
+        let reader = reader
+        let timings = timings
+        prefetchedLocate = (target, Task { try await timings.timed("locate") { try await reader.locate(target) } })
+    }
+
+    private func discardPrefetchedLocate() {
+        prefetchedLocate?.task.cancel()
+        prefetchedLocate = nil
+    }
+
     /// 讀對話紀錄:還沒定位就定位並讀視窗;已追上就從游標接著讀;追蹤中不讀(新內容由追蹤送來,#165)。
     package func read(_ target: TranscriptTarget) async -> ReadResult {
         let generation = generation
@@ -250,7 +274,14 @@ package final class TranscriptFeed {
                 }
                 result = isCurrent(generation) ? .caughtUp : .superseded
             } else {
-                let located = try await timings.timed("locate") { try await reader.locate(target) }
+                let located: TranscriptFile
+                if let prefetched = prefetchedLocate, prefetched.target == target {
+                    prefetchedLocate = nil
+                    located = try await prefetched.task.value
+                } else {
+                    discardPrefetchedLocate()
+                    located = try await timings.timed("locate") { try await reader.locate(target) }
+                }
                 guard isCurrent(generation) else { return .superseded }
                 try await openWindow(path: located.path, size: located.size, generation: generation)
                 result = isCurrent(generation) ? .caughtUp : .superseded
