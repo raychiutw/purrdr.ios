@@ -238,7 +238,7 @@ struct AgentListModelTests {
         #expect(model.sections.isEmpty)
     }
 
-    @Test("讀不到時保留錯誤的類別與錯誤碼(操作記錄用,#689),不含訊息原文;讀成功後清掉")
+    @Test("讀不到時保留錯誤的類別與錯誤碼(操作記錄用,#689),不含訊息原文")
     func keepsTheFailureDescriptor() async {
         let host = FakeHost()
         await host.expect(Self.bridge, reply: .recorded("error.invalid-request.ndjson"))
