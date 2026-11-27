@@ -128,14 +128,4 @@ final class TopNavigationUITests: XCTestCase {
             .withOffset(CGVector(dx: 18, dy: 0)).tap()
         XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "點頭像外圍(44pt 範圍內)沒有開出帳號頁")
     }
-
-    @MainActor
-    func testSettingsDeepLinkFromColdLaunch() {
-        let app = XCUIApplication.uiTesting()
-        app.terminate()
-
-        app.open(settingsLink)
-
-        app.waitForAccountSheet()
-    }
 }

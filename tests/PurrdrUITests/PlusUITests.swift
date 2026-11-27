@@ -10,17 +10,18 @@ final class PlusUITests: XCTestCase {
     }
 
     /// 每個方案揭露名稱、期間、每期內容、當地幣別的完整價格、試用後自動扣款;另有恢復購買、兌換代碼、條款與隱私權政策。
-    /// 預設字級與 AX 最大字級各驗一次(各啟動一次);預設字級那輪再驗:頁首只有標題(#236);預設年繳、年繳在前;
+    /// 預設字級那次啟動(AX 最大字級的付費牆揭露在 `SignInUITests` 的 AX 啟動裡):頁首只有標題(#236);預設年繳、年繳在前;
     /// 改選月繳時說明換成月繳的價格,方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
-    /// 預設字級那次啟動最後,訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
+    /// 訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
+    /// 最後回到列表,接著同一次啟動驗登入頁(預設字級):Sign in with Apple 按鈕的量測、標題與簡短說明(#328,原型 A)、不放舊版的功能說明文字。
     @MainActor
-    func testPaywallDisclosesEverythingRequiredAtBothSizesAndSubscribingNeedsSignIn() {
+    func testPaywallDisclosuresAtDefaultSizeSubscribingNeedsSignInThenSignInPage() {
         let app = XCUIApplication.launchUITesting()
         openPlus(in: app)
         let benefits = app.descendants(matching: .any)["plus.benefits"].firstMatch
         XCTAssertTrue(benefits.waitUntilExists(timeout: 15), "沒有每期內容(預設字級)")
 
-        assertPaywallDisclosures(in: app, size: "預設字級", selectedPrice: "$39.99")
+        Self.assertPaywallDisclosures(in: app, size: "預設字級", selectedPrice: "$39.99")
 
         // 預設字級那一輪再驗。
         let monthly = app.descendants(matching: .any)[Self.monthly].firstMatch
@@ -55,16 +56,17 @@ final class PlusUITests: XCTestCase {
         done.tap()
         XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch.waitUntilExists(timeout: 5))
 
-        // AX 最大字級(重新啟動;換字級的測試連結會把畫面重置回列表,所以不能在同一次啟動內換)。
-        app.terminate()
-        let axApp = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-        openPlus(in: axApp)
-        // 預設字級那輪已改選月繳,但重新啟動後回到預設年繳,說明是年繳價格。
-        assertPaywallDisclosures(in: axApp, size: "AX 最大字級", selectedPrice: "$39.99")
+        // 登入頁(預設字級):同樣的按鈕量測,加上標題與簡短說明、不放舊版的功能說明文字。
+        app.openSignInFromAccount()
+        SignInUITests.assertSignInButtons(in: app, label: "預設字級")
+        XCTAssertTrue(app.staticTexts["Sign In to Purrdr"].exists, "沒有標題")
+        let description = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "A member account is only needed", "never need an account"))
+        XCTAssertEqual(description.count, 0, "登入頁仍有說明文字")
     }
 
     @MainActor
-    private func assertPaywallDisclosures(in app: XCUIApplication, size: String, selectedPrice: String) {
+    static func assertPaywallDisclosures(in app: XCUIApplication, size: String, selectedPrice: String) {
         // 每期內容在最上面(App Store 3.1.2);大字級時方案在畫面外,下面再捲過去。
         let benefits = app.descendants(matching: .any)["plus.benefits"].firstMatch
         app.scrollIntoView(benefits, search: .up)

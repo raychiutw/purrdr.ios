@@ -15,11 +15,14 @@ final class SettingsUITests: XCTestCase {
 
     /// 設定頁的內容(#32、#246、#274、#276):只有 App 層級的段落(外觀、鍵盤與觸覺、送出可撤回、App 鎖、支援、關於);
     /// 外觀下的「自動」與送出可撤回的秒數說明、支援段的隱私揭露是例外，數據用量列下沒有說明;主機設定與會員不在這裡。
-    /// 一次啟動由上而下檢查(#372:原本四個測試各啟動一次)。
+    /// 一次啟動由上而下檢查(#372:原本四個測試各啟動一次);啟動本身就是深層連結 `purrdr://settings` 的冷啟動
+    /// (沒有先啟動再開連結:冷啟動要直接開出帳號與設定 sheet),之後才逐段檢查。
     @MainActor
-    func testSettingsSectionsCopyDiagnosticsAppearanceAndAppLock() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
+    func testSettingsDeepLinkFromColdLaunchThenSectionsCopyDiagnosticsAppearanceAndAppLock() {
+        let app = XCUIApplication.uiTesting()
+        app.terminate()
+        app.open(URL(string: "purrdr://settings")!)
+        app.waitForAccountSheet()
         XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
         XCTAssertFalse(app.switches["settings.codexLauncher"].exists, "Codex 啟動器應在主機頁")
         XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
