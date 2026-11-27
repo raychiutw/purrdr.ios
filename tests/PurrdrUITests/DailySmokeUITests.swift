@@ -362,6 +362,8 @@ final class DailySmokeUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"])
         step("主機 tab 總頁:狀態、用量區、這台主機的入口(#392)") {
             app.openHostsTab()
+            // 兩台主機同時存在時選取中的不一定是 Studio Mac(連不上的 Build Box 沒有用量):明確選 Studio Mac。
+            app.selectHostOnHostsTab("Studio Mac")
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
             XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有「啟用用量顯示」(#389)")
             XCTAssertTrue(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有 Codex 5 小時")
