@@ -250,6 +250,8 @@ public final class PushService {
     public var testNotifications: (any PushTestNotificationSending)?
     /// 主機名稱對應表的共用儲存(App Group,#431);`nil` 時不寫。
     private let hostNameSharing: (any PushHostNameSharing)?
+    /// 撤銷失敗待重送的配對(#691;正式實作存 Keychain)。
+    let pendingRevocations: any PendingPushRevocations
     private var latestHostNames: [String: String] = [:]
 
     /// - Parameters:
@@ -259,8 +261,10 @@ public final class PushService {
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore,
         loadDevice: @escaping @MainActor () throws -> PushDeviceIdentity,
         configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
+        pendingRevocations: any PendingPushRevocations = InMemoryPendingPushRevocations(),
         isSignedIn: @escaping @MainActor () async -> Bool
     ) {
+        self.pendingRevocations = pendingRevocations
         self.session = session
         self.platform = platform
         self.store = store
@@ -305,11 +309,12 @@ public final class PushService {
     public convenience init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore, device: PushDeviceIdentity,
         configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
+        pendingRevocations: any PendingPushRevocations = InMemoryPendingPushRevocations(),
         isSignedIn: @escaping @MainActor () async -> Bool
     ) {
         self.init(
             session: session, platform: platform, store: store, loadDevice: { device }, configuration: configuration,
-            hostNames: hostNameSharing, isSignedIn: isSignedIn)
+            hostNames: hostNameSharing, pendingRevocations: pendingRevocations, isSignedIn: isSignedIn)
     }
 
     /// 這支裝置;第一次成功讀到後記住。
@@ -322,8 +327,34 @@ public final class PushService {
 
     /// 啟動時：先判斷這支裝置是否已被遠端關閉，判斷得了才補註冊(避免把被撤銷的配對註冊回來)。
     public func refreshAtLaunch() async {
+        await retryPendingRevocations()
         guard await reconcileRemoteRevocation() else { return }
         await refreshRegistrations()
+    }
+
+    /// 撤銷後台配對;失敗(連不上、後台錯誤)就記進待撤銷清單等重送。登入已失效沒有權杖可撤銷,後台依會員的工作階段處理,不記。
+    func revoke(keyHash: String) async {
+        do {
+            try await session.revokePushPairing(keyHash: keyHash)
+        } catch BackendError.signedOut {
+            return
+        } catch {
+            pendingRevocations.add(keyHash)
+        }
+    }
+
+    /// 重送待撤銷清單(#691):啟動與網路恢復時呼叫;成功才移除,失敗留著等下一次。登入已失效就先停(重新登入後再送)。
+    public func retryPendingRevocations() async {
+        for keyHash in pendingRevocations.keyHashes {
+            do {
+                try await session.revokePushPairing(keyHash: keyHash)
+                pendingRevocations.remove(keyHash)
+            } catch BackendError.signedOut {
+                return
+            } catch {
+                continue
+            }
+        }
     }
 
     /// 對還沒以目前 token 帶裝置 id 註冊過的配對(token 輪替、舊版 app)向後台註冊，逐組記錄成功與否。
@@ -404,11 +435,10 @@ public final class PushService {
     ) {
         guard let keyHash = store.keyHash(forHost: hostID) else { return }
         store.setKeyHash(nil, forHost: hostID)
-        let session = session
         Task {
             try? await installer.remove()
             await afterRemoving()
-            try? await session.revokePushPairing(keyHash: keyHash)
+            await revoke(keyHash: keyHash)
         }
     }
 
@@ -596,8 +626,7 @@ public final class PushModel {
                 Self.describeTestFailure(PushTestNotificationError.notPaired), error: PushTestNotificationError.notPaired))
             if let service, let keyHash = service.store.keyHash(forHost: hostID) {
                 service.store.setKeyHash(nil, forHost: hostID)
-                let session = service.session
-                Task { try? await session.revokePushPairing(keyHash: keyHash) }
+                Task { await service.revoke(keyHash: keyHash) }
             }
             state = .off
             problem = nil
@@ -664,7 +693,7 @@ public final class PushModel {
             let file = PushPairingFile(endpoint: service.configuration.endpoint, key: key, muted: muted())
             try await installer.install(file)
         } catch {
-            try? await service.session.revokePushPairing(keyHash: key.hash)
+            await service.revoke(keyHash: key.hash)
             return stop(Self.problem(for: error))
         }
         service.store.setKeyHash(key.hash, forHost: hostID)
@@ -724,7 +753,7 @@ public final class PushModel {
         }
         if let keyHash = service.store.keyHash(forHost: hostID) {
             // 主機上已沒有密鑰，撤銷失敗也不會再有推播。
-            try? await service.session.revokePushPairing(keyHash: keyHash)
+            await service.revoke(keyHash: keyHash)
         }
         service.store.setKeyHash(nil, forHost: hostID)
         kinds = Self.defaultKinds
@@ -768,8 +797,7 @@ public final class PushModel {
             service.store.setKeyHash(nil, forHost: hostID)
             state = .off
             problem = nil
-            let session = service.session
-            Task { try? await session.revokePushPairing(keyHash: keyHash) }
+            Task { await service.revoke(keyHash: keyHash) }
         } catch {
             problem = .mutedSyncFailed(DisplayedError(
                 String(localized: "Couldn’t update muted chats on this host: \(error.localizedDescription)"), error: error))
