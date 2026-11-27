@@ -240,6 +240,11 @@ public final class DiagnosticRecorder {
         publish(report.crashRecord)
     }
 
+    /// MetricKit 的卡頓報告:一律寫(不看開關、不經緩衝),比照閃退。
+    public func recordHangReport(_ report: MetricKitHangReport) {
+        sink.append([.hangReport(report)])
+    }
+
     /// 閃退記錄出現時通知(啟動提示用);各畫面各登記一個(以 `owner` 區分,同一個 owner 再登記會取代舊的)。
     /// 登記時若這次啟動已有記錄,立刻補送最近一筆。
     public func observeCrashes(owner: ObjectIdentifier = DiagnosticRecorder.defaultOwner, _ handler: @escaping @MainActor (CrashRecord) -> Void) {

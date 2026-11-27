@@ -71,6 +71,18 @@ struct TopNavigationModelTests {
         #expect(model.sheet == .plus)
     }
 
+    @Test("Plus 關閉(#676):purrdr://plus 不動作、不改任何狀態,也不當成已處理")
+    func plusDeepLinkIsIgnoredWhenPlusIsOff() throws {
+        let model = TopNavigationModel()
+        model.offersPlus = false
+        model.sheet = .member
+
+        let handled = model.open(try #require(URL(string: "purrdr://plus")))
+
+        #expect(!handled)
+        #expect(model.sheet == .member)
+    }
+
     @Test("UI 測試連結 purrdr://testing-content-size 換字級，只在開啟測試連結時生效")
     func testingContentSizeLinkChangesCategoryOnlyWhenAllowed() throws {
         let category = "UICTContentSizeCategoryAccessibilityXXXL"

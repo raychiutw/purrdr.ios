@@ -135,6 +135,23 @@ jobs:
       - name: 比對 purrdr.host 的同步副本
         run: scripts/sync-purrdr-host.sh --check
 
+  # Purrdr Plus 編譯開關(#676):上架版(Release)不提供訂閱與主機同步。要開放 Plus 時同步改這裡的預期值與 docs/launch/checklist.md 5.5。
+  plus-flag:
+    name: Purrdr Plus 編譯開關(Release 要關閉)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Release 的 PURRDR_PLUS_ENABLED 是 NO
+        run: |
+          set -euo pipefail
+          value="$(scripts/plus-enabled.sh Release)"
+          if [ "$value" != "NO" ]; then
+            echo "Release 的 PURRDR_PLUS_ENABLED 是 $value,上架版必須是 NO(見 docs/launch/checklist.md 5.5)" >&2
+            exit 1
+          fi
+
   # 升版本號(MARKETING_VERSION)時要同時寫版本說明:目前版本號在 CHANGELOG.md 要有對應的 "## <版本號>" 段落。
   # 發版時 GitHub Release 的「本版更新」就是取這一段(見 testflight.yml)。
   changelog:

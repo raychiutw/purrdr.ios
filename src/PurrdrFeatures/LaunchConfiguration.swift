@@ -118,6 +118,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let simulatesFileUpload: Bool
     /// `-uiTestingOversizedClipboard`:剪貼簿先放一段超過終端機貼上上限的文字(#626)。
     public let seedsOversizedClipboard: Bool
+    /// `-uiTestingLargeImageClipboard`:剪貼簿先放一張 12MP 的大照片(JPEG 原始資料),貼上圖片走原始資料、不卡畫面(#687)。
+    public let seedsLargeImageClipboard: Bool
     public let hasNoPasscode: Bool
     /// `-uiTestingHostKeyPrompt`:還沒有 host key pin 的 SSH 主機第一次連線時出示未信任的 host key,走到「信任這台主機?」(#613)。
     public let promptsHostKey: Bool
@@ -129,6 +131,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let keepsCrashNotice: Bool
     /// `-uiTestingOwnedByOtherMember`:StoreKit 替身的目前交易屬於另一個會員(與會員情境優先順序獨立)。
     public let storeOwnedByOtherMember: Bool
+    /// `-uiTestingPlusOff`:模擬上架版(Purrdr Plus 編譯開關關閉,#676)。與會員情境互不影響;預設(沒帶)是 Debug 的開啟。
+    public let disablesPlus: Bool
     /// 登入頁用測試登入(只看原始旗標,不受會員情境優先順序影響)。
     public let usesTestingSignIn: Bool
 
@@ -182,6 +186,7 @@ public struct LaunchConfiguration: Equatable, Sendable {
         simulatesVideo = has("-uiTestingSimulatedVideo")
         simulatesFileUpload = has("-uiTestingSimulatedFileUpload")
         seedsOversizedClipboard = isUITesting && has("-uiTestingOversizedClipboard")
+        seedsLargeImageClipboard = isUITesting && has("-uiTestingLargeImageClipboard")
         hasNoPasscode = has("-uiTestingNoPasscode")
         promptsHostKey = has("-uiTestingHostKeyPrompt")
         appLockEnabled = has("-uiTestingAppLock")
@@ -189,6 +194,7 @@ public struct LaunchConfiguration: Equatable, Sendable {
         recordsUITestingCrash = isUITesting && has("-uiTestingCrashRecord")
         keepsCrashNotice = has("-uiTestingKeepCrashNotice")
         storeOwnedByOtherMember = has("-uiTestingOwnedByOtherMember")
+        disablesPlus = isUITesting && has("-uiTestingPlusOff")
         usesTestingSignIn = isUITesting
             && (has("-uiTestingSignUp") || has("-uiTestingNoMember") || has("-uiTestingLinkMerge")
                 || has("-uiTestingLinkMergeBlocked") || has("-uiTestingUpgradedMember"))

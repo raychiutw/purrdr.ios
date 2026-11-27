@@ -6,6 +6,7 @@ import PurrdrFeatures
 import PurrdrSSH
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// UI 測試環境 adapter(#565):以 `-uiTesting` 啟動,一律只用 Demo 主機:主機與偏好存在記憶體、不碰 Keychain、
 /// 任何主機的通道也都是 Demo 主機、不連網路。各種測試情境由 `LaunchConfiguration` 的型別化值決定。
@@ -50,6 +51,20 @@ enum UITestingEnvironment {
         if configuration.seedsOversizedClipboard {
             UIPasteboard.general.string = String(repeating: "x", count: 300 * 1024)
         }
+        // `-uiTestingLargeImageClipboard`:貼上大照片要走原始資料、不卡畫面(#687)。12MP 的 JPEG 原始資料。
+        if configuration.seedsLargeImageClipboard {
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = 1
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4032, height: 3024), format: format)
+            let jpeg = renderer.jpegData(withCompressionQuality: 0.8) { context in
+                let colors = [UIColor.systemTeal.cgColor, UIColor.systemOrange.cgColor] as CFArray
+                if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: nil) {
+                    context.cgContext.drawLinearGradient(
+                        gradient, start: .zero, end: CGPoint(x: 4032, y: 3024), options: [])
+                }
+            }
+            UIPasteboard.general.setItems([[UTType.jpeg.identifier: jpeg]], options: [.localOnly: true])
+        }
         let viewFlags = LaunchEnvironment.ViewFlags(
             allowsTestingLinks: true, usesTestingSignIn: configuration.usesTestingSignIn,
             tracksReadingDrift: configuration.tracksReadingDrift)
@@ -63,6 +78,8 @@ enum UITestingEnvironment {
             // 轉移訂閱、撤銷其他裝置前確認是本人(#409);替身一律通過。
             deviceOwner: UITestingDeviceOwnerAuthenticator(hasPasscode: !configuration.hasNoPasscode),
             plusStore: UITestingPlusStore(hasCurrentTransaction: configuration.storeOwnedByOtherMember),
+            // 預設開啟(Debug 的值),`-uiTestingPlusOff` 模擬上架版。
+            plusAvailability: configuration.disablesPlus ? .disabled : .enabled,
             // 推播(#29):不請求權限、不註冊 APNs、配對只在記憶體;假後台的會員把通知權限當作已允許。
             push: pushParts,
             makeHosts: { push in hosts(configuration, demo: demo, tailscaleCheck: tailscaleCheck, push: push) },

@@ -53,7 +53,7 @@ public struct MetricKitCrashReport: Equatable, Sendable {
     }
 
     /// 穩定的雜湊(`hashValue` 每次啟動不同,不能跨重啟比對)。
-    private static func fnv1a(_ text: String) -> String {
+    static func fnv1a(_ text: String) -> String {
         var hash: UInt64 = 0xcbf29ce484222325
         for byte in text.utf8 {
             hash ^= UInt64(byte)
@@ -89,7 +89,7 @@ public enum MetricKitCrashParser {
             terminationReason: text(meta["terminationReason"]),
             exceptionName: text(objc?["exceptionName"]),
             exceptionReason: text(objc?["composedMessage"] ?? objc?["message"]),
-            frames: frames(from: diagnostic["callStackTree"] as? [String: Any]),
+            frames: frames(from: diagnostic["callStackTree"] as? [String: Any], requiresAttribution: true),
             environment: DiagnosticEnvironment(
                 app: "\(version) (\(build))", os: os(meta["osVersion"] as? String), device: meta["deviceType"] as? String ?? "?"),
             periodStart: periodStart)
@@ -101,19 +101,21 @@ public enum MetricKitCrashParser {
     }
 
     /// "iPhone OS 27.0.1 (24A100)" → "iOS 27.0.1"(與標記檔記錄同格式)。
-    private static func os(_ raw: String?) -> String {
+    static func os(_ raw: String?) -> String {
         guard let raw else { return "?" }
         let base = raw.split(separator: "(").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? raw
         return base.hasPrefix("iPhone OS ") ? "iOS " + base.dropFirst("iPhone OS ".count) : base
     }
 
-    private static func frames(from tree: [String: Any]?) -> [String] {
+    /// `requiresAttribution`:閃退只取被歸責的執行緒;卡頓沒有歸責欄位(堆疊就是主執行緒),取第一個堆疊。
+    /// 每層往內走取樣最多的子 frame(同數時取第一個);閃退執行緒上樹是一條鏈,所以結果與原本相同。
+    static func frames(from tree: [String: Any]?, requiresAttribution: Bool) -> [String] {
         let stacks = tree?["callStacks"] as? [[String: Any]] ?? []
-        guard let attributed = stacks.first(where: { $0["threadAttributed"] as? Bool == true }) else { return [] }
+        let chosen = requiresAttribution ? stacks.first(where: { $0["threadAttributed"] as? Bool == true }) : stacks.first
+        guard let attributed = chosen else { return [] }
         var lines: [String] = []
         var level = attributed["callStackRootFrames"] as? [[String: Any]] ?? []
-        // 每層取第一個子 frame 往內走(MetricKit 的樹在閃退執行緒上是一條鏈)。
-        while let frame = level.first, lines.count < maxFrames {
+        while lines.count < maxFrames, let frame = heaviest(of: level) {
             let name = frame["binaryName"] as? String ?? "?"
             let uuid = frame["binaryUUID"] as? String ?? "?"
             let offset = (frame["offsetIntoBinaryTextSegment"] as? Int) ?? 0
@@ -123,8 +125,18 @@ public enum MetricKitCrashParser {
         return lines
     }
 
+    private static func heaviest(of frames: [[String: Any]]) -> [String: Any]? {
+        var best: [String: Any]?
+        var bestCount = -1
+        for frame in frames {
+            let count = frame["sampleCount"] as? Int ?? 0
+            if count > bestCount { best = frame; bestCount = count }
+        }
+        return best
+    }
+
     /// MetricKit 的時間字串是 UTC 的 `yyyy-MM-dd HH:mm:ss`;也容忍 ISO 8601。
-    private static func date(_ value: Any?) -> Date? {
+    static func date(_ value: Any?) -> Date? {
         guard let string = value as? String else { return nil }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -146,12 +158,16 @@ public final class InMemoryMetricKitCrashSeenStore: MetricKitCrashSeenStoring {
 }
 
 public final class UserDefaultsMetricKitCrashSeenStore: MetricKitCrashSeenStoring {
-    static let defaultsKey = "diagnostics.metricKitCrashSeen"
+    public static let defaultsKey = "diagnostics.metricKitCrashSeen"
     private let defaults: UserDefaults
-    public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    private let key: String
+    public init(defaults: UserDefaults = .standard, key: String = UserDefaultsMetricKitCrashSeenStore.defaultsKey) {
+        self.defaults = defaults
+        self.key = key
+    }
     public var keys: [String] {
-        get { defaults.stringArray(forKey: Self.defaultsKey) ?? [] }
-        set { defaults.set(Array(newValue.suffix(MetricKitCrashIntake.maxSeen)), forKey: Self.defaultsKey) }
+        get { defaults.stringArray(forKey: key) ?? [] }
+        set { defaults.set(Array(newValue.suffix(MetricKitCrashIntake.maxSeen)), forKey: key) }
     }
 }
 

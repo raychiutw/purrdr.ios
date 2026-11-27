@@ -102,7 +102,9 @@ app 端行為(升級時,#414):
 | 5.1 | 依 `review-notes.md`「送審前的前提」逐項確認(後台、商品、通知網址、網站、信箱) | 主 session | ⬜ |
 | 5.2 | 以送審 build 在模擬器手動走一遍 Demo,核對 `review-notes.md` 的 Demo 描述(#36 驗收條件) | 主 session | ⬜ |
 | 5.3 | Sandbox 帳號在 TestFlight build 實測：登入、試用購買、恢復購買、兌換 Offer Code、刪除會員 | 主 session | ⬜ |
-| 5.4 | 版本頁勾選兩個訂閱商品一起送審，提交 | 主 session | ⬜ |
+| 5.4 | 版本頁勾選兩個訂閱商品一起送審，提交(**目前 Purrdr Plus 編譯開關在 Release 是關閉的,第一版不附訂閱商品,略過 5.3 的購買項目與本列**) | 主 session | ⬜ |
+| 5.5 | **Purrdr Plus 編譯開關(#676)**:`PURRDR_PLUS_ENABLED`(app target 的 build setting,經 Info.plist `PurrdrPlusEnabled` 進 app)Release = NO、Debug = YES;`scripts/plus-enabled.sh Release` 要印出 `NO`(CI 的 `plus-flag` 檢查)。**目前狀態:關閉**,TestFlight 與 App Store 是同一個 Release build | 本 repo | ✅ |
+| 5.6 | **之後開放 Plus**:把 Release 的 `PURRDR_PLUS_ENABLED` 改成 YES、同步改 CI 檢查的預期值,送審時在審核說明寫清楚訂閱與主機同步(Guideline 2.3.1),附測試帳號與 sandbox 購買步驟,並在版本頁勾選訂閱商品。不做遠端開關,也不用 `AppTransaction` 判斷安裝來源 | 主 session | ⬜ |
 
 ## repo 裡仍是佔位的值
 

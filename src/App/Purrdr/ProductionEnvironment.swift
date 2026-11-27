@@ -48,6 +48,8 @@ enum ProductionEnvironment {
             deviceOwner: SystemDeviceOwnerAuthenticator(),
             // StoreKit:在 Xcode 執行時,scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品,不連 App Store。
             plusStore: StoreKitPlusStore(),
+            // app 入口唯一讀 build setting(`PURRDR_PLUS_ENABLED` → Info.plist `PurrdrPlusEnabled`)的地方。
+            plusAvailability: PlusAvailability(infoValue: Bundle.main.object(forInfoDictionaryKey: "PurrdrPlusEnabled")),
             push: LaunchEnvironment.PushParts(
                 platform: PushAppDelegate.platform, store: UserDefaultsPushPairingStore(partition: partition),
                 // 這支裝置(#266):推播 id 存 Keychain(讀不到時稍後再試),名稱預設是系統的裝置名稱。

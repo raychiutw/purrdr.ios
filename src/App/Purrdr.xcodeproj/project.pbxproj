@@ -410,6 +410,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Purrdr/Info.plist;
+				PURRDR_PLUS_ENABLED = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Purrdr;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -448,6 +449,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Purrdr/Info.plist;
+				PURRDR_PLUS_ENABLED = NO;
 				INFOPLIST_KEY_CFBundleDisplayName = Purrdr;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
