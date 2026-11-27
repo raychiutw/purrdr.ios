@@ -93,6 +93,7 @@ struct AddHostGuideView: View {
             .padding(.top, 8)
             .frame(maxWidth: .infinity)
         }
+            .appScrollTopEdge()
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { bottomPanel }
         .navigationTitle("Add Host")

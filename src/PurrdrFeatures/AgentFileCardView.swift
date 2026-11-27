@@ -407,6 +407,7 @@ struct AgentFileDetailsSheet: View {
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+                .appScrollTopEdge()
             .navigationTitle(Text(verbatim: card.file.name))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
