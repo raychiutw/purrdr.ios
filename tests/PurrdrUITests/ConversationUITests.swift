@@ -23,7 +23,12 @@ final class ConversationUITests: XCTestCase {
     /// 原本 6 個測試合併(#374),再併入頂列膠囊、輸入框對齊、訊息單一元素與送出。
     @MainActor
     func testConversationHeaderComposerMessagesRenderingAndSending() {
-        let app = openLedger()
+        let app = XCUIApplication.launchUITesting()
+        // 列表上不再有註記卡與註記清單(#268,原型沒有);註記只在聊天裡。
+        let ledger = app.element("spaces.tab.demo/w1:t1")
+        XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
+        XCTAssertFalse(app.buttons["youShouldKnow.summary"].exists, "列表不該有註記卡")
+        app.openConversation(paneID: "w1:p1", host: "demo")
 
         // 頂列右上只有用量環與「⋯」(#617):沒有 Inspector 開關鈕,兩顆並排(系統合成一顆膠囊)。
         let ring = app.buttons["conversation.usage"].firstMatch
@@ -50,6 +55,24 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(card.frame.minX, 12, accuracy: 1, "輸入框左緣不是 12pt(比內容寬 4pt,#512)")
         XCTAssertEqual(screen.maxX - card.frame.maxX, 12, accuracy: 1, "輸入框右緣不是 12pt(比內容寬 4pt,#512)")
         XCTAssertLessThan(card.frame.maxY, screen.maxY, "輸入框應浮在畫面底部上方")
+
+        // 註記動作(You should know,#23):輸入列上方的註記,動作排成一列(略過是標題列右上的 ✕),不直排佔掉對話;
+        // 註記在時建議卡不同時出現。「略過 → 註記消失 → 建議卡出現」由 testComposerAndKeyboard 守;「在聊天中討論」在送出之後(本測試最後)。
+        let note = app.element("youShouldKnow.note")
+        XCTAssertTrue(note.waitUntilExists(timeout: 15), "聊天輸入列上方沒有註記")
+        XCTAssertTrue(note.label.contains("Decimal keeps cents exact"))
+        let learnMore = app.buttons["youShouldKnow.learnMore"]
+        let knewIt = app.buttons["youShouldKnow.knewIt"]
+        let discuss = app.buttons["youShouldKnow.discuss"]
+        let dismiss = app.buttons["youShouldKnow.dismiss"]
+        for button in [learnMore, knewIt, discuss, dismiss] {
+            XCTAssertTrue(button.exists, "註記少了動作 \(button.identifier)")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44, "\(button.identifier) 觸控目標不到 44pt")
+        }
+        XCTAssertEqual(learnMore.frame.midY, knewIt.frame.midY, accuracy: 1, "動作沒有排成一列")
+        XCTAssertEqual(knewIt.frame.midY, discuss.frame.midY, accuracy: 1, "動作沒有排成一列")
+        XCTAssertLessThan(dismiss.frame.midY, note.frame.minY, "略過不在標題列")
+        XCTAssertFalse(app.element("conversation.suggestion").exists, "註記與建議卡同時出現")
 
         XCTAssertTrue(app.revealInConversation(app.element("conversation.user")), "沒有使用者泡泡")
         // VoiceOver:每則訊息是一個元素(作者 + 內容 + 時間一次念完),不是每段文字各自一個(HIG 20.5)。
@@ -134,6 +157,16 @@ final class ConversationUITests: XCTestCase {
             .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
         XCTAssertTrue(reply.waitUntilExists(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
         XCTAssertTrue(app.element("conversation.echo").waitUntilGone(timeout: 5), "對話紀錄確認後回音應消失")
+
+        // 在聊天中討論(先同意)把註記放進輸入框,註記消失(輸入框此時是空的)。
+        discuss.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitUntilExists(timeout: 5), "沒有詢問同意")
+        let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
+        XCTAssertTrue(message.contains("demo"), "沒說明以哪個使用者:\(message)")
+        alert.buttons["Allow"].firstMatch.tap()
+        text.expectValue(containing: "Here is a note offered by a side agent", timeout: 5)
+        XCTAssertTrue(note.waitUntilGone(timeout: 10), "註記沒有消失")
     }
 
     // MARK: - 已送出圖片情境(`-demoSentImages`,#428:手機沒有副本，經主機讀回縮圖)

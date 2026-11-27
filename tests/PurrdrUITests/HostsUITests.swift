@@ -101,7 +101,7 @@ final class HostsUITests: XCTestCase {
             XCTAssertFalse(app.buttons["hosts.host.Studio Mac"].exists, "主機頁內不該有主機清單列(選主機在右上選單)")
         }
 
-        // 主機頁(#274)打開「Use Host Theme」:先同意，之後顯示主機的 herdr 主題名稱;關掉後名稱消失(原 YouShouldKnowUITests)。
+        // 主機頁(#274)打開「Use Host Theme」:先同意，之後顯示主機的 herdr 主題名稱;關掉後名稱消失。
         step("主機主題") {
             app.openSeededHostSettings()
             let toggle = app.switches["settings.hostTheme"]
