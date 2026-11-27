@@ -63,6 +63,7 @@ enum AppAssembly {
         hosts.demoEntered = environment.demoEntry.initial
         hosts.demoEnteredDidChange = environment.demoEntry.didChange
         hosts.haptics = SystemHaptics()
+        hosts.diagnosticEvents = environment.diagnosticEvents
         let trafficMeter = TrafficMeter(store: environment.trafficStore, launchGate: launchGate)
         environment.seedTraffic?(trafficMeter)
         let trafficNetwork = TrafficNetworkMonitor(meter: trafficMeter)

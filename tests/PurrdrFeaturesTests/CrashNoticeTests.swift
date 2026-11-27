@@ -10,7 +10,7 @@ struct CrashNoticeTests {
     nonisolated static let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
     static func record(at time: Date = t0, name: String = "NSRangeException", app: String = "a") -> CrashRecord {
-        CrashRecord(timestamp: time, name: name, reason: "r", environment: DiagnosticEnvironment(app: app, os: "o", device: "d"))
+        CrashRecord(timestamp: time, name: name, reasonHash: "r", environment: DiagnosticEnvironment(app: app, os: "o", device: "d"))
     }
 
     /// MetricKit 報告:時間是整份 payload 區間的尾端,區間預設 24 小時。

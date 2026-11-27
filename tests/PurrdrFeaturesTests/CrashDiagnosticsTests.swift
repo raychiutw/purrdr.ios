@@ -38,18 +38,20 @@ struct CrashDiagnosticsTests {
         let data = try #require(store.current)
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(object["name"] as? String == "NSInternalInconsistencyException")
-        #expect(object["reason"] as? String == "invalid number of items in section 0")
+        #expect(object["reason"] == nil, "標記不留原因原文")
+        #expect(object["reasonHash"] as? String == DiagnosticHash.reason("invalid number of items in section 0"))
+        #expect((object["reasonHash"] as? String)?.count == 16)
         #expect(object["app"] as? String == "0.52.2 (7)")
         #expect(object["os"] as? String == "iOS 27.0.1")
         #expect(object["device"] as? String == "iPhone18,1")
         #expect(object["t"] as? Double == Self.now.timeIntervalSince1970)
     }
 
-    @Test("原因太長時截斷,標記維持很小")
-    func truncatesLongReason() throws {
+    @Test("原因很長時標記仍很小(只存雜湊)")
+    func longReasonKeepsMarkerSmall() throws {
         let store = MemoryCrashMarkerStore()
         Self.reporter(store).exceptionWillTerminate(name: "N", reason: String(repeating: "x", count: 50_000))
-        #expect(try #require(store.current).count < 4_000)
+        #expect(try #require(store.current).count < 1_000)
     }
 
     @Test("下次啟動:標記變成一筆閃退記錄,標記刪除;記錄逐欄一致")
@@ -62,7 +64,7 @@ struct CrashDiagnosticsTests {
 
         #expect(store.current == nil)
         #expect(sink.entries == [.crash(CrashRecord(
-            timestamp: Self.now, name: "NSRangeException", reason: "index 3 beyond bounds",
+            timestamp: Self.now, name: "NSRangeException", reasonHash: DiagnosticHash.reason("index 3 beyond bounds"),
             environment: DiagnosticEnvironment(app: "0.52.2 (7)", os: "iOS 27.0.1", device: "iPhone18,1")))])
         // 再啟動一次不會重複記。
         Self.reporter(store).recoverPending(into: recorder)
@@ -93,11 +95,12 @@ struct CrashDiagnosticsTests {
     @Test("編碼成 JSON Lines 的 crash 一行")
     func encodesCrashLine() throws {
         let line = DiagnosticLogEncoder.line(.crash(CrashRecord(
-            timestamp: Self.now, name: "N", reason: "r", environment: DiagnosticEnvironment(app: "a", os: "o", device: "d"))))
+            timestamp: Self.now, name: "N", reasonHash: DiagnosticHash.reason("r"), environment: DiagnosticEnvironment(app: "a", os: "o", device: "d"))))
         let object = try #require(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
         #expect(object["kind"] as? String == "crash")
         #expect(object["name"] as? String == "N")
-        #expect(object["reason"] as? String == "r")
+        #expect(object["reason"] == nil)
+        #expect(object["reasonHash"] as? String == DiagnosticHash.reason("r"))
         #expect(object["app"] as? String == "a")
         #expect(object["os"] as? String == "o")
         #expect(object["device"] as? String == "d")
@@ -121,7 +124,7 @@ struct CrashDiagnosticsTests {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("crash-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = DiagnosticLogFile(directory: directory)
-        file.append([.crash(CrashRecord(timestamp: Self.now, name: "N", reason: "r", environment: DiagnosticEnvironment(app: "a", os: "o", device: "d"))), DiagnosticLogFileTests.entry(50)])
+        file.append([.crash(CrashRecord(timestamp: Self.now, name: "N", reasonHash: DiagnosticHash.reason("r"), environment: DiagnosticEnvironment(app: "a", os: "o", device: "d"))), DiagnosticLogFileTests.entry(50)])
         let url = try #require(await file.exportFile(meta: nil))
         let lines = try DiagnosticLogFileTests.lines(url)
         #expect(lines.count == 2)

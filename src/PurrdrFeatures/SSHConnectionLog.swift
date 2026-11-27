@@ -1,25 +1,43 @@
 import Foundation
-import os
+import PurrdrAgentFeatures
 import PurrdrSSH
 
-/// SSH 連線診斷事件的系統紀錄(#133)。只給開發者看(Console.app、sysdiagnose),不顯示在畫面上。
+/// SSH 連線事件(#133)轉成診斷事件(#688)的來源。事件進 `DiagnosticEvents` 後分兩個出口:
+/// 系統 Console(固定文字 public、主機位址與錯誤描述 private)與可分享的診斷檔(只有代碼與主機匿名序號)。
 ///
 /// 實機上收集:Mac 的 Console.app 選 iPhone,篩選 `subsystem:com.raychiu.purrdr category:ssh`
-/// (網路切換與喚醒探測丟棄連線在 category `hosts`)。
+/// (網路切換與回前景決策在 category `hosts`)。
 public enum SSHConnectionLog {
-    /// 以 `os.Logger` 記錄某台主機通道的事件。主機位址標成 private(Console 預設遮住);帶錯誤描述的事件內容也是 private,只有連線成功是 public。
-    public static func system(host: String) -> SSHConnectionDiagnostics {
-        let logger = Logger(subsystem: "com.raychiu.purrdr", category: "ssh")
-        return { event in
-            let message = message(for: event)
-            switch event {
-            case .connected: logger.notice("\(host, privacy: .private): \(message, privacy: .public)")
-            case .dialFailed, .dropped: logger.error("\(host, privacy: .private): \(message, privacy: .private)")
+    /// 某台主機通道的診斷觀察者。`host` 是位址:只有 Console 以 private 記,診斷檔只寫匿名序號。
+    /// 可能從 event loop 或 actor 呼叫(PurrdrSSH 已把 `dropped` 轉到背景佇列);`DiagnosticEvents.record` 本身只排程,不在呼叫端組字串或寫檔。
+    public static func events(_ events: DiagnosticEvents, host: String) -> SSHConnectionDiagnostics {
+        { event in events.record(diagnosticEvent(event, host: host)) }
+    }
+
+    public static func diagnosticEvent(_ event: SSHConnectionEvent, host: String) -> DiagnosticEvent {
+        switch event {
+        case .connected(let dial):
+            return .connected(host: host, dial: dial)
+        case .dialFailed(let dial, let error):
+            return .dialFailed(host: host, dial: dial, error: caseName(of: error), detail: "\(error)")
+        case .dropped(let dial, let reason, let lifetime):
+            let seconds = Int(lifetime.components.seconds)
+            switch reason {
+            case .keepaliveTimeout:
+                return .dropped(host: host, dial: dial, reason: .keepaliveTimeout, lifetimeSeconds: seconds, detail: nil)
+            case .channelOpenTimeout:
+                return .dropped(host: host, dial: dial, reason: .channelOpenTimeout, lifetimeSeconds: seconds, detail: nil)
+            case .disconnectRequested:
+                return .dropped(host: host, dial: dial, reason: .disconnectRequested, lifetimeSeconds: seconds, detail: nil)
+            case .networkError(let description):
+                return .dropped(host: host, dial: dial, reason: .networkError, lifetimeSeconds: seconds, detail: description)
+            case .closedByPeer:
+                return .dropped(host: host, dial: dial, reason: .closedByPeer, lifetimeSeconds: seconds, detail: nil)
             }
         }
     }
 
-    /// 事件帶錯誤描述或原因等動態內容時,系統紀錄標 private。
+    /// 事件帶錯誤描述或原因等動態內容時,Console 標 private。
     public static func isPrivate(_ event: SSHConnectionEvent) -> Bool {
         switch event {
         case .connected: false
@@ -28,23 +46,11 @@ public enum SSHConnectionLog {
     }
 
     public static func message(for event: SSHConnectionEvent) -> String {
-        switch event {
-        case .connected(let dial):
-            "dial \(dial) connected"
-        case .dialFailed(let dial, let error):
-            "dial \(dial) failed: \(error)"
-        case .dropped(let dial, let reason, let lifetime):
-            "dial \(dial) dropped after \(lifetime.components.seconds)s: \(describe(reason))"
-        }
+        diagnosticEvent(event, host: "").consoleText
     }
 
-    private static func describe(_ reason: SSHDropReason) -> String {
-        switch reason {
-        case .keepaliveTimeout: "keepalive timeout"
-        case .channelOpenTimeout: "channel open timeout"
-        case .disconnectRequested: "disconnect requested by the app"
-        case .networkError(let description): "network error: \(description)"
-        case .closedByPeer: "closed by the host or the network"
-        }
+    /// 列舉的 case 名稱(不含關聯值:例如 `hostKeyUnverified(presented:)` 的指紋不能進診斷檔)。
+    private static func caseName(of error: Error) -> String {
+        String(String(describing: error).prefix { $0 != "(" })
     }
 }
