@@ -13,7 +13,7 @@ struct SubscriptionOwnershipTests {
     let tokens = InMemoryTokenStore()
     let store = FakePlusStore()
 
-    static let inUse = #"{"error":{"code":"subscription_in_use","message":"in use","details":{"ownerEmail":"r***@icloud.com","canTransfer":true}}}"#
+    static let inUse = #"{"error":{"code":"subscription_in_use","message":"in use","details":{"ownerEmail":"r***@example.net","canTransfer":true}}}"#
     static let inUseCannotTransfer = #"{"error":{"code":"subscription_in_use","message":"in use","details":{"ownerEmail":null,"canTransfer":false}}}"#
     static let transferred =
         #"{"subscription":{"status":"active","store":"app_store","productId":"com.raychiu.purrdr.plus.yearly","expiresAt":"2026-12-04T00:00:00.000Z","gracePeriodExpiresAt":null,"willAutoRenew":true},"appAccountTokenUpdated":true}"#
@@ -48,7 +48,7 @@ struct SubscriptionOwnershipTests {
 
         await model.restore()
 
-        #expect(model.plusStatus == .ownedByAnotherMember(maskedEmail: "r***@icloud.com"))
+        #expect(model.plusStatus == .ownedByAnotherMember(maskedEmail: "r***@example.net"))
         #expect(model.plusCard.primary == .transferSubscription)
         #expect(!model.isPlusActive)
     }
@@ -86,7 +86,7 @@ struct SubscriptionOwnershipTests {
         await model.transferSubscription()
 
         #expect(backend.requests(to: "/v1/members/me/subscription/transfer").isEmpty)
-        #expect(model.plusStatus == .ownedByAnotherMember(maskedEmail: "r***@icloud.com"))
+        #expect(model.plusStatus == .ownedByAnotherMember(maskedEmail: "r***@example.net"))
     }
 
     @Test("這個會員已有有效訂閱:轉移被擋下並說明原因,Plus 維持原本的訂閱")
