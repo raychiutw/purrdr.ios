@@ -46,7 +46,7 @@ public struct AgentListView: View {
     /// 建立某台主機上某個 Pane 的終端機 model(標題)。由 composition root 提供。
     private let makeTerminal: (@MainActor (ChatRoute, String) -> PaneTerminalModel)?
     /// 列表顯示時預先把前幾個聊天的快取讀進記憶體層,點進去時第一幀就有內容。
-    private let prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)?
+    private let prefetchConversations: (@MainActor ([ChatRoute], Bool) async -> Void)?
     /// 所在視窗的導覽狀態(#31)。有的話：列是 split view 的選取(對話顯示在對話欄)、套用側欄的 workspace 篩選;
     /// 沒有的話列表自己推入對話。
     private let window: TopNavigationModel?
@@ -66,7 +66,7 @@ public struct AgentListView: View {
         topBar: ChatTopBarActions,
         chatDestination: @escaping (ChatRoute) -> AnyView = { _ in AnyView(EmptyView()) },
         pushesChats: Bool = false,
-        prefetchConversations: (@MainActor ([ChatRoute]) async -> Void)? = nil,
+        prefetchConversations: (@MainActor ([ChatRoute], Bool) async -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
     ) {
@@ -82,6 +82,11 @@ public struct AgentListView: View {
     }
 
     private static let prefetchCount = 8
+
+    private struct PrefetchKey: Equatable {
+        var routes: [ChatRoute]
+        var active: Bool
+    }
 
     /// 即時更新在前景時執行;主機新增、刪除或編輯後重來。
     private struct RunKey: Equatable {
@@ -325,7 +330,10 @@ public struct AgentListView: View {
         .onAppear { model.rememberRowCount(of: sections) }
         .onChange(of: MergedAgentListModel.rowCount(of: sections)) { model.rememberRowCount(of: sections) }
         // 預先載入畫面上前幾列聊天的快取(列表順序變了才重做;已在記憶體的不會再讀 SQLite)。
-        .task(id: prefetchRoutes) { await prefetchConversations?(prefetchRoutes) }
+        // 進背景不預讀(#492):前景才讀主機;切到背景時 task 被取消。
+        .task(id: PrefetchKey(routes: prefetchRoutes, active: scenePhase == .active)) {
+            await prefetchConversations?(prefetchRoutes, scenePhase == .active)
+        }
         .overlay {
             if searchHasNoMatch(sections) {
                 ContentUnavailableView.search(text: model.query)

@@ -257,7 +257,8 @@ package final class TranscriptFeed {
     }
 
     /// 讀對話紀錄:還沒定位就定位並讀視窗;已追上就從游標接著讀;追蹤中不讀(新內容由追蹤送來,#165)。
-    package func read(_ target: TranscriptTarget) async -> ReadResult {
+    /// `savesCache` 為 false 時讀完不寫快取(背景預讀自己決定值不值得存,#663)。
+    package func read(_ target: TranscriptTarget, savesCache: Bool = true) async -> ReadResult {
         let generation = generation
         let result: ReadResult
         do {
@@ -299,10 +300,10 @@ package final class TranscriptFeed {
         } catch {
             guard isCurrent(generation) else { return .superseded }
             releaseFileIfGone(error)
-            await saveCacheIfBound(to: target)
+            if savesCache { await saveCacheIfBound(to: target) }
             return .failed(error)
         }
-        if result == .caughtUp { await saveCacheIfBound(to: target) }
+        if result == .caughtUp, savesCache { await saveCacheIfBound(to: target) }
         return result
     }
 
