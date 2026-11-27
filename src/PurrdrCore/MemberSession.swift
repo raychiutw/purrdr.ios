@@ -221,6 +221,14 @@ public actor MemberSession {
         _ = try await authorized(BackendRequest(method: "DELETE", path: "/v1/members/me/push-devices/\(deviceID)"))
     }
 
+    // MARK: - 今日推播用量(#677)
+
+    /// 今日推播上限、已送則數與下次歸零時間(需要會員登入,不需要訂閱)。
+    public func pushUsage() async throws -> PushDailyUsage {
+        let response = try await authorized(BackendRequest(method: "GET", path: "/v1/members/me/push-usage"))
+        return try Wire.decode(Wire.PushUsageEnvelope.self, from: response).usage.domain()
+    }
+
     // MARK: - 登入中的裝置(#409)
 
     /// 自己未撤銷、未過期的工作階段(每支裝置一個)。
@@ -616,6 +624,22 @@ private enum Wire {
             PushDevice(
                 id: deviceId, name: name, model: model.flatMap(PushDeviceModel.init(rawValue:)), hostCount: hostCount,
                 lastRegisteredAt: Date(timeIntervalSince1970: lastRegisteredAt / 1000), isCurrent: current)
+        }
+    }
+
+    struct PushUsageEnvelope: Decodable {
+        var usage: PushUsageBody
+    }
+
+    struct PushUsageBody: Decodable {
+        var limit: Int
+        var sent: Int
+        /// ISO 8601(UTC)。
+        var resetsAt: String
+
+        func domain() throws -> PushDailyUsage {
+            guard let reset = Wire.date(resetsAt) else { throw BackendError.invalidResponse }
+            return PushDailyUsage(limit: limit, sent: sent, resetsAt: reset)
         }
     }
 

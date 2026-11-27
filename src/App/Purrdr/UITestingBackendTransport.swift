@@ -138,6 +138,11 @@ final class UITestingBackendTransport: BackendTransport {
         case ("DELETE", let path) where path.hasPrefix(Self.pairingsPath):
             revokePairing(String(path.dropFirst(Self.pairingsPath.count)))
             return BackendResponse(status: 204, body: Data())
+        case ("GET", "/v1/members/me/push-usage"):
+            // 今日用量(#677):固定 23／100,下次歸零是下一個 UTC 0:00。
+            let seconds = (Date().timeIntervalSince1970 / 86_400).rounded(.down) * 86_400 + 86_400
+            let reset = Date(timeIntervalSince1970: seconds).formatted(.iso8601)
+            return Self.json(#"{"usage":{"limit":100,"sent":23,"resetsAt":"\#(reset)"}}"#)
         case ("GET", "/v1/members/me/push-devices"):
             // 清單與關閉不需要 Plus(訂閱到期也能關閉遺失的裝置);改名才要。
             let current = Self.currentDeviceID(request)
