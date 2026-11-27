@@ -23,7 +23,7 @@ final class DailySmokeUITests: XCTestCase {
     /// 帶 `-demoNeedsYouLater`:打開第一個聊天 3 秒後 notes 變成需要你(weather-app 一開始就需要你,不觸發橫幅)。
     @MainActor
     func testListAndChat() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo", "-demoNeedsYouLater"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo", "-uiTestingLargeImageClipboard", "-demoNeedsYouLater"])
         let ledger = app.element("spaces.tab.demo/w1:t1")
 
         // 放在第一步(開任何聊天之前):`-demoNeedsYouLater` 要開聊天 3 秒後才多一個需要你,所以現在只有 weather-app。
@@ -114,6 +114,20 @@ final class DailySmokeUITests: XCTestCase {
             video.tap()
             XCTAssertTrue(app.element("composer.attachment.0").waitUntilExists(timeout: 20), "挑影片後輸入列沒有附件卡")
             XCTAssertTrue(app.element("composer.videoPreparation").waitUntilGone(timeout: 10), "影片準備中的進度沒有結束")
+            app.element("composer.attachment.remove.0").tap()
+            XCTAssertTrue(app.element("composer.attachment.0").waitUntilGone(timeout: 5), "移除後附件卡還在")
+            app.dismissKeyboard()
+        }
+        step("貼上大照片(#687)") {
+            // `-uiTestingLargeImageClipboard`:剪貼簿是 12MP 的 JPEG 原始資料;貼上後畫面不卡、加成附件卡。
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            app.element("composer.attach").tap()
+            XCTAssertTrue(app.element("attach.paste").waitUntilExists(timeout: 5), "附加面板沒有「貼上」")
+            app.element("attach.paste").tap()
+            for label in ["Allow Paste", "允許貼上"] where springboard.buttons[label].waitUntilExists(timeout: 2) {
+                springboard.buttons[label].tap()
+            }
+            XCTAssertTrue(app.element("composer.attachment.0").waitUntilExists(timeout: 20), "貼上大照片沒有加成附件卡")
             app.element("composer.attachment.remove.0").tap()
             XCTAssertTrue(app.element("composer.attachment.0").waitUntilGone(timeout: 5), "移除後附件卡還在")
             app.dismissKeyboard()

@@ -60,6 +60,7 @@ enum ProductionEnvironment {
                 },
                 // 主機名稱對應表放 App Group,Notification Service Extension 用它補通知副標題(#431)。
                 hostNames: UserDefaultsPushHostNames(),
+                pendingRevocations: KeychainPendingPushRevocations(),
                 // 測試通知:後台與主機外掛目前沒有這條路徑,正式 app 不提供。
                 testSender: nil),
             makeHosts: { push in

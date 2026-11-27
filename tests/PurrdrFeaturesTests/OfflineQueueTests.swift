@@ -401,4 +401,25 @@ struct OfflineQueueTests {
 
         #expect(chat.offlineQueue === model.offlineQueue(for: .demo))
     }
+
+    @Test("正式組合：HostsModel 接上保護儲存(Keychain 那個)，佇列寫進它、不進 UserDefaults 舊來源，重開仍在")
+    func hostsModelWiresProtectedStore() {
+        let blobs = ProtectedOfflineQueueStoreTests.MemoryBlobs()
+        let legacy = ProtectedOfflineQueueStoreTests.emptyLegacy()
+        let store = ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy)
+        let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), offlineQueues: store, makeChannel: ChannelFactory().make)
+        model.load()
+        model.offlineQueue(for: .demo).enqueue(OutgoingPrompt(
+            text: "正式組合也在", paneID: ConversationModelTests.paneID, expectedSession: ConversationModelTests.sessionID,
+            createdAt: Date(), workspaceID: "w1"))
+        store.flush()
+
+        #expect(!blobs.accounts.isEmpty)
+        #expect(legacy.hosts.isEmpty)
+        let relaunched = HostsModel(
+            store: MemoryHostStore(), demoChannel: FakeHost(),
+            offlineQueues: ProtectedOfflineQueueStore(blobs: blobs, legacy: legacy), makeChannel: ChannelFactory().make)
+        relaunched.load()
+        #expect(relaunched.offlineQueue(for: .demo).entries.map(\.text) == ["正式組合也在"])
+    }
 }
