@@ -140,6 +140,7 @@ enum WindowsScripts {
         PIdle
         $handle=$null
         try{
+        if($request.StartsWith('open ')){PWrite "error 127`n";$o.Flush();continue}
         $fields=$request.Split([char]' ',4);$cursor=[long]$fields[0];$knownStamp=$fields[1];$knownAnchor=$fields[2];$file=$fields[3]
         if(-not [IO.File]::Exists($file)){PWrite "error 3`n"}
         else{

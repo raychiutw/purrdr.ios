@@ -77,13 +77,26 @@ actor LongRunningScriptChannel<Reply: Sendable> {
     }
 
     /// 送一行請求(含換行)。通道在回應前結束時重開再問一次，第二次也結束丟 `Ended`。
-    func request(_ line: Data) async throws -> Outcome {
+    func request(_ line: Data, deadline overridden: Duration? = nil) async throws -> Outcome {
         await acquire()
         defer { release() }
+        return try await perform(line, deadline: overridden ?? deadline)
+    }
+
+    /// 通道正忙(別的請求還沒回應)時不排隊,回 `nil`,呼叫端退回一次性指令(#662)。
+    func requestIfIdle(_ line: Data, deadline overridden: Duration? = nil) async throws -> Outcome? {
+        guard !isBusy else { return nil }
+        return try await request(line, deadline: overridden)
+    }
+
+    /// 這支腳本是否已確定跑不了(之後的請求直接回 `.unsupported`)。
+    var isKnownUnsupported: Bool { isUnsupported }
+
+    private func perform(_ line: Data, deadline: Duration) async throws -> Outcome {
         if isUnsupported { return .unsupported }
         for attempt in 0..<2 {
             do {
-                return .reply(try await send(line, on: try await openSession()))
+                return .reply(try await send(line, deadline: deadline, on: try await openSession()))
             } catch let ended as ChannelEnded {
                 closeSession()
                 if !ended.hadReplied, ended.exitCode != Int32(HostScriptTimeLimit.exitCode) { consecutiveFailures += 1 }
@@ -181,7 +194,7 @@ actor LongRunningScriptChannel<Reply: Sendable> {
         buffer = Data()
     }
 
-    private func send(_ request: Data, on session: any ExecSession) async throws -> Reply {
+    private func send(_ request: Data, deadline: Duration, on session: any ExecSession) async throws -> Reply {
         let current = generation
         do {
             try await session.write(request)
