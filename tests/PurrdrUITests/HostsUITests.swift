@@ -32,8 +32,10 @@ final class HostsUITests: XCTestCase {
     @MainActor
     private func backToHostOverview(_ app: XCUIApplication) {
         let back = app.buttons["BackButton"].firstMatch
-        for _ in 0..<4 where back.exists {
-            back.tap()
+        for _ in 0..<4 where back.existsWithoutIdle {
+            // 轉場中返回鈕會在查詢與點擊之間被換掉,元素點擊會因查不到快照而失敗:
+            // 改點導覽列左上角(返回鈕固定的位置)這個座標,不經元素快照。
+            app.coordinate(withNormalizedOffset: CGVector(dx: 36.0 / 402.0, dy: 84.0 / 874.0)).tap()
             _ = back.waitUntilGone(timeout: 2)
         }
         XCTAssertFalse(back.exists, "還有返回鈕,沒有回到主機總頁")
