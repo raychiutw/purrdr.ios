@@ -165,7 +165,7 @@ public struct TopNavigationView: View {
                 notifications?.pending = nil
                 openWhenUnlocked {
                     navigation.sheet = nil
-                    if case .hostEditor(let id) = hosts.open(route) { navigation.openHostEditor(id) }
+                    navigation.openPushDestination(hosts.open(route))
                 }
             }
     }
