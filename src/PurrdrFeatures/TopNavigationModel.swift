@@ -164,6 +164,17 @@ public final class TopNavigationModel {
         sheet = nil
     }
 
+    /// 點了通知(#668):收起 sheet;聊天類通知(已開出聊天)一律切回聊天 tab,不論目前在哪個 tab;
+    /// 主機服務通知開那台主機的編輯頁;測試通知(`nil`)只收起 sheet、不換 tab。
+    public func openPushDestination(_ destination: PushDestination?) {
+        sheet = nil
+        switch destination {
+        case .chat: tab = .chats
+        case .hostEditor(let id): openHostEditor(id)
+        case nil: break
+        }
+    }
+
     /// 「＋」與快捷鍵:切到聊天 tab,把新增聊天推進來(#621)。
     public func openNewChat() {
         tab = .chats
