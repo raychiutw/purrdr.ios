@@ -31,6 +31,8 @@ public enum DiagnosticEntry: Equatable, Sendable {
     case crash(CrashRecord)
     /// MetricKit 在下次啟動交出的閃退報告。一律記錄。
     case crashReport(MetricKitCrashReport)
+    /// MetricKit 交出的卡頓報告(#690):次數、最長秒數與主執行緒堆疊。一律記錄。
+    case hangReport(MetricKitHangReport)
     /// 操作計時(#635):新增聊天／續接的步驟與 SSH 關鍵請求的耗時;只有名稱與毫秒數。
     case timing(OperationTiming)
     /// 顯示給使用者的錯誤(操作記錄):只有類別、錯誤碼與功能區,不含訊息原文。
@@ -147,6 +149,13 @@ public enum DiagnosticLogEncoder {
             if let value = report.terminationReason { object["terminationReason"] = value }
             if let value = report.exceptionName { object["name"] = value }
             if let value = report.exceptionReason { object["reasonHash"] = DiagnosticHash.reason(value) }
+            object["frames"] = report.frames
+            addEnvironment(report.environment, to: &object)
+        case .hangReport(let report):
+            object["kind"] = "hangReport"
+            object["t"] = time(report.timestamp)
+            object["hangs"] = report.count
+            object["longestHangSeconds"] = round1(report.longestSeconds)
             object["frames"] = report.frames
             addEnvironment(report.environment, to: &object)
         case .event(let record):
