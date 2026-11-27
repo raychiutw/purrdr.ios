@@ -62,7 +62,7 @@ extension DiagnosticRecorder {
     /// 時間固定,重新啟動後還是同一筆(才測得出「已提示過就不再提示」)。
     public func recordUITestingCrash() {
         recordCrash(CrashRecord(
-            timestamp: Date(timeIntervalSince1970: 1_700_000_000), name: "NSInternalInconsistencyException", reason: "UI testing",
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000), name: "NSInternalInconsistencyException", reasonHash: DiagnosticHash.reason("UI testing"),
             environment: .current))
     }
 }

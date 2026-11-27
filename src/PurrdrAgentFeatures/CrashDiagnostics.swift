@@ -7,7 +7,8 @@ import Foundation
 public struct CrashRecord: Equatable, Sendable, Codable {
     public var timestamp: Date
     public var name: String
-    public var reason: String
+    /// 例外原因的雜湊(`DiagnosticHash.reason`);原文不留(可能帶路徑或內容)。
+    public var reasonHash: String
     public var environment: DiagnosticEnvironment
     /// 只有 MetricKit 報告才有:整份 payload 涵蓋的時間區間(`timestamp` 是區間尾端,不是閃退的時間)。
     public var reportPeriod: ClosedRange<Date>?
@@ -15,12 +16,12 @@ public struct CrashRecord: Equatable, Sendable, Codable {
     public var nameIsKnown: Bool
 
     public init(
-        timestamp: Date, name: String, reason: String, environment: DiagnosticEnvironment,
+        timestamp: Date, name: String, reasonHash: String, environment: DiagnosticEnvironment,
         reportPeriod: ClosedRange<Date>? = nil, nameIsKnown: Bool = true
     ) {
         self.timestamp = timestamp
         self.name = name
-        self.reason = reason
+        self.reasonHash = reasonHash
         self.environment = environment
         self.reportPeriod = reportPeriod
         self.nameIsKnown = nameIsKnown
@@ -48,9 +49,6 @@ public protocol CrashMarkerStoring: Sendable {
 }
 
 public final class CrashReporter: Sendable {
-    /// 原因字串的長度上限(標記保持很小)。
-    public static let maxReasonLength = 1_000
-
     private let store: any CrashMarkerStoring
     private let environment: DiagnosticEnvironment
     private let clock: @Sendable () -> Date
@@ -69,7 +67,8 @@ public final class CrashReporter: Sendable {
     public func exceptionWillTerminate(name: String, reason: String?) {
         let object: [String: Any] = [
             "name": String(name.prefix(200)),
-            "reason": String((reason ?? "").prefix(Self.maxReasonLength)),
+            // 原因只留雜湊(#688)。
+            "reasonHash": DiagnosticHash.reason(reason ?? ""),
             "t": clock().timeIntervalSince1970,
             "app": environment.app, "os": environment.os, "device": environment.device,
         ]
@@ -86,7 +85,7 @@ public final class CrashReporter: Sendable {
             let name = object["name"] as? String, let seconds = object["t"] as? Double
         else { return }
         recorder.recordCrash(CrashRecord(
-            timestamp: Date(timeIntervalSince1970: seconds), name: name, reason: object["reason"] as? String ?? "",
+            timestamp: Date(timeIntervalSince1970: seconds), name: name, reasonHash: object["reasonHash"] as? String ?? "",
             environment: DiagnosticEnvironment(
                 app: object["app"] as? String ?? "?", os: object["os"] as? String ?? "?", device: object["device"] as? String ?? "?")))
     }

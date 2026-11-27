@@ -69,7 +69,7 @@ struct ErrorRecordTests {
         let off = HitchHarness(enabled: false)
         #expect(!off.recorder.isEnabled)
         off.recorder.recordCrash(CrashRecord(
-            timestamp: Date(timeIntervalSince1970: 1), name: "N", reason: "R", environment: .unknown))
+            timestamp: Date(timeIntervalSince1970: 1), name: "N", reasonHash: "R", environment: .unknown))
         #expect(off.sink.entries.count == 1)
     }
 }

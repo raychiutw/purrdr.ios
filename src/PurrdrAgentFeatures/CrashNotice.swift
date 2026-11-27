@@ -57,7 +57,7 @@ public final class CrashNoticeModel {
         var list = store.noticed
         guard !list.contains(where: { pending.isSameCrash(as: $0) }) else { return }
         var kept = pending
-        kept.reason = ""
+        kept.reasonHash = ""
         list.append(kept)
         store.noticed = Array(list.suffix(Self.maxNoticed))
     }

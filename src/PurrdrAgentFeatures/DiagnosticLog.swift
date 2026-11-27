@@ -35,6 +35,8 @@ public enum DiagnosticEntry: Equatable, Sendable {
     case timing(OperationTiming)
     /// 顯示給使用者的錯誤(操作記錄):只有類別、錯誤碼與功能區,不含訊息原文。
     case error(ErrorRecord)
+    /// 連線事件(#688):撥號、中斷原因、網路切換、重撥決策;只有類別、代碼與主機匿名序號,受「操作記錄」開關控制。
+    case event(DiagnosticEventRecord)
     /// 匯出檔開頭的一筆:匯出時間與目前的系統狀態。
     case meta(HitchSystemState, at: Date)
 }
@@ -122,7 +124,8 @@ public enum DiagnosticLogEncoder {
             object["kind"] = "crash"
             object["t"] = time(record.timestamp)
             object["name"] = record.name
-            object["reason"] = record.reason
+            // 原因只留雜湊(#688):原文可能帶路徑或內容。
+            object["reasonHash"] = record.reasonHash
             addEnvironment(record.environment, to: &object)
         case .timing(let timing):
             object["kind"] = "timing"
@@ -143,9 +146,18 @@ public enum DiagnosticLogEncoder {
             if let value = report.signal { object["signal"] = value }
             if let value = report.terminationReason { object["terminationReason"] = value }
             if let value = report.exceptionName { object["name"] = value }
-            if let value = report.exceptionReason { object["reason"] = value }
+            if let value = report.exceptionReason { object["reasonHash"] = DiagnosticHash.reason(value) }
             object["frames"] = report.frames
             addEnvironment(report.environment, to: &object)
+        case .event(let record):
+            object["kind"] = "event"
+            object["t"] = time(record.at)
+            object["category"] = record.category
+            object["code"] = record.code
+            if let value = record.reason { object["reason"] = value }
+            if let value = record.host { object["host"] = value }
+            if let value = record.dial { object["dial"] = value }
+            if let value = record.value { object["value"] = value }
         case .meta(let system, let date):
             object["kind"] = "meta"
             object["t"] = time(date)
