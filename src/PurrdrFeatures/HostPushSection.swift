@@ -8,11 +8,14 @@ import SwiftUI
 /// 最後一支裝置關閉才移除外掛(#264)。不能開的主機寫出原因。
 struct HostPushSection: View {
     let pushes: [HostPush]
+    /// 今日推播用量(#677);讀不到時是 `nil`,不顯示這一列。
+    var usage: PushDailyUsage?
     /// 還沒配對的 HTTPS 主機：開那台主機的配對(#295)。
     var pair: (UUID) -> Void = { _ in }
 
     var body: some View {
         Section {
+            if let usage { PushUsageRow(usage: usage) }
             ForEach(pushes) { push in
                 HostPushRow(push: push, pair: pair)
                 if push.support == .supported, push.model.state == .on {
@@ -382,5 +385,26 @@ extension PushModel {
     var confirmingUser: String? {
         if case .confirming(let user) = state { return user }
         return nil
+    }
+}
+
+/// 今日推播用量一列(#677):「今日 23／100 則」加歸零時間;到達上限時改成「今日已達上限」(警示色,不只靠顏色)。
+struct PushUsageRow: View {
+    let usage: PushDailyUsage
+
+    var body: some View {
+        let text = PushUsageText(usage)
+        HStack(alignment: .firstTextBaseline) {
+            Text(verbatim: text.summary)
+                .foregroundStyle(usage.isLimitReached ? Color.orange : Color.primary)
+                .accessibilityIdentifier("account.push.usage.summary")
+            Spacer()
+            Text(verbatim: text.resetNote)
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
+                .accessibilityIdentifier("account.push.usage.reset")
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("account.push.usage")
     }
 }
