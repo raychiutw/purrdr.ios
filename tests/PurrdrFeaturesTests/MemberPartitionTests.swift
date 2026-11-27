@@ -44,13 +44,13 @@ struct MemberPartitionTests {
         platform.token = PushModelTests.token
     }
 
-    func pushService() -> PushService {
+    func pushService(pending: any PendingPushRevocations = InMemoryPendingPushRevocations()) -> PushService {
         PushService(
             session: session, platform: platform, store: pairings,
             device: PushDeviceIdentity(id: Self.deviceID, name: "iPhone", model: .iPhone),
             configuration: PushConfiguration(
                 endpoint: PushModelTests.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
-            isSignedIn: { true })
+            pendingRevocations: pending, isSignedIn: { true })
     }
 
     func makeSync() -> HostSyncModel {
@@ -313,6 +313,24 @@ struct MemberPartitionTests {
         #expect(pushModel.state == .off)
         #expect(backend.requests(to: "/v1/members/me/push-pairings/\(keyHash)").count == 1)
         #expect(pairings.pairings.isEmpty)
+    }
+
+    @Test("強制離開時後台撤銷失敗:key hash 進待撤銷清單,之後重送(#691)")
+    func forceLeaveQueuesFailedRevocation() async {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .unreachable)
+        let pending = InMemoryPendingPushRevocations()
+        let push = pushService(pending: pending)
+        let member = makeMemberModel()
+        localState.attach(push: push, hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+
+        #expect(await localState.leave(force: true) == true)
+        #expect(pending.keyHashes == [Self.keyHashA])
+
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
+        await push.retryPendingRevocations()
+        #expect(pending.keyHashes.isEmpty)
     }
 
     @Test("撤銷後台配對連不上時不登出:通知配對仍有效,不能假裝登出了")

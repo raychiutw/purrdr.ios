@@ -827,6 +827,10 @@ public final class HostsModel {
         // 沒有網路時列表立刻顯示離線，不等連線逾時(#221)。
         agentList.isNetworkAvailable = !simulatesNoNetwork && signature.hasPrefix("satisfied")
         guard let previous = networkPath, previous != signature else { return nil }
+        // 網路恢復(#691):重送離線時沒撤銷成功的推播配對。
+        if signature.hasPrefix("satisfied"), !previous.hasPrefix("satisfied"), let pushService {
+            Task { await pushService.retryPendingRevocations() }
+        }
         let demoChannel = demoChannel
         let disconnectors = sshAdapter.disconnectors() + httpsAdapter.disconnectors() + [{ await demoChannel.disconnect() }]
         let channelCount = sshAdapter.liveChannels.count

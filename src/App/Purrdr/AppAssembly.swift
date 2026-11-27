@@ -49,7 +49,8 @@ enum AppAssembly {
             loadDevice: environment.push.loadDevice,
             configuration: PushConfiguration(
                 endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource),
-            hostNames: environment.push.hostNames
+            hostNames: environment.push.hostNames,
+            pendingRevocations: environment.push.pendingRevocations
         ) {
             // #675:推播只要求登入(不要求 Purrdr Plus);本機有會員快照就算登入,實際失效由後台回應處理。
             ((try? await session.cachedMember()) ?? nil) != nil
