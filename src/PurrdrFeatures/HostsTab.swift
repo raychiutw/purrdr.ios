@@ -42,6 +42,7 @@ struct HostsTab: View {
                 .topBarPage(topBarContent)
                 .navigationDestination(for: HostRoute.self) { destination($0) }
         }
+        .tabBarHidden(for: flow.path)
         .onAppear {
             // 已配對裝置「這支裝置」那列:確認在那一列上問過了(#625),確認後回總頁移除(#291)。
             statusCache.removeHost = { id, name in
@@ -232,7 +233,6 @@ private struct LoginShellTool: View {
 
     var body: some View {
         LoginShellScreen(hosts: hosts, picker: picker)
-            .hidesTabBarWhenCompact()
     }
 }
 

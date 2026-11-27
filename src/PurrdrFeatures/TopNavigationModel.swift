@@ -17,6 +17,12 @@ enum ChatsDestination: Hashable {
     }
 }
 
+extension ChatsDestination: HidesTabBarOnPush {
+    /// 聊天(對話或 Pane 終端機)隱藏;版面圖保留 tab bar。
+    /// 從聊天再推入的頁面(「⋯」的 Pane 終端機、Git 變更、顯示版面、Subagent)不在路徑上,靠路徑上的聊天一起隱藏。
+    var hidesTabBar: Bool { chatRoute != nil }
+}
+
 /// 寬視窗列表欄的選取(`List(selection:)` 的值):聊天,或多 Pane Tab 的版面圖。兩者都顯示在對話欄。
 enum SidebarSelection: Hashable {
     case chat(ChatRoute)

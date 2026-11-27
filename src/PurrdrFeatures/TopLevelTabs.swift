@@ -6,12 +6,27 @@ import SwiftUI
 
 /// 第二層的對話、Pane 終端機與登入 Shell 隱藏 tab bar(它們的底部已被輸入列與終端機按鍵列佔用)。
 /// 只在窄視窗(iPhone、iPad 窄視窗與分割視窗);iPad 寬視窗是分欄,tab bar 留著。
-private struct HidesTabBarWhenCompact: ViewModifier {
+///
+/// 由持有導覽路徑的 tab 在堆疊根決定(`tabBarHidden(for:)`),不掛在被推入的頁面上:掛在頁面上時,
+/// 返回動畫期間頁面還在、隱藏要等它被移除才失效,tab bar 晚約一個轉場才出現;
+/// 路徑在返回一開始就變了,tab bar 跟著轉場出現(研究與量測見 docs/research/tabbar-hide-on-push.md)。
+protocol HidesTabBarOnPush {
+    /// 推入這一頁時要隱藏 tab bar。
+    var hidesTabBar: Bool { get }
+}
+
+extension Sequence where Element: HidesTabBarOnPush {
+    /// 路徑上任何一頁要隱藏就隱藏(例:版面圖之上再推入聊天)。
+    var hidesTabBar: Bool { contains { $0.hidesTabBar } }
+}
+
+private struct TabBarHiddenWhenCompact: ViewModifier {
+    let hidden: Bool
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        content.toolbarVisibility(sizeClass == .compact ? .hidden : .automatic, for: .tabBar)
+        content.toolbarVisibility(hidden && sizeClass == .compact ? .hidden : .automatic, for: .tabBar)
         #else
         content
         #endif
@@ -19,9 +34,9 @@ private struct HidesTabBarWhenCompact: ViewModifier {
 }
 
 extension View {
-    /// 窄視窗隱藏 tab bar(對話、終端機、登入 Shell)。
-    func hidesTabBarWhenCompact() -> some View {
-        modifier(HidesTabBarWhenCompact())
+    /// 掛在 tab 的 `NavigationStack` 上:依導覽路徑在窄視窗隱藏 tab bar。
+    func tabBarHidden<Path: Sequence>(for path: Path) -> some View where Path.Element: HidesTabBarOnPush {
+        modifier(TabBarHiddenWhenCompact(hidden: path.hidesTabBar))
     }
 }
 

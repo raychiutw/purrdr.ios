@@ -243,12 +243,19 @@ public enum BlockedPromptParser {
         var collected: [String] = []
         var start = first
         while index >= 0, !lines[index].isBlank, !isSeparator(lines[index]), !isDashed(lines[index]), optionLine(lines[index]) == nil {
-            collected.insert(lines[index].trimmingCharacters(in: .whitespaces), at: 0)
+            collected.insert(questionText(lines[index]), at: 0)
             start = index
             index -= 1
         }
         guard !collected.isEmpty else { return nil }
         return (collected.joined(separator: " "), start)
+    }
+
+    /// 題目一行的文字:Claude Code 的 AskUserQuestion 在題目前加左邊線「│ 」(2026-11 真實畫面),不是題目內容。
+    private static func questionText(_ line: String) -> String {
+        var text = line.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("│") { text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces) }
+        return text
     }
 
     // MARK: - 細節(§5.3)

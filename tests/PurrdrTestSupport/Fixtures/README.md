@@ -133,6 +133,10 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
 內容(指令、路徑、問題)是自己寫的範例。測試用 `PaneScreens.read(_:)` 把它放進錄製的 `pane.read` envelope。
 真機第一次看到 blocked 畫面時，以唯讀的 `pane.read` 讀下來去識別化，換掉對應的檔案。
 
+- **`claude-ask-single.txt`:真實畫面結構**(2026-11-27,**Claude Code 2.1.332**、herdr 0.9.5,作者的 Mac,使用者同意)。在作者自己的 Claude Code pane 跳一題單選 AskUserQuestion,
+  以唯讀 `herdr pane read <pane> --source visible --lines 60` 讀下。保留結構(單題標題列 `☐ <header>`、題目前的左邊線 `│ `、
+  164 欄分隔線、分隔線下的 `5. Chat about this`、`↑/↓ to navigate` 提示),對話、題目與選項換成自己寫的範例。
+
 `screens/*-panel-*.txt` 是 slash 指令開出的面板(#45)。
 
 - **`claude-panel-model.txt`、`claude-panel-effort.txt`:真實錄製**(#65,2026-11-16,**Claude Code 2.1.325**、herdr 0.9.5,作者的 Mac,使用者同意)。

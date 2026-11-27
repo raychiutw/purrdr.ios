@@ -28,6 +28,11 @@ enum HostRoute: Hashable {
     }
 }
 
+extension HostRoute: HidesTabBarOnPush {
+    /// 只有登入 Shell 隱藏;其餘子頁保留 tab bar。
+    var hidesTabBar: Bool { self == .loginShell }
+}
+
 /// 主機清單的導覽與刪除確認(#235)。
 @MainActor
 @Observable

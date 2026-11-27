@@ -451,7 +451,6 @@ struct ConversationScreen: View {
 
     var body: some View {
         ConversationView(model: model)
-            .hidesTabBarWhenCompact()
             .toolbar {
                 // 右上角一顆玻璃膠囊 [用量環｜⋯](#513,同一個 ToolbarItemGroup 由系統合成):「⋯」是 Pane 終端機、Git 變更、顯示版面(#381)。
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -515,7 +514,7 @@ struct ConversationScreen: View {
                     if let route, window?.openedTerminal == route { window?.openedTerminal = nil }
                 }
             )) {
-                if let terminal { PaneTerminalView(model: terminal).hidesTabBarWhenCompact() }
+                if let terminal { PaneTerminalView(model: terminal) }
             }
             #endif
     }
