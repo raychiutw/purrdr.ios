@@ -37,7 +37,7 @@ public struct WelcomeView: View {
                         detail: "Tailscale needs no password or key. Otherwise, Purrdr makes a key on this iPhone or iPad for you to add to the host.")
                     requirement(
                         "Notifications Are Optional", systemImage: "bell.badge", id: "notifications",
-                        detail: "With Purrdr Plus, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it.")
+                        detail: "After you sign in, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it.")
                 } header: {
                     Text("What You Need")
                         .foregroundStyle(.secondaryText)

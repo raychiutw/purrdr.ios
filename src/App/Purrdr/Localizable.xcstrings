@@ -1370,6 +1370,17 @@
         }
       }
     },
+    "After you sign in, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入後，主機上的小幫手會在 Agent 需要你時通知你。不裝也能聊天、開終端機。"
+          }
+        }
+      }
+    },
     "After you sign in, you go straight to Account." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11776,6 +11787,17 @@
         }
       }
     },
+    "Signing out turns off notifications for this device. Hosts and chats keep working — they don’t need a member account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登出會停止這支裝置的通知。主機與聊天仍可使用,不需要會員。"
+          }
+        }
+      }
+    },
     "Skip" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16153,17 +16175,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Windows 用 SSH"
-          }
-        }
-      }
-    },
-    "With Purrdr Plus, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "訂閱 Purrdr Plus 後，主機上的小幫手會在 Agent 需要你時通知你。不裝也能聊天、開終端機。"
           }
         }
       }
