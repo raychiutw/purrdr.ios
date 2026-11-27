@@ -69,7 +69,8 @@ public struct ConversationView: View {
             .navigationDestination(item: $openedRoute) { [model] route in
                 DelegationDestination(route: route, conversation: model)
             }
-            .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
+            .environment(\.agentImages, AgentImageContext(
+                loads: model.agentFiles, scope: { [model] in model.fileAccessScope }, isAnchored: { [model] in model.hasFileAccessAnchor }))
             .environment(\.delegationContext, DelegationContext(
                 workflowModel: { [model] in model.workflowModel(for: $0) },
                 canOpen: { [model] in model.canOpen($0) }
@@ -147,7 +148,8 @@ public struct ConversationView: View {
                     show: { viewerItem = $0 }
                 ))
                 .environment(\.inlineSlashNames, model.inlineSlashNames)
-                .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
+                .environment(\.agentImages, AgentImageContext(
+                    loads: model.agentFiles, scope: { [model] in model.fileAccessScope }, isAnchored: { [model] in model.hasFileAccessAnchor }))
                 .environment(\.delegationContext, DelegationContext(
                     workflowModel: { [model] in model.workflowModel(for: $0) },
                     canOpen: { [model] in model.canOpen($0) }
