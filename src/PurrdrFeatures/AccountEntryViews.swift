@@ -200,6 +200,7 @@ private struct AccountAuthPage: View {
             .padding(.horizontal)
             .padding(.top, 16)
         }
+            .appScrollTopEdge()
         // 識別碼掛在 ScrollView 本身:掛在 safeAreaBar 外層會蓋掉登入鈕自己的識別碼。
         .accessibilityIdentifier(isSignUp ? "account.entry.joinPage" : "account.entry.signInPage")
         .safeAreaBar(edge: .bottom) {
@@ -514,6 +515,7 @@ struct JoinFlowPages: View {
             .padding(.horizontal)
             .accessibilityElement(children: .combine)
         }
+            .appScrollTopEdge()
         .accessibilityIdentifier(created ? "account.join.doneCreated" : "account.join.done")
         .safeAreaBar(edge: .bottom) {
             primaryButton("Get Started") { entry.finish() }

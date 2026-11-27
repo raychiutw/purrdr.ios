@@ -74,6 +74,7 @@ struct SpacesLayoutContent: View {
                 }
                 .padding()
             }
+                .appPageTopEdge()
         } else {
             ContentUnavailableView(
                 "No Layout",

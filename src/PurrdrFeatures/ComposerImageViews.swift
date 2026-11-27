@@ -442,6 +442,7 @@ struct AttachPanel: View {
                 .padding(.horizontal)
                 .padding(.bottom)
             }
+                .appScrollTopEdge()
             .safeAreaInset(edge: .bottom) {
                 if selection.count > 0 {
                     Button {
