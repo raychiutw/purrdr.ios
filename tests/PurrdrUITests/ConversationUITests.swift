@@ -130,7 +130,7 @@ final class ConversationUITests: XCTestCase {
 
     /// 使用者送出的三張圖：兩張經主機取檔讀回縮圖、可點開圖片檢視器;一張已被主機清掉，顯示「主機上已找不到」。
     @MainActor
-    func testSentImagesReadBackFromHostAndRowHeightStaysStable() {
+    func testSentImagesReadBackFromHost() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
         XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
         let thumbnail = app.element("conversation.sentImage.thumbnail")
@@ -155,37 +155,6 @@ final class ConversationUITests: XCTestCase {
         app.element("imageViewer.image").coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
         XCTAssertTrue(app.element("imageViewer").waitUntilGone(timeout: 5), "下滑沒有關閉圖片檢視器")
-
-        // 圖片捲出再捲回,列高不變:換成大字級(不用 AX5:AX5 時「You should know」卡與輸入列佔掉約 625pt,
-        // 圖片列根本滑不進畫面),讓對話超出一個畫面;縮圖與所在訊息捲出畫面再捲回,高度與寬度要一樣。
-        let list = app.conversationList
-        let userRow = app.element("conversation.user")
-        XCTAssertTrue(app.revealInConversation(userRow), "找不到訊息列")
-        let defaultRowHeight = userRow.frame.height
-        app.setContentSize("UICTContentSizeCategoryXXXL")
-        XCTAssertTrue(app.revealInConversation(userRow), "換字級後找不到訊息列")
-        XCTAssertGreaterThan(userRow.frame.height, defaultRowHeight, "字級沒有真的變大(換字級的測試連結沒有生效),列高量測沒有意義")
-        XCTAssertTrue(app.revealInConversation(thumbnail), "換字級後縮圖不見了")
-        _ = UITestWait.until(timeout: 5) { thumbnail.frame.height > 0 }
-        let before = thumbnail.frame.size
-        let userRowBefore = userRow.frame.height
-        XCTAssertGreaterThan(userRowBefore, 0, "量不到訊息列的高度")
-        // 往下捲到縮圖整個離開可見範圍。
-        var gone = false
-        for _ in 0..<8 where !gone {
-            list.swipeUp()
-            let range = app.visibleConversationRange(of: list)
-            gone = !thumbnail.exists || thumbnail.frame.maxY < range.lowerBound || thumbnail.frame.minY > range.upperBound
-        }
-        XCTAssertTrue(gone, "縮圖一直沒有捲出畫面(測試資料不夠長)")
-        XCTAssertTrue(app.revealInConversation(thumbnail), "捲回來後縮圖不見了")
-        _ = UITestWait.until(timeout: 5) { thumbnail.frame.height > 0 }
-        XCTAssertEqual(thumbnail.frame.size.height, before.height, accuracy: 1, "捲回來後縮圖高度變了")
-        XCTAssertEqual(thumbnail.frame.size.width, before.width, accuracy: 1, "捲回來後縮圖寬度變了")
-        // 縮圖在這一列裡,縮圖回來了這一列就在畫面上:直接比高度,不成立就失敗。
-        XCTAssertTrue(userRow.exists, "捲回來後找不到訊息列")
-        XCTAssertEqual(userRow.frame.height, userRowBefore, accuracy: 1, "捲回來後訊息列高度變了")
-        app.setContentSize(nil)
 
         // 使用者送出的兩份檔案(#429):一份經主機讀回縮小檔案卡片(大小、點開以 QuickLook),一份已被主機清掉顯示說明。
         let size = app.element("conversation.userFile.size")
@@ -450,51 +419,9 @@ final class ConversationUITests: XCTestCase {
 
     /// 送出(單一啟動,原本 3 個測試合併,#374):輸入框清空、回音出現，agent 收下後對話紀錄接上回覆、回音消失;
     /// 送出後立刻收起鍵盤(#329)。
-    /// 送出前先換成 AccessibilityL 字級檢查軟體鍵盤出現時(#196):You should know 卡片讓位(收成一行或暫時拿掉),
-    /// 對話至少留 132pt、看得到訊息;收起鍵盤後是一行(不在鍵盤動畫中長回來),點一行的註記才換回完整卡片。
-    /// 模擬器接著硬體鍵盤(只有快捷列)時空間夠，卡片不收，這段不適用(略過這段、送出照常驗)。
     @MainActor
-    func testSoftKeyboardMakesRoomThenSending() {
+    func testSending() {
         let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
-        let note = app.element("youShouldKnow.note")
-        XCTAssertTrue(note.waitUntilExists(timeout: 15), "沒有註記")
-        let defaultNoteHeight = note.frame.height
-
-        // iPhone 17 在預設字級與 AX1 都放得下完整註記與鍵盤(AX1 對話還剩約 135pt),不必讓位(#251);AX2 才要讓位。
-        app.setContentSize("UICTContentSizeCategoryAccessibilityL")
-        XCTAssertTrue(note.waitUntilExists(timeout: 5), "換字級後沒有註記")
-        XCTAssertGreaterThan(note.frame.height, defaultNoteHeight, "字級沒有真的變大(換字級的測試連結沒有生效),讓位檢查沒有意義")
-        XCTAssertFalse(app.element("conversation.suggestion").exists, "註記完整顯示時建議卡不該同時出現")
-        let editor = app.element("composer.text")
-        editor.tap()
-        let keyboard = app.keyboards.firstMatch
-        XCTAssertTrue(keyboard.waitUntilExists(timeout: 5), "鍵盤沒有叫出來")
-        if keyboard.frame.height > 150 {
-            let compact = app.element("youShouldKnow.compact")
-            // 讓位規則(#196):放得下一行就收成一行，連一行都放不下就暫時拿掉(AX2 的 iPhone 17 是後者)。
-            XCTAssertTrue(note.waitUntilGone(timeout: 5), "鍵盤出現時完整卡片應讓位")
-            let typed = "Typing while reading"
-            editor.typeEnglish(typed)
-
-            let top = app.navigationBars.firstMatch.frame.maxY
-            let bottom = [compact, app.element("conversation.suggestion")].filter(\.exists).map(\.frame.minY).min() ?? editor.frame.minY
-            XCTAssertGreaterThanOrEqual(bottom - top, 132, "對話只剩 \(bottom - top)pt")
-            let rows = app.descendants(matching: .any).matching(NSPredicate(
-                format: "identifier == 'conversation.agent' OR identifier == 'conversation.user'")).allElementsBoundByIndex
-            XCTAssertTrue(rows.contains { $0.frame.maxY > top + 20 && $0.frame.minY < bottom - 20 }, "打字時看不到任何訊息")
-            // 鍵盤還在、焦點還在輸入框時刪掉打的字,之後送出的是乾淨的輸入框。
-            editor.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: typed.count))
-
-            app.dismissKeyboard()
-            XCTAssertTrue(compact.waitUntilExists(timeout: 5), "收起鍵盤時註記應回到一行(暫時拿掉的也回到一行)")
-            compact.tap()
-            XCTAssertTrue(note.waitUntilExists(timeout: 5), "點一行的註記後完整卡片沒有回來")
-            XCTAssertFalse(app.keyboards.firstMatch.exists, "點註記不該叫出鍵盤")
-        } else {
-            app.dismissKeyboard()
-        }
-        app.setContentSize(nil)
-
         let text = app.element("composer.text")
         let send = app.element("composer.send")
         XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
@@ -552,6 +479,40 @@ final class ConversationUITests: XCTestCase {
             "Wait, not yet")).firstMatch
         XCTAssertTrue(echoOrReply.waitUntilExists(timeout: 5), "立即送出後沒有回音")
         XCTAssertTrue(app.element("conversation.pendingSend").waitUntilGone(timeout: 5), "立即送出後倒數泡泡應消失")
+    }
+
+    /// 軟體鍵盤出現時(#196):You should know 卡片讓位(收成一行或暫時拿掉),對話至少留 132pt、看得到訊息;
+    /// 收起鍵盤後是一行(不在鍵盤動畫中長回來),點一行的註記才換回完整卡片。
+    /// 模擬器接著硬體鍵盤(只有快捷列)時空間夠，卡片不收，這時不適用。
+    @MainActor
+    func testSoftKeyboardKeepsConversationVisible() throws {
+        // iPhone 17 在預設字級與 AX1 都放得下完整註記與鍵盤(AX1 對話還剩約 135pt),不必讓位(#251);AX2 才要讓位。
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryAccessibilityL")
+        let text = app.element("composer.text")
+        XCTAssertTrue(app.element("youShouldKnow.note").waitUntilExists(timeout: 15), "沒有註記")
+        XCTAssertFalse(app.element("conversation.suggestion").exists, "註記完整顯示時建議卡不該同時出現")
+        text.tap()
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitUntilExists(timeout: 5), "鍵盤沒有叫出來")
+        guard keyboard.frame.height > 150 else { throw XCTSkip("模擬器接著硬體鍵盤，沒有軟體鍵盤") }
+
+        let compact = app.element("youShouldKnow.compact")
+        // 讓位規則(#196):放得下一行就收成一行，連一行都放不下就暫時拿掉(AX2 的 iPhone 17 是後者)。
+        XCTAssertTrue(app.element("youShouldKnow.note").waitUntilGone(timeout: 5), "鍵盤出現時完整卡片應讓位")
+        text.typeEnglish("Typing while reading")
+
+        let top = app.navigationBars.firstMatch.frame.maxY
+        let bottom = [compact, app.element("conversation.suggestion")].filter(\.exists).map(\.frame.minY).min() ?? text.frame.minY
+        XCTAssertGreaterThanOrEqual(bottom - top, 132, "對話只剩 \(bottom - top)pt")
+        let rows = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier == 'conversation.agent' OR identifier == 'conversation.user'")).allElementsBoundByIndex
+        XCTAssertTrue(rows.contains { $0.frame.maxY > top + 20 && $0.frame.minY < bottom - 20 }, "打字時看不到任何訊息")
+
+        app.dismissKeyboard()
+        XCTAssertTrue(compact.waitUntilExists(timeout: 5), "收起鍵盤時註記應回到一行(暫時拿掉的也回到一行)")
+        compact.tap()
+        XCTAssertTrue(app.element("youShouldKnow.note").waitUntilExists(timeout: 5), "點一行的註記後完整卡片沒有回來")
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "點註記不該叫出鍵盤")
     }
 
     /// 對話載入中(#114):輸入列與載入完成後在同一個位置(畫面底部),轉圈仍在輸入列上方的中段。

@@ -23,7 +23,7 @@ final class SendWhenDoneUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: "conversation.sendWhenDone.item").allElementsBoundByIndex.map(\.label)
     }
 
-    // 不能用的原因寫在開關下方(#626)的檢查在 ShellCommandUITests.testShellBlockThenSecretCheckThenSendWhenDoneReason。
+    // 不能用的原因寫在開關下方(#626)的檢查在 ShellCommandUITests.testShellBlockSecretCheckSendWhenDoneReasonThenChangesComment。
 
     @MainActor
     func testQueuedMessagesCanBeReorderedThenPairedDevicesRevokeAndRemoveHost() throws {

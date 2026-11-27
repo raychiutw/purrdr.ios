@@ -10,16 +10,15 @@ final class PlusUITests: XCTestCase {
     }
 
     /// 每個方案揭露名稱、期間、每期內容、當地幣別的完整價格、試用後自動扣款;另有恢復購買、兌換代碼、條款與隱私權政策。
-    /// 預設字級與 AX 最大字級各驗一次(同一次啟動內換字級);預設字級那輪再驗:頁首只有標題(#236);預設年繳、年繳在前;
+    /// 預設字級與 AX 最大字級各驗一次(各啟動一次);預設字級那輪再驗:頁首只有標題(#236);預設年繳、年繳在前;
     /// 改選月繳時說明換成月繳的價格,方案卡片有按壓回饋後(#234)按住一下再放開仍選取該方案。
-    /// 最後(回到預設字級)訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
+    /// 預設字級那次啟動最後,訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
     @MainActor
-    func testPaywallDisclosesEverythingRequiredAtBothSizesThenSubscribingNeedsSignIn() {
+    func testPaywallDisclosesEverythingRequiredAtBothSizesAndSubscribingNeedsSignIn() {
         let app = XCUIApplication.launchUITesting()
         openPlus(in: app)
         let benefits = app.descendants(matching: .any)["plus.benefits"].firstMatch
         XCTAssertTrue(benefits.waitUntilExists(timeout: 15), "沒有每期內容(預設字級)")
-        let defaultBenefitsHeight = benefits.frame.height
 
         assertPaywallDisclosures(in: app, size: "預設字級", selectedPrice: "$39.99")
 
@@ -39,17 +38,6 @@ final class PlusUITests: XCTestCase {
         app.scrollIntoView(disclosure, search: .down)
         XCTAssertTrue(disclosure.label.contains("$4.99"), disclosure.label)
 
-        // AX 最大字級:先確認字級真的變大,否則下面的 AX 斷言會變成重複量預設字級。
-        app.setContentSize("UICTContentSizeCategoryAccessibilityXXXL")
-        app.scrollIntoView(benefits, search: .up)
-        XCTAssertTrue(benefits.waitUntilExists(timeout: 10), "換字級後沒有每期內容")
-        XCTAssertTrue(UITestWait.until(timeout: 5) { benefits.frame.height > defaultBenefitsHeight * 1.3 },
-                      "字級沒有真的變大(換字級的測試連結沒有生效):每期內容高度 \(benefits.frame.height),預設 \(defaultBenefitsHeight)")
-        // 預設字級那輪已改選月繳,說明是月繳價格。
-        assertPaywallDisclosures(in: app, size: "AX 最大字級", selectedPrice: "$4.99")
-
-        // 回到預設字級驗登入引導。
-        app.setContentSize(nil)
         app.scrollIntoView(benefits, search: .up)
         let subscribe = app.buttons["plus.subscribe"]
         XCTAssertTrue(app.scrollIntoView(subscribe, search: .both, timeout: 15))
@@ -66,6 +54,13 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(done.waitUntilExists(timeout: 5))
         done.tap()
         XCTAssertTrue(app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch.waitUntilExists(timeout: 5))
+
+        // AX 最大字級(重新啟動;換字級的測試連結會把畫面重置回列表,所以不能在同一次啟動內換)。
+        app.terminate()
+        let axApp = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        openPlus(in: axApp)
+        // 預設字級那輪已改選月繳,但重新啟動後回到預設年繳,說明是年繳價格。
+        assertPaywallDisclosures(in: axApp, size: "AX 最大字級", selectedPrice: "$39.99")
     }
 
     @MainActor

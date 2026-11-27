@@ -1,9 +1,12 @@
 import XCTest
 
-/// 聊天列表重做(spec #480、驗收 #489)的驗收情境:捲動位置、開啟不閃、跳到最新與跟隨底部(圖片列高在 `ConversationUITests.testSentImagesReadBackFromHostAndRowHeightStaysStable`)。
+/// 聊天列表重做(spec #480、驗收 #489)的驗收情境:捲動位置、開啟不閃、跳到最新與跟隨底部。
 ///
 /// 斷言都量 accessibility frame(列的位置與高度),不看截圖;跳動會直接表現成位置差。
 final class ChatListAcceptanceUITests: XCTestCase {
+    /// 大字級讓對話超出一個畫面。不用 AX5:AX5 時「You should know」卡與輸入列佔掉約 625pt,
+    /// 可見的訊息區只剩約 130pt,圖片列根本滑不進畫面(測的是列高穩定,不是 AX5 的版面)。
+    private static let largeText = "UICTContentSizeCategoryXXXL"
     /// 最後一則文字框與列底緣的差(座標四捨五入與文字行距)。
     private static let landingTolerance: CGFloat = 4
 
@@ -52,6 +55,41 @@ final class ChatListAcceptanceUITests: XCTestCase {
         jump.tap()
         let steps = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "20 steps")).firstMatch
         XCTAssertTrue(steps.waitUntilExists(timeout: 10), "20 個工具步驟沒有接上,情境沒有生效")
+    }
+
+    // MARK: - 3. 圖片捲出再捲回,列高不變
+
+    /// 大字級讓對話超出一個畫面;使用者送出的圖片縮圖與所在訊息捲出畫面再捲回,高度與寬度要一樣。
+    @MainActor
+    func testImageRowHeightIsStableAfterScrollingAwayAndBack() {
+        let app = XCUIApplication.launchUITestingConversation(
+            paneID: "w1:p1", flags: ["-demoSentImages"], contentSize: Self.largeText)
+        let list = app.conversationList
+        XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
+        let thumbnail = app.element("conversation.sentImage.thumbnail")
+        XCTAssertTrue(app.revealInConversation(thumbnail), "縮圖沒有讀回")
+        _ = UITestWait.until(timeout: 5) { thumbnail.frame.height > 0 }
+        let before = thumbnail.frame.size
+        let userRow = app.element("conversation.user")
+        let userRowBefore = userRow.frame.height
+        XCTAssertGreaterThan(userRowBefore, 0, "量不到訊息列的高度")
+
+        // 往下捲到縮圖整個離開可見範圍。
+        var gone = false
+        for _ in 0..<8 where !gone {
+            list.swipeUp()
+            let range = app.visibleConversationRange(of: list)
+            gone = !thumbnail.exists || thumbnail.frame.maxY < range.lowerBound || thumbnail.frame.minY > range.upperBound
+        }
+        XCTAssertTrue(gone, "縮圖一直沒有捲出畫面(測試資料不夠長)")
+
+        XCTAssertTrue(app.revealInConversation(thumbnail), "捲回來後縮圖不見了")
+        _ = UITestWait.until(timeout: 5) { thumbnail.frame.height > 0 }
+        XCTAssertEqual(thumbnail.frame.size.height, before.height, accuracy: 1, "捲回來後縮圖高度變了")
+        XCTAssertEqual(thumbnail.frame.size.width, before.width, accuracy: 1, "捲回來後縮圖寬度變了")
+        // 縮圖在這一列裡,縮圖回來了這一列就在畫面上:直接比高度,不成立就失敗。
+        XCTAssertTrue(userRow.exists, "捲回來後找不到訊息列")
+        XCTAssertEqual(userRow.frame.height, userRowBefore, accuracy: 1, "捲回來後訊息列高度變了")
     }
 
     // MARK: - 4. 跳到最新後停在最後一則;停在底部時新訊息跟上

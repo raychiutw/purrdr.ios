@@ -5,7 +5,7 @@ final class SignInUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 以 AX 最大字級啟動,再在同一次啟動內換成預設字級(原本 4 個測試、5 次啟動):
+    /// 以 AX 最大字級啟動,再以預設字級重新啟動(原本 4 個測試、5 次啟動,現在 2 次):
     /// AX 字級——「需要你」段落不爆版、4 個 tab 都在 tab bar 上、帳號(經溢出選單)與登入仍點得到、
     /// HIG:Sign in with Apple 按鈕不小於 Google 按鈕且不需捲動就看得到;
     /// 預設字級——登入頁同樣的量測,加上(#328,原型 A)標題與簡短說明、不放舊版的功能說明文字。
@@ -35,17 +35,16 @@ final class SignInUITests: XCTestCase {
         XCTAssertTrue(signInEntry.waitUntilExists(timeout: 5), "大字級下找不到「登入」")
         signInEntry.tap()
 
-        let title = app.staticTexts["Sign In to Purrdr"]
         assertSignInButtons(in: app, label: "AX 字級")
-        XCTAssertTrue(title.waitUntilExists(timeout: 5), "沒有標題")
-        let accessibilityTitleHeight = title.frame.height
+        app.terminate()
 
-        // 同一次啟動換成預設字級(取代第二次啟動);先確認字級真的變了,否則下面的預設字級量測會變成重複量 AX 字級。
-        app.setContentSize("UICTContentSizeCategoryL")
-        XCTAssertTrue(UITestWait.until(timeout: 5) { title.frame.height < accessibilityTitleHeight * 0.75 },
-                      "字級沒有真的變回預設(換字級的測試連結沒有生效):標題高度 \(title.frame.height),AX 字級 \(accessibilityTitleHeight)")
-        assertSignInButtons(in: app, label: "預設字級")
-        let description = app.staticTexts.matching(
+        // 預設字級(重新啟動;換字級的測試連結 `purrdr://testing-content-size` 會把畫面重置回列表,所以不能在同一次啟動內換):
+        // 登入頁同樣的量測,加上(#328,原型 A)標題與簡短說明、不放舊版的功能說明文字。
+        let defaultApp = XCUIApplication.launchUITesting()
+        defaultApp.openSignInFromAccount()
+        assertSignInButtons(in: defaultApp, label: "預設字級")
+        XCTAssertTrue(defaultApp.staticTexts["Sign In to Purrdr"].exists, "沒有標題")
+        let description = defaultApp.staticTexts.matching(
             NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "A member account is only needed", "never need an account"))
         XCTAssertEqual(description.count, 0, "登入頁仍有說明文字")
     }

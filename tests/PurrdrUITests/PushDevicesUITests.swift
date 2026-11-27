@@ -39,7 +39,8 @@ final class PushDevicesUITests: XCTestCase {
         XCTAssertTrue(sessionIPad.exists, "確認前列不該先被移走")
         signOutConfirm.tap()
         XCTAssertTrue(sessionIPad.waitUntilGone(timeout: 10), "登出後裝置還在清單")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 5), "返回後沒有回到帳號頁")
 
         // 通知裝置:列出、改名。
         openPushDevices(app)
@@ -80,7 +81,8 @@ final class PushDevicesUITests: XCTestCase {
             XCTAssertTrue(row.waitUntilGone(timeout: 10), "關閉後仍在清單")
         }
         XCTAssertTrue(app.element("account.pushDevices.empty").waitUntilExists(timeout: 10), "沒有裝置時沒有系統空狀態")
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 5), "返回後沒有回到帳號頁")
 
         // 刪除會員:有訂閱先處理訂閱。
         let delete = app.buttons["member.delete"]
