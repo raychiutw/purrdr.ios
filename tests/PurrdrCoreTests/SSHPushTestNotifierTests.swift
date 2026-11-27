@@ -170,6 +170,7 @@ struct SSHPushTestNotifierTests {
         #expect(PushTestNotificationError(errorCode: "pairing_revoked") == .notPaired)
         #expect(PushTestNotificationError(errorCode: "subscription_required") == .subscriptionRequired)
         #expect(PushTestNotificationError(errorCode: "rate_limited") == .rateLimited)
+        #expect(PushTestNotificationError(errorCode: "daily_limit_reached") == .dailyLimitReached)
         #expect(PushTestNotificationError(errorCode: "apns_failed") == .apnsFailed)
         #expect(PushTestNotificationError(errorCode: "other") == nil)
     }

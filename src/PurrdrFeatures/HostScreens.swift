@@ -65,7 +65,7 @@ public struct HostScreens {
     /// 所有新增入口(歡迎頁、主機清單「＋」、「⋯」選單)開的新增主機引導(#341)。
     public func makeAddHostGuide() -> AddHostGuideModel {
         let guide = AddHostGuideModel(
-            store: hosts.store, credentials: hosts.credentials, hostService: hosts.hostService, isPlusActive: hosts.guidePlusCheck,
+            store: hosts.store, credentials: hosts.credentials, hostService: hosts.hostService, isSignedIn: hosts.guideSignedInCheck,
             makeChannel: hosts.makeChannel)
         guide.attachTraffic(hosts.trafficProvider)
         return guide
@@ -74,7 +74,7 @@ public struct HostScreens {
     /// 匯入連結(主機分享連結、配對 QR code)開的引導,資料已齊時直接到測試連線(#344);引導接不了(原生 SSH、壞連結)時丟錯。
     public func makeImportGuide(_ url: URL) throws -> AddHostGuideModel {
         let guide = try AddHostGuideModel(
-            store: hosts.store, credentials: hosts.credentials, hostService: hosts.hostService, isPlusActive: hosts.guidePlusCheck,
+            store: hosts.store, credentials: hosts.credentials, hostService: hosts.hostService, isSignedIn: hosts.guideSignedInCheck,
             makeChannel: hosts.makeChannel, shortcut: .importLink(url))
         guide.attachTraffic(hosts.trafficProvider)
         return guide
@@ -83,7 +83,7 @@ public struct HostScreens {
     /// 同步來、這支裝置還沒配對的 HTTPS 主機:直接到配對步驟(#344)。
     public func makePairingGuide(for host: HostConfiguration) throws -> AddHostGuideModel {
         let guide = try AddHostGuideModel(
-            store: hosts.store, credentials: hosts.credentials, hostService: hosts.hostService, isPlusActive: hosts.guidePlusCheck,
+            store: hosts.store, credentials: hosts.credentials, hostService: hosts.hostService, isSignedIn: hosts.guideSignedInCheck,
             makeChannel: hosts.makeChannel, shortcut: .needsPairing(host))
         guide.attachTraffic(hosts.trafficProvider)
         return guide

@@ -50,7 +50,7 @@ struct MemberPartitionTests {
             device: PushDeviceIdentity(id: Self.deviceID, name: "iPhone", model: .iPhone),
             configuration: PushConfiguration(
                 endpoint: PushModelTests.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
-            isPlusActive: { true })
+            isSignedIn: { true })
     }
 
     func makeSync() -> HostSyncModel {

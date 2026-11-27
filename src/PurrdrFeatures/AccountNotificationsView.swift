@@ -5,13 +5,12 @@ import SwiftUI
 /// 還沒配對的 HTTPS 主機在這裡開配對(#295,與主機頁同一個引導);存好回到這一頁，那台的開關就能用。
 struct AccountNotificationsView: View {
     let pushes: [HostPush]
-    let openPlus: () -> Void
     let hosts: HostsModel?
     @State private var pairingHost: UUID?
 
     var body: some View {
         List {
-            HostPushSection(pushes: pushes, openPlus: openPlus, pair: { pairingHost = $0 })
+            HostPushSection(pushes: pushes, pair: { pairingHost = $0 })
         }
         .appGroupedList()
         .accessibilityIdentifier("account.notifications.page")

@@ -242,7 +242,7 @@ public final class PushService {
     let platform: any PushPlatform
     public let store: any PushPairingStore
     let configuration: PushConfiguration
-    let isPlusActive: @MainActor () async -> Bool
+    let isSignedIn: @MainActor () async -> Bool
     private let loadDevice: @MainActor () throws -> PushDeviceIdentity
     private var loadedDevice: PushDeviceIdentity?
     private var models: [WeakPushModel] = []
@@ -254,12 +254,12 @@ public final class PushService {
 
     /// - Parameters:
     ///   - loadDevice: 這支裝置(Keychain 的推播 id、預設名稱與型號);讀不到(還沒第一次解鎖)時丟錯，之後用到時再試。
-    ///   - isPlusActive: 會員現在有沒有 Purrdr Plus(`SubscriptionModel` 重讀後台後的 `isPlusActive`)。
+    ///   - isSignedIn: 現在有沒有登入會員(#675:推播只要求登入，不要求 Purrdr Plus)。
     public init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore,
         loadDevice: @escaping @MainActor () throws -> PushDeviceIdentity,
         configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
-        isPlusActive: @escaping @MainActor () async -> Bool
+        isSignedIn: @escaping @MainActor () async -> Bool
     ) {
         self.session = session
         self.platform = platform
@@ -267,7 +267,7 @@ public final class PushService {
         self.loadDevice = loadDevice
         self.configuration = configuration
         self.hostNameSharing = hostNameSharing
-        self.isPlusActive = isPlusActive
+        self.isSignedIn = isSignedIn
         store.onPairingsChanged = { [weak self] in self?.publishHostNames() }
     }
 
@@ -305,11 +305,11 @@ public final class PushService {
     public convenience init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore, device: PushDeviceIdentity,
         configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
-        isPlusActive: @escaping @MainActor () async -> Bool
+        isSignedIn: @escaping @MainActor () async -> Bool
     ) {
         self.init(
             session: session, platform: platform, store: store, loadDevice: { device }, configuration: configuration,
-            hostNames: hostNameSharing, isPlusActive: isPlusActive)
+            hostNames: hostNameSharing, isSignedIn: isSignedIn)
     }
 
     /// 這支裝置;第一次成功讀到後記住。
@@ -470,8 +470,8 @@ public final class PushModel {
     public enum Problem: Equatable {
         /// Demo 主機不能推播。
         case demoHost
-        /// 需要 Purrdr Plus(或已到期)。
-        case needsSubscription
+        /// 還沒登入(或登入已失效):先登入會員。
+        case needsSignIn
         /// 通知權限被拒：到 iOS 設定打開。
         case permissionDenied
         /// 取不到 APNs token(模擬器、缺 entitlement);附原始錯誤。
@@ -616,7 +616,7 @@ public final class PushModel {
         }
         do { _ = try service.device() } catch { return stop(Self.deviceIDUnavailable(error)) }
         state = .checking
-        guard await service.isPlusActive() else { return stop(.needsSubscription) }
+        guard await service.isSignedIn() else { return stop(.needsSignIn) }
         switch await service.platform.authorization() {
         case .authorized:
             break
@@ -655,10 +655,8 @@ public final class PushModel {
             try await service.session.registerPushPairing(
                 keyHash: key.hash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
                 kinds: Self.defaultKinds)
-        } catch BackendError.backend(_, "subscription_required", _) {
-            return stop(.needsSubscription)
         } catch BackendError.signedOut {
-            return stop(.needsSubscription)
+            return stop(.needsSignIn)
         } catch {
             return stop(.failed(DisplayedError(Self.describe(error), error: error)))
         }
@@ -700,10 +698,8 @@ public final class PushModel {
             service.store.setKinds(updated, forKeyHash: keyHash)
             service.store.setRegisteredToken(tokenHex, forKeyHash: keyHash)
             kinds = updated
-        } catch BackendError.backend(_, "subscription_required", _) {
-            problem = .needsSubscription
         } catch BackendError.signedOut {
-            problem = .needsSubscription
+            problem = .needsSignIn
         } catch {
             problem = .kindsUpdateFailed(DisplayedError(Self.describeKindsFailure(error), error: error))
         }
@@ -825,6 +821,8 @@ public final class PushModel {
             String(localized: "This device isn’t paired with the host for notifications any more, so they’re now off. Turn them on again.")
         case PushTestNotificationError.subscriptionRequired:
             String(localized: "Test notifications need Purrdr Plus.")
+        case PushTestNotificationError.dailyLimitReached:
+            String(localized: "You’ve reached today’s limit for test notifications. Try again tomorrow.")
         case PushTestNotificationError.rateLimited:
             String(localized: "You’ve sent too many notifications in a minute. Wait a moment and try again.")
         case PushTestNotificationError.apnsFailed:
@@ -849,6 +847,8 @@ public final class PushModel {
             String(localized: "This device is paired read-only with the host service, so it can’t turn on notifications there.")
         case BackendError.unreachable:
             String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")
+        case BackendError.backend(_, "daily_limit_reached", _):
+            String(localized: "You’ve reached today’s limit for notification setups. Try again tomorrow.")
         default:
             String(localized: "Couldn’t turn on notifications: \(error.localizedDescription)")
         }
