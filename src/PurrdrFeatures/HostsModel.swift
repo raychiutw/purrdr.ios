@@ -306,7 +306,7 @@ public final class HostsModel {
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
 
     /// 方案用量的來源：Demo 主機是本機假資料(不耗 token 與傳輸);SSH 主機經主機通道;HTTPS 主機經主機服務(0.12.0 起)。
-    func planUsageSource(_ host: HostSelection, _ agent: PlanUsageAgent) -> PlanUsageSource? {
+    func planUsageSource(_ host: HostSelection, _ agent: AgentID) -> PlanUsageSource? {
         let channel: any HostChannel
         let cost: PlanUsageQueryCost
         let hostID: String
@@ -318,7 +318,7 @@ public final class HostsModel {
             guard let configuration = hosts.first(where: { $0.id == id }) else { return nil }
             if usesHostService(configuration) {
                 // HTTPS 主機經主機服務讀(0.12.0 起,#392);還沒配對或不是真的主機服務連線(UI 測試)沒有來源。
-                guard agent.supportsHostService, !unpairedHostIDs.contains(id), !configuration.needsReconfirmation,
+                guard AgentHostCapabilities.resolve(agent, over: .https).planUsage, !unpairedHostIDs.contains(id), !configuration.needsReconfirmation,
                     let connection = httpsAdapter.capabilities(for: configuration).hostServiceConnection.value
                 else { return nil }
                 return .hostService(
@@ -328,7 +328,7 @@ public final class HostsModel {
             (channel, cost, hostID, files) = (member.channel, .transfer, id.uuidString, member.hostFiles)
         }
         return agentHostServices.planUsage(
-            for: agent.agentID,
+            for: agent,
             ssh: AgentHostServices.SSHContext(
                 channel: channel, files: files, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent))
     }

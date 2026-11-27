@@ -20,7 +20,7 @@ public struct HostScreens {
 
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
     /// `host`、`agent` 有值時直接選那台與那個 Agent(用量區的「啟用用量顯示」導到這裡的同意流程)。
-    public func planUsage(host: HostSelection? = nil, agent: PlanUsageAgent? = nil) -> PlanUsageModel {
+    public func planUsage(host: HostSelection? = nil, agent: AgentID? = nil) -> PlanUsageModel {
         let hosts = hosts
         return PlanUsageModel(
             hosts: hosts.hostOptions { _ in true }, fallback: hosts.selection, store: hosts.planUsageSelection,

@@ -555,7 +555,7 @@ struct ConversationScreen: View {
             usageSection?.disappeared()
             return
         }
-        if usageSection == nil, let usageContext, let usageHost, let agent = PlanUsageAgent(agentKind: model.agentKind) {
+        if usageSection == nil, let usageContext, let usageHost, let agent = AgentID.planUsageAgent(agentKind: model.agentKind) {
             let section = usageContext.section(usageHost, [agent], false)
             section.activeGroup = model.modelName.flatMap(PlanUsage.Group.init(modelName:))
             // 這台主機沒有啟用這個 Agent 的用量(#477):當作沒有來源。

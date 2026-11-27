@@ -85,10 +85,10 @@ extension HostMember {
 
     /// 用量區(#389):面板(單一 Agent)與主機 tab(Claude 與 Codex)共用。HTTPS 主機沒有來源,整區是「等主機服務支援」。
     /// `detectsInstallation`:主機 tab 只列主機上偵測到的 Agent(Antigravity,#465);面板的 Agent 是聊天正在跑的,不偵測。
-    package func usageSection(agents: [PlanUsageAgent], detectsInstallation: Bool = false) -> UsageSectionModel {
+    package func usageSection(agents: [AgentID], detectsInstallation: Bool = false) -> UsageSectionModel {
         // 只查、只列這台主機啟用的 Agent(#477)。
         let enabled = environment.enabledAgents(host)
-        let shown = agents.filter { HostAgentSettings.showsUsage(of: $0.agentID, enabled: enabled) }
+        let shown = agents.filter { HostAgentSettings.showsUsage(of: $0, enabled: enabled) }
         let environment = environment
         let host = host
         return UsageSectionModel(
