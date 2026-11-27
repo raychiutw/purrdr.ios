@@ -129,6 +129,39 @@ struct TopNavigationModelTests {
         #expect(model.pendingHostEditor == hostID)
     }
 
+    @Test("點聊天類通知(#668):不在聊天 tab 也切回聊天 tab、收起 sheet")
+    func chatNotificationSelectsChatsTab() {
+        let model = TopNavigationModel()
+        model.tab = .files
+        model.sheet = .member
+
+        model.openPushDestination(.chat(ChatRoute(host: .demo, paneID: "w1:p1")))
+
+        #expect(model.tab == .chats)
+        #expect(model.sheet == nil)
+    }
+
+    @Test("點測試通知(沒有目的地)不換 tab,只收起 sheet(#668)")
+    func testNotificationKeepsTab() {
+        let model = TopNavigationModel()
+        model.tab = .files
+        model.sheet = .member
+
+        model.openPushDestination(nil)
+
+        #expect(model.tab == .files)
+        #expect(model.sheet == nil)
+    }
+
+    @Test("點主機服務通知走主機編輯頁(#668 不變)")
+    func hostServiceNotificationViaDestination() {
+        let model = TopNavigationModel()
+        let id = UUID()
+        model.openPushDestination(.hostEditor(id))
+        #expect(model.tab == .hosts)
+        #expect(model.pendingHostEditor == id)
+    }
+
     @Test(
         "不認得的連結不改變畫面，停在原本的 tab",
         arguments: ["purrdr://unknown", "https://settings", "otherapp://settings", "purrdr:settings"]
