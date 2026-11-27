@@ -50,30 +50,91 @@ extension UIScrollView {
 }
 
 /// 狀態列高度、由上往下淡出的模糊;減少透明度時是不透明的系統底色。
+///
+/// 以 UIKit 視圖畫(`TopFadeView`),不用 SwiftUI 的 `Rectangle().fill(.material)`:頁面外層常掛 `accessibilityIdentifier`
+/// (例:`sheet.account`),SwiftUI 會把外層的 identifier 套到疊在裡面的每個節點,淡模糊就成了第二個同名元素,
+/// UI 測試的 `firstMatch` 抓到 54pt 高的細條、捲不動(#683 造成)。`TopFadeView` 不接受 identifier、也不是 accessibility 元素,
+/// 一次解掉所有頁面,不必逐頁調整 identifier 的順序。
 private struct StatusBarFade: View {
     let reduceTransparency: Bool
     @State private var height: CGFloat = 54
 
     var body: some View {
-        Group {
-            if reduceTransparency {
-                Rectangle().fill(Color(uiColor: .systemBackground))
-            } else {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
-            }
-        }
-        .frame(height: height)
-        .frame(maxWidth: .infinity)
-        // 寬度(旋轉、iPad 視窗大小)改變時重量狀態列高度。
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in height = Self.statusBarHeight() }
-        .onAppear { height = Self.statusBarHeight() }
+        TopFadeRepresentable(reduceTransparency: reduceTransparency)
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+            // 寬度(旋轉、iPad 視窗大小)改變時重量狀態列高度。
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in height = Self.statusBarHeight() }
+            .onAppear { height = Self.statusBarHeight() }
     }
 
     private static func statusBarHeight() -> CGFloat {
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         return scene?.statusBarManager?.statusBarFrame.height ?? 54
+    }
+}
+
+private struct TopFadeRepresentable: UIViewRepresentable {
+    let reduceTransparency: Bool
+
+    func makeUIView(context: Context) -> TopFadeView {
+        TopFadeView()
+    }
+
+    func updateUIView(_ view: TopFadeView, context: Context) {
+        view.reduceTransparency = reduceTransparency
+    }
+}
+
+/// 由上往下淡出的模糊視圖:不是 accessibility 元素,且忽略外層套下來的 identifier。
+final class TopFadeView: UIVisualEffectView {
+    private let fadeMask = CAGradientLayer()
+
+    var reduceTransparency = false {
+        didSet { applyStyle() }
+    }
+
+    init() {
+        super.init(effect: nil)
+        isUserInteractionEnabled = false
+        fadeMask.colors = [UIColor.black.cgColor, UIColor.clear.cgColor]
+        fadeMask.startPoint = CGPoint(x: 0.5, y: 0)
+        fadeMask.endPoint = CGPoint(x: 0.5, y: 1)
+        applyStyle()
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override var isAccessibilityElement: Bool {
+        get { false }
+        set {}
+    }
+
+    override var accessibilityElementsHidden: Bool {
+        get { true }
+        set {}
+    }
+
+    override var accessibilityIdentifier: String? {
+        get { nil }
+        set {}
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        fadeMask.frame = bounds
+    }
+
+    private func applyStyle() {
+        if reduceTransparency {
+            effect = nil
+            backgroundColor = .systemBackground
+            layer.mask = nil
+        } else {
+            effect = UIBlurEffect(style: .systemUltraThinMaterial)
+            backgroundColor = nil
+            layer.mask = fadeMask
+        }
     }
 }
 #endif
