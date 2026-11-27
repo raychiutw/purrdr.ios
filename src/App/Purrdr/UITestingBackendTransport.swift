@@ -230,12 +230,12 @@ final class UITestingBackendTransport: BackendTransport {
     /// 目前的會員(連結或合併 Google 之後多一種登入方式)。
     private var memberBody: String {
         guard googleLinked.withLock({ $0 }) else { return Self.memberJSON }
-        return #"{"id":"ui-testing-member","identities":[{"provider":"apple","email":"ray@example.com","linkedAt":"2026-01-01T00:00:00.000Z"},{"provider":"google","email":"ray@gmail.com","linkedAt":"2026-01-02T00:00:00.000Z"}]}"#
+        return #"{"id":"ui-testing-member","identities":[{"provider":"apple","email":"ray@example.com","linkedAt":"2026-01-01T00:00:00.000Z"},{"provider":"google","email":"ray@example.org","linkedAt":"2026-01-02T00:00:00.000Z"}]}"#
     }
 
     /// 連結時發現已屬另一個會員:合併確認摘要(`error.details`)。
     private var mergeRequired: String {
-        #"{"error":{"code":"merge_required","message":"UI testing backend","details":{"canMerge":\#(!mergeBlocked),"current":{"identities":[{"provider":"apple","email":"r***@example.com"}],"hasActiveSubscription":\#(mergeBlocked || isPlusActive),"hostCount":2},"other":{"identities":[{"provider":"google","email":"r***@gmail.com"}],"hasActiveSubscription":\#(mergeBlocked),"hostCount":1}}}}"#
+        #"{"error":{"code":"merge_required","message":"UI testing backend","details":{"canMerge":\#(!mergeBlocked),"current":{"identities":[{"provider":"apple","email":"r***@example.com"}],"hasActiveSubscription":\#(mergeBlocked || isPlusActive),"hostCount":2},"other":{"identities":[{"provider":"google","email":"r***@example.net"}],"hasActiveSubscription":\#(mergeBlocked),"hostCount":1}}}}"#
     }
 
     private static func error(_ status: Int, _ code: String) -> BackendResponse {
@@ -264,7 +264,7 @@ final class UITestingBackendTransport: BackendTransport {
     }
 
     private static let inUse =
-        #"{"error":{"code":"subscription_in_use","message":"UI testing backend","details":{"ownerEmail":"r***@icloud.com","canTransfer":true}}}"#
+        #"{"error":{"code":"subscription_in_use","message":"UI testing backend","details":{"ownerEmail":"r***@example.net","canTransfer":true}}}"#
 
     /// 登入中的裝置:這支與另一支 iPad。
     private static let sessionsJSON = #"""

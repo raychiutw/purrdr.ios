@@ -23,7 +23,7 @@ struct MemberKeepSignedInTests {
     func seedSignedIn() throws {
         try tokens.setRefreshToken("refresh-0")
         try tokens.setAccessToken(StoredAccessToken(token: "access-old", expiresAt: Date(timeIntervalSince1970: 0)))
-        let snapshot = #"{"id": "member-1", "identities": [{"provider": "apple", "email": "abc@privaterelay.appleid.com", "linkedAt": "2026-11-15T08:00:00.000Z"}]}"#
+        let snapshot = #"{"id": "member-1", "identities": [{"provider": "apple", "email": "abc@example.net", "linkedAt": "2026-11-15T08:00:00.000Z"}]}"#
         try tokens.setMemberSnapshot(Data(snapshot.utf8))
     }
 

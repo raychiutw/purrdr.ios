@@ -335,27 +335,27 @@ func sha256Hex(_ text: String) -> String {
 /// 後台回應(依 raychiutw/purrdr.server 的 README.md 的契約)。
 enum Replies {
     static let appleMember = #"""
-    {"id": "member-1", "identities": [{"provider": "apple", "email": "abc@privaterelay.appleid.com", "linkedAt": "2026-11-15T08:00:00.000Z"}]}
+    {"id": "member-1", "identities": [{"provider": "apple", "email": "abc@example.net", "linkedAt": "2026-11-15T08:00:00.000Z"}]}
     """#
 
     static let expectedAppleMember = Member(
         id: "member-1",
-        identities: [MemberIdentity(method: .apple, email: "abc@privaterelay.appleid.com", linkedAt: Date(timeIntervalSince1970: 1_794_729_600))]
+        identities: [MemberIdentity(method: .apple, email: "abc@example.net", linkedAt: Date(timeIntervalSince1970: 1_794_729_600))]
     )
 
     static let googleMember = #"""
-    {"id": "member-2", "identities": [{"provider": "google", "email": "cat@gmail.com", "linkedAt": "2026-11-15T08:00:00.000Z"}]}
+    {"id": "member-2", "identities": [{"provider": "google", "email": "cat@example.org", "linkedAt": "2026-11-15T08:00:00.000Z"}]}
     """#
 
     static let expectedGoogleMember = Member(
         id: "member-2",
-        identities: [MemberIdentity(method: .google, email: "cat@gmail.com", linkedAt: Date(timeIntervalSince1970: 1_794_729_600))]
+        identities: [MemberIdentity(method: .google, email: "cat@example.org", linkedAt: Date(timeIntervalSince1970: 1_794_729_600))]
     )
 
     static let linkedMember = #"""
     {"id": "member-1", "identities": [
-      {"provider": "apple", "email": "abc@privaterelay.appleid.com", "linkedAt": "2026-11-15T08:00:00.000Z"},
-      {"provider": "google", "email": "cat@gmail.com", "linkedAt": "2026-11-15T09:00:00.000Z"}
+      {"provider": "apple", "email": "abc@example.net", "linkedAt": "2026-11-15T08:00:00.000Z"},
+      {"provider": "google", "email": "cat@example.org", "linkedAt": "2026-11-15T09:00:00.000Z"}
     ]}
     """#
 

@@ -101,10 +101,10 @@ struct MemberMergeTests {
         #expect(model.phase == .signedIn(Replies.expectedAppleMember))
         let proposal = try #require(model.pendingMerge)
         #expect(proposal.summary.canMerge)
-        #expect(proposal.summary.current.identities == [.init(method: .apple, email: "a***@privaterelay.appleid.com")])
+        #expect(proposal.summary.current.identities == [.init(method: .apple, email: "a***@example.net")])
         #expect(proposal.summary.current.hasActiveSubscription)
         #expect(proposal.summary.current.hostCount == 2)
-        #expect(proposal.summary.other.identities == [.init(method: .google, email: "c***@gmail.com")])
+        #expect(proposal.summary.other.identities == [.init(method: .google, email: "c***@example.net")])
         #expect(proposal.summary.other.hasActiveSubscription == false)
         #expect(proposal.summary.other.hostCount == 1)
     }
@@ -262,7 +262,7 @@ struct MemberMergeTests {
         google.on("POST", "/token", .json(200, #"{"id_token": "google-id-token"}"#))
         backend.on(
             "POST", "/v1/members/me/identities",
-            .json(409, #"{"error": {"code": "subscription_in_use", "message": "x", "details": {"ownerEmail": "r***@icloud.com", "canTransfer": true}}}"#))
+            .json(409, #"{"error": {"code": "subscription_in_use", "message": "x", "details": {"ownerEmail": "r***@example.net", "canTransfer": true}}}"#))
 
         await model.linkGoogle(browser: MemberModelTests.approvingBrowser)
 
@@ -288,8 +288,8 @@ enum MergeReplies {
         #"""
         {"error": {"code": "merge_required", "message": "That sign-in method belongs to another member.",
           "details": {"canMerge": \#(canMerge),
-            "current": {"identities": [{"provider": "apple", "email": "a***@privaterelay.appleid.com"}], "hasActiveSubscription": true, "hostCount": 2},
-            "other": {"identities": [{"provider": "google", "email": "c***@gmail.com"}], "hasActiveSubscription": \#(!canMerge), "hostCount": 1}}}}
+            "current": {"identities": [{"provider": "apple", "email": "a***@example.net"}], "hasActiveSubscription": true, "hostCount": 2},
+            "other": {"identities": [{"provider": "google", "email": "c***@example.net"}], "hasActiveSubscription": \#(!canMerge), "hostCount": 1}}}}
         """#
     }
 
@@ -298,8 +298,8 @@ enum MergeReplies {
         let expiresAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(900))
         return #"""
         {"member": {"id": "member-2", "identities": [
-          {"provider": "apple", "email": "abc@privaterelay.appleid.com", "linkedAt": "2026-11-15T08:00:00.000Z"},
-          {"provider": "google", "email": "cat@gmail.com", "linkedAt": "2026-11-15T09:00:00.000Z"}]},
+          {"provider": "apple", "email": "abc@example.net", "linkedAt": "2026-11-15T08:00:00.000Z"},
+          {"provider": "google", "email": "cat@example.org", "linkedAt": "2026-11-15T09:00:00.000Z"}]},
          "mergedMemberId": "member-1", "accessToken": "\#(accessToken)", "accessTokenExpiresAt": "\#(expiresAt)"}
         """#
     }

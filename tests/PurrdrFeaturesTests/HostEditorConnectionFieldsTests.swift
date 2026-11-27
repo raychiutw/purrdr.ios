@@ -126,14 +126,14 @@ struct HostEditorConnectionFieldsTests {
         let model = Self.newEditor()
         model.connectionMethod = .tailscaleSSH
 
-        let accepted = model.applyScannedCode("purrdr://pair?address=https%3A%2F%2Fraychiu-pc.tail2750c0.ts.net%3A8443&code=K7QM-2XPA")
+        let accepted = model.applyScannedCode("purrdr://pair?address=https%3A%2F%2Fstudio-pc.tail1234.ts.net%3A8443&code=K7QM-2XPA")
 
         #expect(accepted)
         #expect(model.connectionMethod == .https)
-        #expect(model.address == "raychiu-pc.tail2750c0.ts.net")
+        #expect(model.address == "studio-pc.tail1234.ts.net")
         #expect(model.port == "8443")
         #expect(model.pairingCode == "K7QM-2XPA")
-        #expect(model.name == "raychiu-pc")
+        #expect(model.name == "studio-pc")
         #expect(model.canTest)
     }
 
@@ -142,7 +142,7 @@ struct HostEditorConnectionFieldsTests {
         let model = Self.newEditor()
         model.name = "Office PC"
 
-        _ = model.applyScannedCode("purrdr://pair?address=https%3A%2F%2Fraychiu-pc.tail2750c0.ts.net&code=K7QM-2XPA")
+        _ = model.applyScannedCode("purrdr://pair?address=https%3A%2F%2Fstudio-pc.tail1234.ts.net&code=K7QM-2XPA")
 
         #expect(model.name == "Office PC")
         #expect(model.port == "443")

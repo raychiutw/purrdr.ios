@@ -26,7 +26,7 @@ final class AccountPlusCardUITests: XCTestCase {
         alert.buttons["OK"].tap()
 
         XCTAssertTrue(status(app).label.contains("belongs to another member"), status(app).label)
-        XCTAssertTrue(status(app).label.contains("r***@icloud.com"), status(app).label)
+        XCTAssertTrue(status(app).label.contains("r***@example.net"), status(app).label)
         let transfer = app.buttons["account.plusCard.primary"]
         XCTAssertEqual(transfer.label, "Move to This Member")
         transfer.tap()
