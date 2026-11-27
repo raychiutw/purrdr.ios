@@ -96,8 +96,6 @@ public final class MergedAgentListModel {
     public private(set) var selected: HostSelection = .demo
     /// 搜尋字串(所有主機共用)。空白時列出全部。
     public var query = ""
-    /// 要直接開的聊天：從版面圖選了 Agent,或點了推播通知(#29)。畫面推入後設回 `nil`。
-    public var openedChat: ChatRoute?
     /// 目前開著的聊天(iPhone 推入的對話、iPad 每個視窗開在旁邊或新視窗開的):永遠不算未讀，也不算進需處理數量
     /// (行為規格 F2.6、F2.8)。以次數記：同一個聊天開在兩個視窗，關掉一個仍算開著。
     private var visibleCounts: [ChatRoute: Int] = [:]

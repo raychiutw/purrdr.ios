@@ -12,6 +12,12 @@ import UIKit
 /// 頂端 scroll edge effect 只在這個檔案決定(`TopEdgeEffectUsageTests` 守門):SwiftUI 頁面套 `appPageTopEdge()`,
 /// UIKit 的捲動視圖呼叫 `hidesTopEdgeEffect()`。
 extension View {
+    /// 只關掉捲動容器的頂端 scroll edge effect(不疊狀態列淡模糊):sheet 與頁面內的捲動區用,
+    /// sheet 的頂端不是狀態列,不該在那裡疊一條模糊。
+    func appScrollTopEdge() -> some View {
+        scrollEdgeEffectHidden(true, for: .top)
+    }
+
     /// 關掉這頁捲動容器的頂端 scroll edge effect,並在狀態列高度疊一條淡出的模糊。
     func appPageTopEdge() -> some View {
         modifier(PageTopEdgeModifier())

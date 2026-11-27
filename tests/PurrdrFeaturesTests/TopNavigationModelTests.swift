@@ -2,6 +2,7 @@ import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
+import PurrdrTestSupport
 import Testing
 
 @MainActor
@@ -186,5 +187,113 @@ struct TopNavigationModelTests {
         #expect(list.visibleChats == [chat])
         window.reportVisibleChat(nil, to: list)
         #expect(list.visibleChats.isEmpty, "重複回報不能讓離開後仍算開著")
+    }
+
+    // MARK: - 導覽動作(#685)
+
+    private static let chatA = ChatRoute(host: .demo, paneID: "w1:p1")
+    private static let chatB = ChatRoute(host: .demo, paneID: "w2:p1")
+
+    @Test("窄視窗開聊天:放進路徑,路徑上最後一個聊天就是選取的聊天")
+    func openChatPushesOntoPath() {
+        let model = TopNavigationModel()
+        model.pushesChatsOnPath = true
+
+        model.openChat(Self.chatA)
+        #expect(model.chatsPath == [.chat(Self.chatA)])
+
+        model.openChat(Self.chatB)
+        #expect(model.chatsPath == [.chat(Self.chatA)], "已有聊天在路徑上換聊天不動路徑")
+        #expect(model.selectedChat == Self.chatB)
+    }
+
+    @Test("窄視窗返回:路徑退一層,選取清成 nil")
+    func backClearsSelection() {
+        let model = TopNavigationModel()
+        model.pushesChatsOnPath = true
+        model.openChat(Self.chatA)
+
+        model.back()
+
+        #expect(model.chatsPath.isEmpty)
+        #expect(model.selectedChat == nil)
+    }
+
+    @Test("系統返回手勢(直接改路徑)也清掉選取")
+    func systemPopClearsSelection() {
+        let model = TopNavigationModel()
+        model.pushesChatsOnPath = true
+        model.openChat(Self.chatA)
+
+        model.chatsPath = []
+
+        #expect(model.selectedChat == nil)
+    }
+
+    @Test("寬視窗開聊天只改選取,不動路徑;返回清掉選取")
+    func wideWindowKeepsPathEmpty() {
+        let model = TopNavigationModel()
+
+        model.openChat(Self.chatA)
+        #expect(model.selectedChat == Self.chatA)
+        #expect(model.chatsPath.isEmpty)
+
+        model.back()
+        #expect(model.selectedChat == nil)
+    }
+
+    @Test("視窗由寬變窄:已選的聊天補進路徑")
+    func narrowingAddsSelectedChatToPath() {
+        let model = TopNavigationModel()
+        model.openChat(Self.chatA)
+
+        model.pushesChatsOnPath = true
+
+        #expect(model.chatsPath == [.chat(Self.chatA)])
+    }
+
+    @Test("推播的聊天目的地:切回聊天 tab 並選取該聊天(路徑跟著)")
+    func pushChatSelectsChat() {
+        let model = TopNavigationModel()
+        model.pushesChatsOnPath = true
+        model.tab = .traffic
+
+        model.openPushDestination(.chat(Self.chatA))
+
+        #expect(model.tab == .chats)
+        #expect(model.selectedChat == Self.chatA)
+        #expect(model.chatsPath == [.chat(Self.chatA)])
+    }
+
+    @Test("App 鎖定中收到的外部網址延到解鎖後才開,只留最後一個")
+    func lockedExternalURLsWaitAndKeepLast() async {
+        let lock = AppLock(authenticator: AppLockTests.ScriptedAuthenticator([.success]), defaults: AppLockTests.defaults(enabled: true))
+        let model = TopNavigationModel(appLock: lock)
+
+        model.openExternal(URL(string: "purrdr://plus")!)
+        model.openExternal(URL(string: "purrdr://settings")!)
+        #expect(model.sheet == nil, "鎖定中不該導航")
+
+        await lock.unlock()
+        #expect(model.sheet == .member)
+    }
+
+    @Test("App 鎖定中點推播:解鎖後才收起 sheet、執行導航;沒鎖定立即執行")
+    func lockedPushWaitsForUnlock() async {
+        let lock = AppLock(authenticator: AppLockTests.ScriptedAuthenticator([.success]), defaults: AppLockTests.defaults(enabled: true))
+        let model = TopNavigationModel(appLock: lock)
+        let hosts = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        model.sheet = .member
+
+        model.openPush(PushRoute(keyHash: "abc", paneID: "w1:p1"), hosts: hosts)
+        #expect(model.sheet == .member)
+
+        await lock.unlock()
+        #expect(model.sheet == nil)
+
+        let open = TopNavigationModel()
+        open.sheet = .member
+        open.openPush(PushRoute(keyHash: "abc", paneID: "w1:p1"), hosts: hosts)
+        #expect(open.sheet == nil)
     }
 }

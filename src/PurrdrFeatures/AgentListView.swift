@@ -94,12 +94,6 @@ public struct AgentListView: View {
         Group {
             if let window {
                 content
-                    // 版面圖選的 Agent、點了的推播通知、新開始的對話：交給視窗的選取，在對話欄打開。
-                    .onChange(of: model.openedChat, initial: true) { _, route in
-                        guard let route else { return }
-                        model.openedChat = nil
-                        window.selectedChat = route
-                    }
                     // 對話欄打開與換掉的聊天各記一次開啟時間;開在旁邊的不算未讀(行為規格 F2.6)。
                     .onChange(of: window.selectedChat, initial: true) { old, new in
                         window.reportVisibleChat(new, to: model)
@@ -107,9 +101,6 @@ public struct AgentListView: View {
             } else {
                 content
                     .navigationDestination(for: ChatRoute.self) { route in
-                        conversationScreen(route)
-                    }
-                    .navigationDestination(item: $model.openedChat) { route in
                         conversationScreen(route)
                     }
             }
@@ -188,9 +179,9 @@ public struct AgentListView: View {
                     { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
                 },
                 layoutSnapshot: { [model] in model.snapshot(for: route.host) },
-                openLayoutTarget: { [model] target in
+                openLayoutTarget: { target in
                     switch target {
-                    case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: route.host, paneID: paneID)
+                    case .chat(let paneID), .terminal(let paneID): window?.openChat(ChatRoute(host: route.host, paneID: paneID))
                     }
                 })
             .environment(\.usageHost, route.host)
@@ -349,7 +340,7 @@ public struct AgentListView: View {
             chatDestination: chatDestination) { host, target in
             // 版面圖選的 Pane:Agent 開對話，終端機方塊開它的 Pane 終端機(兩者都以 pane 指定，見 `conversationScreen`)。
             switch target {
-            case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
+            case .chat(let paneID), .terminal(let paneID): window?.openChat(ChatRoute(host: host, paneID: paneID))
             }
         }
         // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(#391)。
