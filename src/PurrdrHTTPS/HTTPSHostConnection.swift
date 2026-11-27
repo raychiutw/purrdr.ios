@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import Synchronization
 
 /// HTTPS 連線方式的主機連線(ADR-0010):單一 WSS 連到主機服務，帶裝置權杖;herdr 請求換成主機服務協定的窄 API。
 ///
@@ -25,6 +26,11 @@ public actor HTTPSHostConnection: HostConnection {
     private var welcome: HostServiceProtocol.Welcome?
     private var connecting: Task<HostServiceSession, any Error>?
     private var rejection: RejectedToken?
+    /// 連線診斷(#689):撥號、握手、結束原因與壽命。
+    private let diagnostics: HTTPSConnectionDiagnostics?
+    /// 耗時記錄的出口(建立後才接上也算)。
+    let timingSink = TimingSinkHolder()
+    private var dialCount = 0
     /// 追蹤中的對話紀錄(路徑 → 追蹤)。見 `HTTPSTranscripts.swift`。
     var transcriptFollows: [String: TranscriptFollow] = [:]
     /// 追蹤串流(`followTranscript`,路徑 → 串流)。同一個路徑只有一個。
@@ -47,8 +53,9 @@ public actor HTTPSHostConnection: HostConnection {
         address: HostServiceAddress, deviceToken: @escaping @Sendable () throws -> String?,
         transport: any WebSocketConnecting = URLSessionHostServiceTransport(), appVersion: String? = nil,
         heartbeat: HostServiceHeartbeat = .standard, quickHeartbeat: HostServiceHeartbeat = .quick, sleep: @escaping Sleep = Sleeping.task,
-        traffic: TrafficRecording? = nil
+        traffic: TrafficRecording? = nil, diagnostics: HTTPSConnectionDiagnostics? = nil
     ) {
+        self.diagnostics = diagnostics
         trafficSink = TrafficSink(traffic)
         self.address = address
         self.deviceToken = deviceToken
@@ -57,6 +64,11 @@ public actor HTTPSHostConnection: HostConnection {
         self.heartbeat = heartbeat
         self.quickHeartbeat = quickHeartbeat
         self.sleep = sleep
+    }
+
+    /// 接上關鍵請求的耗時記錄(#689);沒接時不記。
+    public nonisolated func attachTimings(_ sink: OperationTimingSink?) {
+        timingSink.attach(sink)
     }
 
     /// 接上流量計量(#353)。
@@ -318,6 +330,27 @@ public actor HTTPSHostConnection: HostConnection {
 
     /// 撥號並握手。握手有自己的期限，卡住的主機服務不會讓之後的操作一直等。
     private func open(deviceToken token: String) async throws -> HostServiceSession {
+        dialCount += 1
+        let dial = dialCount
+        let clock = ContinuousClock()
+        let start = clock.now
+        do {
+            let opened = try await dialAndHandshake(deviceToken: token)
+            let connectedAt = clock.now
+            diagnostics?(.connected(dial: dial))
+            if let diagnostics {
+                await opened.observeEnd { reason in
+                    diagnostics(.dropped(dial: dial, reason: reason, lifetime: clock.now - connectedAt))
+                }
+            }
+            return opened
+        } catch {
+            diagnostics?(.dialFailed(dial: dial, error: HTTPSConnectionEvent.kind(of: error), elapsed: clock.now - start))
+            throw error
+        }
+    }
+
+    private func dialAndHandshake(deviceToken token: String) async throws -> HostServiceSession {
         let socket = try await transport.connect(to: address.webSocketURL, bearerToken: token)
         let opened = HostServiceSession(socket: socket, deviceToken: token, heartbeat: currentHeartbeat, sleep: sleep)
         await opened.start()
@@ -476,4 +509,21 @@ enum PaneTerminalStreamEvent {
             return nil
         }
     }
+}
+
+/// 可事後接上的耗時出口(閉包放在 class 的 `let`,見 `TrafficSink` 的說明)。
+final class TimingSinkHolder: Sendable {
+    private final class Box: Sendable {
+        let sink: OperationTimingSink
+        init(_ sink: @escaping OperationTimingSink) { self.sink = sink }
+    }
+
+    private let box = Mutex<Box?>(nil)
+
+    func attach(_ sink: OperationTimingSink?) {
+        let new = sink.map(Box.init)
+        box.withLock { $0 = new }
+    }
+
+    var current: OperationTimingSink? { box.withLock { $0 }?.sink }
 }

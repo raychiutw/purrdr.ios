@@ -34,3 +34,7 @@ Purrdr 對不同 Agent(Claude Code、Codex、Antigravity、Grok…)的差異，�
 實測(#445,PR #459)發現 herdr 0.9.5(agy 偵測規則 2026.10.05.1)認不出 Antigravity CLI 1.5.14 在 default 模式的權限提示，回報 idle／done;`ask_question` 才是 blocked。所以 agy 等權限時，手機不會提示「需要你」。
 
 曾考慮在 Antigravity 設定檔加例外、由 app 依畫面補判斷(#460),最後決定**不做**:維持「需要你以 herdr 為準」,已回報上游(herdrdev/herdr#6141)。herdr 可遠端更新偵測規則，修好後 Purrdr 不用改。在那之前，agy 的權限提示只能在聊天畫面看到。
+
+## 更新(2026-11-27):主機能力表以 `AgentID` × 連線方式為鍵(#686)
+
+「要連主機」的能力(方案用量來源、session 狀態讀取、slash 探索、啟動器)不放進設定檔(設定檔是可攜核心的純值),由 Features 的 `AgentHostCapabilities.resolve(_:over:)` 對照:鍵是 `AgentID` 與連線方式(SSH、HTTPS、Demo,Demo 走 SSH 的程式路徑),沒有的能力是 `false`,畫面自然隱藏;新增 Agent 或連線方式只改這張表,`AgentHostServicesTests` 逐列檢查,並確認 SSH 接線與表一致。方案用量畫面不再有自己的 `PlanUsageAgent`,直接用 `AgentID`(儲存的選擇與 UI 測試識別碼仍是舊字串,由 `planUsageKey` 對應)。HTTPS 的方案用量來源對沒有的 Agent(Antigravity)回 `nil`,不再 `preconditionFailure`。`AgentKind`(頭像、顯示名稱、列文字)的退場另開後續票。

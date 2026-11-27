@@ -138,10 +138,10 @@ struct UsageContentView: View {
         case .loading:
             note(Text("Loading plan usage…"), identifier: "usage.sheet.loading")
         case .noData:
-            note(Text("\(entry.agent.shortName) hasn’t reported plan usage yet."), identifier: "usage.sheet.noData")
+            note(Text("\(entry.agent.planUsageShortName) hasn’t reported plan usage yet."), identifier: "usage.sheet.noData")
         case .needsEnable:
             note(
-                Text("To see \(entry.agent.shortName)’s plan usage, turn on usage display for \(hostName)."), identifier: "usage.sheet.needsEnable")
+                Text("To see \(entry.agent.planUsageShortName)’s plan usage, turn on usage display for \(hostName)."), identifier: "usage.sheet.needsEnable")
         case .failed(let failure):
             note(Text(verbatim: failure.text), identifier: "usage.sheet.failed")
         }

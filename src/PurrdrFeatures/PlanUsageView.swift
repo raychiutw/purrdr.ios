@@ -31,7 +31,7 @@ public struct PlanUsageView: View {
                 Section {
                     Picker("Agent", selection: agentSelection) {
                         ForEach(model.agents, id: \.self) { agent in
-                            Text(verbatim: agent.name).tag(agent)
+                            Text(verbatim: agent.planUsageName).tag(agent)
                         }
                     }
                     .pickerStyle(.inline)
@@ -112,8 +112,8 @@ public struct PlanUsageView: View {
                 systemImage: "tray", title: "No Agents are turned on", detail: "Open the Hosts tab, then Agent, to turn one on.")
         case .needsConsent, .confirming:
             PlanUsageMessage(
-                systemImage: "lock", title: model.agent == .antigravity ? "Show Antigravity plan usage on this host?" : "Show Claude plan usage on this host?",
-                detail: model.agent == .antigravity
+                systemImage: "lock", title: model.agent == .agy ? "Show Antigravity plan usage on this host?" : "Show Claude plan usage on this host?",
+                detail: model.agent == .agy
                     ? "Purrdr changes the Antigravity status line on \(hostName) so it saves plan usage. You can turn it off and restore the original anytime."
                     : "Purrdr changes the Claude Code status line on \(hostName) so it saves plan usage. You can turn it off and restore the original anytime."
             ) {
@@ -124,9 +124,9 @@ public struct PlanUsageView: View {
         case .checking:
             PlanUsageMessage(systemImage: nil, title: "Checking the host…", detail: nil)
         case .installing:
-            PlanUsageMessage(systemImage: nil, title: model.agent == .antigravity ? "Changing the host’s Antigravity settings…" : "Changing the host’s Claude settings…", detail: nil)
+            PlanUsageMessage(systemImage: nil, title: model.agent == .agy ? "Changing the host’s Antigravity settings…" : "Changing the host’s Claude settings…", detail: nil)
         case .turningOff:
-            PlanUsageMessage(systemImage: nil, title: model.agent == .antigravity ? "Restoring the host’s Antigravity settings…" : "Restoring the host’s Claude settings…", detail: nil)
+            PlanUsageMessage(systemImage: nil, title: model.agent == .agy ? "Restoring the host’s Antigravity settings…" : "Restoring the host’s Claude settings…", detail: nil)
         case .unsupportedConnection:
             PlanUsageMessage(
                 systemImage: "nosign", title: "Plan usage isn’t available for this connection method",
@@ -151,8 +151,8 @@ public struct PlanUsageView: View {
 
     private var noData: some View {
         PlanUsageMessage(
-            systemImage: "hourglass", title: model.agent == .antigravity ? "Antigravity hasn’t reported plan usage yet" : "Claude Code hasn’t reported plan usage yet",
-            detail: model.agent == .antigravity
+            systemImage: "hourglass", title: model.agent == .agy ? "Antigravity hasn’t reported plan usage yet" : "Claude Code hasn’t reported plan usage yet",
+            detail: model.agent == .agy
                 ? "Use Antigravity once on \(hostName), then pull down to refresh."
                 : "Use Claude Code once on \(hostName), then pull down to refresh.")
     }
@@ -177,18 +177,18 @@ public struct PlanUsageView: View {
         if case .loaded(let usage) = model.state, !model.rows.isEmpty {
             Group {
                 switch (model.agent, PlanUsagePresentation.asOf(usage, now: .now)) {
-                case (.claudeCode, let asOf?):
+                case (.claude, let asOf?):
                     Text("As of \(asOf, format: .dateTime.hour().minute()), when Claude Code last reported on this host.")
-                case (.claudeCode, nil):
+                case (.claude, nil):
                     Text("Claude Code reports these numbers while it runs on this host.")
                 case (.codex, let asOf?):
                     Text("As of \(asOf, format: .dateTime.hour().minute()). Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host.")
                 case (.codex, nil):
                     Text("Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host.")
-                case (.antigravity, let asOf?):
-                    Text("As of \(asOf, format: .dateTime.hour().minute()), when Antigravity last reported on this host.")
-                case (.antigravity, nil):
+                case (_, nil):
                     Text("Antigravity reports these numbers while it runs on this host.")
+                case (_, let asOf?):
+                    Text("As of \(asOf, format: .dateTime.hour().minute()), when Antigravity last reported on this host.")
                 }
             }
             .foregroundStyle(.secondaryText)
@@ -219,18 +219,18 @@ public struct PlanUsageView: View {
     }
 
     private var consentAlertTitle: LocalizedStringKey {
-        model.agent == .antigravity ? "Show Antigravity Plan Usage?" : "Show Claude Plan Usage?"
+        model.agent == .agy ? "Show Antigravity Plan Usage?" : "Show Claude Plan Usage?"
     }
 
     private var turnOffTitle: LocalizedStringKey {
-        model.agent == .antigravity ? "Turn Off Antigravity Plan Usage" : "Turn Off Claude Plan Usage"
+        model.agent == .agy ? "Turn Off Antigravity Plan Usage" : "Turn Off Claude Plan Usage"
     }
 
     private var hostSelection: Binding<HostSelection> {
         Binding { model.host } set: { model.select(host: $0) }
     }
 
-    private var agentSelection: Binding<PlanUsageAgent> {
+    private var agentSelection: Binding<AgentID> {
         Binding { model.agent } set: { model.select(agent: $0) }
     }
 
@@ -245,7 +245,7 @@ public struct PlanUsageView: View {
 
     private var consentMessage: String {
         guard case .confirming(let user) = model.state else { return "" }
-        if model.agent == .antigravity {
+        if model.agent == .agy {
             return String(localized: "To show plan usage, Purrdr changes one Antigravity setting on this host (signed in as \(user)). Turning this off puts it back.")
         }
         return String(localized: "To show plan usage, Purrdr changes one Claude Code setting on this host (signed in as \(user)). Turning this off puts it back.")
@@ -289,13 +289,14 @@ extension PlanUsage.Period.Kind {
     }
 }
 
-extension PlanUsageAgent {
+extension AgentID {
     /// 產品名稱，不翻譯。
-    var name: String {
+    var planUsageName: String {
         switch self {
-        case .claudeCode: "Claude Code"
+        case .claude: "Claude Code"
         case .codex: "Codex"
-        case .antigravity: "Antigravity"
+        case .agy: "Antigravity"
+        default: canonicalName
         }
     }
 }

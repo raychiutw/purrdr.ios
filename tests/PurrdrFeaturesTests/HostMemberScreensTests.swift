@@ -84,11 +84,11 @@ struct HostMemberScreensTests {
 
     @Test("用量區:只列這台主機啟用的 Agent")
     func usageSectionFiltersDisabledAgents() {
-        let claudeOnly = Self.member(enabled: [.claude]).usageSection(agents: [.claudeCode, .codex])
-        #expect(claudeOnly.agents == [.claudeCode])
-        let both = Self.member(enabled: [.claude, .codex]).usageSection(agents: [.claudeCode, .codex])
-        #expect(both.agents == [.claudeCode, .codex])
-        #expect(Self.member(enabled: []).usageSection(agents: [.claudeCode, .codex]).agents.isEmpty)
+        let claudeOnly = Self.member(enabled: [.claude]).usageSection(agents: [.claude, .codex])
+        #expect(claudeOnly.agents == [.claude])
+        let both = Self.member(enabled: [.claude, .codex]).usageSection(agents: [.claude, .codex])
+        #expect(both.agents == [.claude, .codex])
+        #expect(Self.member(enabled: []).usageSection(agents: [.claude, .codex]).agents.isEmpty)
     }
 
     @Test("主機設定與 Agent 設定:只給已存主機;範例主機(不是已存主機)是 nil")

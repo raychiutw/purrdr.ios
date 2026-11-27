@@ -237,6 +237,9 @@ public struct AgentListView: View {
                 Button("Try Again") { model.retry() }
                     .accessibilityIdentifier("agentList.retry")
             }
+            .reportsErrorDisplay(
+                fingerprint: message.hashValue, descriptor: model.allFailedDescriptor ?? ErrorDescriptor(category: "HostUpdates", code: "failed"),
+                area: "AgentList")
         case .empty:
             ContentUnavailableView(
                 "No Agents",
@@ -379,6 +382,9 @@ public struct AgentListView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondaryText)
                         .accessibilityIdentifier("agentList.error.\(failure.host.storedValue)")
+                        .reportsErrorDisplay(
+                            fingerprint: failure.text.hashValue, descriptor: failure.descriptor ?? ErrorDescriptor(category: "HostUpdates", code: "failed"),
+                            area: "AgentListConnection")
                 }
                 Button("Try Again", systemImage: "arrow.clockwise") { model.retry() }
                     .font(.footnote)
@@ -555,7 +561,7 @@ struct ConversationScreen: View {
             usageSection?.disappeared()
             return
         }
-        if usageSection == nil, let usageContext, let usageHost, let agent = PlanUsageAgent(agentKind: model.agentKind) {
+        if usageSection == nil, let usageContext, let usageHost, let agent = AgentID.planUsageAgent(agentKind: model.agentKind) {
             let section = usageContext.section(usageHost, [agent], false)
             section.activeGroup = model.modelName.flatMap(PlanUsage.Group.init(modelName:))
             // 這台主機沒有啟用這個 Agent 的用量(#477):當作沒有來源。
