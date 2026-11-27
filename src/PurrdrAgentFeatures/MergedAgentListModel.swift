@@ -17,6 +17,11 @@ public struct HostFailure: Equatable, Sendable {
         self.descriptor = descriptor
     }
 
+    /// 比較只看畫面上的內容;`descriptor` 是記錄用的附帶資訊。
+    public static func == (lhs: HostFailure, rhs: HostFailure) -> Bool {
+        lhs.host == rhs.host && lhs.name == rhs.name && lhs.message == rhs.message
+    }
+
     /// 「主機名：原因」。
     public var text: String { String(localized: "\(name): \(message)") }
 }
