@@ -977,10 +977,10 @@ struct PushRouteTests {
         model.load()
         model.select(.demo)
 
-        model.open(PushRoute(keyHash: "abc", paneID: "w2:p1"), pairings: pairings)
+        let destination = model.open(PushRoute(keyHash: "abc", paneID: "w2:p1"), pairings: pairings)
 
         #expect(model.selection == .demo)
-        #expect(model.agentList.openedChat == ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1"))
+        #expect(destination == .chat(ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1")))
     }
 
     @Test("同一則通知(request id)只處理一次(冷啟動會收到兩次)")
@@ -1034,7 +1034,6 @@ struct PushRouteTests {
         let destination = model.open(PushRoute(keyHash: "abc", paneID: nil, event: event), pairings: pairings)
 
         #expect(destination == .hostEditor(HostsModelTests.studio.id))
-        #expect(model.agentList.openedChat == nil)
         #expect(model.selection == .demo)
     }
 
@@ -1072,7 +1071,6 @@ struct PushRouteTests {
         let destination = model.open(PushRoute(keyHash: "abc", paneID: nil, event: "test"), pairings: pairings)
 
         #expect(destination == nil)
-        #expect(model.agentList.openedChat == nil)
         #expect(model.selection == .demo)
     }
 
@@ -1153,10 +1151,10 @@ struct PushRouteTests {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
         model.load()
 
-        model.open(PushRoute(keyHash: "nope", paneID: "w2:p1"), pairings: InMemoryPushPairingStore())
+        let destination = model.open(PushRoute(keyHash: "nope", paneID: "w2:p1"), pairings: InMemoryPushPairingStore())
 
+        #expect(destination == nil)
         #expect(model.selection == .demo)
-        #expect(model.agentList.openedChat == nil)
     }
 }
 

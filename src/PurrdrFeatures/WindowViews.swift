@@ -21,7 +21,7 @@ struct WindowDetail: View {
                     // 列表欄選了多 Pane 的 Tab:版面圖顯示在對話欄;選了 Pane 就換成那個聊天。
                     SpacesLayoutDestination(route: layout, snapshot: hosts.agentList.snapshot(for: layout.host), popsOnChoose: false) { host, target in
                         switch target {
-                        case .chat(let paneID), .terminal(let paneID): navigation.selectedChat = ChatRoute(host: host, paneID: paneID)
+                        case .chat(let paneID), .terminal(let paneID): navigation.openChat(ChatRoute(host: host, paneID: paneID))
                         }
                     }
                 } else {
@@ -58,7 +58,7 @@ struct WindowDetailContent: View {
                 layoutSnapshot: { hosts.agentList.snapshot(for: route.host) },
                 openLayoutTarget: { target in
                     switch target {
-                    case .chat(let paneID), .terminal(let paneID): navigation.selectedChat = ChatRoute(host: route.host, paneID: paneID)
+                    case .chat(let paneID), .terminal(let paneID): navigation.openChat(ChatRoute(host: route.host, paneID: paneID))
                     }
                 })
                 .environment(\.usageHost, route.host)
@@ -134,7 +134,7 @@ private struct PaneWindowContent: View {
             target: target, hasMainWindow: registry.hasMainWindow,
             workspaceTitle: hosts.agentList.needsYouBanner(forWindow: route)?.workspace) {
         case .mainWindow(let chat):
-            hosts.agentList.openedChat = chat
+            registry.navigation?.openChat(chat)
             registry.bringToFront()
         case .newPaneWindow(let window):
             openWindow(value: window)

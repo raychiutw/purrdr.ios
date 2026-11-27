@@ -243,9 +243,9 @@ struct HostsModelTests {
         newChat.folder = "~/ledger"
         newChat.message = "Fix the CSV quoting"
         let workspace = try #require(await newChat.start())
-        await model.openStartedChat(workspace, on: model.selection)
+        let chat = await model.startedChat(workspace, on: model.selection)
 
-        #expect(model.agentList.openedChat == ChatRoute(host: .host(Self.studio.id), paneID: "w4:p1"))
+        #expect(chat == ChatRoute(host: .host(Self.studio.id), paneID: "w4:p1"))
         #expect(model.agentList.list(for: .host(Self.studio.id))?.phase == .loaded)
         #expect(await real.unmetExpectations.isEmpty)
     }
