@@ -37,7 +37,7 @@ struct OtherAgentConversationTests {
         #expect(setup.model.banner == nil)
         #expect(setup.model.items.count == 3)
         #expect(setup.model.metadata.model == "grok-5-fast")
-        #expect(await setup.host.shellCommands.count == 2)
+        #expect(await setup.host.shellCommands.count == 1)  // 定位加讀視窗合成一個指令(#656)
     }
 
     /// Pi／OMP 的 integration 通常以路徑回報 session;之後的輪詢只讀游標之後新增的行。

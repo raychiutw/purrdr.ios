@@ -238,6 +238,7 @@ actor MeteredSSHHost: HostChannel {
         }
         let scripts: [(String, String)] = [
             ("transcript.previews", TranscriptCommand.previewsScript),
+            ("transcript.open", TranscriptCommand.openScript(.claude)),
             ("transcript.window", TranscriptCommand.windowScript),
             ("transcript.catchUp", TranscriptCommand.catchUpScript),
             ("transcript.tail", TranscriptCommand.tailScript),

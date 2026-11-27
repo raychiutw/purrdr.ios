@@ -176,6 +176,7 @@ public struct SSHHostConnection: HostConnection {
         let plan = TranscriptPlan(request)
         // 點進聊天的定位與視窗讀取記下開通道與整個指令的耗時(#659);追蹤、預覽等頻繁的讀取不記。
         let timedName: String? = switch request {
+        case .open: "transcript.open"
         case .locate: "transcript.locate"
         case .window: "transcript.window"
         default: nil
@@ -270,6 +271,9 @@ struct TranscriptPlan {
         case .locate(let location):
             command = TranscriptCommand.locate(location)
             deadline = HostCommandDeadline.standard
+        case .open(let location, let lines, let maxBytes):
+            command = TranscriptCommand.open(location, lines: lines, maxBytes: maxBytes)
+            deadline = HostCommandDeadline.transfer(bytes: maxBytes > 0 ? maxBytes : TranscriptReader.defaultWindowChunkBytes)
         case .window(let path, let end, let lines, let chunkBytes, let maxBytes):
             command = TranscriptCommand.window(path: path, end: end, lines: lines, chunkBytes: chunkBytes, maxBytes: maxBytes)
             deadline = HostCommandDeadline.transfer(bytes: maxBytes > 0 ? min(chunkBytes, maxBytes) : chunkBytes)

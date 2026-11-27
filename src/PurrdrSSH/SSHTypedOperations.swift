@@ -84,6 +84,17 @@ extension SSHHostConnection: HerdrWire {
         try await transcripts.window(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
     }
 
+    /// POSIX 主機一個指令定位並讀視窗(#656)。主機跑不了合併指令(Windows 方言還沒支援,#660)時退回定位加視窗。
+    public func openTranscript(_ location: TranscriptLocation, lines: Int, maxBytes: Int) async throws -> TranscriptOpening {
+        do {
+            return try await transcripts.open(location, lines: lines, maxBytes: maxBytes)
+        } catch WindowsCommandError.unsupported {
+            let file = try await locateTranscript(location)
+            let chunk = try await readTranscriptWindow(path: file.path, end: file.size, lines: lines, maxBytes: maxBytes)
+            return TranscriptOpening(file: file, chunk: chunk)
+        }
+    }
+
     public func readTranscriptTail(path: String, from cursor: Int, limit: Int, catchUp: Bool) async throws -> TranscriptTailRead {
         try await transcripts.tail(path: path, from: cursor, limit: limit, catchUp: catchUp)
     }

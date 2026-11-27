@@ -29,7 +29,7 @@ struct ChatOpenTimingTests {
             knownSessionID: session, cache: cache, clock: TestClock().clock, links: .init(operationTimings: timings))
     }
 
-    @Test("開啟並補讀好幾頁:快取未命中、快照、定位、視窗、逐頁補讀、第一次可讀,依序記下")
+    @Test("開啟並補讀好幾頁:快取未命中、快照、定位加視窗(合成一次)、逐頁補讀、第一次可讀,依序記下")
     func recordsEachStepInOrder() async throws {
         let connection = FakeHostConnection()
         await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
@@ -41,7 +41,7 @@ struct ChatOpenTimingTests {
 
         let pages = await R.windowRequests(connection) - 1
         #expect(pages >= 2, "這份紀錄要補讀兩頁以上才有意義")
-        let expected = ["chatOpen.cache miss", "chatOpen.snapshot", "chatOpen.locate", "chatOpen.window"]
+        let expected = ["chatOpen.cache miss", "chatOpen.snapshot", "chatOpen.open"]
             + (1...pages).map { "chatOpen.earlier#\($0)" } + ["chatOpen.firstReadable"]
         #expect(collector.names.filter { $0.hasPrefix("chatOpen.") } == expected)
         #expect(collector.timings.allSatisfy { !$0.failed && $0.milliseconds >= 0 })
@@ -98,7 +98,7 @@ struct ChatOpenTimingTests {
         let model = Self.model(connection, timings: collector.sink)
         await model.poll()
 
-        #expect(collector.timings.first { $0.name == "chatOpen.locate" }?.failed == true)
+        #expect(collector.timings.first { $0.name == "chatOpen.open" }?.failed == true)
         #expect(!collector.names.contains("chatOpen.firstReadable"))
     }
 
