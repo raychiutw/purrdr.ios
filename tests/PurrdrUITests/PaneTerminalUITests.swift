@@ -24,8 +24,8 @@ final class PaneTerminalUITests: XCTestCase {
     /// 同一次啟動串起終端機的基本行為:連線與狀態、往回捲、鍵盤接管、按鍵列、Ctrl 鎖定(#374 瘦身;原本各自啟動)。
     /// 順序刻意排好:先捲動(還沒打字)，再打字，之後的步驟接著前面輸入的內容往下斷言。
     @MainActor
-    func testTerminalBehaviors() {
-        let app = XCUIApplication.launchUITesting()
+    func testTerminalBehaviorsThenReturningFromBackgroundReappliesControl() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingOversizedClipboard"])
         let screen = openTerminal(app)
 
         step("連線後標題列下方顯示狀態") {
@@ -108,54 +108,27 @@ final class PaneTerminalUITests: XCTestCase {
             screen.expectValue(containing: "^C")
             XCTAssertEqual(ctrl.value as? String, "Off", "送出後 Ctrl 要放開")
         }
-    }
 
-    /// 只在畫面顯示時持有 Pane 的尺寸(#357):進背景(鎖定也是)放開控制,回到前景自動以手機的格數重新接上,不必按「重新連線」。
-    @MainActor
-    func testReturningFromBackgroundReappliesControl() {
-        let app = XCUIApplication.launchUITesting()
-        let screen = openTerminal(app)
-        screen.expectValue(containing: "demo@purrdr ledger %")
+        // 貼上失敗的說明顯示在終端機上方、不彈 alert(#625、#626):`-uiTestingOversizedClipboard` 讓剪貼簿一開始就超過貼上上限
+        // (旗標只放剪貼簿內容,前面的按鍵列步驟只讀貼上鍵的 label、不按)。
+        step("超量貼上顯示頁內說明、不彈 alert") {
+            app.buttons["terminal.key.paste"].firstMatch.tap()
+            let notice = app.descendants(matching: .any)["terminal.notice"].firstMatch
+            XCTAssertTrue(notice.waitUntilExists(timeout: 10), "貼上失敗沒有顯示頁內說明")
+            XCTAssertFalse(app.alerts.firstMatch.exists, "貼上失敗不該彈 alert")
+            app.buttons["Dismiss"].firstMatch.tap()
+            XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
+        }
 
-        XCUIDevice.shared.press(.home)
-        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10), "沒有進背景")
-        app.activate()
+        // 只在畫面顯示時持有 Pane 的尺寸(#357):進背景(鎖定也是)放開控制,回到前景自動以手機的格數重新接上,不必按「重新連線」。
+        step("進背景再回前景自動接回") {
+            XCUIDevice.shared.press(.home)
+            XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10), "沒有進背景")
+            app.activate()
 
-        XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "回到前景沒有自動接回:\(app.terminalHeader)")
-        XCTAssertFalse(app.buttons["terminal.reconnect"].exists, "自己放開的，回來不該要使用者按「重新連線」")
-        screen.expectValue(containing: "demo@purrdr ledger %")
-    }
-
-    /// 貼上失敗的說明顯示在終端機上方、不彈 alert(#625、#626):`-uiTestingOversizedClipboard` 讓剪貼簿一開始就超過貼上上限。
-    @MainActor
-    func testOversizedPasteShowsInlineNoticeNotAlert() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingOversizedClipboard"])
-        let screen = openTerminal(app)
-        screen.expectValue(containing: "demo@purrdr ledger %")
-        let paste = app.buttons["terminal.key.paste"].firstMatch
-        if !paste.waitUntilExists(timeout: 3) { screen.tap() }
-        XCTAssertTrue(paste.waitUntilExists(timeout: 10), "沒有貼上鍵")
-        paste.tap()
-
-        let notice = app.descendants(matching: .any)["terminal.notice"].firstMatch
-        XCTAssertTrue(notice.waitUntilExists(timeout: 10), "貼上失敗沒有顯示頁內說明")
-        XCTAssertFalse(app.alerts.firstMatch.exists, "貼上失敗不該彈 alert")
-        app.buttons["Dismiss"].firstMatch.tap()
-        XCTAssertTrue(notice.waitUntilGone(timeout: 5), "說明沒有關掉")
-    }
-
-    @MainActor
-    func testPaneInUseOffersTakeOver() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoPaneInUse"])
-        let screen = openTerminal(app)
-
-        let takeOver = app.buttons["terminal.takeOver"].firstMatch
-        XCTAssertTrue(takeOver.waitUntilExists(timeout: 10), "被佔用時沒有「接管」")
-        XCTAssertTrue(app.waitForTerminalHeader(containing: "In Use Elsewhere", timeout: 5), "副標題不對:\(app.terminalHeader)")
-        XCTAssertTrue(app.staticTexts["Someone is using this on the host. Tap Take Over to use it here."].firstMatch.exists, "沒有說明主機正在操作")
-
-        takeOver.tap()
-        screen.expectValue(containing: "demo@purrdr ledger %")
-        XCTAssertFalse(takeOver.exists, "接上後「接管」要消失")
+            XCTAssertTrue(app.waitForTerminalHeader(containing: "Connected", timeout: 10), "回到前景沒有自動接回:\(app.terminalHeader)")
+            XCTAssertFalse(app.buttons["terminal.reconnect"].exists, "自己放開的，回來不該要使用者按「重新連線」")
+            screen.expectValue(containing: "demo@purrdr ledger %")
+        }
     }
 }

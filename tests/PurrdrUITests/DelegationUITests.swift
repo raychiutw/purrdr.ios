@@ -8,12 +8,10 @@ final class DelegationUITests: XCTestCase {
     }
 
     @MainActor
-    private func openWeather() -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting()
+    private func openWeather(in app: XCUIApplication) {
         let row = app.descendants(matching: .any)["spaces.tab.demo/w2:t1"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 weather-app Agent")
         row.tap()
-        return app
     }
 
     /// 內容含某段文字的訊息(使用者泡泡或 agent 訊息;每則訊息合成一個元素，label 有作者前綴)。
@@ -22,38 +20,38 @@ final class DelegationUITests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
-    /// 卡片顯示標題、類型 · 模型、時長 · tokens · 工具數;點本體展開結果;箭頭開唯讀的 subagent 畫面。
+    /// 開頭(不同的 pane、彼此不影響;Demo 的 notes 停下後就回不到工作中,一次啟動只能停一次,所以放同一次啟動的最前面):
+    /// notes(`w3:p1`)長按停止鈕開出選單,「Force Quit…」要先在確認對話框確認才送 Ctrl-C;確認後停下,返回列表。
+    /// 接著打開 workflow 卡看到摘要與各 phase,每個 phase 列出其中的 agent,可再打開 agent 的對話(#37 故事 37,G25)。
+    /// 返回後 subagent 卡片:顯示標題、類型 · 模型、時長 · tokens · 工具數;點本體展開結果;箭頭開唯讀的 subagent 畫面。
+    /// 最後(會改狀態,放最後)weather-app 卡在 Bash 權限(行為規格 F8、§5;HIG 20.7):卡片顯示問題、細節與選項(同尺寸、≥44pt);
+    /// 點「Yes」後清楚顯示選了什麼。
     @MainActor
-    func testSubagentCardOpensTranscript() {
-        let app = openWeather()
+    func testForceQuitConfirmationThenWorkflowScreenThenSubagentCardThenAnsweringBashPermission() {
+        let app = XCUIApplication.launchUITesting()
+        app.openConversation(paneID: "w3:p1")
+        let stop = app.element("stopBar.stop")
+        XCTAssertTrue(stop.waitUntilExists(timeout: 10))
 
-        XCTAssertTrue(app.staticTexts["Check how the widget refreshes"].waitUntilExists(timeout: 10), "沒有 subagent 卡")
-        XCTAssertTrue(app.staticTexts["Explore · sonnet"].exists, "說明行應是「類型 · 模型」")
-        XCTAssertTrue(app.staticTexts["1m 6s · 21.5k tokens · 6 tool calls"].exists, "沒有時長 · tokens · 工具數")
+        stop.press(forDuration: 1.0)
+        let menuItem = app.buttons["Force Quit…"]
+        XCTAssertTrue(menuItem.waitUntilExists(timeout: 5), "長按沒有強制結束的選項")
+        menuItem.tap()
 
-        let card = app.element("conversation.subagent")
-        card.waitUntilFrameStops()
-        card.tap()
-        XCTAssertTrue(app.element("conversation.subagent.result").waitUntilExists(timeout: 10), "點卡片沒有展開結果")
+        let confirm = app.buttons["stopBar.forceQuit.confirm"].firstMatch
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "強制結束沒有先確認")
+        XCTAssertTrue(app.staticTexts["Force Quit Codex?"].exists, "確認對話框標題不對")
+        confirm.tap()
 
-        let open = app.element("conversation.subagent.open")
-        XCTAssertGreaterThanOrEqual(open.frame.width, 44)
-        // 展開結果後對話跟著底部捲，箭頭可能被推到導覽列底下：捲回看得到再點。
-        let navigationBottom = app.navigationBars.firstMatch.frame.maxY
-        for _ in 0..<6 where !open.isHittable || open.frame.minY < navigationBottom {
-            app.conversationList.swipeDown(velocity: .slow)
-        }
-        open.tap()
-        XCTAssertTrue(app.element("subagent.messages").waitUntilExists(timeout: 10), "沒有打開 subagent 畫面")
-        // 每則訊息是一個 VoiceOver 元素(label 以「Agent:」開頭,#35),以內容比對。
-        XCTAssertTrue(message(containing: "The timeline refreshes every 15 minutes and fetches each time.", in: app).waitUntilExists(timeout: 5),
-                      "subagent 畫面沒有顯示它的對話紀錄")
-    }
+        XCTAssertTrue(app.element("conversation.working").waitUntilGone(timeout: 15), "強制結束後仍在工作")
+        XCTAssertTrue(app.element("stopBar").waitUntilGone(timeout: 10), "強制結束後停止列還在")
 
-    /// 打開 workflow 卡看到摘要與各 phase,每個 phase 列出其中的 agent,可再打開 agent 的對話(#37 故事 37,G25)。
-    @MainActor
-    func testWorkflowScreenShowsPhasesAndAgents() {
-        let app = openWeather()
+        // 返回列表(多個 Pane 的 Tab 先回版面圖,再回列表),再開 weather-app。
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 10), "沒有回到版面圖")
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有回到列表")
+        openWeather(in: app)
 
         XCTAssertTrue(app.staticTexts["forecast-audit"].waitUntilExists(timeout: 10), "沒有 workflow 卡")
         XCTAssertTrue(app.staticTexts["1 of 3 agents done"].waitUntilExists(timeout: 10), "卡片沒有顯示 agent 進度")
@@ -69,5 +67,61 @@ final class DelegationUITests: XCTestCase {
         XCTAssertTrue(app.element("subagent.messages").waitUntilExists(timeout: 10), "沒有打開 workflow agent 的對話紀錄")
         XCTAssertTrue(message(containing: "Check that cached forecasts expire after an hour.", in: app).waitUntilExists(timeout: 5),
                       "agent 的對話紀錄內容不對")
+        // agent 對話 → workflow 畫面 → 聊天。
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.element("workflow.summary").waitUntilExists(timeout: 10), "返回後沒有回到 workflow 畫面")
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.element("conversation.workflow.open").waitUntilExists(timeout: 10), "返回後沒有回到聊天")
+
+        XCTAssertTrue(app.staticTexts["Check how the widget refreshes"].waitUntilExists(timeout: 10), "沒有 subagent 卡")
+        XCTAssertTrue(app.staticTexts["Explore · sonnet"].exists, "說明行應是「類型 · 模型」")
+        XCTAssertTrue(app.staticTexts["1m 6s · 21.5k tokens · 6 tool calls"].exists, "沒有時長 · tokens · 工具數")
+
+        let subagentCard = app.element("conversation.subagent")
+        subagentCard.waitUntilFrameStops()
+        subagentCard.tap()
+        XCTAssertTrue(app.element("conversation.subagent.result").waitUntilExists(timeout: 10), "點卡片沒有展開結果")
+
+        let open = app.element("conversation.subagent.open")
+        XCTAssertGreaterThanOrEqual(open.frame.width, 44)
+        // 展開結果後對話跟著底部捲，箭頭可能被推到導覽列底下：捲回看得到再點。
+        let navigationBottom = app.navigationBars.firstMatch.frame.maxY
+        for _ in 0..<6 where !open.isHittable || open.frame.minY < navigationBottom {
+            app.conversationList.swipeDown(velocity: .slow)
+        }
+        open.tap()
+        XCTAssertTrue(app.element("subagent.messages").waitUntilExists(timeout: 10), "沒有打開 subagent 畫面")
+        // 每則訊息是一個 VoiceOver 元素(label 以「Agent:」開頭,#35),以內容比對。
+        XCTAssertTrue(message(containing: "The timeline refreshes every 15 minutes and fetches each time.", in: app).waitUntilExists(timeout: 5),
+                      "subagent 畫面沒有顯示它的對話紀錄")
+        // subagent 畫面 → 聊天。
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.element("prompt.card").waitUntilExists(timeout: 10), "返回後沒有回到聊天")
+
+        let card = app.element("prompt.card")
+        XCTAssertTrue(card.waitUntilExists(timeout: 10), "沒有提示卡")
+        XCTAssertTrue(app.staticTexts["Do you want to proceed?"].exists, "沒有問題文字")
+        XCTAssertTrue(app.staticTexts["Bash command"].exists, "沒有權限細節的標題")
+
+        let yes = app.element("prompt.option.1")
+        let no = app.element("prompt.option.3")
+        XCTAssertTrue(yes.exists)
+        XCTAssertGreaterThanOrEqual(yes.frame.height, 44, "選項觸控目標不足 44pt")
+        XCTAssertEqual(yes.frame.width, no.frame.width, accuracy: 1, "同一組選項應同尺寸")
+        // #271(原型 purrdr-screens 定案版):選項不編號。
+        XCTAssertEqual(yes.label, "Yes", "選項不該帶編號:\(yes.label)")
+        // 選項是同寬的圓角長方形選項卡,長文字多行完整顯示(#93)。
+        let long = app.element("prompt.option.2")
+        XCTAssertTrue(long.exists)
+        XCTAssertEqual(yes.frame.width, long.frame.width, accuracy: 1, "同一組選項應同寬")
+        XCTAssertGreaterThan(long.frame.height, yes.frame.height + 10, "長選項應多行顯示，不截斷")
+        XCTAssertTrue(long.label.contains("/Users/demo/weather-app"), "長選項的朗讀內容應完整:\(long.label)")
+
+        yes.tap()
+
+        let answered = app.element("prompt.answered")
+        XCTAssertTrue(answered.waitUntilExists(timeout: 10), "沒有顯示已回答")
+        XCTAssertTrue(answered.label.contains("You chose: Yes"), "沒有寫出選了什麼:\(answered.label)")
+        XCTAssertTrue(card.waitUntilGone(timeout: 10), "回答後提示卡應消失")
     }
 }

@@ -1,99 +1,22 @@
 import XCTest
 
 /// 帳號頁(#246、#409):右上角帳號鈕、Purrdr Plus 卡、未開通時通知與同步鎖住。
-/// 預設未加入會員;`-uiTestingMember`／`-uiTestingPlusMember` 以假後台的會員啟動。
+/// 預設未加入會員;`-uiTestingMember`／`-uiTestingPlusMember`／`-uiTestingLinkMerge` 以假後台的會員啟動。
 final class AccountUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
-    /// 沒登入:帳號 sheet 先選「登入」或「加入會員」(#408),不出現登入鈕、步驟卡與帳號頁的區塊。
+    /// 已加入會員、未開通(`-uiTestingLinkMerge`:假後台的會員與 `-uiTestingMember` 相同,只多了連結 Google 時發現已屬另一個會員;
+    /// 同一次啟動由上而下,原本 5 個測試合併):
+    /// 顯示會員 email 與登入方式;刪除會員(#322)按鈕寫「Delete Member」不帶刪節號、按下仍先跳確認(取消);
+    /// 登出(#412)先說明會停止這支裝置的通知、確認後才登出(取消);已登入、未開通時通知與同步鎖定:列仍可點,
+    /// 說明原因與下一步,沒有開關(#409),說明裡的連結開付費牆;返回後 Plus 卡主按鈕開通,點了推入付費牆;
+    /// 最後(合併後登入方式多了 Google,所以放最後)返回帳號頁、推入「登入方式」(#410),新增 Google 發現已屬另一個會員:
+    /// 出合併確認頁、兩邊摘要都在,確認後合併、回到登入方式有兩種。
     @MainActor
-    func testSignedOutAccountAsksSignInOrJoin() {
-        let app = XCUIApplication.launchUITesting()
-        let account = app.buttons["toolbar.account"]
-        XCTAssertTrue(account.waitUntilExists(timeout: 10), "列表右上角沒有帳號鈕")
-        XCTAssertEqual(account.label, "Account")
-        account.tap()
-
-        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "沒登入沒有顯示選擇頁")
-        XCTAssertTrue(app.staticTexts["Purrdr Member"].exists)
-        XCTAssertTrue(app.buttons["account.entry.signIn"].exists, "沒有「登入」")
-        XCTAssertTrue(app.buttons["account.entry.join"].exists, "沒有「加入會員」")
-        XCTAssertFalse(app.buttons["member.signIn.apple"].exists, "選擇前不該有登入鈕")
-        XCTAssertTrue(app.staticTexts["Chat, terminal, and host management don’t need a member account."].exists)
-        XCTAssertFalse(app.element("account.plusCard").exists, "沒登入不該有 Plus 卡")
-        XCTAssertFalse(app.element("sheet.account").exists, "沒登入不該是帳號頁")
-        XCTAssertFalse(app.staticTexts["Not a Member Yet"].exists)
-    }
-
-    /// 登入(#408):選「登入」→ Apple 登入 → 直接進帳號頁,不走加入步驟。
-    @MainActor
-    func testSignInGoesStraightToAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSignUp"])
-        app.openAccount()
-        XCTAssertTrue(app.buttons["account.entry.signIn"].waitUntilExists(timeout: 10))
-        app.buttons["account.entry.signIn"].tap()
-
-        XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒有登入頁")
-        XCTAssertFalse(app.staticTexts["member.entry.step"].exists, "登入不標加入步驟")
-        XCTAssertTrue(app.buttons["BackButton"].firstMatch.exists, "登入頁左上應是系統返回鈕")
-        app.buttons["member.signIn.apple"].tap()
-
-        XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 10), "登入後沒有進帳號頁")
-        XCTAssertFalse(app.element("account.join.paywall").exists, "登入不該走加入步驟")
-        XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.exists)
-    }
-
-    /// 登入頁與加入頁互相切換,返回回到選擇頁(#408)。
-    @MainActor
-    func testSwitchBetweenSignInAndJoin() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSignUp"])
-        app.openAccount()
-        XCTAssertTrue(app.buttons["account.entry.signIn"].waitUntilExists(timeout: 10))
-        app.buttons["account.entry.signIn"].tap()
-        XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5))
-        app.buttons["account.entry.switch"].tap()
-        XCTAssertTrue(app.element("account.entry.joinPage").waitUntilExists(timeout: 5), "沒切到加入頁")
-        XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
-        app.buttons["account.entry.switch"].tap()
-        XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒切回登入頁")
-        app.buttons["BackButton"].firstMatch.tap()
-        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 5), "返回沒回到選擇頁")
-    }
-
-    /// 登入保留(#406):後台連不上時仍是登入狀態,帳號頁說明「暫時連不上」,不是登入頁。
-    @MainActor
-    func testUnreachableBackendKeepsSignedIn() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMemberOffline"])
-        app.openAccountSheet()
-
-        XCTAssertTrue(app.element("account.connectionLimited").waitUntilExists(timeout: 10), "沒有「暫時連不上」說明")
-        XCTAssertTrue(app.staticTexts["Can’t reach Purrdr for now. You’re still signed in."].exists)
-        XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.exists, "連不上時不顯示登入中的會員")
-        XCTAssertTrue(app.buttons["account.connectionLimited.retry"].exists, "沒有再試一次")
-        XCTAssertFalse(app.element("account.signedOut").exists, "連不上不該變成登入頁")
-    }
-
-    /// 帳號鈕在最右上角(HIG),新增聊天在它左邊。
-    @MainActor
-    func testAccountButtonIsRightmostAfterNewChat() {
-        let app = XCUIApplication.launchUITesting()
-        let account = app.buttons["toolbar.account"]
-        let newChat = app.buttons["toolbar.newChat"]
-        XCTAssertTrue(account.waitUntilExists(timeout: 10))
-        XCTAssertTrue(newChat.exists)
-
-        XCTAssertGreaterThan(account.frame.minX, newChat.frame.maxX - 1, "帳號鈕不在新增聊天右邊")
-        let host = app.buttons["toolbar.currentHost"]
-        let rightmost = [account, newChat, host].map(\.frame.maxX).max() ?? 0
-        XCTAssertEqual(account.frame.maxX, rightmost, accuracy: 1, "帳號鈕不是最右邊")
-    }
-
-    /// 已加入會員、未開通:顯示會員 email 與登入方式,Plus 卡主按鈕開通,點了推入付費牆(#409)。
-    @MainActor
-    func testMemberWithoutPlusActivatesFromPaywall() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
+    func testMemberDeleteSignOutLockedFeaturesActivationFromPaywallAndLinkMerge() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingLinkMerge"])
         app.openAccountSheet()
 
         XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.waitUntilExists(timeout: 10), "沒有顯示會員")
@@ -102,50 +25,32 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(action.waitUntilExists(timeout: 10), "沒有開通按鈕")
         XCTAssertEqual(action.label, "Activate Purrdr Plus")
         XCTAssertTrue(app.buttons["account.plusCard.secondary"].exists, "沒有恢復購買")
-        action.tap()
 
-        XCTAssertTrue(app.element("plus.benefits").waitUntilExists(timeout: 10), "沒有推入付費牆")
-    }
+        // 刪除會員:沒有訂閱的會員按刪除直接跳確認,先取消。
+        let delete = app.buttons["member.delete"]
+        app.scrollIntoView(delete, search: .down)
+        XCTAssertTrue(delete.waitUntilExists(timeout: 10), "帳號頁沒有刪除會員")
+        XCTAssertEqual(delete.label, "Delete Member")
+        delete.tap()
+        let deleteAlert = app.alerts["Delete Member?"]
+        XCTAssertTrue(deleteAlert.waitUntilExists(timeout: 5), "沒有訂閱的會員按刪除要直接跳確認")
+        XCTAssertFalse(app.otherElements["member.deleteSubscription"].exists, "沒有訂閱不該先出現訂閱說明頁")
+        deleteAlert.buttons["Cancel"].tap()
+        XCTAssertTrue(deleteAlert.waitUntilGone(timeout: 5), "取消後刪除確認沒有收起")
 
-    /// 已開通:Plus 卡顯示來源與管理訂閱,沒有購買按鈕;通知(逐台)與主機同步開關在帳號頁,可開可關(#263、#409)。
-    @MainActor
-    func testPlusMemberCardAndTogglesStayOnAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
-        app.openAccountSheet()
-
-        let status = app.element("account.plusCard.status")
-        XCTAssertTrue(status.waitUntilExists(timeout: 10), "沒有 Plus 卡")
-        XCTAssertTrue(status.label.contains("Active"), status.label)
-        XCTAssertTrue(status.label.contains("App Store"), status.label)
-        XCTAssertTrue(app.buttons["account.plusCard.manage"].exists, "App Store 訂閱沒有管理訂閱")
-        XCTAssertFalse(app.buttons["account.plusCard.primary"].exists, "已開通不該有開通按鈕")
-        XCTAssertFalse(app.buttons["account.plusCard.secondary"].exists, "已開通不該有恢復購買")
-
-        // 主機同步與通知併在「Plus 功能」區:同步是開關,通知推入逐台主機的子頁(#463)。
-        let hostSync = app.switches["settings.hostSync"]
-        XCTAssertTrue(app.scrollIntoView(hostSync, search: .down), "沒有主機同步開關")
-        app.openAccountNotifications()
-        let toggle = app.switches["account.push.5EED0000-0000-4000-8000-000000000001"]
-        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
-        toggle.tap()
-        let install = app.alerts.buttons["settings.push.install"].firstMatch
-        XCTAssertTrue(install.waitUntilExists(timeout: 10), "開通知沒有先確認安裝外掛")
-        install.tap()
-        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == %@", "Notifications On"), timeout: 10), "等待的條件沒有成立")
-
-        // 仍可關閉那台主機的通知。
-        toggle.tap()
-        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == %@", "Notifications Off"), timeout: 10), "等待的條件沒有成立")
-    }
-
-    /// 已登入、未開通時通知與同步鎖定:列仍可點,說明原因與下一步,沒有開關(#409)。
-    @MainActor
-    func testLockedFeaturesExplainNextStep() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
-        app.openAccountSheet()
+        // 登出:先說明,取消後仍在帳號頁。
+        let signOut = app.buttons["member.signOut"]
+        app.scrollIntoView(signOut, search: .down)
+        XCTAssertTrue(signOut.waitUntilExists(timeout: 10))
+        signOut.tap()
+        let signOutSheet = app.sheets["Sign Out?"]
+        XCTAssertTrue(signOutSheet.waitUntilExists(timeout: 5), "登出前沒有說明")
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
+        XCTAssertTrue(signOutSheet.waitUntilGone(timeout: 5), "取消後登出說明沒有收起")
+        XCTAssertTrue(signOut.exists, "取消後仍在帳號頁")
 
         let locked = app.element("account.locked.hostSync")
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: locked, search: .down, timeout: 10), "沒有鎖定的主機同步列")
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: locked, search: .both, timeout: 10), "沒有鎖定的主機同步列")
         XCTAssertTrue((locked.value as? String)?.contains("Needs Purrdr Plus") == true, "鎖定列沒有寫需要 Purrdr Plus:\(String(describing: locked.value))")
         XCTAssertTrue(app.element("account.locked.notifications").exists, "沒有鎖定的通知列")
         XCTAssertFalse(app.switches["account.push.demo"].exists, "未開通不該有通知開關")
@@ -156,31 +61,31 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(app.alerts.firstMatch.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Activate it from'")).firstMatch.exists)
         app.buttons["account.locked.openPlus"].firstMatch.tap()
         XCTAssertTrue(app.element("plus.benefits").waitUntilExists(timeout: 10), "說明裡的「Purrdr Plus」沒有開付費牆")
+
+        // 返回帳號頁,Plus 卡主按鈕開通,點了推入付費牆(#409)。
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: action, search: .both, timeout: 10), "返回後沒有回到帳號頁的開通按鈕")
+        action.tap()
+        XCTAssertTrue(app.element("plus.benefits").waitUntilExists(timeout: 10), "沒有推入付費牆")
+
+        // 登入方式與合併(#410):從付費牆返回帳號頁,推入「登入方式」。
+        app.buttons["BackButton"].firstMatch.tap()
+        let methods = app.element("member.signInMethods")
+        XCTAssertTrue(app.scrollSheet("sheet.account", to: methods, search: .down, timeout: 10), "帳號頁沒有登入方式")
+        methods.tap()
+        XCTAssertTrue(app.element("member.identity.apple").waitUntilExists(timeout: 10), "沒有開出登入方式")
+
+        app.buttons["member.signIn.google"].tap()
+
+        XCTAssertTrue(app.element("sheet.merge").waitUntilExists(timeout: 10), "沒有開出合併確認")
+        XCTAssertTrue(app.element("member.merge.current").exists)
+        XCTAssertTrue(app.element("member.merge.other").exists)
+        app.assertModalToolbar(close: "member.merge.cancel", confirm: "member.merge.confirm")
+        let confirm = app.buttons["member.merge.confirm"]
+        XCTAssertTrue(confirm.isEnabled)
+        confirm.tap()
+
+        XCTAssertTrue(app.element("member.identity.google").waitUntilExists(timeout: 10), "合併後應該有 Google 這種登入方式")
+        XCTAssertTrue(app.element("sheet.merge").waitUntilGone(timeout: 5), "合併 sheet 沒有收起")
     }
-
-    @MainActor
-    func testTraditionalChineseAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember", "-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
-        app.openAccountSheet()
-
-        XCTAssertTrue(app.navigationBars["帳號"].waitUntilExists(timeout: 5), "帳號頁標題不是繁體中文")
-        XCTAssertTrue(app.staticTexts["尚未開通"].exists, "Plus 卡狀態不是繁體中文")
-        XCTAssertEqual(app.buttons["account.plusCard.primary"].label, "開通 Purrdr Plus")
-    }
-
-    @MainActor
-    func testTraditionalChineseSignedOutAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
-        let account = app.buttons["toolbar.account"]
-        XCTAssertTrue(account.waitUntilExists(timeout: 10))
-        account.tap()
-
-        // 沒登入先選「登入」或「加入會員」(#408)。
-        XCTAssertTrue(app.navigationBars["帳號"].waitUntilExists(timeout: 5), "選擇頁標題不是繁體中文")
-        XCTAssertTrue(app.buttons["account.entry.signIn"].exists)
-        XCTAssertTrue(app.buttons["account.entry.signIn"].label.contains("登入"), app.buttons["account.entry.signIn"].label)
-    }
-
-    // MARK: - 輔助
-
 }

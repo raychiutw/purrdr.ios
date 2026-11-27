@@ -15,16 +15,25 @@ final class DailySmokeUITests: XCTestCase {
 
     @MainActor
     private func back(_ app: XCUIApplication) {
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].firstMatch.tap()
     }
 
-    /// 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機 → 跨聊天「需要你」橫幅(#530)→ 返回後列表置頂段落(#531)。
+    /// 聊天 tab 徽章 → 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機 → 跨聊天「需要你」橫幅(#530)→ 返回後列表置頂段落(#531)
+/// → 從段落開「需要你」的 weather-app:subagent 卡展開、回答 Bash 權限。
     /// 帶 `-demoNeedsYouLater`:打開第一個聊天 3 秒後 notes 變成需要你(weather-app 一開始就需要你,不觸發橫幅)。
     @MainActor
     func testListAndChat() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo", "-demoNeedsYouLater"])
         let ledger = app.element("spaces.tab.demo/w1:t1")
 
+        // 放在第一步(開任何聊天之前):`-demoNeedsYouLater` 要開聊天 3 秒後才多一個需要你,所以現在只有 weather-app。
+        step("聊天 tab 的 badge 是需要你的 Agent 數") {
+            let tab = app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chats")).firstMatch
+            XCTAssertTrue(tab.waitUntilExists(timeout: 10))
+            // badge 可能念在標籤尾端,也可能是元素的 value。
+            let shows = UITestWait.until(timeout: 15) { tab.exists && (tab.label.contains("1") || (tab.value as? String)?.contains("1") == true) }
+            XCTAssertTrue(shows, "聊天 tab 沒有標示 1 個需要你:\(tab.label) / \(String(describing: tab.value))")
+        }
         step("列表看到 Demo 的 Agent") {
             XCTAssertTrue(app.reveal(ledger), "沒有看到 Demo 主機的 Agent")
             XCTAssertTrue(ledger.label.contains("Done"), "列沒有狀態文字:\(ledger.label)")
@@ -34,7 +43,7 @@ final class DailySmokeUITests: XCTestCase {
             let search = app.revealChatSearch()
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "沒有搜尋欄")
             search.tap()
-            search.typeEnglish("weather")
+            search.typeEnglishAndConfirm("weather", expecting: "weather")
             XCTAssertTrue(app.element("spaces.tab.demo/w2:t1").waitUntilExists(timeout: 5))
             XCTAssertTrue(ledger.waitUntilGone(timeout: 5), "不符合的列仍在")
             search.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 7) + "\n")
@@ -46,10 +55,10 @@ final class DailySmokeUITests: XCTestCase {
             let search = app.revealChatSearch()
             XCTAssertTrue(search.waitUntilExists(timeout: 5), "Spaces 檢視沒有搜尋欄")
             search.tap()
-            search.typeEnglish("weather")
+            search.typeEnglishAndConfirm("weather", expecting: "weather")
             XCTAssertTrue(app.element("spaces.section.demo/w2").waitUntilExists(timeout: 5), "搜尋 workspace 名稱找不到 weather-app")
             XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilGone(timeout: 5), "不符合的 workspace 仍在")
-            search.typeEnglish("zzz")
+            search.typeEnglishAndConfirm("zzz", expecting: "weatherzzz")
             XCTAssertTrue(app.element("agentList.noMatches").waitUntilExists(timeout: 5), "Spaces 搜尋不到時沒有說明")
             let clear = app.buttons["Clear text"].firstMatch
             XCTAssertTrue(clear.waitUntilExists(timeout: 5), "搜尋欄沒有清除鈕")
@@ -100,6 +109,8 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("attach.panel").waitUntilExists(timeout: 5), "沒有附加面板")
             let video = app.element("attach.video")
             XCTAssertTrue(video.waitUntilExists(timeout: 5), "附加面板沒有「影片」")
+            // 沒有相簿權限(預設 `.denied`)時面板仍有按鈕(原 testAttachPanelWithoutPhotoAccessShowsOnlyButtons;沒照片的 model 由 RecentPhotoPagerTests.emptyAlbum 守)。
+            XCTAssertTrue(app.element("attach.photos").exists, "附加面板沒有「照片」")
             video.tap()
             XCTAssertTrue(app.element("composer.attachment.0").waitUntilExists(timeout: 20), "挑影片後輸入列沒有附件卡")
             XCTAssertTrue(app.element("composer.videoPreparation").waitUntilGone(timeout: 10), "影片準備中的進度沒有結束")
@@ -122,7 +133,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("menu.sheet.permissionMode").waitUntilGone(timeout: 15), "切換成功後 sheet 沒有自動關閉")
             XCTAssertTrue(app.conversationMoreItem("menu.permissionMode").label.contains("Accept Edits"), "「⋯」的權限模式副標沒有顯示 Accept Edits")
             // 收起「⋯」選單,下一步才能重新打開。
-            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+            app.dismissConversationMenu()
         }
         step("模型選擇 sheet 與投入程度子頁(#384)") {
             // 輸入列收合時沒有模型膠囊:從「⋯」→ 模型與思考深度開同一張 sheet(#515)。
@@ -171,16 +182,13 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(section.wait(for: NSPredicate(format: "label CONTAINS '2 chats need you'"), timeout: 10), "段落沒有列出 weather-app 與 notes:\(section.label)")
             XCTAssertTrue(app.element("needsYou.tab.demo/w3:t1").waitUntilExists(timeout: 5), "段落裡沒有 notes")
         }
-    }
-
-    /// 「需要你」的聊天:subagent 卡、回答 Bash 權限。
-    @MainActor
-    func testNeedsYouAndSubagent() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
-
-        step("subagent 卡展開") {
+        // 接在最後(會改 weather-app 的狀態):從「需要你」段落打開 weather-app,subagent 卡、回答 Bash 權限。
+        step("從需要你段落開 weather-app:subagent 卡展開") {
+            app.element("needsYou.tab.demo/w2:t1").tapWhenReady()
             XCTAssertTrue(app.staticTexts["Check how the widget refreshes"].waitUntilExists(timeout: 10), "沒有 subagent 卡")
-            app.element("conversation.subagent").tap()
+            let subagentCard = app.element("conversation.subagent").firstMatch
+            XCTAssertTrue(subagentCard.waitUntilExistsAndSettled(timeout: 5), "沒有 subagent 卡片")
+            subagentCard.tap()
             XCTAssertTrue(app.element("conversation.subagent.result").waitUntilExists(timeout: 5), "點卡片沒有展開結果")
         }
         step("回答 Bash 權限") {
@@ -317,37 +325,6 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
-    /// 兩個主機值(#390):在檔案 tab 換「選取中主機」不改聊天 tab 的「目前主機」篩選。
-    @MainActor
-    func testFilesHostMenuDoesNotChangeChatFilter() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost"])
-        app.filterHosts("Studio Mac")
-        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac")
-
-        app.openTab(.files)
-        let picker = app.buttons["files.host"].firstMatch
-        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "檔案 tab 沒有主機選單")
-        picker.tap()
-        XCTAssertFalse(app.buttons["All Hosts"].exists, "檔案 tab 的主機選單不該列所有主機")
-        XCTAssertTrue(app.buttons["hostMenu.addHost"].firstMatch.exists, "主機選單沒有新增主機…")
-        app.buttons["Build Box"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForLabel(containing: "Build Box", timeout: 5))
-
-        app.openTab(.chats)
-        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac", "換選取中主機不該改聊天的目前主機")
-    }
-
-    /// 聊天 tab 的 badge 是「需要你」的 Agent 數。
-    @MainActor
-    func testChatsTabBadgeCountsNeedsYou() {
-        let app = XCUIApplication.launchUITesting()
-        let tab = app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chats")).firstMatch
-        XCTAssertTrue(tab.waitUntilExists(timeout: 10))
-        // badge 可能念在標籤尾端,也可能是元素的 value。
-        let shows = UITestWait.until(timeout: 15) { tab.exists && (tab.label.contains("1") || (tab.value as? String)?.contains("1") == true) }
-        XCTAssertTrue(shows, "聊天 tab 沒有標示 1 個需要你:\(tab.label) / \(String(describing: tab.value))")
-    }
-
     /// Purrdr Plus 會員：帳號頁、通知、通知裝置。
     @MainActor
     func testPlusMemberAccount() {
@@ -379,12 +356,14 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
-    /// 數據用量。
+    /// 數據用量;最後(會改選取中主機)接兩個主機值(#390):在檔案 tab 換「選取中主機」不改聊天 tab 的「目前主機」篩選。
     @MainActor
-    func testDataUsage() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedDataUsage"])
+    func testDataUsageThenFilesHostMenuDoesNotChangeChatFilter() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"])
         step("主機 tab 總頁:狀態、用量區、這台主機的入口(#392)") {
             app.openHostsTab()
+            // 兩台主機同時存在時選取中的不一定是 Studio Mac(連不上的 Build Box 沒有用量):明確選 Studio Mac。
+            app.selectHostOnHostsTab("Studio Mac")
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
             XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有「啟用用量顯示」(#389)")
             XCTAssertTrue(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有 Codex 5 小時")
@@ -415,12 +394,48 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "沒有數據用量頁")
             XCTAssertTrue(app.element("dataUsage.today").waitUntilExists(timeout: 5), "沒有今天的用量")
         }
+        step("檔案 tab 換選取中主機不改聊天的目前主機篩選") {
+            app.openTab(.chats)
+            app.filterHosts("Studio Mac")
+            XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitForLabel(containing: "Showing: Studio Mac", timeout: 5))
+
+            app.openTab(.files)
+            let picker = app.buttons["files.host"].firstMatch
+            XCTAssertTrue(picker.waitUntilExists(timeout: 10), "檔案 tab 沒有主機選單")
+            picker.tap()
+            XCTAssertTrue(app.buttons["hostMenu.addHost"].firstMatch.waitUntilExists(timeout: 5), "主機選單沒有新增主機…")
+            XCTAssertFalse(app.buttons["All Hosts"].exists, "檔案 tab 的主機選單不該列所有主機")
+            app.buttons["Build Box"].firstMatch.tap()
+            XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForLabel(containing: "Build Box", timeout: 5))
+
+            app.openTab(.chats)
+            XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitForLabel(containing: "Showing: Studio Mac", timeout: 5), "換選取中主機不該改聊天的目前主機")
+        }
     }
 
-    /// 沒有主機：空狀態的「新增主機」開引導，取消後體驗範例主機;可從主機 tab 移除,也可從新增主機引導再啟用(#394)。
+    /// 第一次開啟(歡迎頁,沒有主機):歡迎頁試用 Demo → 移除範例主機回到空狀態 → 空狀態的「新增主機」開引導,
+    /// 取消後體驗範例主機;可從主機 tab 移除,也可從新增主機引導再啟用(#394)。
     @MainActor
-    func testNoHostsGuideAndDemo() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"])
+    func testWelcomeNoHostsGuideAndDemo() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts", "-showWelcome"])
+        step("歡迎頁試用 Demo") {
+            XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10), "沒有歡迎頁")
+            // 準備事項的主機包含 Windows(#26 已支援、#35)。
+            let host = app.descendants(matching: .any)["welcome.requirement.host"].firstMatch
+            XCTAssertTrue(host.waitUntilExists(timeout: 5), "沒有主機的準備事項")
+            XCTAssertTrue(host.label.contains("Windows"), "沒提到 Windows:\(host.label)")
+            XCTAssertTrue(host.label.contains("Linux"), host.label)
+            app.buttons["welcome.demo"].tap()
+            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有回到列表")
+        }
+        step("移除範例主機回到空狀態") {
+            app.openTab(.hosts)
+            app.buttons["hosts.demo.remove"].tapWhenReady()
+            app.buttons["hosts.demo.remove.confirm"].firstMatch.tapWhenReady()
+            XCTAssertTrue(app.element("hosts.noHost").waitUntilExists(timeout: 5), "移除後主機 tab 沒有回到沒有主機的空狀態")
+            app.openTab(.chats)
+            XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 5), "移除後沒有回到空狀態")
+        }
         step("空狀態開新增主機引導") {
             XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 10), "沒有沒有主機的空狀態")
             app.buttons["agentList.addHost"].tap()
@@ -450,19 +465,18 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有列出範例主機的 Agent")
         }
     }
-
-    /// 第一次開啟的歡迎頁。
-    @MainActor
-    func testWelcome() {
-        let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"])
-        step("歡迎頁試用 Demo") {
-            XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10), "沒有歡迎頁")
-            app.buttons["welcome.demo"].tap()
-            XCTAssertTrue(app.reveal(app.element("spaces.tab.demo/w1:t1")), "沒有回到列表")
-        }
-    }
 }
 
+
+extension XCUIElement {
+    /// 在搜尋欄打字後等欄位真的收到完整內容(`expecting`)才繼續:避免篩選斷言在輸入還沒落地前就查(偶發的「不符合的列仍在」)。
+    @MainActor
+    func typeEnglishAndConfirm(_ text: String, expecting expected: String, file: StaticString = #filePath, line: UInt = #line) {
+        typeEnglish(text)
+        XCTAssertTrue(UITestWait.until(timeout: 5) { (self.value as? String) == expected },
+                      "搜尋欄內容不是「\(expected)」:\(String(describing: value))", file: file, line: line)
+    }
+}
 
 extension XCUIApplication {
     /// 搜尋啟用時導覽列換成搜尋欄與取消:取消後才看得到頂列(已經收起就不動)。

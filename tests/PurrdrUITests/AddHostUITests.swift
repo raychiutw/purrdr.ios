@@ -33,9 +33,11 @@ final class AddHostUITests: XCTestCase {
 
     // MARK: - 收鍵盤(#312)
 
-    /// 密碼登入：輸入密碼後按鍵盤上方的「完成」收起鍵盤，下面的「下一步」點得到。
+    /// 收鍵盤(#312,同一次啟動,原本 4 個測試合併;各段之間以系統返回回到引導第一頁再走另一條路徑):
+    /// 密碼欄與匯入私鑰(多行輸入、沒有 return)輸入後按鍵盤上方的「完成」都收得起來,密碼那一輪還要確認下面的「下一步」點得到;
+    /// 連接埠的數字鍵盤按「完成」收起;單行欄位按 return 跳到下一個欄位、最後一個欄位按 return 收起。
     @MainActor
-    func testDoneDismissesKeyboardAfterPassword() {
+    func testKeyboardDismissesAfterPasswordPrivateKeyNumberPadAndReturnOnPairFields() {
         let app = XCUIApplication.launchUITesting()
         openNativeSSHLogin(app)
         app.buttons["guide.option.password"].tapWhenReady()
@@ -50,27 +52,36 @@ final class AddHostUITests: XCTestCase {
 
         XCTAssertTrue(app.waitForKeyboardToHide(), "按「完成」後鍵盤沒有收起")
         XCTAssertTrue(app.buttons["guide.next"].isHittable, "鍵盤收起後「Next」點不到")
-    }
 
-    /// 連接埠是數字鍵盤(沒有 return):「完成」一樣收得起來。
-    @MainActor
-    func testDoneDismissesNumberPad() {
-        let app = XCUIApplication.launchUITesting()
+        // 回上一步(左上系統返回鈕)到選登入方式那一頁,再選私鑰。
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["guide.option.password"].waitUntilExists(timeout: 5), "返回後沒有回到選登入方式那一頁")
+        app.buttons["Other Ways"].firstMatch.tapWhenReady()  // 系統 DisclosureGroup 的展開鈕(#622)
+        app.buttons["guide.option.importedKey"].tapWhenReady()
+
+        let key = app.textViews["guide.field.privateKey"]
+        XCTAssertTrue(key.waitUntilExists(timeout: 5), "沒有私鑰欄")
+        key.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現軟體鍵盤")
+
+        tapKeyboardDone(app)
+
+        XCTAssertTrue(app.waitForKeyboardToHide(), "私鑰欄按「完成」後鍵盤沒有收起")
+
+        // 連接埠是數字鍵盤(沒有 return):「完成」一樣收得起來(回到引導第一頁再走 Tailscale SSH 路徑)。
+        returnToGuideStart(app)
         openTailscaleDetails(app)
         let port = app.textFields["guide.field.port"]
-        port.tap()
+        XCTAssertTrue(app.focusTextField(port), "連接埠欄沒有取得焦點")
         port.typeText("0")
-        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現數字鍵盤")
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilExists(timeout: 5), "沒有出現數字鍵盤")
 
         tapKeyboardDone(app)
 
         XCTAssertTrue(app.waitForKeyboardToHide(), "數字鍵盤按「完成」後沒有收起")
-    }
 
-    /// 單行欄位按 return 跳到下一個欄位;最後一個欄位按 return 收起鍵盤。
-    @MainActor
-    func testReturnMovesToNextFieldThenDismisses() {
-        let app = XCUIApplication.launchUITesting()
+        // 單行欄位按 return 跳到下一個欄位;最後一個欄位按 return 收起鍵盤(回到引導第一頁再走 HTTPS 路徑)。
+        returnToGuideStart(app)
         openPairStep(app)
         app.buttons["Enter It Manually"].firstMatch.tapWhenReady()
         let address = app.textFields["guide.field.pairAddress"]
@@ -85,24 +96,6 @@ final class AddHostUITests: XCTestCase {
         XCTAssertTrue(app.waitForKeyboardToHide(), "最後一個欄位(配對碼)按 return 沒有收起鍵盤")
     }
 
-    /// 匯入私鑰是多行輸入(沒有 return):鍵盤上方的「完成」收得起來。
-    @MainActor
-    func testDoneDismissesKeyboardAfterPrivateKey() {
-        let app = XCUIApplication.launchUITesting()
-        openNativeSSHLogin(app)
-        app.buttons["Other Ways"].firstMatch.tapWhenReady()  // 系統 DisclosureGroup 的展開鈕(#622)
-        app.buttons["guide.option.importedKey"].tapWhenReady()
-
-        let key = app.textViews["guide.field.privateKey"]
-        XCTAssertTrue(key.waitUntilExists(timeout: 5), "沒有私鑰欄")
-        key.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現軟體鍵盤")
-
-        tapKeyboardDone(app)
-
-        XCTAssertTrue(app.waitForKeyboardToHide(), "私鑰欄按「完成」後鍵盤沒有收起")
-    }
-
     // MARK: - 輔助
 
     @MainActor
@@ -113,8 +106,20 @@ final class AddHostUITests: XCTestCase {
         done.tap()
     }
 
+    /// 在引導較深的一頁時按系統返回,回到第一頁(選連線方式)。
+    @MainActor
+    private func returnToGuideStart(_ app: XCUIApplication) {
+        for _ in 0..<8 where !app.buttons["guide.option.ssh"].isHittable {
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            _ = app.buttons["guide.option.ssh"].waitUntilHittable(timeout: 1)
+        }
+        XCTAssertTrue(app.buttons["guide.option.ssh"].isHittable, "沒有回到引導第一頁")
+    }
+
     @MainActor
     private func openGuide(_ app: XCUIApplication) {
+        // 已經在引導第一頁(例如上一段剛返回)就不用再開。
+        if app.buttons["guide.option.ssh"].isHittable { return }
         app.openHostsTab()
         let add = app.buttons["hosts.add"]
         XCTAssertTrue(add.waitUntilExists(timeout: 5))

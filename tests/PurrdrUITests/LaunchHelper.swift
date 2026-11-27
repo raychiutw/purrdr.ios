@@ -74,7 +74,8 @@ extension XCUIApplication {
     /// 聊天搜尋欄平常收起(`displayMode: .automatic`,與系統「訊息」一致):還沒出現就在列表往下拉,再回傳搜尋欄。
     @MainActor
     func revealChatSearch(timeout: TimeInterval = 5) -> XCUIElement {
-        if !chatSearch.waitUntilExists(timeout: 1) {
+        // 往下拉一次可能被捲動慣性或轉場吃掉:最多拉三次,每次等搜尋欄出現再決定要不要再拉。
+        for _ in 0..<3 where !chatSearch.waitUntilExists(timeout: 1) {
             let list = collectionViews.firstMatch
             list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
                 .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
@@ -143,9 +144,9 @@ extension XCUIApplication {
 
     /// 等帳號與設定 sheet 出現(`sheet.account` 或沒登入的 `account.signedOut`)。
     @MainActor
-    func waitForAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
+    func waitForAccountSheet(timeout: TimeInterval = 10, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(
-            UITestWait.until(timeout: 10) { self.element("sheet.account").exists || self.element("account.signedOut").exists },
+            UITestWait.until(timeout: timeout) { self.element("sheet.account").exists || self.element("account.signedOut").exists },
             "沒有開出帳號與設定", file: file, line: line)
         // 帳號與設定是滿版 cover(#623):蓋住底下頁面,頂列的帳號鈕點不到。
         // (XCUITest 的 accessibility tree 仍列出被蓋住的內容,所以不能驗「不存在」;VoiceOver 由 modal 呈現與 `.isModal` 隔開。)
@@ -255,20 +256,16 @@ extension XCUIApplication {
         XCTAssertTrue(element("hosts.settings.page").waitUntilExists(timeout: 10), "沒有開出這台主機的設定", file: file, line: line)
     }
 
-    /// 開已存主機(`-seedHost` 的 Studio Mac)的「編輯主機」頁(#392:名稱、圖示、連線方式)。
-    @MainActor
-    func openSeededHostEditor(file: StaticString = #filePath, line: UInt = #line) {
-        openHostsTab(file: file, line: line)
-        let edit = overviewRow("hosts.edit")
-        XCTAssertTrue(edit.waitUntilExists(timeout: 10), "主機 tab 沒有「編輯主機」", file: file, line: line)
-        edit.tap()
-        XCTAssertTrue(textFields["hostEditor.name"].firstMatch.waitUntilExists(timeout: 10), "沒有開出編輯主機", file: file, line: line)
-    }
-
     /// 開帳號頁:點右上角的帳號鈕(每個 tab 都有;AX 字級時系統把它收進工具列的溢出選單,#268)。
     @MainActor
     func openAccount(file: StaticString = #filePath, line: UInt = #line) {
         tapToolbarItem("toolbar.account", overflowLabel: "Account", file: file, line: line)
+    }
+
+    /// 收起對話的「⋯」選單:點導覽列中央(標題區,#515 起不是按鈕;點視窗中段會落在對話內容上,可能點到訊息裡的連結或卡片)。
+    @MainActor
+    func dismissConversationMenu() {
+        navigationBars.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
     /// 打開對話右上角的「更多」選單並回傳其中的項目(`terminal.open`、`changes.open`、`layout.show`,#381)。
@@ -285,7 +282,7 @@ extension XCUIApplication {
         for _ in 0..<6 {
             tapToolbarItem("conversation.more", overflowLabel: "More", file: file, line: line)
             if item.waitUntilExists(timeout: 2) { return item }
-            windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+            dismissConversationMenu()
             _ = UITestWait.until(timeout: 2) { !self.buttons["terminal.open"].firstMatch.exists && !self.buttons["changes.open"].firstMatch.exists }
         }
         XCTAssertTrue(item.exists, "「更多」選單沒有 \(identifier)", file: file, line: line)
@@ -370,14 +367,20 @@ extension XCUIElement {
     @MainActor
     func typeEnglish(_ text: String) {
         // 點下輸入框後焦點要一下子才到：沒有焦點就 typeText 會失敗。
-        _ = wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }
+        // 接收者是 app(終端機的輸入元件不是 XCUIElement 欄位,沒有 `hasKeyboardFocus`):以軟體鍵盤出現為準,不固定白等。
+        if elementType == .application {
+            _ = XCUIApplication().waitForKeyboard(timeout: 3)
+        } else {
+            _ = wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }
+        }
         let app = XCUIApplication()
         app.switchKeyboard(to: .english)
         let keyboard = app.keyboards.firstMatch
         if keyboard.exists, !keyboard.keys["q"].exists, !keyboard.keys["Q"].exists {
             // 軟體鍵盤不是英文、也切不過去(iPad 實測:模擬器記住上次的輸入法「繁體手寫」,地球鍵在畫面外):
-            // 改以硬體鍵盤事件逐字輸入(不經軟體鍵盤的輸入法)。
-            for character in text { app.typeKey(character == "\n" ? "\r" : String(character), modifierFlags: []) }
+            // 不退回 `typeKey`——它會把 `HardwareKeyboardLastSeen` 寫進模擬器的鍵盤偏好,之後所有軟體鍵盤測試都失敗。
+            // 直接清楚失敗,請人在模擬器的「設定 > 一般 > 鍵盤」把英文放第一個(或 `xcrun simctl erase "iPhone 17"`)。
+            XCTFail("軟體鍵盤不是英文、地球鍵也切不過去,無法輸入「\(text)」。請在模擬器的鍵盤設定把英文放第一個,或 xcrun simctl erase \"iPhone 17\" 後重跑")
             return
         }
         typeText(text)
@@ -391,26 +394,5 @@ extension XCUIApplication {
         let text = element("composer.text")
         text.tap()
         text.typeEnglish("\n")
-    }
-
-    /// 不重啟換字級(#373):以測試連結 `purrdr://testing-content-size` 把字級類別套到視窗(只在 `-uiTesting` 生效)。
-    /// `nil` 回到系統字級。換完等畫面停下。
-    @MainActor
-    func setContentSize(_ category: String?) {
-        var link = "purrdr://testing-content-size"
-        if let category { link += "?category=\(category)" }
-        open(URL(string: link)!)
-        waitForVisualSettle()
-    }
-}
-
-extension XCUIApplication {
-    /// 不重啟換淺色／深色(#373):以測試連結 `purrdr://testing-appearance` 套到視窗。`nil` 跟隨系統。
-    @MainActor
-    func setAppearance(_ style: String?) {
-        var link = "purrdr://testing-appearance"
-        if let style { link += "?style=\(style)" }
-        open(URL(string: link)!)
-        waitForVisualSettle()
     }
 }
