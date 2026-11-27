@@ -512,6 +512,8 @@ public final class ConversationModel {
     @ObservationIgnored private var openTiming = OpenTimingState()
     /// 列表傳來的 session:快取只在與它相同時秒開或離線顯示(F5.3、#97)。
     private let knownSessionID: String?
+    /// 列表已看到的對話目標(#661):讀主機狀態時就先並行定位。
+    private let knownTarget: TranscriptTarget?
     private let drafts: DraftStore
     private let delivery: PromptDelivery
     private let safeSend: SafeSend
@@ -703,7 +705,7 @@ public final class ConversationModel {
     }
 
     public init(
-        client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
+        client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?, knownTarget: TranscriptTarget? = nil,
         cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = TranscriptReader.openingLines,
         openMaxBytes: Int = TranscriptReader.openingMaxBytes, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
@@ -722,6 +724,7 @@ public final class ConversationModel {
         self.transcripts = transcripts
         self.paneID = paneID
         self.knownSessionID = knownSessionID
+        self.knownTarget = knownTarget
         self.timings = links.operationTimings
         self.clock = clock
         feed = TranscriptFeed(
@@ -941,6 +944,8 @@ public final class ConversationModel {
         // 沒有新的列時，卡片也要依經過時間收起。
         defer { refreshAnsweredCard() }
         let snapshot: HostSnapshot
+        // 列表已知對話目標時,找對話檔與讀主機狀態同時開始(#661);session 換了的話 `feed.read` 會丟掉這次結果重找。
+        if liveSnapshot == nil, let knownTarget { feed.prefetchLocate(knownTarget) }
         if let liveSnapshot {
             snapshot = liveSnapshot
             openTiming.snapshotNoted = true
