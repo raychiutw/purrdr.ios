@@ -63,4 +63,27 @@ struct OperationTimingTests {
 
         #expect(collector.names == ["ssh.open tab.close", "ssh.request tab.close"])
     }
+
+    @Test("SSH:對話紀錄的定位與視窗讀取記下開通道與整個指令的耗時(#659);追蹤用的讀取不記")
+    func sshRecordsTranscriptLocateAndWindow() async throws {
+        let host = FakeHost()
+        let location = TranscriptLocation(locator: .claude, reference: .id("abc-123"), cwd: "/Users/demo/ledger")
+        await host.expect(TranscriptCommand.locate(location), reply: FakeReply(stdout: Data("/t.jsonl\n10\n".utf8)))
+        await host.expect(
+            TranscriptCommand.window(path: "/t.jsonl", end: 10, lines: 5, chunkBytes: 1_024, maxBytes: 0),
+            reply: FakeReply(stdout: Data("0 0\n".utf8)))
+        await host.expect(
+            TranscriptCommand.tail(path: "/t.jsonl", from: 10, limit: 100), reply: FakeReply(stdout: Data("10\n".utf8)))
+        let collector = TimingCollector()
+        let connection = SSHHostConnection(channel: host, timings: collector.sink)
+
+        _ = try await connection.readTranscript(.locate(location))
+        _ = try await connection.readTranscript(.window(path: "/t.jsonl", end: 10, lines: 5, chunkBytes: 1_024, maxBytes: 0))
+        _ = try await connection.readTranscript(.tail(path: "/t.jsonl", from: 10, limit: 100))
+
+        #expect(collector.names == [
+            "ssh.open transcript.locate", "ssh.request transcript.locate",
+            "ssh.open transcript.window", "ssh.request transcript.window",
+        ])
+    }
 }

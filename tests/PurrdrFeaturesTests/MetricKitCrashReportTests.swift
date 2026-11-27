@@ -72,7 +72,7 @@ struct MetricKitCrashReportTests {
         let record = report.crashRecord
         #expect(record.name == "NSInternalInconsistencyException")
         #expect(record.nameIsKnown)
-        #expect(record.reason == "invalid number of items in section 0")
+        #expect(record.reasonHash == DiagnosticHash.reason("invalid number of items in section 0"))
         #expect(record.environment == report.environment)
         #expect(record.timestamp == Date(timeIntervalSince1970: 1_795_593_600))
         #expect(record.reportPeriod == Date(timeIntervalSince1970: 1_795_507_200)...Date(timeIntervalSince1970: 1_795_593_600))

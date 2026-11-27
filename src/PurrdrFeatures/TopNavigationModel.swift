@@ -8,11 +8,11 @@ import PurrdrCore
 /// 頂層是 4 個 tab(聊天、檔案、主機、流量,#376;設定併進帳號 sheet,#503);帳號、新增聊天、付費牆與歡迎頁是 sheet,一次只開一個。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
 /// 聊天 tab 導覽堆疊的目的地(#641):整個堆疊只註冊這一個型別的 `navigationDestination(for:)`。
-enum ChatsDestination: Hashable {
+package enum ChatsDestination: Hashable {
     case chat(ChatRoute)
     case layout(SpacesLayoutRoute)
 
-    var chatRoute: ChatRoute? {
+    package var chatRoute: ChatRoute? {
         if case .chat(let route) = self { route } else { nil }
     }
 }
@@ -55,6 +55,7 @@ public final class TopNavigationModel {
         didSet {
             if selectedChat != oldValue { openedTerminal = nil }
             if selectedChat != nil, selectedLayout != nil { selectedLayout = nil }
+            reconcilePathWithSelection()
         }
     }
 
@@ -81,7 +82,68 @@ public final class TopNavigationModel {
 
     /// 聊天 tab 導覽堆疊的路徑(#641):窄視窗是 `NavigationStack(path:)` 的路徑(聊天、版面圖);寬視窗只放列表欄推入的版面圖。
     /// 列的 `NavigationLink(value:)`、選單的「Show Layout」、返回都改這一個陣列,不再混用 `navigationDestination(item:)`。
-    var chatsPath: [ChatsDestination] = []
+    package var chatsPath: [ChatsDestination] = [] {
+        didSet { if chatsPath != oldValue { chatsPathChanged() } }
+    }
+
+    /// 聊天是不是放進 `chatsPath` 推入(窄視窗 `true`;寬視窗聊天是列表欄的選取,路徑只放版面圖)。由畫面依 size class 設定。
+    /// 為真時路徑與選取由 model 維持一致(#685):路徑上最後一個聊天就是選取的聊天(返回時清成 `nil`);
+    /// 外部設定選取(推播、新增聊天、橫幅、版面圖選 Pane)時把聊天放進路徑。
+    package var pushesChatsOnPath = false {
+        didSet { if pushesChatsOnPath != oldValue { reconcilePathWithSelection() } }
+    }
+
+    private func chatsPathChanged() {
+        guard pushesChatsOnPath else { return }
+        let chat = chatsPath.last(where: { $0.chatRoute != nil })?.chatRoute
+        if selectedChat != chat { selectedChat = chat }
+    }
+
+    /// 已經有聊天在路徑上時換聊天(橫幅、版面圖選 Pane)不動路徑,頁面自己換內容(`CompactChatPage`)。
+    private func reconcilePathWithSelection() {
+        guard pushesChatsOnPath else { return }
+        let hasChat = chatsPath.contains { $0.chatRoute != nil }
+        switch (selectedChat, hasChat) {
+        case (nil, true): chatsPath = chatsPath.filter { $0.chatRoute == nil }
+        case (let chat?, false): chatsPath.append(.chat(chat))
+        default: break
+        }
+    }
+
+    // MARK: - 導覽動作(#685)
+
+    /// 開聊天:選取那個聊天(窄視窗放進路徑,寬視窗顯示在對話欄)。新增聊天、橫幅、版面圖選 Pane 都走這裡。
+    public func openChat(_ route: ChatRoute) {
+        selectedChat = route
+    }
+
+    /// 返回:窄視窗從路徑退一層(選取跟著對齊);寬視窗清掉對話欄的選取。
+    public func back() {
+        if pushesChatsOnPath, !chatsPath.isEmpty {
+            chatsPath.removeLast()
+        } else {
+            selectedChat = nil
+            selectedLayout = nil
+        }
+    }
+
+    /// App 鎖:從 app 外部來的導航(深層連結、推播)鎖定中等解鎖後才執行,只留最後一個。
+    private let appLock: AppLock?
+
+    private func whenUnlocked(_ navigation: @escaping @MainActor () -> Void) {
+        guard let appLock else { return navigation() }
+        appLock.whenUnlocked(navigation)
+    }
+
+    /// 外部開啟的網址(冷啟動與背景都走這裡):鎖定中延後。
+    public func openExternal(_ url: URL) {
+        whenUnlocked { [self] in open(url) }
+    }
+
+    /// 點了推播通知:鎖定中延後;解鎖後收起 sheet,依主機 model 轉出的目的地開聊天或主機編輯頁。
+    public func openPush(_ route: PushRoute, hosts: HostsModel) {
+        whenUnlocked { [self] in openPushDestination(hosts.open(route)) }
+    }
 
     /// 這個視窗已經回報給列表「開著」的聊天。列表的 `onChange(initial: true)` 在堆疊重建、路徑變動時會再觸發一次,
     /// 所以開著與離開的計次以這裡為準,同一個聊天只計一次(#641:否則返回後聊天被當成還開著,「需要你」段落少一列)。
@@ -111,7 +173,9 @@ public final class TopNavigationModel {
     /// 目前顯示的聊天畫面依次數變化切換面板;開關狀態本身是聊天畫面的暫時狀態(不存偏好、不會每開一個聊天就跳出)。
     public private(set) var conversationPanelToggleCount = 0
 
-    public init() {}
+    public init(appLock: AppLock? = nil) {
+        self.appLock = appLock
+    }
 
     /// 要求目前的聊天開關面板(快捷鍵用)。
     public func toggleConversationPanel() {
@@ -162,6 +226,19 @@ public final class TopNavigationModel {
         pendingHostEditor = id
         tab = .hosts
         sheet = nil
+    }
+
+    /// 點了通知(#668):收起 sheet;聊天類通知(已開出聊天)一律切回聊天 tab,不論目前在哪個 tab;
+    /// 主機服務通知開那台主機的編輯頁;測試通知(`nil`)只收起 sheet、不換 tab。
+    public func openPushDestination(_ destination: PushDestination?) {
+        sheet = nil
+        switch destination {
+        case .chat(let route):
+            tab = .chats
+            openChat(route)
+        case .hostEditor(let id): openHostEditor(id)
+        case nil: break
+        }
     }
 
     /// 「＋」與快捷鍵:切到聊天 tab,把新增聊天推進來(#621)。

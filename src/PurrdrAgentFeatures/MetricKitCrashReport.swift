@@ -38,7 +38,7 @@ public struct MetricKitCrashReport: Equatable, Sendable {
     /// 區間是 payload 的開頭到尾端(`timestamp` 是尾端,不是閃退當下)。
     public var crashRecord: CrashRecord {
         CrashRecord(
-            timestamp: timestamp, name: exceptionName ?? terminationReason ?? "crash", reason: exceptionReason ?? "",
+            timestamp: timestamp, name: exceptionName ?? terminationReason ?? "crash", reasonHash: DiagnosticHash.reason(exceptionReason ?? ""),
             environment: environment, reportPeriod: min(periodStart ?? timestamp, timestamp)...timestamp,
             nameIsKnown: exceptionName != nil)
     }

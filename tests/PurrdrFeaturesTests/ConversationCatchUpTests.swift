@@ -174,6 +174,10 @@ struct ConversationCatchUpTests {
         let restored = try Base.setup(cache: cache, openLines: 4, pageLines: 200)
         try restored.shell.write(Data(contentsOf: setup.shell.home.appending(path: Base.transcriptPath)), to: Base.transcriptPath)
         await restored.model.restoreFromCache()
+        // 只從快取還原時還沒綁定 Agent(沒有方言),要等第一次輪詢綁定後才讀得了舊頁。
+        await restored.model.loadOlder()
+        #expect(restored.model.older == .available, "沒有方言前不讀舊頁、狀態不卡在 loading")
+        await Self.pollIdle(restored)
         while restored.model.older == .available { await restored.model.loadOlder() }
         #expect(Self.userTexts(restored.model.items).suffix(750) == ArraySlice(expected))
     }

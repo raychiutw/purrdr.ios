@@ -40,6 +40,6 @@ struct PlanUsageSelectionStoreTests {
         defaults.set(["host": "not-a-host", "agent": "codex"], forKey: UserDefaultsPlanUsageSelectionStore.defaultKey)
 
         #expect(reopen().host == Self.mac)
-        #expect(reopen().agent == .claudeCode)
+        #expect(reopen().agent == .claude)
     }
 }

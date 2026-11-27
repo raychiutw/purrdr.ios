@@ -203,6 +203,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
         collectionView.allowsSelection = false
         collectionView.alwaysBounceVertical = true
         collectionView.contentInsetAdjustmentBehavior = .never
+        collectionView.hidesTopEdgeEffect()
         collectionView.keyboardDismissMode = .onDrag
         collectionView.accessibilityIdentifier = "conversation.list"
         view.addSubview(collectionView)

@@ -25,7 +25,7 @@ struct SpacesLayoutPage: View {
 }
 
 /// 列表上「顯示版面」的目的地:只帶識別,版面在推入時才從當下的 snapshot 取(不即時更新,行為規格 F4)。
-struct SpacesLayoutRoute: Hashable {
+package struct SpacesLayoutRoute: Hashable {
     var host: HostSelection
     var workspaceID: String
     /// 只畫這個 Tab(Tab 列);`nil` 是整個 Workspace。
@@ -74,6 +74,7 @@ struct SpacesLayoutContent: View {
                 }
                 .padding()
             }
+                .appPageTopEdge()
         } else {
             ContentUnavailableView(
                 "No Layout",

@@ -338,10 +338,10 @@ struct MultiHostTests {
         let pairings = InMemoryPushPairingStore()
         pairings.setKeyHash("abc", forHost: Self.lab.id.uuidString)
 
-        model.open(PushRoute(keyHash: "abc", paneID: "w1:pA"), pairings: pairings)
+        let destination = model.open(PushRoute(keyHash: "abc", paneID: "w1:pA"), pairings: pairings)
 
         #expect(model.selection == .host(Self.studio.id))
-        #expect(model.agentList.openedChat == ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"))
+        #expect(destination == .chat(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA")))
     }
 }
 

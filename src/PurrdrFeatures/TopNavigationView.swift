@@ -45,7 +45,7 @@ public struct TopNavigationView: View {
         crashNotice: CrashNoticeModel? = nil
     ) {
         self.crashNotice = crashNotice
-        let navigation = TopNavigationModel()
+        let navigation = TopNavigationModel(appLock: appLock)
         _navigation = State(initialValue: navigation)
         _actions = State(initialValue: RootActions(navigation: navigation, hosts: hosts))
         _badge = State(initialValue: NeedsYouBadge(merged: hosts.agentList))
@@ -128,8 +128,9 @@ public struct TopNavigationView: View {
             }
             // 第一次開啟 app:開出歡迎頁(#34)。
             .task { if let welcome { navigation.launched(welcome: welcome) } }
+            .onAppear { MainWindowRegistry.shared.navigation = navigation }
             // 冷啟動與從背景回來的深層連結都會走到這裡。
-            .onOpenURL { url in openWhenUnlocked { navigation.open(url) } }
+            .onOpenURL { url in navigation.openExternal(url) }
             // UI 測試:不重啟換字級(`purrdr://testing-content-size`),套到視窗讓 SwiftUI 與 UIKit 都跟著變。
             .task(id: allowsTestingLinks) { navigation.allowsTestingLinks = allowsTestingLinks }
             .onChange(of: navigation.testingContentSizeCategory) { _, category in
@@ -163,28 +164,23 @@ public struct TopNavigationView: View {
             .onChange(of: notifications?.pending, initial: true) { _, route in
                 guard let route else { return }
                 notifications?.pending = nil
-                openWhenUnlocked {
-                    navigation.sheet = nil
-                    if case .hostEditor(let id) = hosts.open(route) { navigation.openHostEditor(id) }
-                }
+                navigation.openPush(route, hosts: hosts)
             }
-    }
-
-    /// 推播等從 app 外部開啟的導航：App 鎖定中延到解鎖後(只留最後一個)。
-    private func openWhenUnlocked(_ navigation: @escaping @MainActor () -> Void) {
-        guard let appLock else { return navigation() }
-        appLock.whenUnlocked(navigation)
     }
 
     /// 聊天 tab:窄視窗是一般 `NavigationStack`(列表為根、聊天推入,轉場與主機 tab 的子頁一樣順),
     /// 寬視窗是兩欄。選取的聊天(`navigation.selectedChat`)兩種排版共用,縮放視窗時不丟失。
     @ViewBuilder
     private var chatsRoot: some View {
-        if sizeClass == .compact {
-            compactStack
-        } else {
-            splitView
+        Group {
+            if sizeClass == .compact {
+                compactStack
+            } else {
+                splitView
+            }
         }
+        // 路徑與選取的對齊由 `TopNavigationModel` 維持(#685);這裡只告訴它聊天是推入路徑還是列表欄選取。
+        .onChange(of: sizeClass == .compact, initial: true) { _, compact in navigation.pushesChatsOnPath = compact }
     }
 
     /// 窄視窗:Agent 列表為根,選到的聊天(對話或 Pane 終端機)推入;返回時選取清成 `nil`。
@@ -194,22 +190,6 @@ public struct TopNavigationView: View {
             agentList
         }
         .tabBarHidden(for: navigation.chatsPath)
-        // 路徑與選取的聊天雙向對齊(#641):路徑上最後一個聊天就是選取的聊天(返回時清成 `nil`);
-        // 外部設定選取(推播、新增聊天、版面圖選 Pane)時把聊天放進路徑。
-        .onChange(of: navigation.chatsPath) { _, path in
-            let chat = path.last(where: { $0.chatRoute != nil })?.chatRoute
-            if navigation.selectedChat != chat { navigation.selectedChat = chat }
-        }
-        // 已經有聊天在路徑上時換聊天(橫幅、版面圖選 Pane)不動路徑,頁面自己換內容(`CompactChatPage`),
-        // 免得路徑一次換掉整頁、轉場中途又把選取清掉。
-        .onChange(of: navigation.selectedChat, initial: true) { _, chat in
-            let hasChat = navigation.chatsPath.contains { $0.chatRoute != nil }
-            switch (chat, hasChat) {
-            case (nil, true): navigation.chatsPath = navigation.chatsPath.filter { $0.chatRoute == nil }
-            case (let chat?, false): navigation.chatsPath.append(.chat(chat))
-            default: break
-            }
-        }
     }
 
     /// 窄視窗路徑上的聊天內容。
@@ -280,7 +260,7 @@ public struct TopNavigationView: View {
             navigation.isNewChatOpen = false
             // agent 停在啟動問題時沒送的第一則訊息：放進聊天的輸入框，回答後自己送(#272)。
             if let unsentMessage { hosts.member(for: host).keepDraft(unsentMessage, paneID: workspace.rootPaneID) }
-            Task { await hosts.openStartedChat(workspace, on: host) }
+            Task { navigation.openChat(await hosts.startedChat(workspace, on: host)) }
         }
         .appNavigationBackground()
     }
@@ -394,7 +374,7 @@ final class RootActions {
     var openWindow: OpenWindowAction?
 
     init(navigation: TopNavigationModel, hosts: HostsModel) {
-        openBannerChat = { [weak navigation] in navigation?.selectedChat = $0 }
+        openBannerChat = { [weak navigation] in navigation?.openChat($0) }
         newChat = { [weak navigation] in navigation?.openNewChat() }
         newChatInWorkspace = { [weak navigation] in navigation?.startNewChat(inWorkspace: $1, on: $0) }
         canNewChatInWorkspace = { [weak hosts] in hosts?.supportsNewChatInWorkspace($0) ?? false }

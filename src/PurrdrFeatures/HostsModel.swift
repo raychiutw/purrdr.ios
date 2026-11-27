@@ -166,6 +166,8 @@ public final class HostsModel {
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
     private let diagnostics: DiagnosticLog
+    /// 診斷事件(#688):網路切換、回前景的重撥決策等記進可分享的診斷檔;組合根設定,沒設定就不記。
+    public var diagnosticEvents: DiagnosticEvents = .discarding
     /// 等待(HTTPS 偵測 Agent 的重試間隔);測試注入。
     private let sleep: Sleep
     /// 各清單骨架的列數(上次的數量,#496)。
@@ -304,7 +306,7 @@ public final class HostsModel {
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
 
     /// 方案用量的來源：Demo 主機是本機假資料(不耗 token 與傳輸);SSH 主機經主機通道;HTTPS 主機經主機服務(0.12.0 起)。
-    func planUsageSource(_ host: HostSelection, _ agent: PlanUsageAgent) -> PlanUsageSource? {
+    func planUsageSource(_ host: HostSelection, _ agent: AgentID) -> PlanUsageSource? {
         let channel: any HostChannel
         let cost: PlanUsageQueryCost
         let hostID: String
@@ -316,7 +318,7 @@ public final class HostsModel {
             guard let configuration = hosts.first(where: { $0.id == id }) else { return nil }
             if usesHostService(configuration) {
                 // HTTPS 主機經主機服務讀(0.12.0 起,#392);還沒配對或不是真的主機服務連線(UI 測試)沒有來源。
-                guard agent.supportsHostService, !unpairedHostIDs.contains(id), !configuration.needsReconfirmation,
+                guard AgentHostCapabilities.resolve(agent, over: .https).planUsage, !unpairedHostIDs.contains(id), !configuration.needsReconfirmation,
                     let connection = httpsAdapter.capabilities(for: configuration).hostServiceConnection.value
                 else { return nil }
                 return .hostService(
@@ -326,7 +328,7 @@ public final class HostsModel {
             (channel, cost, hostID, files) = (member.channel, .transfer, id.uuidString, member.hostFiles)
         }
         return agentHostServices.planUsage(
-            for: agent.agentID,
+            for: agent,
             ssh: AgentHostServices.SSHContext(
                 channel: channel, files: files, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent))
     }
@@ -423,11 +425,10 @@ public final class HostsModel {
             }
     }
 
-    /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
-    public func openStartedChat(_ workspace: CreatedWorkspace, on host: HostSelection) async {
-        let list = agentList
-        await list.load()
-        list.openedChat = ChatRoute(host: host, paneID: workspace.rootPaneID)
+    /// 新對話開始後：重讀列表，回傳那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步),由呼叫端交給導覽 model 開啟。
+    public func startedChat(_ workspace: CreatedWorkspace, on host: HostSelection) async -> ChatRoute {
+        await agentList.load()
+        return ChatRoute(host: host, paneID: workspace.rootPaneID)
     }
 
     /// 某台主機的對話快取(key 加上主機身分)。
@@ -728,7 +729,7 @@ public final class HostsModel {
         hosts.first { $0.id == id }.map(HostShareLink.url(for:))
     }
 
-    /// 點了推播通知：開配對主機上該 Agent 的聊天;主機服務通知回傳要開編輯頁的主機。所有主機都在同一個列表，所以不改選取中主機。
+    /// 點了推播通知(純函式,不改畫面狀態)：轉成配對主機上該 Agent 的聊天目的地;主機服務通知回傳要開編輯頁的主機。所有主機都在同一個列表，所以不改選取中主機。
     /// 不認得的配對(主機已移除)不動。
     @discardableResult
     public func open(_ route: PushRoute, pairings: any PushPairingStore) -> PushDestination? {
@@ -737,9 +738,7 @@ public final class HostsModel {
               hosts.contains(where: { $0.id == id }) else { return nil }
         if route.event != nil { return .hostEditor(id) }
         guard let paneID = route.paneID else { return nil }
-        let chat = ChatRoute(host: .host(id), paneID: paneID)
-        agentList.openedChat = chat
-        return .chat(chat)
+        return .chat(ChatRoute(host: .host(id), paneID: paneID))
     }
 
     /// 啟動時：這支裝置被別支關閉了就把「通知」區塊改回關閉，之後才補註冊(APNs token 換了、舊版 app 的配對)。
@@ -807,6 +806,7 @@ public final class HostsModel {
         let channelCount = sshAdapter.liveChannels.count
         // 診斷(#133):實機斷線時分辨是不是網路切換丟掉了連線。
         diagnostics.error("Network path changed (\(previous) → \(signature)): dropping \(channelCount) host connection(s)")
+        diagnosticEvents.record(.networkChanged(droppedConnections: channelCount, detail: "\(previous) → \(signature)"))
         let agentList = agentList
         return Task {
             for disconnect in disconnectors { await disconnect() }
@@ -828,6 +828,7 @@ public final class HostsModel {
         let decision = ForegroundReconnectPolicy.decision(backgroundSeconds: backgroundSeconds)
         // 診斷(#133、#550):實機量測回前景的重連走哪條路。
         diagnostics.error(ForegroundReconnectPolicy.logLine(backgroundSeconds: backgroundSeconds, decision: decision))
+        diagnosticEvents.record(.foregroundDecision(backgroundSeconds: Int(backgroundSeconds), redial: decision == .redial))
         guard decision == .redial else { return }
         let disconnectors = sshAdapter.disconnectors() + httpsAdapter.disconnectors()
         let prewarmers = sshAdapter.prewarmers() + httpsAdapter.prewarmers()

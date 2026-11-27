@@ -47,10 +47,55 @@ struct AgentHostServicesTests {
         #expect(services.launcher(for: .claude, channel: FakeHost(), hostID: "h", consent: consent) == nil)
     }
 
-    @Test("PlanUsageAgent 與 Agent 種類互相對應")
-    func planUsageAgentMapping() {
-        #expect(PlanUsageAgent.claudeCode.agentID == .claude)
-        #expect(PlanUsageAgent.codex.agentID == .codex)
+    @Test("方案用量 Agent 與 planUsageKey 互相對應(維持舊識別碼)")
+    func planUsageKeys() {
+        #expect(AgentID.claude.planUsageKey == "claudeCode")
+        #expect(AgentID.agy.planUsageKey == "antigravity")
+        #expect(AgentID.codex.planUsageKey == "codex")
+        for agent in AgentHostCapabilities.planUsageAgents {
+            #expect(AgentID(planUsageKey: agent.planUsageKey) == agent)
+        }
+        #expect(AgentID(planUsageKey: "grok") == nil)
+    }
+
+    /// 每個 Agent × 連線方式一列(風格同 `TranscriptDialectContractTests`):預期的能力,與實際接線一致。
+    struct Row: Sendable, CustomTestStringConvertible {
+        var agent: AgentID
+        var connection: AgentHostConnectionKind
+        var expected: AgentHostCapabilities
+        var testDescription: String { "\(agent.canonicalName) over \(connection)" }
+    }
+
+    nonisolated static let rows: [Row] = {
+        func caps(_ usage: Bool, _ writes: Bool, _ status: Bool, _ slash: Bool, _ launcher: Bool) -> AgentHostCapabilities {
+            AgentHostCapabilities(planUsage: usage, planUsageWritesHost: writes, sessionStatus: status, slashDiscovery: slash, launcher: launcher)
+        }
+        var rows: [Row] = []
+        for connection in AgentHostConnectionKind.allCases {
+            let ssh = connection != .https
+            rows.append(Row(agent: .claude, connection: connection, expected: caps(true, true, true, ssh, false)))
+            rows.append(Row(agent: .codex, connection: connection, expected: caps(true, false, false, false, ssh)))
+            rows.append(Row(agent: .agy, connection: connection, expected: caps(ssh, ssh, ssh, false, false)))
+            for other in [AgentID.grok, .gemini, .other("x")] {
+                rows.append(Row(agent: other, connection: connection, expected: .none))
+            }
+        }
+        return rows
+    }()
+
+    @Test("能力表逐列", arguments: rows)
+    func capabilityTable(row: Row) {
+        #expect(AgentHostCapabilities.resolve(row.agent, over: row.connection) == row.expected)
+    }
+
+    @Test("SSH 接線與能力表一致:方案用量、slash、啟動器", arguments: rows.filter { $0.connection == .ssh })
+    func sshWiringMatchesTable(row: Row) {
+        let caps = AgentHostCapabilities.resolve(row.agent, over: .ssh)
+        let source = services.planUsage(for: row.agent, ssh: context)
+        #expect((source != nil) == caps.planUsage)
+        #expect((source?.hostWrite != nil) == caps.planUsageWritesHost)
+        #expect((services.slashDiscovery(for: row.agent, channel: FakeHost()) != nil) == caps.slashDiscovery)
+        #expect((services.launcher(for: row.agent, channel: FakeHost(), hostID: "h", consent: consent) != nil) == caps.launcher)
     }
 }
 #endif

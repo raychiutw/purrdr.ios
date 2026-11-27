@@ -30,7 +30,7 @@ struct HostMemberEnvironment {
     var skeletonRowCounts: any SkeletonRowCountStore = InMemorySkeletonRowCountStore()
     var usageDisplay = UsageDisplaySetting()
     /// 方案用量的來源(依主機連線方式選,連線方式的分派在 adapter,不在成員)。
-    var planUsageSource: @MainActor (HostSelection, PlanUsageAgent) -> PlanUsageSource? = { _, _ in nil }
+    var planUsageSource: @MainActor (HostSelection, AgentID) -> PlanUsageSource? = { _, _ in nil }
     /// 主機上有哪些 Agent(SSH 看設定資料夾、HTTPS 看快照;連不上丟錯誤)。
     var detectAgents: @MainActor (UUID) async throws -> Set<AgentID> = { _ in [] }
     var setEnabledAgents: @MainActor (Set<AgentID>, UUID) -> Void = { _, _ in }

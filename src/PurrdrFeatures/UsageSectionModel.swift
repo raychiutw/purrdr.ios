@@ -48,12 +48,12 @@ public final class UsageSectionModel {
     }
 
     public struct Entry: Equatable, Identifiable {
-        public var agent: PlanUsageAgent
+        public var agent: AgentID
         public var state: EntryState
         public var rows: [PlanUsageRow]
         /// 資料超過 10 分鐘:距今幾分鐘(畫面標「N 分鐘前」)。
         public var staleMinutes: Int?
-        public var id: PlanUsageAgent { agent }
+        public var id: AgentID { agent }
     }
 
     private enum Raw {
@@ -66,25 +66,25 @@ public final class UsageSectionModel {
 
     public let hostName: String
     public let displaySetting: UsageDisplaySetting
-    public let agents: [PlanUsageAgent]
+    public let agents: [AgentID]
     /// 目前模型所屬的群組(聊天面板傳入;Antigravity 同一用量週期依群組有多份,只列這個群組,#448)。`nil` 用來源回報的。
     public var activeGroup: PlanUsage.Group?
 
-    private let source: (PlanUsageAgent) -> PlanUsageSource?
+    private let source: (AgentID) -> PlanUsageSource?
     private let now: () -> Date
     private let sleep: Sleep
-    private var raw: [PlanUsageAgent: Raw] = [:]
+    private var raw: [AgentID: Raw] = [:]
     /// 最後一次讀取失敗、仍顯示先前讀到的資料的 Agent(#392:主機離線時保留最後的資料)。
-    private var keptAfterFailure: Set<PlanUsageAgent> = []
+    private var keptAfterFailure: Set<AgentID> = []
     /// 主機 tab 只列主機上偵測到的 Agent(#465):偵測到的記下來,沒偵測到或失敗的不列、下次出現再偵測。
     public let detectsInstallation: Bool
-    private var detected: Set<PlanUsageAgent> = []
-    private var queries: [PlanUsageAgent: Task<Void, Never>] = [:]
+    private var detected: Set<AgentID> = []
+    private var queries: [AgentID: Task<Void, Never>] = [:]
     private var automaticRefresh: Task<Void, Never>?
 
     public init(
-        hostName: String, agents: [PlanUsageAgent], display: UsageDisplaySetting, now: @escaping () -> Date = Date.init,
-        sleep: @escaping Sleep = Sleeping.task, detectsInstallation: Bool = false, source: @escaping (PlanUsageAgent) -> PlanUsageSource?
+        hostName: String, agents: [AgentID], display: UsageDisplaySetting, now: @escaping () -> Date = Date.init,
+        sleep: @escaping Sleep = Sleeping.task, detectsInstallation: Bool = false, source: @escaping (AgentID) -> PlanUsageSource?
     ) {
         self.detectsInstallation = detectsInstallation
         self.hostName = hostName
@@ -128,7 +128,7 @@ public final class UsageSectionModel {
     }
 
     /// 要偵測的 Agent 還沒偵測到就不列。
-    private func isListed(_ agent: PlanUsageAgent, _ source: PlanUsageSource) -> Bool {
+    private func isListed(_ agent: AgentID, _ source: PlanUsageSource) -> Bool {
         !detectsInstallation || source.installed == nil || detected.contains(agent)
     }
 
@@ -185,7 +185,7 @@ public final class UsageSectionModel {
     }
 
     /// 唯讀偵測主機上有沒有這個 Agent;偵測到才開始查用量,沒有或失敗就不列。
-    private func detect(_ agent: PlanUsageAgent, _ installed: @escaping @Sendable () async throws -> Bool) {
+    private func detect(_ agent: AgentID, _ installed: @escaping @Sendable () async throws -> Bool) {
         queries[agent] = Task { [weak self] in
             let found = (try? await installed()) ?? false
             guard let self, !Task.isCancelled else { return }
@@ -196,7 +196,7 @@ public final class UsageSectionModel {
         }
     }
 
-    private func query(_ agent: PlanUsageAgent, _ source: PlanUsageSource) {
+    private func query(_ agent: AgentID, _ source: PlanUsageSource) {
         queries[agent] = Task { [weak self] in
             let outcome: Result<PlanUsage?, any Error>
             do {
