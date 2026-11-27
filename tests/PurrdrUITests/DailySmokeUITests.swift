@@ -15,10 +15,11 @@ final class DailySmokeUITests: XCTestCase {
 
     @MainActor
     private func back(_ app: XCUIApplication) {
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["BackButton"].firstMatch.tap()
     }
 
-    /// 聊天 tab 徽章 → 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機 → 跨聊天「需要你」橫幅(#530)→ 返回後列表置頂段落(#531)。
+    /// 聊天 tab 徽章 → 列表 → 聊天(送出、slash、`!` 指令、權限膠囊)→ 變更頁 → 終端機 → 跨聊天「需要你」橫幅(#530)→ 返回後列表置頂段落(#531)
+/// → 從段落開「需要你」的 weather-app:subagent 卡展開、回答 Bash 權限。
     /// 帶 `-demoNeedsYouLater`:打開第一個聊天 3 秒後 notes 變成需要你(weather-app 一開始就需要你,不觸發橫幅)。
     @MainActor
     func testListAndChat() {
@@ -179,14 +180,9 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(section.wait(for: NSPredicate(format: "label CONTAINS '2 chats need you'"), timeout: 10), "段落沒有列出 weather-app 與 notes:\(section.label)")
             XCTAssertTrue(app.element("needsYou.tab.demo/w3:t1").waitUntilExists(timeout: 5), "段落裡沒有 notes")
         }
-    }
-
-    /// 「需要你」的聊天:subagent 卡、回答 Bash 權限。
-    @MainActor
-    func testNeedsYouAndSubagent() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
-
-        step("subagent 卡展開") {
+        // 接在最後(會改 weather-app 的狀態):從「需要你」段落打開 weather-app,subagent 卡、回答 Bash 權限。
+        step("從需要你段落開 weather-app:subagent 卡展開") {
+            app.element("needsYou.tab.demo/w2:t1").tap()
             XCTAssertTrue(app.staticTexts["Check how the widget refreshes"].waitUntilExists(timeout: 10), "沒有 subagent 卡")
             app.element("conversation.subagent").tap()
             XCTAssertTrue(app.element("conversation.subagent.result").waitUntilExists(timeout: 5), "點卡片沒有展開結果")
@@ -325,26 +321,6 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
-    /// 兩個主機值(#390):在檔案 tab 換「選取中主機」不改聊天 tab 的「目前主機」篩選。
-    @MainActor
-    func testFilesHostMenuDoesNotChangeChatFilter() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost"])
-        app.filterHosts("Studio Mac")
-        XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitForLabel(containing: "Showing: Studio Mac", timeout: 5))
-
-        app.openTab(.files)
-        let picker = app.buttons["files.host"].firstMatch
-        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "檔案 tab 沒有主機選單")
-        picker.tap()
-        XCTAssertTrue(app.buttons["hostMenu.addHost"].firstMatch.waitUntilExists(timeout: 5), "主機選單沒有新增主機…")
-        XCTAssertFalse(app.buttons["All Hosts"].exists, "檔案 tab 的主機選單不該列所有主機")
-        app.buttons["Build Box"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForLabel(containing: "Build Box", timeout: 5))
-
-        app.openTab(.chats)
-        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac", "換選取中主機不該改聊天的目前主機")
-    }
-
     /// Purrdr Plus 會員：帳號頁、通知、通知裝置。
     @MainActor
     func testPlusMemberAccount() {
@@ -376,10 +352,10 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
-    /// 數據用量。
+    /// 數據用量;最後(會改選取中主機)接兩個主機值(#390):在檔案 tab 換「選取中主機」不改聊天 tab 的「目前主機」篩選。
     @MainActor
-    func testDataUsage() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedDataUsage"])
+    func testDataUsageThenFilesHostMenuDoesNotChangeChatFilter() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"])
         step("主機 tab 總頁:狀態、用量區、這台主機的入口(#392)") {
             app.openHostsTab()
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
@@ -411,6 +387,23 @@ final class DailySmokeUITests: XCTestCase {
             app.openTab(.traffic)
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "沒有數據用量頁")
             XCTAssertTrue(app.element("dataUsage.today").waitUntilExists(timeout: 5), "沒有今天的用量")
+        }
+        step("檔案 tab 換選取中主機不改聊天的目前主機篩選") {
+            app.openTab(.chats)
+            app.filterHosts("Studio Mac")
+            XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitForLabel(containing: "Showing: Studio Mac", timeout: 5))
+
+            app.openTab(.files)
+            let picker = app.buttons["files.host"].firstMatch
+            XCTAssertTrue(picker.waitUntilExists(timeout: 10), "檔案 tab 沒有主機選單")
+            picker.tap()
+            XCTAssertTrue(app.buttons["hostMenu.addHost"].firstMatch.waitUntilExists(timeout: 5), "主機選單沒有新增主機…")
+            XCTAssertFalse(app.buttons["All Hosts"].exists, "檔案 tab 的主機選單不該列所有主機")
+            app.buttons["Build Box"].firstMatch.tap()
+            XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForLabel(containing: "Build Box", timeout: 5))
+
+            app.openTab(.chats)
+            XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac", "換選取中主機不該改聊天的目前主機")
         }
     }
 
