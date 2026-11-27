@@ -169,8 +169,10 @@ public struct NewChatView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            .appGroupedList()
+            // identifier 放在 `appGroupedList()` 之前:它疊的頂端淡模糊(#683)若在 identifier 之後,會被套上同一個 identifier,
+            // UI 測試的 `newChat.page` 變成兩個,`firstMatch` 抓到 54pt 高的那條而不是捲動容器(`NewChatPageIdentifierTests`)。
             .accessibilityIdentifier("newChat.page")
+            .appGroupedList()
             .navigationTitle("New Chat")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
