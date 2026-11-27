@@ -48,9 +48,9 @@ final class DelegationUITests: XCTestCase {
 
         // 返回列表(多個 Pane 的 Tab 先回版面圖,再回列表),再開 weather-app。
         app.buttons["BackButton"].firstMatch.tap()
-        if app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 2) {
-            app.buttons["BackButton"].firstMatch.tap()
-        }
+        XCTAssertTrue(app.buttons["layout.block.w3:p1"].waitUntilExists(timeout: 10), "沒有回到版面圖")
+        app.buttons["BackButton"].firstMatch.tap()
+        XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有回到列表")
         openWeather(in: app)
 
         XCTAssertTrue(app.staticTexts["forecast-audit"].waitUntilExists(timeout: 10), "沒有 workflow 卡")

@@ -86,6 +86,6 @@ final class AccountUITests: XCTestCase {
         confirm.tap()
 
         XCTAssertTrue(app.element("member.identity.google").waitUntilExists(timeout: 10), "合併後應該有 Google 這種登入方式")
-        XCTAssertFalse(app.element("sheet.merge").exists)
+        XCTAssertTrue(app.element("sheet.merge").waitUntilGone(timeout: 5), "合併 sheet 沒有收起")
     }
 }

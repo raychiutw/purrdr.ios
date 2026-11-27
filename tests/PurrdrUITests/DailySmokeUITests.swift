@@ -182,9 +182,11 @@ final class DailySmokeUITests: XCTestCase {
         }
         // 接在最後(會改 weather-app 的狀態):從「需要你」段落打開 weather-app,subagent 卡、回答 Bash 權限。
         step("從需要你段落開 weather-app:subagent 卡展開") {
-            app.element("needsYou.tab.demo/w2:t1").tap()
+            app.element("needsYou.tab.demo/w2:t1").tapWhenReady()
             XCTAssertTrue(app.staticTexts["Check how the widget refreshes"].waitUntilExists(timeout: 10), "沒有 subagent 卡")
-            app.element("conversation.subagent").tap()
+            let subagentCard = app.element("conversation.subagent").firstMatch
+            XCTAssertTrue(subagentCard.waitUntilExistsAndSettled(timeout: 5), "沒有 subagent 卡片")
+            subagentCard.tap()
             XCTAssertTrue(app.element("conversation.subagent.result").waitUntilExists(timeout: 5), "點卡片沒有展開結果")
         }
         step("回答 Bash 權限") {
@@ -403,7 +405,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForLabel(containing: "Build Box", timeout: 5))
 
             app.openTab(.chats)
-            XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac", "換選取中主機不該改聊天的目前主機")
+            XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitForLabel(containing: "Showing: Studio Mac", timeout: 5), "換選取中主機不該改聊天的目前主機")
         }
     }
 

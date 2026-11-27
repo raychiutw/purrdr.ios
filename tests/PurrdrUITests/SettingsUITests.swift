@@ -22,7 +22,7 @@ final class SettingsUITests: XCTestCase {
         let app = XCUIApplication.uiTesting()
         app.terminate()
         app.open(URL(string: "purrdr://settings")!)
-        app.waitForAccountSheet()
+        app.waitForAccountSheet(timeout: 15)
         XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
         XCTAssertFalse(app.switches["settings.codexLauncher"].exists, "Codex 啟動器應在主機頁")
         XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))

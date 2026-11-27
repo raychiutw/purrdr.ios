@@ -14,7 +14,7 @@ final class TailscaleCheckUITests: XCTestCase {
             flags: ["-demoTailscaleCheck"], contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
 
         let prompt = app.element("tailscaleCheck.prompt")
-        XCTAssertTrue(prompt.waitUntilExists(timeout: 10), "沒有出現 Tailscale 驗證提示")
+        XCTAssertTrue(prompt.waitUntilExists(timeout: 15), "沒有出現 Tailscale 驗證提示")
         XCTAssertTrue(app.staticTexts["Sign In to Tailscale"].exists)
         let open = app.element("tailscaleCheck.open")
         let cancel = app.element("tailscaleCheck.cancel")

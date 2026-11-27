@@ -144,9 +144,9 @@ extension XCUIApplication {
 
     /// 等帳號與設定 sheet 出現(`sheet.account` 或沒登入的 `account.signedOut`)。
     @MainActor
-    func waitForAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
+    func waitForAccountSheet(timeout: TimeInterval = 10, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(
-            UITestWait.until(timeout: 10) { self.element("sheet.account").exists || self.element("account.signedOut").exists },
+            UITestWait.until(timeout: timeout) { self.element("sheet.account").exists || self.element("account.signedOut").exists },
             "沒有開出帳號與設定", file: file, line: line)
         // 帳號與設定是滿版 cover(#623):蓋住底下頁面,頂列的帳號鈕點不到。
         // (XCUITest 的 accessibility tree 仍列出被蓋住的內容,所以不能驗「不存在」;VoiceOver 由 modal 呈現與 `.isModal` 隔開。)

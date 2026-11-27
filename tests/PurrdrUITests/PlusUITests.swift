@@ -35,7 +35,7 @@ final class PlusUITests: XCTestCase {
         XCTAssertLessThan(yearly.frame.minY, monthly.frame.minY, "年繳沒有排在月繳前面")
         app.scrollIntoView(monthly, search: .up)
         monthly.press(forDuration: 0.3)
-        XCTAssertTrue(monthly.isSelected || monthly.value as? String == "Selected", "\(String(describing: monthly.value))")
+        XCTAssertTrue(monthly.wait(for: NSPredicate(format: "isSelected == true OR value == 'Selected'"), timeout: 5), "\(String(describing: monthly.value))")
         app.scrollIntoView(disclosure, search: .down)
         XCTAssertTrue(disclosure.label.contains("$4.99"), disclosure.label)
 
@@ -135,7 +135,7 @@ final class PlusUITests: XCTestCase {
         // 往右 push 對應的頁面(#619),不換成帳號 sheet。
         XCTAssertTrue(app.descendants(matching: .any)["account.notifications.page"].firstMatch.waitUntilExists(timeout: 10), "點功能列沒有推入通知頁")
         XCTAssertFalse(app.descendants(matching: .any)["sheet.account"].firstMatch.exists, "點功能列不該換成帳號 sheet")
-        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).exists, "左上沒有返回鈕")
+        XCTAssertTrue(app.buttons["BackButton"].firstMatch.exists, "左上沒有返回鈕")
 
         // 通知頁:開 Studio Mac 的開關(先確認安裝外掛),傳送測試通知,結果在頁內、不彈 alert。
         let toggle = app.switches["account.push.\(PushSettingsUITests.seededHost)"]
