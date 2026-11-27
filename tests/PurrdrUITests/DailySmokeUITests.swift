@@ -370,6 +370,65 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
+    /// 模擬上架版(Purrdr Plus 編譯開關關閉,#678):帳號頁有登入、通知與設定,沒有 Plus 卡、付費牆入口與主機同步;
+    /// 通知頁看得到今日上限;新增主機引導最後一頁照常有通知開關。
+    @MainActor
+    func testStoreBuildAccount() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusOff", "-uiTestingMember"])
+        step("帳號頁沒有 Plus 卡與主機同步,仍有通知與設定") {
+            app.openAccountSheet()
+            let notifications = app.element("account.notifications")
+            XCTAssertTrue(app.scrollSheet("sheet.account", to: notifications, search: .both, timeout: 10), "上架版帳號頁沒有通知列")
+            XCTAssertTrue(app.element("member.pushDevices").exists || app.scrollSheet("sheet.account", to: app.element("member.pushDevices"), search: .both, timeout: 5), "上架版帳號頁沒有通知裝置")
+            XCTAssertFalse(app.element("account.plusCard").exists, "上架版不該有 Plus 卡")
+            XCTAssertFalse(app.element("account.plusCard.status").exists, "上架版不該有 Plus 卡")
+            XCTAssertFalse(app.buttons["account.plusCard.primary"].exists, "上架版不該有開通 Plus 的按鈕")
+            XCTAssertFalse(app.element("account.locked.hostSync").exists, "上架版不該有鎖定的主機同步列")
+            XCTAssertFalse(app.switches["settings.hostSync"].exists, "上架版不該有主機同步開關")
+            XCTAssertFalse(app.element("account.locked.notifications").exists, "通知只需登入,不該鎖定")
+        }
+        step("通知頁看得到今日上限") {
+            let notifications = app.element("account.notifications")
+            XCTAssertTrue(app.scrollSheet("sheet.account", to: notifications, search: .both, timeout: 10))
+            notifications.tap()
+            XCTAssertTrue(app.element("account.notifications.page").waitUntilExists(timeout: 10), "沒有進到通知頁")
+            let summary = app.descendants(matching: .any)["account.push.usage"].firstMatch
+            XCTAssertTrue(summary.waitUntilExists(timeout: 10), "通知頁沒有今日上限")
+            XCTAssertTrue(summary.label.contains("23") && summary.label.contains("100"), "今日上限列內容不對:\(summary.label)")
+        }
+        step("通知頁沒有付費牆,關閉帳號回到 tab bar") {
+            XCTAssertFalse(app.element("plus.benefits").exists, "上架版不該有付費牆")
+            app.buttons["BackButton"].firstMatch.tap()
+            app.closeAccountSheet()
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "關閉後 tab bar 沒有回來")
+        }
+        step("新增主機引導最後一頁照常有通知開關") {
+            app.openHostsTab()
+            let add = app.buttons["hosts.add"]
+            XCTAssertTrue(add.waitUntilExists(timeout: 5))
+            add.tap()
+            app.buttons["guide.option.ssh"].tapWhenReady()
+            app.buttons["guide.option.macOS"].tapWhenReady()
+            app.buttons["guide.option.tailscale"].tapWhenReady()
+            app.buttons["guide.next"].tapWhenReady()
+            let address = app.textFields["guide.field.address"]
+            XCTAssertTrue(address.waitUntilExists(timeout: 5))
+            address.tap()
+            address.typeEnglish("studio-mac")
+            let username = app.textFields["guide.field.username"]
+            username.tap()
+            username.typeEnglish("ray")
+            app.buttons["guide.next"].tapWhenReady()
+            let save = app.buttons["guide.save"]
+            XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有通過連線測試")
+            save.tap()
+            XCTAssertTrue(app.buttons["guide.done"].waitUntilExists(timeout: 5))
+            XCTAssertTrue(app.element("guide.notifications").waitUntilExists(timeout: 10), "上架版最後一頁沒有通知開關")
+            XCTAssertFalse(app.element("guide.signIn").exists, "已登入不該要求登入")
+            app.buttons["guide.done"].tap()
+        }
+    }
+
     /// 數據用量;最後(會改選取中主機)接兩個主機值(#390):在檔案 tab 換「選取中主機」不改聊天 tab 的「目前主機」篩選。
     @MainActor
     func testDataUsageThenFilesHostMenuDoesNotChangeChatFilter() {
