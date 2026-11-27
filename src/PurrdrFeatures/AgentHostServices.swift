@@ -52,13 +52,75 @@ package struct AgentHostServices {
     }
 }
 
-extension PlanUsageAgent {
-    /// 對應的 Agent 種類。
-    package var agentID: AgentID {
-        switch self {
-        case .claudeCode: .claude
-        case .codex: .codex
-        case .antigravity: .agy
+/// 主機連線方式:能力表的第二個鍵(Demo 主機的通道是 Demo,走 SSH 的程式路徑)。
+package enum AgentHostConnectionKind: CaseIterable, Sendable {
+    case ssh, https, demo
+}
+
+/// 一種 Agent 在一種連線方式下,app 能對主機做哪些事(#686、ADR-0013)。
+/// 沒有的能力是 `false`/`nil`,畫面自然隱藏;新增 Agent 或連線方式只改 `resolve` 這一張表,
+/// `AgentHostCapabilitiesTests` 逐列檢查。
+package struct AgentHostCapabilities: Equatable, Sendable {
+    /// 讀得到方案用量。
+    package var planUsage: Bool
+    /// 方案用量要先經同意修改主機設定(status line 包裝腳本)。
+    package var planUsageWritesHost: Bool
+    /// 讀得到 session 狀態(context 用量)。
+    package var sessionStatus: Bool
+    /// 在主機上發現 slash 清單。
+    package var slashDiscovery: Bool
+    /// 有啟動器(Session 回報的主機端設定)。
+    package var launcher: Bool
+
+    package init(planUsage: Bool, planUsageWritesHost: Bool, sessionStatus: Bool, slashDiscovery: Bool, launcher: Bool) {
+        self.planUsage = planUsage
+        self.planUsageWritesHost = planUsageWritesHost
+        self.sessionStatus = sessionStatus
+        self.slashDiscovery = slashDiscovery
+        self.launcher = launcher
+    }
+
+    package static let none = AgentHostCapabilities(
+        planUsage: false, planUsageWritesHost: false, sessionStatus: false, slashDiscovery: false, launcher: false)
+
+    /// 方案用量畫面列出的 Agent(依畫面順序)。
+    package static let planUsageAgents: [AgentID] = [.claude, .codex, .agy]
+
+    package static func resolve(_ agent: AgentID, over connection: AgentHostConnectionKind) -> AgentHostCapabilities {
+        let overSSH = connection != .https
+        switch agent {
+        case .claude:
+            return AgentHostCapabilities(
+                planUsage: true, planUsageWritesHost: true, sessionStatus: true, slashDiscovery: overSSH, launcher: false)
+        case .codex:
+            return AgentHostCapabilities(
+                planUsage: true, planUsageWritesHost: false, sessionStatus: false, slashDiscovery: false, launcher: overSSH)
+        case .agy:
+            // Antigravity 的 statusline 包裝只有 SSH(#448)。
+            return AgentHostCapabilities(
+                planUsage: overSSH, planUsageWritesHost: overSSH, sessionStatus: overSSH, slashDiscovery: false, launcher: false)
+        default:
+            return .none
         }
     }
+}
+
+extension AgentID {
+    /// 方案用量畫面的穩定鍵(儲存的選擇與 UI 測試識別碼用,維持舊 `PlanUsageAgent` 的值)。
+    package var planUsageKey: String {
+        switch self {
+        case .claude: "claudeCode"
+        case .agy: "antigravity"
+        default: canonicalName
+        }
+    }
+
+    package init?(planUsageKey: String) {
+        guard let agent = AgentCatalogKeys.agents.first(where: { $0.planUsageKey == planUsageKey }) else { return nil }
+        self = agent
+    }
+}
+
+private enum AgentCatalogKeys {
+    static let agents = AgentHostCapabilities.planUsageAgents
 }

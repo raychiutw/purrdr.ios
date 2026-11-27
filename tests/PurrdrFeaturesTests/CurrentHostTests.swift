@@ -87,7 +87,7 @@ struct CurrentHostTests {
 
     @Test("方案用量開啟時預設目前主機，優先於上次在方案用量選的")
     func planUsageStartsOnCurrentHost() {
-        let planStore = InMemoryPlanUsageSelectionStore(PlanUsageSelection(host: .host(Self.ssh.id), agent: .claudeCode))
+        let planStore = InMemoryPlanUsageSelectionStore(PlanUsageSelection(host: .host(Self.ssh.id), agent: .claude))
         let model = Self.model(planUsage: planStore)
         model.agentList.currentHost = .host(Self.https.id)
 
@@ -96,7 +96,7 @@ struct CurrentHostTests {
 
     @Test("目前主機是所有主機：方案用量用上次選的")
     func planUsageUsesRememberedHostWhenAllHosts() {
-        let planStore = InMemoryPlanUsageSelectionStore(PlanUsageSelection(host: .host(Self.ssh.id), agent: .claudeCode))
+        let planStore = InMemoryPlanUsageSelectionStore(PlanUsageSelection(host: .host(Self.ssh.id), agent: .claude))
         let model = Self.model(planUsage: planStore)
 
         #expect(model.screens.planUsage().host == .host(Self.ssh.id))

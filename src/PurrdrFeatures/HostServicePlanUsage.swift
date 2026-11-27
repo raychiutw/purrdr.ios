@@ -28,18 +28,16 @@ extension PlanUsageSource {
     /// (與 SSH 相同,同意記在 `consent`,安裝紀錄與 SSH 路徑的 journal 相容)。
     /// 主機服務比 0.12.0 舊時讀取丟 `HostServiceError.hostServiceUpdateRequired`,畫面顯示「請更新主機服務」。
     static func hostService(
-        _ connection: HTTPSHostConnection, agent: PlanUsageAgent, hostID: String, hostName: String,
+        _ connection: HTTPSHostConnection, agent: AgentID, hostID: String, hostName: String,
         consent: any HostWriteConsentStore, now: @escaping @Sendable () -> Date = Date.init
-    ) -> PlanUsageSource {
+    ) -> PlanUsageSource? {
         switch agent {
-        case .antigravity:
-            preconditionFailure("主機服務沒有 Antigravity 的方案用量(呼叫端先看 supportsHostService)")
         case .codex:
             return PlanUsageSource(cost: .transfer) {
                 let result = try await connection.codexUsage()
                 return PlanUsage(hostServicePeriods: result.periods, capturedAt: result.capturedAt, now: now())
             }
-        case .claudeCode:
+        case .claude:
             let feature = ClaudePlanUsageHost.feature.id
             let hostWrite = PlanUsageHostWrite(
                 isGranted: { consent.isGranted(feature, host: hostID) },
@@ -59,6 +57,9 @@ extension PlanUsageSource {
                 let result = try await connection.claudeUsage()
                 return PlanUsage(hostServicePeriods: result.periods, capturedAt: result.capturedAt, now: now())
             }
+        default:
+            // 主機服務沒有其他 Agent 的方案用量(Antigravity 的 statusline 包裝只有 SSH,#448)。
+            return nil
         }
     }
 }

@@ -184,8 +184,8 @@ struct HostsModelAgentSettingsTests {
     func usageSectionSkipsDisabled() {
         let host = Self.host(enabled: [.claude])
         let (model, _) = Self.model(host)
-        let section = model.member(for: .host(host.id)).usageSection(agents: PlanUsageAgent.allCases)
-        #expect(section.agents == [.claudeCode])
+        let section = model.member(for: .host(host.id)).usageSection(agents: AgentHostCapabilities.planUsageAgents)
+        #expect(section.agents == [.claude])
     }
 }
 #endif

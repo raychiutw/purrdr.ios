@@ -513,6 +513,9 @@ public actor FakeHostConnection: HostConnection {
         holdsTranscripts = true
     }
 
+    /// 正被停住、還沒回應的對話紀錄讀取數。
+    public var heldTranscriptCount: Int { heldTranscripts.count }
+
     /// 放行停住的對話紀錄讀取，之後不再停。
     public func releaseTranscripts() {
         holdsTranscripts = false
