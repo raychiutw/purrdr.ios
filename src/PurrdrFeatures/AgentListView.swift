@@ -246,6 +246,9 @@ public struct AgentListView: View {
                 Button("Try Again") { model.retry() }
                     .accessibilityIdentifier("agentList.retry")
             }
+            .reportsErrorDisplay(
+                fingerprint: message.hashValue, descriptor: model.allFailedDescriptor ?? ErrorDescriptor(category: "HostUpdates", code: "failed"),
+                area: "AgentList")
         case .empty:
             ContentUnavailableView(
                 "No Agents",
@@ -388,6 +391,9 @@ public struct AgentListView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondaryText)
                         .accessibilityIdentifier("agentList.error.\(failure.host.storedValue)")
+                        .reportsErrorDisplay(
+                            fingerprint: failure.text.hashValue, descriptor: failure.descriptor ?? ErrorDescriptor(category: "HostUpdates", code: "failed"),
+                            area: "AgentListConnection")
                 }
                 Button("Try Again", systemImage: "arrow.clockwise") { model.retry() }
                     .font(.footnote)

@@ -82,7 +82,8 @@ enum ProductionEnvironment {
                         // 裝置名稱只帶裝置種類(同公鑰註解),顯示在主機的裝置列表。
                         hostService: .system(
                             deviceName: UIDevice.current.model,
-                            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
+                            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                            diagnostics: diagnosticEvents),
                         // 最新的主機服務版本從 purrdr.host 的 GitHub Release 取得,主機服務發版時 app 不用改版號(#362)。
                         hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                         tailscaleCheck: tailscaleCheck,

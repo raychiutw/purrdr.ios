@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrHTTPS
 import PurrdrSSH
@@ -108,9 +109,12 @@ struct UnsupportedHostChannel: HostChannel {
 
 extension HostServiceAccess {
     /// 正式 app:權杖存 Keychain,連線經 `URLSession`(系統 TLS)。
-    public static func system(deviceName: String, appVersion: String?) -> HostServiceAccess {
-        HostServiceAccess(tokens: KeychainDeviceTokenStore(), deviceName: deviceName) {
-            HTTPSHostConnection(address: $0, deviceToken: $1, appVersion: appVersion)
+    /// - Parameter diagnostics: 連線診斷(#689):Console category `https`;沒有就不記。
+    public static func system(deviceName: String, appVersion: String?, diagnostics: DiagnosticEvents? = nil) -> HostServiceAccess {
+        HostServiceAccess(tokens: KeychainDeviceTokenStore(), deviceName: deviceName) { address, token in
+            HTTPSHostConnection(
+                address: address, deviceToken: token, appVersion: appVersion,
+                diagnostics: diagnostics.map { HTTPSConnectionLog.events($0, host: address.hostName) })
         }
     }
 

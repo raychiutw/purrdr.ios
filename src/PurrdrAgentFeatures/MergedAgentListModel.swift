@@ -7,11 +7,14 @@ public struct HostFailure: Equatable, Sendable {
     public var host: HostSelection
     public var name: String
     public var message: String
+    /// 錯誤的類別與錯誤碼(操作記錄用,#689)。
+    public var descriptor: ErrorDescriptor?
 
-    public init(host: HostSelection, name: String, message: String) {
+    public init(host: HostSelection, name: String, message: String, descriptor: ErrorDescriptor? = nil) {
         self.host = host
         self.name = name
         self.message = message
+        self.descriptor = descriptor
     }
 
     /// 「主機名：原因」。
@@ -348,7 +351,7 @@ public final class MergedAgentListModel {
     public var failures: [HostFailure] {
         sources.compactMap { source in
             guard currentHost == nil || source.host == currentHost, case .failed(let message) = source.list.phase else { return nil }
-            return HostFailure(host: source.host, name: source.name, message: message)
+            return HostFailure(host: source.host, name: source.name, message: message, descriptor: source.list.failureDescriptor)
         }
     }
 
@@ -389,6 +392,13 @@ public final class MergedAgentListModel {
         if !failures.isEmpty { return .list }
         if hasTerminals { return .list }
         return .empty
+    }
+
+    /// `.failed` 內容對應的錯誤描述(操作記錄用,#689):與 `allFailedMessage` 同一台主機。
+    public var allFailedDescriptor: ErrorDescriptor? {
+        guard allFailedMessage != nil else { return nil }
+        if case .failed? = list(for: selected)?.phase { return list(for: selected)?.failureDescriptor }
+        return sources.first?.list.failureDescriptor
     }
 
     /// 每台主機都讀不到時，佔滿畫面的錯誤：選取中主機的(#221:只有一部分讀不到時錯誤留在那台主機的狀態行)。

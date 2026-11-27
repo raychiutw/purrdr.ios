@@ -321,6 +321,8 @@ final class HTTPSHostAdapter: HostAdapter {
         if let connection = connections[configuration.id] { return connection }
         let connection = environment.hostService.connection(for: configuration, address: address)
         environment.traffic.wire(connection, hostID: configuration.id)
+        // 關鍵請求的耗時(#689):出口建立連線時讀,與 SSH 連線相同。
+        (connection as? HTTPSHostConnection)?.attachTimings(environment.operationTimings())
         connections[configuration.id] = connection
         return connection
     }

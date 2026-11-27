@@ -134,4 +134,23 @@ struct HTTPSDiagnosticEventsTests {
         #expect(codes == ["connected 1", "dropped 1 disconnectRequested", "connected 2"])
         await connection.disconnect()
     }
+
+    @Test("關鍵請求記耗時 https.request <method>;快照輪詢不記;沒接出口不影響", .timeLimit(.minutes(1)))
+    func timesKeyRequestsOnly() async throws {
+        let service = try await FakeHostService.start()
+        defer { Task { await service.stop() } }
+        let timings = Mutex<[OperationTiming]>([])
+        let connection = Self.connection(to: service, recorder: Recorder())
+        let client = HerdrClient(connection: connection)
+
+        _ = try await client.prompt(target: "w1:p6", text: "before", wait: nil)
+        connection.attachTimings { timing in timings.withLock { $0.append(timing) } }
+        _ = try await client.snapshot()
+        _ = try await client.prompt(target: "w1:p6", text: "hi", wait: nil)
+
+        let recorded = timings.withLock { $0 }
+        #expect(recorded.map(\.name) == ["https.request agent.prompt"])
+        #expect(recorded.first?.failed == false)
+        await connection.disconnect()
+    }
 }

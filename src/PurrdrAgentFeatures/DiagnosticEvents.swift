@@ -14,6 +14,9 @@ public enum DiagnosticDropReason: String, Sendable, Equatable {
     case disconnectRequested = "disconnect_requested"
     case networkError = "network_error"
     case closedByPeer = "closed_by_peer"
+    /// HTTPS(#689):心跳逾時、權杖被拒。
+    case heartbeatTimeout = "heartbeat_timeout"
+    case tokenRejected = "token_rejected"
 
     var consoleText: String {
         switch self {
@@ -22,16 +25,24 @@ public enum DiagnosticDropReason: String, Sendable, Equatable {
         case .disconnectRequested: "disconnect requested by the app"
         case .networkError: "network error"
         case .closedByPeer: "closed by the host or the network"
+        case .heartbeatTimeout: "heartbeat timeout"
+        case .tokenRejected: "device token rejected"
         }
     }
 }
 
+/// 連線事件屬於哪種連線方式(Console category 與診斷檔的 category)。
+public enum DiagnosticTransport: String, Sendable, Equatable {
+    case ssh
+    case https
+}
+
 /// 一個診斷事件。`host` 是主機位址(只給 Console 用、標 private;診斷檔只寫匿名序號),`detail` 是動態描述(只給 Console、標 private)。
 public enum DiagnosticEvent: Sendable, Equatable {
-    case connected(host: String, dial: Int)
+    case connected(host: String, dial: Int, transport: DiagnosticTransport = .ssh)
     /// `error` 只能是錯誤種類名稱(不含關聯值)。
-    case dialFailed(host: String, dial: Int, error: String, detail: String)
-    case dropped(host: String, dial: Int, reason: DiagnosticDropReason, lifetimeSeconds: Int, detail: String?)
+    case dialFailed(host: String, dial: Int, error: String, detail: String, transport: DiagnosticTransport = .ssh)
+    case dropped(host: String, dial: Int, reason: DiagnosticDropReason, lifetimeSeconds: Int, detail: String?, transport: DiagnosticTransport = .ssh)
     case networkChanged(droppedConnections: Int, detail: String)
     /// 回前景時連線沿用還是重撥。
     case foregroundDecision(backgroundSeconds: Int, redial: Bool)
@@ -41,7 +52,7 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// Console 的 category(Console.app 以 subsystem `com.raychiu.purrdr` 篩選)。
     public var consoleCategory: String {
         switch self {
-        case .connected, .dialFailed, .dropped: "ssh"
+        case .connected(_, _, let transport), .dialFailed(_, _, _, _, let transport), .dropped(_, _, _, _, _, let transport): transport.rawValue
         case .networkChanged, .foregroundDecision: "hosts"
         case .member: "member"
         }
@@ -49,7 +60,7 @@ public enum DiagnosticEvent: Sendable, Equatable {
 
     public var host: String? {
         switch self {
-        case .connected(let host, _), .dialFailed(let host, _, _, _), .dropped(let host, _, _, _, _): host
+        case .connected(let host, _, _), .dialFailed(let host, _, _, _, _), .dropped(let host, _, _, _, _, _): host
         case .networkChanged, .foregroundDecision, .member: nil
         }
     }
@@ -57,9 +68,9 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// 固定文字(不含動態內容),Console 以 public 記錄。
     public var consoleFixedText: String {
         switch self {
-        case .connected(_, let dial): "dial \(dial) connected"
-        case .dialFailed(_, let dial, let error, _): "dial \(dial) failed: \(error)"
-        case .dropped(_, let dial, let reason, let lifetime, _): "dial \(dial) dropped after \(lifetime)s: \(reason.consoleText)"
+        case .connected(_, let dial, _): "dial \(dial) connected"
+        case .dialFailed(_, let dial, let error, _, _): "dial \(dial) failed: \(error)"
+        case .dropped(_, let dial, let reason, let lifetime, _, _): "dial \(dial) dropped after \(lifetime)s: \(reason.consoleText)"
         case .networkChanged(let count, _): "Network path changed: dropping \(count) host connection(s)"
         case .foregroundDecision(let seconds, let redial): "foreground after \(seconds)s: \(redial ? "redial" : "reuse")"
         case .member(let code, _): code
@@ -70,8 +81,8 @@ public enum DiagnosticEvent: Sendable, Equatable {
     public var consoleDetail: String? {
         switch self {
         case .connected, .foregroundDecision: nil
-        case .dialFailed(_, _, _, let detail): detail
-        case .dropped(_, _, _, _, let detail): detail
+        case .dialFailed(_, _, _, let detail, _): detail
+        case .dropped(_, _, _, _, let detail, _): detail
         case .networkChanged(_, let detail): detail
         case .member(_, let detail): detail
         }
@@ -189,11 +200,11 @@ public final class DiagnosticEvents: Sendable {
         let category = event.consoleCategory
         let host = event.host.map(ordinals.ordinal(for:))
         switch event {
-        case .connected(_, let dial):
+        case .connected(_, let dial, _):
             return DiagnosticEventRecord(at: at, category: category, code: "connected", host: host, dial: dial)
-        case .dialFailed(_, let dial, let error, _):
+        case .dialFailed(_, let dial, let error, _, _):
             return DiagnosticEventRecord(at: at, category: category, code: "dial_failed", reason: error, host: host, dial: dial)
-        case .dropped(_, let dial, let reason, let lifetime, _):
+        case .dropped(_, let dial, let reason, let lifetime, _, _):
             return DiagnosticEventRecord(at: at, category: category, code: "dropped", reason: reason.rawValue, host: host, dial: dial, value: lifetime)
         case .networkChanged(let count, _):
             return DiagnosticEventRecord(at: at, category: category, code: "network_changed", value: count)
