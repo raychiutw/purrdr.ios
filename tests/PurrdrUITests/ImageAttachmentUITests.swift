@@ -124,16 +124,4 @@ final class ImageAttachmentUITests: XCTestCase {
         XCTAssertTrue(app.element("composer.attachment.1").waitUntilGone(timeout: 5), "移除一張後應剩一張")
         XCTAssertTrue(app.element("composer.attachment.0").exists)
     }
-
-    /// 沒有相簿權限：面板只顯示按鈕，沒有最近的照片。
-    @MainActor
-    func testAttachPanelWithoutPhotoAccessShowsOnlyButtons() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPhotosDenied"])
-        openLedger(in: app)
-        app.element("composer.attach").tap()
-
-        XCTAssertTrue(app.element("attach.panel").waitUntilExists(timeout: 5))
-        XCTAssertTrue(app.element("attach.photos").exists)
-        XCTAssertFalse(app.element("attach.recent.0").waitUntilExists(timeout: 2), "沒有權限不該有最近的照片")
-    }
 }

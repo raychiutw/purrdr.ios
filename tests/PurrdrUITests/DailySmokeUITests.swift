@@ -109,6 +109,8 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.element("attach.panel").waitUntilExists(timeout: 5), "沒有附加面板")
             let video = app.element("attach.video")
             XCTAssertTrue(video.waitUntilExists(timeout: 5), "附加面板沒有「影片」")
+            // 沒有相簿權限(預設 `.denied`)時面板仍有按鈕(原 testAttachPanelWithoutPhotoAccessShowsOnlyButtons;沒照片的 model 由 RecentPhotoPagerTests.emptyAlbum 守)。
+            XCTAssertTrue(app.element("attach.photos").exists, "附加面板沒有「照片」")
             video.tap()
             XCTAssertTrue(app.element("composer.attachment.0").waitUntilExists(timeout: 20), "挑影片後輸入列沒有附件卡")
             XCTAssertTrue(app.element("composer.videoPreparation").waitUntilGone(timeout: 10), "影片準備中的進度沒有結束")
