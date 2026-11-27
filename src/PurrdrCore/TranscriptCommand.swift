@@ -59,6 +59,28 @@ public enum TranscriptCommand {
         return script
     }
 
+    /// 開啟聊天(#656):定位加視窗合成一個指令,手機只等一次往返。輸出:定位的輸出(路徑、大小、要檢查 header 時再接檔案前兩行),
+    /// 一行 `openMarker`,再接與 `window` 相同的輸出(「起點 終點」與每行)。視窗終點是定位時量到的大小。
+    /// `maxBytes` 大於 0 時範圍只取終點往前那麼多 bytes 內完整的行(不放大區塊),否則照 `window` 的預設區塊。
+    /// 可讀訊息與否仍由 app 的解析器判斷,這裡不放第二套規則。參數:session id 或路徑、Claude 的資料夾名(沒有給空字串)、行數、maxBytes。
+    public static func open(_ location: TranscriptLocation, lines: Int, maxBytes: Int) -> String {
+        let folder = location.locator.usesProjectFolder ? ClaudeTranscript.projectFolder(forCWD: location.cwd) : ""
+        return command(openScript(location.locator), arguments: [location.reference.value, folder, String(lines), String(maxBytes)])
+    }
+
+    /// 定位輸出與視窗輸出之間的分隔行。
+    public static let openMarker = "purrdr-window"
+
+    package static func openScript(_ locator: TranscriptLocator) -> String {
+        locateScript(locator) + "\n" + "printf '%s\\n' \(openMarker)\n" + #"""
+            e=$z
+            n=$3
+            c=$4
+            g=1
+            if [ "$c" -le 0 ]; then c=4194304; g=0; fi
+            """# + "\n" + windowBody
+    }
+
     /// 視窗：以 `end` 為終點，往前取恰好 `lines` 行完整的行(行為規格 §4.7「開啟：讀最後 N 行」)。
     ///
     /// 從 `end` 往前取一塊(預設 4MB)數換行，不夠就把塊放大 4 倍再數，直到檔頭。視窗終點是塊內最後一個換行之後
@@ -77,6 +99,10 @@ public enum TranscriptCommand {
         c=$4
         g=0
         if [ "${5:-0}" -gt 0 ]; then c=$5; g=1; fi
+        """# + "\n" + windowBody
+
+    /// 視窗腳本設定好 `f`(檔案)、`e`(終點)、`n`(行數)、`c`(區塊大小)、`g`(1 = 不放大區塊)之後的本體;`window` 與 `open` 共用。
+    private static let windowBody = #"""
         if [ ! -r "$f" ]; then exit 5; fi
         while :; do
         s=$((e - c))

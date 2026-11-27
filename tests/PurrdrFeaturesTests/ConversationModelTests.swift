@@ -62,7 +62,7 @@ struct ConversationModelTests {
         #expect(setup.model.phase == .ready)
         #expect(setup.model.items.count == Self.fixtureItemCount)
         #expect(setup.model.title == "整理植物照片的標籤")
-        #expect(await setup.host.shellCommands.count == 2)
+        #expect(await setup.host.shellCommands.count == 1)  // 定位加讀視窗合成一個指令(#656)
     }
 
     /// 行為規格 §4.7:之後只從游標讀新增的行，不重讀整個視窗。
@@ -88,7 +88,7 @@ struct ConversationModelTests {
         }
         #expect(bubble.text == "幫我把 CSV 匯出整理一下 🧾")
         let commands = await setup.host.shellCommands
-        #expect(commands.count == 3)
+        #expect(commands.count == 2)
         #expect(commands.last?.contains("tail -c +$(($2 + 1))") == true)
     }
 

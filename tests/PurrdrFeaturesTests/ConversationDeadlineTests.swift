@@ -14,7 +14,10 @@ struct ConversationDeadlineTests {
     static let sessionID = "00000000-0000-0000-0000-000000000001"
     static let cwd = "/Users/demo/Projects/garden-journal"
     static let transcriptPath = "/Users/demo/.claude/projects/-Users-demo-Projects-garden-journal/\(sessionID).jsonl"
-    static let locate = TranscriptCommand.locate(sessionID: sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: cwd))
+    /// 聊天開啟時定位加讀視窗的合併指令(#656)。
+    static let open = TranscriptCommand.open(
+        TranscriptLocation(locator: .claude, reference: .id(sessionID), cwd: cwd),
+        lines: TranscriptReader.openingLines, maxBytes: TranscriptReader.openingMaxBytes)
     /// fixture 轉成的對話項目數(見 `ClaudeTranscriptParserTests.fixtureBecomesConversationItems`)。
     static let fixtureItemCount = 13
 
@@ -33,13 +36,13 @@ struct ConversationDeadlineTests {
     func stuckLocateShowsReadFailedThenRecovers() async throws {
         let transcript = Fixtures.transcript()
         let host = FakeHost()
-        let sleeper = RecordingSleeper { $0 == HostCommandDeadline.standard }
+        let sleeper = RecordingSleeper { $0 == HostCommandDeadline.transfer(bytes: TranscriptReader.openingMaxBytes) }
         let model = ConversationModel(
             client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host, sleep: sleeper.sleep), paneID: Self.paneID,
             knownSessionID: Self.sessionID, cache: InMemoryConversationCache(), clock: TestClock().clock
         )
         await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
-        await host.expect(Self.locate, reply: FakeReply(keepsOpen: true))
+        await host.expect(Self.open, reply: FakeReply(keepsOpen: true))
 
         #expect(await boundedOutcome { await model.poll() } != nil, "定位卡住後輪詢沒有在期限到時結束")
 
@@ -50,10 +53,9 @@ struct ConversationDeadlineTests {
 
         await sleeper.stopFiring()
         await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
-        await host.expect(Self.locate, reply: FakeReply(stdout: Data("\(Self.transcriptPath)\n\(transcript.count)\n".utf8)))
         await host.expect(
-            TranscriptCommand.window(path: Self.transcriptPath, end: transcript.count, lines: TranscriptReader.openingLines, maxBytes: TranscriptReader.openingMaxBytes),
-            reply: FakeReply(stdout: Self.windowOutput(of: transcript)))
+            Self.open,
+            reply: FakeReply(stdout: Data("\(Self.transcriptPath)\n\(transcript.count)\n\(TranscriptCommand.openMarker)\n".utf8) + Self.windowOutput(of: transcript)))
 
         await model.poll()
 

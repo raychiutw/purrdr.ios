@@ -450,7 +450,7 @@ public actor DemoHost: HostChannel {
         guard !largeOutputWritten, let delay = burstDelay else { return }
         let ledger = DemoTranscripts.ledger
         if largeOutputAt == nil,
-           command == TranscriptCommand.locate(sessionID: ledger.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: ledger.cwd)) {
+           command == ledger.locateCommand || command == ledger.openCommand {
             largeOutputAt = now() + delay
             return
         }
