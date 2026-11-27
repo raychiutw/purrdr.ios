@@ -16,8 +16,12 @@ public final class HostUpdates {
         didSet {
             if phase == .loading, oldValue != .loading { connectingSince = now() }
             if phase != .loading { isQuietReconnect = false }
+            if case .failed = phase {} else { failureDescriptor = nil }
         }
     }
+
+    /// 最近一次讀取失敗的類別與錯誤碼(#689;不含訊息原文),給畫面的操作記錄用;不是失敗狀態時 `nil`。
+    public private(set) var failureDescriptor: ErrorDescriptor?
 
     /// 回前景重撥中且手上有快取(#550):列表的「連線中」前幾秒不顯示。
     public private(set) var isQuietReconnect = false
@@ -322,6 +326,7 @@ public final class HostUpdates {
             isRestarting = false
             return
         }
+        failureDescriptor = ErrorDescriptor(error)
         switch error {
         case HerdrError.herdr(_, let message):
             // 未知碼保留 herdr 原文(行為規格 §3.8)。

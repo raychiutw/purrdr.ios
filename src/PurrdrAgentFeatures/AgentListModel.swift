@@ -51,6 +51,9 @@ public final class AgentListModel {
 
     public var phase: Phase { updates.phase }
 
+    /// 讀不到時的錯誤類別與錯誤碼(操作記錄用,#689)。
+    public var failureDescriptor: ErrorDescriptor? { updates.failureDescriptor }
+
     /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
     public var snapshot: HostSnapshot? { updates.snapshot }
 
