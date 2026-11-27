@@ -86,7 +86,7 @@ final class PushDevicesUITests: XCTestCase {
 
         // 刪除會員:有訂閱先處理訂閱。
         let delete = app.buttons["member.delete"]
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: delete, search: .down, timeout: 10), "返回後帳號頁沒有刪除會員")
+        XCTAssertTrue(app.scrollIntoView(delete, search: .both, timeout: 10), "返回後帳號頁沒有刪除會員")
         delete.tap()
         XCTAssertTrue(app.buttons["member.deleteSubscription.manage"].waitUntilExists(timeout: 5), "沒有先處理訂閱")
         XCTAssertFalse(app.alerts["Delete Member?"].exists, "訂閱說明之前不該有刪除確認")
@@ -102,7 +102,7 @@ final class PushDevicesUITests: XCTestCase {
     @MainActor
     private func openPushDevices(_ app: XCUIApplication) {
         let link = app.element("member.pushDevices")
-        XCTAssertTrue(app.scrollSheet("sheet.account", to: link, search: .both, timeout: 10), "帳號頁沒有通知裝置入口")
+        XCTAssertTrue(app.scrollIntoView(link, search: .both, timeout: 10), "帳號頁沒有通知裝置入口")
         link.tap()
         XCTAssertTrue(app.element("account.pushDevices").waitUntilExists(timeout: 10), "沒有進到通知裝置子頁")
     }
