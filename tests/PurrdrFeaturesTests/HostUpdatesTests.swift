@@ -6,7 +6,7 @@ import Testing
 
 /// 主機更新來源(#160):每台主機一份事件訂閱與快照;連上即對帳，事件期間只合併成一次快照。
 @MainActor
-@Suite("主機更新來源")
+@Suite("主機更新來源", .timeLimit(.minutes(1)))
 struct HostUpdatesTests {
     static let snapshot = Fixtures.data("session.snapshot.ndjson")
     static let started = Fixtures.data("events.subscribe.started.ndjson")
@@ -127,10 +127,12 @@ struct HostUpdatesTests {
         await connection.hold("session.snapshot")
         await connection.send(event: Self.statusChanged(), toSubscription: 0)
         try await waitUntil { await connection.heldCount == 1 }
+        let receivedBefore = updates.eventsReceived
         for paneID in ["w1:pA", "w1:p6", "w1:pB"] {
             await connection.send(event: Self.statusChanged(paneID), toSubscription: 0)
         }
-        try await waitUntil { await MainActor.run { updates.hasQueuedResync } }
+        try await waitUntil { await MainActor.run { updates.eventsReceived >= receivedBefore + 3 } }
+        #expect(updates.hasQueuedResync)
         await connection.releaseHeld()
 
         try await waitUntil { await connection.requests.count == 5 }
@@ -152,8 +154,10 @@ struct HostUpdatesTests {
         await connection.hold("session.snapshot")
         await connection.send(event: Self.workspaceUpdated, toSubscription: 0)
         try await waitUntil { await connection.heldCount == 1 }
+        let receivedBefore = updates.eventsReceived
         for _ in 0..<20 { await connection.send(event: Self.workspaceUpdated, toSubscription: 0) }
-        try await waitUntil { await MainActor.run { updates.hasQueuedResync } }
+        // 送出的事件要全部被處理完才放行:遲到的事件會在放行後多觸發一次讀取(#719)。
+        try await waitUntil { await MainActor.run { updates.eventsReceived >= receivedBefore + 20 } }
         await connection.releaseHeld()
 
         try await waitUntil { await connection.requests.count == 5 }
