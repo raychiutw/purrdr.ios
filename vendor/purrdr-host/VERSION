@@ -1,3 +1,3 @@
 # 由 scripts/sync-purrdr-host.sh 產生，不要手動修改。來源 https://github.com/raychiutw/purrdr.host
-commit=6b869349f6645c3dbe7d5078fc7c17da9b7ffff3
-host_service_version=0.15.0
+commit=a6ccc31ca456b184c272fda08935105c1ac9b549
+host_service_version=0.17.0

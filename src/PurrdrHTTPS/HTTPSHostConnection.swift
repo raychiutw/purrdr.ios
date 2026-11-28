@@ -404,6 +404,7 @@ public actor HTTPSHostConnection: HostConnection {
         case .transcriptUnreadable: TranscriptReadError.unreadable
         case .transcriptAmbiguous: TranscriptReadError.ambiguous
         case .transcriptCompressed: TranscriptReadError.compressed
+        case .transcriptTooLarge: TranscriptReadError.tooLarge
         case .transcriptNotAllowed: TranscriptReadError.invalidReference
         case .transcriptUnsupported: HostServiceError.unsupported("transcript")
         case .fileChanged: HostFileFetchError.changed

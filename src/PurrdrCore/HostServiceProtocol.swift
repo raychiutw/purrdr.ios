@@ -44,6 +44,7 @@ extension HostServiceProtocol {
         case fileStat(FileStat)
         case fileRead(FileRead)
         case directoryList(DirectoryList)
+        case slashList(SlashList)
         case pushStatus(PushStatus)
         case pushInstall(PushInstall)
         case pushRemove(PushRemove)
@@ -110,6 +111,7 @@ extension HostServiceProtocol {
             case "file.stat": self = .fileStat(try FileStat(from: decoder))
             case "file.read": self = .fileRead(try FileRead(from: decoder))
             case "directory.list": self = .directoryList(try DirectoryList(from: decoder))
+            case "slash.list": self = .slashList(try SlashList(from: decoder))
             case "push.status": self = .pushStatus(try PushStatus(from: decoder))
             case "push.install": self = .pushInstall(try PushInstall(from: decoder))
             case "push.remove": self = .pushRemove(try PushRemove(from: decoder))
@@ -220,6 +222,9 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .directoryList(let message):
                 try container.encode("directory.list", forKey: .type)
+                try message.encode(to: encoder)
+            case .slashList(let message):
+                try container.encode("slash.list", forKey: .type)
                 try message.encode(to: encoder)
             case .pushStatus(let message):
                 try container.encode("push.status", forKey: .type)
@@ -362,6 +367,7 @@ extension HostServiceProtocol {
         case paneTerminalClosed(PaneTerminalClosed)
         case fileStatResult(FileStatResult)
         case directoryListResult(DirectoryListResult)
+        case slashListResult(SlashListResult)
         case fileReadResult(FileReadResult)
         case pushStatusResult(PushStatusResult)
         case pushInstallResult(PushInstallResult)
@@ -431,6 +437,7 @@ extension HostServiceProtocol {
             case "pane.terminal.closed": self = .paneTerminalClosed(try PaneTerminalClosed(from: decoder))
             case "file.stat.result": self = .fileStatResult(try FileStatResult(from: decoder))
             case "directory.list.result": self = .directoryListResult(try DirectoryListResult(from: decoder))
+            case "slash.list.result": self = .slashListResult(try SlashListResult(from: decoder))
             case "file.read.result": self = .fileReadResult(try FileReadResult(from: decoder))
             case "push.status.result": self = .pushStatusResult(try PushStatusResult(from: decoder))
             case "push.install.result": self = .pushInstallResult(try PushInstallResult(from: decoder))
@@ -544,6 +551,9 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .directoryListResult(let message):
                 try container.encode("directory.list.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .slashListResult(let message):
+                try container.encode("slash.list.result", forKey: .type)
                 try message.encode(to: encoder)
             case .fileReadResult(let message):
                 try container.encode("file.read.result", forKey: .type)
@@ -754,22 +764,211 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// Agent 列表與它們所在的 workspace。
+    /// Agent 列表與它們所在的 workspace、Tab(0.17.0 起帶 tabs)。
     public struct AgentsListResult: Codable, Sendable, Equatable {
         public var requestId: String
         public var workspaces: [Workspace]
+        /// herdr session.snapshot 的每個 Tab(順序同 herdr)。tab.rename 之後下一次 agents.list 反映新名稱;要即時得知可訂閱 herdr 的 tab.renamed、tab.created、tab.closed 事件(events.subscribe),收到後重讀 agents.list。舊版主機服務沒有這個欄位;snapshot 沒有 tabs 時為空陣列。
+        public var tabs: [Tab]?
+        /// herdr session.snapshot 的每個 Pane(含沒有 Agent 的純終端機 Pane,順序同 herdr)。舊版主機服務沒有這個欄位;snapshot 沒有 panes 時為空陣列。
+        public var panes: [Pane]?
+        /// herdr session.snapshot 的每個 Tab 的版面(Pane 排列與分割,順序同 herdr)。舊版主機服務沒有這個欄位;snapshot 沒有 layouts 時為空陣列。
+        public var layouts: [Layout]?
         public var agents: [Agent]
 
-        public init(requestId: String, workspaces: [Workspace], agents: [Agent]) {
+        public init(requestId: String, workspaces: [Workspace], tabs: [Tab]? = nil, panes: [Pane]? = nil, layouts: [Layout]? = nil, agents: [Agent]) {
             self.requestId = requestId
             self.workspaces = workspaces
+            self.tabs = tabs
+            self.panes = panes
+            self.layouts = layouts
             self.agents = agents
         }
 
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
             case workspaces
+            case tabs
+            case panes
+            case layouts
             case agents
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// herdr session.snapshot 的 Pane(欄位名照 herdr 原樣)。純終端機 Pane 沒有 agent 與 agent_session,agent_status 為 unknown。
+    public struct Pane: Codable, Sendable, Equatable {
+        public var paneId: String
+        public var terminalId: String?
+        public var workspaceId: String
+        public var tabId: String
+        public var focused: Bool
+        public var cwd: String?
+        public var foregroundCwd: String?
+        /// herdr 的 agent 名稱，例如 claude、codex;純終端機 Pane 省略。
+        public var agent: String?
+        public var agentStatus: AgentStatus
+        /// 終端機標題原文(含狀態符號)。
+        public var terminalTitle: String?
+        /// 去掉狀態符號的終端機標題。
+        public var terminalTitleStripped: String?
+        public var agentSession: AgentSession?
+
+        public init(paneId: String, terminalId: String? = nil, workspaceId: String, tabId: String, focused: Bool, cwd: String? = nil, foregroundCwd: String? = nil, agent: String? = nil, agentStatus: AgentStatus, terminalTitle: String? = nil, terminalTitleStripped: String? = nil, agentSession: AgentSession? = nil) {
+            self.paneId = paneId
+            self.terminalId = terminalId
+            self.workspaceId = workspaceId
+            self.tabId = tabId
+            self.focused = focused
+            self.cwd = cwd
+            self.foregroundCwd = foregroundCwd
+            self.agent = agent
+            self.agentStatus = agentStatus
+            self.terminalTitle = terminalTitle
+            self.terminalTitleStripped = terminalTitleStripped
+            self.agentSession = agentSession
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case paneId = "pane_id"
+            case terminalId = "terminal_id"
+            case workspaceId = "workspace_id"
+            case tabId = "tab_id"
+            case focused
+            case cwd
+            case foregroundCwd = "foreground_cwd"
+            case agent
+            case agentStatus = "agent_status"
+            case terminalTitle = "terminal_title"
+            case terminalTitleStripped = "terminal_title_stripped"
+            case agentSession = "agent_session"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// herdr session.snapshot 的 Tab 版面(座標單位為終端機儲存格)。
+    public struct Layout: Codable, Sendable, Equatable {
+        public var workspaceId: String
+        public var tabId: String
+        public var zoomed: Bool
+        public var area: LayoutRect
+        public var focusedPaneId: String?
+        public var panes: [LayoutPane]
+        /// Tab 內的分割(由外而內,沒分割時為空陣列)。
+        public var splits: [LayoutSplit]
+
+        public init(workspaceId: String, tabId: String, zoomed: Bool, area: LayoutRect, focusedPaneId: String? = nil, panes: [LayoutPane], splits: [LayoutSplit]) {
+            self.workspaceId = workspaceId
+            self.tabId = tabId
+            self.zoomed = zoomed
+            self.area = area
+            self.focusedPaneId = focusedPaneId
+            self.panes = panes
+            self.splits = splits
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case workspaceId = "workspace_id"
+            case tabId = "tab_id"
+            case zoomed
+            case area
+            case focusedPaneId = "focused_pane_id"
+            case panes
+            case splits
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    public struct LayoutPane: Codable, Sendable, Equatable {
+        public var paneId: String
+        public var focused: Bool
+        public var rect: LayoutRect
+
+        public init(paneId: String, focused: Bool, rect: LayoutRect) {
+            self.paneId = paneId
+            self.focused = focused
+            self.rect = rect
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case paneId = "pane_id"
+            case focused
+            case rect
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Tab 版面裡的一個分割(herdr 原樣)。
+    public struct LayoutSplit: Codable, Sendable, Equatable {
+        /// 例如 split_0_root。
+        public var id: String
+        /// herdr 的分割方向:right(左右分)或 down(上下分)。
+        public var direction: String
+        /// 第一個子區塊佔分割區的比例(0 到 1)。
+        public var ratio: Double
+        public var rect: LayoutRect
+
+        public init(id: String, direction: String, ratio: Double, rect: LayoutRect) {
+            self.id = id
+            self.direction = direction
+            self.ratio = ratio
+            self.rect = rect
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case direction
+            case ratio
+            case rect
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    public struct LayoutRect: Codable, Sendable, Equatable {
+        public var x: Int
+        public var y: Int
+        public var width: Int
+        public var height: Int
+
+        public init(x: Int, y: Int, width: Int, height: Int) {
+            self.x = x
+            self.y = y
+            self.width = width
+            self.height = height
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case x
+            case y
+            case width
+            case height
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// herdr 的 Tab。
+    public struct Tab: Codable, Sendable, Equatable {
+        public var tabId: String
+        public var workspaceId: String
+        /// Tab 名稱,照 herdr 原樣。沒命名的 Tab herdr 會給順序號(例如 "1");herdr 完全沒給名稱時為空字串。
+        public var label: String
+
+        public init(tabId: String, workspaceId: String, label: String) {
+            self.tabId = tabId
+            self.workspaceId = workspaceId
+            self.label = label
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case tabId = "tab_id"
+            case workspaceId = "workspace_id"
+            case label
         }
     }
 }
@@ -1807,15 +2006,23 @@ extension HostServiceProtocol {
         public var requestId: String
         /// herdr 回報的送達方式(例如 written_to_pty);沒有時省略。
         public var delivery: String?
+        /// 送出確認(raychiutw/purrdr.host#107)。herdr 只回報 written_to_pty、請求帶了 wait(prompt 路徑)、Agent 不是 codex 時，主機服務照 SSH 的規則自己等:先等 Agent 進入 working／blocked 最多 3.5 秒;沒反應就重讀狀態，只有 idle／done 才補一個 Enter(blocked 永不補;帶了 expected_session 時 session 不符也不補),再等 2.5 秒。true = Agent 已開始工作或停下來問問題(已送達);false = 仍沒反應(文字可能還在終端機裡,app 不可自動重送)。沒有這個欄位 = 主機服務沒做這段確認(舊版主機服務、不是 written_to_pty、沒帶 wait、codex),app 照原本的規則處理。
+        public var submitConfirmed: Bool?
+        /// 主機服務補送了一個 Enter 時才出現(true);沒補時省略。
+        public var enterSent: Bool?
 
-        public init(requestId: String, delivery: String? = nil) {
+        public init(requestId: String, delivery: String? = nil, submitConfirmed: Bool? = nil, enterSent: Bool? = nil) {
             self.requestId = requestId
             self.delivery = delivery
+            self.submitConfirmed = submitConfirmed
+            self.enterSent = enterSent
         }
 
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
             case delivery
+            case submitConfirmed = "submit_confirmed"
+            case enterSent = "enter_sent"
         }
     }
 }
@@ -2784,6 +2991,77 @@ extension HostServiceProtocol {
             case path
             case directories
             case truncated
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Claude 的 slash 清單(raychiutw/purrdr.host#106):給 HTTPS 主機的 slash 選單,對應 app 的 SlashMenuSource(SSH 主機由 app 自己讀 ~/.claude)。主機服務只讀這台主機使用者家目錄的 .claude(不執行任何指令):使用者層的 skills 與 commands、已安裝且啟用的 plugin 的 skills 與 commands(依 plugin.json 宣告的路徑,沒宣告才用預設 skills/、commands/)。只取 frontmatter 的名稱、說明與參數提示,不回檔案內容。內建指令與專案層(cwd)不在這裡,由 app 處理。唯讀，唯讀裝置也可用。沒有家目錄或沒有 .claude 回空清單(不是錯誤)。
+    public struct SlashList: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Claude 的 slash 清單。commands 先使用者層、後 plugin(依 plugin 名稱),各組內依名稱排序;同名只留使用者層。最多 2000 筆,更多或掃描量達上限時 truncated 為 true。settings.json 的 enabledPlugins 為 false 的 plugin 不列指令,名稱放在 disabled_plugins(依名稱排序)。
+    public struct SlashListResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var commands: [SlashCommandEntry]
+        /// 已安裝但 enabledPlugins 設成 false 的 plugin 名稱(取自 installed_plugins.json 的 <名稱>@<marketplace>)。
+        public var disabledPlugins: [String]
+        public var truncated: Bool
+
+        public init(requestId: String, commands: [SlashCommandEntry], disabledPlugins: [String], truncated: Bool) {
+            self.requestId = requestId
+            self.commands = commands
+            self.disabledPlugins = disabledPlugins
+            self.truncated = truncated
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case commands
+            case disabledPlugins = "disabled_plugins"
+            case truncated
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 一個 slash 指令(不含開頭的 /)。skill 的名稱取 frontmatter 的 name(沒有時用資料夾名);指令的名稱是相對 commands 資料夾的路徑,/ 換成 :(db/migrate.md 是 db:migrate);plugin 的前面加 <plugin>:。frontmatter 的 user-invocable 為 false 的不列。
+    public struct SlashCommandEntry: Codable, Sendable, Equatable {
+        public var name: String
+        /// frontmatter 的 argument-hint;沒有時省略。
+        public var argumentHint: String?
+        /// frontmatter 的 description(最多 500 字元);沒有時為空字串。
+        public var summary: String
+        /// user:~/.claude/skills 或 commands;plugin:已啟用的 plugin。
+        public var source: String
+        /// source 是 plugin 時的 plugin 名稱(取自 plugin.json,沒有時取安裝名稱)。
+        public var plugin: String?
+
+        public init(name: String, argumentHint: String? = nil, summary: String, source: String, plugin: String? = nil) {
+            self.name = name
+            self.argumentHint = argumentHint
+            self.summary = summary
+            self.source = source
+            self.plugin = plugin
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case name
+            case argumentHint = "argument_hint"
+            case summary
+            case source
+            case plugin
         }
     }
 }
@@ -3881,7 +4159,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的(或其 session 資料夾 subagents/ 底下的 .jsonl);transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted／push.test 時這支裝置在這台主機沒有推播配對(push.test 另含後台回 404／410);codex_not_found:usage.codex 找不到 codex 執行檔;codex_not_signed_in:Codex 沒以 ChatGPT 登入(或用 API key);codex_failed:codex app-server 回報失敗、沒有回應或回應看不懂(message 是原因);claude_not_found:claude_usage.install 時 Claude Code 的設定資料夾(~/.claude)不存在;claude_settings_not_json:Claude 的 settings.json 不是合法的 JSON 物件，沒有改動檔案(0.12.0 起);host_write_failed:claude_usage.* 的檔案無法安全修改(安裝紀錄壞了、設定檔不是一般檔案或讀不到、讀取之後被改過;message 是原因);push_send_failed:push.test 連不上後台或後台回其他狀態碼(message 是後台的錯誤碼，例如 subscription_required、rate_limited、apns_failed;沒有錯誤碼時是 http <狀態碼> 或連線錯誤);device_unknown:devices.revoke 的 device_id 不是這台主機配對過的裝置;upload_too_large:上傳的總大小或分塊超過 x-maximum-file-size／x-maximum-file-chunk;host_service_not_installed:主機服務不是安裝好的那份，不能從 app 管理;update_in_progress:已有另一個更新在進行;update_failed:取不到最新版本、改不了設定或啟動不了更新程序(message 是原因);pane_changed:送出前比對 expected_session／expected_screen 不符，沒有送出;cwd_not_allowed:git.status／git.diff 的 cwd 不是 herdr 目前回報的 Agent 工作目錄;not_git_repository:cwd 不在 git repo 的工作目錄裡;queue_full:這個 pane 的 Send When Done 佇列已有 20 則;queue_item_unknown:queue.remove／queue.reorder 的 item_id 不在佇列裡;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
+    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的(或其 session 資料夾 subagents/ 底下的 .jsonl);transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted／push.test 時這支裝置在這台主機沒有推播配對(push.test 另含後台回 404／410);codex_not_found:usage.codex 找不到 codex 執行檔;codex_not_signed_in:Codex 沒以 ChatGPT 登入(或用 API key);codex_failed:codex app-server 回報失敗、沒有回應或回應看不懂(message 是原因);claude_not_found:claude_usage.install 時 Claude Code 的設定資料夾(~/.claude)不存在;claude_settings_not_json:Claude 的 settings.json 不是合法的 JSON 物件，沒有改動檔案(0.12.0 起);host_write_failed:claude_usage.* 的檔案無法安全修改(安裝紀錄壞了、設定檔不是一般檔案或讀不到、讀取之後被改過;message 是原因);push_send_failed:push.test 連不上後台或後台回其他狀態碼(message 是後台的錯誤碼，例如 subscription_required、rate_limited、apns_failed;沒有錯誤碼時是 http <狀態碼> 或連線錯誤);device_unknown:devices.revoke 的 device_id 不是這台主機配對過的裝置;upload_too_large:上傳的總大小或分塊超過 x-maximum-file-size／x-maximum-file-chunk;host_service_not_installed:主機服務不是安裝好的那份，不能從 app 管理;update_in_progress:已有另一個更新在進行;update_failed:取不到最新版本、改不了設定或啟動不了更新程序(message 是原因);pane_changed:送出前比對 expected_session／expected_screen 不符，沒有送出;cwd_not_allowed:git.status／git.diff 的 cwd 不是 herdr 目前回報的 Agent 工作目錄;not_git_repository:cwd 不在 git repo 的工作目錄裡;queue_full:這個 pane 的 Send When Done 佇列已有 20 則;queue_item_unknown:queue.remove／queue.reorder 的 item_id 不在佇列裡;transcript_too_large:transcript.window 沒給 max_bytes 時，往前讀到 16 MiB 仍湊不滿 lines 行(超大對話檔，#108;改給 max_bytes 取得上限內的部分，或減少 lines);其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
     public enum ErrorCode: String, Codable, Sendable, CaseIterable {
         case invalidMessage = "invalid_message"
         case handshakeRequired = "handshake_required"
@@ -3900,6 +4178,7 @@ extension HostServiceProtocol {
         case transcriptUnreadable = "transcript_unreadable"
         case transcriptAmbiguous = "transcript_ambiguous"
         case transcriptCompressed = "transcript_compressed"
+        case transcriptTooLarge = "transcript_too_large"
         case fileChanged = "file_changed"
         case pushPluginFailed = "push_plugin_failed"
         case pushNotPaired = "push_not_paired"

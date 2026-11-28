@@ -48,6 +48,8 @@ public enum TranscriptReadError: Error, Equatable {
     case ambiguous
     /// 只找到壓縮過的檔案(Codex 會壓縮 7 天未動的 rollout,§4.2):目前讀不了，但不是不存在。
     case compressed
+    /// 對話紀錄超過主機服務的讀取上限(16 MiB),讀不滿行數:不是不存在,手機上也讀不了。
+    case tooLarge
     /// 檔案的 header 與回報的 session 不符(Pi／OMP,§4.5)。下次重新定位。
     case mismatch
     /// 讀取中檔案變了或回應格式不對：重試。

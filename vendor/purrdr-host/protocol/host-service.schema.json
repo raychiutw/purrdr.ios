@@ -51,6 +51,7 @@
         { "$ref": "#/$defs/FileStat" },
         { "$ref": "#/$defs/FileRead" },
         { "$ref": "#/$defs/DirectoryList" },
+        { "$ref": "#/$defs/SlashList" },
         { "$ref": "#/$defs/PushStatus" },
         { "$ref": "#/$defs/PushInstall" },
         { "$ref": "#/$defs/PushRemove" },
@@ -113,6 +114,7 @@
         { "$ref": "#/$defs/PaneTerminalClosed" },
         { "$ref": "#/$defs/FileStatResult" },
         { "$ref": "#/$defs/DirectoryListResult" },
+        { "$ref": "#/$defs/SlashListResult" },
         { "$ref": "#/$defs/FileReadResult" },
         { "$ref": "#/$defs/PushStatusResult" },
         { "$ref": "#/$defs/PushInstallResult" },
@@ -201,15 +203,106 @@
       "required": ["type", "request_id"]
     },
     "AgentsListResult": {
-      "description": "Agent 列表與它們所在的 workspace。",
+      "description": "Agent 列表與它們所在的 workspace、Tab(0.17.0 起帶 tabs)。",
       "type": "object",
       "properties": {
         "type": { "const": "agents.list.result" },
         "request_id": { "type": "string" },
         "workspaces": { "type": "array", "items": { "$ref": "#/$defs/Workspace" } },
+        "tabs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Tab" },
+          "description": "herdr session.snapshot 的每個 Tab(順序同 herdr)。tab.rename 之後下一次 agents.list 反映新名稱;要即時得知可訂閱 herdr 的 tab.renamed、tab.created、tab.closed 事件(events.subscribe),收到後重讀 agents.list。舊版主機服務沒有這個欄位;snapshot 沒有 tabs 時為空陣列。"
+        },
+        "panes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Pane" },
+          "description": "herdr session.snapshot 的每個 Pane(含沒有 Agent 的純終端機 Pane,順序同 herdr)。舊版主機服務沒有這個欄位;snapshot 沒有 panes 時為空陣列。"
+        },
+        "layouts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Layout" },
+          "description": "herdr session.snapshot 的每個 Tab 的版面(Pane 排列與分割,順序同 herdr)。舊版主機服務沒有這個欄位;snapshot 沒有 layouts 時為空陣列。"
+        },
         "agents": { "type": "array", "items": { "$ref": "#/$defs/Agent" } }
       },
       "required": ["type", "request_id", "workspaces", "agents"]
+    },
+    "Pane": {
+      "description": "herdr session.snapshot 的 Pane(欄位名照 herdr 原樣)。純終端機 Pane 沒有 agent 與 agent_session,agent_status 為 unknown。",
+      "type": "object",
+      "properties": {
+        "pane_id": { "type": "string" },
+        "terminal_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "tab_id": { "type": "string" },
+        "focused": { "type": "boolean" },
+        "cwd": { "type": "string" },
+        "foreground_cwd": { "type": "string" },
+        "agent": { "type": "string", "description": "herdr 的 agent 名稱，例如 claude、codex;純終端機 Pane 省略。" },
+        "agent_status": { "$ref": "#/$defs/AgentStatus" },
+        "terminal_title": { "type": "string", "description": "終端機標題原文(含狀態符號)。" },
+        "terminal_title_stripped": { "type": "string", "description": "去掉狀態符號的終端機標題。" },
+        "agent_session": { "$ref": "#/$defs/AgentSession" }
+      },
+      "required": ["pane_id", "workspace_id", "tab_id", "focused", "agent_status"]
+    },
+    "Layout": {
+      "description": "herdr session.snapshot 的 Tab 版面(座標單位為終端機儲存格)。",
+      "type": "object",
+      "properties": {
+        "workspace_id": { "type": "string" },
+        "tab_id": { "type": "string" },
+        "zoomed": { "type": "boolean" },
+        "area": { "$ref": "#/$defs/LayoutRect" },
+        "focused_pane_id": { "type": "string" },
+        "panes": { "type": "array", "items": { "$ref": "#/$defs/LayoutPane" } },
+        "splits": { "type": "array", "items": { "$ref": "#/$defs/LayoutSplit" }, "description": "Tab 內的分割(由外而內,沒分割時為空陣列)。" }
+      },
+      "required": ["workspace_id", "tab_id", "zoomed", "area", "panes", "splits"]
+    },
+    "LayoutPane": {
+      "type": "object",
+      "properties": {
+        "pane_id": { "type": "string" },
+        "focused": { "type": "boolean" },
+        "rect": { "$ref": "#/$defs/LayoutRect" }
+      },
+      "required": ["pane_id", "focused", "rect"]
+    },
+    "LayoutSplit": {
+      "description": "Tab 版面裡的一個分割(herdr 原樣)。",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "例如 split_0_root。" },
+        "direction": { "type": "string", "description": "herdr 的分割方向:right(左右分)或 down(上下分)。" },
+        "ratio": { "type": "number", "description": "第一個子區塊佔分割區的比例(0 到 1)。" },
+        "rect": { "$ref": "#/$defs/LayoutRect" }
+      },
+      "required": ["id", "direction", "ratio", "rect"]
+    },
+    "LayoutRect": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "integer" },
+        "y": { "type": "integer" },
+        "width": { "type": "integer" },
+        "height": { "type": "integer" }
+      },
+      "required": ["x", "y", "width", "height"]
+    },
+    "Tab": {
+      "description": "herdr 的 Tab。",
+      "type": "object",
+      "properties": {
+        "tab_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "label": {
+          "type": "string",
+          "description": "Tab 名稱,照 herdr 原樣。沒命名的 Tab herdr 會給順序號(例如 \"1\");herdr 完全沒給名稱時為空字串。"
+        }
+      },
+      "required": ["tab_id", "workspace_id", "label"]
     },
     "Workspace": {
       "type": "object",
@@ -724,7 +817,9 @@
       "properties": {
         "type": { "const": "agent.prompt.result" },
         "request_id": { "type": "string" },
-        "delivery": { "type": "string", "description": "herdr 回報的送達方式(例如 written_to_pty);沒有時省略。" }
+        "delivery": { "type": "string", "description": "herdr 回報的送達方式(例如 written_to_pty);沒有時省略。" },
+        "submit_confirmed": { "type": "boolean", "description": "送出確認(raychiutw/purrdr.host#107)。herdr 只回報 written_to_pty、請求帶了 wait(prompt 路徑)、Agent 不是 codex 時，主機服務照 SSH 的規則自己等:先等 Agent 進入 working／blocked 最多 3.5 秒;沒反應就重讀狀態，只有 idle／done 才補一個 Enter(blocked 永不補;帶了 expected_session 時 session 不符也不補),再等 2.5 秒。true = Agent 已開始工作或停下來問問題(已送達);false = 仍沒反應(文字可能還在終端機裡,app 不可自動重送)。沒有這個欄位 = 主機服務沒做這段確認(舊版主機服務、不是 written_to_pty、沒帶 wait、codex),app 照原本的規則處理。" },
+        "enter_sent": { "type": "boolean", "description": "主機服務補送了一個 Enter 時才出現(true);沒補時省略。" }
       },
       "required": ["type", "request_id"]
     },
@@ -1252,6 +1347,39 @@
         "truncated": { "type": "boolean", "description": "子資料夾多於上限，directories 只含排序後的前面一段。" }
       },
       "required": ["type", "request_id", "path", "directories", "truncated"]
+    },
+    "SlashList": {
+      "description": "Claude 的 slash 清單(raychiutw/purrdr.host#106):給 HTTPS 主機的 slash 選單,對應 app 的 SlashMenuSource(SSH 主機由 app 自己讀 ~/.claude)。主機服務只讀這台主機使用者家目錄的 .claude(不執行任何指令):使用者層的 skills 與 commands、已安裝且啟用的 plugin 的 skills 與 commands(依 plugin.json 宣告的路徑,沒宣告才用預設 skills/、commands/)。只取 frontmatter 的名稱、說明與參數提示,不回檔案內容。內建指令與專案層(cwd)不在這裡,由 app 處理。唯讀，唯讀裝置也可用。沒有家目錄或沒有 .claude 回空清單(不是錯誤)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "slash.list" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "SlashListResult": {
+      "description": "Claude 的 slash 清單。commands 先使用者層、後 plugin(依 plugin 名稱),各組內依名稱排序;同名只留使用者層。最多 2000 筆,更多或掃描量達上限時 truncated 為 true。settings.json 的 enabledPlugins 為 false 的 plugin 不列指令,名稱放在 disabled_plugins(依名稱排序)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "slash.list.result" },
+        "request_id": { "type": "string" },
+        "commands": { "type": "array", "items": { "$ref": "#/$defs/SlashCommandEntry" } },
+        "disabled_plugins": { "type": "array", "items": { "type": "string" }, "description": "已安裝但 enabledPlugins 設成 false 的 plugin 名稱(取自 installed_plugins.json 的 <名稱>@<marketplace>)。" },
+        "truncated": { "type": "boolean" }
+      },
+      "required": ["type", "request_id", "commands", "disabled_plugins", "truncated"]
+    },
+    "SlashCommandEntry": {
+      "description": "一個 slash 指令(不含開頭的 /)。skill 的名稱取 frontmatter 的 name(沒有時用資料夾名);指令的名稱是相對 commands 資料夾的路徑,/ 換成 :(db/migrate.md 是 db:migrate);plugin 的前面加 <plugin>:。frontmatter 的 user-invocable 為 false 的不列。",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "argument_hint": { "type": "string", "description": "frontmatter 的 argument-hint;沒有時省略。" },
+        "summary": { "type": "string", "description": "frontmatter 的 description(最多 500 字元);沒有時為空字串。" },
+        "source": { "type": "string", "enum": ["user", "plugin"], "description": "user:~/.claude/skills 或 commands;plugin:已啟用的 plugin。" },
+        "plugin": { "type": "string", "description": "source 是 plugin 時的 plugin 名稱(取自 plugin.json,沒有時取安裝名稱)。" }
+      },
+      "required": ["name", "summary", "source"]
     },
     "FileStat": {
       "description": "主機取檔(raychiutw/purrdr.ios#227):查檔案狀態。只允許 herdr snapshot 目前回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑;主機服務解析 symlink 後再比對工作目錄與排除清單(x-excluded-file-locations)。唯讀，唯讀裝置也可用。",
@@ -1804,7 +1932,7 @@
       "required": ["type", "code", "message"]
     },
     "ErrorCode": {
-      "description": "錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的(或其 session 資料夾 subagents/ 底下的 .jsonl);transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted／push.test 時這支裝置在這台主機沒有推播配對(push.test 另含後台回 404／410);codex_not_found:usage.codex 找不到 codex 執行檔;codex_not_signed_in:Codex 沒以 ChatGPT 登入(或用 API key);codex_failed:codex app-server 回報失敗、沒有回應或回應看不懂(message 是原因);claude_not_found:claude_usage.install 時 Claude Code 的設定資料夾(~/.claude)不存在;claude_settings_not_json:Claude 的 settings.json 不是合法的 JSON 物件，沒有改動檔案(0.12.0 起);host_write_failed:claude_usage.* 的檔案無法安全修改(安裝紀錄壞了、設定檔不是一般檔案或讀不到、讀取之後被改過;message 是原因);push_send_failed:push.test 連不上後台或後台回其他狀態碼(message 是後台的錯誤碼，例如 subscription_required、rate_limited、apns_failed;沒有錯誤碼時是 http <狀態碼> 或連線錯誤);device_unknown:devices.revoke 的 device_id 不是這台主機配對過的裝置;upload_too_large:上傳的總大小或分塊超過 x-maximum-file-size／x-maximum-file-chunk;host_service_not_installed:主機服務不是安裝好的那份，不能從 app 管理;update_in_progress:已有另一個更新在進行;update_failed:取不到最新版本、改不了設定或啟動不了更新程序(message 是原因);pane_changed:送出前比對 expected_session／expected_screen 不符，沒有送出;cwd_not_allowed:git.status／git.diff 的 cwd 不是 herdr 目前回報的 Agent 工作目錄;not_git_repository:cwd 不在 git repo 的工作目錄裡;queue_full:這個 pane 的 Send When Done 佇列已有 20 則;queue_item_unknown:queue.remove／queue.reorder 的 item_id 不在佇列裡;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。",
+      "description": "錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的(或其 session 資料夾 subagents/ 底下的 .jsonl);transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted／push.test 時這支裝置在這台主機沒有推播配對(push.test 另含後台回 404／410);codex_not_found:usage.codex 找不到 codex 執行檔;codex_not_signed_in:Codex 沒以 ChatGPT 登入(或用 API key);codex_failed:codex app-server 回報失敗、沒有回應或回應看不懂(message 是原因);claude_not_found:claude_usage.install 時 Claude Code 的設定資料夾(~/.claude)不存在;claude_settings_not_json:Claude 的 settings.json 不是合法的 JSON 物件，沒有改動檔案(0.12.0 起);host_write_failed:claude_usage.* 的檔案無法安全修改(安裝紀錄壞了、設定檔不是一般檔案或讀不到、讀取之後被改過;message 是原因);push_send_failed:push.test 連不上後台或後台回其他狀態碼(message 是後台的錯誤碼，例如 subscription_required、rate_limited、apns_failed;沒有錯誤碼時是 http <狀態碼> 或連線錯誤);device_unknown:devices.revoke 的 device_id 不是這台主機配對過的裝置;upload_too_large:上傳的總大小或分塊超過 x-maximum-file-size／x-maximum-file-chunk;host_service_not_installed:主機服務不是安裝好的那份，不能從 app 管理;update_in_progress:已有另一個更新在進行;update_failed:取不到最新版本、改不了設定或啟動不了更新程序(message 是原因);pane_changed:送出前比對 expected_session／expected_screen 不符，沒有送出;cwd_not_allowed:git.status／git.diff 的 cwd 不是 herdr 目前回報的 Agent 工作目錄;not_git_repository:cwd 不在 git repo 的工作目錄裡;queue_full:這個 pane 的 Send When Done 佇列已有 20 則;queue_item_unknown:queue.remove／queue.reorder 的 item_id 不在佇列裡;transcript_too_large:transcript.window 沒給 max_bytes 時，往前讀到 16 MiB 仍湊不滿 lines 行(超大對話檔，#108;改給 max_bytes 取得上限內的部分，或減少 lines);其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。",
       "type": "string",
       "enum": [
         "invalid_message",
@@ -1824,6 +1952,7 @@
         "transcript_unreadable",
         "transcript_ambiguous",
         "transcript_compressed",
+        "transcript_too_large",
         "file_changed",
         "push_plugin_failed",
         "push_not_paired",
