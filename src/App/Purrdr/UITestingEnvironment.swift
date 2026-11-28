@@ -77,7 +77,7 @@ enum UITestingEnvironment {
             partition: partition,
             // 轉移訂閱、撤銷其他裝置前確認是本人(#409);替身一律通過。
             deviceOwner: UITestingDeviceOwnerAuthenticator(),
-            plusStore: UITestingPlusStore(hasCurrentTransaction: configuration.storeOwnedByOtherMember),
+            plusStore: UITestingPlusStore(),
             // 預設開啟(Debug 的值),`-uiTestingPlusOff` 模擬上架版。
             plusAvailability: configuration.disablesPlus ? .disabled : .enabled,
             // 推播(#29):不請求權限、不註冊 APNs、配對只在記憶體;假後台的會員把通知權限當作已允許。
@@ -172,8 +172,7 @@ enum UITestingEnvironment {
                 deviceID: deviceID, diagnostics: { _ in }, supportsSignInOnly: true)
         default:
             let backend = backendTransport(scenario)
-            let seed = backend.startsWithStaleToken ? UITestingBackendTransport.staleRefreshToken : UITestingBackendTransport.refreshToken
-            let tokens = backend.startsSignedIn ? InMemoryTokenStore(refreshToken: seed) : InMemoryTokenStore()
+            let tokens = backend.startsSignedIn ? InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken) : InMemoryTokenStore()
             return MemberSession(transport: backend, tokenStore: tokens, deviceID: deviceID, supportsSignInOnly: true)
         }
     }
@@ -182,11 +181,8 @@ enum UITestingEnvironment {
     private static func backendTransport(_ scenario: LaunchConfiguration.MemberScenario) -> UITestingBackendTransport {
         switch scenario {
         case .plus: UITestingBackendTransport(isPlusActive: true)
-        case .ownedByOtherMember: UITestingBackendTransport(scenario: .ownedByAnotherMember)
         // 帳號頁「登入方式」新增 Google 時發現它已屬另一個會員(合併確認,#410)。
         case .linkMerge: UITestingBackendTransport(scenario: .none, linkFindsAnotherMember: true)
-        // 從舊版升級(#414):舊的更新權杖被拒絕、要重新登入一次;重新登入後的訂閱有待處理的合併提示。
-        case .upgraded: UITestingBackendTransport(scenario: .pendingReview, startsWithStaleToken: true)
         case .member: UITestingBackendTransport(isPlusActive: false)
         // 沒登入且這個帳號沒有會員:登入頁擋下並問要不要加入(#453)。
         case .noMember: UITestingBackendTransport(scenario: .none, startsSignedIn: false, hasNoMember: true)

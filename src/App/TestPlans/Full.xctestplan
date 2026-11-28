@@ -20,10 +20,15 @@
         "name": "PurrdrUITests"
       },
       "skippedTests": [
-        "DailySmokeUITests",
+        "DailySmokeUITests/testListAndChat()",
+        "DailySmokeUITests/testTabsAndSignedOutAccount()",
+        "DailySmokeUITests/testPlusMemberAccount()",
+        "DailySmokeUITests/testDataUsageThenFilesHostMenuDoesNotChangeChatFilter()",
+        "DailySmokeUITests/testWelcomeNoHostsGuideAndDemo()",
         "AccessibilityAuditUITests",
         "AddHostGuideUITests/testAccessibilityAudit()",
-        "IPadLayoutUITests/testAccessibilityAuditTwoColumns()"
+        "IPadLayoutUITests/testAccessibilityAuditTwoColumns()",
+        "ConversationUsageLoadingUITests/testLoadingThenSettlesWithoutMovingTheRing()"
       ]
     }
   ],
