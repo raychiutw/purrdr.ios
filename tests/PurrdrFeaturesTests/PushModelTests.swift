@@ -1061,6 +1061,33 @@ struct PushRouteTests {
         #expect(destination == nil)
     }
 
+    @Test("每日上限通知的 payload:根層 pairing 與 event=daily_limit_reached,沒有 category、pane")
+    func parsesDailyLimitNotification() {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title-loc-key": "Daily notification limit reached",
+                              "loc-key": "You've reached today's limit of %@ notifications. They'll resume at 00:00 UTC.", "loc-args": ["100"]]],
+            "pairing": "abc", "event": "daily_limit_reached",
+        ]
+
+        #expect(PushRoute(userInfo: userInfo) == PushRoute(keyHash: "abc", paneID: nil, event: "daily_limit_reached"))
+    }
+
+    @Test("點每日上限通知:開帳號頁的通知區塊,不開主機編輯頁(配對已不認得也一樣,上限是會員層級)")
+    func dailyLimitOpensAccountNotifications() {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+
+        let known = model.open(PushRoute(keyHash: "abc", paneID: nil, event: "daily_limit_reached"), pairings: pairings)
+        let unknown = model.open(PushRoute(keyHash: "nope", paneID: nil, event: "daily_limit_reached"), pairings: InMemoryPushPairingStore())
+
+        #expect(known == .accountNotifications)
+        #expect(unknown == .accountNotifications)
+    }
+
     @Test("測試通知的 payload:根層 pairing 與 event=test,沒有 pane")
     func parsesTestNotification() {
         let userInfo: [AnyHashable: Any] = [

@@ -4447,6 +4447,18 @@
         }
       }
     },
+    "Daily notification limit reached" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已達今日通知上限"
+          }
+        }
+      },
+      "comment" : "每日通知上限通知標題(後台 APNs payload 的 title-loc-key)"
+    },
     "Dark" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16373,6 +16385,18 @@
           }
         }
       }
+    },
+    "You've reached today's limit of %@ notifications. They'll resume at 00:00 UTC." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你今天已收到 %@ 則通知的上限。台灣時間早上 8:00(UTC 0:00)起恢復。"
+          }
+        }
+      },
+      "comment" : "每日通知上限通知內文(後台 APNs payload 的 loc-key,%@ 是上限數字;後台以 UTC 0:00 歸零)"
     },
     "You: %@" : {
       "extractionState" : "manual",

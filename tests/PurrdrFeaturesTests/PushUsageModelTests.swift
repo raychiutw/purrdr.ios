@@ -34,7 +34,7 @@ struct PushUsageModelTests {
 
     @Test("讀到用量後顯示已送與上限")
     func loadsUsage() async throws {
-        backend.on("GET", "/v1/members/me/push-usage", .json(200, #"{"usage":{"limit":100,"sent":23,"resetsAt":"2026-11-28T00:00:00.000Z"}}"#))
+        backend.on("GET", "/v1/members/me", .json(200, #"{"member":{"id":"member-1","identities":[],"pushUsage":{"limit":100,"sent":23,"resetsAt":"2026-11-28T00:00:00.000Z"}}}"#))
         let model = model()
         await model.load()
         let usage = try #require(model.usage)
@@ -44,7 +44,7 @@ struct PushUsageModelTests {
 
     @Test("讀不到時不顯示(沒有用量),也不丟錯")
     func failureShowsNothing() async {
-        backend.on("GET", "/v1/members/me/push-usage", .json(500, #"{"error":{"code":"server_error","message":"x"}}"#))
+        backend.on("GET", "/v1/members/me", .json(500, #"{"error":{"code":"server_error","message":"x"}}"#))
         let model = model()
         await model.load()
         #expect(model.usage == nil)

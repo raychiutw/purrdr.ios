@@ -231,7 +231,7 @@ public final class TopNavigationModel {
     }
 
     /// 點了通知(#668):收起 sheet;聊天類通知(已開出聊天)一律切回聊天 tab,不論目前在哪個 tab;
-    /// 主機服務通知開那台主機的編輯頁;測試通知(`nil`)只收起 sheet、不換 tab。
+    /// 主機服務通知開那台主機的編輯頁;每日上限通知開帳號頁(不換 tab);測試通知(`nil`)只收起 sheet、不換 tab。
     public func openPushDestination(_ destination: PushDestination?) {
         sheet = nil
         switch destination {
@@ -239,6 +239,7 @@ public final class TopNavigationModel {
             tab = .chats
             openChat(route)
         case .hostEditor(let id): openHostEditor(id)
+        case .accountNotifications: sheet = .member
         case nil: break
         }
     }

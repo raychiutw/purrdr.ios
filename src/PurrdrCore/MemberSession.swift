@@ -226,9 +226,12 @@ public actor MemberSession {
     // MARK: - 今日推播用量(#677)
 
     /// 今日推播上限、已送則數與下次歸零時間(需要會員登入,不需要訂閱)。
-    public func pushUsage() async throws -> PushDailyUsage {
-        let response = try await authorized(BackendRequest(method: "GET", path: "/v1/members/me/push-usage"))
-        return try Wire.decode(Wire.PushUsageEnvelope.self, from: response).usage.domain()
+    /// 後台把它併在會員快照(`GET /v1/members/me` 的 `member.pushUsage`,purrdr.server#37),沒有另開 API;舊後台沒有這個欄位時回 `nil`。
+    public func pushUsage() async throws -> PushDailyUsage? {
+        let response = try await authorized(BackendRequest(method: "GET", path: "/v1/members/me"))
+        let body = try Wire.decode(Wire.MemberEnvelope.self, from: response).member
+        remember(body)
+        return try body.pushUsage?.domain()
     }
 
     // MARK: - 登入中的裝置(#409)
@@ -433,6 +436,8 @@ private enum Wire {
     struct MemberBody: Codable {
         var id: String
         var identities: [Identity]
+        /// 今日推播用量(後台 purrdr.server#37 起;舊後台沒有)。
+        var pushUsage: PushUsageBody?
 
         struct Identity: Codable {
             var provider: String
@@ -633,11 +638,7 @@ private enum Wire {
         }
     }
 
-    struct PushUsageEnvelope: Decodable {
-        var usage: PushUsageBody
-    }
-
-    struct PushUsageBody: Decodable {
+    struct PushUsageBody: Codable {
         var limit: Int
         var sent: Int
         /// ISO 8601(UTC)。
