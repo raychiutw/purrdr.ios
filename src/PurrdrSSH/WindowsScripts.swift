@@ -65,26 +65,29 @@ enum WindowsScripts {
     }
 
     /// Claude Code:預期路徑不在時，在所有專案資料夾找同名檔(worktree)。參數:session id、資料夾名。
-    static let claudeLocate = #"""
-        PRunBlock {
+    static let claudeLocate = "PRunBlock {\n" + claudeLocateBody + "\n}"
+
+    /// `claudeLocate` 的本體(設好 `$f`、`$z`;`open` 共用)。
+    static let claudeLocateBody = #"""
         $c=Join-Path (PHome $env:CLAUDE_CONFIG_DIR '.claude') 'projects'
         $f=PClaude $a[0] $a[1]
         if(-not [IO.File]::Exists($f) -and [IO.Directory]::Exists($c)){$g=@(PList $c -Dir|%{Join-Path $_.FullName "$($a[0]).jsonl"}|?{[IO.File]::Exists($_)});if($g.Count -gt 0){$f=$g[0]}}
         PWrite "$f`n"
         $z=PProbe $f
         PWrite "$z`n"
-        }
         """#
 
     /// 其他 agent:印路徑與大小;`header` 時再印檔案前兩行(原樣)。參數:session id 或路徑。
     static func locate(type: String, header: Bool) -> String {
+        "PRunBlock {\n" + locateBody(type: type, header: header) + "\n}"
+    }
+
+    static func locateBody(type: String, header: Bool) -> String {
         """
-        PRunBlock {
         $f=PFind \(PowerShell.quote(type)) $a[0] ''
         $z=PProbe $f
         PWrite "$f`n$z`n"
         \(header ? "$x=PHead2 $f;$o.Write($x,0,$x.Length)" : "")
-        }
         """
     }
 
@@ -93,6 +96,10 @@ enum WindowsScripts {
         PRunBlock {
         $f=$a[0];$e=[long]$a[1];$n=[int]$a[2];$c=[long]$a[3];$g=$false
         if($a.Count -gt 4 -and [long]$a[4] -gt 0){$c=[long]$a[4];$g=$true}
+        """# + "\n" + windowBody + "\n}"
+
+    /// 視窗本體:`$f` 檔案、`$e` 終點、`$n` 行數、`$c` 區塊大小、`$g` 為真時不放大區塊都設好之後(`window` 與 `open` 共用)。
+    static let windowBody = #"""
         try{$h=POpen $f}catch{PFail 5}
         while($true){
         $s=[Math]::Max([long]0,$e-$c);$st=New-Object Collections.Generic.List[long];$z=[long]0
@@ -104,7 +111,21 @@ enum WindowsScripts {
         PWrite "$x $y`n"
         if($y -gt $x){$b=PRead $h $x ($y-$x);PLines $b 0 $b.Length}
         $h.Close()
-        }
+        """#
+
+    /// 點進聊天(#660,輸出同 `TranscriptCommand.openScript`):定位(路徑、大小、要檢查 header 時再接檔案前兩行)、一行 `openMarker`、
+    /// 視窗輸出(「起點 終點」與每行)。視窗終點是定位時量到的大小;maxBytes 大於 0 時只取終點往前那麼多 bytes 內完整的行(不放大區塊)。
+    /// 參數:session id 或路徑、Claude 的資料夾名(沒有給空字串)、行數、maxBytes。exit code 同 POSIX(3、4、5、6、7)。
+    static func open(_ locator: TranscriptLocator) -> String {
+        let locate = locator.usesProjectFolder ? claudeLocateBody : locateBody(type: locator.lookupName, header: locator.readsHeader)
+        return "PRunBlock {\n" + locate + "\n" + openWindowSetup + "\n" + windowBody + "\n}"
+    }
+
+    /// 定位之後、視窗之前:印分隔行(內容同 `TranscriptCommand.openMarker`,`WindowsHostScriptsTests` 守門),視窗終點取定位量到的大小。
+    static let openWindowSetup = #"""
+        PWrite "purrdr-window`n"
+        $e=$z;$n=[int]$a[2];$c=[long]$a[3];$g=$true
+        if($c -le 0){$c=4194304;$g=$false}
         """#
 
     /// 追蹤：印目前大小;比游標大且落差 ≤ 上限時，再印游標之後完整的行。參數：路徑、游標、上限。

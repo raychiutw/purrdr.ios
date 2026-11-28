@@ -188,6 +188,7 @@ enum WindowsCommand {
             let windows = locator.usesProjectFolder
                 ? WindowsScripts.claudeLocate : WindowsScripts.locate(type: locator.lookupName, header: locator.readsHeader)
             scripts.append((TranscriptCommand.locateScript(locator), windows))
+            scripts.append((TranscriptCommand.openScript(locator), WindowsScripts.open(locator)))
         }
         return scripts
     }()

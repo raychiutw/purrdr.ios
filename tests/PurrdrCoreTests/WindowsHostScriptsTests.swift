@@ -82,6 +82,40 @@ struct WindowsHostScriptsTests {
         await session?.close()
     }
 
+    /// #660:點進聊天的合併指令在 Windows 有 PowerShell 版,輸出與 POSIX 相同、由同一個解析器吃。
+    @Test("點進聊天:Windows 經 stdin 送合併的 PowerShell 腳本(不再 unsupported),輸出與 POSIX 同格式、同一個解析器吃")
+    func openTranscriptOverStdin() async throws {
+        let host = FakeHost()
+        let output = "C:\\Users\\demo\\.claude\\projects\\C--work\\abc.jsonl\n303\n\(TranscriptCommand.openMarker)\n43 303\n"
+            + "237\t{\"type\":\"assistant\",\"n\":2,\"image\":\"\"}\n21\t{\"type\":\"user\",\"n\":3}\n"
+        await host.expect(Self.stub, reply: FakeReply(stdout: Data(output.utf8)))
+        let location = TranscriptLocation(locator: .claude, reference: .id("abc"), cwd: #"C:\work"#)
+
+        let opening = try await SSHHostConnection(channel: WindowsHostChannel(host)).openTranscript(location, lines: 300, maxBytes: 512 << 10)
+
+        #expect(opening.file == TranscriptFile(path: Self.path, size: 303))
+        #expect(opening.chunk == TranscriptChunk(start: 43, end: 303, lines: [#"{"type":"assistant","n":2,"image":""}"#, #"{"type":"user","n":3}"#]))
+        #expect(await host.executions.count == 1)
+        let stdin = try #require(await host.executions.first?.stdinText)
+        #expect(stdin.contains("\n$a=@('abc','C--work','300','524288')\n"))
+        #expect(stdin.contains("PWrite \"\(TranscriptCommand.openMarker)`n\""), "定位與視窗之間印同樣的分隔行")
+        #expect(stdin.contains("PRunBlock {"), "錯誤統一由 PRunBlock 轉成同 POSIX 的 exit code")
+        #expect(stdin.contains("function PStrip"), "圖片 base64 在主機上剝掉")
+        #expect(stdin.hasSuffix("\n#purrdr-end-of-script\n"))
+        #expect(!stdin.contains("awk"), "POSIX 腳本不能送到 Windows")
+    }
+
+    @Test("點進聊天:Windows 的 exit 3 照樣是 absent")
+    func openTranscriptAbsent() async {
+        let host = FakeHost()
+        await host.expect(Self.stub, reply: FakeReply(exitCode: 3))
+        let location = TranscriptLocation(locator: .claude, reference: .id("abc"), cwd: #"C:\work"#)
+
+        await #expect(throws: TranscriptReadError.absent) {
+            _ = try await SSHHostConnection(channel: WindowsHostChannel(host)).openTranscript(location, lines: 300, maxBytes: 0)
+        }
+    }
+
     @Test("Claude 的定位：exit 3(還沒有檔案)照樣是 absent")
     func claudeLocateAbsent() async {
         let host = FakeHost()
