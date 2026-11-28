@@ -34,7 +34,12 @@ public struct WindowsHostChannel: HostChannel {
     }
 
     public func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
-        guard let command = request.command else { return try await base.openPTY(request) }
+        guard let command = request.command else {
+            // 登入 Shell:不依賴 OpenSSH 的 DefaultShell(預設 cmd),明確開 PowerShell(#732)。
+            var login = request
+            login.command = WindowsCommand.loginShell
+            return try await base.openPTY(login)
+        }
         let invocation = try WindowsCommand.translate(command)
         guard invocation.stdinScript == nil else { throw WindowsCommandError.unsupported(command) }
         var translated = request
@@ -91,6 +96,16 @@ struct WindowsInvocation: Equatable {
 enum WindowsCommand {
     /// cmd 的命令列上限(OpenSSH 預設 shell 是 cmd 時)。
     static let commandLimit = 8_191
+
+    /// 登入 Shell 的指令(#732):互動的 `powershell.exe -NoLogo -NoExit`,啟動時先把主控台輸入輸出設成 UTF-8
+    /// (Windows PowerShell 5.1 預設 OEM code page,繁中是 CP950,中文會亂碼)。
+    /// 設定經 `-EncodedCommand`(純 base64),cmd、PowerShell、Git Bash 三種 DefaultShell 都不必處理引號與 `$`。
+    /// 不加 `-NoProfile`:使用者的 profile 照常載入。
+    static let loginShell: String = {
+        let script = "$u=New-Object Text.UTF8Encoding $false;[Console]::InputEncoding=$u;[Console]::OutputEncoding=$u;$OutputEncoding=$u"
+        let encoded = PowerShell.encodedCommand(script)
+        return "powershell.exe -NoLogo -NoExit -EncodedCommand " + String(encoded.split(separator: " ").last!)
+    }()
 
     static func translate(_ command: String) throws -> WindowsInvocation {
         // 喚醒探測只看通道活不活，exit code 不重要:不必付 PowerShell 的啟動成本(0.6–2.5 s,§7.5 的期限是 3 秒)。
