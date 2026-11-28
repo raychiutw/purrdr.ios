@@ -8,7 +8,7 @@ import Testing
 
 /// 主機取檔的 POSIX 腳本(#225)以真的 `/bin/sh` 跑(`LocalShellHost`,經 `SSHHostFileFetcher` 的長駐通道):
 /// 分塊與 base64、版本、缺檔、上限，以及主機端的存取規則(解析 symlink 後比對工作目錄、排除清單)。
-@Suite("主機取檔腳本(實跑)", .serialized)
+@Suite("主機取檔腳本(實跑)")
 struct HostFileFetchScriptTests {
     /// 含換行、NUL、`end` 行與非 ASCII 的 bytes:base64 分塊後要完整還原。
     static let binary = Data([0x89, 0x50, 0x4E, 0x47, 0x00, 0x0A]) + Data("end\n中文\n".utf8) + Data((0..<2_500).map { UInt8($0 % 251) })
