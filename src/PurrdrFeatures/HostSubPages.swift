@@ -45,7 +45,10 @@ struct HostNotificationsPage: View {
         .hostPushConfirmation(push.map { [$0] } ?? [])
         .task {
             // 只查已開啟的主機:未開啟的不為了顯示裝置數另開連線。
-            if let push, push.support == .supported, push.model.state == .on { await push.model.refreshStatus() }
+            if let push, push.support == .supported, push.model.state == .on {
+                await push.model.refreshKindSettings()
+                await push.model.refreshStatus()
+            }
         }
     }
 
@@ -122,30 +125,8 @@ struct HostNotificationsPage: View {
     // MARK: - 種類
 
     private func kindsSection(_ push: HostPush) -> some View {
-        let model = push.model
-        return Section {
-            ForEach(PushKind.choices(installsViaHostService: push.installsViaHostService), id: \.self) { kind in
-                Toggle(
-                    isOn: Binding(
-                        get: { model.kinds.contains(kind) },
-                        set: { isOn in Task { await model.setKind(kind, isOn: isOn) } })
-                ) {
-                    Text(kind.title)
-                }
-                // 最後一個種類不能關:要不收通知就關閉這台主機。主機服務太舊送不出的種類不能開(已開的仍可關)。
-                .disabled(model.isUpdatingKinds || model.kinds == [kind] || needsUpdate(kind, push))
-                .accessibilityIdentifier("account.push.\(push.host.storedValue).kind.\(kind.rawValue)")
-            }
-            if let version = outdatedObserverVersion(push) {
-                Label("“May Be Stuck” and “Still Waiting for You” need host service \(version) or later.", systemImage: "exclamationmark.triangle")
-                    // errorLabel:exempt 需求提示,不是失敗
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-            } else if !push.installsViaHostService {
-                Text("“May Be Stuck” and “Still Waiting for You” need the host service (HTTPS connection).")
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-            }
+        Section {
+            PushKindToggles(push: push)
         } header: {
             Text("Notification Types")
                 .foregroundStyle(.secondaryText)
@@ -153,15 +134,6 @@ struct HostNotificationsPage: View {
             Text("Keep at least one. To get none, turn off notifications for this host. Devices that get notifications are managed in your account.")
                 .foregroundStyle(.secondaryText)
         }
-    }
-
-    private func needsUpdate(_ kind: PushKind, _ push: HostPush) -> Bool {
-        !push.model.kinds.contains(kind) && kind.needsHostServiceUpdate(installed: push.hostServiceVersion)
-    }
-
-    private func outdatedObserverVersion(_ push: HostPush) -> String? {
-        guard push.installsViaHostService, PushKind.stuck.needsHostServiceUpdate(installed: push.hostServiceVersion) else { return nil }
-        return HostServiceFeature.agentObserver.minimumVersion.description
     }
 
     // MARK: - 問題

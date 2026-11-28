@@ -41,6 +41,38 @@ final class PushSettingsUITests: XCTestCase {
         XCTAssertTrue(https.wait(timeout: 10) { $0.isEnabled }, "配對後開關仍不能點")
     }
 
+    /// 通知種類照後台的清單畫(ADR-0016、#705):名稱與說明來自後台,「每日上限已達」可以開關,
+    /// 只給 HTTPS 的種類在 SSH 主機上停用並說明原因。
+    @MainActor
+    func testKindSwitchesFollowBackendCatalog() {
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingPlusMember, .seedHost, .selectDemo])
+        app.openAccountSheet()
+        app.openAccountNotifications()
+
+        let toggle = app.switches["account.push.\(Self.seededHost)"]
+        XCTAssertTrue(toggle.waitUntilExists(timeout: 10), "沒有主機的通知開關")
+        toggle.tap()
+        let install = app.alerts.buttons["settings.push.install"].firstMatch
+        XCTAssertTrue(install.waitUntilExists(timeout: 10), "沒有先確認安裝外掛")
+        install.tap()
+        toggle.expectValue("Notifications On")
+
+        app.element("account.push.\(Self.seededHost).kinds").tap()
+        let daily = app.switches["account.push.\(Self.seededHost).kind.daily_limit_reached"]
+        XCTAssertTrue(daily.waitUntilExists(timeout: 10), "清單裡的「每日上限已達」沒有開關")
+        XCTAssertTrue(daily.isEnabled)
+        // 新配對預設收清單預設開、這台主機能用的種類
+        daily.expectValue("1")
+        let queue = app.switches["account.push.\(Self.seededHost).kind.queue_paused"]
+        XCTAssertTrue(queue.waitUntilExists(timeout: 5), "只給 HTTPS 的種類沒有列出")
+        XCTAssertFalse(queue.isEnabled, "SSH 主機不該能開只給 HTTPS 的種類")
+        XCTAssertTrue(app.element("account.push.\(Self.seededHost).kind.queue_paused.reason").exists, "停用的種類沒有說明原因")
+
+        daily.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()  // 列有多行文字,點開關本體(右緣)
+        daily.expectValue("0")
+        XCTAssertTrue(app.switches["account.push.\(Self.seededHost).kind.blocked"].isEnabled)
+    }
+
     // MARK: - 輔助
 
 }

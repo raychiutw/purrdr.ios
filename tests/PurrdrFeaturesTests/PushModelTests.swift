@@ -797,7 +797,7 @@ struct PushModelTests {
 
         await service.refreshAtLaunch()
 
-        #expect(backend.requests(to: "/v1/members/me/push-pairings").isEmpty)
+        #expect(backend.requests(to: "/v1/members/me/push-pairings").filter { $0.method == "POST" }.isEmpty)
         #expect(store.pairings.isEmpty)
         #expect(push.state == .off)
     }
@@ -952,7 +952,7 @@ struct PushModelTests {
 
         #expect(model.kinds == [.blocked, .done, .stuck, .reminder])
         let requests = backend.requests(to: "/v1/members/me/push-pairings")
-        #expect(requests.last?.json?["kinds"] as? [String] == ["blocked", "done", "stuck", "reminder"])
+        #expect(requests.last?.json?["kinds"] as? [String] == ["blocked", "done", "reminder", "stuck"])
         let reopened = self.model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
         #expect(reopened.kinds == [.blocked, .done, .stuck, .reminder])
     }
@@ -1141,28 +1141,6 @@ struct PushRouteTests {
         let destination = model.open(PushRoute(keyHash: "abc", paneID: "w2:p1"), pairings: pairings)
 
         #expect(destination == .chat(ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1")))
-    }
-
-    @Test("「主機服務」種類只給 HTTPS 主機選(SSH 主機沒有主機服務)")
-    func hostServiceKindOnlyForHTTPSHosts() {
-        #expect(PushKind.choices(installsViaHostService: false) == [.blocked, .done])
-        #expect(PushKind.choices(installsViaHostService: true).contains(.hostService))
-    }
-
-    @Test("「可能卡住」「仍在等你」由主機服務的 Agent 觀察者偵測：只給 HTTPS 主機選(#311)")
-    func stuckAndReminderOnlyForHTTPSHosts() {
-        #expect(PushKind.choices(installsViaHostService: false) == [.blocked, .done])
-        #expect(PushKind.choices(installsViaHostService: true) == [.blocked, .done, .stuck, .reminder, .hostService])
-    }
-
-    @Test("「可能卡住」「仍在等你」要主機服務 0.7.0;版本未知時不擋(#311)")
-    func stuckAndReminderNeedHostService070() {
-        #expect(PushKind.stuck.needsHostServiceUpdate(installedVersion: "0.6.0"))
-        #expect(PushKind.reminder.needsHostServiceUpdate(installedVersion: "0.6.2"))
-        #expect(!PushKind.stuck.needsHostServiceUpdate(installedVersion: "0.7.0"))
-        #expect(!PushKind.reminder.needsHostServiceUpdate(installedVersion: nil))
-        #expect(!PushKind.blocked.needsHostServiceUpdate(installedVersion: "0.6.0"))
-        #expect(!PushKind.hostService.needsHostServiceUpdate(installedVersion: "0.6.0"))
     }
 
     @Test("點「可能卡住」「仍在等你」通知：依根層 pairing 與 pane 開那個聊天(#311)",

@@ -216,7 +216,7 @@ struct HostOverviewView: View {
         case .needsHostService: Text("Update Host Service")
         case .supported:
             switch push.model.state {
-            case .on: Text(verbatim: PushKinds.summary(push.model.kinds, installsViaHostService: push.installsViaHostService))
+            case .on: Text(verbatim: PushKinds.summary(push))
             case .checking, .confirming, .turningOn: Text("Setting Up…")
             case .off, .turningOff: Text("Off")
             }
@@ -272,12 +272,14 @@ struct HostOverviewView: View {
     }
 }
 
-/// 「通知種類」的摘要文字(「需要你、完成」)。
+/// 「通知種類」的摘要文字(「需要你、完成」);名稱用後台清單給的。
+@MainActor
 enum PushKinds {
-    static func summary(_ kinds: Set<PushKind>, installsViaHostService: Bool) -> String {
-        let titles = PushKind.choices(installsViaHostService: installsViaHostService)
-            .filter { kinds.contains($0) }
-            .map { String(localized: $0.title) }
+    static func summary(_ push: HostPush) -> String {
+        let context = PushKindContext(installsViaHostService: push.installsViaHostService, hostServiceVersion: push.hostServiceVersion)
+        let titles = push.model.kindChoices(context: context)
+            .filter { push.model.kinds.contains($0.kind) }
+            .map(\.title)
         return ListFormatter.localizedString(byJoining: titles)
     }
 }

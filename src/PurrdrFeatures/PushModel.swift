@@ -178,7 +178,7 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
     /// 存成「雜湊 → 種類原始值陣列」;不認得的值略過。
     public func kinds(forKeyHash keyHash: String) -> Set<PushKind>? {
         guard let stored = read(Self.kindsKey, as: [String: [String]].self)?[keyHash] else { return nil }
-        return Set(stored.compactMap(PushKind.init(rawValue:)))
+        return Set(stored.map { PushKind($0) })
     }
 
     public func setKinds(_ kinds: Set<PushKind>?, forKeyHash keyHash: String) {
@@ -253,6 +253,8 @@ public final class PushService {
     /// 撤銷失敗待重送的配對(#691;正式實作存 Keychain)。
     let pendingRevocations: any PendingPushRevocations
     private var latestHostNames: [String: String] = [:]
+    /// 通知設定(#705):後台的種類清單與配對。
+    public private(set) lazy var settings = PushSettingsModel(service: self)
 
     /// - Parameters:
     ///   - loadDevice: 這支裝置(Keychain 的推播 id、預設名稱與型號);讀不到(還沒第一次解鎖)時丟錯，之後用到時再試。
@@ -330,6 +332,15 @@ public final class PushService {
         await retryPendingRevocations()
         guard await reconcileRemoteRevocation() else { return }
         await refreshRegistrations()
+        await settings.load()
+    }
+
+    /// 通知設定的種類或配對有變(讀到後台的配對):各主機的開關重讀本機紀錄。
+    func kindsChanged() {
+        models.removeAll { $0.model == nil }
+        for entry in models {
+            entry.model?.reloadKinds()
+        }
     }
 
     /// 撤銷後台配對;失敗(連不上、後台錯誤)就記進待撤銷清單等重送。登入已失效沒有權杖可撤銷,後台依會員的工作階段處理,不記。
@@ -524,12 +535,12 @@ public final class PushModel {
     /// 上次查狀態時主機外掛已裝(別的裝置或使用者裝的):開啟只新增這支裝置的配對。
     public private(set) var pluginAlreadyInstalled = false
     /// 這台主機要收的推播種類(開著時才有意義)。
-    public private(set) var kinds: Set<PushKind> = PushModel.defaultKinds
+    public private(set) var kinds: Set<PushKind> = PushModel.fallbackDefaultKinds
     /// 正在向後台改種類。
     public private(set) var isUpdatingKinds = false
 
-    /// 新開啟的主機預設收的種類。
-    public static let defaultKinds: Set<PushKind> = [.blocked, .done]
+    /// 內建備援的預設種類(後台清單讀不到時,新開啟的主機收這些)。
+    public static let fallbackDefaultKinds: Set<PushKind> = [.blocked, .done]
     /// 舊版 app 開的配對沒記種類：後台當成只收「需要你」。
     static let legacyKinds: Set<PushKind> = [.blocked]
 
@@ -575,8 +586,15 @@ public final class PushModel {
             kinds = store.kinds(forKeyHash: keyHash) ?? Self.legacyKinds
         } else {
             state = .off
-            kinds = Self.defaultKinds
+            kinds = Self.fallbackDefaultKinds
         }
+    }
+
+    /// 讀到後台的配對後:開著的主機以本機紀錄(已被後台的值取代)為準更新種類。
+    package func reloadKinds() {
+        guard state == .on, let hostID, let store = service?.store, let keyHash = store.keyHash(forHost: hostID),
+              let stored = store.kinds(forKeyHash: keyHash) else { return }
+        kinds = stored
     }
 
     /// 這支裝置被遠端關閉(配對已撤銷):回到關閉。
@@ -672,18 +690,33 @@ public final class PushModel {
         if case .confirming = state { state = .off }
     }
 
-    /// 使用者確認安裝。
-    public func confirm() async {
+    /// 重讀後台的種類清單與配對(進通知畫面時);讀不到時維持現有的(內建備援或上次讀到的)。
+    public func refreshKindSettings() async {
+        await service?.settings.load()
+    }
+
+    /// 這台主機的種類開關(後台的清單;讀不到時是內建的五種)。
+    public func kindChoices(context: PushKindContext) -> [PushKindChoice] {
+        service?.settings.choices(for: context) ?? PushKindCatalog.builtIn.definitions.map {
+            PushKindChoice(
+                kind: $0.kind, title: $0.name.english, details: $0.description.english,
+                availability: $0.availability(installsViaHostService: context.installsViaHostService, hostServiceVersion: context.hostServiceVersion))
+        }
+    }
+
+    /// 使用者確認安裝。`kindContext` 是這台主機的連線方式與版本,決定新配對預設收哪些種類。
+    public func confirm(kindContext: PushKindContext = .ssh) async {
         guard case .confirming = state, let service, let installer, let hostID, let deviceToken else { return }
         let device: PushDeviceIdentity
         do { device = try service.device() } catch { return stop(Self.deviceIDUnavailable(error)) }
         state = .turningOn
         let key = PushPairingKey.generate()
         let tokenHex = PushService.hex(deviceToken)
+        let defaultKinds = service.settings.defaultKinds(for: kindContext)
         do {
             try await service.session.registerPushPairing(
                 keyHash: key.hash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
-                kinds: Self.defaultKinds)
+                kinds: defaultKinds)
         } catch BackendError.signedOut {
             return stop(.needsSignIn)
         } catch {
@@ -698,8 +731,8 @@ public final class PushModel {
         }
         service.store.setKeyHash(key.hash, forHost: hostID)
         service.store.setRegisteredToken(tokenHex, forKeyHash: key.hash)
-        service.store.setKinds(Self.defaultKinds, forKeyHash: key.hash)
-        kinds = Self.defaultKinds
+        service.store.setKinds(defaultKinds, forKeyHash: key.hash)
+        kinds = defaultKinds
         state = .on
     }
 
@@ -718,15 +751,22 @@ public final class PushModel {
         defer { isUpdatingKinds = false }
         if case .kindsUpdateFailed = problem { problem = nil }
         do {
-            let device = try service.device()
-            let token = try await service.platform.deviceToken()
-            let tokenHex = PushService.hex(token)
-            try await service.session.registerPushPairing(
-                keyHash: keyHash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
-                kinds: updated)
-            service.store.setKinds(updated, forKeyHash: keyHash)
-            service.store.setRegisteredToken(tokenHex, forKeyHash: keyHash)
-            kinds = updated
+            if service.settings.usesBackendKinds {
+                // 後台的清單在用:以 PATCH 改這組配對的種類(只送清單有的代號),回來的值就是後台記的。
+                let saved = try await service.session.updatePushPairing(keyHash: keyHash, kinds: service.settings.listed(updated))
+                let result = saved.kinds.isEmpty ? updated : saved.kinds
+                service.store.setKinds(result, forKeyHash: keyHash)
+                kinds = result
+            } else {
+                let device = try service.device()
+                let tokenHex = PushService.hex(try await service.platform.deviceToken())
+                try await service.session.registerPushPairing(
+                    keyHash: keyHash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
+                    kinds: updated)
+                service.store.setKinds(updated, forKeyHash: keyHash)
+                service.store.setRegisteredToken(tokenHex, forKeyHash: keyHash)
+                kinds = updated
+            }
         } catch BackendError.signedOut {
             problem = .needsSignIn
         } catch {
@@ -756,7 +796,7 @@ public final class PushModel {
             await service.revoke(keyHash: keyHash)
         }
         service.store.setKeyHash(nil, forHost: hostID)
-        kinds = Self.defaultKinds
+        kinds = Self.fallbackDefaultKinds
         state = .off
     }
 
