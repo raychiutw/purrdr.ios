@@ -85,6 +85,29 @@ public final class SystemPushPlatform: PushPlatform {
             comment: "每日通知上限通知內文(後台 APNs payload 的 loc-key,%@ 是上限數字;後台以 UTC 0:00 歸零)")
     }
 
+    /// 新通知種類(#707,後台 purrdr.server#39～#43):文字全是後台送的英文 `loc-key`,由系統查字串表翻譯。
+    /// 長時間工作完成(`long_work_done`)。
+    static let longWorkDoneBody = String(
+        localized: "An agent finished a long task.", comment: "「長時間工作完成」推播內文(後台 APNs payload 的 loc-key)")
+    /// 預約送出被暫停(`queue_paused`):`loc-args` 是 Tab 名稱,沒有 Tab 時用不帶參數的版本。
+    static func queuePausedBody(tab: String) -> String {
+        String(
+            localized: "Queue paused in \(tab).",
+            comment: "「預約送出被暫停」推播內文(後台 APNs payload 的 loc-key,%@ 是 Tab 名稱)")
+    }
+    static let queuePausedBodyWithoutTab = String(
+        localized: "Queue paused.", comment: "「預約送出被暫停」推播內文(沒有 Tab 名稱時;後台 APNs payload 的 loc-key)")
+    /// 方案用量快用完(`usage_alert`):標題 `title-loc-key`,內文 `loc-args` 是 Agent 名稱(Claude 或 Codex)與門檻(80 或 95)。
+    static let usageAlertTitle = String(localized: "Plan usage", comment: "「方案用量快用完」推播標題(後台 APNs payload 的 title-loc-key)")
+    static func usageAlertBody(agent: String, percent: String) -> String {
+        String(
+            localized: "Your \(agent) plan usage reached \(percent)%.",
+            comment: "「方案用量快用完」推播內文(後台 APNs payload 的 loc-key,第一個 %@ 是 Agent 名稱、第二個是門檻百分比)")
+    }
+    /// 主機離線與已恢復(`host_offline`／`host_recovered`):只有標題。
+    static let hostOfflineTitle = String(localized: "Host offline", comment: "「主機離線」推播標題(後台 APNs payload 的 title)")
+    static let hostRecoveredTitle = String(localized: "Host back online", comment: "「主機已恢復」推播標題(後台 APNs payload 的 title)")
+
     /// 測試通知(#328,`event: "test"`):標題 `title-loc-key` 帶主機名稱(`loc-args`),沒有名稱時用不帶參數的版本。
     static func testTitle(hostName: String) -> String {
         String(localized: "Test: \(hostName) needs you", comment: "測試通知標題(後台 APNs payload 的 title-loc-key,%@ 是主機清單上的主機名稱)")

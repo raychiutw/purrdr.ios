@@ -48,6 +48,8 @@ public final class TopNavigationModel {
     public var pendingHostImport: URL?
     /// 等著開編輯頁的主機(點了主機服務通知,#293)。主機 tab 出現時推入它的編輯器，之後清掉。
     public var pendingHostEditor: UUID?
+    /// 點了方案用量通知(#707)時預選的 Agent;`planUsage` sheet 開著時有意義。
+    public var planUsageAgent: AgentID?
     /// 等著開新增主機引導(Agent 列表沒有主機時的「新增主機」,#332)。主機 tab 出現時推入，之後清掉。
     public var pendingAddHost = false
 
@@ -240,6 +242,10 @@ public final class TopNavigationModel {
             openChat(route)
         case .hostEditor(let id): openHostEditor(id)
         case .accountNotifications: sheet = .member
+        case .hostPage(let id): openHostEditor(id)
+        case .planUsage(let agent):
+            planUsageAgent = agent
+            sheet = .planUsage
         case nil: break
         }
     }
@@ -341,6 +347,8 @@ public enum TopLevelSheet: String, Identifiable, Sendable {
     case member
     /// Purrdr Plus 的付費牆與訂閱摘要(#28)。
     case plus
+    /// 方案用量頁(點「方案用量快用完」推播,#707)。
+    case planUsage
     /// 第一次開啟的歡迎頁(#34)。
     case welcome
 

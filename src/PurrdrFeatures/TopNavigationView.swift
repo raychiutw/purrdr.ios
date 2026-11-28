@@ -113,6 +113,12 @@ public struct TopNavigationView: View {
                                     pushDevices: hosts.pushDevices, hostSync: hostSync, hosts: hosts, canRename: true))
                             }))
                     }
+                case .planUsage:
+                    // 點「方案用量快用完」通知(#707):方案用量頁,有指名 Agent 就預選。
+                    NavigationStack {
+                        PlanUsageScreen(model: hosts.screens.planUsage(agent: navigation.planUsageAgent))
+                            .toolbar { SheetCloseToolbar(identifier: "planUsage.close") }
+                    }
                 case .welcome:
                     WelcomeView {
                         // 進入 Demo 主機(空列表也進得去)並回到列表。

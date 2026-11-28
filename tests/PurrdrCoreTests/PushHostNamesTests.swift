@@ -37,6 +37,28 @@ struct PushHostNamesTests {
             == .init(title: "Daily notification limit reached", subtitle: ""))
     }
 
+    @Test("新通知種類(#707,沒有 pane 的狀態通知):有對應就補主機名稱,沒有就原樣送出,標題不動",
+          arguments: [
+              ("host_offline", "Host offline"), ("host_recovered", "Host back online"), ("usage_alert", "Plan usage"),
+          ])
+    func newKindsWithoutPane(event: String, title: String) {
+        let info: [AnyHashable: Any] = ["pairing": "hash-build", "event": event]
+        #expect(PushNotificationEnrichment.enriched(title: title, subtitle: "", userInfo: info, hostNames: names)
+            == .init(title: title, subtitle: "Build Box"))
+        #expect(PushNotificationEnrichment.enriched(title: title, subtitle: "", userInfo: info, hostNames: [:])
+            == .init(title: title, subtitle: ""))
+    }
+
+    @Test("長時間工作完成與預約送出被暫停(帶 pane,queue_paused 另有根層 status):補主機名稱")
+    func paneStatusNotifications() {
+        let longWork: [AnyHashable: Any] = ["pairing": "hash-studio", "pane": "w1:p1"]
+        let paused: [AnyHashable: Any] = ["pairing": "hash-studio", "pane": "w1:p1", "status": "queue_paused"]
+        for info in [longWork, paused] {
+            #expect(PushNotificationEnrichment.enriched(title: "ledger · Tab", subtitle: "", userInfo: info, hostNames: names)
+                == .init(title: "ledger · Tab", subtitle: "Studio Mac"))
+        }
+    }
+
     @Test("沒有 pairing 或對應表是空的:原樣送出,不丟錯")
     func missingPairingOrEmptyMap() {
         #expect(

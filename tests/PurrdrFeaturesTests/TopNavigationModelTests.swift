@@ -176,6 +176,27 @@ struct TopNavigationModelTests {
         #expect(model.pendingHostEditor == nil)
     }
 
+    @Test("點主機離線／已恢復通知(#707):切到主機 tab 並開那台主機的頁面")
+    func hostPageNotification() {
+        let model = TopNavigationModel()
+        let id = UUID()
+        model.sheet = .member
+        model.openPushDestination(.hostPage(id))
+        #expect(model.tab == .hosts)
+        #expect(model.pendingHostEditor == id)
+        #expect(model.sheet == nil)
+    }
+
+    @Test("點方案用量通知(#707):開方案用量 sheet 並記下 Agent,不換 tab")
+    func planUsageNotification() {
+        let model = TopNavigationModel()
+        model.tab = .files
+        model.openPushDestination(.planUsage(agent: .codex))
+        #expect(model.tab == .files)
+        #expect(model.sheet == .planUsage)
+        #expect(model.planUsageAgent == .codex)
+    }
+
     @Test("點主機服務通知走主機編輯頁(#668 不變)")
     func hostServiceNotificationViaDestination() {
         let model = TopNavigationModel()

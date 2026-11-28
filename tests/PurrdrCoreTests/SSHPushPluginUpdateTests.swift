@@ -37,13 +37,13 @@ struct SSHPushPluginUpdateTests {
 
         #expect(updated)
         #expect(try calls().contains("plugin update purrdr.push --yes"))
-        #expect(FakeHerdrPluginCLI.pluginVersion(on: host) == "0.2.1")
+        #expect(FakeHerdrPluginCLI.pluginVersion(on: host) == "0.3.0")
     }
 
     @Test("已是最新版：不執行 plugin update")
     func skipsCurrentPlugin() async throws {
         try await installByPurrdr()
-        try host.write(Data("0.2.1\n".utf8), to: "fake/version")
+        try host.write(Data("0.3.0\n".utf8), to: "fake/version")
 
         let updated = try await installer().updatePluginIfNeeded()
 
@@ -54,7 +54,7 @@ struct SSHPushPluginUpdateTests {
     @Test("比 app 認得的版本更新：不更新")
     func skipsNewerPlugin() async throws {
         try await installByPurrdr()
-        try host.write(Data("0.3.0\n".utf8), to: "fake/version")
+        try host.write(Data("0.4.0\n".utf8), to: "fake/version")
 
         #expect(try await installer().updatePluginIfNeeded() == false)
         #expect(try !calls().contains { $0.hasPrefix("plugin update") })

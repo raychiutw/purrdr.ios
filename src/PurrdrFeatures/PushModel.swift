@@ -893,17 +893,28 @@ public struct PushRoute: Equatable, Sendable {
     public static let testEvent = "test"
     /// 每日通知上限通知(#675)的 `event`:會員層級、不屬於哪個 Agent,開帳號頁。
     public static let dailyLimitEvent = "daily_limit_reached"
+    /// 方案用量快用完(#707):根層 `agent` 指出哪個 Agent,開方案用量頁。
+    public static let usageAlertEvent = "usage_alert"
+    /// 主機離線／已恢復(#707,只有 HTTPS 主機):開那台主機的主機頁。
+    public static let hostOfflineEvent = "host_offline"
+    public static let hostRecoveredEvent = "host_recovered"
+    /// 主機服務通知(#293)的 `event` 都以此開頭(如 `host_service_updated`):開那台主機的編輯頁。
+    public static let hostServiceEventPrefix = "host_service"
+    /// `usage_alert` 的根層 `agent`(herdr 的名稱或後台的 Claude／Codex)。
+    public var agent: String?
 
-    public init(keyHash: String, paneID: String?, event: String? = nil) {
+    public init(keyHash: String, paneID: String?, event: String? = nil, agent: String? = nil) {
         self.keyHash = keyHash
         self.paneID = paneID
         self.event = event
+        self.agent = agent
     }
 
     public init?(userInfo: [AnyHashable: Any]) {
         guard let keyHash = userInfo["pairing"] as? String, !keyHash.isEmpty else { return nil }
         let event = (userInfo["event"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        self.init(keyHash: keyHash, paneID: userInfo["pane"] as? String, event: event)
+        let agent = (userInfo["agent"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        self.init(keyHash: keyHash, paneID: userInfo["pane"] as? String, event: event, agent: agent)
     }
 }
 

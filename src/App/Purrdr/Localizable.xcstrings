@@ -1590,6 +1590,18 @@
         }
       }
     },
+    "An agent finished a long task." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 完成了一項長時間的工作。"
+          }
+        }
+      },
+      "comment" : "「長時間工作完成」推播內文(後台 APNs payload 的 loc-key)"
+    },
     "An agent finished." : {
       "comment" : "「完成」推播內文(後台 APNs payload 的 loc-key)",
       "extractionState" : "manual",
@@ -5933,6 +5945,18 @@
         }
       }
     },
+    "Host back online" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機已恢復連線"
+          }
+        }
+      },
+      "comment" : "「主機已恢復」推播標題(後台 APNs payload 的 title)"
+    },
     "Host name or IP" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5943,6 +5967,18 @@
           }
         }
       }
+    },
+    "Host offline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機離線"
+          }
+        }
+      },
+      "comment" : "「主機離線」推播標題(後台 APNs payload 的 title)"
     },
     "Host service" : {
       "comment" : "主機服務推播標題(後台 APNs payload 的 title-loc-key)",
@@ -9335,6 +9371,18 @@
         }
       }
     },
+    "Plan usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方案用量"
+          }
+        }
+      },
+      "comment" : "「方案用量快用完」推播標題(後台 APNs payload 的 title-loc-key)"
+    },
     "Plan usage isn’t available for this agent." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9928,6 +9976,30 @@
           }
         }
       }
+    },
+    "Queue paused in %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的預約送出已暫停。"
+          }
+        }
+      },
+      "comment" : "「預約送出被暫停」推播內文(後台 APNs payload 的 loc-key,%@ 是 Tab 名稱)"
+    },
+    "Queue paused." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預約送出已暫停。"
+          }
+        }
+      },
+      "comment" : "「預約送出被暫停」推播內文(沒有 Tab 名稱時;後台 APNs payload 的 loc-key)"
     },
     "Queued message %lld: %@" : {
       "extractionState" : "manual",
@@ -16408,6 +16480,18 @@
           }
         }
       }
+    },
+    "Your %@ plan usage reached %@%%." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 %@ 方案用量已達 %@%%。"
+          }
+        }
+      },
+      "comment" : "「方案用量快用完」推播內文(後台 APNs payload 的 loc-key,第一個 %@ 是 Agent 名稱、第二個是門檻百分比)"
     },
     "Your Comment · Line %lld" : {
       "extractionState" : "manual",
