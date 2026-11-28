@@ -24,13 +24,13 @@
 
   <section lang="zh-Hant" id="zh">
     <h1>隱私權政策</h1>
-    <p class="meta">適用於 iOS／iPadOS App「Purrdr: Agent Chat」與其後台服務。生效日期:2026 年 11 月 21 日。</p>
+    <p class="meta">適用於 iOS／iPadOS App「Purrdr: Agent Chat」與其後台服務。生效日期:2026 年 11 月 28 日。</p>
 
     <div class="card">
       <p><strong>重點</strong></p>
       <ul>
         <li>聊天、終端機與你傳給 Agent 的圖片，都是 App 經 SSH <strong>直接</strong>連到你自己的電腦，<strong>不經過我們的伺服器</strong>。</li>
-        <li>不需要帳號就能用聊天與終端機。只有訂閱 Purrdr Plus(推播與主機同步)才需要登入會員。</li>
+        <li>不需要帳號就能用聊天與終端機。只有要收推播通知、或訂閱 Purrdr Plus(主機同步)時才需要登入會員。</li>
         <li>沒有廣告、沒有分析或追蹤 SDK、不跨 App 或網站追蹤你，也不販售任何資料。</li>
         <li>SSH 私鑰、密碼與 passphrase 只存在你的裝置上，永不上傳。</li>
         <li>你可以隨時在 App 裡刪除會員，伺服器上的會員資料會立即刪除。</li>
@@ -59,7 +59,7 @@
     <p>使用 Tailscale SSH 時，連線經你自己的 Tailscale 網路(tailnet)建立，受 Tailscale 的隱私權政策規範;若主機要求重新驗證，App 會以瀏覽器打開 Tailscale 的驗證頁面。</p>
 
     <h2>3. 會員(只有登入時)</h2>
-    <p>Purrdr Plus 需要會員，會員可以用 <strong>Sign in with Apple</strong> 或 <strong>Google 登入</strong>。登入時：</p>
+    <p>推播通知與 Purrdr Plus 都需要會員(推播通知不需要訂閱)，會員可以用 <strong>Sign in with Apple</strong> 或 <strong>Google 登入</strong>。登入時：</p>
     <ul>
       <li>Sign in with Apple 只要求 email(不要求姓名);你可以選擇「隱藏我的電子郵件」,我們收到的會是 Apple 的轉寄地址。</li>
       <li>Google 登入使用系統瀏覽器(OAuth 2.0 + PKCE),只要求 <code>openid email</code>。</li>
@@ -81,15 +81,17 @@
     </ul>
     <p>這些資料用來判斷你是否有 Purrdr Plus 權限。</p>
 
-    <h2>5. 推播通知(Purrdr Plus)</h2>
+    <h2>5. 推播通知(需登入會員，不需訂閱)</h2>
     <p>為某台主機開啟推播時：</p>
     <ul>
       <li>App 向 iOS 要求通知權限並取得 APNs device token。</li>
       <li>App 產生一組隨機的配對密鑰，<strong>密鑰本身只寫到你的主機</strong>(<code>~/.purrdr/push-&lt;裝置代號&gt;/pairing</code>),並經 SSH 在主機安裝一個小型 herdr 外掛(來源是公開的 <code>raychiutw/purrdr.host</code>,由主機上的 herdr 下載)。</li>
-      <li>後台保存：配對密鑰的 SHA-256 雜湊、APNs device token、平台(APNs)與環境(production／sandbox)、建立與更新時間，以及每組密鑰每分鐘的速率限制計數。</li>
+      <li>後台保存：配對密鑰的 SHA-256 雜湊、APNs device token、平台(APNs)與環境(production／sandbox)、建立與更新時間，以及每組密鑰每分鐘的速率限制計數與你每天已收到的推播則數(用來執行每日上限，每天歸零)。</li>
+      <li><strong>從 0.55.0 起</strong>,後台也保存這台主機的<strong>電腦名稱</strong>(你在 App 裡替它取的顯示名稱)與<strong>主機圖示</strong>(你選的圖示與顏色),以及這組配對開了哪幾種通知。這樣通知上與「通知主機」清單就有電腦名稱，換手機也一樣。我們<strong>不保存</strong>主機位址、IP、埠、使用者名稱或任何連線資訊。你在 App 裡改名稱或圖示時，後台的這兩項也會跟著改，關閉推播或刪除會員時一併刪除。</li>
     </ul>
-    <p>Agent 需要你時，主機外掛只送出 <strong>workspace 名稱、狀態與 pane id</strong>。後台據此組成通知(標題是 workspace 名稱，內文固定是「An agent needs you.」)交給 Apple Push Notification service(APNs)送到你的裝置。這些內容只在轉送當下處理，<strong>後台不保存</strong>;對話內容不會經過後台或 APNs。關閉推播或刪除主機時，App 會撤銷配對並移除主機上的配對檔。</p>
+    <p>Agent 需要你(或完成、可能卡住等其他你開啟的通知)時，主機外掛只送出 <strong>workspace 名稱、狀態與 pane id</strong>。後台據此組成通知(標題是 workspace 名稱，副標題是電腦名稱，內文依通知種類而定)交給 Apple Push Notification service(APNs)送到你的裝置。這些內容只在轉送當下處理，<strong>後台不保存</strong>;對話內容不會經過後台或 APNs。關閉推播或刪除主機時，App 會撤銷配對並移除主機上的配對檔。</p>
     <p>你在 App 按「傳送測試通知」時，電腦名稱(你在主機清單替它取的名稱)會經後台與 Apple 推播服務送到你的裝置，<strong>只用在這則通知的標題，後台不保存</strong>。</p>
+    <p><strong>主機離線／主機已恢復通知(選用，預設關閉，只有安裝了主機服務的 HTTPS 主機)</strong>:只有在至少一組配對開了這兩種通知時，那台主機的主機服務才會每 5 分鐘向後台回報一次「在線」或「睡眠中」(電腦睡眠前會先回報)。回報內容只有配對識別與狀態，不含 IP、位址或連線資訊。後台因此會知道這台主機<strong>目前是否在線</strong>，但<strong>只保存最新狀態</strong>(最後一次回報的時間與目前狀態)，不保存歷史紀錄，所以無法重建你的作息。沒有開這兩種通知時，主機不會回報任何在線資訊。</p>
 
     <h2>6. 主機同步(Purrdr Plus)</h2>
     <p>開啟主機同步後，後台保存你每台主機的：名稱、位址與埠、使用者名稱、連線方式(Tailscale SSH／OpenSSH／HTTPS)、host key 指紋、HTTPS 主機的位址與修改時間(HTTPS 主機的裝置權杖永不上傳);刪除的主機只留 ID 與刪除時間，避免其他裝置把它同步回來。</p>
@@ -123,7 +125,7 @@
     <h2>10. 刪除與控制你的資料</h2>
     <ul>
       <li><strong>刪除會員</strong>:App 的「⋯ → Member → Delete Member」。我們會先向 Apple 撤銷 Sign in with Apple 授權，再立即刪除會員、登入方式、權杖、訂閱紀錄、推播配對與同步的主機。刪除會員<strong>不會</strong>取消 Apple 的訂閱，請到「設定 › Apple 帳號 › 訂閱」取消。</li>
-      <li><strong>只關掉某項功能</strong>:關閉推播會撤銷該主機的配對;解除某個登入方式的連結會刪除那個登入方式的資料。</li>
+      <li><strong>只關掉某項功能</strong>:關閉推播會撤銷該主機的配對並刪除後台記的電腦名稱、圖示與在線狀態;解除某個登入方式的連結會刪除那個登入方式的資料。</li>
       <li><strong>裝置上的資料</strong>:在 App 裡刪除主機會一併刪除它的設定與祕密;刪除 App 會移除 UserDefaults 與快取(Keychain 項目依 iOS 行為可能保留到裝置重置)。</li>
       <li>也可以寫信給我們要求查詢或刪除資料。</li>
     </ul>
@@ -140,13 +142,13 @@
 
   <section lang="en" id="en">
     <h1>Privacy Policy</h1>
-    <p class="meta">Applies to the iOS/iPadOS app “Purrdr: Agent Chat” and its backend service. Effective November 21, 2026.</p>
+    <p class="meta">Applies to the iOS/iPadOS app “Purrdr: Agent Chat” and its backend service. Effective November 28, 2026.</p>
 
     <div class="card">
       <p><strong>In short</strong></p>
       <ul>
         <li>Chat, the terminal, and images you send to an agent go <strong>directly</strong> from the app to your own computer over SSH — <strong>never through our servers</strong>.</li>
-        <li>Chat and the terminal never need an account. You only sign in to subscribe to Purrdr Plus (notifications and host sync).</li>
+        <li>Chat and the terminal never need an account. You only sign in to get push notifications or to subscribe to Purrdr Plus (host sync).</li>
         <li>No ads, no analytics or tracking SDKs, no tracking across apps or websites, and we never sell data.</li>
         <li>SSH private keys, passwords, and passphrases stay on your device and are never uploaded.</li>
         <li>You can delete your member account in the app at any time; its data is deleted from our server right away.</li>
@@ -175,7 +177,7 @@
     <p>With Tailscale SSH, the connection runs over your own Tailscale network (tailnet) under Tailscale’s privacy policy. If your host asks you to re-authenticate, the app opens Tailscale’s check page in your browser.</p>
 
     <h2>3. Member account (only if you sign in)</h2>
-    <p>Purrdr Plus needs a member account, created with <strong>Sign in with Apple</strong> or <strong>Google</strong>. When you sign in:</p>
+    <p>Push notifications and Purrdr Plus need a member account (notifications don’t require a subscription), created with <strong>Sign in with Apple</strong> or <strong>Google</strong>. When you sign in:</p>
     <ul>
       <li>Sign in with Apple requests only your email (not your name). If you choose Hide My Email, we receive an Apple relay address.</li>
       <li>Google sign-in uses the system browser (OAuth 2.0 with PKCE) and requests only <code>openid email</code>.</li>
@@ -197,15 +199,17 @@
     </ul>
     <p>We use this only to decide whether you have Purrdr Plus.</p>
 
-    <h2>5. Notifications (Purrdr Plus)</h2>
+    <h2>5. Notifications (member sign-in required, no subscription needed)</h2>
     <p>When you turn on notifications for a host:</p>
     <ul>
       <li>The app asks iOS for notification permission and gets an APNs device token.</li>
       <li>The app makes a random pairing key. <strong>The key itself is written only to your host</strong> (<code>~/.purrdr/push-&lt;device code&gt;/pairing</code>), and the app installs a small herdr plugin on the host over SSH (from the public repository <code>raychiutw/purrdr.host</code>, downloaded by herdr on your host).</li>
-      <li>Our backend keeps the SHA-256 hash of the pairing key, the APNs device token, the platform (APNs) and environment (production or sandbox), when it was created and updated, and a per-minute rate-limit counter for that key.</li>
+      <li>Our backend keeps the SHA-256 hash of the pairing key, the APNs device token, the platform (APNs) and environment (production or sandbox), when it was created and updated, a per-minute rate-limit counter for that key, and how many notifications you have received today (used to enforce a daily limit, reset each day).</li>
+      <li><strong>Since 0.55.0</strong>, our backend also keeps the host’s <strong>computer name</strong> (the display name you gave it in the app), its <strong>host icon</strong> (the icon and color you chose), and which kinds of notifications that pairing has turned on. This lets notifications and the notification host list show the computer’s name, even on a new phone. We <strong>do not keep</strong> the host’s address, IP, port, user name, or any connection details. When you rename the host or change its icon in the app, these two items are updated too, and they are deleted when you turn notifications off or delete your member account.</li>
     </ul>
-    <p>When an agent needs you, the host plugin sends only the <strong>workspace name, the status, and the pane ID</strong>. Our backend builds the notification (the title is the workspace name; the text is always “An agent needs you.”) and hands it to the Apple Push Notification service (APNs) for delivery. This is processed only while it’s being relayed and <strong>is not stored</strong>; conversation content never goes through our backend or APNs. When you turn notifications off or remove the host, the app revokes the pairing and removes the pairing file from the host.</p>
+    <p>When an agent needs you (or another notification you turned on, such as done or possibly stuck), the host plugin sends only the <strong>workspace name, the status, and the pane ID</strong>. Our backend builds the notification (the title is the workspace name, the subtitle is the computer’s name, and the text depends on the kind of notification) and hands it to the Apple Push Notification service (APNs) for delivery. This is processed only while it’s being relayed and <strong>is not stored</strong>; conversation content never goes through our backend or APNs. When you turn notifications off or remove the host, the app revokes the pairing and removes the pairing file from the host.</p>
     <p>When you tap “Send Test Notification” in the app, the computer’s name (the name you gave it in the host list) goes through our backend and the Apple Push Notification service to your device. <strong>It’s used only in the title of that one notification and is not stored.</strong></p>
+    <p><strong>Host offline / host recovered notifications (optional, off by default, only for HTTPS hosts with the host service installed):</strong> only while at least one pairing has turned these on, that host’s host service reports “online” or “asleep” to our backend every 5 minutes (it reports before the computer goes to sleep). The report contains only the pairing identifier and the status — no IP, address, or connection details. Our backend therefore knows whether that host is <strong>currently online</strong>, but it <strong>keeps only the latest status</strong> (the time of the last report and the current state), never a history, so it can’t reconstruct your daily routine. If you haven’t turned these two notifications on, the host reports no online status at all.</p>
 
     <h2>6. Host sync (Purrdr Plus)</h2>
     <p>With host sync on, our backend keeps, for each host: its name, address and port, user name, connection method (Tailscale SSH, OpenSSH, or HTTPS), host key fingerprint, the HTTPS address of an HTTPS host, and when it was modified. An HTTPS host’s device token is never uploaded. For a deleted host it keeps only the ID and deletion time, so other devices don’t sync it back.</p>
@@ -239,7 +243,7 @@
     <h2>10. Deleting and controlling your data</h2>
     <ul>
       <li><strong>Delete your member account</strong>: in the app, “⋯ → Member → Delete Member”. We first revoke Sign in with Apple with Apple, then immediately delete the member, its sign-in methods, tokens, subscription records, push pairings, and synced hosts. Deleting your member account does <strong>not</strong> cancel an Apple subscription — cancel it in Settings › Apple Account › Subscriptions.</li>
-      <li><strong>Turn off a single feature</strong>: turning off notifications revokes that host’s pairing; unlinking a sign-in method deletes that method’s data.</li>
+      <li><strong>Turn off a single feature</strong>: turning off notifications revokes that host’s pairing and deletes the computer name, icon, and online status the backend kept for it; unlinking a sign-in method deletes that method’s data.</li>
       <li><strong>On your device</strong>: removing a host in the app deletes its settings and secrets; deleting the app removes its UserDefaults and caches (iOS may keep Keychain items until the device is reset).</li>
       <li>You can also email us to ask what we hold or to have it deleted.</li>
     </ul>

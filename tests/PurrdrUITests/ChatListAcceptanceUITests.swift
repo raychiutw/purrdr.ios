@@ -21,7 +21,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
     /// 累計它離可見頂端的最大位移,不靠測試端取樣。
     @MainActor
     func testReadingPositionHoldsWhenAgentAdds20ToolSteps() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoToolBurst"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: [.demoToolBurst])
         let list = app.conversationList
         XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
         let jump = app.element("conversation.jumpToLatest")
@@ -63,7 +63,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
     @MainActor
     func testImageRowHeightIsStableAfterScrollingAwayAndBack() {
         let app = XCUIApplication.launchUITestingConversation(
-            paneID: "w1:p1", flags: ["-demoSentImages"], contentSize: Self.largeText)
+            paneID: "w1:p1", flags: [.demoSentImages], contentSize: Self.largeText)
         let list = app.conversationList
         XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
         let thumbnail = app.element("conversation.sentImage.thumbnail")
@@ -99,7 +99,7 @@ final class ChatListAcceptanceUITests: XCTestCase {
     /// 最後在底部送出 prompt:回覆與 160 個工具步驟接上,畫面要跟到收尾訊息,不出現跳到最新鈕。
     @MainActor
     func testJumpToLatestLandsOnLastMessageAndFollowsNewMessages() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: [.demoLargeOutputOnPrompt])
         let list = app.conversationList
         XCTAssertTrue(list.waitUntilExists(timeout: 10), "對話沒有開啟")
         let jump = app.element("conversation.jumpToLatest")

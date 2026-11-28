@@ -9,7 +9,7 @@ final class AccountUpgradeUITests: XCTestCase {
 
     @MainActor
     func testUpgradeAsksForOneSignInThenShowsPendingReview() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingUpgradedMember"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingUpgradedMember])
         app.openAccount()
 
         // 舊的更新權杖被拒絕:提示登入已失效,回到選擇頁(不是已登入的帳號頁)。

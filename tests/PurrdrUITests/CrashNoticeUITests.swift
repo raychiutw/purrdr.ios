@@ -7,7 +7,7 @@ final class CrashNoticeUITests: XCTestCase {
     /// 提示出現、「分享記錄」開出系統分享、「關閉」後不再出現;接著設定的「診斷記錄」同樣可分享閃退記錄。
     @MainActor
     func testLaunchNoticeSharesDismissesThenSettingsDiagnosticLogSharesCrash() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingCrashRecord"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingCrashRecord])
         let banner = app.otherElements["crashNotice.banner"]
         XCTAssertTrue(banner.waitUntilExists(timeout: 10), "沒有「上次意外關閉」提示")
 

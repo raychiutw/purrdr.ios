@@ -11,7 +11,7 @@ final class AddHostGuideUITests: XCTestCase {
     /// 未配對的 HTTPS 主機(兩者互不影響)。每段結束都回到沒有 sheet 的 Agent 列表(HTTPS 段最後停在主機 tab)。
     @MainActor
     func testAddHostFlows() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPairingScan", "-seedUnpairedHTTPSHost"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingPairingScan, .seedUnpairedHTTPSHost])
 
         // 捷徑:同步來、這支裝置還沒配對的主機標示要配對，點它直接到配對頁;配對儲存後標示消失。
         step("未配對的 HTTPS 主機直接到配對") {

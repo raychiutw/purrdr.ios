@@ -12,11 +12,11 @@ import UniformTypeIdentifiers
 /// 任何主機的通道也都是 Demo 主機、不連網路。各種測試情境由 `LaunchConfiguration` 的型別化值決定。
 @MainActor
 enum UITestingEnvironment {
-    /// 閃退提示「已提示」狀態:放在專用的 suite(不碰正式設定),預設每次啟動重置;`keeping` 沿用上一次啟動留下的(#632)。
-    private static func crashNoticeStore(keeping: Bool) -> any CrashNoticeStoring {
+    /// 閃退提示「已提示」狀態:放在專用的 suite(不碰正式設定),每次啟動重置(#632)。
+    private static func crashNoticeStore() -> any CrashNoticeStoring {
         let name = "com.raychiu.purrdr.ui-testing.crash-notice"
         let defaults = UserDefaults(suiteName: name) ?? .standard
-        if !keeping { defaults.removePersistentDomain(forName: name) }
+        defaults.removePersistentDomain(forName: name)
         return UserDefaultsCrashNoticeStore(defaults: defaults)
     }
 
@@ -76,15 +76,13 @@ enum UITestingEnvironment {
             memberSession: memberSession(configuration.member),
             partition: partition,
             // 轉移訂閱、撤銷其他裝置前確認是本人(#409);替身一律通過。
-            deviceOwner: UITestingDeviceOwnerAuthenticator(hasPasscode: !configuration.hasNoPasscode),
+            deviceOwner: UITestingDeviceOwnerAuthenticator(),
             plusStore: UITestingPlusStore(hasCurrentTransaction: configuration.storeOwnedByOtherMember),
             // 預設開啟(Debug 的值),`-uiTestingPlusOff` 模擬上架版。
             plusAvailability: configuration.disablesPlus ? .disabled : .enabled,
             // 推播(#29):不請求權限、不註冊 APNs、配對只在記憶體;假後台的會員把通知權限當作已允許。
             push: pushParts,
             makeHosts: { push in hosts(configuration, demo: demo, tailscaleCheck: tailscaleCheck, push: push) },
-            // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
-            simulatesNoNetwork: configuration.simulatesNoNetwork,
             // UI 測試預設直接列 Demo,`-uiTestingNoHosts` 才看空狀態(#332);不留紀錄。
             demoEntry: LaunchEnvironment.DemoEntry(initial: !configuration.hasNoHosts, didChange: nil),
             trafficStore: InMemoryTrafficStore(days: configuration.seedsDataUsage ? seededTrafficDays() : []),
@@ -99,7 +97,7 @@ enum UITestingEnvironment {
             // 殘留到「還沒有記錄」的測試(也會越積越大)。
             hitchLog: hitchLog,
             diagnosticEvents: .discarding,
-            crashNoticeStore: Self.crashNoticeStore(keeping: configuration.keepsCrashNotice),
+            crashNoticeStore: Self.crashNoticeStore(),
             recordsUITestingCrash: configuration.recordsUITestingCrash,
             subscribesToMetricKit: false,
             // 預設當作看過歡迎頁(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
@@ -137,16 +135,14 @@ enum UITestingEnvironment {
                 hostService: .uiTesting(
                     channel: demo,
                     hostServiceVersion: configuration.hostServiceIsOutdated ? "0.0.1" : FixedHostServiceReleases.uiTestingLatestVersion,
-                    pairedHosts: seeded.contains(.pairedHTTPS) ? [pairedHTTPSHost.id] : [],
-                    readOnlyHosts: seeded.contains(.readOnlyHTTPS) ? [readOnlyHTTPSHost.id] : []),
+                    pairedHosts: seeded.contains(.pairedHTTPS) ? [pairedHTTPSHost.id] : []),
                 // 最新的主機服務版本固定,不連 GitHub(#362)。
                 hostServiceUpdates: HostServiceUpdates(releases: FixedHostServiceReleases.uiTesting, store: InMemoryHostServiceUpdateStore()),
                 tailscaleCheck: tailscaleCheck,
-                // `-seedUnreachableHost` 的主機一律連不上(多主機情境:一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
+                // `-seedUnreachableHost` 的主機一律連不上(多主機情境:一台連不上不影響其他台)。
                 makeChannel: { endpoint, pin, _ in
                     if configuration.promptsHostKey, pin == nil { return DemoHostKeyPromptChannel() as any HostChannel }
                     if endpoint.host == unreachableHost.ssh?.endpoint.host { return DemoUnreachableChannel() as any HostChannel }
-                    if endpoint.host == slowHost.ssh?.endpoint.host { return DemoUnreachableChannel(hangs: true) as any HostChannel }
                     return demo
                 }),
             services: HostsServices(
@@ -170,11 +166,6 @@ enum UITestingEnvironment {
             return MemberSession(
                 transport: UITestingHangingBackend(), tokenStore: InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken),
                 deviceID: deviceID)
-        case .offline:
-            // 已登入過(有更新權杖與會員快照),但後台一律連不上:帳號頁「暫時連不上,你仍是登入狀態」。
-            let tokens = InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken)
-            try? tokens.setMemberSnapshot(Data(UITestingBackendTransport.memberJSON.utf8))
-            return MemberSession(transport: UITestingOfflineBackend(), tokenStore: tokens, deviceID: deviceID)
         case .none:
             return MemberSession(
                 transport: URLSessionBackendTransport(baseURL: URL(string: "https://backend.invalid")!), tokenStore: InMemoryTokenStore(),
@@ -191,40 +182,32 @@ enum UITestingEnvironment {
     private static func backendTransport(_ scenario: LaunchConfiguration.MemberScenario) -> UITestingBackendTransport {
         switch scenario {
         case .plus: UITestingBackendTransport(isPlusActive: true)
-        // 帳號頁 Plus 卡的各狀態(#409)。
-        case .googlePlay: UITestingBackendTransport(scenario: .googlePlay)
-        case .grace: UITestingBackendTransport(scenario: .grace)
-        case .expired: UITestingBackendTransport(scenario: .expired)
         case .ownedByOtherMember: UITestingBackendTransport(scenario: .ownedByAnotherMember)
-        case .pendingReview: UITestingBackendTransport(scenario: .pendingReview)
         // 帳號頁「登入方式」新增 Google 時發現它已屬另一個會員(合併確認,#410)。
-        case .linkMerge(let blocked): UITestingBackendTransport(scenario: .none, linkFindsAnotherMember: true, mergeBlocked: blocked)
+        case .linkMerge: UITestingBackendTransport(scenario: .none, linkFindsAnotherMember: true)
         // 從舊版升級(#414):舊的更新權杖被拒絕、要重新登入一次;重新登入後的訂閱有待處理的合併提示。
         case .upgraded: UITestingBackendTransport(scenario: .pendingReview, startsWithStaleToken: true)
         case .member: UITestingBackendTransport(isPlusActive: false)
         // 沒登入且這個帳號沒有會員:登入頁擋下並問要不要加入(#453)。
         case .noMember: UITestingBackendTransport(scenario: .none, startsSignedIn: false, hasNoMember: true)
-        // 沒登入,按 Apple／Google 登入或註冊會直接登入假後台(登入與加入流程,#408)。
-        case .signUp: UITestingBackendTransport(isPlusActive: false, startsSignedIn: false)
-        case .none, .loading, .offline: preconditionFailure("沒有假後台的會員情境")
+        case .none, .loading: preconditionFailure("沒有假後台的會員情境")
         }
     }
 
     // MARK: 輸入來源與 App 鎖
 
-    /// App 鎖:UI 測試用替身與另一個 UserDefaults suite,`-uiTestingAppLock` 以已開啟啟動,`-uiTestingNoPasscode` 模擬沒有裝置密碼。
+    /// App 鎖:UI 測試用替身與另一個 UserDefaults suite,`-uiTestingAppLock` 以已開啟啟動。
     private static func appLock(_ configuration: LaunchConfiguration) -> AppLock {
         let suiteName = "uiTesting.appLock"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         defaults.set(configuration.appLockEnabled, forKey: AppLock.enabledKey)
-        return AppLock(authenticator: UITestingDeviceOwnerAuthenticator(hasPasscode: !configuration.hasNoPasscode), defaults: defaults)
+        return AppLock(authenticator: UITestingDeviceOwnerAuthenticator(), defaults: defaults)
     }
 
     /// 「＋」面板的替身照片;沒帶旗標就是沒有相簿權限。UI 測試一律不碰系統相簿。
     private static func recentPhotoSource(_ photos: LaunchConfiguration.RecentPhotos) -> RecentPhotoSource {
         switch photos {
-        case .many: .simulated(count: 80)
         case .few: .simulated(count: 6)
         case .denied: .simulatedDenied
         }
@@ -281,19 +264,9 @@ enum UITestingEnvironment {
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000002")!, name: "Build Box",
         endpoint: SSHEndpoint(host: "build-box.invalid", username: "demo"), operatingSystem: .linux)
 
-    /// `-seedSlowHost`:再存一台連線卡住的主機(列表的「連線中」與「仍在連線」,#221)。
-    private static let slowHost = HostConfiguration(
-        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000004")!, name: "Slow Box",
-        endpoint: SSHEndpoint(host: "slow-box.invalid", username: "demo"), operatingSystem: .linux)
-
     /// `-seedUnpairedHTTPSHost`:主機同步帶來、這支裝置還沒配對的 HTTPS 主機(#63)。
     private static let unpairedHTTPSHost = HostConfiguration(
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000003")!, name: "Studio HTTPS",
-        hostService: HostServiceAddress("studio.tail1234.ts.net")!)
-
-    /// `-seedReadOnlyHTTPSHost`:這支裝置已用唯讀權杖配對好的 HTTPS 主機(主機頁的主機服務區塊,#290)。
-    private static let readOnlyHTTPSHost = HostConfiguration(
-        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000005")!, name: "Studio",
         hostService: HostServiceAddress("studio.tail1234.ts.net")!)
 
     /// `-seedPairedHTTPSHost`:這支裝置已配對好的 HTTPS 主機(主機頁的已配對裝置區塊,#291)。
@@ -304,8 +277,6 @@ enum UITestingEnvironment {
     private static func seededHosts(_ seeded: LaunchConfiguration.SeededHosts) -> [HostConfiguration] {
         (seeded.contains(.studioMac) ? [seededHost] : []) + (seeded.contains(.buildBox) ? [unreachableHost] : [])
             + (seeded.contains(.unpairedHTTPS) ? [unpairedHTTPSHost] : [])
-            + (seeded.contains(.readOnlyHTTPS) ? [readOnlyHTTPSHost] : [])
             + (seeded.contains(.pairedHTTPS) ? [pairedHTTPSHost] : [])
-            + (seeded.contains(.slowBox) ? [slowHost] : [])
     }
 }

@@ -106,7 +106,6 @@ enum ProductionEnvironment {
                         publicModelCatalog: URLSessionPublicModelCatalog(),
                         diagnostics: .system(category: "hosts"), sleep: Sleeping.task))
             },
-            simulatesNoNetwork: false,
             // 正式啟動沿用上次的選擇(#394:啟用後才出現在主機選單,移除後不再出現)。
             demoEntry: LaunchEnvironment.DemoEntry(
                 initial: UserDefaults.standard.bool(forKey: demoKey), didChange: { UserDefaults.standard.set($0, forKey: demoKey) }),

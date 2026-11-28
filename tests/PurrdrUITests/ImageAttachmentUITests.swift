@@ -82,7 +82,7 @@ final class ImageAttachmentUITests: XCTestCase {
     /// 「＋」念「附加」、至少 44pt;點了升起面板:最近的照片(替身)、所有照片、檔案、貼上(#352)。
     @MainActor
     func testAttachPanelShowsRecentPhotosAndActions() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingRecentPhotos"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingRecentPhotos])
         openLedger(in: app)
 
         let add = app.element("composer.attach")

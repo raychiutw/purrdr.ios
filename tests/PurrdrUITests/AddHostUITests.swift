@@ -10,7 +10,7 @@ final class AddHostUITests: XCTestCase {
     /// 沒有相機權限：說明並可改手動輸入，配對碼欄位仍可輸入。
     @MainActor
     func testCameraDeniedExplainsAndKeepsManualEntry() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingCameraDenied"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingCameraDenied])
         openPairStep(app)
         app.buttons["guide.scan"].tapWhenReady()
 
