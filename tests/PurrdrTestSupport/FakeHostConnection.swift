@@ -488,8 +488,13 @@ public actor FakeHostConnection: HostConnection {
     /// 正被擋著、還沒回應的請求數。
     public var heldCount: Int { held.count }
 
+    /// 最近一次 `releaseHeld()` 放行當下,已經送進來的型別化請求(依序)。
+    /// 證明「某個請求在放行之前沒有送出」:它不在這份清單裡(不必靠等待時間)。
+    public private(set) var typedCallsAtLastRelease: [String] = []
+
     /// 回應所有被擋著的請求。
     public func releaseHeld() {
+        typedCallsAtLastRelease = typedCalls
         let waiting = held
         held = []
         for continuation in waiting { continuation.resume() }

@@ -68,7 +68,10 @@ final class PushSettingsUITests: XCTestCase {
         XCTAssertFalse(queue.isEnabled, "SSH 主機不該能開只給 HTTPS 的種類")
         XCTAssertTrue(app.element("account.push.\(Self.seededHost).kind.queue_paused.reason").exists, "停用的種類沒有說明原因")
 
-        daily.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()  // 列有多行文字,點開關本體(右緣)
+        // 列有多行文字:列本身的中心點到的是說明文字、不會切換。點列裡真正的開關元素(不用座標)。
+        let control = daily.switches.firstMatch
+        XCTAssertTrue(control.exists, "種類開關的列裡沒有開關元素")
+        control.tap()
         daily.expectValue("0")
         XCTAssertTrue(app.switches["account.push.\(Self.seededHost).kind.blocked"].isEnabled)
     }
