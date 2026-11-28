@@ -16548,6 +16548,30 @@
         }
       }
     },
+    "Your computer appears to be offline." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的主機似乎已離線。"
+          }
+        }
+      },
+      "comment" : "「主機離線」推播內文(後台 APNs payload 的 loc-key)"
+    },
+    "Your computer is back online." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的主機已恢復連線。"
+          }
+        }
+      },
+      "comment" : "「主機已恢復」推播內文(後台 APNs payload 的 loc-key)"
+    },
     "Your file %@" : {
       "extractionState" : "manual",
       "localizations" : {

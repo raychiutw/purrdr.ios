@@ -107,6 +107,11 @@ public final class SystemPushPlatform: PushPlatform {
     /// 主機離線與已恢復(`host_offline`／`host_recovered`):只有標題。
     static let hostOfflineTitle = String(localized: "Host offline", comment: "「主機離線」推播標題(後台 APNs payload 的 title)")
     static let hostRecoveredTitle = String(localized: "Host back online", comment: "「主機已恢復」推播標題(後台 APNs payload 的 title)")
+    /// 內文(purrdr.server `src/presence.ts`;沒有 `loc-args`)。
+    static let hostOfflineBody = String(
+        localized: "Your computer appears to be offline.", comment: "「主機離線」推播內文(後台 APNs payload 的 loc-key)")
+    static let hostRecoveredBody = String(
+        localized: "Your computer is back online.", comment: "「主機已恢復」推播內文(後台 APNs payload 的 loc-key)")
 
     /// 測試通知(#328,`event: "test"`):標題 `title-loc-key` 帶主機名稱(`loc-args`),沒有名稱時用不帶參數的版本。
     static func testTitle(hostName: String) -> String {
