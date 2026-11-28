@@ -999,6 +999,22 @@ public final class PushModel {
     }
 }
 
+extension PushService: PushSettingsBacking {
+    func fetchKindCatalog() async throws -> PushKindCatalog {
+        try await session.pushKinds()
+    }
+
+    func syncPairingKinds() async {
+        guard let device = try? device(),
+              let records = try? await session.pushPairings(deviceID: device.id) else { return }
+        noteBackendPairings(records)
+        for record in records where !record.kinds.isEmpty && store.host(forKeyHash: record.keyHash) != nil {
+            store.setKinds(record.kinds, forKeyHash: record.keyHash)
+        }
+        kindsChanged()
+    }
+}
+
 /// 點通知時要開的畫面:payload 根層的 `pairing`(配對密鑰雜湊 → 主機)、`pane` 或主機服務的 `event`(後台組的,`raychiutw/purrdr.server` 的 `src/push.ts`)。
 public struct PushRoute: Equatable, Sendable {
     public var keyHash: String

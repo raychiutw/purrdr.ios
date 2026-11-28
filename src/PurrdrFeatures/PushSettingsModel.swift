@@ -68,6 +68,14 @@ extension PushKindCatalog {
 ///
 /// 讀不到(離線、舊後台沒有清單 API、後台回壞資料)時退回 app 內建的五種與本機記錄,整頁不空白、不擋住。
 /// 後台新增的種類(app 不認得的代號)照樣顯示,名稱與說明用後台給的。
+/// `PushSettingsModel` 需要的後台操作(讀種類清單、把配對種類併回本機);`PushService` 實作,model 不必知道 service 的內部成員。
+@MainActor
+protocol PushSettingsBacking: AnyObject {
+    func fetchKindCatalog() async throws -> PushKindCatalog
+    /// 配對以後台為準:這支裝置每組配對的種類寫回本機紀錄並通知各主機開關。
+    func syncPairingKinds() async
+}
+
 @MainActor
 @Observable
 public final class PushSettingsModel {
@@ -75,11 +83,11 @@ public final class PushSettingsModel {
     /// 上次讀種類清單失敗的原因(只供診斷;畫面不顯示,因為有備援)。
     public private(set) var lastLoadFailure: (any Error)?
 
-    @ObservationIgnored private weak var service: PushService?
+    @ObservationIgnored private weak var service: (any PushSettingsBacking)?
     @ObservationIgnored package var preferredLanguages: @MainActor () -> [String]
 
     /// - Parameter preferredLanguages: 顯示語言;正式是 app 實際使用的在地化(`Bundle.main.preferredLocalizations`)。
-    init(service: PushService, preferredLanguages: @escaping @MainActor () -> [String] = { Bundle.main.preferredLocalizations }) {
+    init(service: any PushSettingsBacking, preferredLanguages: @escaping @MainActor () -> [String] = { Bundle.main.preferredLocalizations }) {
         self.service = service
         self.preferredLanguages = preferredLanguages
     }
@@ -89,7 +97,7 @@ public final class PushSettingsModel {
     public func load() async {
         guard let service else { return }
         do {
-            let loaded = try await service.session.pushKinds()
+            let loaded = try await service.fetchKindCatalog()
             // 空清單不能拿來畫(整頁會空白):當作沒讀到。
             if loaded.definitions.isEmpty {
                 lastLoadFailure = BackendError.invalidResponse
@@ -105,13 +113,7 @@ public final class PushSettingsModel {
 
     /// 配對以後台為準:這支裝置每組配對的種類寫回本機紀錄。後台沒給種類(空)的不覆蓋,保留舊版 app 的升級行為。
     func syncPairings() async {
-        guard let service, let device = try? service.device(),
-              let records = try? await service.session.pushPairings(deviceID: device.id) else { return }
-        service.noteBackendPairings(records)
-        for record in records where !record.kinds.isEmpty && service.store.host(forKeyHash: record.keyHash) != nil {
-            service.store.setKinds(record.kinds, forKeyHash: record.keyHash)
-        }
-        service.kindsChanged()
+        await service?.syncPairingKinds()
     }
 
     /// 後台的種類清單在用(不是內建備援):改種類走 `PATCH`,代號以清單為準。
