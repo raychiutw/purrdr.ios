@@ -5317,17 +5317,6 @@
         }
       }
     },
-    "Finished" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "完成"
-          }
-        }
-      }
-    },
     "First Message" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7168,17 +7157,6 @@
         }
       }
     },
-    "May Be Stuck" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可能卡住"
-          }
-        }
-      }
-    },
     "Medium" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7439,6 +7417,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需要主機服務 %@ 以上"
+          }
+        }
+      }
+    },
+    "Needs host service %@ or later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要主機服務 %@ 以上。"
+          }
+        }
+      }
+    },
+    "Needs notification helper %@ or later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要通知幫手 %@ 以上。"
+          }
+        }
+      }
+    },
+    "Needs the host service (HTTPS connection)." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要主機服務(HTTPS 連線)。"
           }
         }
       }
@@ -11949,17 +11960,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 %lld 步，共 %lld 步"
-          }
-        }
-      }
-    },
-    "Still Waiting for You" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "仍在等你"
           }
         }
       }
@@ -17031,28 +17031,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "年"
-          }
-        }
-      }
-    },
-    "“May Be Stuck” and “Still Waiting for You” need host service %@ or later." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「可能卡住」「仍在等你」需要主機服務 %@ 以上。"
-          }
-        }
-      }
-    },
-    "“May Be Stuck” and “Still Waiting for You” need the host service (HTTPS connection)." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「可能卡住」「仍在等你」需要主機服務(HTTPS 連線)。"
           }
         }
       }
