@@ -94,6 +94,17 @@ struct HostAdaptersTests {
         #expect(ssh.conversation(ChatRoute(host: .host(Self.sshHost.id), paneID: "w1:p1"), sessionID: nil).youShouldKnow != nil)
     }
 
+    @Test("Claude 的 slash 探索:SSH、Demo 與 HTTPS(主機服務連線)都有;替身連線說明原因,Demo 示範主機走通道(#733)")
+    func slashDiscoveryCapability() {
+        #expect(SSHHostAdapter(environment: environment()).capabilities(for: Self.sshHost).slashDiscovery.value != nil)
+        #expect(HTTPSHostAdapter(environment: environment()).capabilities(for: Self.httpsHost).slashDiscovery.value != nil)
+        #expect(
+            HTTPSHostAdapter(environment: environment(connection: FakeHostConnection())).capabilities(for: Self.httpsHost)
+                .slashDiscovery.gap == .connectionLacksSupport)
+        let demo = DemoHostAdapter(channel: FakeHost(), files: UnsupportedHostFileFetcher(), consent: InMemoryHostWriteConsentStore())
+        #expect(demo.demoHostCapabilities().slashDiscovery.value != nil)
+    }
+
     @Test("HTTPS 連線以主機 id 重用;丟掉後重新建立")
     func httpsReusesConnectionPerHost() async throws {
         let adapter = HTTPSHostAdapter(environment: environment())

@@ -54,6 +54,8 @@ struct HostCapabilities {
     var sessionStatus: any ClaudeSessionStatusReading
     var antigravityStatus: HostCapability<any ClaudeSessionStatusReading>
     var sendWhenDone: HostCapability<any SendWhenDoneHosting>
+    /// Claude 的 slash 清單來源(#733):SSH 與 Demo 掃主機上的 `~/.claude` 與專案,HTTPS 讀主機服務的 `slash.list`(0.17.0 起,更舊的退回內建清單)。
+    var slashDiscovery: HostCapability<any SlashDiscovering>
     var pushInstaller: HostCapability<HostPushInstallerMaker>
     var pushTestSender: HostCapability<HostPushTestSenderMaker>
     /// 要經主機通道才做得到的主機設定:主機主題、You should know、Codex 啟動器(#730)。
@@ -189,6 +191,8 @@ enum ChannelCapabilities {
             antigravityStatus: .available(AntigravityPlanUsageHost(channel: channel, files: hostFiles)),
             // Send When Done 要主機服務的 Agent 觀察者(#305)。
             sendWhenDone: .unavailable(.notOfferedByConnectionMethod),
+            slashDiscovery: AgentHostCapabilities.resolve(.claude, over: .ssh).slashDiscovery
+                ? .available(ClaudeSlashDiscovery(channel: channel)) : .unavailable(.notOfferedByConnectionMethod),
             pushInstaller: .available { $0.sshInstaller(channel: channel, herdr: herdr) },
             pushTestSender: hostName.map { name in
                 // Windows 也有 PowerShell 版,所以不分作業系統。
@@ -350,6 +354,9 @@ final class HTTPSHostAdapter: HostAdapter {
             // Antigravity 的包裝經 SSH 寫入,主機服務沒有(#448)。
             antigravityStatus: .unavailable(.notOfferedByConnectionMethod),
             sendWhenDone: (connection as? any SendWhenDoneHosting).map { .available($0) } ?? .unavailable(.connectionLacksSupport),
+            slashDiscovery: AgentHostCapabilities.resolve(.claude, over: .https).slashDiscovery
+                ? ((connection as? any SlashDiscovering).map { .available($0) } ?? .unavailable(.connectionLacksSupport))
+                : .unavailable(.notOfferedByConnectionMethod),
             pushInstaller: (connection as? any PushPluginInstallerProviding)?.pushPluginInstallers().map { make in
                 .available { $0.installer(make) }
             } ?? .unavailable(.connectionLacksSupport),

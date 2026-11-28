@@ -430,7 +430,7 @@ final class FakeHostService: Sendable {
             object["request_id"] = requestID
             return [.text(Self.json(object))]
         case "usage.codex", "usage.claude", "usage.session_context", "claude_usage.status", "claude_usage.install",
-            "claude_usage.remove", "directory.list":
+            "claude_usage.remove", "directory.list", "slash.list":
             if ["claude_usage.install", "claude_usage.remove"].contains(type),
                let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]

@@ -49,6 +49,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case tabCreate
     /// 關閉 Tab `tab.close`(raychiutw/purrdr.host#91,0.15.0;最後一個 Tab 會連 Workspace 一起關,仍回成功)。
     case tabClose
+    /// Claude 的 slash 清單 `slash.list`(raychiutw/purrdr.host#106,0.17.0;使用者層與 plugin,不含內建與專案層)。
+    case slashList
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -76,6 +78,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .tabRename: HostServiceVersion(0, 13, 1)
         case .tabCreate: HostServiceVersion(0, 15, 0)
         case .tabClose: HostServiceVersion(0, 15, 0)
+        case .slashList: HostServiceVersion(0, 17, 0)
         }
     }
 
