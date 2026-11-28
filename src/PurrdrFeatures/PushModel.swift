@@ -286,7 +286,7 @@ public final class PushService {
     // MARK: - 主機名稱與圖示同步到後台(ADR-0016、#706)
 
     /// 主機 id → 這台主機現在的名稱與圖示(`HostsModel` 在主機清單或圖示變動時更新)。
-    /// **電腦名稱與圖示屬個人資料:不寫進診斷檔或 log**,這裡所有失敗都不記內容(只吞掉等下次補)。
+    /// **主機名稱與圖示屬個人資料:不寫進診斷檔或 log**,這裡所有失敗都不記內容(只吞掉等下次補)。
     private var hostProfiles: [String: PushHostProfile] = [:]
     /// 配對雜湊 → 後台目前記的名稱與圖示(啟動讀配對清單得到;補傳成功後更新)。沒有紀錄的視為不知道,會補傳。
     private var backendProfiles: [String: PushHostProfile] = [:]
@@ -770,8 +770,10 @@ public final class PushModel {
     /// 這台主機的種類開關(後台的清單;讀不到時是內建的五種)。
     public func kindChoices(context: PushKindContext) -> [PushKindChoice] {
         service?.settings.choices(for: context) ?? PushKindCatalog.builtIn.definitions.map {
-            PushKindChoice(
-                kind: $0.kind, title: $0.name.english, details: $0.description.english,
+            // 內建文字已依系統語言(String Catalog);resolved 照後台文字的同一條路取用。
+            let languages = Bundle.main.preferredLocalizations
+            return PushKindChoice(
+                kind: $0.kind, title: $0.name.resolved(preferredLanguages: languages), details: $0.description.resolved(preferredLanguages: languages),
                 availability: $0.availability(installsViaHostService: context.installsViaHostService, hostServiceVersion: context.hostServiceVersion))
         }
     }
@@ -964,7 +966,7 @@ public final class PushModel {
         case PushTestNotificationError.subscriptionRequired:
             String(localized: "Test notifications need Purrdr Plus.")
         case PushTestNotificationError.dailyLimitReached:
-            String(localized: "You’ve reached today’s limit for test notifications. Try again tomorrow.")
+            String(localized: "Today’s notifications are used up, including test notifications. Try again tomorrow.")
         case PushTestNotificationError.rateLimited:
             String(localized: "You’ve sent too many notifications in a minute. Wait a moment and try again.")
         case PushTestNotificationError.apnsFailed:

@@ -80,10 +80,13 @@ struct ConversationParallelLocateTests {
         defer { poll.cancel() }
 
         try await waitUntil { await connection.heldCount == 1 }
-        try await Task.sleep(for: .milliseconds(100))
-        #expect(await Self.locateCount(connection) == 0)
+        // 讓 poll 與它可能開出的並行工作都跑到卡住或結束為止(讓出執行緒的次數,不是時間),再放行 snapshot。
+        for _ in 0..<500 { await Task.yield() }
         await connection.releaseHeld()
         await poll.value
-        #expect(await Self.locateCount(connection) == 1)
+        // 放行當下已送進來的請求裡沒有定位;定位是 snapshot 之後才送的(確定性:不靠等多久)。
+        let beforeRelease = await connection.typedCallsAtLastRelease
+        #expect(!beforeRelease.contains("locateTranscript"), "snapshot 還卡著時不該先定位 \(beforeRelease)")
+        #expect(await Self.locateCount(connection) == 1, "snapshot 之後才定位一次")
     }
 }

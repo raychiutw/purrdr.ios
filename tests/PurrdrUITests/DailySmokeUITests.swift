@@ -319,7 +319,7 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertFalse(app.element("account.join.paywall").exists, "查無會員不該直接進加入流程")
             app.alerts["No Member Found"].buttons["member.notFound.join"].firstMatch.tap()
         }
-        step("加入會員:略過 Plus,通知鎖定,完成頁是會員已建立") {
+        step("加入會員:略過 Plus,通知照常可開,完成頁是會員已建立") {
             // 上一步按了「加入」已在加入第 1 步(不再回選擇頁)。
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "加入第 1 步沒有 Apple 註冊鈕")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
@@ -332,9 +332,12 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.buttons["member.signIn.cancel"].exists, "第 2 步起左上應是關閉")
             app.buttons["account.join.secondary"].tap()
 
-            XCTAssertTrue(app.element("account.join.notificationsLocked").waitUntilExists(timeout: 5), "略過 Plus 後通知沒有鎖定")
+            // 通知不需要 Plus(#675):略過 Plus 後通知頁照常可用,不鎖定、不再要求開通 Plus。
+            XCTAssertTrue(app.element("account.join.notifications").waitUntilExists(timeout: 5), "略過 Plus 後沒有可用的通知頁")
+            XCTAssertFalse(app.element("account.join.notificationsLocked").exists, "略過 Plus 後通知不該鎖定")
             XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 3 of 4")
-            XCTAssertTrue(app.buttons["account.join.primary"].label.contains("Activate Purrdr Plus"))
+            XCTAssertTrue(app.buttons["account.join.primary"].label.contains("Continue"))
+            XCTAssertFalse(app.staticTexts["Notifications need Purrdr Plus. You chose to activate it later, so this step is skipped for now."].exists)
             app.buttons["account.join.secondary"].tap()
 
             XCTAssertTrue(app.element("account.join.doneCreated").waitUntilExists(timeout: 5), "略過 Plus 的完成頁不是「會員已建立」")

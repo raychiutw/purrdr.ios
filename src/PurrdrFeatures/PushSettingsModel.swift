@@ -33,31 +33,35 @@ public struct PushKindChoice: Identifiable, Equatable {
 
 extension PushKindCatalog {
     /// app 內建備援:舊後台沒有清單 API、離線或還沒讀到時用;就是 0.55 以前寫死的五種(「完成」預設開,與以前一樣)。
-    /// 文字是資料(與後台給的同形狀,兩種語言都在),不是畫面字串。
-    public static let builtIn = PushKindCatalog(
-        definitions: [
-            PushKindDefinition(
-                kind: .blocked, name: .init(english: "Needs You", traditionalChinese: "需要你"),
-                description: .init(english: "An agent is waiting for your answer or approval.", traditionalChinese: "Agent 在等你回答或核准。"),
-                defaultOn: true, order: 10),
-            PushKindDefinition(
-                kind: .done, name: .init(english: "Finished", traditionalChinese: "完成"),
-                description: .init(english: "An agent finished its work.", traditionalChinese: "Agent 做完了。"),
-                defaultOn: true, order: 20),
-            PushKindDefinition(
-                kind: .stuck, name: .init(english: "May Be Stuck", traditionalChinese: "可能卡住"),
-                description: .init(english: "An agent seems to have stopped making progress.", traditionalChinese: "Agent 好像沒有進展了。"),
-                defaultOn: false, transports: [.https], minServiceVersion: HostServiceFeature.agentObserver.minimumVersion, order: 30),
-            PushKindDefinition(
-                kind: .reminder, name: .init(english: "Still Waiting for You", traditionalChinese: "仍在等你"),
-                description: .init(english: "A reminder when an agent has been waiting for you for a while.", traditionalChinese: "Agent 等你一陣子了,再提醒一次。"),
-                defaultOn: false, transports: [.https], minServiceVersion: HostServiceFeature.agentObserver.minimumVersion, order: 40),
-            PushKindDefinition(
-                kind: .hostService, name: .init(english: "Host Service", traditionalChinese: "主機服務"),
-                description: .init(english: "Updates to the host service on this computer.", traditionalChinese: "這台電腦上的主機服務有更新。"),
-                defaultOn: false, transports: [.https], order: 50),
-        ],
-        source: .builtIn)
+    /// 文字走 String Catalog(`String(localized:)`,依系統語言),所以每次取用才組(不是 `let`)、只填 `english` 欄。
+    /// 後台給的清單才帶兩種語言(ADR-0016)。
+    public static var builtIn: PushKindCatalog {
+        func text(_ value: String) -> PushLocalizedText { PushLocalizedText(english: value) }
+        return PushKindCatalog(
+            definitions: [
+                PushKindDefinition(
+                    kind: .blocked, name: text(String(localized: "Needs You")),
+                    description: text(String(localized: "An agent is waiting for your answer or approval.")),
+                    defaultOn: true, order: 10),
+                PushKindDefinition(
+                    kind: .done, name: text(String(localized: "Finished")),
+                    description: text(String(localized: "An agent finished its work.")),
+                    defaultOn: true, order: 20),
+                PushKindDefinition(
+                    kind: .stuck, name: text(String(localized: "May Be Stuck")),
+                    description: text(String(localized: "An agent seems to have stopped making progress.")),
+                    defaultOn: false, transports: [.https], minServiceVersion: HostServiceFeature.agentObserver.minimumVersion, order: 30),
+                PushKindDefinition(
+                    kind: .reminder, name: text(String(localized: "Still Waiting for You")),
+                    description: text(String(localized: "A reminder when an agent has been waiting for you for a while.")),
+                    defaultOn: false, transports: [.https], minServiceVersion: HostServiceFeature.agentObserver.minimumVersion, order: 40),
+                PushKindDefinition(
+                    kind: .hostService, name: text(String(localized: "Host Service")),
+                    description: text(String(localized: "Updates to the host service on this host.")),
+                    defaultOn: false, transports: [.https], order: 50),
+            ],
+            source: .builtIn)
+    }
 }
 
 /// 通知設定(ADR-0016、#705):讀後台的種類清單與這支裝置的配對,照清單畫每台主機的開關,配對的種類以後台為準。

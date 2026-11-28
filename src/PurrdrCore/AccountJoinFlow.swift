@@ -22,18 +22,6 @@ public struct AccountJoinFlow: Equatable, Sendable {
         case close
     }
 
-    public enum NotificationsAction: Equatable, Sendable {
-        /// 有 Plus,可以逐台開啟。
-        case unlocked
-        /// 沒有 Plus:鎖定,只提供 `offers` 這些動作。
-        case locked(offers: [Offer])
-    }
-
-    public enum Offer: Equatable, Sendable {
-        case activatePlus
-        case finishLater
-    }
-
     public private(set) var step: Step = .createMember
     public private(set) var skippedPlus = false
 
@@ -55,10 +43,6 @@ public struct AccountJoinFlow: Equatable, Sendable {
             : [.createMember, .activatePlus, .turnOnNotifications, .syncHosts]
     }
 
-    public var notificationsAction: NotificationsAction {
-        skippedPlus ? .locked(offers: [.activatePlus, .finishLater]) : .unlocked
-    }
-
     public mutating func advance() {
         switch step {
         case .createMember: step = .activatePlus
@@ -76,7 +60,7 @@ public struct AccountJoinFlow: Equatable, Sendable {
         step = .turnOnNotifications
     }
 
-    /// 略過後又在通知步驟開通了 Plus:解鎖通知、同步步驟回來。
+    /// 略過後又在通知步驟開通了 Plus:同步步驟回來(通知本來就不需要 Plus,#675)。
     public mutating func plusActivated() {
         skippedPlus = false
     }
