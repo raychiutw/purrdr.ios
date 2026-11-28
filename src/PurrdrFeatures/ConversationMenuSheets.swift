@@ -46,17 +46,14 @@ struct SendWhenDoneContentView: View {
     }
 }
 
-/// 做完再送的 List 內容(不含 List 本身):sheet 與聊天面板(#617)共用;面板帶標題。
+/// 做完再送的 List 內容(不含 List 本身):做完再送 sheet 用。
 struct SendWhenDoneSections: View {
     let model: ConversationModel
-    var showsHeader = false
 
     var body: some View {
         if let sendWhenDone = model.sendWhenDone {
             Section {
                 SendWhenDoneToggle(model: sendWhenDone)
-            } header: {
-                if showsHeader { Text("Send When Done") }
             } footer: {
                 if let reason = sendWhenDone.availability.unavailabilityReason {
                     // 不能用的原因直接寫在開關下方,不跳 alert(#626)。

@@ -180,7 +180,7 @@ _避免_:視窗(那是 iPad 的 app 視窗)、Window
 _避免_:用量圓圈、進度環、Context 圓環(列表每列右欄的小圓環是 context 圓環，那是另一個東西,只顯示 context)、額度環
 
 **聊天面板**(Conversation panel,#513、#617):
-點用量環開出的面板,合併原本的用量 sheet 與 iPad 右側 Inspector。iPad／寬視窗是錨在用量環下方的 popover(系統寬度),iPhone(compact)是 sheet(medium／large、左上 X)。內容:「這個聊天」的 Context 卡片、「方案用量 · 主機名」的目前工作階段與每週卡片、更新時間(數字跟著「已用／剩餘」設定),加上模型與投入程度、權限模式、做完再送、待辦、背景子 Agent(沒資料的項目不列,規則同「⋯」選單);右上重新整理。選單列快捷鍵(Option-Command-I)是「Show Usage & Details」。取代舊的聊天標題面板(#349,已移除)、用量 sheet 與 Inspector。
+點用量環開出的面板,合併原本的用量 sheet 與 iPad 右側 Inspector。iPad／寬視窗是錨在用量環下方的 popover(系統寬度),iPhone(compact)是 sheet(medium／large、左上 X)。內容:「這個聊天」的 Context 卡片、「方案用量 · 主機名」的目前工作階段與每週卡片、更新時間(數字跟著「已用／剩餘」設定),只有這兩塊(#712);模型與投入程度、權限模式、做完再送、待辦、背景子 Agent 只從「⋯」選單進入;右上重新整理。標題「Usage & Context」。選單列快捷鍵(Option-Command-I)是「Show Usage & Context」。取代舊的聊天標題面板(#349,已移除)、用量 sheet 與 Inspector。
 _避免_:Inspector、側欄、用量 sheet、標題面板、狀態 sheet
 
 ## 聊天畫面

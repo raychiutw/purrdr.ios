@@ -73,7 +73,7 @@ extension KeyboardCommand {
         case .showFiles: "Files"
         case .showHosts: "Hosts"
         case .showTraffic: "Traffic"
-        case .toggleConversationPanel: "Show Usage & Details"
+        case .toggleConversationPanel: "Show Usage & Context"
         case .openInNewWindow: "Open in New Window"
         }
     }
@@ -99,7 +99,7 @@ extension KeyboardCommand {
         case .showFiles: "Files"
         case .showHosts: "Hosts"
         case .showTraffic: "Traffic"
-        case .toggleConversationPanel: "Show Usage & Details"
+        case .toggleConversationPanel: "Show Usage & Context"
         case .openInNewWindow: "Open in New Window"
         case .nextAgent: "Next Agent"
         case .previousAgent: "Previous Agent"

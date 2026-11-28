@@ -137,6 +137,10 @@ final class DailySmokeUITests: XCTestCase {
             app.buttons["conversation.usage"].firstMatch.tap()
             XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
             XCTAssertTrue(app.element("usage.sheet.context").waitUntilExists(timeout: 5), "面板沒有 Context 卡片")
+            for removed in ["panel.model", "panel.permissionMode", "panel.todos", "panel.backgroundAgents"] {
+                XCTAssertFalse(app.element(removed).exists, "面板只放用量與 Context,不該有 \(removed)(#712)")
+            }
+            XCTAssertFalse(app.buttons["Accept Edits"].firstMatch.exists, "面板不該有權限模式")
             app.buttons["panel.close"].tap()
             XCTAssertTrue(app.element("conversation.panel").waitUntilGone(timeout: 5), "面板沒有關閉")
             app.conversationMoreItem("menu.permissionMode").tap()
