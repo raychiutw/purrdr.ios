@@ -3,10 +3,11 @@ import PurrdrCore
 import PurrdrHTTPS
 import Testing
 
-/// 對真實主機服務的整合測試，以環境變數開啟(預設不跑;CI 不跑)。只做唯讀的 herdr 請求。
+/// 對真實主機服務的整合測試，以環境變數開啟(預設不跑;CI 不跑)。只做唯讀的 herdr 請求;
+/// 用配對碼換到的權杖測完會自動撤銷(`POST /v1/revoke`),主機的裝置清單不留這次新增的裝置。
 ///
 /// ```bash
-/// # 先在主機上 `purrdr-host-service pair --address <位址>` 取得配對碼(會在主機上多一台裝置，測完可 `revoke`)
+/// # 先在主機上 `purrdr-host-service pair --address <位址>` 取得配對碼(測完自動撤銷)
 /// PURRDR_HTTPS_HOST=https://my-mac.tailnet.ts.net PURRDR_HTTPS_PAIRING_CODE=K7QM-2XPA \
 ///   swift test --filter HTTPSRealHostIntegrationTests
 /// # 已有裝置權杖時改用 PURRDR_HTTPS_TOKEN=<權杖>;本機直連主機服務(不經 tailscale serve)用 http://127.0.0.1:47820
@@ -19,26 +20,33 @@ struct HTTPSRealHostIntegrationTests {
     func realHostService() async throws {
         let environment = Self.environment
         let address = try #require(HostServiceAddress(environment["PURRDR_HTTPS_HOST"] ?? ""), "PURRDR_HTTPS_HOST 不是主機服務位址")
-        let token: String
-        if let code = environment["PURRDR_HTTPS_PAIRING_CODE"] {
-            let paired = try await HostServicePairing().pair(address: address, pairingCode: code, deviceName: "purrdr integration test")
-            print("裝置 id:\(paired.deviceID)(測完可在主機上 revoke)")
-            token = paired.deviceToken
-        } else {
-            token = try #require(environment["PURRDR_HTTPS_TOKEN"], "要設 PURRDR_HTTPS_PAIRING_CODE 或 PURRDR_HTTPS_TOKEN")
+        let pairing = HostServicePairing()
+        // 配對碼換來的權杖在結束時(含失敗)撤銷,主機的裝置清單不留這次的裝置;自備的權杖不動。
+        try await RealHostToken.with(
+            environment: environment,
+            pair: {
+                let paired = try await pairing.pair(address: address, pairingCode: environment["PURRDR_HTTPS_PAIRING_CODE"] ?? "", deviceName: "purrdr integration test")
+                return paired.deviceToken
+            },
+            revoke: { token in try? await pairing.revoke(address: address, deviceToken: token) }
+        ) { token in
+            let connection = HTTPSHostConnection(address: address, deviceToken: { token }, appVersion: "integration-test")
+            let client = HerdrClient(connection: connection)
+            do {
+                let welcome = try await connection.hostServiceInfo()
+                let version = try await client.ping()
+                let snapshot = try await client.snapshot()
+                await connection.disconnect()
+
+                print("主機服務 \(welcome.hostServiceVersion)、herdr \(version)、能力 \(welcome.herdr.capabilities)、\(snapshot.agents.count) 個 Agent")
+                #expect(HerdrVersion(version).map { $0 >= HerdrVersion(major: 0, minor: 9, patch: 4) } == true)
+                #expect(snapshot.version == version)
+                #expect(snapshot.agents.allSatisfy { !$0.paneID.isEmpty && !$0.workspaceID.isEmpty })
+            } catch {
+                await connection.disconnect()
+                throw error
+            }
         }
-        let connection = HTTPSHostConnection(address: address, deviceToken: { token }, appVersion: "integration-test")
-        let client = HerdrClient(connection: connection)
-
-        let welcome = try await connection.hostServiceInfo()
-        let version = try await client.ping()
-        let snapshot = try await client.snapshot()
-        await connection.disconnect()
-
-        print("主機服務 \(welcome.hostServiceVersion)、herdr \(version)、能力 \(welcome.herdr.capabilities)、\(snapshot.agents.count) 個 Agent")
-        #expect(HerdrVersion(version).map { $0 >= HerdrVersion(major: 0, minor: 9, patch: 4) } == true)
-        #expect(snapshot.version == version)
-        #expect(snapshot.agents.allSatisfy { !$0.paneID.isEmpty && !$0.workspaceID.isEmpty })
     }
 
     /// 只能指向自建測試 workspace 的 shell pane(會在裡面執行 `echo`):
