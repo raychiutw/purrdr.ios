@@ -57,25 +57,18 @@ extension UIScrollView {
 /// 一次解掉所有頁面,不必逐頁調整 identifier 的順序。
 private struct StatusBarFade: View {
     let reduceTransparency: Bool
-    @State private var height: CGFloat = 54
+    @State private var height: CGFloat = StatusBarHeight.fallback
 
     var body: some View {
-        TopFadeRepresentable(reduceTransparency: reduceTransparency)
+        TopFadeRepresentable(reduceTransparency: reduceTransparency, onStatusBarHeight: { height = StatusBarHeight.resolve(sceneHeight: $0) })
             .frame(height: height)
             .frame(maxWidth: .infinity)
-            // 寬度(旋轉、iPad 視窗大小)改變時重量狀態列高度。
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in height = Self.statusBarHeight() }
-            .onAppear { height = Self.statusBarHeight() }
-    }
-
-    private static func statusBarHeight() -> CGFloat {
-        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        return scene?.statusBarManager?.statusBarFrame.height ?? 54
     }
 }
 
 private struct TopFadeRepresentable: UIViewRepresentable {
     let reduceTransparency: Bool
+    let onStatusBarHeight: (CGFloat?) -> Void
 
     func makeUIView(context: Context) -> TopFadeView {
         TopFadeView()
@@ -83,12 +76,20 @@ private struct TopFadeRepresentable: UIViewRepresentable {
 
     func updateUIView(_ view: TopFadeView, context: Context) {
         view.reduceTransparency = reduceTransparency
+        view.onStatusBarHeight = onStatusBarHeight
     }
 }
 
 /// 由上往下淡出的模糊視圖:不是 accessibility 元素,且忽略外層套下來的 identifier。
 final class TopFadeView: UIVisualEffectView {
     private let fadeMask = CAGradientLayer()
+    private var reportedHeight: CGFloat?
+
+    /// 回報這個視圖所在視窗場景的狀態列高度(換視窗、旋轉、iPad 視窗大小改變時重報);
+    /// 延後到這次排版之後再通知,不在 layoutSubviews 內改 SwiftUI 狀態。
+    var onStatusBarHeight: ((CGFloat?) -> Void)? {
+        didSet { reportStatusBarHeight(force: true) }
+    }
 
     var reduceTransparency = false {
         didSet { applyStyle() }
@@ -123,6 +124,20 @@ final class TopFadeView: UIVisualEffectView {
     override func layoutSubviews() {
         super.layoutSubviews()
         fadeMask.frame = bounds
+        reportStatusBarHeight(force: false)
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        reportStatusBarHeight(force: true)
+    }
+
+    private func reportStatusBarHeight(force: Bool) {
+        let height = window?.windowScene?.statusBarManager?.statusBarFrame.height
+        guard force || height != reportedHeight else { return }
+        reportedHeight = height
+        guard let callback = onStatusBarHeight else { return }
+        DispatchQueue.main.async { callback(height) }
     }
 
     private func applyStyle() {

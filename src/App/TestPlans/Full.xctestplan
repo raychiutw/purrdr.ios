@@ -23,6 +23,7 @@
         "DailySmokeUITests/testListAndChat()",
         "DailySmokeUITests/testTabsAndSignedOutAccount()",
         "DailySmokeUITests/testPlusMemberAccount()",
+        "DailySmokeUITests/testStoreBuildAccount()",
         "DailySmokeUITests/testDataUsageThenFilesHostMenuDoesNotChangeChatFilter()",
         "DailySmokeUITests/testWelcomeNoHostsGuideAndDemo()",
         "AccessibilityAuditUITests",
