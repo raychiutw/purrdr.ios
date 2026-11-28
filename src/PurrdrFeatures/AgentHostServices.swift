@@ -91,7 +91,7 @@ package struct AgentHostCapabilities: Equatable, Sendable {
         switch agent {
         case .claude:
             return AgentHostCapabilities(
-                planUsage: true, planUsageWritesHost: true, sessionStatus: true, slashDiscovery: overSSH, launcher: false)
+                planUsage: true, planUsageWritesHost: true, sessionStatus: true, slashDiscovery: true, launcher: false)
         case .codex:
             return AgentHostCapabilities(
                 planUsage: true, planUsageWritesHost: false, sessionStatus: false, slashDiscovery: false, launcher: overSSH)
