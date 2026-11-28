@@ -99,12 +99,13 @@ enum WindowsCommand {
 
     /// 登入 Shell 的指令(#732):互動的 `powershell.exe -NoLogo -NoExit`,啟動時先把主控台輸入輸出設成 UTF-8
     /// (Windows PowerShell 5.1 預設 OEM code page,繁中是 CP950,中文會亂碼)。
-    /// 設定經 `-EncodedCommand`(純 base64),cmd、PowerShell、Git Bash 三種 DefaultShell 都不必處理引號與 `$`。
+    /// 設定經 `-EncodedCommand`(純 base64),內文沒有引號與 `$`。
+    /// 整串外包一組雙引號:PTY 模式下 sshd 把指令原樣接在 DefaultShell 的 `-c` 後面,Git Bash 不加引號只拿得到第一個字。
     /// 不加 `-NoProfile`:使用者的 profile 照常載入。
     static let loginShell: String = {
         let script = "$u=New-Object Text.UTF8Encoding $false;[Console]::InputEncoding=$u;[Console]::OutputEncoding=$u;$OutputEncoding=$u"
         let encoded = PowerShell.encodedCommand(script)
-        return "powershell.exe -NoLogo -NoExit -EncodedCommand " + String(encoded.split(separator: " ").last!)
+        return "\"powershell.exe -NoLogo -NoExit -EncodedCommand " + String(encoded.split(separator: " ").last!) + "\""
     }()
 
     static func translate(_ command: String) throws -> WindowsInvocation {
