@@ -11,6 +11,7 @@ struct SSHHostChannelTests {
     @Test("以 none 認證登入並執行指令:stdout、stderr、exit code 分開回來")
     func executesCommand() async throws {
         let server = try await TestSSHServer.start { _ in .reply(stdout: "out\n", stderr: "err\n", exitCode: 3) }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
 
         let result = try await collect(channel.execute("anything"))
@@ -19,12 +20,12 @@ struct SSHHostChannelTests {
         #expect(server.snapshot.commands == ["anything"])
         #expect(server.snapshot.usernames == ["demo"])
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("stdin 保持開著：寫一行就收到回應，不需要送 EOF(bridge 規則)")
     func stdinStaysOpen() async throws {
         let server = try await TestSSHServer.start { _ in .echoFirstLine }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
 
         let session = try await channel.execute("bridge")
@@ -33,24 +34,24 @@ struct SSHHostChannelTests {
 
         #expect(result.stdout == "echo:hello\n")
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("被訊號殺死的指令回報 exit-signal,不當成 exit 0")
     func reportsExitSignal() async throws {
         let server = try await TestSSHServer.start { _ in .killed(signal: "KILL") }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
 
         let result = try await collect(channel.execute("x"))
 
         if case .exit(_, let signal) = result.exit { #expect(signal == "KILL") } else { Issue.record("沒有結束狀態:\(result)") }
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("沒有 pin:不執行任何指令，回報主機出示的指紋讓使用者確認(TOFU)")
     func unknownHostKeyNeedsConfirmation() async throws {
         let server = try await TestSSHServer.start { _ in .reply() }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: nil)
 
         await #expect(throws: SSHConnectionError.hostKeyUnverified(presented: server.fingerprint)) {
@@ -58,12 +59,12 @@ struct SSHHostChannelTests {
         }
         #expect(server.snapshot.usernames.isEmpty, "還沒確認 host key 就送出了登入")
         #expect(server.snapshot.commands.isEmpty)
-        await server.stop()
     }
 
     @Test("指紋改變：阻擋連線並附上目前出示與已存的指紋")
     func changedHostKeyIsBlocked() async throws {
         let server = try await TestSSHServer.start { _ in .reply() }
+        defer { server.stop() }
         let pinned = HostKeyFingerprint(stored: "COBpO4JIzmE5SXJiDiFEv8QW0IgLEE4H3vB2W6wHLww")!
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: pinned)
 
@@ -72,12 +73,12 @@ struct SSHHostChannelTests {
         }
         #expect(server.snapshot.usernames.isEmpty)
         #expect(server.snapshot.commands.isEmpty)
-        await server.stop()
     }
 
     @Test("連線重用：依序與同時的多個指令只建立一條 SSH 連線")
     func reusesOneConnection() async throws {
         let server = try await TestSSHServer.start { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
 
         try await withThrowingTaskGroup(of: Collected.self) { group in
@@ -89,12 +90,12 @@ struct SSHHostChannelTests {
         #expect(server.snapshot.connections == 1)
         #expect(server.snapshot.commands.count == 6)
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("連線層失敗的指令不自動重送;下一個指令重新撥號")
     func connectionFailureIsNotRetried() async throws {
         let server = try await TestSSHServer.start { command in command == "send" ? .dropConnection : .reply(stdout: "ok") }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
 
         await #expect(throws: SSHConnectionError.connectionLost) {
@@ -106,12 +107,12 @@ struct SSHHostChannelTests {
         #expect(next.stdout == "ok")
         #expect(server.snapshot.connections == 2)
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("長駐連線定期送 keepalive;主機有回應(即使是拒絕)就繼續用同一條連線", .timeLimit(.minutes(1)))
     func keepaliveKeepsHealthyConnection() async throws {
         let server = try await TestSSHServer.start(keepalive: .reject) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
             timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .seconds(30)))
@@ -124,12 +125,12 @@ struct SSHHostChannelTests {
         #expect(server.snapshot.keepalives >= 3)
         #expect(server.snapshot.connections == 1, "主機有回 keepalive,連線卻被丟掉重撥")
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("一個間隔內主機有傳資料就跳過 keepalive;之後安靜一個間隔才送", .timeLimit(.minutes(1)))
     func keepaliveSkippedAfterRecentTraffic() async throws {
         let server = try await TestSSHServer.start(keepalive: .reject) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let clock = ManualSSHClock()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
@@ -149,7 +150,6 @@ struct SSHHostChannelTests {
         #expect(server.snapshot.keepalives == 1)
         #expect(server.snapshot.connections == 1)
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("主機不回 keepalive(半開連線):期限到就丟棄連線，下一個指令重新撥號、不重送", .timeLimit(.minutes(1)))
@@ -158,6 +158,7 @@ struct SSHHostChannelTests {
         let server = try await TestSSHServer.start(keepalive: .ignore) { command in
             command == "first" ? .slowReply(after: .milliseconds(500), stdout: "ok") : .reply(stdout: "ok")
         }
+        defer { server.stop() }
         let clock = ManualSSHClock()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
@@ -176,12 +177,12 @@ struct SSHHostChannelTests {
         #expect(server.snapshot.connections == 2, "keepalive 沒回應，卻繼續用舊連線")
         #expect(server.snapshot.commands == ["first", "second"])
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("快速偵測斷線(聊天畫面可見):改用短間隔，半開連線最壞 15 秒丟棄;結束後回到一般間隔", .timeLimit(.minutes(1)))
     func quickDetectionDropsHalfOpenConnectionWithin15Seconds() async throws {
         let server = try await TestSSHServer.start(keepalive: .ignore) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let clock = ManualSSHClock()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
@@ -207,7 +208,6 @@ struct SSHHostChannelTests {
         _ = try await collect(channel.execute("probe"))
         #expect(server.snapshot.keepalives == 1, "快速偵測結束後仍用短間隔")
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("預設的快速偵測：最壞 15 秒(跳過一輪 + 送出那一輪 + 回應期限);一般間隔維持 20 秒")
@@ -244,6 +244,7 @@ struct SSHHostChannelTests {
     @Test("PTY:送 pty-req(term、尺寸)後開 shell;輸入、改尺寸都送到主機")
     func opensPTY() async throws {
         let server = try await TestSSHServer.start { _ in .reply() }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
 
         let pty = try await channel.openPTY(PTYRequest(columns: 80, rows: 24))
@@ -263,12 +264,12 @@ struct SSHHostChannelTests {
         #expect(record.command == nil)
         #expect(record.input == Data("ls".utf8))
         #expect(record.windowChanges == [[100, 30]])
-        await server.stop()
     }
 
     @Test("PTY:shell 自己結束(exit-status)時輸出正常結束;連線斷了則丟 connectionLost")
     func ptyEndsOrLosesConnection() async throws {
         let server = try await TestSSHServer.start { _ in .reply() }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
 
         let ended = try await channel.openPTY(PTYRequest(columns: 80, rows: 24))
@@ -283,7 +284,6 @@ struct SSHHostChannelTests {
             for try await _ in lost.output {}
         }
         await channel.disconnect()
-        await server.stop()
     }
 }
 

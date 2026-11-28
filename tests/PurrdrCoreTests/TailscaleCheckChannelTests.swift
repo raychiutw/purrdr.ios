@@ -21,6 +21,7 @@ struct TailscaleCheckChannelTests {
         }) {
             _ in .reply(stdout: "ok")
         }
+        defer { server.stop() }
         let prompts = PromptLog()
         let clock = ManualSSHClock()
         let channel = SSHHostChannel(
@@ -40,12 +41,12 @@ struct TailscaleCheckChannelTests {
         #expect(server.snapshot.connections == 1)
         #expect(server.snapshot.commands == ["x"])
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("驗證網址的觀察者不在 event loop 上執行(#470)", .timeLimit(.minutes(1)))
     func checkObserverNeverRunsOnEventLoop() async throws {
         let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .hold) }) { _ in .reply() }
+        defer { server.stop() }
         let calls = Mutex<(total: Int, onLoop: Int)>((0, 0))
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
@@ -59,12 +60,12 @@ struct TailscaleCheckChannelTests {
         pending.cancel()
         #expect(calls.withLock { $0.onLoop } == 0)
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("等待驗證期間可以取消：關掉連線、指令不送出，回報「已取消」", .timeLimit(.minutes(1)))
     func cancelWhileWaiting() async throws {
         let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .hold) }) { _ in .reply() }
+        defer { server.stop() }
         let prompts = PromptLog()
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint, tailscaleCheck: prompts.observe)
 
@@ -78,7 +79,6 @@ struct TailscaleCheckChannelTests {
         #expect(prompts.urls == [Self.url, nil])
         #expect(server.snapshot.commands.isEmpty)
         try await eventually { server.snapshot.disconnections == 1 }
-        await server.stop()
     }
 
     @Test("等待驗證時連線斷了(例如 app 在背景被關掉 socket):自動重新撥號，驗證過後指令只送一次", .timeLimit(.minutes(1)))
@@ -86,6 +86,7 @@ struct TailscaleCheckChannelTests {
         let server = try await TestSSHServer.start(auth: { connection in
             connection == 1 ? .check(banner: Self.banner, then: .drop(after: .milliseconds(200))) : .accept
         }) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let prompts = PromptLog()
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint, tailscaleCheck: prompts.observe)
 
@@ -97,7 +98,6 @@ struct TailscaleCheckChannelTests {
         try await eventually { prompts.urls.count >= 2 }
         #expect(prompts.urls == [Self.url, nil])
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("驗證被拒：回報登入失敗，不重撥", .timeLimit(.minutes(1)))
@@ -105,6 +105,7 @@ struct TailscaleCheckChannelTests {
         let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .deny(after: .milliseconds(100))) }) {
             _ in .reply()
         }
+        defer { server.stop() }
         let prompts = PromptLog()
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint, tailscaleCheck: prompts.observe)
 
@@ -112,12 +113,12 @@ struct TailscaleCheckChannelTests {
         #expect(server.snapshot.connections == 1)
         try await eventually { prompts.urls.count >= 2 }
         #expect(prompts.urls == [Self.url, nil])
-        await server.stop()
     }
 
     @Test("一直沒驗證：等到 check mode 的期限就結束，不會永遠等", .timeLimit(.minutes(1)))
     func checkTimesOut() async throws {
         let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .hold) }) { _ in .reply() }
+        defer { server.stop() }
         let prompts = PromptLog()
         let clock = ManualSSHClock()
         let channel = SSHHostChannel(
@@ -134,12 +135,12 @@ struct TailscaleCheckChannelTests {
         try await eventually { prompts.urls.count >= 2 }
         #expect(prompts.urls == [Self.url, nil])
         try await eventually { server.snapshot.disconnections == 1 }
-        await server.stop()
     }
 
     @Test("沒有 check mode 的一般登入：不回報任何提示")
     func noPromptWithoutCheck() async throws {
         let server = try await TestSSHServer.start { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let prompts = PromptLog()
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint, tailscaleCheck: prompts.observe)
 
@@ -147,7 +148,6 @@ struct TailscaleCheckChannelTests {
 
         #expect(prompts.urls.isEmpty)
         await channel.disconnect()
-        await server.stop()
     }
 }
 

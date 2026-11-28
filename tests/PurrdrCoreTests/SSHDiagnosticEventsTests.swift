@@ -27,6 +27,7 @@ struct SSHDiagnosticEventsTests {
     @Test("主機不回 keepalive:診斷檔有 connected 與 keepalive 逾時的中斷,不含主機位址", .timeLimit(.minutes(1)))
     func keepaliveTimeoutReachesTheFile() async throws {
         let server = try await TestSSHServer.start(keepalive: .ignore) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let clock = ManualSSHClock()
         let sink = MemorySink()
         let events = Self.hub(sink)
@@ -48,12 +49,12 @@ struct SSHDiagnosticEventsTests {
         #expect(records.allSatisfy { $0.host == 1 && $0.category == "ssh" })
         for line in sink.lines { #expect(!line.contains(server.endpoint.host), "診斷檔含主機位址:\(line)") }
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("主機切斷連線:原因是對端關閉", .timeLimit(.minutes(1)))
     func peerCloseReachesTheFile() async throws {
         let server = try await TestSSHServer.start { command in command == "send" ? .dropConnection : .reply(stdout: "ok") }
+        defer { server.stop() }
         let sink = MemorySink()
         let events = Self.hub(sink)
         let channel = SSHHostChannel(
@@ -65,7 +66,6 @@ struct SSHDiagnosticEventsTests {
 
         #expect(sink.records.last?.reason == "closed_by_peer")
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("撥號失敗:只記錯誤種類", .timeLimit(.minutes(1)))
@@ -87,6 +87,7 @@ struct SSHDiagnosticEventsTests {
     @Test("「操作記錄」關閉:不寫連線事件", .timeLimit(.minutes(1)))
     func disabledWritesNothing() async throws {
         let server = try await TestSSHServer.start { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let sink = MemorySink()
         let events = Self.hub(sink, enabled: false)
         let channel = SSHHostChannel(
@@ -98,6 +99,5 @@ struct SSHDiagnosticEventsTests {
         await events.flush()
 
         #expect(sink.entries.isEmpty)
-        await server.stop()
     }
 }

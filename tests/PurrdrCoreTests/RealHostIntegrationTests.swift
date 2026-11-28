@@ -1,4 +1,5 @@
 import Foundation
+import NIOSSH
 import PurrdrCore
 import PurrdrSSH
 import PurrdrTestSupport
@@ -52,8 +53,14 @@ struct RealHostIntegrationTests {
     @Test("本機真 herdr 經 SSH:連線測試與 snapshot 走真的 swift-nio-ssh 與 remote-api-bridge",
           .enabled(if: environment["PURRDR_LOCAL_HERDR"] != nil))
     func localHerdrOverSSH() async throws {
-        let server = try await TestSSHServer.start { _ in .runLocally }
-        let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
+        // `.runLocally` 會以開發者身分跑 /bin/sh,所以用 ssh-keygen 產生的暫時金鑰、只放行這把公鑰(#695)。
+        let generated = try SSHKeygen.generate(type: "ed25519")
+        defer { generated.remove() }
+        let key = try SSHPrivateKey(openSSH: generated.privateText)
+        let authorized = try NIOSSHPublicKey(openSSHPublicKey: generated.publicKeyWithoutComment)
+        let server = try await TestSSHServer.start(authentication: .publicKeys([authorized])) { _ in .runLocally }
+        defer { server.stop() }
+        let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint) { .privateKey(key) }
         let herdr = HerdrInstallation()
 
         let report = try await HostProbe(channel: channel, herdr: herdr).run()
@@ -63,7 +70,6 @@ struct RealHostIntegrationTests {
         #expect(snapshot.agents.count == report.agentCount)
         #expect(server.snapshot.connections == 1, "連線沒有重用")
         await channel.disconnect()
-        await server.stop()
     }
 
     /// 只在自建的 `~/purrdr-166-it-<uuid>` 裡讀寫，結束時刪掉。

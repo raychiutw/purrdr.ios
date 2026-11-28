@@ -95,6 +95,8 @@ final class TestSSHServer: Sendable {
         var ptys: [PTYRecord] = []
         /// 收到的 global request 數(client 的 keepalive)。
         var keepalives = 0
+        /// 被拒絕的 `.runLocally`(沒有搭配公鑰認證)。
+        var refusedLocalRuns = 0
     }
 
     let port: Int
@@ -132,6 +134,9 @@ final class TestSSHServer: Sendable {
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let recorder = Recorder()
         let approvals = CheckApprovals()
+        // `.runLocally` 會以開發者身分跑 /bin/sh:只有公鑰認證(只放行指定的公鑰)才允許。
+        let allowsLocalRun: Bool
+        if case .publicKeys = authentication { allowsLocalRun = true } else { allowsLocalRun = false }
         let bootstrap = ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
@@ -149,7 +154,8 @@ final class TestSSHServer: Sendable {
                         inboundChildChannelInitializer: { child, _ in
                             child.eventLoop.makeCompletedFuture {
                                 try child.pipeline.syncOperations.addHandler(
-                                    ServerSessionHandler(recorder: recorder, behavior: behavior, parent: channel))
+                                    ServerSessionHandler(
+                                        recorder: recorder, behavior: behavior, parent: channel, allowsLocalRun: allowsLocalRun))
                             }
                         })
                     try channel.pipeline.syncOperations.addHandler(handler)
@@ -162,8 +168,9 @@ final class TestSSHServer: Sendable {
         return server
     }
 
-    func stop() async {
-        try? await channel.close()
+    /// 同步關閉伺服器,測試以 `defer { server.stop() }` 保證結束時一定關掉。
+    func stop() {
+        channel.close(promise: nil)
     }
 
     fileprivate func record(_ change: (inout Log) -> Void) {
@@ -357,6 +364,7 @@ private final class ServerSessionHandler: ChannelDuplexHandler {
     private let recorder: Recorder
     private let behavior: @Sendable (String) -> TestSSHServer.Behavior
     private let parent: any Channel
+    private let allowsLocalRun: Bool
     private var mode: Mode = .idle
     private var stdin = Data()
     private var ptyIndex: Int?
@@ -371,7 +379,8 @@ private final class ServerSessionHandler: ChannelDuplexHandler {
         case done
     }
 
-    init(recorder: Recorder, behavior: @escaping @Sendable (String) -> TestSSHServer.Behavior, parent: any Channel) {
+    init(recorder: Recorder, behavior: @escaping @Sendable (String) -> TestSSHServer.Behavior, parent: any Channel, allowsLocalRun: Bool) {
+        self.allowsLocalRun = allowsLocalRun
         self.recorder = recorder
         self.behavior = behavior
         self.parent = parent
@@ -394,6 +403,12 @@ private final class ServerSessionHandler: ChannelDuplexHandler {
             }
             let response = self.behavior(command)
             if case .neverReply = response { return }
+            if case .runLocally = response, !allowsLocalRun {
+                recorder.update { $0.refusedLocalRuns += 1 }
+                if request.wantReply { context.triggerUserOutboundEvent(ChannelFailureEvent(), promise: nil) }
+                context.close(promise: nil)
+                return
+            }
             reply(request.wantReply, context: context)
             run(response, command: command, context: context)
         case let request as SSHChannelRequestEvent.PseudoTerminalRequest:
