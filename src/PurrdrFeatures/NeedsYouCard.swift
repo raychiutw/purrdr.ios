@@ -2,9 +2,9 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 輸入列上方的「需要你」浮動卡(行為規格 F8、#424;與建議卡同一層、同一個玻璃容器)。
+/// 對話列表裡等待回答的「需要你」卡(行為規格 F8、#424、#680:是列表的一列,和訊息同一個捲動容器)。
 ///
-/// - Liquid Glass(`floatingGlass`;減少透明度時退回不透明底加細邊)。內容太高時卡片內捲動，不把對話擠掉。
+/// - Liquid Glass(`floatingGlass`;減少透明度時退回不透明底加細邊)。卡片不自己捲動,內容高就由列表捲動看到全部。
 /// - 選項列固定為「標籤 + 22×22pt 附屬位置」:送出中只在附屬位置放 small 轉圈，列高不變(含動態字級放大)。
 /// - 按下的選項以強調色淡底，其他選項停用變淡;VoiceOver 念出「送出中」與停用(`PromptOptionState`)。
 /// - 送出失敗在卡片頂端顯示錯誤(alert 角色，會朗讀)，選項恢復可再選。
@@ -12,9 +12,6 @@ import SwiftUI
 /// - Claude 的「Type something.」不送按鍵，改用底部輸入框打自訂答案(#120)。
 struct NeedsYouCard: View {
     let model: ConversationModel
-    /// 卡片最高 300pt、超過在卡片內捲動;不隨字級放大，否則 AX 字級下卡片會吃掉整個畫面。
-    private let maximumHeight = 300.0
-    @State private var contentHeight = 0.0
 
     static let cornerRadius: CGFloat = 24
     /// 選項列右側附屬位置的邊長(轉圈、鍵盤圖示共用，列高不隨送出狀態改變)。
@@ -28,12 +25,7 @@ struct NeedsYouCard: View {
 
     var body: some View {
         if let prompt = model.prompt {
-            ScrollView {
-                content(prompt)
-                    .onGeometryChange(for: Double.self) { $0.size.height } action: { contentHeight = $0 }
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(height: contentHeight > 0 ? min(contentHeight, maximumHeight) : nil)
+            content(prompt)
             .floatingGlass(in: RoundedRectangle(cornerRadius: Self.cornerRadius))
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("prompt.card")
