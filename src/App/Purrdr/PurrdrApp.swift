@@ -52,10 +52,10 @@ struct PurrdrApp: App {
         WindowGroup(id: PurrdrCommands.mainWindowID) {
             // 主機清單在第一個 frame 之後於背景讀 Keychain(#590);讀完前顯示系統進度指示,不顯示「沒有主機」。
             Group {
-                if hosts.isLoaded {
-                    TopNavigationView(
+                if hosts.isLoaded {                    TopNavigationView(
                         hosts: hosts, member: root.member, settings: root.settings, plus: root.plus, hostSync: root.hostSync, notifications: PushAppDelegate.router,
-                        welcome: root.welcome, appLock: root.appLock, crashNotice: root.crashNotice)
+                        welcome: root.welcome, appLock: root.appLock, crashNotice: root.crashNotice,
+                        allowsTestingLinks: root.viewFlags.allowsTestingLinks)
                 } else {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
