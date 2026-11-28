@@ -16,6 +16,7 @@ struct TrafficMeteringConnectionTests {
     @Test("SSH:exec 的指令、stdin 與主機回的 stdout 都算進該主機，依目前網路類型")
     func sshExec() async throws {
         let server = try await TestSSHServer.start { _ in .echoFirstLine }
+        defer { server.stop() }
         let meter = meter(network: .cellular)
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint, traffic: meter.recorder(for: "ssh-host"))
 
@@ -27,7 +28,6 @@ struct TrafficMeteringConnectionTests {
             if case .stdout(let data) = output { received += data.count }
         }
         await channel.disconnect()
-        await server.stop()
 
         #expect(received == Data("echo:ping\n".utf8).count)
         let usage = try #require(meter.today()["ssh-host"])
@@ -38,13 +38,13 @@ struct TrafficMeteringConnectionTests {
     @Test("SSH:建立後才接上計量(attachTraffic)也會算")
     func sshAttachLater() async throws {
         let server = try await TestSSHServer.start { _ in .reply(stdout: "12345") }
+        defer { server.stop() }
         let meter = meter()
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
         channel.attachTraffic(meter.recorder(for: "h"))
         let session = try await channel.execute("x")
         for try await _ in session.output {}
         await channel.disconnect()
-        await server.stop()
         #expect(meter.today()["h"]?[.wifi]?.received == 5)
     }
 

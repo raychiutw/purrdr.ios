@@ -12,6 +12,7 @@ struct SSHAuthenticationTests {
     func signsInWithPublicKey() async throws {
         let key = SSHPrivateKey(p256: P256.Signing.PrivateKey())
         let server = try await TestSSHServer.start(authentication: .publicKeys([try key.nioPublicKey()])) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint) { .privateKey(key) }
 
         let result = try await collect(channel.execute("whoami"))
@@ -20,7 +21,6 @@ struct SSHAuthenticationTests {
         // 先以 none 問主機接受哪些方式(與 OpenSSH client 相同)，再用公鑰。
         #expect(server.snapshot.authenticationAttempts == ["none", "publickey"])
         await channel.disconnect()
-        await server.stop()
     }
 
     #if os(macOS)
@@ -31,11 +31,11 @@ struct SSHAuthenticationTests {
         let key = try SSHPrivateKey(openSSH: generated.privateText)
         let authorized = try NIOSSHPublicKey(openSSHPublicKey: generated.publicKeyWithoutComment)
         let server = try await TestSSHServer.start(authentication: .publicKeys([authorized])) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint) { .privateKey(key) }
 
         #expect(try await collect(channel.execute("x")).stdout == "ok")
         await channel.disconnect()
-        await server.stop()
     }
     #endif
 
@@ -44,16 +44,17 @@ struct SSHAuthenticationTests {
         let authorized = SSHPrivateKey(p256: P256.Signing.PrivateKey())
         let other = SSHPrivateKey(p256: P256.Signing.PrivateKey())
         let server = try await TestSSHServer.start(authentication: .publicKeys([try authorized.nioPublicKey()])) { _ in .reply() }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint) { .privateKey(other) }
 
         await #expect(throws: SSHConnectionError.authenticationFailed) { _ = try await channel.execute("x") }
         #expect(server.snapshot.commands.isEmpty)
-        await server.stop()
     }
 
     @Test("密碼登入：密碼對就放行;密碼錯只試一次就回報登入失敗")
     func signsInWithPassword() async throws {
         let server = try await TestSSHServer.start(authentication: .password("hunter2")) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
 
         let right = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint) { .password("hunter2") }
         #expect(try await collect(right.execute("x")).stdout == "ok")
@@ -63,38 +64,37 @@ struct SSHAuthenticationTests {
         await #expect(throws: SSHConnectionError.authenticationFailed) { _ = try await wrong.execute("x") }
         #expect(server.snapshot.authenticationAttempts == ["none", "password", "none", "password"])
         #expect(server.snapshot.commands == ["x"])
-        await server.stop()
     }
 
     @Test("主機不接受這種登入方式(例如只開 keyboard-interactive):說明方式不被接受，不送出祕密")
     func methodNotAccepted() async throws {
         let server = try await TestSSHServer.start(authentication: .keyboardInteractiveOnly) { _ in .reply() }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint) { .password("hunter2") }
 
         await #expect(throws: SSHConnectionError.authenticationMethodNotAccepted) { _ = try await channel.execute("x") }
         #expect(!server.snapshot.authenticationAttempts.contains("password"), "主機沒有開密碼登入，卻送出了密碼")
-        await server.stop()
     }
 
     @Test("讀不到憑證(例如還原備份後祕密不在):連線前就失敗，不撥號")
     func credentialFailureStopsBeforeDialing() async throws {
         struct Missing: Error, Equatable {}
         let server = try await TestSSHServer.start(authentication: .password("x")) { _ in .reply() }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint) { throw Missing() }
 
         await #expect(throws: Missing()) { _ = try await channel.execute("x") }
         #expect(server.snapshot.connections == 0)
-        await server.stop()
     }
 
     @Test("沒有 pin 時不送出任何憑證(先確認 host key)")
     func noCredentialBeforeHostKeyIsTrusted() async throws {
         let server = try await TestSSHServer.start(authentication: .password("hunter2")) { _ in .reply() }
+        defer { server.stop() }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: nil) { .password("hunter2") }
 
         await #expect(throws: SSHConnectionError.hostKeyUnverified(presented: server.fingerprint)) { _ = try await channel.execute("x") }
         #expect(server.snapshot.authenticationAttempts.isEmpty)
-        await server.stop()
     }
 }
 
