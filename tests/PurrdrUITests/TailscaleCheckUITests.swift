@@ -11,7 +11,7 @@ final class TailscaleCheckUITests: XCTestCase {
     @MainActor
     func testPromptAtLargestTextSizeCanBeCancelled() {
         let app = XCUIApplication.launchUITesting(
-            flags: ["-demoTailscaleCheck"], contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+            flags: [.demoTailscaleCheck], contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
 
         let prompt = app.element("tailscaleCheck.prompt")
         XCTAssertTrue(prompt.waitUntilExists(timeout: 15), "沒有出現 Tailscale 驗證提示")

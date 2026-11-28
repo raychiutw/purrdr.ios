@@ -19,7 +19,7 @@ final class NeedsYouBannerUITests: XCTestCase {
     /// 只有新變成需要你的 notes 觸發;打開聊天時已經需要你的 weather-app 不跳。✕ 收起後不再出現。
     @MainActor
     func testBannerNamesTheNewChatAndDismisses() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouLater"])
+        let app = XCUIApplication.launchUITesting(flags: [.demoNeedsYouLater])
         openLedger(app)
 
         let banner = app.element("needsYou.banner")
@@ -40,7 +40,7 @@ final class NeedsYouBannerUITests: XCTestCase {
     /// 上滑收起(HIG 的「滑掉」手勢,與 ✕ 等效);收起後同一個轉變不再出現。
     @MainActor
     func testSwipeUpDismissesTheBanner() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouLater"])
+        let app = XCUIApplication.launchUITesting(flags: [.demoNeedsYouLater])
         openLedger(app)
 
         let banner = app.element("needsYou.banner")
@@ -55,7 +55,7 @@ final class NeedsYouBannerUITests: XCTestCase {
     /// 情境旗標 `-demoNeedsYouWithStatusBanner`:notes 變成需要你的同時,ledger 的對話紀錄讀不到,聊天頂部出現狀態橫幅。
     @MainActor
     func testBannerDoesNotOverlapStatusBanner() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoNeedsYouWithStatusBanner"])
+        let app = XCUIApplication.launchUITesting(flags: [.demoNeedsYouWithStatusBanner])
         openLedger(app)
 
         let banner = app.element("needsYou.banner")

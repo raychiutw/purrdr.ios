@@ -16,32 +16,25 @@ public actor DemoHost: HostChannel {
     /// Demo 主機的情境(UI 測試以啟動旗標切換)。
     public enum Scenario: Sendable, Equatable {
         case standard
-        /// 桌機(或另一台裝置)正在操作 Demo 的 Pane:不帶 `--takeover` 會被拒。
-        case paneInUse
         /// Tailscale SSH check mode:第一個指令先要求重新驗證(經 `tailscaleCheck` 回報)。
         case tailscaleCheck(completesAfter: Duration?)
         /// 對話畫面定位對話紀錄的指令不回應(直到關閉):停在對話載入中(#114)。列表預覽、subagent 照常回應。
         /// 讀取有期限(`HostCommandDeadline.standard`,20 秒):期限到了 client 關閉指令、畫面離開載入中，
         /// 所以只在進入對話後的這段時間內停在載入中。
         case transcriptPending
-        /// 大量輸出(#130):對話畫面第一次定位 ledger 的對話紀錄後 `after` 秒，那個 agent 一次寫出超過 64 KiB
-        /// (`DemoTranscripts.largeOutput`)。給使用者先往上翻，再看畫面上的訊息是否還在。
-        case largeOutput(after: Duration)
         /// 送出後大量輸出(#130):ledger 一開始就是長對話(150 輪文字訊息);每次對它送出 prompt,回覆之後
         /// agent 立刻再一次寫出超過 64 KiB。
         case largeOutputOnPrompt
         /// 工具步驟(#489):ledger 一開始是長對話;第一次定位對話紀錄後 `after`,agent 一次接上 20 個工具步驟。
         case toolBurst(after: Duration)
-        /// 送出後工作一段時間(#210):對話紀錄先接上使用者那一行，agent 工作 `for` 之後才接上回覆並完成。
-        case workingAfterPrompt(for: Duration)
         /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
         case agentFiles
         /// 已送出圖片的情境(#428):ledger 的對話只有使用者送出的兩張圖(手機上沒有副本)——
         /// 一張還在主機的上傳資料夾(經主機取檔讀回縮圖)、一張已被主機清掉。
         case sentImages
         /// 聊天中斷網(#219):第一次定位對話紀錄(對話載入完成，#371)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
-        /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
-        case goesOffline(after: Duration, hangs: Bool)
+        /// 之後的連線立刻失敗(飛航模式)。
+        case goesOffline(after: Duration)
         /// 跨聊天「需要你」(#530):第一次定位對話紀錄(開啟某個聊天)後 `after`,`w3:p1`(notes)從工作中變成需要你。
         /// `w2:p1`(weather-app)一開始就需要你,所以不觸發橫幅(給「打開聊天時已經需要你的不跳橫幅」)。
         case needsYouLater(after: Duration)
@@ -71,16 +64,6 @@ public actor DemoHost: HostChannel {
     /// 大量輸出情境：寫出的時間(第一次定位 ledger 後才定)與是否已寫出。
     private var largeOutputAt: ContinuousClock.Instant?
     private var largeOutputWritten = false
-    /// 送出後工作中的情境：還在工作的 pane 與工作結束時接上的回覆。
-    private var pendingReplies: [PendingReply] = []
-
-    /// 送出後工作中的一個 pane:`due` 時把 `lines` 接到對話紀錄。
-    private struct PendingReply {
-        let paneID: String
-        let sessionID: String
-        let due: ContinuousClock.Instant
-        let lines: [String]
-    }
 
     /// 這次啟動中對 workspace 做過的改動(重新命名、關閉)。只在記憶體裡，重開 app 就回到原樣。
     private var state = DemoSnapshot.State()
@@ -127,11 +110,6 @@ public actor DemoHost: HostChannel {
         self.tailscaleCheck = tailscaleCheck
         self.now = now
         self.sleep = sleep
-        // 延遲 0 的斷網：啟動就沒有網路(`-demoNoNetwork`,#221)。
-        if case .goesOffline(let delay, _) = scenario, delay == .zero {
-            isOffline = true
-            offlineScheduled = true
-        }
         state.includesAntigravity = scenario == .antigravity
         var startsWithLongChat = scenario == .largeOutputOnPrompt
         if case .toolBurst = scenario { startsWithLongChat = true }
@@ -174,7 +152,6 @@ public actor DemoHost: HostChannel {
             return DemoPendingSession()
         }
         writeLargeOutputIfDue(command)
-        writeDueReplies()
         if let stdout = DemoTranscripts.respond(to: command, appended: appended, sessions: transcripts) {
             // 狀態橫幅情境:notes 變成需要你之後,對話紀錄讀不到(exit 5),對話頂部出現狀態橫幅。
             if needsYouLaterFired, case .needsYouWithStatusBanner = scenario {
@@ -307,7 +284,6 @@ public actor DemoHost: HostChannel {
     /// 各 pane 目前的狀態(沒列出的照快照預設)。
     private func currentStatuses() -> [String: String] {
         var statuses = answers.statuses
-        for pending in pendingReplies { statuses[pending.paneID] = "working" }
         if needsYouLaterFired { statuses[Self.needsYouLaterPane] = "blocked" }
         return statuses
     }
@@ -366,7 +342,7 @@ public actor DemoHost: HostChannel {
 
     /// 斷網情境：第一次定位對話紀錄(對話載入完成)時排定斷網。
     private func scheduleOfflineIfDue() {
-        guard case .goesOffline(let delay, _) = scenario, !offlineScheduled else { return }
+        guard case .goesOffline(let delay) = scenario, !offlineScheduled else { return }
         offlineScheduled = true
         Task { [weak self] in
             guard (try? await Task.sleep(for: delay)) != nil else { return }
@@ -382,8 +358,7 @@ public actor DemoHost: HostChannel {
     }
 
     private func failIfOffline() async throws {
-        guard isOffline, case .goesOffline(_, let hangs) = scenario else { return }
-        if hangs { try await Task.sleep(for: .seconds(10)) }
+        guard isOffline else { return }
         throw SSHConnectionError.timedOut
     }
 
@@ -411,12 +386,6 @@ public actor DemoHost: HostChannel {
                let session = DemoTranscripts.sessions.first(where: { $0.paneID == target }) {
                 prompts += 1
                 let reply = DemoTranscripts.reply(to: text, number: prompts, at: Date())
-                if case .workingAfterPrompt(let duration) = scenario {
-                    appended[session.sessionID, default: []] += reply.prefix(1)
-                    pendingReplies.append(PendingReply(
-                        paneID: target, sessionID: session.sessionID, due: now() + duration, lines: Array(reply.dropFirst())))
-                    return DemoSnapshot.prompted(id: id, paneID: target)
-                }
                 appended[session.sessionID, default: []] += reply
                 if scenario == .largeOutputOnPrompt, session.sessionID == DemoTranscripts.ledger.sessionID {
                     appended[session.sessionID, default: []] += DemoTranscripts.largeOutput(run: prompts, at: Date().addingTimeInterval(3))
@@ -456,24 +425,13 @@ public actor DemoHost: HostChannel {
         }
         guard let due = largeOutputAt, now() >= due else { return }
         largeOutputWritten = true
-        appended[ledger.sessionID, default: []] += isToolBurst
-            ? DemoTranscripts.toolBurst(at: Date()) : DemoTranscripts.largeOutput(at: Date())
+        appended[ledger.sessionID, default: []] += DemoTranscripts.toolBurst(at: Date())
     }
 
-    private var isToolBurst: Bool {
-        if case .toolBurst = scenario { true } else { false }
-    }
-
-    /// 定位 ledger 後到寫出大量內容的等待:大量輸出或工具步驟情境才有。
+    /// 定位 ledger 後到接上工具步驟的等待:只有工具步驟情境才有。
     private var burstDelay: Duration? {
-        switch scenario {
-        case .largeOutput(let delay), .toolBurst(let delay): delay
-        default: nil
-        }
+        if case .toolBurst(let delay) = scenario { delay } else { nil }
     }
-
-    /// 「桌機正在操作」的情境下，Pane 被別人佔著，直到有人接管。
-    private lazy var paneHeldElsewhere = scenario == .paneInUse
 
     private func openPane(_ control: DemoPaneControl) -> any ExecSession {
         guard DemoPaneControl.knownTargets.contains(control.target) else {
@@ -482,14 +440,6 @@ public actor DemoHost: HostChannel {
                 .exit(code: 0),
             ])
         }
-        if paneHeldElsewhere && !control.takeover {
-            return DemoFinishedSession(events: [
-                .stdout(DemoPaneSession.closedLine(
-                    "terminal attach failed: terminal term_demo01 already has an attached client; retry with --takeover")),
-                .exit(code: 0),
-            ])
-        }
-        paneHeldElsewhere = false
         return DemoPaneSession(columns: control.columns, rows: control.rows)
     }
 
@@ -501,28 +451,10 @@ public actor DemoHost: HostChannel {
                 Task { [weak self] in await self?.notifyStatusChanges(from: before) }
             }
         }
-        writeDueReplies()
         if let response = promptResponse(to: requestLine) ?? paneResponse(to: requestLine) { return response }
         state.statuses = currentStatuses()
         return DemoSnapshot.response(to: requestLine, state: &state)
     }
-
-    /// 送出後工作中的情境：工作時間到了，接上回覆(agent 隨之完成)。
-    private func writeDueReplies() {
-        let current = now()
-        for pending in pendingReplies where current >= pending.due {
-            appended[pending.sessionID, default: []] += pending.lines
-        }
-        pendingReplies.removeAll { current >= $0.due }
-    }
-
-    /// 送出後工作中的 pane 畫面：Claude Code 正在寫的散文(即時預覽)。
-    static let workingScreen = """
-        ⏺ Adding the header row now, then I will rerun the exporter tests.
-
-        ✻ Pondering… (3s · esc to interrupt)
-        ❯
-        """
 
     /// `pane.read`(各 pane 畫面上的提示)、`pane.send_keys` 與 `pane.send_text`(回答提示)。其他請求回 `nil`。
     private func paneResponse(to requestLine: Data) -> (line: Data, keepsOpen: Bool)? {
@@ -533,9 +465,6 @@ public actor DemoHost: HostChannel {
         switch request?["method"] as? String {
         case "pane.read":
             let ansi = params["format"] as? String == "ansi"
-            if pendingReplies.contains(where: { $0.paneID == paneID }) {
-                return DemoSnapshot.paneRead(id: id, paneID: paneID, text: Self.workingScreen, ansi: ansi)
-            }
             if paneID == DemoAntigravity.paneID, scenario == .antigravity {
                 let mode = answers.permissionModes[paneID] ?? DemoAntigravity.initialMode
                 return DemoSnapshot.paneRead(id: id, paneID: paneID, text: DemoAntigravity.screen(mode: mode), ansi: ansi)

@@ -22,12 +22,6 @@ final class UITestingBackendTransport: BackendTransport {
         case none
         /// App Store 訂閱生效中。
         case active
-        /// Google Play 訂閱(iOS 只顯示來源)。
-        case googlePlay
-        /// 帳單寬限期。
-        case grace
-        /// 已到期。
-        case expired
         /// 這個 Apple 帳號的訂閱屬於另一個會員:提交交易回 `subscription_in_use`,轉移後變成生效中。
         case ownedByAnotherMember
         /// 生效中,但升級合併後有另一個待處理的訂閱。
@@ -38,12 +32,10 @@ final class UITestingBackendTransport: BackendTransport {
     var isPlusActive: Bool { Self.entitles(scenario) }
     /// 轉移成功之後(`.ownedByAnotherMember`)。
     private let transferred = Mutex(false)
-    /// 一開始就有更新權杖(已登入)。`false` 是 `-uiTestingSignUp`:沒登入,Apple／Google 按鈕直接以固定憑證登入這個假後台(#408)。
+    /// 一開始就有更新權杖(已登入)。`false`(`-uiTestingNoMember`):沒登入,Apple／Google 按鈕直接以固定憑證登入這個假後台(#408)。
     let startsSignedIn: Bool
     /// `-uiTestingLinkMerge`(#410):連結 Google 時發現它已屬於另一個會員(回合併確認摘要);沒帶就直接連結成功。
     let linkFindsAnotherMember: Bool
-    /// 兩邊都有有效訂閱(`-uiTestingLinkMergeBlocked`):摘要的 `canMerge` 是 `false`。
-    let mergeBlocked: Bool
     /// `-uiTestingNoMember`(#453):沒有會員的帳號。登入頁(`createMember: false`)回 404 `member_not_found`,加入頁照舊新建。
     let hasNoMember: Bool
     /// `-uiTestingUpgradedMember`(#414):啟動時帶著遷移前的更新權杖(後台拒絕),重新登入後的訂閱是升級合併後有待處理訂閱的情境。
@@ -70,19 +62,18 @@ final class UITestingBackendTransport: BackendTransport {
         self.init(scenario: isPlusActive ? .active : .none, startsSignedIn: startsSignedIn)
     }
 
-    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, mergeBlocked: Bool = false, hasNoMember: Bool = false, startsWithStaleToken: Bool = false) {
+    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, hasNoMember: Bool = false, startsWithStaleToken: Bool = false) {
         self.hasNoMember = hasNoMember
         self.startsWithStaleToken = startsWithStaleToken
         self.scenario = scenario
         self.startsSignedIn = startsSignedIn
         self.linkFindsAnotherMember = linkFindsAnotherMember
-        self.mergeBlocked = mergeBlocked
     }
 
     private static func entitles(_ scenario: Scenario) -> Bool {
         switch scenario {
-        case .active, .googlePlay, .grace, .pendingReview: true
-        case .none, .expired, .ownedByAnotherMember: false
+        case .active, .pendingReview: true
+        case .none, .ownedByAnotherMember: false
         }
     }
 
@@ -118,7 +109,6 @@ final class UITestingBackendTransport: BackendTransport {
             googleLinked.withLock { $0 = true }
             return Self.json(#"{"member":\#(memberBody),"mergedMemberId":null}"#)
         case ("POST", "/v1/members/me/identities/merge"):
-            if mergeBlocked { return Self.error(409, "subscription_conflict") }
             googleLinked.withLock { $0 = true }
             return Self.json(#"{"member":\#(memberBody),"mergedMemberId":"ui-testing-other-member","accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z"}"#)
         case ("DELETE", "/v1/members/me/identities/google"):
@@ -235,7 +225,7 @@ final class UITestingBackendTransport: BackendTransport {
 
     /// 連結時發現已屬另一個會員:合併確認摘要(`error.details`)。
     private var mergeRequired: String {
-        #"{"error":{"code":"merge_required","message":"UI testing backend","details":{"canMerge":\#(!mergeBlocked),"current":{"identities":[{"provider":"apple","email":"r***@example.com"}],"hasActiveSubscription":\#(mergeBlocked || isPlusActive),"hostCount":2},"other":{"identities":[{"provider":"google","email":"r***@example.net"}],"hasActiveSubscription":\#(mergeBlocked),"hostCount":1}}}}"#
+        #"{"error":{"code":"merge_required","message":"UI testing backend","details":{"canMerge":true,"current":{"identities":[{"provider":"apple","email":"r***@example.com"}],"hasActiveSubscription":\#(isPlusActive),"hostCount":2},"other":{"identities":[{"provider":"google","email":"r***@example.net"}],"hasActiveSubscription":false,"hostCount":1}}}}"#
     }
 
     private static func error(_ status: Int, _ code: String) -> BackendResponse {
@@ -247,20 +237,13 @@ final class UITestingBackendTransport: BackendTransport {
         switch scenario {
         case .none: return nil
         case .active: return Self.subscription()
-        case .googlePlay: return Self.subscription(store: "google_play")
-        case .grace: return Self.subscription(status: "in_grace_period", graceUntil: "2099-01-05T00:00:00.000Z")
-        case .expired: return Self.subscription(status: "expired", expiresAt: "2026-11-20T00:00:00.000Z")
         case .ownedByAnotherMember: return transferred.withLock { $0 } ? Self.subscription() : nil
         case .pendingReview: return Self.subscription(pendingReview: true)
         }
     }
 
-    private static func subscription(
-        status: String = "active", store: String = "app_store", expiresAt: String = "2099-01-01T00:00:00.000Z", graceUntil: String? = nil,
-        pendingReview: Bool = false
-    ) -> String {
-        let grace = graceUntil.map { #""\#($0)""# } ?? "null"
-        return #"{"status":"\#(status)","store":"\#(store)","productId":"com.raychiu.purrdr.plus.yearly","expiresAt":"\#(expiresAt)","gracePeriodExpiresAt":\#(grace),"willAutoRenew":true,"pendingReview":\#(pendingReview)}"#
+    private static func subscription(pendingReview: Bool = false) -> String {
+        #"{"status":"active","store":"app_store","productId":"com.raychiu.purrdr.plus.yearly","expiresAt":"2099-01-01T00:00:00.000Z","gracePeriodExpiresAt":null,"willAutoRenew":true,"pendingReview":\#(pendingReview)}"#
     }
 
     private static let inUse =
@@ -288,13 +271,6 @@ final class UITestingBackendTransport: BackendTransport {
 
     private static func json(_ text: String) -> BackendResponse {
         BackendResponse(status: 200, body: Data(text.utf8))
-    }
-}
-
-/// UI 測試的「暫時連不上」(`-uiTestingMemberOffline`):後台一律連不上。
-struct UITestingOfflineBackend: BackendTransport {
-    func send(_ request: BackendRequest) async throws -> BackendResponse {
-        throw BackendError.unreachable
     }
 }
 

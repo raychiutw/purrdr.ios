@@ -100,7 +100,7 @@ final class SettingsUITests: XCTestCase {
     /// String Catalog 真的套用到 package 裡的畫面(畫面字串在 PurrdrFeatures,catalog 在 app)。
     @MainActor
     func testTraditionalChineseInterface() {
-        let app = XCUIApplication.launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
+        let app = XCUIApplication.launchUITesting(arguments: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
 
         // 聊天頂列:新增聊天鈕在(搜尋欄 placeholder 的繁中由 StringCatalogTests 與 `scripts/strings.sh check` 守,不必往下拉出搜尋欄)。
         XCTAssertTrue(app.chatListReady.waitUntilExists(timeout: 10), "沒有看到列表")

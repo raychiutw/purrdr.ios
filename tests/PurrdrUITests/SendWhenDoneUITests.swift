@@ -27,7 +27,7 @@ final class SendWhenDoneUITests: XCTestCase {
 
     @MainActor
     func testQueuedMessagesCanBeReorderedThenPairedDevicesRevokeAndRemoveHost() throws {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
+        let app = XCUIApplication.launchUITesting(flags: [.seedPairedHTTPSHost])
         let row = app.element("spaces.tab.\(Self.httpsHost)/w1:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 HTTPS 主機的 Agent")
         row.tap()

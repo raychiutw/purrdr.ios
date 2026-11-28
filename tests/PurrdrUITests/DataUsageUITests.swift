@@ -11,8 +11,8 @@ final class DataUsageUITests: XCTestCase {
     private static let buildID = "5EED0000-0000-4000-8000-000000000002"
 
     @MainActor
-    private func openDataUsage(flags: [String] = []) -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"] + flags)
+    private func openDataUsage(flags: [LaunchFlag] = []) -> XCUIApplication {
+        let app = XCUIApplication.launchUITesting(flags: [.seedHost, .seedUnreachableHost, .seedDataUsage] + flags)
         app.openTab(.traffic)
         XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 5))
         return app

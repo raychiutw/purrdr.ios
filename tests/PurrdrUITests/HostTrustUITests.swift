@@ -9,7 +9,7 @@ final class HostTrustUITests: XCTestCase {
 
     @MainActor
     func testTrustPromptHasCloseAndConfirmAndWorks() throws {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-uiTestingHostKeyPrompt"])
+        let app = XCUIApplication.launchUITesting(flags: [.seedHost, .uiTestingHostKeyPrompt])
         app.openHostsTab()
         app.overviewRow("hosts.edit").tap()
         XCTAssertTrue(app.navigationBars["Edit Host"].waitUntilExists(timeout: 5))

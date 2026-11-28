@@ -15,7 +15,7 @@ final class AgentListUITests: XCTestCase {
     @MainActor
     func testChatListTopBarCollapsesOnScroll() {
         // 字級調大讓 Spaces 的列夠多、列表高過畫面才捲得動(Demo 的列不多)。
-        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"], contentSize: "UICTContentSizeCategoryXXXL")
+        let app = XCUIApplication.launchUITesting(flags: [.demoCompanions], contentSize: "UICTContentSizeCategoryXXXL")
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
         let title = app.topBarTitle("Chats")
         XCTAssertTrue(title.waitUntilExists(timeout: 5), "沒有大標題")

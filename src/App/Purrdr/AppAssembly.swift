@@ -59,7 +59,6 @@ enum AppAssembly {
         if let sender = environment.push.testSender { push.testNotifications = sender }
 
         let hosts = HostsModel(environment.makeHosts(push))
-        if environment.simulatesNoNetwork { hosts.simulatesNoNetwork = true }
         hosts.demoEntered = environment.demoEntry.initial
         hosts.demoEnteredDidChange = environment.demoEntry.didChange
         hosts.haptics = SystemHaptics()

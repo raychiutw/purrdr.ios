@@ -15,7 +15,7 @@ final class PushSettingsUITests: XCTestCase {
     /// 還沒配對的 HTTPS 主機(#295):點通知列開與主機頁相同的配對;配對存好回到帳號頁，開關就能點。
     @MainActor
     func testUnpairedHTTPSHostRowOpensPairing() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedUnpairedHTTPSHost", "-selectDemo"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingPlusMember, .seedUnpairedHTTPSHost, .selectDemo])
         app.openAccountSheet()
 
         app.openAccountNotifications()
