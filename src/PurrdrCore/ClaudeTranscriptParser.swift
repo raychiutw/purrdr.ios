@@ -278,12 +278,7 @@ public enum ClaudeTranscriptParser {
     /// 沒有 `uuid` 的行：以行內容算確定性雜湊(FNV-1a 64),每次讀都得到同一個 id。
     /// 主機讀取時已剝掉圖片資料，所以雜湊的就是去除圖片後的內容。
     static func stableID(of line: String) -> String {
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        for byte in line.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 0x100_0000_01b3
-        }
-        return "line-" + String(hash, radix: 16)
+        "line-" + StableHash.fnv1a(line)
     }
 
     private static func wholeElement(_ tag: String, in text: String) -> String? {

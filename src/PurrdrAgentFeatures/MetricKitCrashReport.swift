@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 // MetricKit 的閃退診斷(下次啟動由系統交出):從 `MXDiagnosticPayload.jsonRepresentation()` 取出
 // 錯誤類型、訊號、終止原因、Objective-C 例外、被歸責執行緒的呼叫堆疊(二進位 UUID＋位移,供 dSYM 符號化)。
@@ -49,17 +50,7 @@ public struct MetricKitCrashReport: Equatable, Sendable {
             "\(exceptionType ?? -1)", "\(signal ?? -1)", terminationReason ?? "", exceptionName ?? "", exceptionReason ?? "",
             frames.joined(separator: "|"),
         ].joined(separator: "\u{1}")
-        return "\(Int(timestamp.timeIntervalSince1970))-\(Self.fnv1a(content))"
-    }
-
-    /// 穩定的雜湊(`hashValue` 每次啟動不同,不能跨重啟比對)。
-    static func fnv1a(_ text: String) -> String {
-        var hash: UInt64 = 0xcbf29ce484222325
-        for byte in text.utf8 {
-            hash ^= UInt64(byte)
-            hash = hash &* 0x100000001b3
-        }
-        return String(hash, radix: 16)
+        return "\(Int(timestamp.timeIntervalSince1970))-\(StableHash.fnv1a(content))"
     }
 }
 
