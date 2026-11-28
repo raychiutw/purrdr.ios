@@ -1,16 +1,17 @@
 """Windows 主機上傳的回歸檢查(#76):經真正的 sshd 執行 app 實際送出的上傳指令與 stdin stub。
 
-從 `src/*/` 底下的 `WindowsScripts.swift`、`WindowsHostChannel.swift`(常數另讀 `HostScriptTimeLimit.swift`)取出腳本，照 `WindowsScripts.upload`
+從 `src/*/` 底下的 `WindowsScripts.swift`、`WindowsHostChannel.swift`(常數另讀 `HostScriptTimeLimit.swift`、`HostServiceProtocol.swift`)取出腳本，照 `WindowsScripts.upload`
 (stub 照 `WindowsCommand.viaStdin`)組成 `powershell.exe … -EncodedCommand`,經 `ssh` 執行並把 bytes 寫進 stdin。
 腳本以 regex 從 Swift 原始碼抽出：抽不到或有沒展開的插值時直接結束並說明(Swift 寫法改了要同步改這裡)。
 期限內 exit 0、輸出正確、主機檔案 SHA-256 與原檔相同為綠;逾時(卡住)或其他結果為紅。
 
 kind(各跑每個大小):
-  image   圖片上傳
+  image   上傳到主機的 `%TEMP%/purrdr-uploads`(`hostUpload`,圖片與聊天附加檔案共用)
   folder  檔案上傳，identity 傳輸
   gzip    檔案上傳，gzip 傳輸;另加傳輸／原始大小不符(exit 75、不留檔)與
           「傳到一半時已收到的 bytes 已寫到磁碟」(不整個放進記憶體)
   stub    唯讀腳本的 stdin stub:送指定大小的腳本，讀到結束標記就執行
+  stub-eof(隨 stub 一起跑)  stub 只收到半份腳本就 EOF:不執行，exit 74(Swift 的 `stdinTruncatedExit`)
   limit   自我時限(#92,時限換短，見 `SHORT_LIMITS`):stub 只收到一半腳本、腳本本體卡住、圖片／檔案上傳只送一半，
           都要以 exit 124 結束、程序樹不留程序、上傳不留暫存檔(需要主機預設 shell 是 Git Bash,以 `/proc/$$/winpid` 找根)
 上傳與 stub 的 kind 另跑 100 bytes 的「沒有 `_handle` 欄位」模擬(換掉欄位名，應退回直接讀 console stream)。
@@ -21,7 +22,7 @@ shell:`bash` 直接執行(主機預設 shell,這台是 Git Bash);`cmd` 包成 `c
     python -I scripts/windows-upload-repro.py [大小…] [--kind image|folder|gzip|stub|limit|all] [--shell bash|cmd|all] [--timeout 秒]
   預設大小 100、300000、2500000,kind all,shell all。全部綠 exit 0。
 
-每個案例在主機 `%TEMP%\\purrdr-repro-<亂數>` 裡進行(圖片上傳以 `$env:USERPROFILE` 與 `$env:TEMP` 指過去，檔案上傳的目的資料夾也在裡面),
+每個案例在主機 `%TEMP%\\purrdr-repro-<亂數>` 裡進行(hostUpload 以 `$env:USERPROFILE` 與 `$env:TEMP` 指過去，檔案上傳的目的資料夾也在裡面),
 結束就刪掉。逾時時只結束開著本案例暫存檔的程序(卡住的 PowerShell)。
 """
 import argparse
@@ -38,9 +39,11 @@ import uuid
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAUNCHER = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand "
+# PURRDR_WINDOWS_LOCAL=1:不經 sshd,直接在本機啟動 powershell.exe(CI 的 Windows runner 用;啟動參數與 app 相同)。
+LOCAL = os.environ.get("PURRDR_WINDOWS_LOCAL") == "1"
 
 
-SWIFT_FILES = ("WindowsScripts.swift", "WindowsHostChannel.swift", "HostScriptTimeLimit.swift")
+SWIFT_FILES = ("WindowsScripts.swift", "WindowsHostChannel.swift", "HostScriptTimeLimit.swift", "HostServiceProtocol.swift")
 
 
 def swift_source():
@@ -55,8 +58,16 @@ def swift_source():
     return source
 
 
+# 內容由 `TranscriptLocator.all` 產生的腳本:不在這裡重算,直接讀 golden 檔(`TranscriptScriptGoldenTests` 保證與 app 產生的一致)。
+GOLDEN_FOLDER = os.path.join(REPO, "tests", "PurrdrTestSupport", "Fixtures", "golden-scripts")
+GOLDEN_LITERALS = {"transcriptFunctions": "windows.transcriptFunctions.ps1", "previews": "windows.previews.ps1"}
+
+
 def swift_literal(source, name):
-    """`static let <name> = #\"\"\" … \"\"\"#` 的內容(去掉縮排，與 Swift 多行字串相同)。"""
+    """`static let <name> = #\"\"\" … \"\"\"#` 的內容(去掉縮排，與 Swift 多行字串相同);由定位規則產生的兩份腳本改讀 golden 檔。"""
+    if name in GOLDEN_LITERALS:
+        with open(os.path.join(GOLDEN_FOLDER, GOLDEN_LITERALS[name]), encoding="utf-8", newline="") as golden:
+            return golden.read()
     match = re.search(r"static let " + name + r' = #"""\n(.*?)\n( *)"""#', source, re.S)
     if not match:
         sys.exit(f"Swift 原始碼找不到 `static let {name} = #\"\"\"…\"\"\"#`:寫法改了，請更新本腳本的抽取方式")
@@ -125,6 +136,11 @@ def posix_quote(text):
     return "'" + text.replace("'", "'\\''") + "'"
 
 
+def local_argv(script):
+    """本機直接啟動的命令列:同 `LAUNCHER`,腳本以 -EncodedCommand 傳入。"""
+    return LAUNCHER.split() + [base64.b64encode(script.encode("utf-16-le")).decode()]
+
+
 def ssh_argv(remote_command, shell="bash"):
     if shell == "cmd":
         remote_command = "cmd.exe //c " + posix_quote(remote_command)
@@ -140,7 +156,8 @@ def ssh_argv(remote_command, shell="bash"):
 
 def run_powershell(script, timeout=60):
     """在主機執行一段輔助 PowerShell,回傳 stdout(去頭尾空白)。"""
-    completed = subprocess.run(ssh_argv(encoded("$ProgressPreference='SilentlyContinue';" + script)),
+    script = "$ProgressPreference='SilentlyContinue';" + script
+    completed = subprocess.run(local_argv(script) if LOCAL else ssh_argv(encoded(script)),
                                stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
     return completed.stdout.decode("utf-8", errors="replace").strip()
 
@@ -218,11 +235,11 @@ def on_disk_bytes(folder):
 
 
 def upload_script(source, kind, arguments, workspace, overrides=None):
-    """照 `WindowsScripts.upload` 組成上傳腳本;圖片上傳以 `$env:USERPROFILE`、`$env:TEMP` 指到 `workspace`。"""
+    """照 `WindowsScripts.upload` 組成上傳腳本;hostUpload 以 `$env:USERPROFILE`、`$env:TEMP` 指到 `workspace`。"""
     prelude = swift_literal(source, "prelude")
     receive = resolve(swift_literal(source, "receive"), source, overrides)
     if kind == "image":
-        body = "$env:USERPROFILE=" + quote(workspace) + "\n$env:TEMP=" + quote(workspace) + "\n" + resolve(swift_literal(source, "imageUpload"), source, overrides)
+        body = "$env:USERPROFILE=" + quote(workspace) + "\n$env:TEMP=" + quote(workspace) + "\n" + resolve(swift_literal(source, "hostUpload"), source, overrides)
     else:
         body = resolve(swift_literal(source, "folderUpload"), source, overrides)
     # `$a` 是 `WindowsScripts.arguments` 的參數陣列，所有 Windows 腳本共用;上傳腳本在 cmd 命令列(8,191 字元)裡，名稱維持短。
@@ -265,7 +282,7 @@ SHORT_LIMITS = {"stdinScriptSeconds": "4", "readSeconds": "6", "uploadBytesPerSe
 LIMIT_CASES = {
     "stub-partial": "stdin stub 只收到一半腳本(沒有結束標記)",
     "stub-stuck": "stdin stub 收到完整腳本，腳本本體卡住",
-    "image-stall": "圖片上傳只送一半 bytes",
+    "image-stall": "上傳到主機(hostUpload)只送一半 bytes",
     "folder-stall": "檔案上傳只送一半 bytes",
 }
 
@@ -338,6 +355,28 @@ def run_limit_case(source, case, timeout, shell):
         process.communicate()
         stop_processes(processes)
         run_powershell("Remove-Item -LiteralPath " + quote(workspace) + " -Recurse -Force -ErrorAction SilentlyContinue")
+
+
+def run_stub_eof_case(source, timeout, shell):
+    """stub 只收到半份腳本(沒有結束標記)就遇到 EOF(傳輸被截斷):不執行已讀到的內容，exit `stdinTruncatedExit`。"""
+    truncated_exit = int(swift_string(source, "stdinTruncatedExit"))
+    command_script = stdin_stub(source)
+    truncated = ("[Console]::Out.Write('first-half-ran')\n").encode()
+    started = time.monotonic()
+    process = subprocess.Popen(ssh_argv(encoded(command_script), shell), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    try:
+        stdout, _ = process.communicate(truncated, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)] if os.name == "nt" else ["kill", str(process.pid)],
+                       capture_output=True)
+        process.communicate()
+        return False, f"逾時 {timeout}s:EOF 後 stub 還沒結束"
+    elapsed = time.monotonic() - started
+    printed = stdout.decode("utf-8", errors="replace").strip()
+    if printed or process.returncode != truncated_exit:
+        return False, f"exit={process.returncode} {elapsed:.1f}s stdout={printed!r}(預期 exit {truncated_exit}、stdout 空)"
+    return True, f"{elapsed:.1f}s exit {truncated_exit},沒有執行已讀到的內容"
 
 
 def run_case(source, kind, size, timeout, shell, variant=None):
@@ -447,6 +486,10 @@ def main():
             all_green &= green
             label = f"{shell} {kind}" + (f"({variant})" if variant else "")
             print(f"{'GREEN' if green else 'RED  '} {label:24} {size:>9} bytes  {detail}", flush=True)
+        if "stub" in kinds:
+            green, detail = run_stub_eof_case(source, options.timeout, shell)
+            all_green &= green
+            print(f"{'GREEN' if green else 'RED  '} {shell + ' stub-eof':24} stdin stub 截斷後 EOF  {detail}", flush=True)
         if "limit" in kinds:
             for case in LIMIT_CASES:
                 green, detail = run_limit_case(source, case, options.timeout, shell)

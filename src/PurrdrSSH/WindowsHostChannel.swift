@@ -99,12 +99,13 @@ enum WindowsCommand {
 
     /// 登入 Shell 的指令(#732):互動的 `powershell.exe -NoLogo -NoExit`,啟動時先把主控台輸入輸出設成 UTF-8
     /// (Windows PowerShell 5.1 預設 OEM code page,繁中是 CP950,中文會亂碼)。
-    /// 設定經 `-EncodedCommand`(純 base64),cmd、PowerShell、Git Bash 三種 DefaultShell 都不必處理引號與 `$`。
+    /// 設定經 `-EncodedCommand`(純 base64),內文沒有引號與 `$`。
+    /// 整串外包一組雙引號:PTY 模式下 sshd 把指令原樣接在 DefaultShell 的 `-c` 後面,Git Bash 不加引號只拿得到第一個字。
     /// 不加 `-NoProfile`:使用者的 profile 照常載入。
     static let loginShell: String = {
         let script = "$u=New-Object Text.UTF8Encoding $false;[Console]::InputEncoding=$u;[Console]::OutputEncoding=$u;$OutputEncoding=$u"
         let encoded = PowerShell.encodedCommand(script)
-        return "powershell.exe -NoLogo -NoExit -EncodedCommand " + String(encoded.split(separator: " ").last!)
+        return "\"powershell.exe -NoLogo -NoExit -EncodedCommand " + String(encoded.split(separator: " ").last!) + "\""
     }()
 
     static func translate(_ command: String) throws -> WindowsInvocation {
@@ -137,13 +138,17 @@ enum WindowsCommand {
         throw WindowsCommandError.unsupported(command)
     }
 
+    /// stdin stub 傳輸被截斷時的結束碼(上傳腳本用 64–75 其餘各碼)。
+    static let stdinTruncatedExit = 74
+
     /// 命令列只放這個 stub:從 stdin 一行一行讀到結束標記，當成腳本執行。
     ///
     /// 不等 EOF:實測 OpenSSH 預設 shell 是 Git Bash 時，stdin 超過 4 KiB 後的 EOF 常常傳不到 PowerShell
     /// (資料都到了，只有 EOF 不見，程序就永遠等下去)。stdin 的開法同上傳(`WindowsScripts.openStdin`)。
     /// 自我時限(#92):`stdinScriptSeconds` 內沒讀到結束標記就以 124 結束;讀到後腳本本體另有 `readSeconds`。
+    /// 沒讀到結束標記就 EOF(傳輸被截斷,#735)以 `stdinTruncatedExit` 結束,不執行已讀到的半份腳本。
     static let stdinStub = PowerShell.encodedCommand(
-        "$ProgressPreference='SilentlyContinue';\(WindowsScripts.limit(seconds: HostScriptTimeLimit.stdinScriptSeconds));\(WindowsScripts.openStdin);$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '\(endOfScript)'){[void]$b.AppendLine($l)};$purrdrLimit.At=[DateTime]::UtcNow.AddSeconds(\(HostScriptTimeLimit.readSeconds));iex $b.ToString()")
+        "$ProgressPreference='SilentlyContinue';\(WindowsScripts.limit(seconds: HostScriptTimeLimit.stdinScriptSeconds));\(WindowsScripts.openStdin);$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;$done=$false;while(($l=$s.ReadLine()) -ne $null){if($l -eq '\(endOfScript)'){$done=$true;break};[void]$b.AppendLine($l)};if(-not $done){exit \(stdinTruncatedExit)};$purrdrLimit.At=[DateTime]::UtcNow.AddSeconds(\(HostScriptTimeLimit.readSeconds));iex $b.ToString()")
     static let endOfScript = "#purrdr-end-of-script"
 
     static func viaStdin(_ script: String) -> WindowsInvocation {

@@ -35,6 +35,16 @@ struct WindowsHostChannelTests {
         #expect(PowerShell.script(inEncodedCommand: PowerShell.encodedCommand("exit 0")) == "exit 0")
     }
 
+    @Test("stdin stub 沒讀到結束標記就 EOF:以 `stdinTruncatedExit`(74)結束，且在執行腳本(iex)之前(真主機行為由 windows-upload-repro.py 守住)")
+    func stdinStubExitsOnTruncatedInput() throws {
+        let script = try #require(PowerShell.script(inEncodedCommand: WindowsCommand.stdinStub))
+        #expect(WindowsCommand.stdinTruncatedExit == 74)
+        let exitRange = try #require(script.range(of: "exit \(WindowsCommand.stdinTruncatedExit)"))
+        let executeRange = try #require(script.range(of: "iex "))
+        #expect(exitRange.upperBound <= executeRange.lowerBound)
+        #expect(script.contains(WindowsCommand.endOfScript))
+    }
+
     @Test("PowerShell 的引號：單引號包住，內部單引號寫成兩個")
     func quoting() {
         #expect(PowerShell.quote("w1:p1") == "'w1:p1'")
@@ -114,7 +124,7 @@ struct WindowsHostChannelTests {
         #expect(await WakeProbe(channel: WindowsHostChannel(host)).run())
     }
 
-    @Test("登入 Shell:Windows 主機明確開 powershell.exe -NoLogo -NoExit,UTF-8 設定經 -EncodedCommand(cmd、PowerShell、Git Bash 的預設 shell 都不必處理引號)")
+    @Test("登入 Shell:Windows 主機明確開 powershell.exe -NoLogo -NoExit,整串外包一組雙引號(Git Bash 的 -c 只收第一個字),UTF-8 設定經 -EncodedCommand")
     func loginShellOpensPowerShell() async throws {
         let host = FakeHost()
         let request = PTYRequest(columns: 80, rows: 24)
@@ -126,9 +136,12 @@ struct WindowsHostChannelTests {
 
         let prefix = "powershell.exe -NoLogo -NoExit -EncodedCommand "
         let sent = try #require(await host.ptys.first?.request.command)
-        #expect(sent.hasPrefix(prefix))
-        #expect(sent.allSatisfy { $0.isASCII && $0 != "\"" && $0 != "$" && $0 != "'" })
-        let data = try #require(Data(base64Encoded: String(sent.dropFirst(prefix.count))))
+        #expect(sent.hasPrefix("\"") && sent.hasSuffix("\""))
+        let inner = String(sent.dropFirst().dropLast())
+        #expect(!inner.contains("\""))
+        #expect(inner.hasPrefix(prefix))
+        #expect(inner.allSatisfy { $0.isASCII && $0 != "$" && $0 != "'" })
+        let data = try #require(Data(base64Encoded: String(inner.dropFirst(prefix.count))))
         let script = try #require(String(data: data, encoding: .utf16LittleEndian))
         #expect(script.contains("[Console]::OutputEncoding"))
         #expect(script.contains("[Console]::InputEncoding"))

@@ -336,21 +336,7 @@ public enum TranscriptCommand {
         p=$4
         known_version=$5
         case $t in
-        claude)
-        @CLAUDE@
-        ;;
-        grok)
-        @GROK@
-        ;;
-        agy)
-        @AGY@
-        ;;
-        pi)
-        @PI@
-        ;;
-        codex)
-        @CODEX@
-        ;;
+        @BRANCHES@
         *)
         f=$i
         ;;
@@ -389,7 +375,7 @@ public enum TranscriptCommand {
         ;;
         whole)
         case $t in
-        pi|pipath|codex)
+        @HEADERKINDS@)
         printf '%s! %s\n' "$m" "$y"
         head -n 2 "$f" | @STRIP@
         printf '\n%s %s\n' "$m" "$y"
@@ -404,11 +390,8 @@ public enum TranscriptCommand {
         shift 5
         done
         """#
-            .replacingOccurrences(of: "@CLAUDE@", with: TranscriptLocator.claude.resolver)
-            .replacingOccurrences(of: "@GROK@", with: TranscriptLocator.grok.resolver)
-            .replacingOccurrences(of: "@AGY@", with: TranscriptLocator.antigravity.resolver)
-            .replacingOccurrences(of: "@PI@", with: TranscriptLocator.piJournal.resolver)
-            .replacingOccurrences(of: "@CODEX@", with: TranscriptLocator.codex.resolver)
+            .replacingOccurrences(of: "@BRANCHES@", with: TranscriptLocator.all.filter { $0.resolver != TranscriptLocator.reportedPathResolver }.map { "\($0.name))\n\($0.resolver)\n;;" }.joined(separator: "\n"))
+            .replacingOccurrences(of: "@HEADERKINDS@", with: TranscriptLocator.all.filter(\.readsHeader).map(\.name).joined(separator: "|"))
             .replacingOccurrences(of: "@STRIP@", with: stripImages)
 
     /// 找 subagent:在 `<session>/subagents/` 用 `find`(不用 glob,R-S11)列出 `agent-*.meta.json`,
