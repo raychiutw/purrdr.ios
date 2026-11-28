@@ -24,6 +24,11 @@ public struct TranscriptLocator: Sendable, Hashable {
 
     public var readsHeader: Bool { headerCheck != nil }
 
+    // TDD 紅燈用的占位,下一個 commit 換成真正的實作。
+    package var previewBranch: String? { nil }
+    package var powershellFunction: String? { nil }
+    package var powershellFindBranch: String? { nil }
+
     public static func == (lhs: Self, rhs: Self) -> Bool { lhs.name == rhs.name }
     public func hash(into hasher: inout Hasher) { hasher.combine(name) }
 

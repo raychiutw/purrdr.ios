@@ -116,6 +116,31 @@ struct TranscriptDialectContractTests {
         #expect(Set(known.map(\.name)).count == known.count, "位置規則名稱重複")
     }
 
+    @Test("每個位置規則的 POSIX 與 PowerShell 片段都進了預覽腳本與 Windows 定位腳本;沿用回報路徑的沒有自己的分支")
+    func everyLocatorSnippetIsInGeneratedScripts() throws {
+        for locator in TranscriptLocator.all {
+            if locator.resolver == "f=$i" {
+                #expect(locator.previewBranch == nil && locator.powershellFunction == nil && locator.powershellFindBranch == nil, "\(locator.name)")
+                continue
+            }
+            let previewBranch = try #require(locator.previewBranch, "\(locator.name) 沒有預覽分支")
+            let function = try #require(locator.powershellFunction, "\(locator.name) 沒有 PowerShell 函式")
+            let findBranch = try #require(locator.powershellFindBranch, "\(locator.name) 沒有 PFind 分支")
+            #expect(TranscriptCommand.previewsScript.contains(previewBranch), "\(locator.name)")
+            #expect(WindowsScripts.transcriptFunctions.contains(function), "\(locator.name)")
+            #expect(WindowsScripts.transcriptFunctions.contains(findBranch), "\(locator.name)")
+        }
+    }
+
+    @Test("預覽腳本要讀 header 的種類由位置規則的 readsHeader 決定(POSIX 與 PowerShell 同一份名單)")
+    func previewHeaderKindsComeFromLocators() {
+        let headerKinds = TranscriptLocator.all.filter(\.readsHeader).map(\.name)
+
+        #expect(headerKinds.count >= 2)
+        #expect(TranscriptCommand.previewsScript.contains("\(headerKinds.joined(separator: "|")))\nprintf '%s! %s\\n'"))
+        #expect(WindowsScripts.previews.contains("if(\(headerKinds.map { "'\($0)'" }.joined(separator: ",")) -ccontains $kind)"))
+    }
+
     @Test("Agent 種類 → 方言:別名統一、認不得的沒有對話紀錄、只有設定檔接受路徑的才收路徑參照")
     func catalogMapsKindsToDialects() throws {
         for (kind, dialect) in [("claude", TranscriptDialect.claude), ("claude-code", .claude), ("codex", .codex), ("grok", .grok), ("grok-build", .grok),
