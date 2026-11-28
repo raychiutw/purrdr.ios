@@ -58,9 +58,9 @@ extension PushPluginInstalling {
     public func updatePluginIfNeeded() async throws -> Bool { false }
 }
 
-/// app 認得的推播外掛版本(purrdr.host 0.13.0 發行的 0.2.1);外掛有新版時隨 app 遞增。
+/// app 認得的推播外掛版本(purrdr.host 0.16.0 發行的 0.3.0);外掛有新版時隨 app 遞增。
 public enum PushPluginRelease {
-    public static let latestKnownVersion = HostServiceVersion(0, 2, 1)
+    public static let latestKnownVersion = HostServiceVersion(0, 3, 0)
 }
 
 /// 「傳送測試通知」(#328)送出失敗的原因。SSH(app 經主機送)與 HTTPS(主機服務的 `push.test`)共用，畫面說明只對這個型別。

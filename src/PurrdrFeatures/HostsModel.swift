@@ -762,9 +762,22 @@ public final class HostsModel {
         if route.event == PushRoute.testEvent { return nil }
         // 每日上限是會員層級(不分主機),配對已不認得也要能開帳號頁。
         if route.event == PushRoute.dailyLimitEvent { return .accountNotifications }
+        // 方案用量是帳號層級的資料來源選擇,配對不認得也能開頁(Agent 認不得就不預選)。
+        if route.event == PushRoute.usageAlertEvent {
+            let agent = route.agent.map { AgentID(herdrName: $0.lowercased()) }
+            if case .other = agent { return .planUsage(agent: nil) }
+            return .planUsage(agent: agent)
+        }
         guard let hostID = pairings.host(forKeyHash: route.keyHash), let id = UUID(uuidString: hostID),
               hosts.contains(where: { $0.id == id }) else { return nil }
-        if route.event != nil { return .hostEditor(id) }
+        if let event = route.event {
+            switch event {
+            case PushRoute.hostOfflineEvent, PushRoute.hostRecoveredEvent: return .hostPage(id)
+            case _ where event.hasPrefix(PushRoute.hostServiceEventPrefix): return .hostEditor(id)
+            // 不認得的 event(後台新增、這版 app 還不懂):只開 app。
+            default: return nil
+            }
+        }
         guard let paneID = route.paneID else { return nil }
         return .chat(ChatRoute(host: .host(id), paneID: paneID))
     }
@@ -1072,6 +1085,10 @@ public enum PushDestination: Equatable, Sendable {
     case hostEditor(UUID)
     /// 每日通知上限通知(#675):開帳號頁(「通知」區塊有今日用量);由畫面開帳號 sheet。
     case accountNotifications
+    /// 方案用量快用完(#707):開方案用量頁,`agent` 有值就預選它。
+    case planUsage(agent: AgentID?)
+    /// 主機離線／已恢復(#707):開那台主機的主機頁(主機 tab 推入該主機)。
+    case hostPage(UUID)
 }
 
 /// 一台主機的推播開關(帳號頁「通知」區塊的一列)。

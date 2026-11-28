@@ -7,7 +7,7 @@ import Foundation
 /// `HerdrCommand` 的 PATH 前綴先找 `$HOME/bin`,所以推播的主機端會叫到它，不碰真的 herdr。
 /// 它把收到的參數記在 `fake/herdr-calls`;`fake/installed` 存在代表「herdr 已安裝 purrdr.push」;
 /// `fake/install-fails` 存在時 `plugin install` 失敗(stderr「git clone failed」)。
-/// `fake/version` 是已安裝的外掛版本(沒有檔案時 0.1.0);`plugin update` 把它改成 0.2.1,`fake/update-fails` 存在時失敗。
+/// `fake/version` 是已安裝的外掛版本(沒有檔案時 0.1.0);`plugin update` 把它改成 0.3.0,`fake/update-fails` 存在時失敗。
 public enum FakeHerdrPluginCLI {
     public static let script = """
         #!/bin/sh
@@ -25,7 +25,7 @@ public enum FakeHerdrPluginCLI {
             : > "$HOME/fake/installed" ;;
           "plugin update purrdr.push --yes")
             if [ -f "$HOME/fake/update-fails" ]; then echo "git fetch failed" >&2; exit 1; fi
-            printf '%s\\n' 0.2.1 > "$HOME/fake/version" ;;
+            printf '%s\\n' 0.3.0 > "$HOME/fake/version" ;;
           "plugin uninstall purrdr.push") rm -f "$HOME/fake/installed" ;;
           *) echo "unexpected: $*" >&2; exit 2 ;;
         esac
