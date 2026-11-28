@@ -61,7 +61,7 @@ extension HostMember {
             // context 取自這台 status line 檔(#388;Antigravity 的包裝只有 SSH 主機,#448)、
             // 對話紀錄認不得的行記到診斷紀錄(#449)、離開期間摘要用上次離開的時間(#308)。
             links: ConversationModel.HostLinks(
-                youShouldKnow: youShouldKnow, agentFiles: agentFiles, gitChanges: gitChanges,
+                youShouldKnow: offersMachineSettings ? youShouldKnow : nil, agentFiles: agentFiles, gitChanges: gitChanges,
                 sessionStatusReader: sessionStatus,
                 agentSessionStatusReaders: antigravityStatus.map { [.agy: $0] } ?? [:],
                 onTranscriptSkips: TranscriptSkipLog.shared.report,
@@ -101,15 +101,16 @@ extension HostMember {
     }
 
     /// 這台主機的主機設定(#274):主機頁(主機清單的 ⓘ)下方的主機主題、You should know、Codex 啟動器。
-    /// 不是已存主機、或這台主機沒有 Codex 啟動器時是 `nil`。
+    /// 不是已存主機時是 `nil`;這台主機沒有的項目(HTTPS 沒有通道,#730)在 `HostSettings` 裡是 `nil`,畫面不顯示。
     package func settings() -> HostSettings? {
         guard case .host(let id) = host, environment.isSavedHost(id) else { return nil }
+        guard offersMachineSettings else { return HostSettings(hostTheme: nil, youShouldKnow: nil, codexLauncher: nil) }
         // 畫面每次重繪都會呼叫：已有就不再寫回，否則改了被觀察的狀態會無限重繪。
         if let codexLauncher {
             return HostSettings(hostTheme: hostTheme, youShouldKnow: youShouldKnow, codexLauncher: codexLauncher)
         }
         guard let launcher = environment.agentHostServices.launcher(for: .codex, channel: channel, hostID: id.uuidString, consent: environment.hostConsent) else {
-            return nil
+            return HostSettings(hostTheme: hostTheme, youShouldKnow: youShouldKnow, codexLauncher: nil)
         }
         codexLauncher = launcher
         return HostSettings(hostTheme: hostTheme, youShouldKnow: youShouldKnow, codexLauncher: launcher)
