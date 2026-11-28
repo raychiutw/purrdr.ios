@@ -477,6 +477,7 @@ extension ConversationModel.Banner {
         case .readFailed: "Couldn’t update the conversation. Retrying…"
         case .ambiguous: "More than one saved chat matches this one, so none is shown."
         case .compressed: "Codex shortened this chat, so it can’t be shown here. Open the chat on the host to see it."
+        case .tooLarge: "This chat is too long to show here. Open it on the host to see it."
         }
     }
 
@@ -487,6 +488,7 @@ extension ConversationModel.Banner {
         case .readFailed: "arrow.clockwise"
         case .ambiguous: "questionmark.folder"
         case .compressed: "archivebox"
+        case .tooLarge: "doc.text.magnifyingglass"
         }
     }
 }

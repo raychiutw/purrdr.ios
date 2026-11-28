@@ -13831,6 +13831,17 @@
         }
       }
     },
+    "This chat is too long to show here. Open it on the host to see it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個聊天太長，這裡無法顯示。請在主機上開啟查看。"
+          }
+        }
+      }
+    },
     "This chat isn’t ready yet, so the message can’t be queued. Try again in a moment." : {
       "extractionState" : "manual",
       "localizations" : {
