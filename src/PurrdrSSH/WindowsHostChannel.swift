@@ -142,8 +142,9 @@ enum WindowsCommand {
     /// 不等 EOF:實測 OpenSSH 預設 shell 是 Git Bash 時，stdin 超過 4 KiB 後的 EOF 常常傳不到 PowerShell
     /// (資料都到了，只有 EOF 不見，程序就永遠等下去)。stdin 的開法同上傳(`WindowsScripts.openStdin`)。
     /// 自我時限(#92):`stdinScriptSeconds` 內沒讀到結束標記就以 124 結束;讀到後腳本本體另有 `readSeconds`。
+    /// 沒讀到結束標記就 EOF(傳輸被截斷,#735)以 74 結束,不執行已讀到的半份腳本;74 沒有其他腳本使用(上傳用 64–75 其餘各碼)。
     static let stdinStub = PowerShell.encodedCommand(
-        "$ProgressPreference='SilentlyContinue';\(WindowsScripts.limit(seconds: HostScriptTimeLimit.stdinScriptSeconds));\(WindowsScripts.openStdin);$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '\(endOfScript)'){[void]$b.AppendLine($l)};$purrdrLimit.At=[DateTime]::UtcNow.AddSeconds(\(HostScriptTimeLimit.readSeconds));iex $b.ToString()")
+        "$ProgressPreference='SilentlyContinue';\(WindowsScripts.limit(seconds: HostScriptTimeLimit.stdinScriptSeconds));\(WindowsScripts.openStdin);$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;$done=$false;while(($l=$s.ReadLine()) -ne $null){if($l -eq '\(endOfScript)'){$done=$true;break};[void]$b.AppendLine($l)};if(-not $done){exit 74};$purrdrLimit.At=[DateTime]::UtcNow.AddSeconds(\(HostScriptTimeLimit.readSeconds));iex $b.ToString()")
     static let endOfScript = "#purrdr-end-of-script"
 
     static func viaStdin(_ script: String) -> WindowsInvocation {

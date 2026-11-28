@@ -35,6 +35,15 @@ struct WindowsHostChannelTests {
         #expect(PowerShell.script(inEncodedCommand: PowerShell.encodedCommand("exit 0")) == "exit 0")
     }
 
+    @Test("stdin stub 沒讀到結束標記就 EOF:以 74 結束，且在執行腳本(iex)之前(真主機行為由 windows-upload-repro.py 守住)")
+    func stdinStubExitsOnTruncatedInput() throws {
+        let script = try #require(PowerShell.script(inEncodedCommand: WindowsCommand.stdinStub))
+        let exitRange = try #require(script.range(of: "exit 74"))
+        let executeRange = try #require(script.range(of: "iex "))
+        #expect(exitRange.upperBound <= executeRange.lowerBound)
+        #expect(script.contains(WindowsCommand.endOfScript))
+    }
+
     @Test("PowerShell 的引號：單引號包住，內部單引號寫成兩個")
     func quoting() {
         #expect(PowerShell.quote("w1:p1") == "'w1:p1'")

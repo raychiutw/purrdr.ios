@@ -11,6 +11,7 @@ kind(各跑每個大小):
   gzip    檔案上傳，gzip 傳輸;另加傳輸／原始大小不符(exit 75、不留檔)與
           「傳到一半時已收到的 bytes 已寫到磁碟」(不整個放進記憶體)
   stub    唯讀腳本的 stdin stub:送指定大小的腳本，讀到結束標記就執行
+  stub-eof(隨 stub 一起跑)  stub 只收到半份腳本就 EOF:不執行，exit 74
   limit   自我時限(#92,時限換短，見 `SHORT_LIMITS`):stub 只收到一半腳本、腳本本體卡住、圖片／檔案上傳只送一半，
           都要以 exit 124 結束、程序樹不留程序、上傳不留暫存檔(需要主機預設 shell 是 Git Bash,以 `/proc/$$/winpid` 找根)
 上傳與 stub 的 kind 另跑 100 bytes 的「沒有 `_handle` 欄位」模擬(換掉欄位名，應退回直接讀 console stream)。
@@ -340,6 +341,27 @@ def run_limit_case(source, case, timeout, shell):
         run_powershell("Remove-Item -LiteralPath " + quote(workspace) + " -Recurse -Force -ErrorAction SilentlyContinue")
 
 
+def run_stub_eof_case(source, timeout, shell):
+    """stub 只收到半份腳本(沒有結束標記)就遇到 EOF(傳輸被截斷):不執行已讀到的內容，exit 74(`stdinTruncatedExit`)。"""
+    command_script = stdin_stub(source)
+    truncated = ("[Console]::Out.Write('first-half-ran')\n").encode()
+    started = time.monotonic()
+    process = subprocess.Popen(ssh_argv(encoded(command_script), shell), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    try:
+        stdout, _ = process.communicate(truncated, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)] if os.name == "nt" else ["kill", str(process.pid)],
+                       capture_output=True)
+        process.communicate()
+        return False, f"逾時 {timeout}s:EOF 後 stub 還沒結束"
+    elapsed = time.monotonic() - started
+    printed = stdout.decode("utf-8", errors="replace").strip()
+    if printed or process.returncode != 74:
+        return False, f"exit={process.returncode} {elapsed:.1f}s stdout={printed!r}(預期 exit 74、stdout 空)"
+    return True, f"{elapsed:.1f}s exit 74,沒有執行已讀到的內容"
+
+
 def run_case(source, kind, size, timeout, shell, variant=None):
     """`variant`:
     - `transfer`／`original`:宣告的大小故意多 1,預期 exit 75、資料夾是空的。
@@ -447,6 +469,10 @@ def main():
             all_green &= green
             label = f"{shell} {kind}" + (f"({variant})" if variant else "")
             print(f"{'GREEN' if green else 'RED  '} {label:24} {size:>9} bytes  {detail}", flush=True)
+        if "stub" in kinds:
+            green, detail = run_stub_eof_case(source, options.timeout, shell)
+            all_green &= green
+            print(f"{'GREEN' if green else 'RED  '} {shell + ' stub-eof':24} stdin stub 截斷後 EOF  {detail}", flush=True)
         if "limit" in kinds:
             for case in LIMIT_CASES:
                 green, detail = run_limit_case(source, case, options.timeout, shell)
