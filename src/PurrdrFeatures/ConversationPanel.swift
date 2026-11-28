@@ -5,9 +5,8 @@ import SwiftUI
 /// 聊天頂列用量環開的面板(#617,spec #612;合併原本的用量 sheet 與 iPad 右側 Inspector):
 /// iPad／寬視窗是錨在用量環下方的 popover(系統寬度),iPhone(compact)是 sheet(medium／large、左上 X)。
 ///
-/// 內容是「⋯」選單各 sheet 的內容元件(用量、權限模式、做完再送、待辦、背景子 Agent),不重寫行為;
-/// 模型與投入程度在同一個面板裡推入一頁(`PanelModelPage`),生命週期同模型 sheet。
-/// 有沒有哪一段由聊天狀態決定,規則同「⋯」選單(`ConversationMoreMenuPlan`):沒資料的項目不列。
+/// 內容只有方案用量與這個 session 的 Context(#712);模型與思考深度、權限模式、做完再送、待辦、背景子 Agent
+/// 只從「⋯」選單進入,不在面板重複。
 struct ConversationPanelView: View {
     let model: ConversationModel
     let usageSection: UsageSectionModel?
@@ -21,36 +20,9 @@ struct ConversationPanelView: View {
         NavigationStack {
             List {
                 UsageContentView(model: model, section: usageSection, display: display)
-                if model.showsModelCapsule {
-                    Section {
-                        NavigationLink(value: PanelPage.model) {
-                            LabeledContent("Model & Effort") {
-                                Text(verbatim: model.modelSummary ?? "")
-                                    .foregroundStyle(.secondaryText)
-                            }
-                        }
-                        .accessibilityIdentifier("panel.model")
-                    }
-                }
-                PermissionModeSections(model: model)
-                    .accessibilityIdentifier("panel.permissionMode")
-                SendWhenDoneSections(model: model, showsHeader: true)
-                let sheet = model.statusSummary.sheet
-                if sheet.progress.todoTotal > 0 {
-                    Section("Todos") {
-                        TodoRows(progress: sheet.progress)
-                    }
-                    .accessibilityIdentifier("panel.todos")
-                }
-                if let pane = sheet.backgroundAgents, !pane.rows.isEmpty {
-                    Section("Background Agents") {
-                        BackgroundAgentRows(model: model, pane: pane)
-                    }
-                    .accessibilityIdentifier("panel.backgroundAgents")
-                }
             }
             .appSheetList()
-            .navigationTitle("Usage & Details")
+            .navigationTitle("Usage & Context")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -64,36 +36,8 @@ struct ConversationPanelView: View {
                         .accessibilityIdentifier("panel.refresh")
                 }
             }
-            .navigationDestination(for: PanelPage.self) { page in
-                switch page {
-                case .model: PanelModelPage(model: model)
-                }
-            }
-            .navigationDestination(for: DelegationRoute.self) { route in
-                DelegationDestination(route: route, conversation: model)
-            }
         }
         .accessibilityIdentifier("conversation.panel")
-    }
-}
-
-enum PanelPage: Hashable {
-    case model
-}
-
-/// 面板裡的模型與投入程度頁:進入時送 `/model` 讀面板、離開時收掉(同 `ModelSheet` 的呈現與關閉)。
-private struct PanelModelPage: View {
-    let model: ConversationModel
-
-    var body: some View {
-        ModelContentView(model: model)
-            .navigationTitle("Choose Model")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .modelEffortDestination(model)
-            .task { await model.beginChoosingModel() }
-            .onDisappear { Task { await model.finishChoosingModel() } }
     }
 }
 

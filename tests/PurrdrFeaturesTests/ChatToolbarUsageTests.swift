@@ -59,4 +59,18 @@ struct ChatToolbarUsageTests {
         #expect(text.contains("appSheet(detents: [.medium, .large])"))
         #expect(text.contains("SheetCloseToolbar("))
     }
+
+    @Test("面板只放用量與 Context(#712):模型、權限模式、做完再送、待辦、背景子 Agent 只從「⋯」選單進入")
+    func panelHoldsOnlyUsageAndContext() throws {
+        let text = try GlassLevelUsageTests.source("ConversationPanel.swift")
+        #expect(text.contains("UsageContentView("))
+        for removed in [
+            "PermissionModeSections", "SendWhenDoneSections", "TodoRows", "BackgroundAgentRows",
+            "ModelContentView", "PanelModelPage", "panel.model", "panel.permissionMode", "panel.todos", "panel.backgroundAgents",
+        ] {
+            #expect(!text.contains(removed), "面板不該再有 \(removed)")
+        }
+        #expect(text.contains("\"Usage & Context\""), "面板標題改成符合內容的名稱")
+        #expect(!text.contains("Usage & Details"))
+    }
 }

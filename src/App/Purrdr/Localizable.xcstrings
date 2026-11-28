@@ -11359,13 +11359,13 @@
         }
       }
     },
-    "Show Usage & Details" : {
+    "Show Usage & Context" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "顯示用量與詳細資料"
+            "value" : "顯示用量與 Context"
           }
         }
       }
@@ -15626,17 +15626,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用量與 Context"
-          }
-        }
-      }
-    },
-    "Usage & Details" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用量與詳細資料"
           }
         }
       }

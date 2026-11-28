@@ -70,11 +70,11 @@ struct KeyboardMenuTests {
         #expect(KeyboardCommand.toggleConversationPanel.isEnabled(in: c), "窄視窗也能開(面板在窄視窗是 sheet)")
     }
 
-    @Test("切 tab 的項目一律可用;面板的名稱是「Show Usage & Details」,不再叫 Inspector")
+    @Test("切 tab 的項目一律可用;面板的名稱是「Show Usage & Context」,不再叫 Inspector")
     func tabsAlwaysEnabledAndPanelTitle() {
         for command in [KeyboardCommand.showChats, .showFiles, .showHosts, .showTraffic] {
             #expect(command.isEnabled(in: KeyboardCommandContext()))
         }
-        #expect(KeyboardCommand.toggleConversationPanel.titleText(in: KeyboardCommandContext()) == "Show Usage & Details")
+        #expect(KeyboardCommand.toggleConversationPanel.titleText(in: KeyboardCommandContext()) == "Show Usage & Context")
     }
 }

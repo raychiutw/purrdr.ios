@@ -21,7 +21,7 @@ final class IPadConversationPanelUITests: XCTestCase {
         return app
     }
 
-    /// 頂列沒有 Inspector 開關鈕;點用量環開 popover,有用量與權限模式。
+    /// 頂列沒有 Inspector 開關鈕;點用量環開 popover,只有用量與 Context(#712)。
     @MainActor
     func testRingOpensPanelPopover() {
         let app = openChat()
@@ -34,22 +34,9 @@ final class IPadConversationPanelUITests: XCTestCase {
 
         XCTAssertTrue(app.element("conversation.panel").waitUntilExists(timeout: 5), "點用量環沒有開出面板")
         XCTAssertTrue(app.element("usage.sheet.context").waitUntilExists(timeout: 5), "面板沒有用量")
-        XCTAssertTrue(app.buttons["Accept Edits"].firstMatch.waitUntilExists(timeout: 20), "面板沒有權限模式")
-    }
-
-    /// 在面板裡直接切權限模式:行為同 sheet(成功切換),但面板不會因此關掉。
-    @MainActor
-    func testSwitchingPermissionModeInsidePanel() {
-        let app = openChat()
-        app.buttons["conversation.usage"].firstMatch.tap()
-        let accept = app.buttons["Accept Edits"].firstMatch
-        XCTAssertTrue(accept.waitUntilExists(timeout: 20), "面板沒有權限模式")
-
-        accept.tap()
-
-        XCTAssertTrue(
-            accept.wait(for: NSPredicate(format: "isSelected == true"), timeout: 20), "切換後 Accept Edits 沒有變成選取")
-        XCTAssertTrue(app.element("conversation.panel").exists, "切換權限模式把面板關掉了")
+        XCTAssertFalse(app.element("panel.model").exists, "面板不該再有模型與思考深度")
+        XCTAssertFalse(app.buttons["Accept Edits"].firstMatch.exists, "面板不該再有權限模式")
+        XCTAssertFalse(app.element("panel.todos").exists || app.element("panel.backgroundAgents").exists, "面板不該再有待辦與背景子 Agent")
     }
 
     /// popover 開著時「⋯」被 popover 蓋住;點外面收掉 popover 後「⋯」選單正常開出(不被剛關掉的 popover 卡住);再開用量環也正常(#617)。
