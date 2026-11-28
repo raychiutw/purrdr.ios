@@ -11,7 +11,7 @@ App Store Connect → App → App 隱私權。每題附依據(程式位置)。�
 
 ## 第 1 題：你或第三方夥伴是否會從這個 App 蒐集資料?
 
-**是。** 只有使用者登入 Purrdr 會員(Purrdr Plus)時才會蒐集;不登入的話 App 不傳任何資料到我們的伺服器。
+**是。** 只有使用者登入 Purrdr 會員(開推播通知或訂閱 Purrdr Plus)時才會蒐集;不登入的話 App 不傳任何資料到我們的伺服器。
 
 ## 第 2 題：蒐集的資料類型
 
@@ -22,7 +22,7 @@ App Store Connect → App → App 隱私權。每題附依據(程式位置)。�
 | 識別碼 → 使用者 ID | **是** | 會員 ID、Apple／Google 的 subject | `identities.subject`、`members.id`;`raychiutw/purrdr.server` 的 `README.md`「API」 |
 | 識別碼 → 裝置 ID | **是** | APNs device token(推播配對) | `push_pairings.device_token`;`src/PurrdrFeatures/PushModel.swift`;`POST /v1/members/me/push-pairings` |
 | 購買項目 → 購買記錄 | **是** | App Store 交易:original transaction ID、商品、購買／到期／退款時間、自動續訂狀態 | `entitlements` 表;`raychiutw/purrdr.server` 的 `src/subscriptions.ts`;`src/PurrdrFeatures/SubscriptionModel.swift` |
-| 使用者內容 → 其他使用者內容 | **是** | 主機同步：主機名稱、位址與埠、使用者名稱、連線方式、host key 指紋、修改時間 | `synced_hosts` 表;`src/PurrdrCore/HostSync.swift`(`SyncedHost`、`HostSyncJournal`);`raychiutw/purrdr.server` 的 `README.md`「主機同步」 |
+| 使用者內容 → 其他使用者內容 | **是** | (1) 主機同步(Plus)：主機名稱、位址與埠、使用者名稱、連線方式、host key 指紋、修改時間。(2) **0.55.0 起(ADR-0016、ADR-0017;不需要 Plus)**:開了通知的主機的電腦名稱(app 顯示名稱)與主機圖示(系統圖示代號加顏色)、每組推播配對開了哪些通知種類、開了「主機離線／主機已恢復」時該主機目前的在線狀態(只存最新狀態與最後回報時間，不存歷史、IP 或位址)、當日已送推播則數。**同屬「其他使用者內容」、連結到使用者、用途 App 功能,不新增類型**，但申報說明要涵蓋它們 | `synced_hosts` 表;`src/PurrdrCore/HostSync.swift`(`SyncedHost`、`HostSyncJournal`);`raychiutw/purrdr.server` 的 `README.md`「主機同步」 |
 | 使用者內容 → 照片或影片 | 否 | 圖片經 SSH 直接上傳到使用者自己的主機 `~/.purrdr/uploads/`,不經我們 | `src/PurrdrCore/UploadedImages.swift`;`src/PurrdrFeatures/ComposerImageViews.swift` |
 | 使用者內容 → 電子郵件或簡訊、遊戲內容、客戶支援、其他 | 否 | 對話與 prompt 只在裝置與使用者的主機之間(SSH) | `src/PurrdrCore/SSHHostChannel.swift`;`raychiutw/purrdr.server` 的 `README.md` 開頭「聊天與終端機不經過這裡」 |
 | 診斷 → 當機資料、效能資料、其他診斷資料 | 否 | 沒有當機回報或分析 SDK(相依只有 swift-nio、swift-nio-ssh、swift-crypto、SwiftTerm);「拷貝診斷資訊」只到剪貼簿，由使用者自己決定是否寄出 | `Package.swift`;`src/PurrdrFeatures/SettingsModel.swift`(`diagnostics`) |
@@ -45,7 +45,7 @@ App Store Connect → App → App 隱私權。每題附依據(程式位置)。�
 | 使用者 ID | App 功能(會員、訂閱權限) | 是 | 否 |
 | 裝置 ID | App 功能(推播) | 是 | 否 |
 | 購買記錄 | App 功能(判斷 Purrdr Plus 權限) | 是 | 否 |
-| 其他使用者內容 | App 功能(主機同步) | 是 | 否 |
+| 其他使用者內容 | App 功能(主機同步;推播主機的名稱、圖示、通知種類與在線狀態) | 是 | 否 |
 
 用途**都不勾**:第三方廣告、開發者的廣告或行銷、分析、產品個人化、其他用途。
 
@@ -60,3 +60,9 @@ App Store Connect → App → App 隱私權。每題附依據(程式位置)。�
 `NSPrivacyCollectedDataTypes` 與上表相同(五種、連結到使用者、不追蹤、用途 App 功能)、required reason API 只有
 `NSPrivacyAccessedAPICategoryUserDefaults`(`CA92.1`:只讀寫這個 App 自己的資料;我們的程式沒有用到檔案時間戳、開機時間、磁碟空間、鍵盤清單這幾類 API)。
 相依的 swift-nio／swift-crypto／SwiftTerm 若用到 required reason API,第一次上傳 TestFlight 後 Apple 會寄 ITMS-91053 信，依信補上。
+
+## 0.55.0 更新(#709;ADR-0016、ADR-0017)
+
+- **App Store Connect 要做的事**:第 2 題與第 3 題的類型與勾選**都不變**(仍是電子郵件、使用者 ID、裝置 ID、購買記錄、其他使用者內容;都連結到使用者、用途 App 功能、不追蹤)。若 App Store Connect 的欄位有自由說明，補上「推播主機的電腦名稱與圖示、通知種類、主機在線狀態」。Privacy Manifest(`PrivacyInfo.xcprivacy`)的類型清單也不變。
+- **需人工確認的判斷**:把「主機在線狀態」與「當日已送推播則數」歸入「其他使用者內容」是保守作法(也可能被視為「使用資料 → 產品互動」)。若使用者或審查認為該改申報「產品互動」，再加一列(用途 App 功能、連結到使用者、不追蹤)，並同步 Privacy Manifest。
+- 推播從 0.55.0 起不需要 Plus,所以「蒐集」不再只限訂閱者:登入會員、開通知就會有以上資料。隱私權政策網頁已同步(生效日期 2026-11-28)。
