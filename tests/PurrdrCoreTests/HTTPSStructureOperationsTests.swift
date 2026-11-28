@@ -181,7 +181,7 @@ struct HTTPSStructureOperationsTests {
     func newChatInExistingWorkspace() async throws {
         let service = try await Self.start(.init(hostServiceVersion: "0.15.0"))
         defer { Task { await service.stop() } }
-        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: AbsolutePathNewChatFolders())
 
         let started = try await launcher.start(NewChatRequest(
             folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi", target: .existingWorkspace(id: "w1")))
@@ -197,7 +197,7 @@ struct HTTPSStructureOperationsTests {
     func newChatLaunchPendingKeepsMessage() async throws {
         let service = try await Self.start(.init(hostServiceVersion: "0.15.0", agentLaunchPending: true))
         defer { Task { await service.stop() } }
-        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: AbsolutePathNewChatFolders())
 
         let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
 
@@ -209,7 +209,7 @@ struct HTTPSStructureOperationsTests {
     func newChatLaunchReadySendsMessage() async throws {
         let service = try await Self.start(.init(hostServiceVersion: "0.15.0", agentLaunchPending: false))
         defer { Task { await service.stop() } }
-        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: AbsolutePathNewChatFolders())
 
         let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
 
@@ -220,7 +220,7 @@ struct HTTPSStructureOperationsTests {
     func newChatOldHostServiceWithoutLaunchPending() async throws {
         let service = try await Self.start(.init(hostServiceVersion: "0.7.0"))
         defer { Task { await service.stop() } }
-        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: AbsolutePathNewChatFolders())
 
         let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
 
@@ -360,7 +360,7 @@ struct HTTPSStructureOperationsTests {
         let service = try await Self.start()
         defer { Task { await service.stop() } }
         let client = Self.client(to: service)
-        let launcher = NewChatLauncher(client: client, folders: .absolutePathsOnly)
+        let launcher = NewChatLauncher(client: client, folders: AbsolutePathNewChatFolders())
 
         let started = try await launcher.start(NewChatRequest(
             folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "整理照片標籤"))
@@ -377,7 +377,7 @@ struct HTTPSStructureOperationsTests {
     func newChatPromptNotReadyKeepsMessage() async throws {
         let service = try await Self.start(.init(promptHerdrError: "agent_not_ready", hostServiceVersion: Self.currentVersion))
         defer { Task { await service.stop() } }
-        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: AbsolutePathNewChatFolders())
 
         let started = try await launcher.start(NewChatRequest(folder: "/Users/demo/Projects/garden-journal", agent: .claude, message: "hi"))
 
@@ -389,7 +389,7 @@ struct HTTPSStructureOperationsTests {
     func newChatNeedsAbsolutePath() async throws {
         let service = try await Self.start()
         defer { Task { await service.stop() } }
-        let launcher = NewChatLauncher(client: Self.client(to: service), folders: .absolutePathsOnly)
+        let launcher = NewChatLauncher(client: Self.client(to: service), folders: AbsolutePathNewChatFolders())
 
         await #expect(throws: NewChatFolderError.absolutePathRequired("~/Projects")) {
             _ = try await launcher.start(NewChatRequest(folder: "~/Projects", agent: .claude, message: "hi"))
@@ -399,17 +399,17 @@ struct HTTPSStructureOperationsTests {
 
     @Test("沒有資料夾瀏覽的主機：不能瀏覽，列出資料夾是 unsupported")
     func absolutePathsOnlyCannotBrowse() async throws {
-        let folders = NewChatFolders.absolutePathsOnly
+        let folders = AbsolutePathNewChatFolders()
 
         #expect(!folders.canBrowse)
-        #expect(NewChatFolders(channel: FakeNoChannel()).canBrowse)
+        #expect(SSHNewChatFolders(channel: FakeNoChannel()).canBrowse)
         await #expect(throws: HostServiceError.unsupported("folders")) {
             _ = try await folders.list(nil)
         }
     }
 }
 
-/// 只用來建 `NewChatFolders` 的通道(不會被呼叫)。
+/// 只用來建 `SSHNewChatFolders` 的通道(不會被呼叫)。
 private struct FakeNoChannel: HostChannel {
     func execute(_ command: String) async throws -> any ExecSession { throw HostServiceError.unsupported("ssh") }
     func openPTY(_ request: PTYRequest) async throws -> any PTYSession { throw HostServiceError.unsupported("ssh") }

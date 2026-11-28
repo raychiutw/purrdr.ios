@@ -92,9 +92,9 @@ struct WindowsHostPathTests {
     @Test("新增對話的資料夾：Windows 的絕對路徑")
     func newChatFolders() async throws {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~"), reply: FakeReply(stdout: Data("C:\\Users\\demo\nwork\nDesktop\n".utf8)))
+        await host.expect(SSHNewChatFolders.command(for: "~"), reply: FakeReply(stdout: Data("C:\\Users\\demo\nwork\nDesktop\n".utf8)))
 
-        #expect(try await NewChatFolders(channel: host).list("~") == NewChatFolderListing(path: #"C:\Users\demo"#, folders: ["Desktop", "work"]))
+        #expect(try await SSHNewChatFolders(channel: host).list("~") == NewChatFolderListing(path: #"C:\Users\demo"#, folders: ["Desktop", "work"]))
     }
 
     @Test("Claude 在 Windows 主機上的資料夾信任：以真實畫面為底，只把資料夾換成 C:\\Users\\demo\\weather-app")

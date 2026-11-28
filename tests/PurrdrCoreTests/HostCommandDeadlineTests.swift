@@ -73,10 +73,10 @@ struct HostCommandDeadlineTests {
         },
         StuckCommand(
             testDescription: "新增對話的資料夾清單",
-            command: NewChatFolders.command(for: "~/Projects"),
+            command: SSHNewChatFolders.command(for: "~/Projects"),
             deadline: .seconds(20)
         ) { host, sleep in
-            _ = try await NewChatFolders(channel: host, sleep: sleep).list("~/Projects")
+            _ = try await SSHNewChatFolders(channel: host, sleep: sleep).list("~/Projects")
         },
         StuckCommand(
             testDescription: "資料夾瀏覽",

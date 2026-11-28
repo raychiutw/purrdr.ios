@@ -178,7 +178,7 @@ struct WindowsHostScriptsTests {
         let channel = WindowsHostChannel(host)
 
         #expect(try await HostFolders(channel: channel).list().entries.map(\.name) == ["work"])
-        #expect(try await NewChatFolders(channel: channel).list("~").folders == ["work"])
+        #expect(try await SSHNewChatFolders(channel: channel).list("~").folders == ["work"])
         #expect(await host.executions.map(\.stdinText).allSatisfy { $0.hasSuffix("#purrdr-end-of-script\n") })
         #expect(await host.executions.first?.stdinText.contains("\n$a=@('')\n") == true)
         #expect(await host.executions.last?.stdinText.contains("\n$a=@('~')\n") == true)

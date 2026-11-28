@@ -34,7 +34,7 @@ struct NewChatLaunchTests {
     }
 
     static func folder(_ path: String, resolvesTo absolute: String) -> (String, FakeReply) {
-        (NewChatFolders.command(for: path), FakeReply(stdout: NewChatFolders.output(path: absolute, folders: [])))
+        (SSHNewChatFolders.command(for: path), FakeReply(stdout: SSHNewChatFolders.output(path: absolute, folders: [])))
     }
 
     static func createLine(cwd: String, label: String? = nil) -> String {
@@ -43,7 +43,7 @@ struct NewChatLaunchTests {
     }
 
     static func launcher(_ host: FakeHost, sleeper: RecordingSleeper = RecordingSleeper(fires: { $0 < .seconds(1) })) -> NewChatLauncher {
-        NewChatLauncher(client: HerdrClient(channel: host, sleep: sleeper.sleep), folders: NewChatFolders(channel: host), sleep: sleeper.sleep)
+        NewChatLauncher(client: HerdrClient(channel: host, sleep: sleeper.sleep), folders: SSHNewChatFolders(channel: host), sleep: sleeper.sleep)
     }
 
     @Test("預設權限模式沿用 agent 自己的設定：不帶 --permission-mode(不會預設成完全存取)")
@@ -156,7 +156,7 @@ struct NewChatLaunchTests {
     @Test("資料夾不存在：不建立 workspace")
     func missingFolderCreatesNothing() async throws {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~/nope"), reply: FakeReply(exitCode: 66))
+        await host.expect(SSHNewChatFolders.command(for: "~/nope"), reply: FakeReply(exitCode: 66))
 
         await #expect(throws: NewChatFolderError.notFound("~/nope")) {
             try await Self.launcher(host).start(NewChatRequest(folder: "~/nope", agent: .claude))

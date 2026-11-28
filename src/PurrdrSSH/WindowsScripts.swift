@@ -2,7 +2,7 @@ import Foundation
 import PurrdrCore
 
 /// Windows 主機的 PowerShell 腳本(行為規格 §11.2):與 POSIX 版本(`TranscriptCommand`、`HostUploadCommand`、
-/// `HostFolderCommand`、`NewChatFolders`)**輸出格式與 exit code 相同**,client 的解析不分主機。
+/// `HostFolderCommand`、`SSHNewChatFolders`)**輸出格式與 exit code 相同**,client 的解析不分主機。
 ///
 /// 通則：
 /// - 參數放在開頭的 `$a=@('…',…)`(PowerShell 引號),不拼進腳本本體。

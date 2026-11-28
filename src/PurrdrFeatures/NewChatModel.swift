@@ -20,19 +20,19 @@ public final class FolderPickerModel {
     /// 一開始要列的資料夾(`nil` = 家目錄)。
     public let startPath: String?
 
-    private let folders: NewChatFolders
+    private let folders: any NewChatFolderBrowsing
     /// 正在讀或上次讀失敗的資料夾(重試讀它)。
     private var requested: String?
     /// 家目錄(從家目錄開始時第一次列出的資料夾):麵包屑以「~」代表。
     private var home: String?
 
-    public init(folders: NewChatFolders, start: String?) {
+    public init(folders: any NewChatFolderBrowsing, start: String?) {
         self.folders = folders
         startPath = start
         requested = start
     }
 
-    private init(folders: NewChatFolders, start: String, home: String?) {
+    private init(folders: any NewChatFolderBrowsing, start: String, home: String?) {
         self.folders = folders
         startPath = start
         requested = start
@@ -177,7 +177,7 @@ public final class NewChatModel {
     public private(set) var sessions: SessionsState = .idle
 
     private let launcher: NewChatLauncher
-    private let folders: NewChatFolders
+    private let folders: any NewChatFolderBrowsing
     /// 讀過的續接支援(整個表單只問一次)。
     private var resumeSupport: ResumeSupport?
 
@@ -185,7 +185,7 @@ public final class NewChatModel {
     public let availableAgents: [AgentID]
 
     public init(
-        launcher: NewChatLauncher, folders: NewChatFolders,
+        launcher: NewChatLauncher, folders: any NewChatFolderBrowsing,
         agents: [AgentID] = HostAgentSettings.newChatAgents(enabled: HostAgentSettings.previouslyShownUsage),
         supportsExistingWorkspaces: Bool = true
     ) {
@@ -309,7 +309,6 @@ public final class NewChatModel {
     /// 讀這支裝置是否唯讀(HTTPS 主機握手時回報)。
     public func loadAccess() async {
         readOnlyReason = await launcher.isReadOnlyDevice() ? HostErrorText.message(for: HostServiceError.readOnlyDevice) : nil
-        guard folders.hasHostServiceBrowser else { return }
         switch await folders.browsingAvailability() {
         case .available:
             canBrowseFolders = true

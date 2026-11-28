@@ -14,8 +14,8 @@ struct NewChatExistingWorkspaceModelTests {
 
     static func model(_ host: FakeHost, supportsExistingWorkspaces: Bool = true) -> NewChatModel {
         NewChatModel(
-            launcher: NewChatLauncher(client: HerdrClient(channel: host), folders: NewChatFolders(channel: host)),
-            folders: NewChatFolders(channel: host), supportsExistingWorkspaces: supportsExistingWorkspaces)
+            launcher: NewChatLauncher(client: HerdrClient(channel: host), folders: SSHNewChatFolders(channel: host)),
+            folders: SSHNewChatFolders(channel: host), supportsExistingWorkspaces: supportsExistingWorkspaces)
     }
 
     static func loaded(_ host: FakeHost = FakeHost(), supportsExistingWorkspaces: Bool = true) async -> NewChatModel {

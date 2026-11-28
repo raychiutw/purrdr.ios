@@ -230,7 +230,7 @@ struct HostsModelTests {
         store.hosts = [Self.studio]
         let real = FakeHost()
         let bridge = HerdrCommand.bridge(HerdrInstallation(session: "work"))
-        await real.expect(NewChatFolders.command(for: "~/ledger"), reply: FakeReply(stdout: NewChatFolders.output(path: "/Users/demo/ledger", folders: [])))
+        await real.expect(SSHNewChatFolders.command(for: "~/ledger"), reply: FakeReply(stdout: SSHNewChatFolders.output(path: "/Users/demo/ledger", folders: [])))
         let created = #"{"id":"purrdr:workspace.create","result":{"type":"workspace_created","workspace":{"workspace_id":"w4","number":4,"label":"ledger","focused":false,"pane_count":1,"tab_count":1,"active_tab_id":"w4:t1","agent_status":"unknown"},"root_pane":{"pane_id":"w4:p1","terminal_id":"t","workspace_id":"w4","tab_id":"w4:t1","focused":false,"agent_status":"unknown","revision":0}}}"#
         await real.expect(bridge, reply: FakeReply(stdout: Data(created.utf8) + [0x0A], trigger: .afterStdinLine))
         await real.expect(bridge, reply: FakeReply(stdout: Data(#"{"id":"purrdr:agent.start","result":{"type":"agent_started"}}"#.utf8) + [0x0A], trigger: .afterStdinLine))

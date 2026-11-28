@@ -65,14 +65,14 @@ struct WindowsPathDisplayTests {
     @Test("新增對話的資料夾選擇：子資料夾與上一層都用 Windows 路徑")
     func folderPicker() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: ""), reply: FakeReply(stdout: NewChatFolders.output(path: #"C:\Users\demo"#, folders: ["ledger"])))
+        await host.expect(SSHNewChatFolders.command(for: ""), reply: FakeReply(stdout: SSHNewChatFolders.output(path: #"C:\Users\demo"#, folders: ["ledger"])))
         await host.expect(
-            NewChatFolders.command(for: #"C:\Users\demo\ledger"#),
-            reply: FakeReply(stdout: NewChatFolders.output(path: #"C:\Users\demo\ledger"#, folders: [])))
-        await host.expect(NewChatFolders.command(for: #"C:\Users\demo"#), reply: FakeReply(stdout: NewChatFolders.output(path: #"C:\Users\demo"#, folders: ["ledger"])))
-        await host.expect(NewChatFolders.command(for: #"C:\Users"#), reply: FakeReply(stdout: NewChatFolders.output(path: #"C:\Users"#, folders: ["demo"])))
-        await host.expect(NewChatFolders.command(for: #"C:\"#), reply: FakeReply(stdout: NewChatFolders.output(path: #"C:\"#, folders: ["Users"])))
-        let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: nil)
+            SSHNewChatFolders.command(for: #"C:\Users\demo\ledger"#),
+            reply: FakeReply(stdout: SSHNewChatFolders.output(path: #"C:\Users\demo\ledger"#, folders: [])))
+        await host.expect(SSHNewChatFolders.command(for: #"C:\Users\demo"#), reply: FakeReply(stdout: SSHNewChatFolders.output(path: #"C:\Users\demo"#, folders: ["ledger"])))
+        await host.expect(SSHNewChatFolders.command(for: #"C:\Users"#), reply: FakeReply(stdout: SSHNewChatFolders.output(path: #"C:\Users"#, folders: ["demo"])))
+        await host.expect(SSHNewChatFolders.command(for: #"C:\"#), reply: FakeReply(stdout: SSHNewChatFolders.output(path: #"C:\"#, folders: ["Users"])))
+        let picker = FolderPickerModel(folders: SSHNewChatFolders(channel: host), start: nil)
 
         await picker.load()
         await picker.open("ledger")

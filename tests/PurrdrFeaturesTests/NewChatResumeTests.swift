@@ -19,7 +19,7 @@ struct NewChatResumeTests {
     static let agentStarted = line(#"{"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"w4:p1"},"argv":["claude"]}}"#)
 
     static func model(_ connection: FakeHostConnection) -> NewChatModel {
-        let folders = NewChatFolders.absolutePathsOnly
+        let folders = AbsolutePathNewChatFolders()
         return NewChatModel(launcher: NewChatLauncher(client: HerdrClient(connection: connection), folders: folders), folders: folders)
     }
 
