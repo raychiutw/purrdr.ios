@@ -15383,6 +15383,17 @@
         }
       }
     },
+    "Unnamed Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名的主機"
+          }
+        }
+      }
+    },
     "Unpin" : {
       "extractionState" : "manual",
       "localizations" : {

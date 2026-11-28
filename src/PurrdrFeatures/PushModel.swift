@@ -283,6 +283,70 @@ public final class PushService {
         publishHostNames()
     }
 
+    // MARK: - 主機名稱與圖示同步到後台(ADR-0016、#706)
+
+    /// 主機 id → 這台主機現在的名稱與圖示(`HostsModel` 在主機清單或圖示變動時更新)。
+    /// **電腦名稱與圖示屬個人資料:不寫進診斷檔或 log**,這裡所有失敗都不記內容(只吞掉等下次補)。
+    private var hostProfiles: [String: PushHostProfile] = [:]
+    /// 配對雜湊 → 後台目前記的名稱與圖示(啟動讀配對清單得到;補傳成功後更新)。沒有紀錄的視為不知道,會補傳。
+    private var backendProfiles: [String: PushHostProfile] = [:]
+    private var profileSyncRunning = false
+    private var profileSyncQueued = false
+    /// 啟動的補傳做過了:之後的改名與換圖示才即時同步(之前的由啟動一併處理,免得每次都重送一遍)。
+    private var profilesReconciled = false
+
+    /// 主機的名稱或圖示有變時呼叫。已啟動補傳過就立刻同步到後台;失敗不擋使用者,下次啟動或網路恢復再補。
+    /// - Returns: 同步的 task(還不需要同步時是 `nil`);呼叫端不必等它,測試用來對齊。
+    @discardableResult
+    public func updateHostProfiles(_ profiles: [String: PushHostProfile]) -> Task<Void, Never>? {
+        hostProfiles = profiles
+        guard profilesReconciled, !store.pairings.isEmpty else { return nil }
+        return Task { await syncHostProfiles() }
+    }
+
+    /// 新配對註冊時帶的名稱與圖示;都沒有時回 `nil`。
+    func profile(forHost hostID: String) -> PushHostProfile? {
+        hostProfiles[hostID].flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// 後台已記下這組配對的名稱與圖示(註冊成功時)。
+    func noteBackendProfile(_ profile: PushHostProfile?, forKeyHash keyHash: String) {
+        backendProfiles[keyHash] = profile ?? PushHostProfile(name: nil, icon: nil)
+    }
+
+    /// 讀到後台的配對清單:記下後台已有的名稱與圖示,補傳只送不一樣的。
+    func noteBackendPairings(_ records: [PushPairingRecord]) {
+        for record in records {
+            backendProfiles[record.keyHash] = PushHostProfile(name: record.name, icon: record.icon)
+        }
+    }
+
+    /// 把每組已向後台註冊的配對的名稱與圖示補到後台(只送後台沒有或不一樣的)。同時只跑一輪,期間的要求併成再跑一輪。
+    /// 失敗(離線、後台錯誤)略過、留到下次;登入失效就停。
+    public func syncHostProfiles() async {
+        guard !profileSyncRunning else {
+            profileSyncQueued = true
+            return
+        }
+        profileSyncRunning = true
+        defer { profileSyncRunning = false }
+        repeat {
+            profileSyncQueued = false
+            for (hostID, keyHash) in store.pairings.sorted(by: { $0.value < $1.value }) where store.registeredTokens[keyHash] != nil {
+                guard let desired = profile(forHost: hostID) else { continue }
+                if let known = backendProfiles[keyHash], desired.matches(name: known.name, icon: known.icon) { continue }
+                do {
+                    try await session.updatePushPairing(keyHash: keyHash, profile: desired)
+                    backendProfiles[keyHash] = desired
+                } catch BackendError.signedOut {
+                    return
+                } catch {
+                    continue
+                }
+            }
+        } while profileSyncQueued
+    }
+
     /// 第一個 frame 之後才寫對應表(#590);沒設閘就立刻寫。
     public var launchGate: LaunchGate?
     private var hostNamesPublishDeferred = false
@@ -333,6 +397,9 @@ public final class PushService {
         guard await reconcileRemoteRevocation() else { return }
         await refreshRegistrations()
         await settings.load()
+        // 升級後第一次啟動與之前沒補成的改名:把名稱與圖示補到後台(只送後台沒有或不一樣的)。
+        profilesReconciled = true
+        await syncHostProfiles()
     }
 
     /// 通知設定的種類或配對有變(讀到後台的配對):各主機的開關重讀本機紀錄。
@@ -377,10 +444,12 @@ public final class PushService {
         for keyHash in store.pairings.values.sorted() where store.registeredTokens[keyHash] != hex {
             do {
                 // 沒記過種類(舊版 app 開的)不帶，後台保留原本的偏好。
+                let profile = store.host(forKeyHash: keyHash).flatMap { profile(forHost: $0) }
                 try await session.registerPushPairing(
                     keyHash: keyHash, deviceToken: hex, environment: configuration.environment, device: device,
-                    kinds: store.kinds(forKeyHash: keyHash))
+                    kinds: store.kinds(forKeyHash: keyHash), profile: profile)
                 store.setRegisteredToken(hex, forKeyHash: keyHash)
+                if let profile { noteBackendProfile(profile, forKeyHash: keyHash) }
             } catch {
                 continue
             }
@@ -425,6 +494,9 @@ public final class PushService {
     /// 會員分區換了(登入、登出、換會員)或被清除後:各主機的開關重讀本機紀錄。
     public func reloadModels() {
         publishHostNames()
+        // 換會員或登出:後台的紀錄不再適用,下次啟動流程重新讀。
+        backendProfiles = [:]
+        profilesReconciled = false
         models.removeAll { $0.model == nil }
         for entry in models {
             entry.model?.reloadFromStore()
@@ -713,10 +785,12 @@ public final class PushModel {
         let key = PushPairingKey.generate()
         let tokenHex = PushService.hex(deviceToken)
         let defaultKinds = service.settings.defaultKinds(for: kindContext)
+        let profile = service.profile(forHost: hostID)
         do {
             try await service.session.registerPushPairing(
                 keyHash: key.hash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
-                kinds: defaultKinds)
+                kinds: defaultKinds, profile: profile)
+            if let profile { service.noteBackendProfile(profile, forKeyHash: key.hash) }
         } catch BackendError.signedOut {
             return stop(.needsSignIn)
         } catch {
@@ -762,7 +836,7 @@ public final class PushModel {
                 let tokenHex = PushService.hex(try await service.platform.deviceToken())
                 try await service.session.registerPushPairing(
                     keyHash: keyHash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
-                    kinds: updated)
+                    kinds: updated, profile: service.profile(forHost: hostID))
                 service.store.setKinds(updated, forKeyHash: keyHash)
                 service.store.setRegisteredToken(tokenHex, forKeyHash: keyHash)
                 kinds = updated
