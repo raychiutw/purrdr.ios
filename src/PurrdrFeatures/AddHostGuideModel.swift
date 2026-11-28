@@ -57,10 +57,10 @@ public final class AddHostGuideModel {
         case finished
     }
 
-    /// 最後一頁的通知選項:有 Purrdr Plus 給這台主機的開關,沒有就一行加入提示。
+    /// 最後一頁的通知選項(#675):登入了給這台主機的開關,沒登入就一行登入提示。
     public enum NotificationOffer: Equatable, Sendable {
         case toggle
-        case joinPlus
+        case signIn
     }
 
     public enum Kind: Hashable, Sendable {
@@ -142,6 +142,12 @@ public final class AddHostGuideModel {
     /// HTTPS:主機服務的位址(主機名稱)、Port 與配對碼。
     public var pairAddress = ""
     public var pairPort = "443"
+    /// 主機服務位址的規則(#696):Release 只收 https。預設跟著 app 入口設的 `HostServiceAddress.Policy.current`。
+    public var addressPolicy: HostServiceAddress.Policy = .current
+    /// 手動輸入的位址是 http 或本機位址、被規則擋下:畫面提示「位址要是 https」。
+    public var pairAddressNeedsHTTPS: Bool {
+        HostServiceAddress.isRejected(pairAddress.trimmingCharacters(in: .whitespaces), by: addressPolicy)
+    }
     public var pairingCode = ""
     public var username = ""
     /// 儲存完成的主機。
@@ -159,7 +165,7 @@ public final class AddHostGuideModel {
 
     @ObservationIgnored private let flow: HostConnectionFlow
     @ObservationIgnored private let credentials: HostCredentials
-    @ObservationIgnored private let isPlusActive: @MainActor () async -> Bool
+    @ObservationIgnored private let isSignedIn: @MainActor () async -> Bool
     /// 匯入或待配對時沿用的主機名稱。
     @ObservationIgnored private var presetName: String?
     /// 匯入的原生 SSH 連結:選完電腦種類直接到登入方式。
@@ -170,11 +176,11 @@ public final class AddHostGuideModel {
 
     public init(
         store: any HostStore, credentials: HostCredentials = HostCredentials(), hostService: HostServiceAccess = HostServiceAccess(),
-        existing: HostConfiguration? = nil, isPlusActive: @escaping @MainActor () async -> Bool = { false },
+        existing: HostConfiguration? = nil, isSignedIn: @escaping @MainActor () async -> Bool = { false },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.credentials = credentials
-        self.isPlusActive = isPlusActive
+        self.isSignedIn = isSignedIn
         flow = HostConnectionFlow(
             store: store, existing: existing, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
     }
@@ -182,15 +188,15 @@ public final class AddHostGuideModel {
     /// 帶著資料進來:匯入(資料已齊直接到測試連線;HTTPS 分享連結沒有配對碼，到配對)或待配對(直接到配對)。
     public convenience init(
         store: any HostStore, credentials: HostCredentials = HostCredentials(), hostService: HostServiceAccess = HostServiceAccess(),
-        isPlusActive: @escaping @MainActor () async -> Bool = { false },
+        isSignedIn: @escaping @MainActor () async -> Bool = { false },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel,
-        shortcut: Shortcut
+        shortcut: Shortcut, addressPolicy: HostServiceAddress.Policy = .current
     ) throws {
         switch shortcut {
         case .needsPairing(let host):
             guard let address = host.hostService else { throw ShortcutError.needsEditor }
             self.init(
-                store: store, credentials: credentials, hostService: hostService, existing: host, isPlusActive: isPlusActive,
+                store: store, credentials: credentials, hostService: hostService, existing: host, isSignedIn: isSignedIn,
                 makeChannel: makeChannel)
             kind = .https
             presetName = host.name
@@ -198,8 +204,9 @@ public final class AddHostGuideModel {
             step = .pair
         case .importLink(let url):
             if HostServicePairingLink.isPairingLink(url) {
-                let link = try HostServicePairingLink(url: url)
-                self.init(store: store, credentials: credentials, hostService: hostService, isPlusActive: isPlusActive, makeChannel: makeChannel)
+                let link = try HostServicePairingLink(url: url, policy: addressPolicy)
+                self.init(store: store, credentials: credentials, hostService: hostService, isSignedIn: isSignedIn, makeChannel: makeChannel)
+                self.addressPolicy = addressPolicy
                 kind = .https
                 load(link.address)
                 pairingCode = link.pairingCode
@@ -207,8 +214,9 @@ public final class AddHostGuideModel {
                 awaitsTestConfirmation = true
                 return
             }
-            let shared = try HostShareLink.decode(url)
-            self.init(store: store, credentials: credentials, hostService: hostService, isPlusActive: isPlusActive, makeChannel: makeChannel)
+            let shared = try HostShareLink.decode(url, policy: addressPolicy)
+            self.init(store: store, credentials: credentials, hostService: hostService, isSignedIn: isSignedIn, makeChannel: makeChannel)
+            self.addressPolicy = addressPolicy
             presetName = shared.name
             switch shared.connectionMethod {
             case .https:
@@ -475,7 +483,7 @@ public final class AddHostGuideModel {
     @discardableResult
     public func applyScannedCode(_ text: String) -> Bool {
         guard step == .pair, let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
-            let link = try? HostServicePairingLink(url: url)
+            let link = try? HostServicePairingLink(url: url, policy: addressPolicy)
         else { return false }
         load(link.address)
         pairingCode = link.pairingCode
@@ -601,10 +609,10 @@ public final class AddHostGuideModel {
         }
     }
 
-    /// 最後一頁:有 Purrdr Plus 就給這台主機的開啟通知開關,沒有就一行加入提示。儲存完成前不提供。
+    /// 最後一頁:登入了就給這台主機的開啟通知開關,沒登入就一行登入提示(不需要 Purrdr Plus)。儲存完成前不提供。
     public func loadNotificationOffer() async {
         guard step == .finished else { return }
-        notificationOffer = await isPlusActive() ? .toggle : .joinPlus
+        notificationOffer = await isSignedIn() ? .toggle : .signIn
     }
 
     /// 最後一頁:用 SSH 連的主機,提示可以再裝主機服務(做完再送、卡住提醒)。
@@ -619,7 +627,8 @@ public final class AddHostGuideModel {
     private var httpsDraft: HostConnectionDraft? {
         let code = pairingCode.trimmingCharacters(in: .whitespaces).uppercased()
         guard !code.isEmpty,
-            let address = HostServiceAddress(addressField: pairAddress.trimmingCharacters(in: .whitespaces), portField: pairPort)
+            let address = HostServiceAddress(
+                addressField: pairAddress.trimmingCharacters(in: .whitespaces), portField: pairPort, policy: addressPolicy)
         else { return nil }
         return HostConnectionDraft(
             name: presetName ?? Self.defaultName(for: address.hostName), connection: .https(address, pairingCode: code))

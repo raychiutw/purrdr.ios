@@ -60,7 +60,7 @@ struct HostServiceUpdateTests {
             configuration: PushConfiguration(
                 endpoint: URL(string: "https://backend.test/v1/push")!, environment: .production,
                 pluginSource: "raychiutw/purrdr.host/host-plugin"),
-            isPlusActive: { true })
+            isSignedIn: { true })
     }
 
     static func updates(_ model: HostsModel) -> [String: String] {

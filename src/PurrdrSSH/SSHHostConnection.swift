@@ -17,8 +17,11 @@ public struct SSHHostConnection: HostConnection {
     let previewMarker: @Sendable () -> String
     /// 視窗讀取每次往前取的區塊大小(測試用小值驗證「放大區塊重數」)。
     let windowChunkBytes: Int
+    /// 點進聊天的合併讀取(`TranscriptRequest.open`)是否先走長駐追蹤通道(#662);通道忙、斷線或跑不了時退回一次性指令。
+    private let opensViaFollowChannel: Bool
 
     /// - Parameters:
+    ///   - opensViaFollowChannel: 點進聊天的讀取先問長駐追蹤通道(省掉開通道與啟動 shell);正式 app 開啟。
     ///   - followDiagnostics: 對話紀錄追蹤退回輪詢時的原因(交給系統紀錄)。
     ///   - previewMarker: 列表預覽的分隔標記產生器(測試注入固定值)。
     ///   - windowChunkBytes: 視窗讀取每次往前取的區塊大小(測試用小值)。
@@ -27,8 +30,10 @@ public struct SSHHostConnection: HostConnection {
         followDiagnostics: (@Sendable (String) -> Void)? = nil,
         previewMarker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString },
         windowChunkBytes: Int = TranscriptReader.defaultWindowChunkBytes,
-        timings: OperationTimingSink? = nil
+        timings: OperationTimingSink? = nil,
+        opensViaFollowChannel: Bool = false
     ) {
+        self.opensViaFollowChannel = opensViaFollowChannel
         self.timings = timings
         self.channel = channel
         self.herdr = herdr
@@ -173,9 +178,23 @@ public struct SSHHostConnection: HostConnection {
     /// 執行對話紀錄指令並收集 stdout;依 exit code 判斷，不比對 stderr 文字(R-S15)。
     /// 期限(`TranscriptPlan`)到了丟 `HostCommandError.deadlineExceeded`。
     public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
+        // 點進聊天先問長駐追蹤通道(#662);通道忙、斷線或主機跑不了時照舊跑一次性指令。
+        if opensViaFollowChannel, case .open(let location, let lines, let maxBytes) = request,
+           location.isSafe, lines > 0, maxBytes >= 0 {
+            let clock = ContinuousClock()
+            let start = clock.now
+            let begunAt = Date()
+            let output = try await follower.open(location, lines: lines, maxBytes: maxBytes)
+            if case .output(let data) = output {
+                // 退回一次性指令時由下面的路徑記耗時,所以只有走通道成功才在這裡記。
+                timings?(OperationTiming(name: "ssh.request transcript.open", milliseconds: Self.milliseconds(clock.now - start), at: begunAt))
+                return data
+            }
+        }
         let plan = TranscriptPlan(request)
         // 點進聊天的定位與視窗讀取記下開通道與整個指令的耗時(#659);追蹤、預覽等頻繁的讀取不記。
         let timedName: String? = switch request {
+        case .open: "transcript.open"
         case .locate: "transcript.locate"
         case .window: "transcript.window"
         default: nil
@@ -246,6 +265,9 @@ public struct SSHHostConnection: HostConnection {
                 return
             case .reply(.failed(let exitCode)):
                 throw TranscriptReadError(exitStatus: exitCode) ?? .changed
+            case .reply(.opened):
+                // 追蹤的請求不會得到點進聊天的回應。
+                throw TranscriptReadError.changed
             }
         }
     }
@@ -270,6 +292,9 @@ struct TranscriptPlan {
         case .locate(let location):
             command = TranscriptCommand.locate(location)
             deadline = HostCommandDeadline.standard
+        case .open(let location, let lines, let maxBytes):
+            command = TranscriptCommand.open(location, lines: lines, maxBytes: maxBytes)
+            deadline = HostCommandDeadline.transfer(bytes: maxBytes > 0 ? maxBytes : TranscriptReader.defaultWindowChunkBytes)
         case .window(let path, let end, let lines, let chunkBytes, let maxBytes):
             command = TranscriptCommand.window(path: path, end: end, lines: lines, chunkBytes: chunkBytes, maxBytes: maxBytes)
             deadline = HostCommandDeadline.transfer(bytes: maxBytes > 0 ? min(chunkBytes, maxBytes) : chunkBytes)

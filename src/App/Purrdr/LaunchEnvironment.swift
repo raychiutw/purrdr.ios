@@ -40,6 +40,8 @@ struct LaunchEnvironment {
         var store: any PushPairingStore
         var loadDevice: @MainActor () throws -> PushDeviceIdentity
         var hostNames: (any PushHostNameSharing)?
+        /// 撤銷失敗待重送的推播配對(#691);正式版存 Keychain。
+        var pendingRevocations: any PendingPushRevocations = InMemoryPendingPushRevocations()
         /// UI 測試的全域測試通知替身;正式沒有。
         var testSender: (any PushTestNotificationSending)?
     }
@@ -49,10 +51,11 @@ struct LaunchEnvironment {
     var partition: MemberPartition
     var deviceOwner: any DeviceOwnerAuthenticating
     var plusStore: any PlusStore
+    /// Purrdr Plus 編譯開關(#676):正式讀 Info.plist,UI 測試由 `-uiTestingPlusOff` 決定。
+    var plusAvailability: PlusAvailability
     var push: PushParts
     /// 主機清單的依賴(要推播服務,所以是工廠)。
     var makeHosts: @MainActor (PushService) -> HostsDependencies
-    var simulatesNoNetwork: Bool
     var demoEntry: DemoEntry
     var trafficStore: any TrafficStore
     /// 流量計量建好後的種子資料(UI 測試);正式沒有。
@@ -95,23 +98,17 @@ extension LaunchConfiguration.DemoScenario {
     var demoHostScenario: DemoHost.Scenario {
         switch self {
         case .standard: .standard
-        case .paneInUse: .paneInUse
         case .tailscaleCheck: .tailscaleCheck(completesAfter: nil)
-        case .tailscaleCheckCompletes: .tailscaleCheck(completesAfter: .seconds(3))
         case .transcriptPending: .transcriptPending
         case .usageReadDelayed: .usageReadDelayed
-        case .largeOutput: .largeOutput(after: .seconds(5))
         case .largeOutputOnPrompt: .largeOutputOnPrompt
         case .toolBurst: .toolBurst(after: .seconds(10))
-        case .workingAfterPrompt: .workingAfterPrompt(for: .seconds(15))
         case .agentFiles: .agentFiles
         case .sentImages: .sentImages
         case .antigravity: .antigravity
         case .needsYouWithStatusBanner: .needsYouWithStatusBanner(after: .seconds(3))
         case .needsYouLater: .needsYouLater(after: .seconds(3))
-        case .goesOffline: .goesOffline(after: .seconds(1), hangs: false)
-        case .goesOfflineHanging: .goesOffline(after: .seconds(1), hangs: true)
-        case .noNetwork: .goesOffline(after: .zero, hangs: true)
+        case .goesOffline: .goesOffline(after: .seconds(1))
         }
     }
 }

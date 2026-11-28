@@ -16,6 +16,10 @@ enum ProductionEnvironment {
     static func make(_ configuration: LaunchConfiguration) -> LaunchEnvironment {
         // 重裝清理(#580):刪 App 後 Keychain 項目還在;必須在任何 Keychain 存放區被讀之前。
         ReinstallGuard.system().run()
+        // 主機服務位址的規則(#696):app 入口唯一讀 build setting(`PURRDR_ALLOW_LOCAL_HOST_SERVICE` →
+        // Info.plist `PurrdrAllowLocalHostService`)的地方,要在任何主機設定被讀進來之前。Release 只收 https。
+        HostServiceAddress.Policy.current = HostServiceAddress.Policy(
+            infoValue: Bundle.main.object(forInfoDictionaryKey: "PurrdrAllowLocalHostService"))
         // Tailscale SSH check mode 的提示:所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
         // 診斷事件(#688):連線事件進可分享的診斷檔,受「操作記錄」開關控制(閃退照舊一律記錄)。
@@ -48,6 +52,8 @@ enum ProductionEnvironment {
             deviceOwner: SystemDeviceOwnerAuthenticator(),
             // StoreKit:在 Xcode 執行時,scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品,不連 App Store。
             plusStore: StoreKitPlusStore(),
+            // app 入口唯一讀 build setting(`PURRDR_PLUS_ENABLED` → Info.plist `PurrdrPlusEnabled`)的地方。
+            plusAvailability: PlusAvailability(infoValue: Bundle.main.object(forInfoDictionaryKey: "PurrdrPlusEnabled")),
             push: LaunchEnvironment.PushParts(
                 platform: PushAppDelegate.platform, store: UserDefaultsPushPairingStore(partition: partition),
                 // 這支裝置(#266):推播 id 存 Keychain(讀不到時稍後再試),名稱預設是系統的裝置名稱。
@@ -58,6 +64,7 @@ enum ProductionEnvironment {
                 },
                 // 主機名稱對應表放 App Group,Notification Service Extension 用它補通知副標題(#431)。
                 hostNames: UserDefaultsPushHostNames(),
+                pendingRevocations: KeychainPendingPushRevocations(),
                 // 測試通知:後台與主機外掛目前沒有這條路徑,正式 app 不提供。
                 testSender: nil),
             makeHosts: { push in
@@ -82,7 +89,8 @@ enum ProductionEnvironment {
                         // 裝置名稱只帶裝置種類(同公鑰註解),顯示在主機的裝置列表。
                         hostService: .system(
                             deviceName: UIDevice.current.model,
-                            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
+                            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                            diagnostics: diagnosticEvents),
                         // 最新的主機服務版本從 purrdr.host 的 GitHub Release 取得,主機服務發版時 app 不用改版號(#362)。
                         hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                         tailscaleCheck: tailscaleCheck,
@@ -98,7 +106,6 @@ enum ProductionEnvironment {
                         publicModelCatalog: URLSessionPublicModelCatalog(),
                         diagnostics: .system(category: "hosts"), sleep: Sleeping.task))
             },
-            simulatesNoNetwork: false,
             // 正式啟動沿用上次的選擇(#394:啟用後才出現在主機選單,移除後不再出現)。
             demoEntry: LaunchEnvironment.DemoEntry(
                 initial: UserDefaults.standard.bool(forKey: demoKey), didChange: { UserDefaults.standard.set($0, forKey: demoKey) }),

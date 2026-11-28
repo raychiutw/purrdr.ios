@@ -46,6 +46,7 @@ public struct TopNavigationView: View {
     ) {
         self.crashNotice = crashNotice
         let navigation = TopNavigationModel(appLock: appLock)
+        navigation.offersPlus = plus != nil
         _navigation = State(initialValue: navigation)
         _actions = State(initialValue: RootActions(navigation: navigation, hosts: hosts))
         _badge = State(initialValue: NeedsYouBadge(merged: hosts.agentList))
@@ -367,7 +368,7 @@ final class RootActions {
     let newChatInWorkspace: (HostSelection, String) -> Void
     let canNewChatInWorkspace: (HostSelection) -> Bool
     let addHost: () -> Void
-    let prefetchConversations: @MainActor ([ChatRoute]) async -> Void
+    let prefetchConversations: @MainActor ([ChatRoute], Bool) async -> Void
     /// 把列表上的 Agent 開在新視窗(context menu,HIG Windows)。任何一台主機的 Agent 都可以(每台主機各自連線,#39)。
     /// 系統的 `openWindow` 由畫面在出現時放進 `openWindow`。
     private(set) var openInNewWindow: ((PaneWindow.Kind, ChatRoute, String) -> Void)!
@@ -379,7 +380,7 @@ final class RootActions {
         newChatInWorkspace = { [weak navigation] in navigation?.startNewChat(inWorkspace: $1, on: $0) }
         canNewChatInWorkspace = { [weak hosts] in hosts?.supportsNewChatInWorkspace($0) ?? false }
         addHost = { [weak navigation] in navigation?.openAddHost() }
-        prefetchConversations = { [weak hosts] in await hosts?.prefetchConversations($0) }
+        prefetchConversations = { [weak hosts] in await hosts?.prefetchConversations($0, readsTranscripts: $1) }
         openInNewWindow = { [weak self, weak hosts] kind, route, title in
             guard let self, let hosts else { return }
             openWindow?(value: PaneWindow(

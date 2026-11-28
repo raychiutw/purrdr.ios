@@ -16,7 +16,7 @@ final class AccountUITests: XCTestCase {
     /// 出合併確認頁、兩邊摘要都在,確認後合併、回到登入方式有兩種。
     @MainActor
     func testMemberDeleteSignOutLockedFeaturesActivationFromPaywallAndLinkMerge() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingLinkMerge"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingLinkMerge])
         app.openAccountSheet()
 
         XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.waitUntilExists(timeout: 10), "沒有顯示會員")
@@ -52,7 +52,8 @@ final class AccountUITests: XCTestCase {
         let locked = app.element("account.locked.hostSync")
         XCTAssertTrue(app.scrollSheet("sheet.account", to: locked, search: .both, timeout: 10), "沒有鎖定的主機同步列")
         XCTAssertTrue((locked.value as? String)?.contains("Needs Purrdr Plus") == true, "鎖定列沒有寫需要 Purrdr Plus:\(String(describing: locked.value))")
-        XCTAssertTrue(app.element("account.locked.notifications").exists, "沒有鎖定的通知列")
+        XCTAssertFalse(app.element("account.locked.notifications").exists, "通知不再需要 Plus(#675),不該鎖定")
+        XCTAssertTrue(app.element("account.notifications").exists, "沒有可進入的通知列")
         XCTAssertFalse(app.switches["account.push.demo"].exists, "未開通不該有通知開關")
         XCTAssertFalse(app.switches["settings.hostSync"].exists, "未開通不該有主機同步開關")
 

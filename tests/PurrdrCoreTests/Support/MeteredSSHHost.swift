@@ -6,7 +6,8 @@ import PurrdrTestSupport
 #if os(macOS)
 
 /// 計量的 SSH 主機通道(流量守門，#168):herdr bridge 由這裡依目前的 Agent 狀態回放錄製的回應，
-/// 對話紀錄指令交給 `LocalShellHost` 在本機實跑。每條 exec 通道記下種類與兩個方向的位元組。
+/// 對話紀錄與主機檔案的指令由 `SimulatedHostFiles` 依腳本的輸出格式從記憶體組出回應(#697,不開真的 shell、不等實際時間)。
+/// 每條 exec 通道記下種類與兩個方向的位元組。
 actor MeteredSSHHost: HostChannel {
     /// 一條 exec 通道。
     struct Exchange: Sendable {
@@ -18,7 +19,7 @@ actor MeteredSSHHost: HostChannel {
         var received: Int
     }
 
-    let shell: LocalShellHost
+    let files: SimulatedHostFiles
     private(set) var exchanges: [Exchange] = []
     /// 長駐追蹤通道上送出的請求行數(每行一輪)。
     private(set) var followRounds = 0
@@ -26,8 +27,6 @@ actor MeteredSSHHost: HostChannel {
     private(set) var pushedEvents = 0
     /// 主機檔案長駐通道上各種讀取(`hostFiles.theme` 等)的請求數與兩個方向的位元組(#203)。
     private(set) var hostFileRounds: [String: (count: Int, bytes: Int)] = [:]
-    /// 長駐讀取還沒回應的請求種類(依序)。
-    private var pendingHostFileKinds: [String] = []
     /// 各 pane 目前的 Agent 狀態(快照回應依它改)。
     private var statuses: [String: String]
     /// 快照裡另外加的 Agent(pane id → Claude session id),以 `w1:pB` 為樣本。
@@ -36,12 +35,9 @@ actor MeteredSSHHost: HostChannel {
     private(set) var inboundTimes: [Duration] = []
     private let clock: SimulatedClock?
     private var subscriptions: [(exchange: Int, continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation)] = []
-    private var runningCommands = 0
-    private var pendingFollowReplies = 0
-    private var followBuffers: [Int: Data] = [:]
 
-    init(shell: LocalShellHost, statuses: [String: String], extraAgents: [String: String] = [:], clock: SimulatedClock? = nil) {
-        self.shell = shell
+    init(files: SimulatedHostFiles, statuses: [String: String], extraAgents: [String: String] = [:], clock: SimulatedClock? = nil) {
+        self.files = files
         self.statuses = statuses
         self.extraAgents = extraAgents
         self.clock = clock
@@ -52,8 +48,8 @@ actor MeteredSSHHost: HostChannel {
         inboundTimes.append(await clock.elapsed)
     }
 
-    /// 還在跑的一次性指令與還沒回應的追蹤請求。
-    var inFlight: Int { runningCommands + pendingFollowReplies + pendingHostFileKinds.count }
+    /// 還在處理的請求:模擬的主機在收到請求時就回應完，沒有進行中的。
+    var inFlight: Int { 0 }
 
     /// 有任何動靜就會變的數字(判斷被測物是否還在動)。
     var activity: Int { exchanges.count + followRounds + hostFileRounds.values.reduce(0) { $0 + $1.count } + exchanges.reduce(0) { $0 + $1.received } }
@@ -84,22 +80,18 @@ actor MeteredSSHHost: HostChannel {
         if command.hasSuffix(" remote-api-bridge") {
             return BridgeSession(output: output, continuation: continuation, host: self, exchange: index)
         }
-        let isFollow = ["transcript.follow", "hostFiles.follow"].contains(exchanges[index].kind)
-        let inner = try await shell.execute(command)
-        if !isFollow { runningCommands += 1 }
-        Task {
-            do {
-                for try await event in inner.output {
-                    self.received(event, exchange: index, isFollow: isFollow)
-                    continuation.yield(event)
-                }
-                continuation.finish()
-            } catch {
-                continuation.finish(throwing: error)
-            }
-            self.ended(exchange: index, isFollow: isFollow)
+        let kind = exchanges[index].kind
+        let isFollow = ["transcript.follow", "hostFiles.follow"].contains(kind)
+        if isFollow {
+            return FollowSession(output: output, continuation: continuation, host: self, exchange: index)
         }
-        return ShellSession(inner: inner, output: output, host: self, exchange: index, isFollow: isFollow)
+        let reply = try oneShotReply(command, kind: kind)
+        exchanges[index].received += reply.count
+        await noteInbound()
+        continuation.yield(.stdout(reply))
+        continuation.yield(.exit(code: 0))
+        continuation.finish()
+        return ClosedSession(output: output)
     }
 
     func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
@@ -152,69 +144,48 @@ actor MeteredSSHHost: HostChannel {
         }
     }
 
-    // MARK: - 對話紀錄指令(本機 shell)
+    // MARK: - 對話紀錄與主機檔案指令(模擬的主機檔案)
 
-    fileprivate func sent(_ data: Data, exchange index: Int, isFollow: Bool) {
+    private func oneShotReply(_ command: String, kind: String) throws -> Data {
+        func arguments(of script: String) -> [String]? {
+            let prefix = TranscriptCommand.command(script, arguments: [])
+            return PosixShell.unquote(String(command.dropFirst(prefix.count)))
+        }
+        switch kind {
+        case "transcript.open":
+            return files.open(arguments: arguments(of: TranscriptCommand.openScript(.claude)) ?? []) ?? Data()
+        case "transcript.previews":
+            return files.previews(arguments: arguments(of: TranscriptCommand.previewsScript) ?? [])
+        default:
+            if case .newest(let directory, let prefix, let suffix) = HostFileRequest(command: command) {
+                return files.newest(directory: directory, prefix: prefix, suffix: suffix)
+            }
+            throw FakeHostError.unexpectedCommand(command)
+        }
+    }
+
+    /// 長駐通道上的一則請求(一行)。
+    fileprivate func answerFollow(
+        _ data: Data, exchange index: Int, continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation
+    ) async {
         exchanges[index].sent += data.count
-        guard isFollow else { return }
-        if exchanges[index].kind == "hostFiles.follow" {
-            for line in data.split(separator: 0x0A) {
-                let paths = String(decoding: line, as: UTF8.self).split(separator: " ").enumerated().filter { $0.offset.isMultiple(of: 2) }.map { HostPath(String($0.element)) }
+        let isHostFiles = exchanges[index].kind == "hostFiles.follow"
+        for line in data.split(separator: 0x0A) {
+            let request = String(decoding: line, as: UTF8.self)
+            let reply: Data
+            if isHostFiles {
+                let paths = request.split(separator: " ").enumerated().filter { $0.offset.isMultiple(of: 2) }.map { HostPath(String($0.element)) }
                 let kind = Self.hostFileKind(paths)
+                reply = files.hostFilesReply(request: request)
                 hostFileRounds[kind, default: (0, 0)].count += 1
-                hostFileRounds[kind, default: (0, 0)].bytes += line.count + 1
-                pendingHostFileKinds.append(kind)
+                hostFileRounds[kind, default: (0, 0)].bytes += line.count + 1 + reply.count
+            } else {
+                followRounds += 1
+                reply = files.followReply(request: request)
             }
-            return
-        }
-        let lines = data.filter { $0 == 0x0A }.count
-        followRounds += lines
-        pendingFollowReplies += lines
-    }
-
-    private func received(_ event: ExecOutput, exchange index: Int, isFollow: Bool) {
-        switch event {
-        case .stdout(let data):
-            Task { await noteInbound() }
-            exchanges[index].received += data.count
-            if isFollow { countFollowReplies(in: data, exchange: index) }
-        case .stderr(let data):
-            exchanges[index].received += data.count
-        case .exit:
-            break
-        }
-    }
-
-    /// 追蹤腳本的每則回應以 `TranscriptFollowProtocol.endsReply` 的一行結束(紀錄行以數字開頭);
-    /// 主機檔案的每則回應以 `HostFileScript.takeFollowReply` 切出。
-    private func countFollowReplies(in data: Data, exchange index: Int) {
-        var buffer = followBuffers[index, default: Data()] + data
-        if exchanges[index].kind == "hostFiles.follow" {
-            while !pendingHostFileKinds.isEmpty {
-                let before = buffer.count
-                guard (try? HostFileScript.takeFollowReply(from: &buffer)) != nil else { break }
-                hostFileRounds[pendingHostFileKinds.removeFirst(), default: (0, 0)].bytes += before - buffer.count
-            }
-            followBuffers[index] = buffer
-            return
-        }
-        while let newline = buffer.firstIndex(of: 0x0A) {
-            let line = String(decoding: buffer[buffer.startIndex..<newline], as: UTF8.self)
-            buffer.removeSubrange(...newline)
-            if TranscriptFollowProtocol.endsReply(line) {
-                pendingFollowReplies = max(0, pendingFollowReplies - 1)
-            }
-        }
-        followBuffers[index] = buffer
-    }
-
-    private func ended(exchange index: Int, isFollow: Bool) {
-        if exchanges[index].kind == "hostFiles.follow" {
-            pendingHostFileKinds = []
-        } else if isFollow {
-            pendingFollowReplies = 0
-        } else {
-            runningCommands -= 1
+            exchanges[index].received += reply.count
+            await noteInbound()
+            continuation.yield(.stdout(reply))
         }
     }
 
@@ -238,6 +209,7 @@ actor MeteredSSHHost: HostChannel {
         }
         let scripts: [(String, String)] = [
             ("transcript.previews", TranscriptCommand.previewsScript),
+            ("transcript.open", TranscriptCommand.openScript(.claude)),
             ("transcript.window", TranscriptCommand.windowScript),
             ("transcript.catchUp", TranscriptCommand.catchUpScript),
             ("transcript.tail", TranscriptCommand.tailScript),
@@ -264,21 +236,28 @@ private struct BridgeSession: ExecSession {
     }
 }
 
-private struct ShellSession: ExecSession {
-    let inner: any ExecSession
+private struct FollowSession: ExecSession {
     let output: AsyncThrowingStream<ExecOutput, any Error>
+    let continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation
     let host: MeteredSSHHost
     let exchange: Int
-    let isFollow: Bool
 
     func write(_ data: Data) async throws {
-        await host.sent(data, exchange: exchange, isFollow: isFollow)
-        try await inner.write(data)
+        await host.answerFollow(data, exchange: exchange, continuation: continuation)
     }
 
-    func closeStdin() async { await inner.closeStdin() }
+    func closeStdin() async { continuation.finish() }
 
-    func close() async { await inner.close() }
+    func close() async { continuation.finish() }
+}
+
+/// 一次性指令:輸出在開通道時就備好了。
+private struct ClosedSession: ExecSession {
+    let output: AsyncThrowingStream<ExecOutput, any Error>
+
+    func write(_ data: Data) async throws {}
+    func closeStdin() async {}
+    func close() async {}
 }
 
 #endif

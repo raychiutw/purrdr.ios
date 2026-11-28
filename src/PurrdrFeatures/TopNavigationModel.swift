@@ -36,6 +36,8 @@ public final class TopNavigationModel {
     public var tab = TopLevelTab.chats
     /// 目前開著的 sheet;`nil` 表示沒有 sheet。
     public var sheet: TopLevelSheet?
+    /// 這個 build 有提供 Purrdr Plus 嗎(#676)。`false` 時 `purrdr://plus` 不動作。
+    public var offersPlus = true
     /// 新增聊天是不是推入在聊天 tab 上(#621:push,不是 sheet;左上「<」離開)。
     public var isNewChatOpen = false {
         didSet { if !isNewChatOpen { newChatPreselection = nil } }
@@ -229,7 +231,7 @@ public final class TopNavigationModel {
     }
 
     /// 點了通知(#668):收起 sheet;聊天類通知(已開出聊天)一律切回聊天 tab,不論目前在哪個 tab;
-    /// 主機服務通知開那台主機的編輯頁;測試通知(`nil`)只收起 sheet、不換 tab。
+    /// 主機服務通知開那台主機的編輯頁;每日上限通知開帳號頁(不換 tab);測試通知(`nil`)只收起 sheet、不換 tab。
     public func openPushDestination(_ destination: PushDestination?) {
         sheet = nil
         switch destination {
@@ -237,6 +239,7 @@ public final class TopNavigationModel {
             tab = .chats
             openChat(route)
         case .hostEditor(let id): openHostEditor(id)
+        case .accountNotifications: sheet = .member
         case nil: break
         }
     }
@@ -292,7 +295,8 @@ public final class TopNavigationModel {
             // 設定併進帳號 sheet(#503):開帳號與設定,不換 tab。
             sheet = .member
         case "plus":
-            // 付費牆(#246):未加入會員也能從連結看方案。
+            // 付費牆(#246):未加入會員也能從連結看方案。Plus 關閉(#676)時什麼都不做。
+            guard offersPlus else { return false }
             sheet = .plus
         case "testing-content-size":
             // UI 測試不重啟換 Dynamic Type:`purrdr://testing-content-size?category=<類別>`,沒帶就回到系統字級。

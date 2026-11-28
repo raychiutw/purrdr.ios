@@ -27,7 +27,7 @@ struct PushHostNamePublishingTests {
             configuration: PushConfiguration(
                 endpoint: URL(string: "https://backend.test/v1/push")!, environment: .production,
                 pluginSource: "raychiutw/purrdr.host/host-plugin"),
-            hostNames: sharing, isPlusActive: { true })
+            hostNames: sharing, isSignedIn: { true })
         let model = HostsModel(store: store, demoChannel: FakeHost(), push: service, makeChannel: ChannelFactory().make)
         model.load()
         return model
@@ -46,7 +46,7 @@ struct PushHostNamePublishingTests {
             configuration: PushConfiguration(
                 endpoint: URL(string: "https://backend.test/v1/push")!, environment: .production,
                 pluginSource: "raychiutw/purrdr.host/host-plugin"),
-            hostNames: sharing, isPlusActive: { true })
+            hostNames: sharing, isSignedIn: { true })
         service.launchGate = gate
         let model = HostsModel(store: store, demoChannel: FakeHost(), push: service, makeChannel: ChannelFactory().make)
         model.load()

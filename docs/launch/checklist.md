@@ -20,7 +20,7 @@
 | 1.8 | App Store Server Notifications:Production 與 Sandbox 都填 `https://purrdr-backend.lean-lean.workers.dev/v1/app-store/notifications`,Version 2 | 使用者 | ✅ 2026-11-19 |
 | 1.9 | App 資訊：類別(開發者工具／生產力工具)、隱私權政策網址、授權合約用 Apple 標準 EULA | 主 session | ⬜ |
 | 1.10 | 年齡分級問卷 | 主 session | ⬜ ⚠️ Agent 與終端機會顯示主機上任意文字，依問卷如實回答 |
-| 1.11 | App 隱私：照 `privacy-labels.md` 逐題填 | 主 session | ⬜ |
+| 1.11 | App 隱私：照 `privacy-labels.md` 逐題填。**0.55.0 起(#709、ADR-0016／0017)**:類型與勾選不變，但「其他使用者內容」的說明要涵蓋推播主機的電腦名稱與圖示、通知種類、主機在線狀態(只存最新)與當日推播則數(不需要 Plus 也會蒐集);改過的隱私權政策要同步發佈(4.5),App Store Connect 的隱私答案在 0.55.0 送審前核對一次 | 主 session | ⬜ |
 | 1.12 | 中繼資料(英文、繁中)、截圖(6.9 吋 iPhone、13 吋 iPad,在模擬器以 Demo 主機手動拍) | 主 session | ⬜ |
 | 1.15 | 供應地區：排除歐盟 27 國(DSA 貿易商狀態)與中國大陸(ICP 備案),共 147 個地區(`app-store-metadata.md`) | 主 session | ✅ |
 | 1.13 | 審查資訊：備註貼 `review-notes.md` 的英文段落、勾「不需要登入」、聯絡資訊 | 主 session | ⬜ |
@@ -93,7 +93,7 @@ app 端行為(升級時,#414):
 | 4.2 | 把 `REPLACE_ME@example.com`(隱私權政策、支援頁、`review-notes.md`)換成正式聯絡信箱 | 主 session | ✅ lean.lean@gmail.com |
 | 4.3 | 複製到 `raychiutw/raychiutw.github.io` 的 `purrdr/` 資料夾並發佈;確認 `https://raychiutw.github.io/purrdr/privacy/` 與 `/support/` 打得開(app 的 `PurrdrLinks` 已指向這兩個網址) | 主 session | ✅ 已上線 https://raychiutw.github.io/purrdr/ |
 | 4.5 | 本 repo 的 `docs/site/purrdr/` 改過後要再同步到網站(2026-11-16:支援頁改成不支援有 passphrase 的私鑰;`style.css` 已與網站上 Prettier 格式化的版本一致;2026-11-18:新增 `host-service/` 主機服務安裝說明，app 的 `PurrdrLinks.hostServiceGuide` 指向它;2026-11-19:主機端搬到 `raychiutw/purrdr.host`,安裝指令與 Releases 連結、隱私權政策與支援頁的外掛來源改指向它，macOS 版改寫成「以 Developer ID 簽章」(目前不公證)) | 主 session | ⬜(2026-11-21:隱私權政策第 5 節補「傳送測試通知時電腦名稱只用在通知標題、不保存」,隱私標籤不變,見 `privacy-labels.md`) |
-| 4.4 | 隱私權政策的生效日期改成實際發佈日 | 主 session | ⬜ |
+| 4.4 | 隱私權政策的生效日期改成實際發佈日(0.55.0:#709 暫填 2026-11-28,發佈 0.55.0 時依實際日期調整) | 主 session | ⬜ |
 
 ## 5. 送審
 
@@ -102,7 +102,9 @@ app 端行為(升級時,#414):
 | 5.1 | 依 `review-notes.md`「送審前的前提」逐項確認(後台、商品、通知網址、網站、信箱) | 主 session | ⬜ |
 | 5.2 | 以送審 build 在模擬器手動走一遍 Demo,核對 `review-notes.md` 的 Demo 描述(#36 驗收條件) | 主 session | ⬜ |
 | 5.3 | Sandbox 帳號在 TestFlight build 實測：登入、試用購買、恢復購買、兌換 Offer Code、刪除會員 | 主 session | ⬜ |
-| 5.4 | 版本頁勾選兩個訂閱商品一起送審，提交 | 主 session | ⬜ |
+| 5.4 | 版本頁勾選兩個訂閱商品一起送審，提交(**目前 Purrdr Plus 編譯開關在 Release 是關閉的,第一版不附訂閱商品,略過 5.3 的購買項目與本列**) | 主 session | ⬜ |
+| 5.5 | **Purrdr Plus 編譯開關(#676)**:`PURRDR_PLUS_ENABLED`(app target 的 build setting,經 Info.plist `PurrdrPlusEnabled` 進 app)Release = NO、Debug = YES;`scripts/plus-enabled.sh Release` 要印出 `NO`(CI 守門:`.github/workflows/ci.yml` 的 `plus-flag` job,Release 若不是 NO 就失敗;上架版畫面由 `DailySmokeUITests.testStoreBuildAccount` 以 `-uiTestingPlusOff` 模擬驗收)。**目前狀態:關閉**,TestFlight 與 App Store 是同一個 Release build | 本 repo | ✅ |
+| 5.6 | **之後開放 Plus**:把 Release 的 `PURRDR_PLUS_ENABLED` 改成 YES、同步改 CI 檢查的預期值,送審時在審核說明寫清楚訂閱與主機同步(Guideline 2.3.1),附測試帳號(登入方式與密碼寫在審核說明,審核員要能登入並看到主機同步)與 sandbox 購買步驟,並在版本頁勾選訂閱商品。不做遠端開關,也不用 `AppTransaction` 判斷安裝來源 | 主 session | ⬜ |
 
 ## repo 裡仍是佔位的值
 

@@ -1370,6 +1370,17 @@
         }
       }
     },
+    "After you sign in, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入後，主機上的小幫手會在 Agent 需要你時通知你。不裝也能聊天、開終端機。"
+          }
+        }
+      }
+    },
     "After you sign in, you go straight to Account." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4436,6 +4447,18 @@
         }
       }
     },
+    "Daily notification limit reached" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已達今日通知上限"
+          }
+        }
+      },
+      "comment" : "每日通知上限通知標題(後台 APNs payload 的 title-loc-key)"
+    },
     "Dark" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7002,17 +7025,6 @@
         }
       }
     },
-    "Locked. Needs Purrdr Plus" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已鎖定。需要 Purrdr Plus"
-          }
-        }
-      }
-    },
     "Log" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8256,17 +8268,6 @@
         }
       }
     },
-    "Notifications need Purrdr Plus." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知需要 Purrdr Plus。"
-          }
-        }
-      }
-    },
     "Notifications need Purrdr Plus. You chose to activate it later, so this step is skipped for now." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8718,17 +8719,6 @@
         }
       }
     },
-    "Opens Purrdr Plus." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟 Purrdr Plus。"
-          }
-        }
-      }
-    },
     "Opens options to edit, reorder, or delete." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9043,7 +9033,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pane 終端機"
+            "value" : "終端機"
           }
         }
       }
@@ -10555,6 +10545,17 @@
         }
       }
     },
+    "Resets at %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 歸零"
+          }
+        }
+      }
+    },
     "Restore Purchases" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10837,17 +10838,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋 Tab、Workspace、主機"
-          }
-        }
-      }
-    },
-    "See Purrdr Plus" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看 Purrdr Plus"
           }
         }
       }
@@ -11809,6 +11799,17 @@
         }
       }
     },
+    "Signing out turns off notifications for this device. Hosts and chats keep working — they don’t need a member account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登出會停止這支裝置的通知。主機與聊天仍可使用,不需要會員。"
+          }
+        }
+      }
+    },
     "Skip" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12742,6 +12743,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有及時完成 Tailscale 登入，請再試一次。"
+          }
+        }
+      }
+    },
+    "The address needs to be https." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位址要是 https。"
           }
         }
       }
@@ -14782,6 +14794,28 @@
         }
       }
     },
+    "Today %lld of %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日 %1$lld／%2$lld 則"
+          }
+        }
+      }
+    },
+    "Today’s limit reached" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日已達上限"
+          }
+        }
+      }
+    },
     "Todos" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15915,13 +15949,13 @@
         }
       }
     },
-    "Want notifications? Join Purrdr Plus" : {
+    "Want notifications? Sign in" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "想收到通知？加入 Purrdr Plus"
+            "value" : "想收到通知？先登入"
           }
         }
       }
@@ -16168,17 +16202,6 @@
         }
       }
     },
-    "With Purrdr Plus, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "訂閱 Purrdr Plus 後，主機上的小幫手會在 Agent 需要你時通知你。不裝也能聊天、開終端機。"
-          }
-        }
-      }
-    },
     "Work without a member account or subscription." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16362,6 +16385,18 @@
           }
         }
       }
+    },
+    "You've reached today's limit of %@ notifications. They'll resume at 00:00 UTC." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你今天已收到 %@ 則通知的上限。台灣時間早上 8:00(UTC 0:00)起恢復。"
+          }
+        }
+      },
+      "comment" : "每日通知上限通知內文(後台 APNs payload 的 loc-key,%@ 是上限數字;後台以 UTC 0:00 歸零)"
     },
     "You: %@" : {
       "extractionState" : "manual",
@@ -16634,6 +16669,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你已付款，但無法連上 Purrdr 來開啟 Purrdr Plus。下次在連網狀態下開啟 Purrdr 時會自動完成。"
+          }
+        }
+      }
+    },
+    "You’ve reached today’s limit for notification setups. Try again tomorrow." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天開啟通知的次數已達上限，請明天再試。"
+          }
+        }
+      }
+    },
+    "You’ve reached today’s limit for test notifications. Try again tomorrow." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天傳送測試通知的次數已達上限，請明天再試。"
           }
         }
       }

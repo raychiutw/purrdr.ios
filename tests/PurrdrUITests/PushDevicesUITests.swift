@@ -19,7 +19,7 @@ final class PushDevicesUITests: XCTestCase {
     /// 原本 4 個測試合併)。
     @MainActor
     func testSignedInDevicesSwipeThenPushDevicesRenameTurnOffAndDeleteWithSubscription() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingPlusMember])
         app.openAccountSheet()
 
         // 登入中的裝置左滑登出。

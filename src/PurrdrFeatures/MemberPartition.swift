@@ -106,6 +106,7 @@ public final class MemberLocalState {
                     // 登入已失效:後台那邊的配對由會員的工作階段一起處理,這裡沒有權杖可撤銷。
                 } catch {
                     if !force { return false }
+                    push.pendingRevocations.add(keyHash)
                 }
                 push.store.setKeyHash(nil, forHost: host)
             }

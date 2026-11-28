@@ -151,6 +151,28 @@ struct ConversationHostUpdatesTests {
         #expect(await Self.count("session.snapshot", in: connection) == 3)
     }
 
+    /// #708:herdr 在背景子 Agent 執行時對主 Agent 回報 idle;子 Agent 全部完成後主 Agent 被喚醒(working)、
+    /// 再收尾成 done。主機外掛／主機服務的「完成」推播是「狀態事件變成 done」就送(不看子 Agent 清單),
+    /// 所以只要這一輪的 working → done 事件照常送達,「完成」就涵蓋「背景子 Agent 全部完成」。
+    /// 這裡守住 app 端看到的序列:idle(背景執行中)→ working(被喚醒)→ done,每一步都立刻反映,不被背景窗格卡住。
+    @Test("背景子 Agent 全部完成：主 Agent 被喚醒後 working → done 的事件逐步反映")
+    func backgroundAgentsFinishedWakesMainAgentToDone() async throws {
+        let connection = FakeHostConnection()
+        let (updates, updatesTask) = try await Self.liveUpdates(connection, initial: "working", later: ["idle", "working", "done"])
+        defer { updatesTask.cancel() }
+        for _ in 0..<60 { await connection.expect(.paneRead, wire: Fixtures.data("pane.read.agents-pane.ndjson")) }
+        let model = Self.conversation(connection, updates: updates)
+        let ticks = TickSleeper()
+        let chat = Task { await model.run(sleep: ticks.sleep) }
+        defer { chat.cancel() }
+        try await waitUntil { await MainActor.run { model.agentsPane != nil } }
+
+        for status: (String, AgentStatus) in [("idle", .idle), ("working", .working), ("done", .done)] {
+            await connection.send(event: HostUpdatesTests.statusChanged(Self.paneID, status: status.0), toSubscription: 0)
+            try await waitUntil { await MainActor.run { model.agentStatus == status.1 } }
+        }
+    }
+
     @Test("主機更新來源沒有在訂閱(還沒連上或斷線)時，自己讀快照")
     func readsSnapshotItselfWhenUpdatesAreNotLive() async throws {
         let connection = FakeHostConnection()

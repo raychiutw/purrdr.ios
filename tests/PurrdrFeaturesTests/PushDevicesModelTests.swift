@@ -38,7 +38,7 @@ struct PushDevicesModelTests {
             platform: platform, store: store, device: Self.identity,
             configuration: PushConfiguration(
                 endpoint: URL(string: "https://backend.test/v1/push")!, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
-            isPlusActive: { true })
+            isSignedIn: { true })
     }
 
     func hostPush(_ service: PushService) -> PushModel {

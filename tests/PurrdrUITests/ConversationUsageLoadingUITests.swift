@@ -13,7 +13,7 @@ final class ConversationUsageLoadingUITests: XCTestCase {
     /// 讀取回應之後換成結果(值不再是 Loading),用量環還在、位置與大小不變。
     @MainActor
     func testLoadingThenSettlesWithoutMovingTheRing() throws {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoUsageReadDelayed"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: [.demoUsageReadDelayed])
         let ring = app.buttons["conversation.usage"].firstMatch
         XCTAssertTrue(ring.waitUntilExists(timeout: 15), "沒有用量環")
         guard ring.value as? String == "Loading" else {

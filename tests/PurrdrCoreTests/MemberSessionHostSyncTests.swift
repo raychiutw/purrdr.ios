@@ -43,10 +43,10 @@ struct MemberSessionHostSyncTests {
         }
     }
 
-    func makeSession(_ backend: FakeBackend) throws -> MemberSession {
+    func makeSession(_ backend: FakeBackend, policy: HostServiceAddress.Policy = .allowsLocalTesting) throws -> MemberSession {
         let tokens = InMemoryTokenStore()
         try tokens.setRefreshToken("refresh-1")
-        return MemberSession(transport: backend, tokenStore: tokens)
+        return MemberSession(transport: backend, tokenStore: tokens, hostServicePolicy: policy)
     }
 
     static func remoteHTTPS(address: String, port: Int) -> String {
@@ -101,5 +101,25 @@ struct MemberSessionHostSyncTests {
         let session = try makeSession(backend)
 
         await #expect(throws: BackendError.invalidResponse) { try await session.syncHosts([]) }
+    }
+
+    @Test("Release 規則:同步來的 loopback HTTPS 主機位址留空(之後不套用),其他主機照常(#696)")
+    func releaseDropsLoopbackAddress() async throws {
+        let reply = #"""
+        {"hosts": [
+          {"id": "1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f", "name": "Local", "address": "127.0.0.1", "port": 47820,
+           "username": "", "connectionMethod": "https", "hostKeyFingerprint": null, "modifiedAt": "2026-11-15T08:00:00.000Z"},
+          {"id": "2d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f", "name": "Studio", "address": "studio.tail1234.ts.net", "port": 443,
+           "username": "", "connectionMethod": "https", "hostKeyFingerprint": null, "modifiedAt": "2026-11-15T08:00:00.000Z"}],
+         "deletedHostIds": []}
+        """#
+        let release = try makeSession(FakeBackend(reply: reply), policy: .httpsOnly)
+        let debug = try makeSession(FakeBackend(reply: reply), policy: .allowsLocalTesting)
+
+        let releaseHosts = try await release.syncHosts([]).hosts
+        let debugHosts = try await debug.syncHosts([]).hosts
+
+        #expect(releaseHosts.map { $0.hostService?.hostName } == [nil, "studio.tail1234.ts.net"])
+        #expect(debugHosts.map { $0.hostService?.hostName } == ["127.0.0.1", "studio.tail1234.ts.net"])
     }
 }

@@ -73,7 +73,7 @@ final class HostsUITests: XCTestCase {
     /// 改圖示、改名稱(不必測試連線)、分享、移除(先確認,取消就不移除),最後以深層連結匯入主機(放最後:匯入的主機會變成選取中主機)。
     @MainActor
     func testSeededHostOverviewAndTheme() throws {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        let app = XCUIApplication.launchUITesting(flags: [.seedHost])
         openHosts(app)
 
         // 總頁(#392):頂列是主機選單,沒有清單頁;上面是連線狀態,下面是這台主機的入口。
@@ -81,7 +81,7 @@ final class HostsUITests: XCTestCase {
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "沒有連線狀態")
             XCTAssertTrue(app.element("hosts.status").exists, "沒有連線狀態")
             XCTAssertTrue(app.buttons["hosts.host"].firstMatch.exists, "主機 tab 右上要有電腦圖示選單(#616)")
-            for id in ["hosts.tool.notifications.locked", "hosts.share", "hosts.settings", "hosts.edit", "hosts.delete"] {
+            for id in ["hosts.notifications", "hosts.share", "hosts.settings", "hosts.edit", "hosts.delete"] {
                 XCTAssertTrue(app.overviewRow(id).exists, "總頁沒有 \(id)")
             }
             XCTAssertFalse(app.buttons["hosts.demo"].exists, "不該再有主機清單")
@@ -112,7 +112,7 @@ final class HostsUITests: XCTestCase {
     /// 方案用量(#177)獨立啟動:不從設定子頁返回總頁,避開轉場中返回鈕被換掉的不確定性。
     @MainActor
     func testPlanUsageConsentDisplayAndTurnOff() throws {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        let app = XCUIApplication.launchUITesting(flags: [.seedHost])
         openHosts(app)
 
         // 方案用量(#177):同意 → 兩個用量週期 → 切換剩餘 → 關閉還原(原 PlanUsageUITests)。
@@ -155,7 +155,7 @@ final class HostsUITests: XCTestCase {
     /// 編輯器、取消、圖示、分享、刪除與匯入:從總頁開始。
     @MainActor
     func testSeededHostEditorShareRemoveAndImport() throws {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        let app = XCUIApplication.launchUITesting(flags: [.seedHost])
         openHosts(app)
 
         step("開編輯器") {

@@ -238,6 +238,20 @@ struct AgentListModelTests {
         #expect(model.sections.isEmpty)
     }
 
+    @Test("讀不到時保留錯誤的類別與錯誤碼(操作記錄用,#689),不含訊息原文")
+    func keepsTheFailureDescriptor() async {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: .recorded("error.invalid-request.ndjson"))
+        let model = AgentListModel(client: HerdrClient(channel: host))
+
+        await model.load()
+
+        let descriptor = model.failureDescriptor
+        #expect(descriptor?.category == "HerdrError")
+        #expect(descriptor?.code.isEmpty == false)
+        #expect(descriptor?.code.contains("key must be") == false)
+    }
+
     /// 預覽與時間來自對話紀錄(§4.7);fixture 是從真實 Claude Code 對話紀錄擷取的。
     @Test("預覽：讀完 snapshot 後以一次往返讀對話紀錄檔尾，列顯示最後一則訊息與時間")
     func previewsComeFromTranscripts() async throws {

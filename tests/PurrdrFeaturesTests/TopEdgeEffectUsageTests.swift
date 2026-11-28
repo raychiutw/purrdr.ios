@@ -92,4 +92,14 @@ struct TopEdgeEffectUsageTests {
         let shared = try GlassLevelUsageTests.source(Self.sharedFile)
         #expect(shared.contains("func appScrollTopEdge()"))
     }
+
+    @Test("狀態列淡模糊是 UIKit 視圖,不是 accessibility 元素、忽略外層套下來的 identifier")
+    func fadeDoesNotInheritIdentifiers() throws {
+        let shared = try GlassLevelUsageTests.source(Self.sharedFile)
+        let fade = try #require(shared.range(of: "final class TopFadeView"))
+        let body = String(shared[fade.lowerBound...])
+        #expect(body.contains("override var accessibilityIdentifier"), "淡模糊要忽略外層的 identifier,否則 UI 測試會找到兩個同名元素")
+        #expect(body.contains("override var isAccessibilityElement"))
+        #expect(!shared.contains(".fill(.ultraThinMaterial)"), "不要改回 SwiftUI 的 material 矩形:它會繼承頁面的 identifier")
+    }
 }

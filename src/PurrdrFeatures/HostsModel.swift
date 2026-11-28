@@ -163,6 +163,8 @@ public final class HostsModel {
     private let pushService: PushService?
     /// 帳號頁「通知裝置」(#266);沒有推播時是 `nil`。
     public let pushDevices: PushDevicesModel?
+    /// 「通知」頁的今日推播用量(#677)。
+    public let pushUsage: PushUsageModel?
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
     private let diagnostics: DiagnosticLog
@@ -230,6 +232,7 @@ public final class HostsModel {
         self.hostConsent = hostConsent
         self.pushService = pushService
         pushDevices = pushService.map(PushDevicesModel.init(service:))
+        pushUsage = pushService.map(PushUsageModel.init(service:))
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
@@ -436,11 +439,33 @@ public final class HostsModel {
         HostScopedConversationCache(base: conversationCache, scope: selection.storedValue)
     }
 
+    /// 背景預讀(#663):連上主機後把列表前幾個聊天讀進快取。行動網路不預讀、前景正在看的主機不預讀。
+    @ObservationIgnored private var conversationPrefetcher: ConversationPrefetcher?
+
     /// 把這些聊天的快取讀進記憶體層(Agent 列表顯示時呼叫),打開時同步還原。
-    public func prefetchConversations(_ routes: [ChatRoute]) async {
+    /// `readsTranscripts`(列表在前景時):再把還沒有新快取的聊天從主機讀進來(`ConversationPrefetcher`,數量與網路有上限)。
+    public func prefetchConversations(_ routes: [ChatRoute], readsTranscripts: Bool = false) async {
         for route in routes where !Task.isCancelled {
             _ = await conversationCache(for: route.host).load(chatKey: route.paneID)
         }
+        guard readsTranscripts, !Task.isCancelled else { return }
+        let prefetcher = conversationPrefetcher ?? ConversationPrefetcher(
+            isCellular: { [weak self] in self?.trafficMeter?.currentNetwork == .cellular },
+            isBlocked: { [weak self] route in self?.agentList.visibleChats.contains { $0.host == route.host } ?? true },
+            read: { [weak self] candidate in await self?.prefetchTranscript(candidate) ?? false })
+        conversationPrefetcher = prefetcher
+        let candidates = routes.compactMap { route -> ConversationPrefetcher.Candidate? in
+            guard let agent = members[route.host]?.list.updates.snapshot?.agents.first(where: { $0.paneID == route.paneID }),
+                  let target = agent.transcriptTarget else { return nil }
+            return ConversationPrefetcher.Candidate(route: route, target: target, signature: "\(target.sessionKey)|\(agent.status)")
+        }
+        await prefetcher.prefetch(candidates)
+    }
+
+    private func prefetchTranscript(_ candidate: ConversationPrefetcher.Candidate) async -> Bool {
+        guard let member = members[candidate.route.host] else { return false }
+        return await ConversationPrefetcher.read(
+            candidate, reader: member.transcripts, cache: conversationCache(for: candidate.route.host))
     }
 
     public var rows: [HostRow] {
@@ -713,6 +738,7 @@ public final class HostsModel {
         hosts.removeAll { $0.id == id }
         let dropping = [sshAdapter.drop(id), httpsAdapter.drop(id)]
         members[.host(id)] = nil
+        conversationPrefetcher?.forget(host: .host(id))
         preferences.removeAll(for: .host(id))
         hostIcons.setIcon(nil, for: id)
         try? FileManager.default.removeItem(at: AgentFileLoads.defaultDownloadDirectory.appending(path: id.uuidString, directoryHint: .isDirectory))
@@ -734,6 +760,8 @@ public final class HostsModel {
     @discardableResult
     public func open(_ route: PushRoute, pairings: any PushPairingStore) -> PushDestination? {
         if route.event == PushRoute.testEvent { return nil }
+        // 每日上限是會員層級(不分主機),配對已不認得也要能開帳號頁。
+        if route.event == PushRoute.dailyLimitEvent { return .accountNotifications }
         guard let hostID = pairings.host(forKeyHash: route.keyHash), let id = UUID(uuidString: hostID),
               hosts.contains(where: { $0.id == id }) else { return nil }
         if route.event != nil { return .hostEditor(id) }
@@ -753,11 +781,11 @@ public final class HostsModel {
         return open(route, pairings: pushService.store)
     }
 
-    /// 引導最後一頁判斷有沒有 Purrdr Plus 用的檢查(同推播開關:重讀後台後的結果)。沒有推播服務就當沒有。
-    var guidePlusCheck: @MainActor () async -> Bool {
+    /// 引導最後一頁判斷有沒有登入用的檢查(同推播開關)。沒有推播服務就當沒登入。
+    var guideSignedInCheck: @MainActor () async -> Bool {
         { [pushService] in
             guard let pushService else { return false }
-            return await pushService.isPlusActive()
+            return await pushService.isSignedIn()
         }
     }
 
@@ -799,8 +827,12 @@ public final class HostsModel {
     public func networkPathChanged(_ signature: String) -> Task<Void, Never>? {
         defer { networkPath = signature }
         // 沒有網路時列表立刻顯示離線，不等連線逾時(#221)。
-        agentList.isNetworkAvailable = !simulatesNoNetwork && signature.hasPrefix("satisfied")
+        agentList.isNetworkAvailable = signature.hasPrefix("satisfied")
         guard let previous = networkPath, previous != signature else { return nil }
+        // 網路恢復(#691):重送離線時沒撤銷成功的推播配對。
+        if signature.hasPrefix("satisfied"), !previous.hasPrefix("satisfied"), let pushService {
+            Task { await pushService.retryPendingRevocations() }
+        }
         let demoChannel = demoChannel
         let disconnectors = sshAdapter.disconnectors() + httpsAdapter.disconnectors() + [{ await demoChannel.disconnect() }]
         let channelCount = sshAdapter.liveChannels.count
@@ -841,10 +873,6 @@ public final class HostsModel {
 
     private var networkPath: String?
 
-    /// UI 測試情境：裝置一直沒有網路(`-demoNoNetwork`,#221)。
-    public var simulatesNoNetwork = false {
-        didSet { if simulatesNoNetwork { agentList.isNetworkAvailable = false } }
-    }
     private var backgroundSince: Date?
 
     // MARK: - 內部
@@ -1042,6 +1070,8 @@ public enum PushDestination: Equatable, Sendable {
     case chat(ChatRoute)
     /// 要開這台主機的編輯頁(主機服務通知);由畫面開主機 sheet。
     case hostEditor(UUID)
+    /// 每日通知上限通知(#675):開帳號頁(「通知」區塊有今日用量);由畫面開帳號 sheet。
+    case accountNotifications
 }
 
 /// 一台主機的推播開關(帳號頁「通知」區塊的一列)。

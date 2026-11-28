@@ -242,7 +242,7 @@ public final class PushService {
     let platform: any PushPlatform
     public let store: any PushPairingStore
     let configuration: PushConfiguration
-    let isPlusActive: @MainActor () async -> Bool
+    let isSignedIn: @MainActor () async -> Bool
     private let loadDevice: @MainActor () throws -> PushDeviceIdentity
     private var loadedDevice: PushDeviceIdentity?
     private var models: [WeakPushModel] = []
@@ -250,24 +250,28 @@ public final class PushService {
     public var testNotifications: (any PushTestNotificationSending)?
     /// 主機名稱對應表的共用儲存(App Group,#431);`nil` 時不寫。
     private let hostNameSharing: (any PushHostNameSharing)?
+    /// 撤銷失敗待重送的配對(#691;正式實作存 Keychain)。
+    let pendingRevocations: any PendingPushRevocations
     private var latestHostNames: [String: String] = [:]
 
     /// - Parameters:
     ///   - loadDevice: 這支裝置(Keychain 的推播 id、預設名稱與型號);讀不到(還沒第一次解鎖)時丟錯，之後用到時再試。
-    ///   - isPlusActive: 會員現在有沒有 Purrdr Plus(`SubscriptionModel` 重讀後台後的 `isPlusActive`)。
+    ///   - isSignedIn: 現在有沒有登入會員(#675:推播只要求登入，不要求 Purrdr Plus)。
     public init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore,
         loadDevice: @escaping @MainActor () throws -> PushDeviceIdentity,
         configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
-        isPlusActive: @escaping @MainActor () async -> Bool
+        pendingRevocations: any PendingPushRevocations = InMemoryPendingPushRevocations(),
+        isSignedIn: @escaping @MainActor () async -> Bool
     ) {
+        self.pendingRevocations = pendingRevocations
         self.session = session
         self.platform = platform
         self.store = store
         self.loadDevice = loadDevice
         self.configuration = configuration
         self.hostNameSharing = hostNameSharing
-        self.isPlusActive = isPlusActive
+        self.isSignedIn = isSignedIn
         store.onPairingsChanged = { [weak self] in self?.publishHostNames() }
     }
 
@@ -305,11 +309,12 @@ public final class PushService {
     public convenience init(
         session: MemberSession, platform: any PushPlatform, store: any PushPairingStore, device: PushDeviceIdentity,
         configuration: PushConfiguration, hostNames hostNameSharing: (any PushHostNameSharing)? = nil,
-        isPlusActive: @escaping @MainActor () async -> Bool
+        pendingRevocations: any PendingPushRevocations = InMemoryPendingPushRevocations(),
+        isSignedIn: @escaping @MainActor () async -> Bool
     ) {
         self.init(
             session: session, platform: platform, store: store, loadDevice: { device }, configuration: configuration,
-            hostNames: hostNameSharing, isPlusActive: isPlusActive)
+            hostNames: hostNameSharing, pendingRevocations: pendingRevocations, isSignedIn: isSignedIn)
     }
 
     /// 這支裝置;第一次成功讀到後記住。
@@ -322,8 +327,34 @@ public final class PushService {
 
     /// 啟動時：先判斷這支裝置是否已被遠端關閉，判斷得了才補註冊(避免把被撤銷的配對註冊回來)。
     public func refreshAtLaunch() async {
+        await retryPendingRevocations()
         guard await reconcileRemoteRevocation() else { return }
         await refreshRegistrations()
+    }
+
+    /// 撤銷後台配對;失敗(連不上、後台錯誤)就記進待撤銷清單等重送。登入已失效沒有權杖可撤銷,後台依會員的工作階段處理,不記。
+    func revoke(keyHash: String) async {
+        do {
+            try await session.revokePushPairing(keyHash: keyHash)
+        } catch BackendError.signedOut {
+            return
+        } catch {
+            pendingRevocations.add(keyHash)
+        }
+    }
+
+    /// 重送待撤銷清單(#691):啟動與網路恢復時呼叫;成功才移除,失敗留著等下一次。登入已失效就先停(重新登入後再送)。
+    public func retryPendingRevocations() async {
+        for keyHash in pendingRevocations.keyHashes {
+            do {
+                try await session.revokePushPairing(keyHash: keyHash)
+                pendingRevocations.remove(keyHash)
+            } catch BackendError.signedOut {
+                return
+            } catch {
+                continue
+            }
+        }
     }
 
     /// 對還沒以目前 token 帶裝置 id 註冊過的配對(token 輪替、舊版 app)向後台註冊，逐組記錄成功與否。
@@ -404,11 +435,10 @@ public final class PushService {
     ) {
         guard let keyHash = store.keyHash(forHost: hostID) else { return }
         store.setKeyHash(nil, forHost: hostID)
-        let session = session
         Task {
             try? await installer.remove()
             await afterRemoving()
-            try? await session.revokePushPairing(keyHash: keyHash)
+            await revoke(keyHash: keyHash)
         }
     }
 
@@ -470,8 +500,8 @@ public final class PushModel {
     public enum Problem: Equatable {
         /// Demo 主機不能推播。
         case demoHost
-        /// 需要 Purrdr Plus(或已到期)。
-        case needsSubscription
+        /// 還沒登入(或登入已失效):先登入會員。
+        case needsSignIn
         /// 通知權限被拒：到 iOS 設定打開。
         case permissionDenied
         /// 取不到 APNs token(模擬器、缺 entitlement);附原始錯誤。
@@ -596,8 +626,7 @@ public final class PushModel {
                 Self.describeTestFailure(PushTestNotificationError.notPaired), error: PushTestNotificationError.notPaired))
             if let service, let keyHash = service.store.keyHash(forHost: hostID) {
                 service.store.setKeyHash(nil, forHost: hostID)
-                let session = service.session
-                Task { try? await session.revokePushPairing(keyHash: keyHash) }
+                Task { await service.revoke(keyHash: keyHash) }
             }
             state = .off
             problem = nil
@@ -616,7 +645,7 @@ public final class PushModel {
         }
         do { _ = try service.device() } catch { return stop(Self.deviceIDUnavailable(error)) }
         state = .checking
-        guard await service.isPlusActive() else { return stop(.needsSubscription) }
+        guard await service.isSignedIn() else { return stop(.needsSignIn) }
         switch await service.platform.authorization() {
         case .authorized:
             break
@@ -655,10 +684,8 @@ public final class PushModel {
             try await service.session.registerPushPairing(
                 keyHash: key.hash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
                 kinds: Self.defaultKinds)
-        } catch BackendError.backend(_, "subscription_required", _) {
-            return stop(.needsSubscription)
         } catch BackendError.signedOut {
-            return stop(.needsSubscription)
+            return stop(.needsSignIn)
         } catch {
             return stop(.failed(DisplayedError(Self.describe(error), error: error)))
         }
@@ -666,7 +693,7 @@ public final class PushModel {
             let file = PushPairingFile(endpoint: service.configuration.endpoint, key: key, muted: muted())
             try await installer.install(file)
         } catch {
-            try? await service.session.revokePushPairing(keyHash: key.hash)
+            await service.revoke(keyHash: key.hash)
             return stop(Self.problem(for: error))
         }
         service.store.setKeyHash(key.hash, forHost: hostID)
@@ -700,10 +727,8 @@ public final class PushModel {
             service.store.setKinds(updated, forKeyHash: keyHash)
             service.store.setRegisteredToken(tokenHex, forKeyHash: keyHash)
             kinds = updated
-        } catch BackendError.backend(_, "subscription_required", _) {
-            problem = .needsSubscription
         } catch BackendError.signedOut {
-            problem = .needsSubscription
+            problem = .needsSignIn
         } catch {
             problem = .kindsUpdateFailed(DisplayedError(Self.describeKindsFailure(error), error: error))
         }
@@ -728,7 +753,7 @@ public final class PushModel {
         }
         if let keyHash = service.store.keyHash(forHost: hostID) {
             // 主機上已沒有密鑰，撤銷失敗也不會再有推播。
-            try? await service.session.revokePushPairing(keyHash: keyHash)
+            await service.revoke(keyHash: keyHash)
         }
         service.store.setKeyHash(nil, forHost: hostID)
         kinds = Self.defaultKinds
@@ -772,8 +797,7 @@ public final class PushModel {
             service.store.setKeyHash(nil, forHost: hostID)
             state = .off
             problem = nil
-            let session = service.session
-            Task { try? await session.revokePushPairing(keyHash: keyHash) }
+            Task { await service.revoke(keyHash: keyHash) }
         } catch {
             problem = .mutedSyncFailed(DisplayedError(
                 String(localized: "Couldn’t update muted chats on this host: \(error.localizedDescription)"), error: error))
@@ -825,6 +849,8 @@ public final class PushModel {
             String(localized: "This device isn’t paired with the host for notifications any more, so they’re now off. Turn them on again.")
         case PushTestNotificationError.subscriptionRequired:
             String(localized: "Test notifications need Purrdr Plus.")
+        case PushTestNotificationError.dailyLimitReached:
+            String(localized: "You’ve reached today’s limit for test notifications. Try again tomorrow.")
         case PushTestNotificationError.rateLimited:
             String(localized: "You’ve sent too many notifications in a minute. Wait a moment and try again.")
         case PushTestNotificationError.apnsFailed:
@@ -849,6 +875,8 @@ public final class PushModel {
             String(localized: "This device is paired read-only with the host service, so it can’t turn on notifications there.")
         case BackendError.unreachable:
             String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")
+        case BackendError.backend(_, "daily_limit_reached", _):
+            String(localized: "You’ve reached today’s limit for notification setups. Try again tomorrow.")
         default:
             String(localized: "Couldn’t turn on notifications: \(error.localizedDescription)")
         }
@@ -859,10 +887,12 @@ public final class PushModel {
 public struct PushRoute: Equatable, Sendable {
     public var keyHash: String
     public var paneID: String?
-    /// 主機服務事件(#293,如 `host_service_updated`);有值時開那台主機的編輯頁，不開聊天。
+    /// 主機服務事件(#293,如 `host_service_updated`);有值時開那台主機的編輯頁，不開聊天(`test` 與 `daily_limit_reached` 例外,見上)。
     public var event: String?
     /// 帳號頁「傳送測試通知」(#328)的 `event`:只開 app,不開任何畫面。
     public static let testEvent = "test"
+    /// 每日通知上限通知(#675)的 `event`:會員層級、不屬於哪個 Agent,開帳號頁。
+    public static let dailyLimitEvent = "daily_limit_reached"
 
     public init(keyHash: String, paneID: String?, event: String? = nil) {
         self.keyHash = keyHash

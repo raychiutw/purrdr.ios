@@ -27,7 +27,7 @@ final class HostToolsUITests: XCTestCase {
     /// 登入 Shell 先開在選取中主機;標題列可換主機，不改選取中主機;下次打開選回同一台，檔案各記各的;最後檔案頁走兩層與麵包屑(同一次啟動,原本 3 個測試合併)。
     @MainActor
     func testLoginShellOpensOnSelectedHostPicksHostAndRemembersItThenFilesBrowseFolders() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnpairedHTTPSHost", "-uiTestingSimulatedFileUpload"])
+        let app = XCUIApplication.launchUITesting(flags: [.seedHost, .seedUnpairedHTTPSHost, .uiTestingSimulatedFileUpload])
         openMenuItem("menu.loginShell", in: app)
 
         // 已存主機的通道是 Demo 主機,回顯 shell(範例主機自己的入口見 testDemoHostKeepsLoginShell):

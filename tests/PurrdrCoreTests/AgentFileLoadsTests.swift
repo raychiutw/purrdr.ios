@@ -60,6 +60,28 @@ struct AgentFileLoadsTests {
         #expect(model.fileAccessScope.transcriptPaths.count == 1)
     }
 
+    @Test("快取先還原時，存取範圍還沒有工作目錄;第一次輪詢後才有，卡片據此重載(#663 預讀造成的回歸)")
+    func scopeAnchorAppearsAfterFirstPoll() async throws {
+        let connection = SSHHostConnection(channel: DemoHost(scenario: .agentFiles))
+        let cache = InMemoryConversationCache()
+        let first = ConversationModel(
+            client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: "w1:p1",
+            knownSessionID: nil, cache: cache)
+        await first.poll()
+        #expect(first.hasFileAccessAnchor)
+        await first.flushCache()
+
+        let reopened = ConversationModel(
+            client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: "w1:p1",
+            knownSessionID: nil, cache: cache)
+        await reopened.restoreFromCache()
+        #expect(!reopened.items.isEmpty, "快取沒有還原")
+        #expect(!reopened.hasFileAccessAnchor, "還原後、輪詢前沒有工作目錄，圖片卡片此時載入會被拒")
+        #expect(reopened.fileAccessScope.workingDirectories.isEmpty)
+        await reopened.poll()
+        #expect(reopened.hasFileAccessAnchor)
+    }
+
     @Test("已送出圖片情境：對話的存取範圍帶使用者 prompt 的上傳路徑，放行且標成使用者上傳(#428)")
     func sentImagesScope() async throws {
         let connection = SSHHostConnection(channel: DemoHost(scenario: .sentImages))

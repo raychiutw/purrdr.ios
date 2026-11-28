@@ -29,6 +29,13 @@ enum DemoTranscripts {
                 : TranscriptCommand.locate(sessionID: sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: cwd))
         }
 
+        /// 聊天開啟時一個指令定位並讀最後一個視窗的指令(#656;與 app 開啟時送出的相同)。
+        var openCommand: String {
+            TranscriptCommand.open(
+                TranscriptLocation(locator: isAntigravity ? .antigravity : .claude, reference: .id(sessionID), cwd: cwd),
+                lines: TranscriptReader.openingLines, maxBytes: TranscriptReader.openingMaxBytes)
+        }
+
         /// 列表預覽請求的一項(與 app 送出的相同)。
         var previewEntry: TranscriptCommand.PreviewEntry {
             isAntigravity
@@ -53,6 +60,12 @@ enum DemoTranscripts {
             let size = session.data.count
             if command == session.locateCommand {
                 return Data("\(session.path)\n\(size)\n".utf8)
+            }
+            if command == session.openCommand {
+                // 定位的輸出、分隔行,再接視窗的輸出(同 `TranscriptCommand.open`)。
+                let window = Array(session.lines.suffix(TranscriptReader.openingLines))
+                let start = size - window.reduce(0) { $0 + $1.utf8.count + 1 }
+                return Data("\(session.path)\n\(size)\n\(TranscriptCommand.openMarker)\n\(start) \(size)\n".utf8) + records(window)
             }
             if let lineLimit = windowLineLimit(command, path: session.path, end: size) {
                 // 視窗起點是最後 N 行之前的 byte 數(行數超過 N 時不是 0)。
@@ -92,7 +105,7 @@ enum DemoTranscripts {
 
     /// 是否為對話畫面定位某個 Demo session 對話紀錄的指令(對話畫面讀對話紀錄的第一步)。
     static func isLocate(_ command: String) -> Bool {
-        (sessions + [DemoAntigravity.session]).contains { command == $0.locateCommand }
+        (sessions + [DemoAntigravity.session]).contains { command == $0.locateCommand || command == $0.openCommand }
     }
 
     /// 分段追趕：累計不超過 `limit` 的完整行;第一行就超過時只有那一行(與主機腳本相同;Demo 的行都比上限小，不必截短)。
@@ -348,7 +361,7 @@ enum DemoTranscripts {
         ]
     }
 
-    /// 大量輸出(`-demoLargeOutput`,#130):agent 一口氣讀了 160 份記錄檔，一次寫出 321 行、超過 64 KiB
+    /// 大量輸出(`-demoLargeOutputOnPrompt`,#130):agent 一口氣讀了 160 份記錄檔，一次寫出 321 行、超過 64 KiB
     /// (超過開啟時「落後太多」的門檻，也比開啟視窗的 300 行多)。最後一則是收尾的文字。
     /// `run` 區分同一個對話裡的多次大量輸出(每次的行 id 不同)。
     static func largeOutput(run: Int = 0, at date: Date) -> [String] {

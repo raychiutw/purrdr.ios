@@ -59,6 +59,28 @@ public enum TranscriptCommand {
         return script
     }
 
+    /// 開啟聊天(#656):定位加視窗合成一個指令,手機只等一次往返。輸出:定位的輸出(路徑、大小、要檢查 header 時再接檔案前兩行),
+    /// 一行 `openMarker`,再接與 `window` 相同的輸出(「起點 終點」與每行)。視窗終點是定位時量到的大小。
+    /// `maxBytes` 大於 0 時範圍只取終點往前那麼多 bytes 內完整的行(不放大區塊),否則照 `window` 的預設區塊。
+    /// 可讀訊息與否仍由 app 的解析器判斷,這裡不放第二套規則。參數:session id 或路徑、Claude 的資料夾名(沒有給空字串)、行數、maxBytes。
+    public static func open(_ location: TranscriptLocation, lines: Int, maxBytes: Int) -> String {
+        let folder = location.locator.usesProjectFolder ? ClaudeTranscript.projectFolder(forCWD: location.cwd) : ""
+        return command(openScript(location.locator), arguments: [location.reference.value, folder, String(lines), String(maxBytes)])
+    }
+
+    /// 定位輸出與視窗輸出之間的分隔行。
+    public static let openMarker = "purrdr-window"
+
+    package static func openScript(_ locator: TranscriptLocator) -> String {
+        locateScript(locator) + "\n" + "printf '%s\\n' \(openMarker)\n" + #"""
+            e=$z
+            n=$3
+            c=$4
+            g=1
+            if [ "$c" -le 0 ]; then c=4194304; g=0; fi
+            """# + "\n" + windowBody
+    }
+
     /// 視窗：以 `end` 為終點，往前取恰好 `lines` 行完整的行(行為規格 §4.7「開啟：讀最後 N 行」)。
     ///
     /// 從 `end` 往前取一塊(預設 4MB)數換行，不夠就把塊放大 4 倍再數，直到檔頭。視窗終點是塊內最後一個換行之後
@@ -77,6 +99,10 @@ public enum TranscriptCommand {
         c=$4
         g=0
         if [ "${5:-0}" -gt 0 ]; then c=$5; g=1; fi
+        """# + "\n" + windowBody
+
+    /// 視窗腳本設定好 `f`(檔案)、`e`(終點)、`n`(行數)、`c`(區塊大小)、`g`(1 = 不放大區塊)之後的本體;`window` 與 `open` 共用。
+    package static let windowBody = #"""
         if [ ! -r "$f" ]; then exit 5; fi
         while :; do
         s=$((e - c))
@@ -149,12 +175,19 @@ public enum TranscriptCommand {
         anchor=$(tail -c +$((anchor_start + 1)) "$1" | head -c $(($2 - anchor_start)) | cksum)
         anchor=${anchor%% *}
         }
+        @OPENFUNCTIONS@
         purrdr_limit "$$" "$3" < /dev/null > /dev/null 2>&1 &
         idle_limit=$!
         while IFS= read -r request; do
         kill "$idle_limit" 2>/dev/null
         purrdr_limit "$$" "$3" < /dev/null > /dev/null 2>&1 &
         idle_limit=$!
+        case $request in
+        "open "*)
+        purrdr_open_request "$request"
+        continue
+        ;;
+        esac
         cursor=${request%% *}
         request=${request#* }
         known_stamp=${request%% *}
@@ -186,7 +219,67 @@ public enum TranscriptCommand {
         fi
         printf 'end %s %s\n' "$end" "$anchor"
         done
-        """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
+        """#.replacingOccurrences(of: "@OPENFUNCTIONS@", with: openFunctions).replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
+
+    /// 長駐追蹤通道上的「點進聊天」請求(#662):`open <種類> <行數> <maxBytes> <資料夾名或~> <id 或路徑>`(路徑在最後，可含空白)。
+    /// 回應:成功是 `opened`、與一次性 `open` 指令相同的輸出(定位輸出、`openMarker`、視窗輸出)、最後一行 `openEnd <exit code>`;
+    /// 定位失敗是 `error <exit code>`(3 缺席、4 不可搜尋、5 不可讀、6 有歧義、7 只有壓縮檔)。種類是 `TranscriptLocator.name`。
+    /// 定位的片段是 `locateScript`(位置參數 `$1` id、`$2` 資料夾名),視窗是 `windowBody`,與一次性指令共用。
+    package static func openRequest(_ location: TranscriptLocation, lines: Int, maxBytes: Int) -> String {
+        let folder = location.locator.usesProjectFolder ? ClaudeTranscript.projectFolder(forCWD: location.cwd) : "~"
+        return "open \(location.locator.name) \(lines) \(maxBytes) \(folder) \(location.reference.value)"
+    }
+
+    /// 回應「點進聊天」的第一行的關鍵字。
+    package static let openedKeyword = "opened"
+
+    /// 回應「點進聊天」的最後一行的關鍵字。
+    package static let openEndKeyword = "openEnd"
+
+    private static let openFunctions: String = {
+        let branches = TranscriptLocator.all.map { "\($0.name))\n\(locateScript($0))\n;;" }.joined(separator: "\n")
+        let head = #"""
+            purrdr_locate() {
+            case $purrdr_kind in
+            """#
+        let middle = #"""
+            *) exit 127 ;;
+            esac
+            }
+            purrdr_open() {
+            located=$(purrdr_locate "$@")
+            located_status=$?
+            if [ "$located_status" -ne 0 ]; then printf 'error %s\n' "$located_status"; return; fi
+            printf 'OPENED\n%s\n%s\n' "$located" OPENMARKER
+            f=$(printf '%s\n' "$located" | sed -n 1p)
+            e=$(printf '%s\n' "$located" | sed -n 2p)
+            (
+            n=$3
+            c=$4
+            g=1
+            if [ "$c" -le 0 ]; then c=4194304; g=0; fi
+            """#
+        let tail = #"""
+            )
+            printf 'OPENEND %s\n' "$?"
+            }
+            purrdr_open_request() {
+            open_rest=${1#open }
+            purrdr_kind=${open_rest%% *}
+            open_rest=${open_rest#* }
+            open_lines=${open_rest%% *}
+            open_rest=${open_rest#* }
+            open_max=${open_rest%% *}
+            open_rest=${open_rest#* }
+            open_folder=${open_rest%% *}
+            open_ref=${open_rest#* }
+            if [ "$open_folder" = '~' ]; then open_folder=; fi
+            purrdr_open "$open_ref" "$open_folder" "$open_lines" "$open_max"
+            }
+            """#
+        return [head, branches, middle.replacingOccurrences(of: "OPENMARKER", with: openMarker).replacingOccurrences(of: "OPENED", with: openedKeyword), windowBody, tail.replacingOccurrences(of: "OPENEND", with: openEndKeyword)]
+            .joined(separator: "\n")
+    }()
 
     /// Claude Code 聊天的列表預覽(參數：每個請求的 key、session id、資料夾名)。見 `previews(marker:entries:)`。
     public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {

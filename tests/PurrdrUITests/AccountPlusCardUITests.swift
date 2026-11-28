@@ -16,7 +16,7 @@ final class AccountPlusCardUITests: XCTestCase {
     /// 訂閱屬於另一個會員:恢復購買後顯示遮蔽的 email 與轉移,轉移後 Plus 生效。
     @MainActor
     func testOwnedByAnotherMemberOffersTransfer() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingOwnedByOtherMember"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingOwnedByOtherMember])
         app.openAccountSheet()
         let restore = app.buttons["account.plusCard.secondary"]
         XCTAssertTrue(restore.waitUntilExists(timeout: 10))
@@ -26,7 +26,7 @@ final class AccountPlusCardUITests: XCTestCase {
         alert.buttons["OK"].tap()
 
         XCTAssertTrue(status(app).label.contains("belongs to another member"), status(app).label)
-        XCTAssertTrue(status(app).label.contains("r***@icloud.com"), status(app).label)
+        XCTAssertTrue(status(app).label.contains("r***@example.net"), status(app).label)
         let transfer = app.buttons["account.plusCard.primary"]
         XCTAssertEqual(transfer.label, "Move to This Member")
         transfer.tap()

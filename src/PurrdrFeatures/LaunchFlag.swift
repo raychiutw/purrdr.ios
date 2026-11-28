@@ -1,0 +1,52 @@
+import Foundation
+
+/// 所有啟動旗標的單一清單(#698):app 端的 `LaunchConfiguration` 與 UI 測試的 `launchUITesting(flags:)` 共用這個列舉,
+/// 拼錯旗標在編譯時就會被抓到。UI 測試以符號連結(`tests/PurrdrUITests/LaunchFlag.swift`)編進同一份檔案,
+/// 所以這個檔案只能依賴 Foundation。
+///
+/// 新增旗標一定要有 UI 測試使用(`LaunchFlagUsageTests` 守門);沒有測試使用的旗標就不該存在。
+public enum LaunchFlag: String, CaseIterable, Sendable {
+    case demoAgentFiles = "-demoAgentFiles"
+    case demoAntigravity = "-demoAntigravity"
+    case demoCompanions = "-demoCompanions"
+    case demoGoesOffline = "-demoGoesOffline"
+    case demoLargeOutputOnPrompt = "-demoLargeOutputOnPrompt"
+    case demoNeedsYouLater = "-demoNeedsYouLater"
+    case demoNeedsYouWithStatusBanner = "-demoNeedsYouWithStatusBanner"
+    case demoOutdatedHostService = "-demoOutdatedHostService"
+    case demoSentImages = "-demoSentImages"
+    case demoTailscaleCheck = "-demoTailscaleCheck"
+    case demoToolBurst = "-demoToolBurst"
+    case demoTranscriptPending = "-demoTranscriptPending"
+    case demoUsageReadDelayed = "-demoUsageReadDelayed"
+    case seedDataUsage = "-seedDataUsage"
+    case seedHost = "-seedHost"
+    case seedPairedHTTPSHost = "-seedPairedHTTPSHost"
+    case seedUnpairedHTTPSHost = "-seedUnpairedHTTPSHost"
+    case seedUnreachableHost = "-seedUnreachableHost"
+    case selectDemo = "-selectDemo"
+    case showWelcome = "-showWelcome"
+    case uiTesting = "-uiTesting"
+    case uiTestingAnimations = "-uiTestingAnimations"
+    case uiTestingAppLock = "-uiTestingAppLock"
+    case uiTestingCameraDenied = "-uiTestingCameraDenied"
+    case uiTestingCrashRecord = "-uiTestingCrashRecord"
+    case uiTestingHostKeyPrompt = "-uiTestingHostKeyPrompt"
+    case uiTestingLargeImageClipboard = "-uiTestingLargeImageClipboard"
+    case uiTestingLinkMerge = "-uiTestingLinkMerge"
+    case uiTestingMember = "-uiTestingMember"
+    case uiTestingMemberLoading = "-uiTestingMemberLoading"
+    case uiTestingNoHosts = "-uiTestingNoHosts"
+    case uiTestingNoMember = "-uiTestingNoMember"
+    case uiTestingOversizedClipboard = "-uiTestingOversizedClipboard"
+    case uiTestingOwnedByOtherMember = "-uiTestingOwnedByOtherMember"
+    case uiTestingPairingScan = "-uiTestingPairingScan"
+    case uiTestingPlusMember = "-uiTestingPlusMember"
+    case uiTestingPlusOff = "-uiTestingPlusOff"
+    case uiTestingPushTestFails = "-uiTestingPushTestFails"
+    case uiTestingRecentPhotos = "-uiTestingRecentPhotos"
+    case uiTestingSimulatedFileUpload = "-uiTestingSimulatedFileUpload"
+    case uiTestingSimulatedVideo = "-uiTestingSimulatedVideo"
+    case uiTestingUndoSend = "-uiTestingUndoSend"
+    case uiTestingUpgradedMember = "-uiTestingUpgradedMember"
+}

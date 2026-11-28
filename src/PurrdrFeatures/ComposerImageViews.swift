@@ -528,7 +528,7 @@ struct AttachPanel: View {
             #if canImport(UIKit)
             PasteButton(supportedContentTypes: [.image]) { providers in
                 Task { @MainActor in
-                    let images = await ImageSources.imageData(from: providers)
+                    let images = await ImageSources.rawImageData(from: providers)
                     dismiss()
                     await model.addImages(images)
                 }
@@ -734,8 +734,8 @@ enum ComposerPasteHandler {
     }
 
     @MainActor static func attachPasteboardImages(to model: ConversationModel) {
-        let images = ImageSources.pasteboardImages()
-        Task { await model.addImages(images) }
+        let providers = ImageSources.pasteboardImageProviders
+        Task { await model.addImages(await ImageSources.rawImageData(from: providers)) }
     }
 }
 
@@ -746,28 +746,29 @@ enum ImageSources {
     @MainActor static var pasteboardHasStrings: Bool { UIPasteboard.general.hasStrings || UIPasteboard.general.hasURLs }
     @MainActor static var cameraAvailable: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 
-    /// 從系統 `PasteButton` 交來的項目讀出圖片(PNG)。讀不出來的略過。
-    @MainActor static func imageData(from providers: [NSItemProvider]) async -> [Data] {
-        var images: [Data] = []
-        for provider in providers {
-            let data: Data? = await withCheckedContinuation { continuation in
-                _ = provider.loadDataRepresentation(for: .image) { data, _ in continuation.resume(returning: data) }
-            }
-            if let data, let png = UIImage(data: data)?.pngData() { images.append(png) }
-        }
-        return images
-    }
-
-    /// 讀剪貼簿裡的圖片(使用者明確要求貼上時才呼叫)。
-    @MainActor static func pasteboardImages() -> [Data] {
-        (UIPasteboard.general.images ?? []).compactMap { $0.pngData() }
+    /// 剪貼簿裡圖片項目的讀取來源(使用者明確要求貼上時才呼叫)。只取 provider,不解碼。
+    @MainActor static var pasteboardImageProviders: [NSItemProvider] {
+        UIPasteboard.general.itemProviders.filter { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }
     }
     #else
     @MainActor static var pasteboardHasImages: Bool { false }
     @MainActor static var pasteboardHasStrings: Bool { false }
     @MainActor static var cameraAvailable: Bool { false }
-    @MainActor static func pasteboardImages() -> [Data] { [] }
+    @MainActor static var pasteboardImageProviders: [NSItemProvider] { [] }
     #endif
+
+    /// 從剪貼簿或系統 `PasteButton` 交來的項目讀出原始圖片資料(#687):原圖 bytes 原封不動,
+    /// 不經 `UIImage`、不轉 PNG,解碼與降採樣由 `ConversationModel.addImages` 在背景做;上限以這份 bytes 的大小判斷。讀不出來的略過。
+    @MainActor static func rawImageData(from providers: [NSItemProvider]) async -> [Data] {
+        var images: [Data] = []
+        for provider in providers {
+            let data: Data? = await withCheckedContinuation { continuation in
+                _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in continuation.resume(returning: data) }
+            }
+            if let data { images.append(data) }
+        }
+        return images
+    }
 }
 
 #if canImport(UIKit)

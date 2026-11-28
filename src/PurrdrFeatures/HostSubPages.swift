@@ -4,13 +4,11 @@ import SwiftUI
 
 /// 通知頁(主機 tab 的子頁,#392):這台主機的通知開關與要收的種類。
 ///
-/// 還沒配對的 HTTPS 主機說明要先配對;沒登入開登入、沒有 Purrdr Plus 開付費牆。
+/// 還沒配對的 HTTPS 主機說明要先配對;沒登入開登入。
 struct HostNotificationsPage: View {
     let hosts: HostsModel
     let host: HostSelection
-    let signedIn: Bool
     let openAccount: () -> Void
-    let openPlus: () -> Void
     let pair: (UUID) -> Void
 
     private var push: HostPush? { hosts.hostPushes.first { $0.host == host } }
@@ -170,18 +168,8 @@ struct HostNotificationsPage: View {
 
     @ViewBuilder
     private func problemRow(_ problem: PushModel.Problem, _ push: HostPush) -> some View {
-        if case .needsSubscription = problem, !signedIn {
-            // 沒登入:先登入(帳號頁沒登入時直接是登入頁)。
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Sign in to use notifications.", systemImage: "person.crop.circle")
-                Button("Sign In", action: openAccount)
-                    .listAction()
-                    .accessibilityIdentifier("hosts.notifications.signIn")
-            }
-            .accessibilityIdentifier("settings.push.problem")
-        } else {
-            PushProblemRow(problem: problem, model: push.model, openPlus: openPlus)
-        }
+        // 沒登入:先登入(帳號頁沒登入時直接是登入頁)。
+        PushProblemRow(problem: problem, model: push.model, openAccount: openAccount)
     }
 }
 

@@ -379,21 +379,26 @@ struct AccountView: View {
                 }
                 plusSection(plus: plus)
                 featureSections(plus: plus)
-                if signedInMember != nil, let pushDevices {
-                    // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
-                    Section {
-                        NavigationLink {
-                            PushDevicesView(model: pushDevices, canRename: account.hasPlus)
-                        } label: {
-                            LabeledContent("Notification Devices") {
-                                if pushDevices.hasLoaded { Text("\(pushDevices.devices.count) devices") }
-                            }
+            } else if signedInMember != nil {
+                // Purrdr Plus 關閉(#676):沒有 Plus 卡與功能區,通知照常(只要登入)。
+                Section {
+                    notificationsLink
+                }
+            }
+            if signedInMember != nil, let pushDevices {
+                // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
+                Section {
+                    NavigationLink {
+                        PushDevicesView(model: pushDevices, canRename: account.hasPlus)
+                    } label: {
+                        LabeledContent("Notification Devices") {
+                            if pushDevices.hasLoaded { Text("\(pushDevices.devices.count) devices") }
                         }
-                        .accessibilityIdentifier("member.pushDevices")
-                    } header: {
-                        Text("Notification Devices")
-                            .foregroundStyle(.secondaryText)
                     }
+                    .accessibilityIdentifier("member.pushDevices")
+                } header: {
+                    Text("Notification Devices")
+                        .foregroundStyle(.secondaryText)
                 }
             }
 
@@ -430,7 +435,11 @@ struct AccountView: View {
                                 .accessibilityIdentifier("member.signOut.confirm")
                             Button("Cancel", role: .cancel) {}
                         } message: {
-                            Text("Signing out turns off notifications for this device and pauses host sync. Hosts and chats keep working — they don’t need a member account.")
+                            if plus == nil {
+                                Text("Signing out turns off notifications for this device. Hosts and chats keep working — they don’t need a member account.")
+                            } else {
+                                Text("Signing out turns off notifications for this device and pauses host sync. Hosts and chats keep working — they don’t need a member account.")
+                            }
                         }
                     Button("Delete Member", role: .destructive) { startDeletion() }
                         .destructiveListAction()
@@ -566,7 +575,19 @@ struct AccountView: View {
     }
 
     private var notificationsPage: some View {
-        AccountNotificationsView(pushes: pushes, openPlus: { showingPlus = true }, hosts: hosts)
+        AccountNotificationsView(pushes: pushes, hosts: hosts)
+    }
+
+    /// 通知列(#675:登入就能用,不要求 Plus)。
+    private var notificationsLink: some View {
+        NavigationLink {
+            notificationsPage
+        } label: {
+            LabeledContent("Notifications") {
+                Text(verbatim: plusFeatures.status.value(for: .notifications) ?? "")
+            }
+        }
+        .accessibilityIdentifier("account.notifications")
     }
 
     /// 「Plus 功能」區(設計稿第 27 組):主機同步與通知併在同一區。
@@ -578,14 +599,7 @@ struct AccountView: View {
                 if let hostSync {
                     HostSyncRows(model: hostSync, plus: plus, member: model)
                 }
-                NavigationLink {
-                    notificationsPage
-                } label: {
-                    LabeledContent("Notifications") {
-                        Text(verbatim: plusFeatures.status.value(for: .notifications) ?? "")
-                    }
-                }
-                .accessibilityIdentifier("account.notifications")
+                notificationsLink
             } header: {
                 Text("Plus Features")
                     .foregroundStyle(.secondaryText)
@@ -598,7 +612,7 @@ struct AccountView: View {
         } else if signedInMember != nil {
             Section {
                 lockedRow(.hostSync, symbol: "arrow.triangle.2.circlepath", title: "Host Sync", identifier: "account.locked.hostSync")
-                lockedRow(.notifications, symbol: "bell.badge", title: "Notifications", identifier: "account.locked.notifications")
+                notificationsLink
             } header: {
                 Text("Plus Features")
                     .foregroundStyle(.secondaryText)

@@ -178,11 +178,18 @@ extension HTTPSHostConnection {
         _ make: @escaping @Sendable (String) -> HostServiceProtocol.ClientMessage
     ) async throws -> HostServiceProtocol.ServerMessage {
         if let feature = method.requiredFeature { try await requireHostService(feature) }
-        return try await withDeadline(deadline) {
-            _ = try await self.hostServiceInfo()
-            return try await self.send(on: self.liveSession(), make, herdrMethod: method.rawValue)
+        // 新增聊天／續接與關閉會用到的請求記下耗時(#689;與 SSH 的 `timedMethods` 同一組,名稱 `https.request <method>`)。
+        let sink = Self.timedMethods.contains(method.rawValue) ? timingSink.current : nil
+        return try await OperationTimer.measure("https.request \(method.rawValue)", sink: sink) {
+            try await withDeadline(deadline) {
+                _ = try await self.hostServiceInfo()
+                return try await self.send(on: self.liveSession(), make, herdrMethod: method.rawValue)
+            }
         }
     }
+
+    /// 記耗時的請求:與 SSH 相同(`SSHHostConnection.timedMethods`);快照輪詢這類頻繁的讀取不記。
+    static let timedMethods: Set<String> = ["workspace.create", "tab.create", "agent.start", "agent.get", "agent.prompt", "tab.close", "workspace.close"]
 
     private static func milliseconds(_ duration: Duration) -> Int {
         Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)

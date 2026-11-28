@@ -47,7 +47,7 @@ public enum PlusStatus: Equatable, Sendable {
     }
 }
 
-/// 需要 Purrdr Plus 的功能。
+/// 帳號功能:通知只要登入,主機同步需要 Purrdr Plus(#675)。
 public enum AccountFeature: CaseIterable, Sendable {
     case notifications
     case hostSync
@@ -133,6 +133,8 @@ public struct AccountState: Equatable, Sendable {
         case .signedOut: return .locked(.signInRequired)
         case .signedIn: break
         }
+        // #675:通知只要求登入;主機同步仍要 Plus。
+        if feature == .notifications { return .available }
         switch plus {
         case .active, .billingGrace: return .available
         case .none: return .locked(.plusRequired)

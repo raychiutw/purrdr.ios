@@ -69,9 +69,9 @@ struct TrafficGuardTests {
     ].merging(extraAgents.mapValues { ".claude/projects/-Users-demo-Projects-recipe-box/\($0).jsonl" }) { first, _ in first }
 
     /// 主題、註記的主機檔案(都已同意)。
-    static func writeHostFiles(to shell: LocalShellHost) throws {
-        _ = try shell.write(Data("[theme]\nname = \"dracula\"\n".utf8), to: HostThemeHost.configPath.relative)
-        _ = try shell.write(
+    static func writeHostFiles(to shell: SimulatedHostFiles) {
+        shell.write(Data("[theme]\nname = \"dracula\"\n".utf8), to: HostThemeHost.configPath.relative)
+        shell.write(
             Data(#"{"sessions":[{"id":"1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed","view":{"kind":"offer","line":"Tests run in parallel","shownAt":1}}],"known":[]}"#.utf8),
             to: YouShouldKnowHost.storeDirectory.relative + "/cc-plugin-you-should-know_builtin-0123456789ab.json")
     }
@@ -90,13 +90,14 @@ struct TrafficGuardTests {
 
     @Test("SSH:一小時(閒置、工作各半，列表與聊天同時可見)的請求數與估算位元組在上限內")
     func sshHourStaysWithinBudget() async throws {
-        let shell = try LocalShellHost.temporary(feedsStdin: true)
-        for path in Self.transcriptPaths.values { try shell.write(Fixtures.transcript(), to: path) }
-        try Self.writeHostFiles(to: shell)
         let clock = SimulatedClock()
+        // 模擬主機的檔案(#697):不開真的 shell,修改時間跟著模擬時鐘。
+        let shell = SimulatedHostFiles(seconds: { Int(clock.now().timeIntervalSince(SimulatedClock.start)) })
+        for path in Self.transcriptPaths.values { shell.write(Fixtures.transcript(), to: path) }
+        Self.writeHostFiles(to: shell)
         let statuses = ["w1:p6": "idle", "w1:pA": "working", "w1:pB": "idle", "w1:pC": "working"]
             .merging(Self.extraAgents.keys.filter { $0 != "w1:pC" }.map { ($0, "idle") }) { first, _ in first }
-        let host = MeteredSSHHost(shell: shell, statuses: statuses, extraAgents: Self.extraAgents, clock: clock)
+        let host = MeteredSSHHost(files: shell, statuses: statuses, extraAgents: Self.extraAgents, clock: clock)
         let connection = SSHHostConnection(channel: host)
         let updates = HostUpdates(client: HerdrClient(connection: connection), sleep: clock.sleep)
         let list = AgentListModel(updates: updates, transcripts: TranscriptReader(connection: connection), sleep: clock.sleep)
@@ -117,12 +118,12 @@ struct TrafficGuardTests {
         ]
         defer { viewers.forEach { $0.cancel() } }
         let settle = {
-            try await Self.settle {
+            try await Self.settleInMemory {
                 let inFlight = await host.inFlight
                 return (inFlight, [await clock.sleepCount, await host.activity])
             }
         }
-        try await waitUntil { await host.count("transcript.window") == 1 }
+        try await waitUntil { await host.count("transcript.open") == 1 }
         try await settle()
 
         var lines = Fixtures.transcriptLines().makeIterator()
@@ -137,12 +138,11 @@ struct TrafficGuardTests {
             case .appendLine:
                 if lines.next() == nil { lines = Fixtures.transcriptLines().makeIterator() }
                 let line = lines.next() ?? "{}"
-                try shell.append(Data((line + "\n").utf8), to: Self.transcriptPaths[Self.chatPane]!)
+                shell.append(Data((line + "\n").utf8), to: Self.transcriptPaths[Self.chatPane]!)
             }
         }
         try await Self.run(until: Self.hour, clock: clock) { try await settle() }
         viewers.forEach { $0.cancel() }
-        await shell.waitUntilFinished()
 
         let exchanges = await host.exchanges
         let followRounds = await host.followRounds
@@ -181,7 +181,9 @@ struct TrafficGuardTests {
         #expect((hostFileRounds["hostFiles.notes"]?.count ?? 0) + counts["hostFiles.notes.locate", default: 0] <= Self.sshCaps.notes, "註記")
         #expect(bytesByKind["hostFiles.follow", default: 0] <= Self.sshCaps.hostFileBytes, "主機檔案位元組")
         #expect(keepalives <= Self.sshCaps.keepalives, "keepalive")
-        #expect(counts["transcript.locate", default: 0] <= Self.sshCaps.locates, "定位：只有開聊天 1(定期更新預覽不另外問大小)")
+        #expect(counts["transcript.locate", default: 0] + counts["transcript.open", default: 0] <= Self.sshCaps.locates, "定位：只有開聊天 1(定期更新預覽不另外問大小)")
+        #expect(counts["transcript.open", default: 0] == 1, "開聊天定位加讀視窗合成一個指令(#656)")
+        #expect(counts["transcript.window", default: 0] == 0, "開聊天不另外讀視窗")
         #expect(bytes <= Self.sshHourBudget)
     }
 
@@ -335,17 +337,38 @@ struct TrafficGuardTests {
         }
     }
 
-    /// 等到被測物停下來：沒有進行中的主機請求，且連續幾次檢查都沒有新的等待或請求。
-    static func settle(_ probe: () async -> (inFlight: Int, signature: [Int])) async throws {
-        let deadline = ContinuousClock.now + .seconds(20)
+    /// 等到被測物停下來(全在記憶體裡的情境，#697):沒有進行中的主機請求，且連續 `quietChecks` 次讓出執行緒後都沒有新的等待或請求。
+    /// 不睡實際時間、沒有實際時間的上限;卡住時以檢查次數為界。
+    static func settleInMemory(quietChecks: Int = 60, _ probe: () async -> (inFlight: Int, signature: [Int])) async throws {
         var last: [Int] = []
         var quiet = 0
-        while quiet < 3 {
-            guard ContinuousClock.now < deadline else {
+        var checks = 0
+        while quiet < quietChecks {
+            checks += 1
+            guard checks < 20_000_000 else {
                 Issue.record("模擬時間推進後，被測物一直沒有停下來")
                 throw CancellationError()
             }
-            try await Task.sleep(for: .milliseconds(1))
+            await Task.yield()
+            let (inFlight, signature) = await probe()
+            quiet = inFlight == 0 && signature == last ? quiet + 1 : 0
+            last = signature
+        }
+    }
+
+    /// 經真正的網路(本機 WebSocket 伺服器)時等到被測物停下來：沒有進行中的主機請求，且連續幾次檢查都沒有新的等待或請求。
+    /// 回應走真的 socket,所以每次檢查之間要真的讓出一小段時間;以檢查次數為界，不設實際時間的上限。
+    static func settle(_ probe: () async -> (inFlight: Int, signature: [Int])) async throws {
+        var last: [Int] = []
+        var quiet = 0
+        var checks = 0
+        while quiet < 3 {
+            checks += 1
+            guard checks < 100_000 else {
+                Issue.record("模擬時間推進後，被測物一直沒有停下來")
+                throw CancellationError()
+            }
+            try await Task.sleep(for: .microseconds(150))
             let (inFlight, signature) = await probe()
             quiet = inFlight == 0 && signature == last ? quiet + 1 : 0
             last = signature

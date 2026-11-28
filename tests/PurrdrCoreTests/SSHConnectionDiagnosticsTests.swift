@@ -23,6 +23,7 @@ struct SSHConnectionDiagnosticsTests {
     @Test("撥號成功記錄 connected(撥號序號)", .timeLimit(.minutes(1)))
     func recordsConnected() async throws {
         let server = try await TestSSHServer.start { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let events = Events()
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint, diagnostics: events.observer)
 
@@ -30,12 +31,12 @@ struct SSHConnectionDiagnosticsTests {
 
         #expect(events.all == [.connected(dial: 1)])
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("主機不回 keepalive:丟棄原因是 keepalive 逾時", .timeLimit(.minutes(1)))
     func keepaliveTimeoutIsRecorded() async throws {
         let server = try await TestSSHServer.start(keepalive: .ignore) { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let clock = ManualSSHClock()
         let events = Events()
         let channel = SSHHostChannel(
@@ -53,12 +54,12 @@ struct SSHConnectionDiagnosticsTests {
 
         #expect(events.dropReasons == [.keepaliveTimeout])
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("開 channel 逾時:整條連線丟棄，原因是開 channel 逾時", .timeLimit(.minutes(1)))
     func channelOpenTimeoutIsRecorded() async throws {
         let server = try await TestSSHServer.start { command in command == "stuck" ? .neverReply : .reply(stdout: "ok") }
+        defer { server.stop() }
         let clock = ManualSSHClock()
         let events = Events()
         let channel = SSHHostChannel(
@@ -74,12 +75,12 @@ struct SSHConnectionDiagnosticsTests {
 
         #expect(events.dropReasons == [.channelOpenTimeout])
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("主機切斷連線:原因是對端關閉", .timeLimit(.minutes(1)))
     func peerCloseIsRecorded() async throws {
         let server = try await TestSSHServer.start { command in command == "send" ? .dropConnection : .reply(stdout: "ok") }
+        defer { server.stop() }
         let events = Events()
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint, diagnostics: events.observer)
 
@@ -88,12 +89,12 @@ struct SSHConnectionDiagnosticsTests {
 
         #expect(events.dropReasons == [.closedByPeer])
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("注入的診斷 closure 不在 event loop 上執行(NIO 執行緒 stack 有限,#470)", .timeLimit(.minutes(1)))
     func diagnosticsNeverRunOnEventLoop() async throws {
         let server = try await TestSSHServer.start { command in command == "send" ? .dropConnection : .reply(stdout: "ok") }
+        defer { server.stop() }
         let onLoop = Mutex<[SSHConnectionEvent]>([])
         let all = Mutex<Int>(0)
         let channel = SSHHostChannel(
@@ -108,12 +109,12 @@ struct SSHConnectionDiagnosticsTests {
 
         #expect(onLoop.withLock { $0 }.isEmpty, "event loop 上呼叫了注入的診斷:\(onLoop.withLock { $0 })")
         await channel.disconnect()
-        await server.stop()
     }
 
     @Test("呼叫 disconnect():原因是 app 要求關閉，且只記一次", .timeLimit(.minutes(1)))
     func requestedDisconnectIsRecorded() async throws {
         let server = try await TestSSHServer.start { _ in .reply(stdout: "ok") }
+        defer { server.stop() }
         let events = Events()
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint, diagnostics: events.observer)
 
@@ -123,7 +124,6 @@ struct SSHConnectionDiagnosticsTests {
         await channel.disconnect()
 
         #expect(events.dropReasons == [.disconnectRequested])
-        await server.stop()
     }
 
     @Test("撥號失敗記錄 dialFailed 與原因")
