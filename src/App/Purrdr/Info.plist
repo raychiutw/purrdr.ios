@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyLists/1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>PurrdrAllowLocalHostService</key>
+	<string>$(PURRDR_ALLOW_LOCAL_HOST_SERVICE)</string>
 	<key>PurrdrPlusEnabled</key>
 	<string>$(PURRDR_PLUS_ENABLED)</string>
 	<key>CFBundleURLTypes</key>

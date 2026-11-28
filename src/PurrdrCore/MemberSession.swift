@@ -37,6 +37,7 @@ public actor MemberSession {
     private let deviceID: @Sendable () -> String?
     private let diagnostics: MemberDiagnostics
     private let supportsSignInOnly: Bool
+    private let hostServicePolicy: HostServiceAddress.Policy
     private var accessToken: (token: String, expiresAt: Date)?
     private var renewal: Task<Member, any Error>?
 
@@ -48,8 +49,9 @@ public actor MemberSession {
     public init(
         transport: any BackendTransport, tokenStore: any TokenStore, now: @escaping @Sendable () -> Date = { Date() },
         deviceID: @escaping @Sendable () -> String? = { nil }, diagnostics: @escaping MemberDiagnostics = { _ in },
-        supportsSignInOnly: Bool = false
+        supportsSignInOnly: Bool = false, hostServicePolicy: HostServiceAddress.Policy = .current
     ) {
+        self.hostServicePolicy = hostServicePolicy
         self.supportsSignInOnly = supportsSignInOnly
         self.transport = transport
         self.tokenStore = tokenStore
@@ -168,7 +170,7 @@ public actor MemberSession {
     public func syncHosts(_ changes: [HostSyncChange]) async throws -> HostSyncSnapshot {
         let body = try JSONEncoder().encode(Wire.HostSyncRequest(changes: changes.map(Wire.HostChange.init)))
         let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/hosts/sync", body: body))
-        return try Wire.decode(Wire.HostSyncResponse.self, from: response).domain()
+        return try Wire.decode(Wire.HostSyncResponse.self, from: response).domain(policy: hostServicePolicy)
     }
 
     // MARK: - 推播配對(#29)
@@ -554,7 +556,7 @@ private enum Wire {
             try container.encode(modifiedAt, forKey: .modifiedAt)
         }
 
-        func domain() throws -> SyncedHost {
+        func domain(policy: HostServiceAddress.Policy) throws -> SyncedHost {
             let method: HostConfiguration.ConnectionMethod
             switch connectionMethod {
             case "openssh": method = .openSSH
@@ -563,8 +565,12 @@ private enum Wire {
             default: throw BackendError.invalidResponse
             }
             // HTTPS 主機的主機服務位址以 address＋port 為唯一來源(#250)。
-            let hostService = method.usesHostService ? HostServiceAddress(host: address, port: port) : nil
-            if method.usesHostService, hostService == nil { throw BackendError.invalidResponse }
+            // 位址合法但被規則擋下(Release 的 http／loopback,#696)時留空,`SyncedHost.applied(to:)` 回 `nil` 就不套用,
+            // 其他主機照常同步;連合法都不是才是壞回應。
+            let hostService = method.usesHostService ? HostServiceAddress(host: address, port: port, policy: policy) : nil
+            if method.usesHostService, hostService == nil {
+                guard HostServiceAddress(host: address, port: port, policy: .allowsLocalTesting) != nil else { throw BackendError.invalidResponse }
+            }
             guard let id = UUID(uuidString: id), let modifiedAt = Wire.date(modifiedAt) else { throw BackendError.invalidResponse }
             return SyncedHost(
                 id: id, name: name, endpoint: SSHEndpoint(host: address, port: port, username: username), connectionMethod: method,
@@ -577,9 +583,9 @@ private enum Wire {
         var hosts: [HostBody]
         var deletedHostIds: [String]
 
-        func domain() throws -> HostSyncSnapshot {
+        func domain(policy: HostServiceAddress.Policy) throws -> HostSyncSnapshot {
             HostSyncSnapshot(
-                hosts: try hosts.map { try $0.domain() },
+                hosts: try hosts.map { try $0.domain(policy: policy) },
                 deletedHostIDs: try deletedHostIds.map { text in
                     guard let id = UUID(uuidString: text) else { throw BackendError.invalidResponse }
                     return id

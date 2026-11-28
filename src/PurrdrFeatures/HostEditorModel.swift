@@ -57,6 +57,12 @@ public final class HostEditorModel {
     public var name = ""
     /// SSH 是主機名稱或 IP;HTTPS 是主機服務的主機名稱(埠在 `port`)。
     public var address = ""
+    /// 主機服務位址的規則(#696):Release 只收 https。預設跟著 app 入口設的 `HostServiceAddress.Policy.current`。
+    public var addressPolicy: HostServiceAddress.Policy = .current
+    /// HTTPS 主機的位址是 http 或本機位址、被規則擋下:畫面提示「位址要是 https」。
+    public var addressNeedsHTTPS: Bool {
+        connectionMethod?.usesHostService == true && HostServiceAddress.isRejected(address.trimmingCharacters(in: .whitespaces), by: addressPolicy)
+    }
     /// 使用者改過就不再跟著連線方式換預設值。
     public var port: String {
         get { portText }
@@ -275,7 +281,7 @@ public final class HostEditorModel {
     @discardableResult
     public func applyScannedCode(_ text: String) -> Bool {
         guard let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
-              let link = try? HostServicePairingLink(url: url) else { return false }
+              let link = try? HostServicePairingLink(url: url, policy: addressPolicy) else { return false }
         apply(link)
         return true
     }
@@ -503,7 +509,7 @@ public final class HostEditorModel {
         let name = name.trimmingCharacters(in: .whitespaces)
         // 配對碼是大寫字母：硬體鍵盤與貼上打的小寫也算(#236)。
         let code = pairingCode.trimmingCharacters(in: .whitespaces).uppercased()
-        guard !name.isEmpty, let address = HostServiceAddress(addressField: address, portField: port) else { return nil }
+        guard !name.isEmpty, let address = HostServiceAddress(addressField: address, portField: port, policy: addressPolicy) else { return nil }
         guard !code.isEmpty || !needsPairingCode else { return nil }
         return Draft(name: name, connection: .https(address, pairingCode: code.isEmpty ? nil : code))
     }

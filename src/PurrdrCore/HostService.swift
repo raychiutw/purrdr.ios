@@ -9,7 +9,7 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
     public let url: URL
 
     /// 接受 `studio.tail1234.ts.net`、`https://studio.tail1234.ts.net:8443/`、`http://127.0.0.1:47820`;其他形式回傳 `nil`。
-    public init?(_ text: String) {
+    public init?(_ text: String, policy: Policy = .current) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let withScheme = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
@@ -18,7 +18,12 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
               components.user == nil, components.password == nil, components.query == nil, components.fragment == nil,
               components.path.isEmpty || components.path == "/"
         else { return nil }
-        guard scheme == "https" || (scheme == "http" && Self.isLoopback(host)) else { return nil }
+        switch policy {
+        case .allowsLocalTesting:
+            guard scheme == "https" || (scheme == "http" && Self.isLoopback(host)) else { return nil }
+        case .httpsOnly:
+            guard scheme == "https", !Self.isLoopback(host) else { return nil }
+        }
         components.scheme = scheme
         components.host = host
         components.path = ""
@@ -29,23 +34,59 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
     }
 
     /// 以主機名稱與 Port 組成(編輯器、同步 wire 共用,#250)。loopback 是本機測試，用 http;其他一律 https。
-    public init?(host: String, port: Int) {
+    public init?(host: String, port: Int, policy: Policy = .current) {
         let host = host.trimmingCharacters(in: .whitespaces)
         guard !host.isEmpty, (1...65_535).contains(port), !host.contains(where: { "/:@?# ".contains($0) }) || host.hasPrefix("[")
         else { return nil }
         let scheme = Self.isLoopback(host.lowercased()) ? "http" : "https"
-        self.init("\(scheme)://\(host):\(port)")
+        self.init("\(scheme)://\(host):\(port)", policy: policy)
     }
 
     /// 編輯器的位址欄位與 Port 欄位。位址欄位自己寫了埠(舊習慣 `x:8443`、貼上完整網址)時以它為準。
-    public init?(addressField: String, portField: String) {
-        guard let typed = HostServiceAddress(addressField) else { return nil }
+    public init?(addressField: String, portField: String, policy: Policy = .current) {
+        guard let typed = HostServiceAddress(addressField, policy: policy) else { return nil }
         if typed.url.port != nil {
             self = typed
             return
         }
         guard let port = Int(portField.trimmingCharacters(in: .whitespaces)) else { return nil }
-        self.init(host: typed.hostName, port: port)
+        self.init(host: typed.hostName, port: port, policy: policy)
+    }
+
+    /// 位址的規則(#696)。本機測試用的 http 與 loopback 位址只在 Debug 與 UI 測試允許;Release 一律拒絕。
+    public enum Policy: Sendable, Equatable {
+        /// Debug 與 UI 測試:除了 https,也接受 loopback 的 http(`FakeHostService` 與本機主機服務)。
+        case allowsLocalTesting
+        /// Release:只接受 https,loopback(`localhost`、`127.0.0.1`、`::1`)也不行。
+        case httpsOnly
+
+        private static let storage = NSLock()
+        nonisolated(unsafe) private static var stored = Policy.allowsLocalTesting
+
+        /// 沒有明確指定時用的規則。app 入口依 build 設定設一次(`HostServiceAddressPolicy` 的 Info.plist 值),
+        /// 預設是 Debug 的寬鬆規則,所以單元測試與 `FakeHostService` 不受影響。
+        public static var current: Policy {
+            get { storage.withLock { stored } }
+            set { storage.withLock { stored = newValue } }
+        }
+
+        /// Info.plist 的 `PurrdrAllowLocalHostService`:只有明確的 YES(字串或布林)才允許本機測試位址;
+        /// 沒寫、NO、沒被取代的 `$(…)` 與其他值一律只收 https,預設是安全的一邊。
+        public init(infoValue: Any?) {
+            switch infoValue {
+            case let value as String where value.lowercased() == "yes" || value.lowercased() == "true":
+                self = .allowsLocalTesting
+            case let value as Bool where value:
+                self = .allowsLocalTesting
+            default:
+                self = .httpsOnly
+            }
+        }
+    }
+
+    /// 這段文字本來是合法位址,但被規則擋下(Release 的 http 或 loopback)——畫面提示「位址要是 https」用。
+    public static func isRejected(_ text: String, by policy: Policy) -> Bool {
+        HostServiceAddress(text, policy: .allowsLocalTesting) != nil && HostServiceAddress(text, policy: policy) == nil
     }
 
     /// 主機名稱(顯示用)。
@@ -101,11 +142,11 @@ public struct HostServicePairingLink: Sendable, Equatable {
         self.pairingCode = pairingCode
     }
 
-    public init(url: URL) throws(HostServicePairingLinkError) {
+    public init(url: URL, policy: HostServiceAddress.Policy = .current) throws(HostServicePairingLinkError) {
         guard url.scheme?.lowercased() == "purrdr", url.host()?.lowercased() == "pair" else { throw .notAPairingLink }
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let code = items.first { $0.name == "code" }?.value?.trimmingCharacters(in: .whitespaces) ?? ""
-        guard let address = items.first(where: { $0.name == "address" })?.value.flatMap(HostServiceAddress.init), !code.isEmpty
+        guard let address = items.first(where: { $0.name == "address" })?.value.flatMap({ HostServiceAddress($0, policy: policy) }), !code.isEmpty
         else { throw .malformed }
         self.init(address: address, pairingCode: code)
     }
