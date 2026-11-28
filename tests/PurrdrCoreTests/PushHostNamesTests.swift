@@ -76,6 +76,20 @@ struct PushHostNamesTests {
         #expect(content.subtitle == "")
     }
 
+    @Test("後台已帶副標題(電腦名稱,#706):用後台的,不被本機對應表蓋掉,也不重複補")
+    func backendSubtitleWins() {
+        let info: [AnyHashable: Any] = ["pairing": "hash-studio", "pane": "w1:p1"]
+        // 後台名稱與本機不同(例如剛在別台改名):以後台為準。
+        #expect(PushNotificationEnrichment.enriched(title: "ledger", subtitle: "Studio (renamed)", userInfo: info, hostNames: names)
+            == .init(title: "ledger", subtitle: "Studio (renamed)"))
+        // 後台沒帶(空字串或只有空白):由本機對應表補上。
+        #expect(PushNotificationEnrichment.enriched(title: "ledger", subtitle: "  ", userInfo: info, hostNames: names)
+            == .init(title: "ledger", subtitle: "Studio Mac"))
+        // 兩邊都沒有:原樣。
+        #expect(PushNotificationEnrichment.enriched(title: "ledger", subtitle: "", userInfo: info, hostNames: [:])
+            == .init(title: "ledger", subtitle: ""))
+    }
+
     @Test("對應表由配對與主機名稱組出,沒有名稱的配對略過")
     func mapBuilding() {
         let map = PushHostNameMap.make(

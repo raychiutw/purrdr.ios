@@ -171,11 +171,13 @@ public struct PushKindCatalog: Sendable, Equatable {
 public struct PushPairingRecord: Sendable, Equatable {
     public var keyHash: String
     public var name: String?
+    public var icon: PushHostIcon?
     public var kinds: Set<PushKind>
 
-    public init(keyHash: String, name: String? = nil, kinds: Set<PushKind>) {
+    public init(keyHash: String, name: String? = nil, icon: PushHostIcon? = nil, kinds: Set<PushKind>) {
         self.keyHash = keyHash
         self.name = name
+        self.icon = icon
         self.kinds = kinds
     }
 }
