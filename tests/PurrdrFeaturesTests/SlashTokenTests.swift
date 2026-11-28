@@ -68,6 +68,7 @@ struct InlineSlashTokenTests {
 
 /// 使用者泡泡的著色(#469):與輸入框同一套規則。
 @Suite("使用者泡泡的 slash 指令上色")
+@MainActor
 struct UserBubbleSlashTests {
     private func colored(_ text: String, known: Set<String>) -> [String] {
         let attributed = UserBubbleView.highlighted(text, known: known)
