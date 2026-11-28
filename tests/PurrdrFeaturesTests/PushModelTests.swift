@@ -1125,7 +1125,7 @@ struct PushRouteTests {
         #expect(messages.allSatisfy { !$0.isEmpty && !$0.contains("curl: (7)") })
         #expect(Set(messages.prefix(5)).count == 5, "前五種各有專屬說明")
         #expect(messages[1].contains("Plus"))
-        #expect(messages[8].contains("today"), "每日上限(#675)說明今天用完")
+        #expect(messages[8].contains("used up") && messages[8].contains("including test notifications"), "每日上限(#675)說明今天的通知次數已用完,含測試通知")
         #expect(messages[8] != messages[2], "每日上限與每分鐘上限說明不同")
     }
 

@@ -189,10 +189,12 @@ struct PushSettingsModelTests {
         #expect(settings.catalog.definitions.count == 5)
     }
 
-    @Test("內建備援的名稱也依語言(繁中)")
-    func builtInRespectsLanguage() {
+    @Test("內建備援的名稱走 String Catalog(不被 preferredLanguages 寫死成英文;測試包沒有 catalog,取到原文)")
+    func builtInUsesStringCatalog() {
+        // 即使要求繁中,內建文字也由 Bundle 的在地化決定(不是 Swift 裡寫死的繁中);swift test 沒有 app catalog,所以是英文原文。
         let settings = settings(languages: ["zh-Hant"])
-        #expect(settings.choices(for: .ssh).map(\.title) == ["需要你", "完成", "可能卡住", "仍在等你", "主機服務"])
+        #expect(settings.choices(for: .ssh).map(\.title) == ["Needs You", "Finished", "May Be Stuck", "Still Waiting for You", "Host Service"])
+        #expect(!PushKindCatalog.builtIn.definitions.contains { $0.name.traditionalChinese != nil || $0.description.traditionalChinese != nil })
     }
 
     // MARK: - 配對以後台為準
