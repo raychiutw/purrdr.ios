@@ -10,7 +10,7 @@ final class ConversationHeaderUITests: XCTestCase {
     /// 點停止送 Esc:停止中按鈕念「Stopping…」且停用，停下後顯示「Stopped」,約 2 秒後停止列收起、工作中指示消失。
     @MainActor
     func testWorkingAgentStopsFromStopBar() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w3:p1")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w3:p1", viaLink: true)
 
         let working = app.element("conversation.working")
         XCTAssertTrue(working.waitUntilExists(timeout: 10), "工作中沒有指示")

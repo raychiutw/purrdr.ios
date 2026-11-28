@@ -313,6 +313,18 @@ public final class TopNavigationModel {
             guard allowsTestingLinks else { return false }
             testingAppearance = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?.first { $0.name == "style" }?.value
+        case "testing-chat":
+            // UI 測試直接開聊天:`purrdr://testing-chat?host=<主機身分>&pane=<pane id>`(省下從列表逐步點進去)。
+            // 只在 `-uiTesting`(`allowsTestingLinks`)接受;缺參數或主機看不懂就不動作。
+            guard allowsTestingLinks else { return false }
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            guard let hostValue = items.first(where: { $0.name == "host" })?.value,
+                  let host = HostSelection(storedValue: hostValue),
+                  let paneID = items.first(where: { $0.name == "pane" })?.value, !paneID.isEmpty
+            else { return false }
+            sheet = nil
+            tab = .chats
+            openChat(ChatRoute(host: host, paneID: paneID))
         case "host", "pair":
             // 系統相機掃 QR code(主機分享連結，或主機配對指令的 `purrdr://pair?…`)或點連結都會走到這裡;
             // 內容在主機 tab 裡解析與說明。
