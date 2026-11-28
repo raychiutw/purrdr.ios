@@ -160,6 +160,27 @@ final class AddHostGuideUITests: XCTestCase {
         }
     }
 
+    /// #726:深色模式、XXXL 字級下,停用的主要按鈕(還沒填主機與帳號的「Next」)仍在畫面上有完整高度與文字(不是空的黑色長條);
+    /// 連線中的面板沒有停用按鈕由單元測試 `DisabledProminentButtonTests` 守門(Demo 的連線太快,UI 測試停不在連線中)。
+    /// 顏色對比無法用 frame 量測,實機視覺另看。
+    @MainActor
+    func testDisabledPrimaryStaysVisibleInDarkAtXXXL() {
+        let app = XCUIApplication.launchUITesting(
+            arguments: ["-AppleInterfaceStyle", "Dark"], contentSize: "UICTContentSizeCategoryXXXL")
+        openGuide(app)
+        app.buttons["guide.option.ssh"].tap()
+        app.buttons["guide.option.macOS"].tapWhenReady()
+        app.buttons["guide.option.tailscale"].tapWhenReady()
+        app.buttons["guide.next"].tapWhenReady()
+        XCTAssertTrue(app.textFields["guide.field.address"].waitUntilExists(timeout: 5))
+        let next = app.buttons["guide.next"]
+        XCTAssertTrue(next.exists)
+        XCTAssertFalse(next.isEnabled, "還沒填主機與帳號,按鈕應停用")
+        XCTAssertFalse(next.label.isEmpty, "停用的按鈕沒有文字")
+        XCTAssertGreaterThanOrEqual(next.frame.height, 44)
+        XCTAssertFalse(app.buttons["guide.connecting"].exists)
+    }
+
     /// 無障礙稽核(預設與 AX5):選項頁、開啟 SSH 頁、填主機頁。
     @MainActor
     func testAccessibilityAudit() throws {
