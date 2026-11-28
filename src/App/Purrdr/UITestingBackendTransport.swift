@@ -123,6 +123,14 @@ final class UITestingBackendTransport: BackendTransport {
         case ("POST", "/v1/members/me/push-pairings"):
             registerPairing(request.body)
             return BackendResponse(status: 204, body: Data())
+        case ("GET", "/v1/push-kinds"):
+            // 種類清單(ADR-0016):與後台同形狀;順序、預設、連線方式與最低版本由這份決定。
+            return Self.json(Self.pushKindsJSON)
+        case ("GET", "/v1/members/me/push-pairings"):
+            let deviceID = request.query.first { $0.name == "deviceId" }?.value
+            return Self.json(pairingsJSON(deviceID: deviceID))
+        case ("PATCH", let path) where path.hasPrefix(Self.pairingsPath):
+            return patchPairing(String(path.dropFirst(Self.pairingsPath.count)), body: request.body)
         case ("POST", "/v1/sessions/revoke"):
             return BackendResponse(status: 204, body: Data())
         case ("DELETE", let path) where path.hasPrefix(Self.pairingsPath):
@@ -159,6 +167,40 @@ final class UITestingBackendTransport: BackendTransport {
     }
 
     private static let pairingsPath = "/v1/members/me/push-pairings/"
+
+    /// 種類清單:`transports` 只有 https 的 `queue_paused` 在 SSH 主機(UI 測試的 Demo 主機)是停用並說明。
+    static let pushKindsJSON = #"""
+        {"kinds":[
+          {"code":"blocked","name":{"en":"Needs You","zh-Hant":"需要你"},"description":{"en":"An agent is waiting for your answer or approval.","zh-Hant":"Agent 在等你回答或核准。"},"defaultOn":true,"transports":["ssh","https"],"minServiceVersion":null,"minPluginVersion":null,"order":10},
+          {"code":"done","name":{"en":"Finished","zh-Hant":"完成"},"description":{"en":"An agent finished its work.","zh-Hant":"Agent 做完了。"},"defaultOn":true,"transports":["ssh","https"],"minServiceVersion":null,"minPluginVersion":null,"order":20},
+          {"code":"queue_paused","name":{"en":"Queued send paused","zh-Hant":"預約送出被暫停"},"description":{"en":"A queued message was not sent.","zh-Hant":"排好的訊息沒有送出。"},"defaultOn":true,"transports":["https"],"minServiceVersion":"0.16.0","minPluginVersion":null,"order":30},
+          {"code":"daily_limit_reached","name":{"en":"Daily limit reached","zh-Hant":"每日上限已達"},"description":{"en":"Today’s notification limit was reached.","zh-Hant":"今天的通知已達上限。"},"defaultOn":true,"transports":["ssh","https"],"minServiceVersion":null,"minPluginVersion":null,"order":90}
+        ]}
+        """#
+    private static let knownKindCodes: Set<String> = ["blocked", "done", "queue_paused", "daily_limit_reached"]
+    private static let defaultPairingKinds = ["blocked", "daily_limit_reached"]
+    /// 各配對收的種類(雜湊 → 代號);沒記過的用預設。
+    private let pairingKinds = Mutex<[String: [String]]>([:])
+
+    private func pairingsJSON(deviceID: String?) -> String {
+        let hashes = devices.withLock { $0 }.filter { deviceID == nil || $0.id == deviceID }.flatMap(\.keyHashes).sorted()
+        let kinds = pairingKinds.withLock { $0 }
+        let listed = hashes.map { hash -> [String: Any] in
+            ["keyHash": hash, "name": NSNull(), "icon": NSNull(), "kinds": kinds[hash] ?? Self.defaultPairingKinds]
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: ["pairings": listed])) ?? Data()
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private func patchPairing(_ keyHash: String, body: Data?) -> BackendResponse {
+        guard devices.withLock({ $0 }).contains(where: { $0.keyHashes.contains(keyHash) }) else { return Self.error(404, "pairing_not_found") }
+        let json = body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        guard let kinds = json?["kinds"] as? [String], kinds.allSatisfy(Self.knownKindCodes.contains) else { return Self.error(400, "invalid_kind") }
+        pairingKinds.withLock { $0[keyHash] = kinds }
+        let pairing: [String: Any] = ["keyHash": keyHash, "name": NSNull(), "icon": NSNull(), "kinds": kinds]
+        let data = (try? JSONSerialization.data(withJSONObject: ["pairing": pairing])) ?? Data()
+        return Self.json(String(decoding: data, as: UTF8.self))
+    }
     private static let devicesPath = "/v1/members/me/push-devices/"
 
     private static let subscriptionRequired =
@@ -177,6 +219,7 @@ final class UITestingBackendTransport: BackendTransport {
         guard let json = body.flatMap({ try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }) else { return }
         let fields = json.compactMapValues { $0 as? String }
         guard let keyHash = fields["keyHash"], let id = fields["deviceId"] else { return }
+        if let kinds = json["kinds"] as? [String] { pairingKinds.withLock { $0[keyHash] = kinds } }
         devices.withLock { devices in
             if let index = devices.firstIndex(where: { $0.id == id }) {
                 devices[index].keyHashes.insert(keyHash)

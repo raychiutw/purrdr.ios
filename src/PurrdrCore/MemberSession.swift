@@ -196,6 +196,32 @@ public actor MemberSession {
         _ = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/push-pairings", body: body))
     }
 
+    /// 後台的通知種類清單(`GET /v1/push-kinds`,ADR-0016;依 `order`、不含停用的)。需要會員登入。
+    /// 舊後台沒有這個 API(404)時丟 `.backend`,呼叫端退回內建備援;單一項目讀不懂就略過,不整份失敗。
+    public func pushKinds() async throws -> PushKindCatalog {
+        let response = try await authorized(BackendRequest(method: "GET", path: "/v1/push-kinds"))
+        let body = try Wire.decode(Wire.PushKindsEnvelope.self, from: response)
+        return PushKindCatalog(definitions: body.kinds.compactMap { $0.value?.domain() }, source: .backend)
+    }
+
+    /// 這支裝置的推播配對與各組收哪些種類(`GET /v1/members/me/push-pairings?deviceId=`);配對的種類以後台為準。
+    public func pushPairings(deviceID: PushDeviceID) async throws -> [PushPairingRecord] {
+        let response = try await authorized(BackendRequest(
+            method: "GET", path: "/v1/members/me/push-pairings", query: [URLQueryItem(name: "deviceId", value: deviceID.backendValue)]))
+        return try Wire.decode(Wire.PushPairingsEnvelope.self, from: response).pairings.compactMap { $0.value?.domain() }
+    }
+
+    /// 改一組配對要收的種類(`PATCH /v1/members/me/push-pairings/{keyHash}`)。未知或已停用的種類回 400,不是自己的配對回 404 `pairing_not_found`。
+    @discardableResult
+    public func updatePushPairing(keyHash: String, kinds: Set<PushKind>) async throws -> PushPairingRecord {
+        let body = try JSONEncoder().encode(Wire.PushPairingUpdate(kinds: PushKind.wireValues(kinds)))
+        let response = try await authorized(BackendRequest(method: "PATCH", path: "/v1/members/me/push-pairings/\(keyHash)", body: body))
+        guard let pairing = try Wire.decode(Wire.PushPairingEnvelope.self, from: response).pairing.value?.domain() else {
+            throw BackendError.invalidResponse
+        }
+        return pairing
+    }
+
     /// 撤銷推播配對(只撤銷自己的;不存在也算成功)。
     public func revokePushPairing(keyHash: String) async throws {
         _ = try await authorized(BackendRequest(method: "DELETE", path: "/v1/members/me/push-pairings/\(keyHash)"))
@@ -612,6 +638,69 @@ private enum Wire {
         var deviceName: String
         var model: String
         var kinds: [String]?
+    }
+
+    /// 陣列裡讀不懂的項目略過(向前相容:後台新增欄位或新形狀不能讓整份清單失敗)。
+    struct Lossy<Value: Decodable>: Decodable {
+        var value: Value?
+
+        init(from decoder: any Decoder) throws {
+            value = try? Value(from: decoder)
+        }
+    }
+
+    struct PushKindsEnvelope: Decodable {
+        var kinds: [Lossy<PushKindBody>]
+    }
+
+    struct PushKindBody: Decodable {
+        var code: String
+        var name: [String: String]?
+        var description: [String: String]?
+        var defaultOn: Bool?
+        var transports: [String]?
+        var minServiceVersion: String?
+        var minPluginVersion: String?
+        var order: Double?
+
+        func domain() -> PushKindDefinition? {
+            guard !code.isEmpty else { return nil }
+            func text(_ value: [String: String]?, fallback: String) -> PushLocalizedText {
+                PushLocalizedText(english: value?["en"] ?? fallback, traditionalChinese: value?["zh-Hant"])
+            }
+            let parsed = (transports ?? []).compactMap { PushTransport(rawValue: $0.lowercased()) }
+            return PushKindDefinition(
+                kind: PushKind(code), name: text(name, fallback: code), description: text(description, fallback: ""),
+                defaultOn: defaultOn ?? false,
+                // 沒給或空陣列是不限;給了但都不認得是兩種連線都用不了。
+                transports: (transports ?? []).isEmpty ? nil : Set(parsed),
+                minServiceVersion: minServiceVersion.flatMap(HostServiceVersion.init),
+                minPluginVersion: minPluginVersion.flatMap(HostServiceVersion.init),
+                order: order.map { Int(max(0, min($0, 1_000_000))) } ?? Int.max)
+        }
+    }
+
+    struct PushPairingsEnvelope: Decodable {
+        var pairings: [Lossy<PushPairingBody>]
+    }
+
+    struct PushPairingEnvelope: Decodable {
+        var pairing: Lossy<PushPairingBody>
+    }
+
+    struct PushPairingBody: Decodable {
+        var keyHash: String
+        var name: String?
+        var kinds: [String]?
+
+        /// 沒有 `kinds` 的項目讀不懂(不能當成「什麼都不收」),略過。
+        func domain() -> PushPairingRecord? {
+            kinds.map { PushPairingRecord(keyHash: keyHash, name: name, kinds: Set($0.map { PushKind($0) })) }
+        }
+    }
+
+    struct PushPairingUpdate: Encodable {
+        var kinds: [String]
     }
 
     struct PushDevices: Decodable {

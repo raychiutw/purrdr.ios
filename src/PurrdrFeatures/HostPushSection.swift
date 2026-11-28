@@ -38,6 +38,12 @@ struct HostPushSection: View {
             Text("Purrdr adds a small helper to each host you turn on. When an agent needs you, this device gets a notification. Notifications show only the workspace name, never what the agent said. On Windows hosts, notifications may be delayed.")
                 .foregroundStyle(.secondaryText)
         }
+        .task {
+            // 種類清單與配對以後台為準(#705):有開著通知的主機時讀一次(所有主機共用同一份)。
+            if let push = pushes.first(where: { $0.support == .supported && $0.model.state == .on }) {
+                await push.model.refreshKindSettings()
+            }
+        }
     }
 }
 
@@ -192,50 +198,54 @@ struct HostPushTestRow: View {
     }
 }
 
-/// 開著通知的主機可展開選要收的種類(#292);新種類加進 `PushKind` 就會多一列(主機服務只在 HTTPS 主機)。
+/// 開著通知的主機可展開選要收的種類(#292);種類照後台的清單畫(#705),後台加了種類就多一列。
 private struct HostPushKindsRow: View {
     let push: HostPush
     @State private var isExpanded = false
 
-    private var model: PushModel { push.model }
-
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            ForEach(PushKind.choices(installsViaHostService: push.installsViaHostService), id: \.self) { kind in
-                Toggle(isOn: Binding(get: { model.kinds.contains(kind) }, set: { isOn in change(kind, to: isOn) })) {
-                    Text(kind.title)
-                }
-                // 最後一個種類不能關：要不收通知就關閉那台主機。主機服務太舊送不出的種類不能開(已開的仍可關)。
-                .disabled(model.isUpdatingKinds || model.kinds == [kind] || needsUpdate(kind))
-                .accessibilityIdentifier("account.push.\(push.host.storedValue).kind.\(kind.rawValue)")
-            }
-            if let version = outdatedObserverVersion {
-                Label("“May Be Stuck” and “Still Waiting for You” need host service \(version) or later.",
-                      systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds.needsHostService")
-            } else if !push.installsViaHostService {
-                Text("“May Be Stuck” and “Still Waiting for You” need the host service (HTTPS connection).")
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds.needsHostService")
-            }
+            PushKindToggles(push: push)
         } label: {
             Text("Notification Types")
                 .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds")
         }
     }
+}
 
-    private func needsUpdate(_ kind: PushKind) -> Bool {
-        !model.kinds.contains(kind) && kind.needsHostServiceUpdate(installed: push.hostServiceVersion)
+/// 一台主機的通知種類開關(帳號頁與主機通知頁共用):名稱與說明用後台給的(依手機語言);
+/// 這台主機不能開的種類(要裝主機服務、主機服務或外掛太舊)停用並說明原因,已開著的仍可關。最後一個種類不能關。
+struct PushKindToggles: View {
+    let push: HostPush
+
+    private var model: PushModel { push.model }
+
+    private var context: PushKindContext {
+        PushKindContext(installsViaHostService: push.installsViaHostService, hostServiceVersion: push.hostServiceVersion)
     }
 
-    /// 主機服務太舊、送不出「可能卡住」「仍在等你」時要的最低版本。
-    private var outdatedObserverVersion: String? {
-        guard push.installsViaHostService, PushKind.stuck.needsHostServiceUpdate(installed: push.hostServiceVersion)
-        else { return nil }
-        return HostServiceFeature.agentObserver.minimumVersion.description
+    var body: some View {
+        ForEach(model.kindChoices(context: context)) { choice in
+            let isOn = model.kinds.contains(choice.kind)
+            Toggle(isOn: Binding(get: { isOn }, set: { on in change(choice.kind, to: on) })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: choice.title)
+                    if !choice.details.isEmpty {
+                        Text(verbatim: choice.details)
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
+                    }
+                    if let reason = PushKindReason.text(choice.availability) {
+                        reason
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
+                            .accessibilityIdentifier("account.push.\(push.host.storedValue).kind.\(choice.kind.rawValue).reason")
+                    }
+                }
+            }
+            .disabled(model.isUpdatingKinds || (isOn && model.kinds == [choice.kind]) || (!isOn && !choice.availability.isAvailable))
+            .accessibilityIdentifier("account.push.\(push.host.storedValue).kind.\(choice.kind.rawValue)")
+        }
     }
 
     private func change(_ kind: PushKind, to isOn: Bool) {
@@ -243,21 +253,15 @@ private struct HostPushKindsRow: View {
     }
 }
 
-extension PushKind {
-    /// 帳號頁通知種類的名稱。
-    var title: LocalizedStringResource {
-        switch self {
-        case .blocked: "Needs You"
-        case .done: "Finished"
-        case .stuck: "May Be Stuck"
-        case .reminder: "Still Waiting for You"
-        case .hostService: "Host Service"
+/// 種類不能開的原因(畫面文字)。
+enum PushKindReason {
+    static func text(_ availability: PushKindAvailability) -> Text? {
+        switch availability {
+        case .available, .unsupportedConnection: nil
+        case .needsHostService: Text("Needs the host service (HTTPS connection).")
+        case .needsHostServiceUpdate(let minimum): Text("Needs host service \(minimum.description) or later.")
+        case .needsPluginUpdate(let minimum): Text("Needs notification helper \(minimum.description) or later.")
         }
-    }
-
-    /// 那台主機可選的種類：主機服務通知與 Agent 觀察者的「可能卡住」「仍在等你」只有 HTTPS 主機(經主機服務)才有。
-    public static func choices(installsViaHostService: Bool) -> [PushKind] {
-        allCases.filter { installsViaHostService || ($0 != .hostService && $0.requiredHostServiceFeature == nil) }
     }
 }
 
@@ -355,7 +359,12 @@ extension View {
             isPresented: Binding(get: { confirming != nil }, set: { _ in }),
             presenting: confirming
         ) { push in
-            Button("Install") { Task { await push.model.confirm() } }
+            Button("Install") {
+                Task {
+                    await push.model.confirm(kindContext: PushKindContext(
+                        installsViaHostService: push.installsViaHostService, hostServiceVersion: push.hostServiceVersion))
+                }
+            }
                 .accessibilityIdentifier("settings.push.install")
             Button("Cancel", role: .cancel) { push.model.cancel() }
         } message: { push in
