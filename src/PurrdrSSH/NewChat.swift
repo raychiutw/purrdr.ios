@@ -155,7 +155,7 @@ public actor NewChatLauncher {
     static let pollAttempts = 40
 
     private let client: HerdrClient
-    private let folders: NewChatFolders
+    private let folders: any NewChatFolderBrowsing
     private let sleep: Sleep
     /// 上次建立、但 agent 還沒成功啟動的 workspace(與它的資料夾),或在既有 workspace 新建的 tab(#537)。
     private enum Pending {
@@ -169,7 +169,7 @@ public actor NewChatLauncher {
     private let timings: OperationTimingSink?
 
     public init(
-        client: HerdrClient, folders: NewChatFolders,
+        client: HerdrClient, folders: any NewChatFolderBrowsing,
         sleep: @escaping Sleep = Sleeping.task, timings: OperationTimingSink? = nil
     ) {
         self.client = client

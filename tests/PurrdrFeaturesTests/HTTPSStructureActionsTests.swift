@@ -20,7 +20,7 @@ struct HTTPSStructureActionsTests {
     }
 
     private static func newChat(_ connection: RefusingHostConnection) -> NewChatModel {
-        let folders = NewChatFolders.absolutePathsOnly
+        let folders = AbsolutePathNewChatFolders()
         return NewChatModel(launcher: NewChatLauncher(client: HerdrClient(connection: connection), folders: folders), folders: folders)
     }
 

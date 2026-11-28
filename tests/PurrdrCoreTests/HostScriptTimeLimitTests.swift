@@ -18,7 +18,7 @@ struct HostScriptTimeLimitTests {
             HostFileScript.command(HostFileScript.read, arguments: ["a"]),
             HostFolderCommand.list(nil),
             HostFolderCommand.upload(folder: "/f", name: "n", size: 3),
-            NewChatFolders.command(for: "~"),
+            SSHNewChatFolders.command(for: "~"),
             HostUploadCommand.posix(name: uploadName, size: 3),
             GitChangesCommand.status(cwd: "/w"),
             SessionHistoryCommand.command(kind: "claude", cwd: "/w"),

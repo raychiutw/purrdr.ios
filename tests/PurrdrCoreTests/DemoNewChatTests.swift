@@ -9,7 +9,7 @@ import Testing
 struct DemoNewChatTests {
     @Test("家目錄有三個專案資料夾;ledger/reports 是空的;不存在的資料夾是 notFound")
     func browsesDemoFolders() async throws {
-        let folders = NewChatFolders(channel: DemoHost())
+        let folders = SSHNewChatFolders(channel: DemoHost())
 
         #expect(try await folders.list(nil) == NewChatFolderListing(path: "/Users/demo", folders: ["ledger", "notes", "weather-app"]))
         #expect(try await folders.list("~/ledger") == NewChatFolderListing(path: "/Users/demo/ledger", folders: ["reports"]))
@@ -21,7 +21,7 @@ struct DemoNewChatTests {
     @Test("新增對話的資料夾瀏覽與檔案瀏覽看到同一棵資料夾樹(同一份 Demo 資料)")
     func sameTreeAsFileBrowser() async throws {
         let host = DemoHost()
-        let picker = NewChatFolders(channel: host)
+        let picker = SSHNewChatFolders(channel: host)
         let files = HostFolders(channel: host)
 
         for path in ["/", "/Users", "/Users/demo", "/Users/demo/ledger", "/Users/demo/ledger/reports", "/Users/demo/notes"] {
@@ -34,7 +34,7 @@ struct DemoNewChatTests {
     func newTabInExistingWorkspace() async throws {
         let host = DemoHost()
         let client = HerdrClient(channel: host)
-        let launcher = NewChatLauncher(client: client, folders: NewChatFolders(channel: host))
+        let launcher = NewChatLauncher(client: client, folders: SSHNewChatFolders(channel: host))
         let before = try await client.snapshot()
 
         let started = try await launcher.start(NewChatRequest(
@@ -51,7 +51,7 @@ struct DemoNewChatTests {
     @Test("既有 Workspace 不存在:Demo 回 workspace_not_found")
     func newTabInMissingWorkspace() async throws {
         let host = DemoHost()
-        let launcher = NewChatLauncher(client: HerdrClient(channel: host), folders: NewChatFolders(channel: host))
+        let launcher = NewChatLauncher(client: HerdrClient(channel: host), folders: SSHNewChatFolders(channel: host))
 
         await #expect(throws: HerdrError.self) {
             try await launcher.start(NewChatRequest(folder: "/x", agent: .claude, target: .existingWorkspace(id: "w99")))
@@ -61,7 +61,7 @@ struct DemoNewChatTests {
     @Test("開始：資料夾解析得到，但 workspace.create 回 demo_unsupported")
     func startIsRejected() async throws {
         let host = DemoHost()
-        let launcher = NewChatLauncher(client: HerdrClient(channel: host), folders: NewChatFolders(channel: host))
+        let launcher = NewChatLauncher(client: HerdrClient(channel: host), folders: SSHNewChatFolders(channel: host))
 
         await #expect(throws: HerdrError.herdr(code: "demo_unsupported", message: DemoHost.unsupportedMessage)) {
             try await launcher.start(NewChatRequest(folder: "~/ledger", agent: .claude))

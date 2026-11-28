@@ -252,9 +252,9 @@ struct WindowsRealHostIntegrationTests {
         #expect(homeListing.entries.contains { $0.name == "專案" && $0.kind == .folder })
 
         log("新增對話的資料夾…")
-        let folders = try await NewChatFolders(channel: channel).list("~")
+        let folders = try await SSHNewChatFolders(channel: channel).list("~")
         #expect(folders == NewChatFolderListing(path: home, folders: ["專案"]))
-        await #expect(throws: NewChatFolderError.notFound("~/nope")) { _ = try await NewChatFolders(channel: channel).list("~/nope") }
+        await #expect(throws: NewChatFolderError.notFound("~/nope")) { _ = try await SSHNewChatFolders(channel: channel).list("~/nope") }
         await temp.remove()
         await ssh.disconnect()
     }

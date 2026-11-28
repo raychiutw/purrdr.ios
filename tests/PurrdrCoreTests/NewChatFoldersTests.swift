@@ -9,11 +9,11 @@ import Testing
 @Suite("新增對話的資料夾")
 struct NewChatFoldersTests {
     let host: LocalShellHost
-    let folders: NewChatFolders
+    let folders: SSHNewChatFolders
 
     init() throws {
         host = try LocalShellHost.temporary()
-        folders = NewChatFolders(channel: host)
+        folders = SSHNewChatFolders(channel: host)
     }
 
     func makeFolder(_ path: String) throws {
@@ -75,15 +75,15 @@ struct NewChatFoldersTests {
     @Test("第一行不是絕對路徑(登入設定印了東西)→ unexpectedResponse;指令不含反斜線，可由 Demo 認回路徑")
     func rejectsNonListingAndRoundTrips() async throws {
         let fake = FakeHost()
-        let command = NewChatFolders.command(for: "~/it's")
+        let command = SSHNewChatFolders.command(for: "~/it's")
         await fake.expect(command, reply: FakeReply(stdout: Data("Welcome!\n/Users/demo\n".utf8)))
 
         await #expect(throws: NewChatFolderError.unexpectedResponse) {
-            try await NewChatFolders(channel: fake).list("~/it's")
+            try await SSHNewChatFolders(channel: fake).list("~/it's")
         }
         #expect(!command.contains("\\"))
-        #expect(NewChatFolders.requestedPath(in: command) == "~/it's")
-        #expect(NewChatFolders.requestedPath(in: "ls -la") == nil)
+        #expect(SSHNewChatFolders.requestedPath(in: command) == "~/it's")
+        #expect(SSHNewChatFolders.requestedPath(in: "ls -la") == nil)
     }
 }
 

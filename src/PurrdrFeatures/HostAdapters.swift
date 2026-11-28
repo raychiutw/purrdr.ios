@@ -49,7 +49,7 @@ struct HostCapabilities {
     var uploads: any HostUploading
     var git: any GitChangesReading
     /// 新增聊天的資料夾建議:SSH 經通道列資料夾,HTTPS 經主機服務(0.12.0 起,#731);都沒有時只收完整路徑(#287)。
-    var folders: NewChatFolders
+    var folders: any NewChatFolderBrowsing
     /// Claude status line 的 session 狀態;讀不到時 context 退回對話紀錄算法。
     var sessionStatus: any ClaudeSessionStatusReading
     var antigravityStatus: HostCapability<any ClaudeSessionStatusReading>
@@ -186,7 +186,7 @@ enum ChannelCapabilities {
             connection: connection, channel: channel, hostFiles: hostFiles,
             files: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")),
             uploads: SSHHostUploader(channel: channel), git: SSHGitChanges(channel: channel),
-            folders: NewChatFolders(channel: channel),
+            folders: SSHNewChatFolders(channel: channel),
             sessionStatus: ClaudePlanUsageHost(channel: channel, files: hostFiles),
             antigravityStatus: .available(AntigravityPlanUsageHost(channel: channel, files: hostFiles)),
             // Send When Done 要主機服務的 Agent 觀察者(#305)。
@@ -349,7 +349,7 @@ final class HTTPSHostAdapter: HostAdapter {
             uploads: (connection as? any HostUploading) ?? SSHHostUploader(channel: channel),
             git: (connection as? any GitChangesReading) ?? UnsupportedGitChanges(),
             // 資料夾瀏覽走主機服務(0.12.0 起,#731);沒有時只收完整路徑。
-            folders: (connection as? any DirectoryBrowsing).map { NewChatFolders(browser: $0) } ?? .absolutePathsOnly,
+            folders: (connection as? any DirectoryBrowsing).map { HostServiceNewChatFolders(browser: $0) } ?? AbsolutePathNewChatFolders(),
             sessionStatus: (connection as? any ClaudeSessionStatusReading) ?? UnavailableSessionStatus(),
             // Antigravity 的包裝經 SSH 寫入,主機服務沒有(#448)。
             antigravityStatus: .unavailable(.notOfferedByConnectionMethod),

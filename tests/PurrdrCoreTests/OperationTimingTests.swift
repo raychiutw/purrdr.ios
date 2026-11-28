@@ -25,7 +25,7 @@ struct OperationTimingTests {
         await host.expect(Self.bridge, reply: NewChatLaunchTests.agentStarted(pane: "w1:p3"))
         let collector = TimingCollector()
         let launcher = NewChatLauncher(
-            client: HerdrClient(channel: host), folders: NewChatFolders(channel: host), timings: collector.sink)
+            client: HerdrClient(channel: host), folders: SSHNewChatFolders(channel: host), timings: collector.sink)
 
         _ = try await launcher.start(NewChatRequest(
             folder: "/Users/demo/ledger", agent: .claude, resumeSession: "abc-123", target: .existingWorkspace(id: "w1")))
@@ -40,7 +40,7 @@ struct OperationTimingTests {
         await host.expect(Self.bridge, reply: NewChatLaunchTests.error("tab.create", code: "workspace_not_found", message: "gone"))
         let collector = TimingCollector()
         let launcher = NewChatLauncher(
-            client: HerdrClient(channel: host), folders: NewChatFolders(channel: host), timings: collector.sink)
+            client: HerdrClient(channel: host), folders: SSHNewChatFolders(channel: host), timings: collector.sink)
 
         await #expect(throws: HerdrError.self) {
             try await launcher.start(NewChatRequest(folder: "/Users/demo/ledger", agent: .claude, target: .existingWorkspace(id: "w1")))

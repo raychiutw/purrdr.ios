@@ -12,13 +12,13 @@ struct NewChatModelTests {
     static let bridge = HerdrCommand.bridge()
 
     static func listing(_ path: String, _ folders: [String]) -> FakeReply {
-        FakeReply(stdout: NewChatFolders.output(path: path, folders: folders))
+        FakeReply(stdout: SSHNewChatFolders.output(path: path, folders: folders))
     }
 
     static func model(_ host: FakeHost) -> NewChatModel {
         NewChatModel(
-            launcher: NewChatLauncher(client: HerdrClient(channel: host), folders: NewChatFolders(channel: host)),
-            folders: NewChatFolders(channel: host))
+            launcher: NewChatLauncher(client: HerdrClient(channel: host), folders: SSHNewChatFolders(channel: host)),
+            folders: SSHNewChatFolders(channel: host))
     }
 
     static func herdrError(_ method: String, code: String, message: String) -> FakeReply {
@@ -43,9 +43,9 @@ struct NewChatModelTests {
     @Test("資料夾瀏覽往下一層:子資料夾的路徑與家目錄沿用到下一層的 model")
     func pickerChildLevelKeepsHome() async throws {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: ""), reply: Self.listing("/Users/demo", ["ledger"]))
-        await host.expect(NewChatFolders.command(for: "/Users/demo/ledger"), reply: Self.listing("/Users/demo/ledger", []))
-        let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: nil)
+        await host.expect(SSHNewChatFolders.command(for: ""), reply: Self.listing("/Users/demo", ["ledger"]))
+        await host.expect(SSHNewChatFolders.command(for: "/Users/demo/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        let picker = FolderPickerModel(folders: SSHNewChatFolders(channel: host), start: nil)
         await picker.load()
         let childPath = try #require(picker.childPath("ledger"))
         #expect(childPath == "/Users/demo/ledger")
@@ -62,12 +62,12 @@ struct NewChatModelTests {
     @Test("一開始列出家目錄;點資料夾進去;上一層回到上層，在 / 不能再往上")
     func browsesFolders() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: ""), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
-        await host.expect(NewChatFolders.command(for: "/Users/demo/ledger"), reply: Self.listing("/Users/demo/ledger", []))
-        await host.expect(NewChatFolders.command(for: "/Users/demo"), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
-        await host.expect(NewChatFolders.command(for: "/Users"), reply: Self.listing("/Users", ["demo"]))
-        await host.expect(NewChatFolders.command(for: "/"), reply: Self.listing("/", ["Users"]))
-        let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: nil)
+        await host.expect(SSHNewChatFolders.command(for: ""), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
+        await host.expect(SSHNewChatFolders.command(for: "/Users/demo/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await host.expect(SSHNewChatFolders.command(for: "/Users/demo"), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
+        await host.expect(SSHNewChatFolders.command(for: "/Users"), reply: Self.listing("/Users", ["demo"]))
+        await host.expect(SSHNewChatFolders.command(for: "/"), reply: Self.listing("/", ["Users"]))
+        let picker = FolderPickerModel(folders: SSHNewChatFolders(channel: host), start: nil)
         #expect(picker.state == .loading)
         #expect(!picker.canGoUp)
 
@@ -88,10 +88,10 @@ struct NewChatModelTests {
     @Test("資料夾瀏覽的路徑麵包屑(比照檔案頁，實機回報 2026-11-20):家目錄以「~」開頭，點一段回到那一層")
     func pickerBreadcrumbs() async throws {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: ""), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
-        await host.expect(NewChatFolders.command(for: "/Users/demo/ledger"), reply: Self.listing("/Users/demo/ledger", ["reports"]))
-        await host.expect(NewChatFolders.command(for: "/Users/demo"), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
-        let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: nil)
+        await host.expect(SSHNewChatFolders.command(for: ""), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
+        await host.expect(SSHNewChatFolders.command(for: "/Users/demo/ledger"), reply: Self.listing("/Users/demo/ledger", ["reports"]))
+        await host.expect(SSHNewChatFolders.command(for: "/Users/demo"), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
+        let picker = FolderPickerModel(folders: SSHNewChatFolders(channel: host), start: nil)
 
         await picker.load()
         await picker.open("ledger")
@@ -106,10 +106,10 @@ struct NewChatModelTests {
     @Test("讀取錯誤與空資料夾是不同狀態：錯誤有說明、重試同一個資料夾")
     func errorIsNotEmpty() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~/gone"), reply: FakeReply(exitCode: 66))
-        await host.expect(NewChatFolders.command(for: "~/gone"), reply: FakeReply(stderr: Data("boom".utf8), exitCode: 1))
-        await host.expect(NewChatFolders.command(for: "~/gone"), reply: Self.listing("/Users/demo/gone", []))
-        let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: "~/gone")
+        await host.expect(SSHNewChatFolders.command(for: "~/gone"), reply: FakeReply(exitCode: 66))
+        await host.expect(SSHNewChatFolders.command(for: "~/gone"), reply: FakeReply(stderr: Data("boom".utf8), exitCode: 1))
+        await host.expect(SSHNewChatFolders.command(for: "~/gone"), reply: Self.listing("/Users/demo/gone", []))
+        let picker = FolderPickerModel(folders: SSHNewChatFolders(channel: host), start: "~/gone")
 
         await picker.load()
         guard case .failed(let notFound) = picker.state else { Issue.record("應該是錯誤"); return }
@@ -130,9 +130,9 @@ struct NewChatModelTests {
     @Test("在 / 底下開資料夾不會變成 //x")
     func opensFromRoot() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "/"), reply: Self.listing("/", ["Users"]))
-        await host.expect(NewChatFolders.command(for: "/Users"), reply: Self.listing("/Users", []))
-        let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: "/")
+        await host.expect(SSHNewChatFolders.command(for: "/"), reply: Self.listing("/", ["Users"]))
+        await host.expect(SSHNewChatFolders.command(for: "/Users"), reply: Self.listing("/Users", []))
+        let picker = FolderPickerModel(folders: SSHNewChatFolders(channel: host), start: "/")
 
         await picker.load()
         await picker.open("Users")
@@ -167,7 +167,7 @@ struct NewChatModelTests {
     @Test("開始：建立 workspace(名稱由 herdr 用資料夾名)、以 agent 自己的權限設定啟動，就緒後送出第一則訊息")
     func startsAndSendsFirstMessage() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await host.expect(SSHNewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
         await host.expect(Self.bridge, reply: Self.reply(Self.created))
         await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"w4:p1"},"argv":["claude"]}}"#))
         await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted","delivery":"submitted"}}"#))
@@ -192,7 +192,7 @@ struct NewChatModelTests {
     @Test("agent 停在啟動問題(例如資料夾信任):不送第一則訊息，留給聊天的輸入框")
     func keepsMessageWhenAgentNotReady() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await host.expect(SSHNewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
         await host.expect(Self.bridge, reply: Self.reply(Self.created))
         await host.expect(Self.bridge, reply: Self.herdrError("agent.start", code: "agent_not_ready", message: "trust prompt"))
         let model = Self.model(host)
@@ -219,7 +219,7 @@ struct NewChatModelTests {
     @Test("名稱欄位:填了的 workspace 與 tab 名稱(去頭尾空白)交給主機;留空時不帶")
     func namesAreOptional() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await host.expect(SSHNewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
         await host.expect(Self.bridge, reply: Self.reply(Self.created))
         await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:tab.rename","result":{"type":"ok"}}"#))
         await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"w4:p1"},"argv":["claude"]}}"#))
@@ -234,7 +234,7 @@ struct NewChatModelTests {
         #expect(sent.contains { $0.contains(#""label":"Draft""#) && $0.contains("tab.rename") })
 
         let plain = FakeHost()
-        await plain.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await plain.expect(SSHNewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
         await plain.expect(Self.bridge, reply: Self.reply(Self.created))
         await plain.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"w4:p1"},"argv":["claude"]}}"#))
         let blank = Self.model(plain)
@@ -249,7 +249,7 @@ struct NewChatModelTests {
     @Test("主機上沒有這個資料夾：說明並建議用資料夾瀏覽")
     func missingFolderMessage() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~/nope"), reply: FakeReply(exitCode: 66))
+        await host.expect(SSHNewChatFolders.command(for: "~/nope"), reply: FakeReply(exitCode: 66))
         let model = Self.model(host)
         model.folder = "~/nope"
 
@@ -261,7 +261,7 @@ struct NewChatModelTests {
     @Test("Demo 主機拒絕建立 workspace:說明要用自己的主機(翻譯過的文字，不是 herdr 原文)")
     func demoRejection() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await host.expect(SSHNewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
         await host.expect(Self.bridge, reply: Self.herdrError("workspace.create", code: "demo_unsupported", message: "raw"))
         let model = Self.model(host)
         model.folder = "~/ledger"
@@ -274,7 +274,7 @@ struct NewChatModelTests {
     @Test("其他 herdr 錯誤保留原文")
     func otherHerdrErrorKeepsMessage() async {
         let host = FakeHost()
-        await host.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await host.expect(SSHNewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
         await host.expect(Self.bridge, reply: Self.herdrError("workspace.create", code: "something", message: "herdr says no"))
         let model = Self.model(host)
         model.folder = "~/ledger"
