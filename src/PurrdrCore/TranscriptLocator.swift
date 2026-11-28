@@ -27,15 +27,7 @@ public struct TranscriptLocator: Sendable, Hashable {
     /// Windows 對話紀錄腳本裡找檔的 PowerShell 函式定義(一行);沿用回報路徑的位置規則沒有自己的函式(`nil`)。
     package let powershellFunction: String?
     /// `PFind` 裡這個種類呼叫上面函式的運算式(`$i` id、`$p` 資料夾名);`nil` 走預設(`$i` 本身就是路徑)。
-    private let powershellFindCall: String?
-
-    /// 列表預覽腳本(POSIX)的 case 分支;沿用回報路徑的位置規則走預設分支(`nil`)。
-    package var previewBranch: String? {
-        resolver == Self.reportedPathResolver ? nil : "\(name))\n\(resolver)\n;;"
-    }
-
-    /// Windows `PFind` switch 的分支。
-    package var powershellFindBranch: String? { powershellFindCall.map { "'\(name)'{\($0)}" } }
+    package let powershellFindCall: String?
 
     /// 回報路徑的位置規則:`$i` 本身就是檔案路徑。
     package static let reportedPathResolver = "f=$i"

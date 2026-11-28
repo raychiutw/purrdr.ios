@@ -58,37 +58,21 @@ def swift_source():
     return source
 
 
+# 內容由 `TranscriptLocator.all` 產生的腳本:不在這裡重算,直接讀 golden 檔(`TranscriptScriptGoldenTests` 保證與 app 產生的一致)。
+GOLDEN_FOLDER = os.path.join(REPO, "tests", "PurrdrTestSupport", "Fixtures", "golden-scripts")
+GOLDEN_LITERALS = {"transcriptFunctions": "windows.transcriptFunctions.ps1", "previews": "windows.previews.ps1"}
+
+
 def swift_literal(source, name):
-    """`static let <name> = #\"\"\" … \"\"\"#` 的內容(去掉縮排，與 Swift 多行字串相同)。"""
+    """`static let <name> = #\"\"\" … \"\"\"#` 的內容(去掉縮排，與 Swift 多行字串相同);由定位規則產生的兩份腳本改讀 golden 檔。"""
+    if name in GOLDEN_LITERALS:
+        with open(os.path.join(GOLDEN_FOLDER, GOLDEN_LITERALS[name]), encoding="utf-8", newline="") as golden:
+            return golden.read()
     match = re.search(r"static let " + name + r' = #"""\n(.*?)\n( *)"""#', source, re.S)
     if not match:
         sys.exit(f"Swift 原始碼找不到 `static let {name} = #\"\"\"…\"\"\"#`:寫法改了，請更新本腳本的抽取方式")
     body, indent = match.group(1), match.group(2)
-    text = "\n".join(line[len(indent):] if line.startswith(indent) else line for line in body.split("\n"))
-    return expand_locator_placeholders(text)
-
-
-def expand_locator_placeholders(text):
-    """對話紀錄腳本的位置規則分支由 `TranscriptLocator.all` 產生(#670):照 `TranscriptLocator.swift` 的定義展開 `@…@` 佔位字。"""
-    if not re.search(r"@(LOCATORFUNCTIONS|FINDBRANCHES|HEADERKINDS)@", text):
-        return text
-    locator_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "PurrdrCore", "TranscriptLocator.swift")
-    with open(locator_path, encoding="utf-8") as handle:
-        locators = handle.read()
-    functions, branches, header_kinds = [], [], []
-    for block in locators.split("TranscriptLocator(")[1:]:
-        name = re.search(r'name: "(\w+)"', block)
-        if not name:
-            continue
-        function = re.search(r'powershellFunction: #"(.*?)"#,\n', block)
-        call = re.search(r'powershellFindCall: "(.*?)"', block)
-        if function and call:
-            functions.append(function.group(1))
-            branches.append("'%s'{%s}" % (name.group(1), call.group(1)))
-        if re.search(r"headerCheck: \{", block):
-            header_kinds.append("'%s'" % name.group(1))
-    return (text.replace("@LOCATORFUNCTIONS@", "\n".join(functions)).replace("@FINDBRANCHES@", "".join(branches))
-            .replace("@HEADERKINDS@", ",".join(header_kinds)))
+    return "\n".join(line[len(indent):] if line.startswith(indent) else line for line in body.split("\n"))
 
 
 INTERPOLATION = r"\\#?\((?:\w+\.)?(\w+)\)"

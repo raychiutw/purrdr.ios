@@ -56,7 +56,7 @@ enum WindowsScripts {
         function PRunBlock([scriptblock]$k){try{& $k}catch{$o.Flush();exit (PCode $_)};$o.Flush()}
         """#
         .replacingOccurrences(of: "@LOCATORFUNCTIONS@", with: TranscriptLocator.all.compactMap(\.powershellFunction).joined(separator: "\n"))
-        .replacingOccurrences(of: "@FINDBRANCHES@", with: TranscriptLocator.all.compactMap(\.powershellFindBranch).joined())
+        .replacingOccurrences(of: "@FINDBRANCHES@", with: TranscriptLocator.all.compactMap { locator in locator.powershellFindCall.map { "'\(locator.name)'{\($0)}" } }.joined())
 
     static func transcript(_ body: String, arguments values: [String]) -> String {
         [prelude, arguments(values), transcriptFunctions, body].joined(separator: "\n")

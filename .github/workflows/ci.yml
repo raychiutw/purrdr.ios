@@ -176,7 +176,7 @@ jobs:
           fi
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$changed"
-          if echo "$changed" | grep -Eq '^(src/[^/]+/(WindowsScripts|WindowsHostChannel|HostScriptTimeLimit|HostServiceProtocol|TranscriptLocator)\.swift|vendor/purrdr-host/protocol/.*|scripts/windows-(file-fetch|upload)-repro\.py|\.github/workflows/ci\.yml)$'; then
+          if echo "$changed" | grep -Eq '^(src/[^/]+/(WindowsScripts|WindowsHostChannel|HostScriptTimeLimit|HostServiceProtocol|TranscriptLocator)\.swift|vendor/purrdr-host/protocol/.*|scripts/windows-(file-fetch|upload)-repro\.py|tests/PurrdrTestSupport/Fixtures/golden-scripts/.*|\.github/workflows/ci\.yml)$'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"; echo "沒有相關改動,略過契約測試"

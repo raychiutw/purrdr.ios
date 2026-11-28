@@ -390,7 +390,7 @@ public enum TranscriptCommand {
         shift 5
         done
         """#
-            .replacingOccurrences(of: "@BRANCHES@", with: TranscriptLocator.all.compactMap(\.previewBranch).joined(separator: "\n"))
+            .replacingOccurrences(of: "@BRANCHES@", with: TranscriptLocator.all.filter { $0.resolver != TranscriptLocator.reportedPathResolver }.map { "\($0.name))\n\($0.resolver)\n;;" }.joined(separator: "\n"))
             .replacingOccurrences(of: "@HEADERKINDS@", with: TranscriptLocator.all.filter(\.readsHeader).map(\.name).joined(separator: "|"))
             .replacingOccurrences(of: "@STRIP@", with: stripImages)
 
