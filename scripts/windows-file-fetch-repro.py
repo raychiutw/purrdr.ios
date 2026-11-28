@@ -12,10 +12,11 @@ kind:
           symbolic link 跳出工作目錄(建不了就略過)、排除清單大小寫不同、別的磁碟機、相對路徑、ADS、UNC 都拒絕;缺檔、資料夾
   snapshot  從頭讀之後覆寫檔案，同版本的後續分塊仍是舊內容(不拼出兩個版本);舊版本從頭讀回 changed
   limit   閒置時限(3 秒)以 exit 124 結束、程序樹不留程序
+  contract  CI 的 Windows job 跑的組合：shared + access(搭配 PURRDR_WINDOWS_LOCAL=1,不需要 sshd)
   shared  與 app、主機服務共用的存取規則案例(vendor/purrdr-host/protocol/host-file-access.json 的 Windows 案例，只看路徑):家目錄設成
           共用案例的 Windows 家目錄(只改 PowerShell 程序內的 $env:USERPROFILE),不碰真的家目錄;放行回 missing、不放行回 denied
 
-用法(要在 Windows 主機本機跑：測試檔寫在本機 %TEMP%):
+用法(要在 Windows 主機本機跑：測試檔寫在本機 %TEMP%;PURRDR_WINDOWS_LOCAL=1 時不經 sshd,直接啟動 powershell.exe):
   PURRDR_WINDOWS_HOST=user@127.0.0.1 PURRDR_WINDOWS_KEY=<私鑰> \
     python -I scripts/windows-file-fetch-repro.py [--kind binary|access|snapshot|limit|all]
 全部綠 exit 0。只結束本次啟動的程序樹裡的程序(以 pid 與建立時間確認)。
@@ -97,12 +98,15 @@ class Fetcher:
     """一條長駐取檔通道(一個 ssh 程序)。"""
 
     def __init__(self, source, idle=60, total=600, verbose=False, preamble=""):
-        remote = "cat /proc/$$/winpid >&2; " + repro.encoded(repro.stdin_stub(source))
-        argv = repro.ssh_argv(remote)
-        if verbose:
-            argv.insert(1, "-v")
+        if repro.LOCAL:
+            argv = repro.local_argv(repro.stdin_stub(source))
+        else:
+            argv = repro.ssh_argv("cat /proc/$$/winpid >&2; " + repro.encoded(repro.stdin_stub(source)))
+            if verbose:
+                argv.insert(1, "-v")
         self.process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        self.root = self.process.stderr.readline().decode().strip()
+        # 本機直接啟動時程序本身就是 PowerShell;經 sshd 時第一行 stderr 是外層 shell 的 Windows pid。
+        self.root = str(self.process.pid) if repro.LOCAL else self.process.stderr.readline().decode().strip()
         self.stderr = b""
         self.chunks = queue.Queue()
         self.buffer = b""
@@ -254,17 +258,31 @@ def mklink(kind, link, target):
     return completed.returncode == 0
 
 
+def short_path(path):
+    """8.3 短檔名路徑(路徑要存在);磁碟機沒開 8.3 時回傳原路徑。"""
+    import ctypes
+    buffer = ctypes.create_unicode_buffer(1024)
+    ctypes.windll.kernel32.GetShortPathNameW(path, buffer, len(buffer))
+    return buffer.value or path
+
+
 def run_access(source):
     folder = tempfile.mkdtemp(prefix="purrdr-fetch-")
     root = os.path.join(folder, "Work")
     outside = os.path.join(folder, "Outside")
     secrets = os.path.join(folder, "Home", ".ssh")
-    for directory in (root, outside, secrets, os.path.join(root, "docs"), os.path.join(root, ".SSH")):
+    credentials = os.path.join(root, "AppData", "Roaming", "Microsoft", "Credentials")
+    long_folder = os.path.join(root, "Longdirectoryname")
+    for directory in (root, outside, secrets, os.path.join(root, "docs"), os.path.join(root, ".SSH"), credentials, long_folder):
         os.makedirs(directory, exist_ok=True)
     for path in (os.path.join(root, "docs", "a.png"), os.path.join(outside, "b.png"), os.path.join(secrets, "id_ed25519"),
-                 os.path.join(root, ".SSH", "config")):
+                 os.path.join(root, ".SSH", "config"), os.path.join(credentials, "blob"),
+                 os.path.join(long_folder, "longfilename.png")):
         with open(path, "wb") as file:
             file.write(b"\x89PNG\r\n\x1a\nsecret")
+    short_allowed = short_path(os.path.join(long_folder, "longfilename.png"))
+    short_excluded = short_path(os.path.join(credentials, "blob"))
+    has_short_names = short_allowed.lower() != os.path.join(long_folder, "longfilename.png").lower()
     mklink("/J", os.path.join(root, "out"), outside)
     mklink("/J", os.path.join(root, "keys"), secrets)
     mklink("/J", os.path.join(root, "inner"), os.path.join(root, "docs"))
@@ -293,6 +311,9 @@ def run_access(source):
             ("缺檔", os.path.join(root, "docs", "nope.png"), root, "missing"),
             ("資料夾", os.path.join(root, "docs"), root, "other"),
         ]
+        if has_short_names:
+            cases += [("8.3 短檔名指到工作目錄之內", short_allowed, root, "file"),
+                      ("8.3 短檔名繞過排除清單", short_excluded, root, "denied")]
         if has_symlink:
             cases.append(("symbolic link 跳出工作目錄", os.path.join(root, "link.png"), root, "denied"))
         results = []
@@ -303,6 +324,8 @@ def run_access(source):
             ok = verdict == expected
             green &= ok
             results.append(f"{label} {verdict}{'' if ok else f'(應為 {expected})'}")
+        if not has_short_names:
+            results.append("磁碟機沒開 8.3 短檔名(fsutil 8dot3name),略過 8.3 案例")
         if not has_symlink:
             results.append("symbolic link 建不了(要開發人員模式或系統管理員),略過")
         return green, " · ".join(results)
@@ -337,7 +360,10 @@ def run_shared(source):
             green &= ok
             if not ok:
                 failures.append(f"{case['name']} {verdict}(應為 {case['expected']})")
-        return green, f"{len(cases)} 個案例" + ("" if green else ":" + " · ".join(failures))
+        posix_only = sum(1 for case in vectors["accessCases"] if case["platform"] != "windows")
+        by_app = sum(1 for case in vectors["accessCases"] if case["platform"] == "windows") - len(cases)
+        skipped = f",略過 {posix_only} 個 POSIX 案例(需要 POSIX 路徑與檔案系統)、{by_app} 個由 app 判斷的案例"
+        return green, f"{len(cases)} 個案例{skipped}" + ("" if green else ":" + " · ".join(failures))
     finally:
         fetcher.close()
         repro.stop_processes(repro.still_running(trees))
@@ -399,14 +425,16 @@ def run_limit(source):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--kind", choices=["binary", "access", "shared", "snapshot", "limit", "all"], default="all")
+    parser.add_argument("--kind", choices=["binary", "access", "shared", "snapshot", "limit", "contract", "all"], default="all")
     options = parser.parse_args()
+    sys.stdout.reconfigure(encoding="utf-8")  # CI runner 的主控台預設不是 UTF-8;-I 又會忽略 PYTHONIOENCODING
     if os.name != "nt":
         sys.exit("要在 Windows 主機本機跑(測試檔直接寫在本機 %TEMP%)")
     source = repro.swift_source()
     runs = {"binary": run_binary, "access": run_access, "shared": run_shared, "snapshot": run_snapshot, "limit": run_limit}
     all_green = True
-    for kind in (list(runs) if options.kind == "all" else [options.kind]):
+    kinds = {"all": list(runs), "contract": ["shared", "access"]}.get(options.kind, [options.kind])
+    for kind in kinds:
         try:
             green, detail = runs[kind](source)
         except Exception as error:  # 一個案例出錯不影響其他案例

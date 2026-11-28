@@ -42,7 +42,7 @@ PURRDR_WINDOWS_HOST=user@host PURRDR_WINDOWS_KEY=<私鑰> \
   # 同樣的環境變數:python -I scripts/windows-follow-repro.py    # Windows 長駐追蹤腳本(#167):多通道多輪含 2 MiB、時限、關閉／斷線不留程序;要在 Windows 主機本機跑
   # 同樣的環境變數:python -I scripts/windows-host-files-repro.py  # Windows 主機檔案長駐讀取(#203):回應種類、閒置時限不留程序、以 ssh -v 量每次讀取的位元組
   # 同樣的環境變數:python -I scripts/windows-previews-repro.py    # Windows 列表預覽帶已知版本(#205):whole、unchanged、只送附加、換檔
-  # 同樣的環境變數:python -I scripts/windows-file-fetch-repro.py  # Windows 主機取檔(#226):PNG／JPEG／PDF／二進位／上限前的大檔 SHA-256 比對與每輪位元組、存取規則(junction、大小寫、磁碟機)、共用案例(--kind shared)、快照、閒置時限;要在 Windows 主機本機跑
+  # 同樣的環境變數:python -I scripts/windows-file-fetch-repro.py  # Windows 主機取檔(#226):PNG／JPEG／PDF／二進位／上限前的大檔 SHA-256 比對與每輪位元組、存取規則(junction、大小寫、磁碟機)、共用案例(--kind shared)、快照、閒置時限;要在 Windows 主機本機跑。`PURRDR_WINDOWS_LOCAL=1 python -I scripts/windows-file-fetch-repro.py --kind contract` 不經 sshd 直接啟動 powershell.exe(CI 的 `windows-fetch-contract` job 就跑這個,只在 Windows 腳本、協定共用案例或這兩支驅動程式有改動時才執行)
 PURRDR_REPRO_HOST=user@host PURRDR_REPRO_KEY=<私鑰> PURRDR_REPRO_HOST_KEY=<主機公鑰檔> \
   scripts/host-poll-repro/run.sh [次數]                          # 以可攜核心連真主機、模擬 app 並行輪詢(容器編譯);任一步失敗或取消後仍不返回就 RED
 ```

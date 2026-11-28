@@ -38,6 +38,8 @@ import uuid
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAUNCHER = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand "
+# PURRDR_WINDOWS_LOCAL=1:不經 sshd,直接在本機啟動 powershell.exe(CI 的 Windows runner 用;啟動參數與 app 相同)。
+LOCAL = os.environ.get("PURRDR_WINDOWS_LOCAL") == "1"
 
 
 SWIFT_FILES = ("WindowsScripts.swift", "WindowsHostChannel.swift", "HostScriptTimeLimit.swift")
@@ -149,6 +151,11 @@ def posix_quote(text):
     return "'" + text.replace("'", "'\\''") + "'"
 
 
+def local_argv(script):
+    """本機直接啟動的命令列:同 `LAUNCHER`,腳本以 -EncodedCommand 傳入。"""
+    return LAUNCHER.split() + [base64.b64encode(script.encode("utf-16-le")).decode()]
+
+
 def ssh_argv(remote_command, shell="bash"):
     if shell == "cmd":
         remote_command = "cmd.exe //c " + posix_quote(remote_command)
@@ -164,7 +171,8 @@ def ssh_argv(remote_command, shell="bash"):
 
 def run_powershell(script, timeout=60):
     """在主機執行一段輔助 PowerShell,回傳 stdout(去頭尾空白)。"""
-    completed = subprocess.run(ssh_argv(encoded("$ProgressPreference='SilentlyContinue';" + script)),
+    script = "$ProgressPreference='SilentlyContinue';" + script
+    completed = subprocess.run(local_argv(script) if LOCAL else ssh_argv(encoded(script)),
                                stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
     return completed.stdout.decode("utf-8", errors="replace").strip()
 
