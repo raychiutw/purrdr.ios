@@ -265,7 +265,11 @@ extension XCUIApplication {
         components.host = "testing-chat"
         components.queryItems = [URLQueryItem(name: "host", value: host), URLQueryItem(name: "pane", value: paneID)]
         guard let url = components.url else { return XCTFail("組不出測試連結", file: file, line: line) }
-        open(url)
+        // 連結要等列表上有這一列(不點它)才送:Agent 列表讀到之前聊天頁找不到它。
+        XCTAssertTrue(reveal(element(chatRowID(paneID, host: host))), "連結送出前列表上沒有 \(host) 主機的 Agent \(paneID)", file: file, line: line)
+        // 不用 `XCUIApplication.open(_:)`:它會重新啟動 app(測試輸出出現第二次 Launch),連結在冷啟動、列表還沒讀到 Agent 時就到,
+        // 聊天頁找不到該 Agent 只顯示警告。系統的 open 送給執行中的 app(`onOpenURL`),不重啟、不彈確認。
+        XCUIDevice.shared.system.open(url)
         XCTAssertTrue(conversationBar.waitUntilExistsAndSettled(timeout: 15), "測試連結沒有開出聊天畫面", file: file, line: line)
     }
 
@@ -408,6 +412,8 @@ extension XCUIApplication {
 /// 只看它的 frame 會點到蓋在上面的卡片(#251)。整棵畫面樹只取一次 snapshot，位置在測試端計算。
 struct ConversationLayout {
     static let coverIdentifiers = ["conversation.suggestion", "youShouldKnow.note", "youShouldKnow.compact", "stopBar.stop", "composer.text"]
+    /// 蓋在對話頂端的元素(跨聊天「需要你」橫幅在導覽列下面,#530):列表內容在它底下捲過,點到會變成點橫幅(換去別的聊天)。
+    static let topCoverIdentifiers = ["needsYou.banner"]
 
     let visibleRange: ClosedRange<CGFloat>
     let listMidX: CGFloat
@@ -423,19 +429,21 @@ struct ConversationLayout {
         }
         var listFrame: CGRect?
         var navigationBarMaxY: CGFloat?
+        var topCoverMaxY: CGFloat?
         var coverTops: [CGFloat] = []
         var seen = Set<String>()
         func walk(_ node: any XCUIElementSnapshot) {
             let id = node.identifier
             if id == "conversation.list", node.elementType == .collectionView, listFrame == nil { listFrame = node.frame }
             if node.elementType == .navigationBar, navigationBarMaxY == nil { navigationBarMaxY = node.frame.maxY }
+            if Self.topCoverIdentifiers.contains(id), topCoverMaxY == nil { topCoverMaxY = node.frame.maxY + 8 }
             // 與 `element(id).exists` 一樣，同一個識別碼取第一個。
             if Self.coverIdentifiers.contains(id), seen.insert(id).inserted { coverTops.append(node.frame.minY - 8) }
             node.children.forEach(walk)
         }
         walk(tree)
         let list = listFrame ?? fallbackList.frame
-        let top = max(list.minY, navigationBarMaxY ?? list.minY)
+        let top = max(list.minY, navigationBarMaxY ?? list.minY, topCoverMaxY ?? list.minY)
         let bottom = min(list.maxY, coverTops.min() ?? list.maxY)
         visibleRange = top...max(top, bottom)
         listMidX = list.midX

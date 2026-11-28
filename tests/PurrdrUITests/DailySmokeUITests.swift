@@ -206,13 +206,18 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(app.staticTexts["Check how the widget refreshes"].waitUntilExists(timeout: 10), "沒有 subagent 卡")
             let subagentCard = app.element("conversation.subagent").firstMatch
             XCTAssertTrue(subagentCard.waitUntilExistsAndSettled(timeout: 5), "沒有 subagent 卡片")
+            // 問題卡是列表的一列(#680),列表從底部開啟時 subagent 卡可能在「需要你」橫幅底下:先捲到不被蓋住再點。
+            XCTAssertTrue(app.revealInConversation(subagentCard), "subagent 卡被橫幅蓋住,捲不出來")
             subagentCard.tap()
             XCTAssertTrue(app.element("conversation.subagent.result").waitUntilExists(timeout: 5), "點卡片沒有展開結果")
         }
         step("回答 Bash 權限") {
             let card = app.element("prompt.card")
             XCTAssertTrue(card.waitUntilExists(timeout: 10), "沒有提示卡")
-            app.element("prompt.option.1").tap()
+            // 問題卡在對話列表裡(#680),展開結果後要捲到選項看得到才點。
+            let option = app.element("prompt.option.1")
+            XCTAssertTrue(app.revealInConversation(option), "捲不到問題卡的選項")
+            option.tap()
             XCTAssertTrue(app.element("prompt.answered").waitUntilExists(timeout: 10), "沒有顯示已回答")
         }
     }
