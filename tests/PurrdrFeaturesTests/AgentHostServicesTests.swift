@@ -67,15 +67,21 @@ struct AgentHostServicesTests {
     }
 
     nonisolated static let rows: [Row] = {
-        func caps(_ usage: Bool, _ writes: Bool, _ status: Bool, _ slash: Bool, _ launcher: Bool) -> AgentHostCapabilities {
-            AgentHostCapabilities(planUsage: usage, planUsageWritesHost: writes, sessionStatus: status, slashDiscovery: slash, launcher: launcher)
+        func caps(
+            _ usage: Bool, _ writes: Bool, _ status: Bool, _ slash: Bool, _ launcher: Bool, resume: AgentHostCapabilities.Resume = .none
+        ) -> AgentHostCapabilities {
+            AgentHostCapabilities(
+                planUsage: usage, planUsageWritesHost: writes, sessionStatus: status, slashDiscovery: slash, launcher: launcher, resume: resume)
         }
+        // 恢復 session:Claude Code、Codex 由主機服務／續接參數列出並恢復;Antigravity 只有旗標(SSH 才送得出去,HTTPS 主機服務不收任意參數)。
+        let listed = AgentHostCapabilities.Resume(listsSessions: true, resumesSession: true, continuesLast: false)
+        let flagOnly = AgentHostCapabilities.Resume(listsSessions: false, resumesSession: true, continuesLast: true)
         var rows: [Row] = []
         for connection in AgentHostConnectionKind.allCases {
             let ssh = connection != .https
-            rows.append(Row(agent: .claude, connection: connection, expected: caps(true, true, true, true, false)))
-            rows.append(Row(agent: .codex, connection: connection, expected: caps(true, false, false, false, ssh)))
-            rows.append(Row(agent: .agy, connection: connection, expected: caps(ssh, ssh, ssh, false, false)))
+            rows.append(Row(agent: .claude, connection: connection, expected: caps(true, true, true, true, false, resume: listed)))
+            rows.append(Row(agent: .codex, connection: connection, expected: caps(true, false, false, false, ssh, resume: listed)))
+            rows.append(Row(agent: .agy, connection: connection, expected: caps(ssh, ssh, ssh, false, false, resume: ssh ? flagOnly : .none)))
             for other in [AgentID.grok, .gemini, .other("x")] {
                 rows.append(Row(agent: other, connection: connection, expected: .none))
             }
@@ -96,6 +102,34 @@ struct AgentHostServicesTests {
         #expect((source?.hostWrite != nil) == caps.planUsageWritesHost)
         #expect((services.slashDiscovery(for: row.agent, channel: FakeHost()) != nil) == caps.slashDiscovery)
         #expect((services.launcher(for: row.agent, channel: FakeHost(), hostID: "h", consent: consent) != nil) == caps.launcher)
+    }
+
+    @Test("恢復 session 能力:每個 Agent × 每種連線方式,與設定檔的 session 組一致", arguments: AgentID.allCases + [AgentID.other("x")], AgentHostConnectionKind.allCases)
+    func resumeTable(agent: AgentID, connection: AgentHostConnectionKind) {
+        let resume = AgentHostCapabilities.resolve(agent, over: connection).resume
+        let session = AgentCatalog.profile(for: agent).session
+        #expect(resume.listsSessions == (session.resumeKind != nil))
+        #expect(resume.listsSessions == agent.supportsResume)
+        // 旗標式恢復只走 SSH 的啟動參數;沒有旗標的種類沒有。
+        let flagsUsable = connection != .https
+        #expect(resume.resumesSession == (session.resumeKind != nil || (session.resumeConversationFlag != nil && flagsUsable)))
+        #expect(resume.continuesLast == (session.continueFlag != nil && flagsUsable))
+    }
+
+    @Test("方案用量說明文字:每個有方案用量的 Agent 一份,產品名稱與設定檔一致")
+    func planUsageCopyTable() {
+        for agent in AgentHostCapabilities.planUsageAgents {
+            let copy = agent.planUsageCopy
+            #expect(agent.planUsageName == AgentCatalog.profile(for: agent).presentation.displayName)
+            if AgentHostCapabilities.resolve(agent, over: .ssh).planUsageWritesHost {
+                #expect(copy.consentMessage("u").contains(agent.planUsageName), "\(agent.canonicalName)")
+                #expect(copy.settingsChangedMessage().contains(agent.planUsageName))
+                #expect(copy.unsafeToChangeMessage().contains(agent.planUsageName))
+            }
+        }
+        #expect(AgentID.claude.planUsageShortName == "Claude")
+        #expect(AgentID.agy.planUsageShortName == "Antigravity")
+        #expect(AgentID.codex.planUsageShortName == "Codex")
     }
 }
 #endif

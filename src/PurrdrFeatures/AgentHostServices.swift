@@ -72,7 +72,31 @@ package struct AgentHostCapabilities: Equatable, Sendable {
     /// 有啟動器(Session 回報的主機端設定)。
     package var launcher: Bool
 
-    package init(planUsage: Bool, planUsageWritesHost: Bool, sessionStatus: Bool, slashDiscovery: Bool, launcher: Bool) {
+    /// 恢復過去 session 的方式(設定檔的 session 組決定有哪些旗標,連線方式決定送不送得出去)。
+    package struct Resume: Equatable, Sendable {
+        /// 能列出資料夾過去的 session 讓使用者挑(`resumeKind`,主機服務與 SSH 都有)。
+        package var listsSessions: Bool
+        /// 開新聊天時能帶一個 session 恢復:主機服務的 `resume_session`、SSH 的續接參數,或設定檔的恢復旗標(只有 SSH 送得出去)。
+        package var resumesSession: Bool
+        /// 能接續最近一次(設定檔的接續旗標,只有 SSH 送得出去)。
+        package var continuesLast: Bool
+
+        package init(listsSessions: Bool, resumesSession: Bool, continuesLast: Bool) {
+            self.listsSessions = listsSessions
+            self.resumesSession = resumesSession
+            self.continuesLast = continuesLast
+        }
+
+        package static let none = Resume(listsSessions: false, resumesSession: false, continuesLast: false)
+    }
+
+    /// 恢復 session 的能力。
+    package var resume: Resume
+
+    package init(
+        planUsage: Bool, planUsageWritesHost: Bool, sessionStatus: Bool, slashDiscovery: Bool, launcher: Bool, resume: Resume = .none
+    ) {
+        self.resume = resume
         self.planUsage = planUsage
         self.planUsageWritesHost = planUsageWritesHost
         self.sessionStatus = sessionStatus
@@ -87,7 +111,22 @@ package struct AgentHostCapabilities: Equatable, Sendable {
     package static let planUsageAgents: [AgentID] = [.claude, .codex, .agy]
 
     package static func resolve(_ agent: AgentID, over connection: AgentHostConnectionKind) -> AgentHostCapabilities {
-        let overSSH = connection != .https
+        var capabilities = hostCapabilities(agent, overSSH: connection != .https)
+        capabilities.resume = resume(agent, overSSH: connection != .https)
+        return capabilities
+    }
+
+    /// 恢復 session:取自設定檔的 session 組。主機服務(HTTPS)只收 `resume_session`,不收任意啟動參數,所以旗標式恢復只有 SSH。
+    private static func resume(_ agent: AgentID, overSSH: Bool) -> Resume {
+        let session = AgentCatalog.profile(for: agent).session
+        let listed = session.resumeKind != nil
+        return Resume(
+            listsSessions: listed,
+            resumesSession: listed || (session.resumeConversationFlag != nil && overSSH),
+            continuesLast: session.continueFlag != nil && overSSH)
+    }
+
+    private static func hostCapabilities(_ agent: AgentID, overSSH: Bool) -> AgentHostCapabilities {
         switch agent {
         case .claude:
             return AgentHostCapabilities(

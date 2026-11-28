@@ -464,13 +464,9 @@ public final class PlanUsageModel {
         case AntigravityUsageError.windowsUnsupported:
             String(localized: "Antigravity plan usage isn’t available on Windows hosts yet.")
         case HostFilesError.changedSinceRead:
-            agent == .agy
-                ? String(localized: "Antigravity’s settings changed while Purrdr was updating them. Nothing was changed; try again.")
-                : String(localized: "Claude Code’s settings changed while Purrdr was updating them. Nothing was changed; try again.")
+            agent.planUsageCopy.settingsChangedMessage()
         case HostWriteError.unusableFile, HostFilesError.tooLarge:
-            agent == .agy
-                ? String(localized: "Purrdr can’t safely change Antigravity’s settings on this host.")
-                : String(localized: "Purrdr can’t safely change Claude Code’s settings on this host.")
+            agent.planUsageCopy.unsafeToChangeMessage()
         default:
             String(localized: "Couldn’t update the host: \(error.localizedDescription)")
         }
