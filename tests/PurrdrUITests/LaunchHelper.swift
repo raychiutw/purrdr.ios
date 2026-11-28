@@ -101,7 +101,8 @@ extension XCUIApplication {
             guard row.waitUntilExists(timeout: max(timeout - 4, 1)) else { return false }
         }
         let limit = windows.firstMatch.frame.maxY - 150
-        for _ in 0..<3 where row.frame.maxY > limit {
+        // 列的位置以一次 snapshot 取得(`frame` 與 `exists` 各是一次跨行程查詢,#720);取不到就不再拖。
+        for _ in 0..<3 where ((try? row.snapshot())?.frame.maxY ?? 0) > limit {
             drag(list)
         }
         return row.exists
