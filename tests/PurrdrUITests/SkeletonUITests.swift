@@ -10,7 +10,7 @@ final class SkeletonUITests: XCTestCase {
     /// 後台一直沒回應、沒有上次的會員資料:帳號頁是骨架。
     @MainActor
     func testAccountSkeletonWhileBackendSilent() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMemberLoading"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingMemberLoading])
         app.openAccount()
         let skeleton = app.element("account.loading")
         XCTAssertTrue(skeleton.waitUntilExists(timeout: 10), "帳號頁沒有骨架")

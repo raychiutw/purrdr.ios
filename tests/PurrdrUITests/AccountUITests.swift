@@ -16,7 +16,7 @@ final class AccountUITests: XCTestCase {
     /// 出合併確認頁、兩邊摘要都在,確認後合併、回到登入方式有兩種。
     @MainActor
     func testMemberDeleteSignOutLockedFeaturesActivationFromPaywallAndLinkMerge() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingLinkMerge"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingLinkMerge])
         app.openAccountSheet()
 
         XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.waitUntilExists(timeout: 10), "沒有顯示會員")

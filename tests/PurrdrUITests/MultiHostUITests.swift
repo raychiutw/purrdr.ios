@@ -13,7 +13,7 @@ final class MultiHostUITests: XCTestCase {
     /// 左上角篩選某一台時只剩那台的列，其他台的錯誤行也收起來，選回所有主機就回來。
     @MainActor
     func testUnreachableHostKeepsOtherHostsRowsAndSamePaneOnTwoHostsAreSeparateChats() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-selectDemo"])
+        let app = XCUIApplication.launchUITesting(flags: [.seedHost, .seedUnreachableHost, .selectDemo])
 
         // 兩台主機有相同的 pane id:各自一列(「需要你」的 w2:p1 在最上面;列表是 lazy,畫面外的列不在 accessibility tree);
         // 開非選取中主機(選取中是 Demo)的聊天,開出的聊天副標題是狀態。

@@ -13,7 +13,7 @@ final class PermissionModeUITests: XCTestCase {
     /// 模型沒驗證過,面板只顯示、輸入列的模型膠囊顯示「模型 · effort」。
     @MainActor
     func testAntigravitySwitchesModeAndShowsModel() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoAntigravity"])
+        let app = XCUIApplication.launchUITesting(flags: [.demoAntigravity])
         let row = app.element("spaces.tab.demo/w4:t1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 的 Antigravity Agent")
         row.tap()

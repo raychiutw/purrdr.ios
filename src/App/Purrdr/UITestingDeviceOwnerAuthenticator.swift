@@ -4,22 +4,15 @@ import Synchronization
 
 /// UI 測試的 App 鎖替身(#284):不叫出系統 Face ID。
 ///
-/// 第一次解鎖驗證回「取消」(像使用者關掉啟動時的 Face ID),之後一律成功;`-uiTestingNoPasscode` 時沒有裝置密碼。
+/// 第一次解鎖驗證回「取消」(像使用者關掉啟動時的 Face ID),之後一律成功。
 final class UITestingDeviceOwnerAuthenticator: DeviceOwnerAuthenticating {
-    private let hasPasscode: Bool
     private let unlockAttempts = Mutex(0)
 
-    init(hasPasscode: Bool) {
-        self.hasPasscode = hasPasscode
-    }
-
     func availability() -> AppLockAvailability {
-        hasPasscode ? .available(.faceID) : .passcodeNotSet
+        .available(.faceID)
     }
 
     func authenticate(_ purpose: AppLockAuthenticationPurpose) async -> AppLockAuthenticationResult {
-        // 沒有裝置密碼時帳號操作無法驗證(與真機一致)。
-        if purpose == .confirmAccountChange, !hasPasscode { return .unavailable }
         guard purpose == .unlock else { return .success }
         let attempt = unlockAttempts.withLock { count in
             count += 1

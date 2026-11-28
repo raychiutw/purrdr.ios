@@ -243,7 +243,7 @@ extension XCUIApplication {
 
     /// 以 UI 測試模式啟動並進入某個 Demo 主機 Agent 的聊天。
     @MainActor
-    static func launchUITestingConversation(paneID: String, host: String = "demo", flags: [String] = [],
+    static func launchUITestingConversation(paneID: String, host: String = "demo", flags: [LaunchFlag] = [],
                                             contentSize: String? = nil,
                                             file: StaticString = #filePath, line: UInt = #line) -> XCUIApplication {
         let app = launchUITesting(flags: flags, contentSize: contentSize)

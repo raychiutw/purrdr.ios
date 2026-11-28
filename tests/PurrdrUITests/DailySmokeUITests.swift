@@ -23,7 +23,7 @@ final class DailySmokeUITests: XCTestCase {
     /// 帶 `-demoNeedsYouLater`:打開第一個聊天 3 秒後 notes 變成需要你(weather-app 一開始就需要你,不觸發橫幅)。
     @MainActor
     func testListAndChat() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSimulatedVideo", "-uiTestingLargeImageClipboard", "-demoNeedsYouLater"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingSimulatedVideo, .uiTestingLargeImageClipboard, .demoNeedsYouLater])
         let ledger = app.element("spaces.tab.demo/w1:t1")
 
         // 放在第一步(開任何聊天之前):`-demoNeedsYouLater` 要開聊天 3 秒後才多一個需要你,所以現在只有 weather-app。
@@ -218,7 +218,7 @@ final class DailySmokeUITests: XCTestCase {
     @MainActor
     func testTabsAndSignedOutAccount() {
         // `-uiTestingNoMember`:沒登入,Apple／Google 按鈕直接登入假後台;登入頁查無會員(404 member_not_found),加入頁照舊新建(#453)。
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoMember"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingNoMember])
 
         step("沒有「⋯」選單,右上依 tab 不同") {
             XCTAssertTrue(app.buttons["toolbar.newChat"].firstMatch.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天")
@@ -342,7 +342,7 @@ final class DailySmokeUITests: XCTestCase {
     /// Purrdr Plus 會員：帳號頁、通知、通知裝置。
     @MainActor
     func testPlusMemberAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingPlusMember, .seedHost])
         step("主機 tab 的通知有 Plus 時不鎖定,可進入開關頁") {
             app.openHostsTab()
             let row = app.overviewRow("hosts.notifications")
@@ -374,7 +374,7 @@ final class DailySmokeUITests: XCTestCase {
     /// 通知頁看得到今日上限;新增主機引導最後一頁照常有通知開關。
     @MainActor
     func testStoreBuildAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusOff", "-uiTestingMember"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingPlusOff, .uiTestingMember])
         step("帳號頁沒有 Plus 卡與主機同步,仍有通知與設定") {
             app.openAccountSheet()
             let notifications = app.element("account.notifications")
@@ -432,7 +432,7 @@ final class DailySmokeUITests: XCTestCase {
     /// 數據用量;最後(會改選取中主機)接兩個主機值(#390):在檔案 tab 換「選取中主機」不改聊天 tab 的「目前主機」篩選。
     @MainActor
     func testDataUsageThenFilesHostMenuDoesNotChangeChatFilter() {
-        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"])
+        let app = XCUIApplication.launchUITesting(flags: [.seedHost, .seedUnreachableHost, .seedDataUsage])
         step("主機 tab 總頁:狀態、用量區、這台主機的入口(#392)") {
             app.openHostsTab()
             // 兩台主機同時存在時選取中的不一定是 Studio Mac(連不上的 Build Box 沒有用量):明確選 Studio Mac。
@@ -488,7 +488,7 @@ final class DailySmokeUITests: XCTestCase {
     /// 取消後體驗範例主機;可從主機 tab 移除,也可從新增主機引導再啟用(#394)。
     @MainActor
     func testWelcomeNoHostsGuideAndDemo() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts", "-showWelcome"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingNoHosts, .showWelcome])
         step("歡迎頁試用 Demo") {
             XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10), "沒有歡迎頁")
             // 準備事項的主機包含 Windows(#26 已支援、#35)。

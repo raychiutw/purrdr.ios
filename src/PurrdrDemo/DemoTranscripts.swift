@@ -361,7 +361,7 @@ enum DemoTranscripts {
         ]
     }
 
-    /// 大量輸出(`-demoLargeOutput`,#130):agent 一口氣讀了 160 份記錄檔，一次寫出 321 行、超過 64 KiB
+    /// 大量輸出(`-demoLargeOutputOnPrompt`,#130):agent 一口氣讀了 160 份記錄檔，一次寫出 321 行、超過 64 KiB
     /// (超過開啟時「落後太多」的門檻，也比開啟視窗的 300 行多)。最後一則是收尾的文字。
     /// `run` 區分同一個對話裡的多次大量輸出(每次的行 id 不同)。
     static func largeOutput(run: Int = 0, at date: Date) -> [String] {
