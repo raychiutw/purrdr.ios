@@ -25,7 +25,7 @@ final class PaneTerminalUITests: XCTestCase {
     /// 順序刻意排好:先捲動(還沒打字)，再打字，之後的步驟接著前面輸入的內容往下斷言。
     @MainActor
     func testTerminalBehaviorsThenReturningFromBackgroundReappliesControl() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingOversizedClipboard"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingOversizedClipboard])
         let screen = openTerminal(app)
 
         step("連線後標題列下方顯示狀態") {

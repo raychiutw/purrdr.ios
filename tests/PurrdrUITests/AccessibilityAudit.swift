@@ -17,7 +17,7 @@ extension XCUIApplication {
 
     /// 稽核用的啟動。
     @MainActor
-    static func launchAuditing(flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
+    static func launchAuditing(flags: [LaunchFlag] = [], contentSize: String? = nil) -> XCUIApplication {
         launchUITesting(flags: flags, contentSize: contentSize)
     }
 }

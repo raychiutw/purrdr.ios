@@ -9,7 +9,7 @@ final class AppLockUITests: XCTestCase {
 
     @MainActor
     func testColdStartShowsLockScreenUntilUnlocked() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAppLock"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingAppLock])
 
         let title = app.staticTexts["appLock.title"]
         XCTAssertTrue(title.waitUntilExists(timeout: 10), "冷啟動沒有鎖定畫面")

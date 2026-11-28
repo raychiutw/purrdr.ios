@@ -11,7 +11,7 @@ final class IPadAccountUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(flags: [String] = []) -> XCUIApplication {
+    private func launch(flags: [LaunchFlag] = []) -> XCUIApplication {
         XCUIDevice.shared.orientation = .landscapeLeft
         return XCUIApplication.launchUITesting(flags: flags)
     }

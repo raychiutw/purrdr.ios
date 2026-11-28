@@ -124,14 +124,10 @@ extension HostServiceAccess {
     ///   - hostServiceVersion: 連線回報的主機服務版本(UI 測試旗標 `-demoOutdatedHostService` 給舊版，#198)。
     ///     預設與 `FixedHostServiceReleases.uiTesting` 的最新版相同(不提示更新)。
     ///   - pairedHosts: 啟動時已配對好的主機。
-    ///   - readOnlyHosts: 啟動時已用唯讀權杖配對好的主機。
     public static func uiTesting(
-        channel: any HostChannel, hostServiceVersion: String = FixedHostServiceReleases.uiTestingLatestVersion, pairedHosts: [UUID] = [],
-        readOnlyHosts: [UUID] = []
+        channel: any HostChannel, hostServiceVersion: String = FixedHostServiceReleases.uiTestingLatestVersion, pairedHosts: [UUID] = []
     ) -> HostServiceAccess {
-        let seededTokens = pairedHosts.map { ($0, UITestingHostServiceConnection.token) }
-            + readOnlyHosts.map { ($0, UITestingHostServiceConnection.readOnlyToken) }
-        let tokens = InMemoryDeviceTokenStore(tokens: Dictionary(seededTokens, uniquingKeysWith: { _, readOnly in readOnly }))
+        let tokens = InMemoryDeviceTokenStore(tokens: Dictionary(pairedHosts.map { ($0, UITestingHostServiceConnection.token) }, uniquingKeysWith: { first, _ in first }))
         let pairing = HostServicePairing(http: UITestingHostServiceHTTP())
         return HostServiceAccess(tokens: tokens, pairing: pairing, deviceName: "iPhone") { _, deviceToken in
             UITestingHostServiceConnection(

@@ -107,7 +107,7 @@ final class PlusUITests: XCTestCase {
     /// 測試通知的結果直接寫在列下方、不彈 alert(#625、#626),失敗是紅色三角說明(成功的說明文字由 PushModelTests 守)。
     @MainActor
     func testSubscribedPageListsFeaturesWithStatusAndTestNotificationResultIsInline() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost", "-uiTestingPushTestFails"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingPlusMember, .seedHost, .uiTestingPushTestFails])
         openPlus(in: app)
 
         XCTAssertTrue(app.buttons["plus.manage"].waitUntilExists(timeout: 15), "沒有管理訂閱")
