@@ -431,9 +431,16 @@ public enum HerdrError: Error, Equatable {
 public struct PromptReply: Sendable, Equatable {
     /// 主機只知道 bytes 寫進了終端機(fork 版的 `delivery: "written_to_pty"`;上游 herdr 不會送，§3.6)。
     public var writtenOnly: Bool
+    /// 主機服務 0.17.0 起的送出確認(HTTPS):`true` 是 Agent 已開始工作、停下來問問題或狀態序號已變動;
+    /// `false` 是主機補送 Enter 後仍沒有反應。`nil` 是主機這次沒做確認(舊版主機服務、沒帶 wait、Codex、SSH),照舊規則處理。
+    public var submitConfirmed: Bool?
+    /// 主機服務補送了 Enter(只在有補時為 `true`,否則 `nil`)。
+    public var enterSent: Bool?
 
-    public init(writtenOnly: Bool) {
+    public init(writtenOnly: Bool, submitConfirmed: Bool? = nil, enterSent: Bool? = nil) {
         self.writtenOnly = writtenOnly
+        self.submitConfirmed = submitConfirmed
+        self.enterSent = enterSent
     }
 }
 
