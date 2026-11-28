@@ -9,7 +9,9 @@ enum ChatListRowContent: Equatable {
     case entry(ConversationRow, turnHeader: AgentTurnHeader?)
     case pending(PendingItem)
     case notice(DisplayedError)
-    case prompt
+    /// 「需要你」的列(#680):等待回答的問題卡(`pending`)與已送達的回答紀錄(`answered`)。
+    /// 帶內容是為了題目、選項或回答變了時,diffable 與列高快取知道這一列要重畫、重量。
+    case prompt(pending: BlockedPrompt?, answered: AnsweredPrompt?)
     case working
 }
 
