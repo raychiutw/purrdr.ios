@@ -115,13 +115,6 @@ struct ComposerBar: View {
                     guard let insertion else { return }
                     AccessibilityNotification.Announcement(String(localized: "Inserted /\(insertion.name)")).post()
                 }
-        } else if case .needsYou = model.topAccessory {
-            // 唯讀裝置仍要看得到 Agent 在等什麼(題目與詳情);卡片自己不放選項(#60、#349)。
-            GlassEffectContainer(spacing: ComposerKeyboardLayout.spacing) {
-                NeedsYouCard(model: model)
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
         }
     }
 
@@ -196,10 +189,7 @@ struct ComposerBar: View {
                                 if isCompact { suggestionHeights.compact = height } else { suggestionHeights.full = height }
                             }
                     }
-                    // 「需要你」浮動卡(#424):取代建議卡與工作中膠囊，與輸入卡片同一個玻璃容器。
-                    if case .needsYou = model.topAccessory {
-                        NeedsYouCard(model: model)
-                    }
+                    // 「需要你」的問題卡在對話列表裡(#680),不在輸入列上方。
                     // 卡片比內容各寬 4pt(離邊緣 12pt),輸入框更寬(#512)。
                     card
                         .padding(.horizontal, ComposerCardLayout.horizontalMargin - ComposerCardLayout.contentMargin)
