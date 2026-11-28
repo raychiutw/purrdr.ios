@@ -2,14 +2,19 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 對話列表裡的「需要你」回答紀錄：已送達的回答(問題與選了什麼)。
-/// 等待回答的問題卡改在輸入列上方的浮動層(`NeedsYouCard`,#424)。
+/// 對話列表裡的「需要你」列:已送達的回答(問題與選了什麼),接著是等待回答的問題卡(`NeedsYouCard`)。
+/// 問題卡是列表的一列、和訊息同一個捲動容器(#680):鍵盤升起、列表縮短時用捲動看完整題目與每個選項。
 struct BlockedPromptView: View {
     let model: ConversationModel
 
     var body: some View {
-        if let answered = model.lastAnswer {
-            AnsweredPromptView(answered: answered)
+        VStack(spacing: ComposerKeyboardLayout.spacing) {
+            if let answered = model.lastAnswer {
+                AnsweredPromptView(answered: answered)
+            }
+            if model.prompt != nil {
+                NeedsYouCard(model: model)
+            }
         }
     }
 }

@@ -43,7 +43,7 @@ enum ConversationListContentBuilder {
         let turnHeader = agentTurnHeader(model)
         let pendingItems = model.pendingItems.filter { rendersPendingRow($0, model: model) }
         let noticeText = model.sendWhenDone?.notice
-        let showsPrompt = model.lastAnswer != nil
+        let showsPrompt = model.lastAnswer != nil || model.prompt != nil
         let showsWorking = model.showsWorkingIndicator && model.workingSince != nil
         let showsOlder = !isEmptyState
 
@@ -57,7 +57,7 @@ enum ConversationListContentBuilder {
         }
         for item in pendingItems { rowContents[item.id] = .pending(item) }
         if let noticeText { rowContents[ChatListRowPlan.noticeID] = .notice(noticeText) }
-        if showsPrompt { rowContents[ChatListRowPlan.promptID] = .prompt }
+        if showsPrompt { rowContents[ChatListRowPlan.promptID] = .prompt(pending: model.prompt, answered: model.lastAnswer) }
         if showsWorking { rowContents[ChatListRowPlan.workingID] = .working }
 
         let ids = ChatListRowPlan.ids(

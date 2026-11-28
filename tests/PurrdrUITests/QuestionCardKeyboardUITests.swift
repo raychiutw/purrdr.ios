@@ -1,7 +1,7 @@
 import XCTest
 
-/// 問題卡顯示時叫出鍵盤(#680):問題卡要讓位，輸入列完整留在鍵盤上方。
-/// 不看 `prompt.card` 的 frame(它是捲動內容的大小);以題目文字與輸入列元素的位置判斷。
+/// 問題卡顯示時叫出鍵盤(#680):問題卡是對話列表的一列、和訊息同一個捲動容器。
+/// 鍵盤升起時列表縮短,輸入列完整留在鍵盤上方;題目與每個選項(含「Type something.」)捲動後都看得到、點得到。
 final class QuestionCardKeyboardUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -11,11 +11,7 @@ final class QuestionCardKeyboardUITests: XCTestCase {
     private func raiseQuestionCard(in app: XCUIApplication) {
         let field = app.element("composer.text")
         XCTAssertTrue(field.waitUntilExists(timeout: 10), "沒有輸入框")
-        // AX 大字級下第一下點擊可能落在還在排版的輸入框上而沒拿到焦點:等焦點,沒有就再點一次(確定性等待,不固定 sleep)。
-        for _ in 0..<3 {
-            field.tap()
-            if UITestWait.until(timeout: 3, { (field.value(forKey: "hasKeyboardFocus") as? Bool) == true }) { break }
-        }
+        field.tap()
         field.typeEnglish("ask me")
         app.element("composer.send").tap()
         XCTAssertTrue(app.staticTexts["Which color should the chart use?"].waitUntilExists(timeout: 15), "沒有問題卡")
@@ -28,19 +24,25 @@ final class QuestionCardKeyboardUITests: XCTestCase {
         XCTAssertTrue(app.waitForKeyboard(), "\(label):沒有鍵盤")
         let card = app.element("composer.card")
         let send = app.element("composer.send")
-        let question = app.element("prompt.question")
         XCTAssertTrue(card.waitUntilExists(timeout: 5), "\(label):沒有輸入卡片")
-        XCTAssertTrue(question.exists, "\(label):題目不見了")
-        // 等版面停住(鍵盤動畫與卡片縮小)。
-        _ = app.waitForSettledLayout([card, question], timeout: 3)
+        // 等版面停住(鍵盤動畫與列表縮短)。
+        _ = app.waitForSettledLayout([card], timeout: 3)
         let keyboardTop = keyboard.frame.minY
         XCTAssertLessThanOrEqual(card.frame.maxY, keyboardTop + 1, "\(label):輸入列下緣被鍵盤蓋住 card=\(card.frame) keyboard=\(keyboard.frame)")
         XCTAssertLessThanOrEqual(send.frame.maxY, keyboardTop + 1, "\(label):送出鈕被鍵盤蓋住 send=\(send.frame)")
-        XCTAssertLessThanOrEqual(question.frame.maxY, card.frame.minY + 1, "\(label):問題卡蓋到輸入框 question=\(question.frame) card=\(card.frame)")
-        let navBottom = app.navigationBars.firstMatch.frame.maxY
-        XCTAssertGreaterThanOrEqual(question.frame.minY, navBottom - 1, "\(label):題目頂進導覽列 question=\(question.frame) nav=\(navBottom)")
-        // 問題卡上方要留得出對話(下限是 minimumConversationHeight,XXL 約 80pt;這裡只擋「被擠光」)，不能整個畫面都是問題卡。
-        XCTAssertGreaterThanOrEqual(question.frame.minY - navBottom, 60, "\(label):聊天訊息被問題卡擠掉 question=\(question.frame) nav=\(navBottom)")
+        // 問題卡在列表內:不浮在輸入列上方,所以不可能蓋住輸入列。
+        XCTAssertTrue(app.conversationList.exists, "\(label):沒有對話列表")
+        XCTAssertTrue(app.element("prompt.card").exists, "\(label):問題卡不見了")
+    }
+
+    /// 題目與每個選項都能經列表捲動到可見範圍並點得到(只確認 hittable,不點下去,免得送出答案)。
+    @MainActor
+    private func assertEveryOptionReachable(_ app: XCUIApplication, _ label: String) {
+        XCTAssertTrue(app.revealInConversation(app.element("prompt.question")), "\(label):捲不到題目")
+        for number in 1...4 {
+            let option = app.element("prompt.option.\(number)")
+            XCTAssertTrue(app.revealInConversation(option), "\(label):選項 \(number) 捲不到或點不到 frame=\(option.frame)")
+        }
     }
 
     @MainActor
@@ -49,6 +51,7 @@ final class QuestionCardKeyboardUITests: XCTestCase {
         raiseQuestionCard(in: app)
         app.element("composer.text").tap()
         assertLayout(app, label)
+        assertEveryOptionReachable(app, label)
     }
 
     @MainActor func testDefaultSize() { check(contentSize: nil, label: "預設字級") }
@@ -72,5 +75,6 @@ final class QuestionCardKeyboardUITests: XCTestCase {
         globe.tap()
         _ = app.waitForSettledLayout([app.element("composer.card")], timeout: 3)
         assertLayout(app, "切換輸入法")
+        assertEveryOptionReachable(app, "切換輸入法")
     }
 }
