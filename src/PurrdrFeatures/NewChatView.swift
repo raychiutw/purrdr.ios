@@ -93,9 +93,14 @@ public struct NewChatView: View {
                         .foregroundStyle(.secondaryText)
                 } footer: {
                     if !model.canBrowseFolders {
-                        // HTTPS 主機沒有資料夾瀏覽(#287)。
-                        Text("Type the folder’s location on the host.")
-                            .accessibilityIdentifier("newChat.fullPathHint")
+                        if model.folderBrowsingNeedsUpdate {
+                            // 主機服務太舊(#731):退回手動輸入,說明要更新。
+                            Text("Update the Purrdr host service on the host to choose folders here. For now, type the folder’s location.")
+                                .accessibilityIdentifier("newChat.updateHostServiceHint")
+                        } else {
+                            Text("Type the folder’s location on the host.")
+                                .accessibilityIdentifier("newChat.fullPathHint")
+                        }
                     }
                 }
                 }

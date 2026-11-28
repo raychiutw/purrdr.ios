@@ -23,6 +23,8 @@ public enum NewChatFolderError: Error, Equatable {
     case failed(exitCode: Int32?, stderr: String)
     /// 不能瀏覽的主機(HTTPS)要給絕對路徑。帶使用者給的路徑。
     case absolutePathRequired(String)
+    /// 主機服務沒回報家目錄(找不到),沒辦法從家目錄開始。
+    case homeUnavailable
 }
 
 /// 新增對話用的主機資料夾：列出子資料夾，也用來在開始前把路徑解析成絕對路徑(F3.2 第 1 步)。
@@ -34,27 +36,60 @@ public enum NewChatFolderError: Error, Equatable {
 public struct NewChatFolders: Sendable {
     /// `nil`:沒有主機通道(HTTPS 主機),不能瀏覽也不能展開 `~`。
     let channel: (any HostChannel)?
+    /// HTTPS 主機的資料夾瀏覽(主機服務 0.12.0 起,#731);版本不足時 `browsingAvailability()` 說明。
+    let browser: (any DirectoryBrowsing)?
     /// 指令期限的計時(測試注入)。
     let sleep: Sleep
 
     public init(channel: any HostChannel, sleep: @escaping Sleep = Sleeping.task) {
         self.channel = channel
+        browser = nil
         self.sleep = sleep
+    }
+
+    /// HTTPS 主機:經主機服務瀏覽資料夾(要先以 `browsingAvailability()` 確認版本)。
+    public init(browser: any DirectoryBrowsing) {
+        channel = nil
+        self.browser = browser
+        sleep = Sleeping.task
     }
 
     private init() {
         channel = nil
+        browser = nil
         sleep = Sleeping.task
     }
 
-    /// HTTPS 主機(#287):主機服務沒有資料夾瀏覽，只收絕對路徑;資料夾存不存在由主機服務在建立 workspace 時檢查。
+    public enum BrowsingAvailability: Sendable, Equatable {
+        case available
+        /// 主機服務比 0.12.0 舊(帶目前版本)。
+        case hostServiceUpdateRequired(installedVersion: String)
+        /// 讀不到版本(沒連上等):先當作不能瀏覽,不說要更新。
+        case unknown
+    }
+
+    /// 這個主機現在能不能瀏覽資料夾。SSH 一律可以;HTTPS 看主機服務版本。
+    public func browsingAvailability() async -> BrowsingAvailability {
+        if channel != nil { return .available }
+        guard let browser else { return .unknown }
+        guard let version = try? await browser.hostServiceVersion() else { return .unknown }
+        return HostServiceFeature.directoryBrowsing.isAvailable(onHostServiceVersion: version)
+            ? .available : .hostServiceUpdateRequired(installedVersion: version)
+    }
+
+    /// 沒有瀏覽能力的 HTTPS 主機(#287):只收絕對路徑;資料夾存不存在由主機服務在建立 workspace 時檢查。
     public static let absolutePathsOnly = NewChatFolders()
 
     /// 能不能在主機上瀏覽資料夾。
+    /// HTTPS 主機的瀏覽要先過 `browsingAvailability()`,所以這裡只對 SSH 為真。
     public var canBrowse: Bool { channel != nil }
+
+    /// 有主機服務的瀏覽能力可以問(版本還要查)。
+    public var hasHostServiceBrowser: Bool { browser != nil }
 
     /// 列出 `path` 的子資料夾;`nil` 或空白 = 家目錄。資料夾不存在丟 `NewChatFolderError.notFound`。
     public func list(_ path: String?) async throws -> NewChatFolderListing {
+        if let browser { return try await listViaHostService(browser, path) }
         guard let channel else { throw HostServiceError.unsupported("folders") }
         let requested = path ?? ""
         let result = try await channel.runOnce(Self.command(for: requested), deadline: HostCommandDeadline.standard, sleep: sleep) { session in
@@ -72,11 +107,46 @@ public struct NewChatFolders: Sendable {
 
     /// 解析成主機上的絕對路徑(`~` 展開、`cd` 得進去)。
     public func resolve(_ path: String) async throws -> String {
+        if let browser {
+            // 只展開 `~`;資料夾存不存在由主機服務在建立 workspace 時檢查。
+            if path == "~" || path.hasPrefix("~/") {
+                guard let home = try await browser.homeDirectory(), !home.isEmpty else { throw NewChatFolderError.absolutePathRequired(path) }
+                return path == "~" ? home : Self.join(home, String(path.dropFirst(2)))
+            }
+            guard HostPathSyntax.isAbsolute(path) else { throw NewChatFolderError.absolutePathRequired(path) }
+            return path
+        }
         guard canBrowse else {
             guard HostPathSyntax.isAbsolute(path) else { throw NewChatFolderError.absolutePathRequired(path) }
             return path
         }
         return try await list(path).path
+    }
+
+    // MARK: - 主機服務
+
+    private func listViaHostService(_ browser: any DirectoryBrowsing, _ path: String?) async throws -> NewChatFolderListing {
+        let requested = path.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        let target: String
+        if requested.isEmpty || requested == "~" || requested.hasPrefix("~/") {
+            guard let home = try await browser.homeDirectory(), !home.isEmpty else { throw NewChatFolderError.homeUnavailable }
+            target = requested.hasPrefix("~/") ? Self.join(home, String(requested.dropFirst(2))) : home
+        } else {
+            target = requested
+        }
+        let result = try await browser.listDirectory(path: target)
+        // 與 SSH 一致:不列隱藏資料夾,不分大小寫排序。
+        let folders = result.directories.filter { !$0.isEmpty && !$0.hasPrefix(".") }.sorted {
+            let order = $0.lowercased().compare($1.lowercased())
+            return order == .orderedSame ? $0 < $1 : order == .orderedAscending
+        }
+        return NewChatFolderListing(path: result.path, folders: folders)
+    }
+
+    private static func join(_ base: String, _ rest: String) -> String {
+        guard !rest.isEmpty else { return base }
+        let separator = base.hasSuffix("/") || base.hasSuffix("\\") ? "" : "/"
+        return base + separator + rest
     }
 
     // MARK: - 指令

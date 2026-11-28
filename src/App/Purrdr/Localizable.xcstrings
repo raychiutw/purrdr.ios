@@ -3744,6 +3744,17 @@
         }
       }
     },
+    "Couldn’t find the home folder on the host. Type the folder’s location instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到主機上的家目錄。請改為輸入資料夾的位置。"
+          }
+        }
+      }
+    },
     "Couldn’t find this host. Check the address, and that Tailscale is on for this device." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9713,6 +9724,17 @@
         }
       }
     },
+    "Purrdr can’t open this folder on the host. Choose another one." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 無法開啟主機上的這個資料夾。請選別的資料夾。"
+          }
+        }
+      }
+    },
     "Purrdr can’t safely change Antigravity’s settings on this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15599,6 +15621,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新 %@ 的主機服務"
+          }
+        }
+      }
+    },
+    "Update the Purrdr host service on the host to choose folders here. For now, type the folder’s location." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新主機上的 Purrdr 主機服務後,就能在這裡選資料夾。目前請先輸入資料夾的位置。"
           }
         }
       }
