@@ -117,6 +117,53 @@ struct TopNavigationModelTests {
         #expect(model.testingAppearance == nil)
     }
 
+    @Test("UI 測試連結 purrdr://testing-chat 直接開聊天,只在開啟測試連結時生效;正式 app 不認得、不改任何狀態")
+    func testingChatLinkOpensChatOnlyWhenAllowed() throws {
+        let link = try #require(URL(string: "purrdr://testing-chat?host=demo&pane=w1:p1"))
+        let model = TopNavigationModel()
+        model.tab = .files
+        model.sheet = .member
+
+        #expect(!model.open(link))
+        #expect(model.selectedChat == nil)
+        #expect(model.tab == .files)
+        #expect(model.sheet == .member)
+
+        model.allowsTestingLinks = true
+        #expect(model.open(link))
+        #expect(model.selectedChat == ChatRoute(host: .demo, paneID: "w1:p1"))
+        #expect(model.tab == .chats)
+        #expect(model.sheet == nil)
+    }
+
+    @Test("UI 測試連結 purrdr://testing-chat 缺 pane 或主機看不懂:不開聊天、不當成已處理;窄視窗放進路徑")
+    func testingChatLinkRejectsIncompleteLinks() throws {
+        let model = TopNavigationModel()
+        model.allowsTestingLinks = true
+        model.pushesChatsOnPath = true
+
+        #expect(!model.open(try #require(URL(string: "purrdr://testing-chat?host=demo"))))
+        #expect(!model.open(try #require(URL(string: "purrdr://testing-chat?host=not-a-host&pane=w1:p1"))))
+        #expect(!model.open(try #require(URL(string: "purrdr://testing-chat?pane=w1:p1"))))
+        #expect(model.selectedChat == nil)
+
+        #expect(model.open(try #require(URL(string: "purrdr://testing-chat?host=demo&pane=w2:p1"))))
+        #expect(model.chatsPath == [.chat(ChatRoute(host: .demo, paneID: "w2:p1"))])
+    }
+
+    @Test("App 鎖定中收到 purrdr://testing-chat 延到解鎖後才開聊天")
+    func lockedTestingChatLinkWaitsForUnlock() async throws {
+        let lock = AppLock(authenticator: AppLockTests.ScriptedAuthenticator([.success]), defaults: AppLockTests.defaults(enabled: true))
+        let model = TopNavigationModel(appLock: lock)
+        model.allowsTestingLinks = true
+
+        model.openExternal(try #require(URL(string: "purrdr://testing-chat?host=demo&pane=w1:p1")))
+        #expect(model.selectedChat == nil, "鎖定中不該導航")
+
+        await lock.unlock()
+        #expect(model.selectedChat == ChatRoute(host: .demo, paneID: "w1:p1"))
+    }
+
     @Test("主機分享連結(掃 QR code 或點連結)選主機 tab,並帶著要匯入的連結")
     func hostLinkOpensHostsForImport() throws {
         let model = TopNavigationModel()

@@ -244,11 +244,29 @@ extension XCUIApplication {
     /// 以 UI 測試模式啟動並進入某個 Demo 主機 Agent 的聊天。
     @MainActor
     static func launchUITestingConversation(paneID: String, host: String = "demo", flags: [LaunchFlag] = [],
-                                            contentSize: String? = nil,
+                                            contentSize: String? = nil, viaLink: Bool = false,
                                             file: StaticString = #filePath, line: UInt = #line) -> XCUIApplication {
         let app = launchUITesting(flags: flags, contentSize: contentSize)
-        app.openConversation(paneID: paneID, host: host, file: file, line: line)
+        if viaLink {
+            app.openConversationByLink(paneID: paneID, host: host, file: file, line: line)
+        } else {
+            app.openConversation(paneID: paneID, host: host, file: file, line: line)
+        }
         return app
+    }
+
+    /// 以測試連結 `purrdr://testing-chat` 直接開到聊天(#723),不點列表。只有 `-uiTesting` 才認得這個連結。
+    /// 連結在 app 啟動完成(列表出現)後才送;開出聊天標題列才算就緒,沒開出就失敗(不重送、不固定等待)。
+    /// 日常組的 `DailySmokeUITests` 仍走 `openConversation` 真的點聊天列。
+    @MainActor
+    func openConversationByLink(paneID: String, host: String = "demo", file: StaticString = #filePath, line: UInt = #line) {
+        var components = URLComponents()
+        components.scheme = "purrdr"
+        components.host = "testing-chat"
+        components.queryItems = [URLQueryItem(name: "host", value: host), URLQueryItem(name: "pane", value: paneID)]
+        guard let url = components.url else { return XCTFail("組不出測試連結", file: file, line: line) }
+        open(url)
+        XCTAssertTrue(conversationBar.waitUntilExistsAndSettled(timeout: 15), "測試連結沒有開出聊天畫面", file: file, line: line)
     }
 
     /// 開帳號 sheet(點右上角帳號鈕;AX 字級在溢出選單裡)並等 `sheet.account` 出現。
