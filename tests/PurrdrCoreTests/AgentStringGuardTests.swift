@@ -24,11 +24,6 @@ struct AgentStringGuardTests {
 
     /// 寫在 Swift 字串裡的 shell 腳本中,以 Agent 種類分流的 case 分支(連同理由)。新增前先確認腳本真的需要分流。
     static let allowedShellCases: [(file: String, literal: String, reason: String)] = [
-        ("TranscriptCommand.swift", "claude", "對話紀錄腳本依種類分流找檔;種類值由呼叫端以參數傳入"),
-        ("TranscriptCommand.swift", "codex", "同上"),
-        ("TranscriptCommand.swift", "grok", "同上"),
-        ("TranscriptCommand.swift", "agy", "同上"),
-        ("TranscriptCommand.swift", "pi", "同上"),
         ("SSHSessionHistory.swift", "claude", "session 清單腳本依種類找資料夾(參數是 `resumeKind` 的正式名稱)"),
         ("SSHSessionHistory.swift", "codex", "同上"),
     ]

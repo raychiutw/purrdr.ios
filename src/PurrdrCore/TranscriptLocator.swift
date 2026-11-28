@@ -24,13 +24,30 @@ public struct TranscriptLocator: Sendable, Hashable {
 
     public var readsHeader: Bool { headerCheck != nil }
 
+    /// Windows 對話紀錄腳本裡找檔的 PowerShell 函式定義(一行);沿用回報路徑的位置規則沒有自己的函式(`nil`)。
+    package let powershellFunction: String?
+    /// `PFind` 裡這個種類呼叫上面函式的運算式(`$i` id、`$p` 資料夾名);`nil` 走預設(`$i` 本身就是路徑)。
+    private let powershellFindCall: String?
+
+    /// 列表預覽腳本(POSIX)的 case 分支;沿用回報路徑的位置規則走預設分支(`nil`)。
+    package var previewBranch: String? {
+        resolver == Self.reportedPathResolver ? nil : "\(name))\n\(resolver)\n;;"
+    }
+
+    /// Windows `PFind` switch 的分支。
+    package var powershellFindBranch: String? { powershellFindCall.map { "'\(name)'{\($0)}" } }
+
+    /// 回報路徑的位置規則:`$i` 本身就是檔案路徑。
+    package static let reportedPathResolver = "f=$i"
+
     public static func == (lhs: Self, rhs: Self) -> Bool { lhs.name == rhs.name }
     public func hash(into hasher: inout Hasher) { hasher.combine(name) }
 
     init(
         name: String, lookupName: String? = nil, resolver: String, customLocateScript: String? = nil, usesProjectFolder: Bool = false,
         headerCheck: (@Sendable (_ header: [String], _ expectedID: String?) -> Bool)? = nil,
-        pathCheck: (@Sendable (_ path: String, _ id: String) -> Bool)? = nil
+        pathCheck: (@Sendable (_ path: String, _ id: String) -> Bool)? = nil,
+        powershellFunction: String? = nil, powershellFindCall: String? = nil
     ) {
         self.name = name
         self.lookupName = lookupName ?? name
@@ -39,6 +56,8 @@ public struct TranscriptLocator: Sendable, Hashable {
         self.usesProjectFolder = usesProjectFolder
         self.headerCheck = headerCheck
         self.pathCheck = pathCheck
+        self.powershellFunction = powershellFunction
+        self.powershellFindCall = powershellFindCall
     }
 
     /// `<Claude 設定目錄>/projects/<cwd 轉成的資料夾名>/<id>.jsonl`,含 worktree 後備(§4.1)。
@@ -47,27 +66,35 @@ public struct TranscriptLocator: Sendable, Hashable {
         // Claude 的定位腳本另有 worktree 後備(`TranscriptCommand.locate(sessionID:projectFolder:)`);預覽只看預期路徑。
         resolver: #"f="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$p/$i.jsonl""#,
         customLocateScript: TranscriptCommand.claudeLocateScript,
-        usesProjectFolder: true
+        usesProjectFolder: true,
+        powershellFunction: #"function PClaude([string]$i,[string]$p){Join-Path (Join-Path (Join-Path (PHome $env:CLAUDE_CONFIG_DIR '.claude') 'projects') $p) "$i.jsonl"}"#,
+        powershellFindCall: "PClaude $i $p"
     )
 
     /// 在 `${GROK_HOME:-$HOME/.grok}/sessions` 下找名稱等於 id 的資料夾(§4.3)。
     public static let grok = TranscriptLocator(
         name: "grok",
         resolver: grokResolver,
-        pathCheck: { path, id in TranscriptReader.hasComponents(path, "\(id)/updates.jsonl") }
+        pathCheck: { path, id in TranscriptReader.hasComponents(path, "\(id)/updates.jsonl") },
+        powershellFunction: #"function PGrok([string]$i){$h=Join-Path (PHome $env:GROK_HOME '.grok') 'sessions';if(-not [IO.Directory]::Exists($h)){PFail 3};$g=@(PList $h -Dir|%{PList $_.FullName -Dir}|?{$_.Name -ceq $i});if($g.Count -eq 0){PFail 3};if($g.Count -gt 1){PFail 6};Join-Path $g[0].FullName 'updates.jsonl'}"#,
+        powershellFindCall: "PGrok $i"
     )
 
     /// `$HOME/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl`(§4.4)。
     public static let antigravity = TranscriptLocator(
         name: "agy",
-        resolver: antigravityResolver
+        resolver: antigravityResolver,
+        powershellFunction: #"function PAntigravity([string]$i){Join-Path $env:USERPROFILE ".gemini\antigravity-cli\brain\$i\.system_generated\logs\transcript.jsonl"}"#,
+        powershellFindCall: "PAntigravity $i"
     )
 
     /// 在 Pi／OMP 的 sessions 資料夾找 `*_<id>.jsonl` 或 `<id>.jsonl`(§4.5);讀前檢查 header。
     public static let piJournal = TranscriptLocator(
         name: "pi",
         resolver: piJournalResolver,
-        headerCheck: { header, id in PiJournalParser.headerMatches(header, expectedID: id) }
+        headerCheck: { header, id in PiJournalParser.headerMatches(header, expectedID: id) },
+        powershellFunction: #"function PPiJournal([string]$i){$c=$env:PI_CONFIG_DIR;if(-not $c){$c='.omp'};$r=Join-Path $env:USERPROFILE $c;$ds=@($env:PI_CODING_AGENT_SESSION_DIR,(Join-Path (PHome $env:PI_CODING_AGENT_DIR '.pi\agent') 'sessions'),(Join-Path $r 'agent\sessions'),(Join-Path $r 'agent\profiles'));if($env:XDG_DATA_HOME){$ds+=Join-Path $env:XDG_DATA_HOME 'omp'};$g=@($ds|?{$_ -and [IO.Directory]::Exists($_)}|%{PList $_ -Depth 3}|?{$_.Name -ceq "$i.jsonl" -or $_.Name.EndsWith("_$i.jsonl",[StringComparison]::Ordinal)}|%{$_.FullName}|Sort-Object -Unique);if($g.Count -eq 0){PFail 3};if($g.Count -gt 1){PFail 6};$g[0]}"#,
+        powershellFindCall: "PPiJournal $i"
     )
 
     /// 在 `${CODEX_HOME:-$HOME/.codex}` 的 sessions 與 archived_sessions 下找 `rollout-*-<id>.jsonl`(§4.2);讀前檢查 header。
@@ -79,7 +106,9 @@ public struct TranscriptLocator: Sendable, Hashable {
             return CodexTranscriptParser.headerMatches(first, expectedID: id)
         },
         // 路徑必須是 `-<id>(_<rolloutId>)?.jsonl`;第一行是這個 session 的 session_meta(§4.2)。
-        pathCheck: { path, id in TranscriptReader.isCodexRollout(path, id: id) }
+        pathCheck: { path, id in TranscriptReader.isCodexRollout(path, id: id) },
+        powershellFunction: #"function PCodex([string]$i){$h=PHome $env:CODEX_HOME '.codex';$g=@();$z=$false;foreach($n in 'sessions','archived_sessions'){$d=Join-Path $h $n;if([IO.Directory]::Exists($d)){foreach($e in (PList $d)){$m=$e.Name;if($m.StartsWith('rollout-',[StringComparison]::Ordinal)){if($m.EndsWith("-$i.jsonl",[StringComparison]::Ordinal) -or ($m -cmatch "-$i`_[^\\]*\.jsonl$")){$g+=$e.FullName}elseif($m.EndsWith("-$i.jsonl.zst",[StringComparison]::Ordinal) -or ($m -cmatch "-$i`_[^\\]*\.jsonl\.zst$")){$z=$true}}}}};$g=@($g|Sort-Object -Unique);if($g.Count -eq 0){if($z){PFail 7};PFail 3};if($g.Count -gt 1){PFail 6};$g[0]}"#,
+        powershellFindCall: "PCodex $i"
     )
 
     /// integration 以路徑回報的對話紀錄。`headerCheck` 與同一個 Agent 以 id 定位時相同(Pi／OMP 的路徑也要檢查 header)。
@@ -87,15 +116,15 @@ public struct TranscriptLocator: Sendable, Hashable {
         headerCheck == nil ? Self.reportedPathNoHeader : Self.reportedPathWithHeader
     }
 
-    private static let reportedPathNoHeader = TranscriptLocator(name: "path", resolver: "f=$i")
+    private static let reportedPathNoHeader = TranscriptLocator(name: "path", resolver: reportedPathResolver)
     private static let reportedPathWithHeader = TranscriptLocator(
-        name: "pipath", lookupName: "path", resolver: "f=$i",
+        name: "pipath", lookupName: "path", resolver: reportedPathResolver,
         headerCheck: { header, id in PiJournalParser.headerMatches(header, expectedID: id) }
     )
 
-    /// 全部的位置規則(Windows 的定位腳本表依它建立)。
+    /// 全部的位置規則:預覽腳本、Windows 的定位腳本與要讀 header 的名單都依它產生(同樣讀 header 的種類排在一起)。
     package static let all: [TranscriptLocator] = [
-        .claude, .grok, .antigravity, .piJournal, .codex, reportedPath(), reportedPath(headerCheck: { _, _ in true }),
+        .claude, .grok, .antigravity, .piJournal, reportedPath(headerCheck: { _, _ in true }), .codex, reportedPath(),
     ]
 
     private static let grokResolver = #"""

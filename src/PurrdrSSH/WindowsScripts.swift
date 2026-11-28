@@ -50,15 +50,13 @@ enum WindowsScripts {
         function PProbe([string]$f){$d=[IO.Path]::GetDirectoryName($f);if(-not [IO.Directory]::Exists($d)){PFail 3};if(-not [IO.File]::Exists($f)){try{[void][IO.Directory]::GetFileSystemEntries($d)}catch{PFail 4};PFail 3};try{$h=POpen $f;$z=$h.Length;$h.Close()}catch{PFail 5};$z}
         function PHead2([string]$f){$h=POpen $f;$n=0;$k=0;$c=New-Object byte[] 65536;$m=New-Object IO.MemoryStream;while($k -lt 2){$r=$h.Read($c,0,$c.Length);if($r -le 0){break};$e=$r;for($x=0;$x -lt $r;$x++){if($c[$x] -eq 10){$k++;if($k -eq 2){$e=$x+1;break}}};$m.Write($c,0,$e)};$h.Close();$m.ToArray()}
         function PHome([string]$v,[string]$d){if($v){$v}else{Join-Path $env:USERPROFILE $d}}
-        function PClaude([string]$i,[string]$p){Join-Path (Join-Path (Join-Path (PHome $env:CLAUDE_CONFIG_DIR '.claude') 'projects') $p) "$i.jsonl"}
         function PList([string]$d,[switch]$Dir,[int]$Depth=-1){try{if($Depth -ge 0){@(Get-ChildItem -LiteralPath $d -Force -Recurse -Depth $Depth -File)}elseif($Dir){@(Get-ChildItem -LiteralPath $d -Force -Directory)}else{@(Get-ChildItem -LiteralPath $d -Force -Recurse -File)}}catch{PFail 4}}
-        function PGrok([string]$i){$h=Join-Path (PHome $env:GROK_HOME '.grok') 'sessions';if(-not [IO.Directory]::Exists($h)){PFail 3};$g=@(PList $h -Dir|%{PList $_.FullName -Dir}|?{$_.Name -ceq $i});if($g.Count -eq 0){PFail 3};if($g.Count -gt 1){PFail 6};Join-Path $g[0].FullName 'updates.jsonl'}
-        function PAntigravity([string]$i){Join-Path $env:USERPROFILE ".gemini\antigravity-cli\brain\$i\.system_generated\logs\transcript.jsonl"}
-        function PPiJournal([string]$i){$c=$env:PI_CONFIG_DIR;if(-not $c){$c='.omp'};$r=Join-Path $env:USERPROFILE $c;$ds=@($env:PI_CODING_AGENT_SESSION_DIR,(Join-Path (PHome $env:PI_CODING_AGENT_DIR '.pi\agent') 'sessions'),(Join-Path $r 'agent\sessions'),(Join-Path $r 'agent\profiles'));if($env:XDG_DATA_HOME){$ds+=Join-Path $env:XDG_DATA_HOME 'omp'};$g=@($ds|?{$_ -and [IO.Directory]::Exists($_)}|%{PList $_ -Depth 3}|?{$_.Name -ceq "$i.jsonl" -or $_.Name.EndsWith("_$i.jsonl",[StringComparison]::Ordinal)}|%{$_.FullName}|Sort-Object -Unique);if($g.Count -eq 0){PFail 3};if($g.Count -gt 1){PFail 6};$g[0]}
-        function PCodex([string]$i){$h=PHome $env:CODEX_HOME '.codex';$g=@();$z=$false;foreach($n in 'sessions','archived_sessions'){$d=Join-Path $h $n;if([IO.Directory]::Exists($d)){foreach($e in (PList $d)){$m=$e.Name;if($m.StartsWith('rollout-',[StringComparison]::Ordinal)){if($m.EndsWith("-$i.jsonl",[StringComparison]::Ordinal) -or ($m -cmatch "-$i`_[^\\]*\.jsonl$")){$g+=$e.FullName}elseif($m.EndsWith("-$i.jsonl.zst",[StringComparison]::Ordinal) -or ($m -cmatch "-$i`_[^\\]*\.jsonl\.zst$")){$z=$true}}}}};$g=@($g|Sort-Object -Unique);if($g.Count -eq 0){if($z){PFail 7};PFail 3};if($g.Count -gt 1){PFail 6};$g[0]}
-        function PFind([string]$t,[string]$i,[string]$p){switch -CaseSensitive($t){'claude'{PClaude $i $p}'grok'{PGrok $i}'agy'{PAntigravity $i}'pi'{PPiJournal $i}'codex'{PCodex $i}default{$i}}}
+        @LOCATORFUNCTIONS@
+        function PFind([string]$t,[string]$i,[string]$p){switch -CaseSensitive($t){@FINDBRANCHES@default{$i}}}
         function PRunBlock([scriptblock]$k){try{& $k}catch{$o.Flush();exit (PCode $_)};$o.Flush()}
         """#
+        .replacingOccurrences(of: "@LOCATORFUNCTIONS@", with: TranscriptLocator.all.compactMap(\.powershellFunction).joined(separator: "\n"))
+        .replacingOccurrences(of: "@FINDBRANCHES@", with: TranscriptLocator.all.compactMap(\.powershellFindBranch).joined())
 
     static func transcript(_ body: String, arguments values: [String]) -> String {
         [prelude, arguments(values), transcriptFunctions, body].joined(separator: "\n")
@@ -204,14 +202,14 @@ enum WindowsScripts {
         PWrite "$marker@ $key $range $version`n"
         if($range -ceq 'appended'){$bytes=PRead $handle $knownSize ($size-$knownSize);PWrite ((($u.GetString($bytes) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n"}
         elseif($range -ceq 'whole'){
-        if('pi','pipath','codex' -ccontains $kind){PWrite "$marker! $key`n";$header=PHead2 $file;PWrite ((($u.GetString($header) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n$marker $key`n"}
+        if(@HEADERKINDS@ -ccontains $kind){PWrite "$marker! $key`n";$header=PHead2 $file;PWrite ((($u.GetString($header) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n$marker $key`n"}
         $start=[Math]::Max([long]0,$size-48000);$bytes=PRead $handle $start ($size-$start)
         PWrite ((($u.GetString($bytes) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n"
         }
         }catch{}finally{if($handle){$handle.Close()}}
         }
         $o.Flush()
-        """#
+        """#.replacingOccurrences(of: "@HEADERKINDS@", with: TranscriptLocator.all.filter(\.readsHeader).map { "'\($0.name)'" }.joined(separator: ","))
 
     /// 找 subagent:`<session>\subagents\agent-*.meta.json` 中含呼叫 id 的，印路徑與內容(去掉 `\n`)。參數:session 資料夾、呼叫 id。
     static let findSubagent = #"""
