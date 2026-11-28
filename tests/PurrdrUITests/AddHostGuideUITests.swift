@@ -184,6 +184,41 @@ final class AddHostGuideUITests: XCTestCase {
         XCTContext.runActivity(named: name) { _ in body() }
     }
 
+    /// #727:最後一頁的通知開關列照內容長高,預設、XXXL、AX5 字級下開關都完整落在卡片內、可點(系統開關,觸控目標由系統保證)。
+    @MainActor
+    func testNotificationRowFitsCardAtLargeText() {
+        for size in [nil, "UICTContentSizeCategoryXXXL", "UICTContentSizeCategoryAccessibilityXXXL"] {
+            let app = XCUIApplication.launchUITesting(flags: [.uiTestingPlusMember], contentSize: size)
+            let label = size ?? "預設"
+            openGuide(app)
+            app.buttons["guide.option.ssh"].tapWhenReady()
+            app.buttons["guide.option.macOS"].tapWhenReady()
+            app.buttons["guide.option.tailscale"].tapWhenReady()
+            app.buttons["guide.next"].tapWhenReady()
+            let address = app.textFields["guide.field.address"]
+            XCTAssertTrue(address.waitUntilExists(timeout: 5))
+            address.tap()
+            address.typeEnglish("studio-mac")
+            let username = app.textFields["guide.field.username"]
+            username.tap()
+            username.typeEnglish("ray")
+            app.buttons["guide.next"].tapWhenReady()
+            let save = app.buttons["guide.save"]
+            XCTAssertTrue(save.waitUntilExists(timeout: 15), "\(label):沒有通過連線測試")
+            save.tap()
+            let card = app.element("guide.notifications")
+            XCTAssertTrue(card.waitUntilExists(timeout: 10), "\(label):沒有通知開關")
+            let toggle = app.switches.matching(NSPredicate(format: "identifier BEGINSWITH 'account.push.'")).firstMatch
+            XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "\(label):沒有開關")
+            let c = card.frame, t = toggle.frame
+            print("MEASURE \(label) card=\(c) toggle=\(t)")
+            XCTAssertGreaterThanOrEqual(t.minY, c.minY - 0.5, "\(label):開關上緣超出卡片 card=\(c) toggle=\(t)")
+            XCTAssertLessThanOrEqual(t.maxY, c.maxY + 0.5, "\(label):開關下緣超出卡片(被截斷) card=\(c) toggle=\(t)")
+            XCTAssertTrue(toggle.isHittable, "\(label):開關點不到")
+            app.terminate()
+        }
+    }
+
     @MainActor
     private func openGuide(_ app: XCUIApplication) {
         app.openHostsTab()

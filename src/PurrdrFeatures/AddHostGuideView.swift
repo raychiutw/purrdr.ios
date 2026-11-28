@@ -557,10 +557,13 @@ struct AddHostGuideView: View {
             switch model.notificationOffer {
             case .toggle?:
                 if let host = model.savedHost, let push = hostPush(host.id) {
-                    List { HostPushRow(push: push, pair: { _ in }) }
-                        .scrollDisabled(true)
-                        .frame(height: 76)
-                        .clipShape(.rect(cornerRadius: 18))
+                    // 不用 List(它沒有自適應內容的高度):一般卡片列,隨字級長高(#727)。
+                    HostPushRow(push: push, pair: { _ in })
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                        .background(AppSurface.groupedRow, in: .rect(cornerRadius: 18))
+                        .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("guide.notifications")
                 }
             case .signIn?:
