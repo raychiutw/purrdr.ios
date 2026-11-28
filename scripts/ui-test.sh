@@ -4,7 +4,7 @@
 #   scripts/ui-test.sh -testPlan Daily
 #   scripts/ui-test.sh -testPlan Full
 #   scripts/ui-test.sh -only-testing:PurrdrUITests/ConversationUITests/testComposerAndKeyboard
-# 沒有帶 -testPlan 時預設 Daily。環境變數:PURRDR_SIM_NAME(預設 iPhone 17)。
+# 沒有帶 -testPlan 時預設 Daily。何時跑哪一組見 AGENTS.md「UI 測試分兩組」(只有改到畫面的票跑日常組;開發中只跑自己的類別)。環境變數:PURRDR_SIM_NAME(預設 iPhone 17)。
 # 重設內容(只動鍵盤偏好,不 erase 整台模擬器):
 #   - com.apple.keyboard.preferences:刪掉 HardwareKeyboardLastSeen、AutomaticMinimizationEnabled(typeKey 寫進去的),
 #     KeyboardsCurrentAndNext 改回英文
