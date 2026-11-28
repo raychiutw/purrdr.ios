@@ -120,7 +120,14 @@ public struct AnswerFlow: Sendable, Equatable {
 
     /// 讀畫面的結果。`screen` 為 `nil` = 讀不到(未知)。
     public mutating func observe(screen: String?, dialect: ScreenDialect, _ observation: Observation) -> Outcome {
-        observe(parsed: screen.map { Self.parse(screen: $0, dialect: dialect) }, observation)
+        observe(parsed: Self.readable(screen).map { Self.parse(screen: $0, dialect: dialect) }, observation)
+    }
+
+    /// 全是空白的畫面當成讀不到(#713):重新連線途中讀到的空白不是「畫面上沒有提示」,
+    /// 否則送出後會被當成已送達、先顯示「你選了」,其實按鍵沒到。
+    public nonisolated static func readable(_ screen: String?) -> String? {
+        guard let screen, screen.contains(where: { !$0.isWhitespace }) else { return nil }
+        return screen
     }
 
     /// 解析畫面上的提示:純函式、不碰狀態,所以聊天 model 在背景執行(#585),不佔主執行緒;

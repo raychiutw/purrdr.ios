@@ -1605,7 +1605,7 @@ public final class ConversationModel {
         case .settled(let outcome):
             apply(outcome)
         case .readScreen:
-            let screen = await readScreen(for: .prompt)
+            let screen = AnswerFlow.readable(await readScreen(for: .prompt))
             var observed = observation
             observed.now = clock.now()
             observed.draft = draft

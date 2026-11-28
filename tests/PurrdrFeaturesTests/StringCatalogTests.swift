@@ -100,6 +100,13 @@ struct StringCatalogTests {
         }
     }
 
+    /// 聊天「⋯」選單的「Pane Terminal」繁中顯示「終端機」(使用者 2026-11-28,#711);英文 key 不變(GLOSSARY 避免單獨的 Terminal)。
+    @Test("「⋯」選單的 Pane Terminal 繁中稱終端機")
+    func paneTerminalMenuItemIsCalledTerminal() throws {
+        let entry = try #require(try Self.entries().first { $0.key == "Pane Terminal" })
+        #expect(entry.chinese == ["終端機"])
+    }
+
     /// 畫面文字一律稱「主機」(2026-11-22 使用者決定,取代 2026-11-21 的「電腦」,#394):繁中不留「電腦」「使用者名稱」(欄位稱「帳號」)。
     /// 英文鍵值不變。
     @Test("繁體中文畫面文字不用「電腦」「使用者名稱」(畫面稱主機、帳號)")
