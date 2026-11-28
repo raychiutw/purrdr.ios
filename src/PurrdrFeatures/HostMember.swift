@@ -82,6 +82,8 @@ package final class HostMember {
     /// 這台主機的能力組(adapter 交出,含每項沒有的原因)。
     let capabilities: HostCapabilities
     let environment: HostMemberEnvironment
+    /// 這台主機提供主機主題、You should know、Codex 啟動器(#730;HTTPS 主機沒有主機通道,不提供)。
+    var offersMachineSettings: Bool { capabilities.machineSettings.value != nil }
     /// 主機頁的 Codex 啟動器(#274):每台主機一份,成員重建(主機設定改了、刪除)時一起丟掉。
     var codexLauncher: CodexLauncherModel?
 

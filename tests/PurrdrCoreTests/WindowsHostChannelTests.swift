@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+@testable import PurrdrSSH
 import PurrdrTestSupport
 import Testing
 
@@ -113,15 +114,38 @@ struct WindowsHostChannelTests {
         #expect(await WakeProbe(channel: WindowsHostChannel(host)).run())
     }
 
-    @Test("登入 Shell:不帶指令的 PTY 原樣交給 sshd,開使用者的預設 shell(Git Bash、cmd 或 PowerShell)")
-    func loginShellPassesThrough() async throws {
+    @Test("登入 Shell:Windows 主機明確開 powershell.exe -NoLogo -NoExit,UTF-8 設定經 -EncodedCommand(cmd、PowerShell、Git Bash 的預設 shell 都不必處理引號)")
+    func loginShellOpensPowerShell() async throws {
         let host = FakeHost()
         let request = PTYRequest(columns: 80, rows: 24)
-        await host.expectPTY(request, output: Data("PS C:\\Users\\demo> ".utf8))
+        var expected = request
+        expected.command = WindowsCommand.loginShell
+        await host.expectPTY(expected, output: Data("PS C:\\Users\\demo> ".utf8))
 
         let pty = try await WindowsHostChannel(host).openPTY(request)
 
-        #expect(await host.ptys.first?.request == request)
+        let prefix = "powershell.exe -NoLogo -NoExit -EncodedCommand "
+        let sent = try #require(await host.ptys.first?.request.command)
+        #expect(sent.hasPrefix(prefix))
+        #expect(sent.allSatisfy { $0.isASCII && $0 != "\"" && $0 != "$" && $0 != "'" })
+        let data = try #require(Data(base64Encoded: String(sent.dropFirst(prefix.count))))
+        let script = try #require(String(data: data, encoding: .utf16LittleEndian))
+        #expect(script.contains("[Console]::OutputEncoding"))
+        #expect(script.contains("[Console]::InputEncoding"))
+        #expect(script.contains("UTF8Encoding"))
+        #expect(await host.ptys.first?.request.columns == 80)
+        await pty.close()
+    }
+
+    @Test("非 Windows 主機的登入 Shell 不經 WindowsHostChannel,請求原樣")
+    func posixLoginShellUnchanged() async throws {
+        let host = FakeHost()
+        let request = PTYRequest(columns: 80, rows: 24)
+        await host.expectPTY(request)
+
+        let pty = try await host.openPTY(request)
+
+        #expect(await host.ptys.first?.request.command == nil)
         await pty.close()
     }
 }

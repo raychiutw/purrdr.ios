@@ -53,6 +53,47 @@ struct HostAdaptersTests {
         #expect(caps.hostServiceConnection.gap == .connectionLacksSupport)
     }
 
+    @Test("主機設定的能力(主題、You should know、Codex 啟動器):SSH 與 Demo 提供,HTTPS 不提供(#730)")
+    func machineSettingsOfferedOnlyWithChannel() {
+        let ssh = SSHHostAdapter(environment: environment()).capabilities(for: Self.sshHost)
+        let https = HTTPSHostAdapter(environment: environment()).capabilities(for: Self.httpsHost)
+        let httpsPlain = HTTPSHostAdapter(environment: environment(connection: FakeHostConnection())).capabilities(for: Self.httpsHost)
+        let demo = DemoHostAdapter(channel: FakeHost(), files: UnsupportedHostFileFetcher(), consent: InMemoryHostWriteConsentStore())
+        #expect(ssh.machineSettings.value != nil)
+        #expect(demo.demoHostCapabilities().machineSettings.value != nil)
+        #expect(demo.companionCapabilities(channel: FakeHost()).machineSettings.value != nil)
+        #expect(https.machineSettings.gap == .notOfferedByConnectionMethod)
+        #expect(httpsPlain.machineSettings.gap == .notOfferedByConnectionMethod)
+    }
+
+    @Test("成員:HTTPS 主機的設定頁沒有主題、You should know、Codex 啟動器;聊天沒有註記;SSH 都有(#730)")
+    func memberHidesMachineSettingsOverHTTPS() {
+        func member(_ host: HostConfiguration, _ caps: HostCapabilities) -> HostMember {
+            let environment = HostMemberEnvironment(
+                isSavedHost: { _ in true },
+                offlineQueue: { OfflineQueue(host: $0.storedValue, store: InMemoryOfflineQueueStore()) { _, _ in .notSent(.rejected("")) } })
+            return HostMember(
+                host: .host(host.id), hostID: host.id.uuidString, capabilities: caps, preferences: InMemoryChatPreferencesStore(),
+                push: nil, environment: environment)
+        }
+        let https = member(Self.httpsHost, HTTPSHostAdapter(environment: environment()).capabilities(for: Self.httpsHost))
+        let httpsSettings = https.settings()
+        #expect(httpsSettings != nil, "用量擷取仍在設定頁")
+        #expect(httpsSettings?.hostTheme == nil)
+        #expect(httpsSettings?.youShouldKnow == nil)
+        #expect(httpsSettings?.codexLauncher == nil)
+        #expect(!https.offersMachineSettings)
+        #expect(https.conversation(ChatRoute(host: .host(Self.httpsHost.id), paneID: "w1:p1"), sessionID: nil).youShouldKnow == nil)
+
+        let ssh = member(Self.sshHost, SSHHostAdapter(environment: environment()).capabilities(for: Self.sshHost))
+        let sshSettings = ssh.settings()
+        #expect(sshSettings?.hostTheme != nil)
+        #expect(sshSettings?.youShouldKnow != nil)
+        #expect(sshSettings?.codexLauncher != nil)
+        #expect(ssh.offersMachineSettings)
+        #expect(ssh.conversation(ChatRoute(host: .host(Self.sshHost.id), paneID: "w1:p1"), sessionID: nil).youShouldKnow != nil)
+    }
+
     @Test("HTTPS 連線以主機 id 重用;丟掉後重新建立")
     func httpsReusesConnectionPerHost() async throws {
         let adapter = HTTPSHostAdapter(environment: environment())

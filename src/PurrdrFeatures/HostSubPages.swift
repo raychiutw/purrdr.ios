@@ -155,9 +155,9 @@ struct HostSettingsPage: View {
     var body: some View {
         List {
             Group {
-                HostThemeSettingsSection(model: settings.hostTheme)
-                YouShouldKnowSettingsSection(model: settings.youShouldKnow)
-                CodexLauncherSection(model: settings.codexLauncher)
+                if let theme = settings.hostTheme { HostThemeSettingsSection(model: theme) }
+                if let notes = settings.youShouldKnow { YouShouldKnowSettingsSection(model: notes) }
+                if let launcher = settings.codexLauncher { CodexLauncherSection(model: launcher) }
                 Section {
                     // 用量擷取的啟用與還原(經同意修改主機上 Claude Code 的 status line 設定,可完整還原)。
                     NavigationLink {

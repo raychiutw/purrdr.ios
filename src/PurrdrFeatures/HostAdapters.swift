@@ -56,6 +56,9 @@ struct HostCapabilities {
     var sendWhenDone: HostCapability<any SendWhenDoneHosting>
     var pushInstaller: HostCapability<HostPushInstallerMaker>
     var pushTestSender: HostCapability<HostPushTestSenderMaker>
+    /// 要經主機通道才做得到的主機設定:主機主題、You should know、Codex 啟動器(#730)。
+    /// HTTPS 主機沒有通道,這三項不提供(畫面不顯示入口,聊天也沒有註記)。
+    var machineSettings: HostCapability<Void>
     /// 經主機服務讀方案用量(0.12.0 起)用的連線;SSH 主機走 `channel`。
     var hostServiceConnection: HostCapability<HTTPSHostConnection>
     /// 這台主機寫入主機的同意紀錄(Demo 與真主機分開)。
@@ -191,6 +194,7 @@ enum ChannelCapabilities {
                 // Windows 也有 PowerShell 版,所以不分作業系統。
                 .available { SSHPushTestSender(service: $0, channel: channel, hostName: name) }
             } ?? .unavailable(.demoHost),
+            machineSettings: .available(()),
             hostServiceConnection: .unavailable(.notOfferedByConnectionMethod), consent: consent)
     }
 }
@@ -352,6 +356,7 @@ final class HTTPSHostAdapter: HostAdapter {
             pushTestSender: https.map { https in
                 .available { HostServicePushTestSender(service: $0, connection: https, hostName: name) }
             } ?? .unavailable(.connectionLacksSupport),
+            machineSettings: .unavailable(.notOfferedByConnectionMethod),
             hostServiceConnection: https.map { .available($0) } ?? .unavailable(.connectionLacksSupport),
             consent: environment.consent)
     }
