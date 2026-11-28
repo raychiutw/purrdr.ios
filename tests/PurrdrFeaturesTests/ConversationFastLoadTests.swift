@@ -49,7 +49,7 @@ struct ConversationFastLoadTests {
 
     // MARK: - 短載入
 
-    @Test("第一次只讀最後 40 行、不超過 64 KiB(不是 300 行)")
+    @Test("第一次讀最後 300 行、不超過 256 KiB(未知網路用保守值)")
     func firstWindowIsShort() async throws {
         let connection = await Self.connection()
         let model = Self.model(connection, cache: InMemoryConversationCache())
@@ -58,10 +58,9 @@ struct ConversationFastLoadTests {
 
         let windows = await connection.transcriptWindowReads
         #expect(windows.count == 1)
-        #expect(windows.first?.lines == 40)
-        #expect(windows.first?.maxBytes == 64 << 10)
-        #expect(TranscriptReader.openingLines == 40)
-        #expect(TranscriptReader.openingMaxBytes == 64 << 10)
+        #expect(windows.first?.lines == 300)
+        #expect(windows.first?.maxBytes == 256 << 10)
+        #expect(TranscriptReader.openingLines == 300)
     }
 
     // MARK: - 讀畫面延後

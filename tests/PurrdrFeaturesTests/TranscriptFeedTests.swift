@@ -54,7 +54,7 @@ struct TranscriptFeedTests {
         let recorder = Recorder()
         let feed = TranscriptFeed(
             reader: TranscriptReader(connection: connection), cache: cache, chatKey: "w1:p6", knownSessionID: knownSession,
-            clock: TestClock().clock, openLines: openLines, openMaxBytes: 0, pageLines: pageLines, timings: nil, onSkips: nil)
+            clock: TestClock().clock, readLimits: { TranscriptReadLimits(openLines: openLines, maxBytes: 0, emptyWindowBackfillPages: 25) }, pageLines: pageLines, timings: nil, onSkips: nil)
         feed.onEvent = { recorder.events.append($0) }
         return Setup(feed: feed, connection: connection, recorder: recorder, cache: cache)
     }
@@ -186,7 +186,7 @@ struct TranscriptFeedTests {
         await connection.holdTranscripts()
         let feed = TranscriptFeed(
             reader: TranscriptReader(connection: connection), cache: InMemoryConversationCache(), chatKey: "w1:p6", knownSessionID: nil,
-            clock: TestClock().clock, openLines: 40, openMaxBytes: 0, pageLines: 200, timings: nil, onSkips: nil)
+            clock: TestClock().clock, readLimits: { TranscriptReadLimits(openLines: 40, maxBytes: 0, emptyWindowBackfillPages: 25) }, pageLines: 200, timings: nil, onSkips: nil)
         let target = Self.target()
         _ = await feed.bind(to: target)
         let inFlight = Task { await feed.read(target) }
@@ -207,7 +207,7 @@ struct TranscriptFeedTests {
             tail: { _, _, _, _ in throw FakeHostConnectionError.unsupported }))
         let feed = TranscriptFeed(
             reader: TranscriptReader(connection: connection), cache: InMemoryConversationCache(), chatKey: "w1:p6", knownSessionID: nil,
-            clock: TestClock().clock, openLines: 40, openMaxBytes: 0, pageLines: 200, timings: nil, onSkips: nil)
+            clock: TestClock().clock, readLimits: { TranscriptReadLimits(openLines: 40, maxBytes: 0, emptyWindowBackfillPages: 25) }, pageLines: 200, timings: nil, onSkips: nil)
         let target = Self.target()
         _ = await feed.bind(to: target)
 

@@ -689,6 +689,8 @@ public final class ConversationModel {
         public var awayStart: (@MainActor () -> Date?)?
         /// 點進聊天的步驟計時(#659);`nil` 時不量。
         public var operationTimings: OperationTimingSink?
+        /// 點進聊天的讀取限額(#656):每次讀取當下問,由平台注入的網路類型決定;沒給時用保守值。
+        public var readLimits: @MainActor () -> TranscriptReadLimits
 
         public init(
             youShouldKnow: YouShouldKnowModel? = nil, agentFiles: AgentFileLoads? = nil,
@@ -696,7 +698,7 @@ public final class ConversationModel {
             agentSessionStatusReaders: [AgentID: any ClaudeSessionStatusReading] = [:],
             onTranscriptSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)? = nil,
             onPromptDelivered: (@MainActor () -> Void)? = nil, awayStart: (@MainActor () -> Date?)? = nil,
-            operationTimings: OperationTimingSink? = nil
+            operationTimings: OperationTimingSink? = nil, readLimits: @escaping @MainActor () -> TranscriptReadLimits = { .conservative }
         ) {
             self.youShouldKnow = youShouldKnow
             self.agentFiles = agentFiles
@@ -707,13 +709,14 @@ public final class ConversationModel {
             self.onPromptDelivered = onPromptDelivered
             self.awayStart = awayStart
             self.operationTimings = operationTimings
+            self.readLimits = readLimits
         }
     }
 
     public init(
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?, knownTarget: TranscriptTarget? = nil,
-        cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = TranscriptReader.openingLines,
-        openMaxBytes: Int = TranscriptReader.openingMaxBytes, pageLines: Int = 200,
+        cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int? = nil,
+        openMaxBytes: Int? = nil, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerAttachments.Dependencies? = nil,
@@ -734,8 +737,14 @@ public final class ConversationModel {
         self.timings = links.operationTimings
         self.clock = clock
         feed = TranscriptFeed(
-            reader: transcripts, cache: cache, chatKey: paneID, knownSessionID: knownSessionID, clock: clock, openLines: openLines,
-            openMaxBytes: openMaxBytes, pageLines: pageLines, timings: links.operationTimings, onSkips: links.onTranscriptSkips)
+            reader: transcripts, cache: cache, chatKey: paneID, knownSessionID: knownSessionID, clock: clock,
+            readLimits: { [readLimits = links.readLimits] in
+                // 測試可以指定開啟的行數與上限(覆蓋網路類型的限額)。
+                var limits = readLimits()
+                if let openLines { limits.openLines = openLines }
+                if let openMaxBytes { limits.maxBytes = openMaxBytes }
+                return limits
+            }, pageLines: pageLines, timings: links.operationTimings, onSkips: links.onTranscriptSkips)
         self.drafts = drafts
         self.haptics = haptics
         self.hostName = hostName
@@ -1164,7 +1173,7 @@ public final class ConversationModel {
         TranscriptFeed.hasReadableMessage(in: messages)
     }
 
-    /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
+    /// 開啟視窗沒有訊息時最多往前補讀幾頁(#656;畫面的自動往前讀也以它為上限)。
     package static let maximumEmptyWindowPages = TranscriptFeed.maximumEmptyWindowPages
     /// 補讀單頁行數上限。
     package static let maximumBackfillPageLines = TranscriptFeed.maximumBackfillPageLines

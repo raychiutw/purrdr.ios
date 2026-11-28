@@ -22,7 +22,7 @@ struct ConversationOpenWindowTests {
     func openModel(tail: [String]) async throws -> ConversationModel {
         let lines = Fixtures.transcriptLines() + tail
         let data = Data((lines.joined(separator: "\n") + "\n").utf8)
-        let setup = try ConversationModelTests.setup(transcript: data, openLines: TranscriptReader.openingLines, openMaxBytes: TranscriptReader.openingMaxBytes)
+        let setup = try ConversationModelTests.setup(transcript: data, openLines: TranscriptReader.openingLines, openMaxBytes: TranscriptReadLimits.conservative.maxBytes)
         await setup.host.bridge.expect(ConversationModelTests.bridge, reply: ConversationModelTests.snapshot())
         await setup.model.poll()
         return setup.model

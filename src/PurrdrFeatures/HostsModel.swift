@@ -465,10 +465,15 @@ public final class HostsModel {
         await prefetcher.prefetch(candidates)
     }
 
+    /// 點進聊天與背景預讀的讀取限額(#656):依這支裝置目前的網路類型(與流量計量同一個來源);還不知道時用保守值。
+    package func transcriptReadLimits() -> TranscriptReadLimits {
+        TranscriptReadLimits.limits(for: trafficMeter?.currentNetwork)
+    }
+
     private func prefetchTranscript(_ candidate: ConversationPrefetcher.Candidate) async -> Bool {
         guard let member = members[candidate.route.host] else { return false }
         return await ConversationPrefetcher.read(
-            candidate, reader: member.transcripts, cache: conversationCache(for: candidate.route.host))
+            candidate, reader: member.transcripts, cache: conversationCache(for: candidate.route.host), limits: transcriptReadLimits())
     }
 
     public var rows: [HostRow] {

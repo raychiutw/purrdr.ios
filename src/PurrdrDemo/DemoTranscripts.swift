@@ -30,11 +30,13 @@ enum DemoTranscripts {
         }
 
         /// 聊天開啟時一個指令定位並讀最後一個視窗的指令(#656;與 app 開啟時送出的相同)。
-        var openCommand: String {
-            TranscriptCommand.open(
-                TranscriptLocation(locator: isAntigravity ? .antigravity : .claude, reference: .id(sessionID), cwd: cwd),
-                lines: TranscriptReader.openingLines, maxBytes: TranscriptReader.openingMaxBytes)
+        /// 限額依網路類型而不同(#656),所以每一種網路的指令都認。
+        var openCommands: [String] {
+            let location = TranscriptLocation(locator: isAntigravity ? .antigravity : .claude, reference: .id(sessionID), cwd: cwd)
+            return TranscriptReadLimits.demoVariants.map { TranscriptCommand.open(location, lines: $0.openLines, maxBytes: $0.maxBytes) }
         }
+
+        func isOpenCommand(_ command: String) -> Bool { openCommands.contains(command) }
 
         /// 列表預覽請求的一項(與 app 送出的相同)。
         var previewEntry: TranscriptCommand.PreviewEntry {
@@ -61,7 +63,7 @@ enum DemoTranscripts {
             if command == session.locateCommand {
                 return Data("\(session.path)\n\(size)\n".utf8)
             }
-            if command == session.openCommand {
+            if session.isOpenCommand(command) {
                 // 定位的輸出、分隔行,再接視窗的輸出(同 `TranscriptCommand.open`)。
                 let window = Array(session.lines.suffix(TranscriptReader.openingLines))
                 let start = size - window.reduce(0) { $0 + $1.utf8.count + 1 }
@@ -105,7 +107,7 @@ enum DemoTranscripts {
 
     /// 是否為對話畫面定位某個 Demo session 對話紀錄的指令(對話畫面讀對話紀錄的第一步)。
     static func isLocate(_ command: String) -> Bool {
-        (sessions + [DemoAntigravity.session]).contains { command == $0.locateCommand || command == $0.openCommand }
+        (sessions + [DemoAntigravity.session]).contains { command == $0.locateCommand || $0.isOpenCommand(command) }
     }
 
     /// 分段追趕：累計不超過 `limit` 的完整行;第一行就超過時只有那一行(與主機腳本相同;Demo 的行都比上限小，不必截短)。
@@ -449,8 +451,10 @@ enum DemoTranscripts {
     /// Demo 的對話都很短，byte 上限不會截到。
     private static func windowLineLimit(_ command: String, path: String, end: Int) -> Int? {
         if command == TranscriptCommand.window(path: path, end: end, lines: 300) { return 300 }
-        let lines = TranscriptReader.openingLines
-        if command == TranscriptCommand.window(path: path, end: end, lines: lines, maxBytes: TranscriptReader.openingMaxBytes) { return lines }
+        for limits in TranscriptReadLimits.demoVariants
+        where command == TranscriptCommand.window(path: path, end: end, lines: limits.openLines, maxBytes: limits.maxBytes) {
+            return limits.openLines
+        }
         return nil
     }
 
@@ -565,5 +569,12 @@ enum DemoTranscripts {
         object["message"] = ["role": "user", "content": [["type": "tool_result", "tool_use_id": id, "content": text, "is_error": false]]]
         if let toolUseResult { object["toolUseResult"] = toolUseResult }
         return line(object)
+    }
+}
+
+extension TranscriptReadLimits {
+    /// Demo 主機認得的各種網路的限額(app 依目前網路送出其中一種)。
+    static var demoVariants: [TranscriptReadLimits] {
+        [nil, .wifi, .cellular, .other].map { limits(for: $0) }
     }
 }

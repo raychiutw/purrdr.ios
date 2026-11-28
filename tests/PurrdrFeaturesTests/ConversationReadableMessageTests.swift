@@ -87,21 +87,22 @@ struct ConversationReadableMessageTests {
         let chat = try await Self.open(model, connection)
         defer { chat.cancel() }
 
-        #expect(await Self.windowRequests(connection) <= 1 + ConversationModel.maximumEmptyWindowPages + 1)
+        // 開啟一次加最多 1 頁補讀(#656)。
+        #expect(await Self.windowRequests(connection) <= 1 + ConversationModel.maximumEmptyWindowPages)
     }
 
     @Test("#586 補讀好幾頁:時間軸只在補讀完整份重建一次,不是每頁一次")
     func backfillRebuildsTimelineOnce() async throws {
         let connection = FakeHostConnection()
         await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
-        await Self.answering(connection, lines: W.lines)
+        await Self.answering(connection, lines: Self.shortToolTail)
         let model = Self.model(connection)
         var updates: [ConversationTimeline.Update] = []
         model.onTimelineUpdate = { updates.append($0) }
         let chat = try await Self.open(model, connection)
         defer { chat.cancel() }
 
-        #expect(await Self.windowRequests(connection) >= 3, "這份紀錄要補讀兩頁以上才有意義")
+        #expect(await Self.windowRequests(connection) == 2, "開啟加補讀 1 頁")
         #expect(W.hasReadableMessage(model.items))
         // 開啟視窗一次、補讀完一次;舊實作每補一頁各整份取代一次。
         #expect(updates.filter { $0.cause == .refreshed }.count <= 2, "實際 \(updates.map(\.cause))")
@@ -161,10 +162,12 @@ struct ConversationReadableMessageTests {
 
     // MARK: - #508:開啟工作中的聊天,尾端大量工具步驟
 
+    /// 開啟視窗(300 行)全是工具步驟,但可讀訊息就在補讀的那 1 頁裡。
+    nonisolated static let shortToolTail: [String] = Fixtures.transcriptLines() + (0..<200).flatMap { W.toolPair($0) }
     nonisolated static let longToolTail: [String] = Fixtures.transcriptLines() + (0..<500).flatMap { W.toolPair($0) }
 
-    @Test("#508 尾端一千行都是工具步驟:補讀往返次數要少(逐頁 200 行會讀 6 次,每次往返都是使用者等待)")
-    func backfillNeedsFewRoundTrips() async throws {
+    @Test("#656 可讀訊息在補讀的 1 頁之外:停下來顯示工具步驟,頂端保留載入更早訊息的入口")
+    func stopsAfterOnePageWhenStillNothingReadable() async throws {
         let connection = FakeHostConnection()
         await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
         await Self.answering(connection, lines: Self.longToolTail)
@@ -172,9 +175,24 @@ struct ConversationReadableMessageTests {
         let chat = try await Self.open(model, connection)
         defer { chat.cancel() }
 
+        #expect(await Self.windowRequests(connection) == 2)
+        #expect(!W.hasReadableMessage(model.items))
+        #expect(!model.items.isEmpty, "工具步驟仍要顯示")
+        #expect(model.older == .available, "頂端要能再載入更早的訊息")
+    }
+
+    @Test("#508 尾端幾百行都是工具步驟:補讀往返次數要少(開啟加 1 頁,每次往返都是使用者等待)")
+    func backfillNeedsFewRoundTrips() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
+        await Self.answering(connection, lines: Self.shortToolTail)
+        let model = Self.model(connection)
+        let chat = try await Self.open(model, connection)
+        defer { chat.cancel() }
+
         #expect(W.hasReadableMessage(model.items))
         let requests = await Self.windowRequests(connection)
-        #expect(requests <= 4, "window 請求 \(requests) 次")
+        #expect(requests <= 2, "window 請求 \(requests) 次")
     }
 
     @Test("#508 補讀出的可讀訊息寫進快取:第二次開啟立刻有內容,不必再補讀")
@@ -182,7 +200,7 @@ struct ConversationReadableMessageTests {
         let cache = InMemoryConversationCache()
         let connection = FakeHostConnection()
         await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
-        await Self.answering(connection, lines: Self.longToolTail)
+        await Self.answering(connection, lines: Self.shortToolTail)
         let first = Self.model(connection, cache: cache)
         let chat = try await Self.open(first, connection)
         chat.cancel()
@@ -198,7 +216,7 @@ struct ConversationReadableMessageTests {
     func backfillDoesNotReportOlderLoaded() async throws {
         let connection = FakeHostConnection()
         await connection.expect(.snapshot, wire: Fixtures.data("session.snapshot.ndjson"))
-        await Self.answering(connection, lines: Self.longToolTail)
+        await Self.answering(connection, lines: Self.shortToolTail)
         let model = Self.model(connection)
         var causes: [ConversationTimeline.Cause] = []
         model.onTimelineUpdate = { causes.append($0.cause) }

@@ -157,9 +157,8 @@ public struct TranscriptReader: Sendable {
 
     public static let probeCursor = 1 << 50
 
-    /// 聊天第一次從主機讀的短視窗(#356):最後 40 行且不超過 64 KiB，取較小者;更早的訊息往上捲才一段一段載入。數值只在這裡。
-    public static let openingLines = 40
-    public static let openingMaxBytes = 64 << 10
+    /// 聊天第一次從主機讀的視窗行數(#656):最後 300 行;bytes 上限依網路類型,在 `TranscriptReadLimits`。更早的訊息往上捲才一段一段載入。
+    public static let openingLines = 300
 
     /// 不再追蹤 `path`(對話關閉或換了 session;見 `HostConnection.stopFollowingTranscript`)。
     public func stopFollowing(path: String) async {
