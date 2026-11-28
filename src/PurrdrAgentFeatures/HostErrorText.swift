@@ -38,7 +38,7 @@ package enum HostErrorText {
         case let error as SSHKeyImportError:
             keyImportMessage(error)
         case let error as HostServiceError:
-            hostServiceMessage(error)
+            connection == .https ? hostServiceFlowMessage(error) : hostServiceMessage(error)
         default:
             commonMessage(for: error)
         }
@@ -88,6 +88,19 @@ package enum HostErrorText {
         }
     }
 
+    /// 新增或編輯 HTTPS 主機時的連線測試失敗說明(#728):使用者剛填了位址與 Port,
+    /// 連不到與「不是 Purrdr」都請他回去檢查這兩個欄位;一步一句、不寫技術名詞。
+    package static func hostServiceFlowMessage(_ error: HostServiceError) -> String {
+        switch error {
+        case .unreachable, .hostNotFound, .connectionLost:
+            String(localized: "This address didn’t answer. Check the address and Port. On that computer, run purrdr status to see them.")
+        case .notHostService:
+            String(localized: "This address answered, but it isn’t Purrdr. Check the Port. On that computer, run purrdr status to see it.")
+        default:
+            hostServiceMessage(error)
+        }
+    }
+
     /// HTTPS 連線方式(主機服務)的說明。權杖失效時引導重新配對。
     package static func hostServiceMessage(_ error: HostServiceError) -> String {
         switch error {
@@ -133,6 +146,8 @@ package enum HostErrorText {
             String(localized: "The connection dropped. Try again.")
         case .unexpectedResponse:
             String(localized: "The host service sent a response Purrdr doesn’t understand. Update Purrdr and the host service.")
+        case .notHostService:
+            String(localized: "This address isn’t a Purrdr host service. Check the address and Port.")
         case .paneChanged:
             String(localized: "This chat changed on the host, so nothing was sent.")
         case .queueFull:
