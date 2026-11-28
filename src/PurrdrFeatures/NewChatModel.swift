@@ -100,8 +100,14 @@ public final class FolderPickerModel {
             String(localized: "This folder isn’t on the host, or you can’t open it.")
         case NewChatFolderError.unexpectedResponse:
             String(localized: "The host didn’t answer with a list of folders.")
-        case NewChatFolderError.failed:
+        case NewChatFolderError.failed, DirectoryListError.unreadable:
             String(localized: "Couldn’t read this folder on the host.")
+        case DirectoryListError.notFound:
+            String(localized: "This folder isn’t on the host, or you can’t open it.")
+        case DirectoryListError.notAllowed:
+            String(localized: "Purrdr can’t open this folder on the host. Choose another one.")
+        case NewChatFolderError.homeUnavailable:
+            String(localized: "Couldn’t find the home folder on the host. Type the folder’s location instead.")
         default:
             HostErrorText.message(for: error)
         }
@@ -186,6 +192,7 @@ public final class NewChatModel {
         self.supportsExistingWorkspaces = supportsExistingWorkspaces
         self.launcher = launcher
         self.folders = folders
+        canBrowseFolders = folders.canBrowse
         availableAgents = agents
         agent = agents.first ?? .claude
     }
@@ -294,12 +301,25 @@ public final class NewChatModel {
         }
     }
 
-    /// 能不能在主機上瀏覽資料夾(HTTPS 主機不能，要輸入完整路徑)。
-    public var canBrowseFolders: Bool { folders.canBrowse }
+    /// 能不能在主機上瀏覽資料夾:SSH 一開始就可以;HTTPS 要主機服務 0.12.0 以上,`loadAccess()` 查過才開(之前與不夠新時要輸入完整路徑)。
+    public private(set) var canBrowseFolders: Bool
+    /// HTTPS 主機的主機服務太舊、不能瀏覽資料夾:畫面說明要更新主機服務(#731)。
+    public private(set) var folderBrowsingNeedsUpdate = false
 
     /// 讀這支裝置是否唯讀(HTTPS 主機握手時回報)。
     public func loadAccess() async {
         readOnlyReason = await launcher.isReadOnlyDevice() ? HostErrorText.message(for: HostServiceError.readOnlyDevice) : nil
+        guard folders.hasHostServiceBrowser else { return }
+        switch await folders.browsingAvailability() {
+        case .available:
+            canBrowseFolders = true
+            folderBrowsingNeedsUpdate = false
+        case .hostServiceUpdateRequired:
+            canBrowseFolders = false
+            folderBrowsingNeedsUpdate = true
+        case .unknown:
+            canBrowseFolders = false
+        }
     }
 
     /// 資料夾瀏覽，從表單目前的資料夾開始(空白 = 家目錄)。
@@ -352,7 +372,10 @@ public final class NewChatModel {
             String(localized: "There’s no such folder on the host. Check the location, or choose a folder on the host.")
         case NewChatFolderError.absolutePathRequired:
             String(localized: "Type the folder’s location on the host, like /Users/you/project. This host can’t show a folder list.")
-        case NewChatFolderError.unexpectedResponse, NewChatFolderError.failed:
+        case DirectoryListError.notFound:
+            String(localized: "There’s no such folder on the host. Check the location, or choose a folder on the host.")
+        case NewChatFolderError.unexpectedResponse, NewChatFolderError.failed, NewChatFolderError.homeUnavailable,
+            DirectoryListError.notAllowed, DirectoryListError.unreadable:
             FolderPickerModel.message(for: error)
         case TranscriptReadError.absent:
             String(localized: "That chat’s record is no longer on the host, so it can’t be resumed. Pick another chat, or start a new one.")

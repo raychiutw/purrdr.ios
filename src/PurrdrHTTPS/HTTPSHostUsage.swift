@@ -142,3 +142,5 @@ extension HTTPSHostConnection: ClaudeSessionStatusReading {
         return result
     }
 }
+
+extension HTTPSHostConnection: DirectoryBrowsing {}
