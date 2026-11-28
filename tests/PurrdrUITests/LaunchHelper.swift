@@ -6,11 +6,65 @@ extension XCUIApplication {
     /// UI 測試一律經過這裡(或 `uiTesting`)啟動，不在測試檔裡自己拼 `launchArguments`。
     /// `flags` 是情境旗標(`LaunchFlag`,與 app 端同一份清單);`arguments` 是系統參數(例如 `-AppleLanguages`);
     /// `contentSize` 是系統字級類別(例如 `UICTContentSizeCategoryAccessibilityXXXL`)。
+    ///
+    /// 啟動帶看門狗(#718):app 在 30 秒內(只算有回應的時間)沒有出現主視窗就結束後重來一次;
+    /// 每次重來都寫一行 `[launch-watchdog]` 到測試輸出,有崩潰報告就不重來、直接失敗(不掩蓋真實崩潰)。
+    /// 只涵蓋「app 已啟動但沒就緒」;`launch()` 本身卡在「Setting up automation session」時它還在 XCUITest 裡,看門狗插不上手。
     @MainActor
-    static func launchUITesting(flags: [LaunchFlag] = [], arguments: [String] = [], contentSize: String? = nil) -> XCUIApplication {
+    static func launchUITesting(flags: [LaunchFlag] = [], arguments: [String] = [], contentSize: String? = nil,
+                                file: StaticString = #filePath, line: UInt = #line) -> XCUIApplication {
         let app = uiTesting(flags: flags, arguments: arguments, contentSize: contentSize)
-        app.launch()
+        app.launchWithWatchdog(file: file, line: line)
         return app
+    }
+
+    /// 帶看門狗的啟動。`forcedUnready`:前 N 次啟動一律當成沒就緒(`LaunchWatchdogUITests` 用來驗證重來路徑)。
+    @MainActor
+    func launchWithWatchdog(policy: LaunchWatchdogPolicy = LaunchWatchdogPolicy(), forcedUnready: Int = 0,
+                            log: (String) -> Void = { print($0) }, file: StaticString = #filePath, line: UInt = #line) {
+        var launchedAt = Date()
+        let failure = LaunchWatchdog.run(
+            policy: policy,
+            launch: {
+                launchedAt = Date()
+                launch()
+            },
+            awaitReady: { attempt, timeout in
+                guard attempt > forcedUnready else { return false }
+                return UITestWait.until(timeout: timeout) { self.state == .runningForeground && self.windows.firstMatch.existsWithoutIdle }
+            },
+            diagnose: {
+                LaunchDiagnosis(
+                    appState: Self.describe(state), appIsGone: state == .notRunning,
+                    crashReportFound: Self.crashReportExists(since: launchedAt))
+            },
+            terminate: { terminate() },
+            log: log)
+        if let failure { XCTFail(failure, file: file, line: line) }
+    }
+
+    private static func describe(_ state: XCUIApplication.State) -> String {
+        switch state {
+        case .notRunning: "notRunning"
+        case .runningBackgroundSuspended: "runningBackgroundSuspended"
+        case .runningBackground: "runningBackground"
+        case .runningForeground: "runningForeground"
+        case .unknown: "unknown"
+        @unknown default: "unknown"
+        }
+    }
+
+    /// 啟動之後,主機的 DiagnosticReports 有沒有 Purrdr 的崩潰報告(模擬器程序能讀主機家目錄)。讀不到回 nil。
+    private static func crashReportExists(since date: Date) -> Bool? {
+        let home = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] ?? NSHomeDirectory()
+        let directory = URL(filePath: home).appending(path: "Library/Logs/DiagnosticReports")
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: [.contentModificationDateKey]) else { return nil }
+        return files.contains { url in
+            guard url.lastPathComponent.hasPrefix("Purrdr"), ["ips", "crash"].contains(url.pathExtension) else { return false }
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return modified >= date
+        }
     }
 
     /// 設定好 UI 測試啟動參數、但還沒啟動的 app。給要由 `open(_:)`(深層連結)冷啟動的測試用。
