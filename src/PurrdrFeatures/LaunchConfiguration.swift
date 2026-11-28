@@ -47,9 +47,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
         case none
         /// 後台一直沒回應(#496)。
         case loading
-        case plus, ownedByOtherMember
+        case plus
         case linkMerge
-        case upgraded
         case member
         /// 沒登入,且這個帳號沒有會員(#453)。
         case noMember
@@ -109,8 +108,6 @@ public struct LaunchConfiguration: Equatable, Sendable {
     public let pushTestFails: Bool
     /// 預放一筆「上次異常結束」的閃退記錄(#632)。
     public let recordsUITestingCrash: Bool
-    /// `-uiTestingOwnedByOtherMember`:StoreKit 替身的目前交易屬於另一個會員(與會員情境優先順序獨立)。
-    public let storeOwnedByOtherMember: Bool
     /// `-uiTestingPlusOff`:模擬上架版(Purrdr Plus 編譯開關關閉,#676)。與會員情境互不影響;預設(沒帶)是 Debug 的開啟。
     public let disablesPlus: Bool
     /// 登入頁用測試登入(只看原始旗標,不受會員情境優先順序影響)。
@@ -136,9 +133,7 @@ public struct LaunchConfiguration: Equatable, Sendable {
         // 優先順序與先前 `makeMemberSession`／`uiTestingMemberBackend` 的判斷順序相同。
         if has(.uiTestingMemberLoading) { member = .loading }
         else if has(.uiTestingPlusMember) { member = .plus }
-        else if has(.uiTestingOwnedByOtherMember) { member = .ownedByOtherMember }
         else if has(.uiTestingLinkMerge) { member = .linkMerge }
-        else if has(.uiTestingUpgradedMember) { member = .upgraded }
         else if has(.uiTestingMember) { member = .member }
         else if has(.uiTestingNoMember) { member = .noMember }
         else { member = .none }
@@ -160,9 +155,8 @@ public struct LaunchConfiguration: Equatable, Sendable {
         appLockEnabled = has(.uiTestingAppLock)
         pushTestFails = has(.uiTestingPushTestFails)
         recordsUITestingCrash = isUITesting && has(.uiTestingCrashRecord)
-        storeOwnedByOtherMember = has(.uiTestingOwnedByOtherMember)
         disablesPlus = isUITesting && has(.uiTestingPlusOff)
         usesTestingSignIn = isUITesting
-            && (has(.uiTestingNoMember) || has(.uiTestingLinkMerge) || has(.uiTestingUpgradedMember))
+            && (has(.uiTestingNoMember) || has(.uiTestingLinkMerge))
     }
 }
