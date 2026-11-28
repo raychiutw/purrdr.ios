@@ -4,12 +4,12 @@
 合併腳本照 `WindowsScripts.open`(「path」種類的定位 + `openWindowSetup` + `windowBody`)。對話紀錄寫在本機 %TEMP% 的暫存資料夾。
 
 案例:
-  1. 一般檔案:最後 N 行,輸出是「路徑、大小、分隔行、起點 終點、每行」,游標等於檔案大小。
+  1. 一般檔案:最後 N 行,輸出是「路徑、大小、分隔行、起點 終點、每行」,游標等於檔案大小;每行長度不含換行(同 app 解析器)。
   2. maxBytes:只取範圍內完整的行,不放大區塊。
   3. 檔尾全是工具步驟與大圖片行:圖片 base64 被剝掉、原始長度照實印。
   4. 檔案不在:exit 3。
   5. 檔案在讀取途中變長:視窗終點是定位時量到的大小,每一行都完整、終點不超過實際大小。
-  6. 時限:stdin 不送結束標記,stub 在 30 秒後以 exit 124 結束。
+  6. 時限:stdin 不送結束標記也不關,stub 在 30 秒後以 exit 124 結束。
 
 用法(要在 Windows 主機本機跑):
   PURRDR_WINDOWS_HOST=user@127.0.0.1 PURRDR_WINDOWS_KEY=<私鑰> python -I scripts/windows-open-transcript-repro.py
@@ -87,7 +87,7 @@ def main():
         checks["一般檔案:最後 3 行、游標等於大小"] = (
             code == 0 and got_path == path and got_size == size and marker == MARKER and span[1] == size
             and [content for _, content in rows] == ['{"type":"assistant","n":%d}' % n for n in (8, 9, 10)]
-            and all(length == len(content) + 1 for length, content in rows))
+            and all(length == len(content) for length, content in rows) and sum(length + 1 for length, _ in rows) == span[1] - span[0])
         # 2. maxBytes
         code, _, _, _, span, rows = run_open(source, path, 300, 60)
         checks["maxBytes:只取範圍內完整的行"] = code == 0 and 0 < len(rows) < 10 and span[1] == size and span[0] > 0
@@ -124,11 +124,21 @@ def main():
             code == 0 and span[1] == got_size <= final and len(rows) == 300
             and all(content.startswith("{") and content.endswith("}") for _, content in rows))
         # 6. 時限(stdin 不送結束標記)
+        # stdin 保持開著不送 EOF(模擬 app 斷線但 channel 沒關);關掉 stdin 會讓 stub 讀到 EOF 直接執行。
         started = time.time()
-        completed = subprocess.run(repro.ssh_argv(repro.encoded(repro.stdin_stub(source))),
-                                   input=open_stdin(source, path, 3, 0, with_end=False), capture_output=True, timeout=120)
+        process = subprocess.Popen(repro.ssh_argv(repro.encoded(repro.stdin_stub(source))),
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process.stdin.write(open_stdin(source, path, 3, 0, with_end=False))
+        process.stdin.flush()
+        try:
+            process.wait(timeout=120)
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.stdin.close()
+            process.communicate()
         elapsed = time.time() - started
-        checks["時限:沒有結束標記 30 秒後 exit 124"] = completed.returncode == 124 and 25 < elapsed < 60
+        checks["時限:沒有結束標記 30 秒後 exit 124"] = process.returncode == 124 and 25 < elapsed < 60
     finally:
         shutil.rmtree(folder, ignore_errors=True)
     for name, ok in checks.items():
