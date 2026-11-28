@@ -16,6 +16,10 @@ enum ProductionEnvironment {
     static func make(_ configuration: LaunchConfiguration) -> LaunchEnvironment {
         // 重裝清理(#580):刪 App 後 Keychain 項目還在;必須在任何 Keychain 存放區被讀之前。
         ReinstallGuard.system().run()
+        // 主機服務位址的規則(#696):app 入口唯一讀 build setting(`PURRDR_ALLOW_LOCAL_HOST_SERVICE` →
+        // Info.plist `PurrdrAllowLocalHostService`)的地方,要在任何主機設定被讀進來之前。Release 只收 https。
+        HostServiceAddress.Policy.current = HostServiceAddress.Policy(
+            infoValue: Bundle.main.object(forInfoDictionaryKey: "PurrdrAllowLocalHostService"))
         // Tailscale SSH check mode 的提示:所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
         // 診斷事件(#688):連線事件進可分享的診斷檔,受「操作記錄」開關控制(閃退照舊一律記錄)。

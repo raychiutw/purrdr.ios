@@ -273,6 +273,13 @@ struct AddHostGuideView: View {
         DisclosureGroup(isExpanded: $manualExpanded) {
             VStack(spacing: 12) {
                 pairField(.pairAddress, label: "Host address", text: $model.pairAddress, prompt: "studio.tail1234.ts.net")
+                if model.pairAddressNeedsHTTPS {
+                    Text("The address needs to be https.")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("addHostGuide.addressNeedsHTTPS")
+                }
                 pairField(.pairPort, label: "Port", text: $model.pairPort, prompt: "443", numeric: true)
                 pairField(.pairingCode, label: "Pairing Code", text: $model.pairingCode, prompt: "K7QM-2XPA", uppercase: true)
             }

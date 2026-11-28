@@ -142,6 +142,12 @@ public final class AddHostGuideModel {
     /// HTTPS:主機服務的位址(主機名稱)、Port 與配對碼。
     public var pairAddress = ""
     public var pairPort = "443"
+    /// 主機服務位址的規則(#696):Release 只收 https。預設跟著 app 入口設的 `HostServiceAddress.Policy.current`。
+    public var addressPolicy: HostServiceAddress.Policy = .current
+    /// 手動輸入的位址是 http 或本機位址、被規則擋下:畫面提示「位址要是 https」。
+    public var pairAddressNeedsHTTPS: Bool {
+        HostServiceAddress.isRejected(pairAddress.trimmingCharacters(in: .whitespaces), by: addressPolicy)
+    }
     public var pairingCode = ""
     public var username = ""
     /// 儲存完成的主機。
@@ -184,7 +190,7 @@ public final class AddHostGuideModel {
         store: any HostStore, credentials: HostCredentials = HostCredentials(), hostService: HostServiceAccess = HostServiceAccess(),
         isSignedIn: @escaping @MainActor () async -> Bool = { false },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel,
-        shortcut: Shortcut
+        shortcut: Shortcut, addressPolicy: HostServiceAddress.Policy = .current
     ) throws {
         switch shortcut {
         case .needsPairing(let host):
@@ -198,8 +204,9 @@ public final class AddHostGuideModel {
             step = .pair
         case .importLink(let url):
             if HostServicePairingLink.isPairingLink(url) {
-                let link = try HostServicePairingLink(url: url)
+                let link = try HostServicePairingLink(url: url, policy: addressPolicy)
                 self.init(store: store, credentials: credentials, hostService: hostService, isSignedIn: isSignedIn, makeChannel: makeChannel)
+                self.addressPolicy = addressPolicy
                 kind = .https
                 load(link.address)
                 pairingCode = link.pairingCode
@@ -207,8 +214,9 @@ public final class AddHostGuideModel {
                 awaitsTestConfirmation = true
                 return
             }
-            let shared = try HostShareLink.decode(url)
+            let shared = try HostShareLink.decode(url, policy: addressPolicy)
             self.init(store: store, credentials: credentials, hostService: hostService, isSignedIn: isSignedIn, makeChannel: makeChannel)
+            self.addressPolicy = addressPolicy
             presetName = shared.name
             switch shared.connectionMethod {
             case .https:
@@ -475,7 +483,7 @@ public final class AddHostGuideModel {
     @discardableResult
     public func applyScannedCode(_ text: String) -> Bool {
         guard step == .pair, let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
-            let link = try? HostServicePairingLink(url: url)
+            let link = try? HostServicePairingLink(url: url, policy: addressPolicy)
         else { return false }
         load(link.address)
         pairingCode = link.pairingCode
@@ -619,7 +627,8 @@ public final class AddHostGuideModel {
     private var httpsDraft: HostConnectionDraft? {
         let code = pairingCode.trimmingCharacters(in: .whitespaces).uppercased()
         guard !code.isEmpty,
-            let address = HostServiceAddress(addressField: pairAddress.trimmingCharacters(in: .whitespaces), portField: pairPort)
+            let address = HostServiceAddress(
+                addressField: pairAddress.trimmingCharacters(in: .whitespaces), portField: pairPort, policy: addressPolicy)
         else { return nil }
         return HostConnectionDraft(
             name: presetName ?? Self.defaultName(for: address.hostName), connection: .https(address, pairingCode: code))

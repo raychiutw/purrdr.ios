@@ -80,7 +80,7 @@ public enum HostShareLink {
         return components.url!
     }
 
-    public static func decode(_ url: URL) throws -> SharedHost {
+    public static func decode(_ url: URL, policy: HostServiceAddress.Policy = .current) throws -> SharedHost {
         guard url.scheme?.lowercased() == "purrdr", url.host()?.lowercased() == "host" else { throw HostShareLinkError.notAHostLink }
         guard let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "d" })?.value,
               let data = fromBase64URL(value)
@@ -93,7 +93,7 @@ public enum HostShareLink {
         let user = wire.user.trimmingCharacters(in: .whitespaces)
         if wire.method == HostConfiguration.ConnectionMethod.https.rawValue {
             // HTTPS 主機：端點由主機服務位址決定(沒有使用者名稱)。
-            guard !name.isEmpty, let address = wire.url.flatMap(HostServiceAddress.init) else { throw HostShareLinkError.malformed }
+            guard !name.isEmpty, let address = wire.url.flatMap({ HostServiceAddress($0, policy: policy) }) else { throw HostShareLinkError.malformed }
             return SharedHost(name: name, hostService: address)
         }
         guard !name.isEmpty, !host.isEmpty, !user.isEmpty, (1...65_535).contains(wire.port) else { throw HostShareLinkError.malformed }

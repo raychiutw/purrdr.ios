@@ -12735,6 +12735,17 @@
         }
       }
     },
+    "The address needs to be https." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位址要是 https。"
+          }
+        }
+      }
+    },
     "The agent didn’t pick up the message. It may be stuck on a prompt; check the terminal, then try again." : {
       "extractionState" : "manual",
       "localizations" : {

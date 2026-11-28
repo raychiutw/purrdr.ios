@@ -216,6 +216,11 @@ struct HostEditorView: View {
             EmptyView()
         case .https:
             VStack(alignment: .leading, spacing: 8) {
+                if model.addressNeedsHTTPS {
+                    Text("The address needs to be https.")
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("hostEditor.addressNeedsHTTPS")
+                }
                 Text("On the host, install the Purrdr host service and run the command below. Then scan the QR code it shows. Login Shell and Files aren’t available this way.")
                 InstructionView(instruction: AddHostGuideInstruction(text: String(localized: "Run this on the host:"), command: HostEditorModel.hostServicePairCommand))
                 Link("How to Install the Host Service", destination: PurrdrLinks.hostServiceGuide)
