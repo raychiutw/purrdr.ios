@@ -257,6 +257,7 @@ struct HTTPSTranscriptTests {
             ("transcript_unreadable", .unreadable),
             ("transcript_ambiguous", .ambiguous),
             ("transcript_compressed", .compressed),
+            ("transcript_too_large", .tooLarge),
             ("transcript_not_allowed", .invalidReference),
         ])
     func failures(code: String, expected: TranscriptReadError) async throws {

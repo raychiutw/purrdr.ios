@@ -50,6 +50,8 @@ public final class ConversationModel {
         case ambiguous
         /// 對話紀錄被壓縮了(Codex 會壓縮 7 天未動的 rollout,行為規格 §4.2):目前讀不了，但不是不存在。
         case compressed
+        /// 對話紀錄超過主機服務的讀取上限(#729):手機讀不了,到電腦上看。
+        case tooLarge
     }
 
     public enum Older: Equatable {
@@ -1138,6 +1140,10 @@ public final class ConversationModel {
             if isRefreshing { clearDisplay() }
             banner = .compressed
             phase = .ready
+        case TranscriptReadError.tooLarge:
+            // 檔案還在、只是太大:不清畫面上已有的內容,讀不到就說明原因(不當成一般讀取失敗而一直「重試」)。
+            banner = .tooLarge
+            if items.isEmpty { phase = .ready }
         default:
             // 保留畫面上的內容，下次輪詢重試;永不退回從 byte 0 追蹤。
             banner = .readFailed

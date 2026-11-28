@@ -143,6 +143,7 @@ struct ConversationStatusSummaryTests {
     func transcriptBanner() {
         #expect(Self.summary(banner: .readFailed).banner == .transcript(.readFailed))
         #expect(Self.summary(banner: .compressed).banner == .transcript(.compressed))
+        #expect(Self.summary(banner: .tooLarge).banner == .transcript(.tooLarge))
     }
 
     @Test("唯讀裝置：橫幅是唯讀")

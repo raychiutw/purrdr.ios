@@ -18,6 +18,8 @@ final class FakeHostService: Sendable {
     enum AgentsReply: Sendable {
         /// `server.agents-list-result.json` 的內容。
         case example
+        /// 舊版主機服務(0.17.0 以前):範例內容去掉 `tabs`、`panes`、`layouts`。
+        case withoutTabs
         /// 範例內容，但換掉某些 Pane 的狀態(pane id → 狀態)。
         case statuses([String: String])
         /// 錯誤訊息(`code` 是協定的錯誤碼)。
@@ -373,6 +375,8 @@ final class FakeHostService: Sendable {
         case "agents.list":
             switch settings.agentsReply {
             case .example: return [.text(Self.example("server.agents-list-result.json", requestID: requestID))]
+            case .withoutTabs:
+                return [.text(Self.example("server.agents-list-result.json", requestID: requestID, removing: ["tabs", "panes", "layouts"]))]
             case .statuses(let statuses): return [.text(Self.agents(requestID: requestID, statuses: statuses))]
             case .error(let code, let text, let herdrCode): return [.text(Self.error(requestID, code, message: text, herdrCode: herdrCode))]
             case .silent: return []
@@ -741,10 +745,11 @@ final class FakeHostService: Sendable {
         .appending(path: "vendor/purrdr-host/protocol/examples")
 
     /// 協定範例，換上這次的請求識別碼。
-    private static func example(_ name: String, requestID: String?, changing changes: [String: Any] = [:]) -> String {
+    private static func example(_ name: String, requestID: String?, changing changes: [String: Any] = [:], removing removed: [String] = []) -> String {
         let data = (try? Data(contentsOf: examplesDirectory.appending(path: name))) ?? Data()
         var object = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
         object.merge(changes) { _, changed in changed }
+        for key in removed { object[key] = nil }
         object["request_id"] = requestID
         return json(object)
     }

@@ -242,15 +242,39 @@ extension HTTPSHostConnection {
     static func snapshot(from result: HostServiceProtocol.AgentsListResult, version: String) -> HostSnapshot {
         func nonEmpty(_ value: String?) -> String? { value.flatMap { $0.isEmpty ? nil : $0 } }
         let labels = Dictionary(result.workspaces.map { ($0.workspaceId, $0.label) }, uniquingKeysWith: { first, _ in first })
+        // 主機服務沒回編號:以陣列順序(同 herdr)當編號,列表才排得出順序。
+        var tabNumbers: [String: Int] = [:]
         return HostSnapshot(
             version: version,
-            workspaces: result.workspaces.map { Workspace(id: $0.workspaceId, number: 0, label: nonEmpty($0.label)) },
+            workspaces: result.workspaces.enumerated().map { index, workspace in
+                Workspace(id: workspace.workspaceId, number: index + 1, label: nonEmpty(workspace.label))
+            },
             agents: result.agents.map { agent in
                 Agent(
                     paneID: agent.paneId, workspaceID: agent.workspaceId, kind: agent.agent ?? "",
                     status: AgentStatus(rawValue: agent.status.rawValue) ?? .unknown,
                     terminalTitle: nonEmpty(agent.title), workspaceLabel: nonEmpty(labels[agent.workspaceId]), cwd: nonEmpty(agent.cwd),
                     session: agent.session.map { AgentSessionReference(kind: $0.kind, value: $0.value) }, tabID: nonEmpty(agent.tabId))
+            },
+            // 0.17.0 起一律帶 tabs、panes、layouts;更舊的主機服務沒有,tabs、panes 留空、layouts 為 nil(與 SSH 的「沒回報」相同)。
+            tabs: (result.tabs ?? []).map { tab in
+                tabNumbers[tab.workspaceId, default: 0] += 1
+                return Tab(id: tab.tabId, workspaceID: tab.workspaceId, number: tabNumbers[tab.workspaceId] ?? 0, label: nonEmpty(tab.label))
+            },
+            panes: (result.panes ?? []).map { pane in
+                Pane(
+                    id: pane.paneId, workspaceID: pane.workspaceId, tabID: pane.tabId, agentKind: nonEmpty(pane.agent),
+                    cwd: nonEmpty(pane.cwd), terminalTitle: nonEmpty(pane.terminalTitleStripped) ?? nonEmpty(pane.terminalTitle))
+            },
+            layouts: result.layouts.map { layouts in
+                layouts.map { layout in
+                    TabLayout(
+                        workspaceID: layout.workspaceId, tabID: layout.tabId, zoomed: layout.zoomed, focusedPaneID: nonEmpty(layout.focusedPaneId),
+                        panes: layout.panes.map {
+                            TabLayout.PaneRect(
+                                paneID: $0.paneId, rect: GridRect(x: $0.rect.x, y: $0.rect.y, width: $0.rect.width, height: $0.rect.height))
+                        })
+                }
             })
     }
 }
