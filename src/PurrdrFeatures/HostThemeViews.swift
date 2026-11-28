@@ -26,10 +26,15 @@ extension View {
 
     /// 套用選取中主機的主機主題，畫面存在時輪詢它(#23 × #39)。換選取中主機(或那台主機的連線重建)就換成那台的主題、重新開始輪詢。
     /// iPhone 的一疊、iPad 三欄與「在新視窗開啟」的視窗都用這個;sheet 要接在它外面才維持 App 配色。
+    @ViewBuilder
     func selectedHostTheme(_ hosts: HostsModel) -> some View {
-        let model = hosts.hostTheme
-        return hostTheme(model.theme)
-            .modifier(HostThemePolling(model: model))
+        if hosts.offersHostTheme {
+            let model = hosts.hostTheme
+            hostTheme(model.theme)
+                .modifier(HostThemePolling(model: model))
+        } else {
+            hostTheme(nil)
+        }
     }
 
     /// 承載字的填色(徽章)與它上面的字色：`prominentFill` 底、`onProminentFill` 字。

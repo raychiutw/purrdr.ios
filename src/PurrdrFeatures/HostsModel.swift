@@ -306,6 +306,8 @@ public final class HostsModel {
     /// 選取中主機的主機主題(#23;DESIGN.md:選取中主機決定套用誰的主題)。每台主機各自一份、同意以主機為單位記住;
     /// 換選取中主機就換成那台的(讀過的主題留著，切回來不必等下一次輪詢)。
     public var hostTheme: HostThemeModel { member(for: selection).hostTheme }
+    /// 選取中主機有沒有主機主題(HTTPS 主機沒有,#730):沒有就不套用也不輪詢。
+    var offersHostTheme: Bool { member(for: selection).offersMachineSettings }
     /// 選取中主機的「You should know」註記(設定頁撤掉修改用，#23)。每台主機各自一份，寫回的同意以主機為單位記住。
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
 
@@ -985,7 +987,7 @@ public final class HostsModel {
             members[host].map { member in
                 MergedAgentListModel.Source(
                     host: host, name: name(of: host), icon: icon(of: host), list: member.list, actions: member.actions,
-                    notes: member.youShouldKnow, needsReconfirmation: needsReconfirmation(host))
+                    notes: member.offersMachineSettings ? member.youShouldKnow : nil, needsReconfirmation: needsReconfirmation(host))
             }
         }
         agentList.isAwaitingFirstHost = hosts.isEmpty && !demoEntered
@@ -1166,9 +1168,9 @@ extension PushService {
 /// 一台主機的主機設定(#274):在主機頁下方，作用在那台主機。
 @MainActor
 public struct HostSettings: Equatable {
-    public let hostTheme: HostThemeModel
-    public let youShouldKnow: YouShouldKnowModel
-    public let codexLauncher: CodexLauncherModel
+    public let hostTheme: HostThemeModel?
+    public let youShouldKnow: YouShouldKnowModel?
+    public let codexLauncher: CodexLauncherModel?
 
     public nonisolated static func == (lhs: HostSettings, rhs: HostSettings) -> Bool {
         lhs.hostTheme === rhs.hostTheme && lhs.youShouldKnow === rhs.youShouldKnow && lhs.codexLauncher === rhs.codexLauncher
