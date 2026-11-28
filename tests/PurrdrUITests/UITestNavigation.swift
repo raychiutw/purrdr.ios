@@ -412,6 +412,8 @@ extension XCUIApplication {
 /// 只看它的 frame 會點到蓋在上面的卡片(#251)。整棵畫面樹只取一次 snapshot，位置在測試端計算。
 struct ConversationLayout {
     static let coverIdentifiers = ["conversation.suggestion", "youShouldKnow.note", "youShouldKnow.compact", "stopBar.stop", "composer.text"]
+    /// 蓋在對話頂端的元素(跨聊天「需要你」橫幅在導覽列下面,#530):列表內容在它底下捲過,點到會變成點橫幅(換去別的聊天)。
+    static let topCoverIdentifiers = ["needsYou.banner"]
 
     let visibleRange: ClosedRange<CGFloat>
     let listMidX: CGFloat
@@ -427,19 +429,21 @@ struct ConversationLayout {
         }
         var listFrame: CGRect?
         var navigationBarMaxY: CGFloat?
+        var topCoverMaxY: CGFloat?
         var coverTops: [CGFloat] = []
         var seen = Set<String>()
         func walk(_ node: any XCUIElementSnapshot) {
             let id = node.identifier
             if id == "conversation.list", node.elementType == .collectionView, listFrame == nil { listFrame = node.frame }
             if node.elementType == .navigationBar, navigationBarMaxY == nil { navigationBarMaxY = node.frame.maxY }
+            if Self.topCoverIdentifiers.contains(id), topCoverMaxY == nil { topCoverMaxY = node.frame.maxY + 8 }
             // 與 `element(id).exists` 一樣，同一個識別碼取第一個。
             if Self.coverIdentifiers.contains(id), seen.insert(id).inserted { coverTops.append(node.frame.minY - 8) }
             node.children.forEach(walk)
         }
         walk(tree)
         let list = listFrame ?? fallbackList.frame
-        let top = max(list.minY, navigationBarMaxY ?? list.minY)
+        let top = max(list.minY, navigationBarMaxY ?? list.minY, topCoverMaxY ?? list.minY)
         let bottom = min(list.maxY, coverTops.min() ?? list.maxY)
         visibleRange = top...max(top, bottom)
         listMidX = list.midX
