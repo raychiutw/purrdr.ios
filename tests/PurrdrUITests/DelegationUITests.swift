@@ -101,9 +101,11 @@ final class DelegationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Do you want to proceed?"].exists, "沒有問題文字")
         XCTAssertTrue(app.staticTexts["Bash command"].exists, "沒有權限細節的標題")
 
+        // 問題卡是對話列表的一列(#680):從 subagent 畫面返回後列表不在底部,先捲到選項整個看得到。
         let yes = app.element("prompt.option.1")
         let no = app.element("prompt.option.3")
-        XCTAssertTrue(yes.exists)
+        XCTAssertTrue(app.revealInConversation(no), "捲不到最後一個選項")
+        XCTAssertTrue(app.revealInConversation(yes), "捲不到第一個選項")
         XCTAssertGreaterThanOrEqual(yes.frame.height, 44, "選項觸控目標不足 44pt")
         XCTAssertEqual(yes.frame.width, no.frame.width, accuracy: 1, "同一組選項應同尺寸")
         // #271(原型 purrdr-screens 定案版):選項不編號。

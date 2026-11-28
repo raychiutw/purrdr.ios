@@ -42,10 +42,13 @@ public struct TopNavigationView: View {
         hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
         hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil,
         appLock: AppLock? = nil,
-        crashNotice: CrashNoticeModel? = nil
+        crashNotice: CrashNoticeModel? = nil,
+        allowsTestingLinks: Bool = false
     ) {
         self.crashNotice = crashNotice
         let navigation = TopNavigationModel(appLock: appLock)
+        // 冷啟動時 `onOpenURL` 早於任何 `.task`:測試連結的開關要在建立 model 時就設好,不能等環境值的 `.task` 才同步(#723)。
+        navigation.allowsTestingLinks = allowsTestingLinks
         navigation.offersPlus = plus != nil
         _navigation = State(initialValue: navigation)
         _actions = State(initialValue: RootActions(navigation: navigation, hosts: hosts))
