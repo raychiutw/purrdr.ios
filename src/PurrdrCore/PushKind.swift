@@ -25,7 +25,9 @@ public struct PushKind: RawRepresentable, Sendable, Hashable {
     /// 「主機服務」:主機服務的更新事件(有新版、已更新、已退回;raychiutw/purrdr.server#11)。
     public static let hostService = PushKind("host_service")
     /// 「每日上限已達」:今日通知則數用完時的說明(#675);會員層級,後台依這組配對的開關決定送不送。
-    public static let dailyLimitReached = PushKind("daily_limit_reached")
+    public static let dailyLimitReached = PushKind(dailyLimitReachedCode)
+    /// 「每日上限」在 wire 上的代號:種類、通知 `event` 與後台錯誤碼共用同一個字串。
+    public static let dailyLimitReachedCode = "daily_limit_reached"
 
     /// wire 上的陣列：依代號排序，讓同一組種類每次送出都一樣。
     public static func wireValues(_ kinds: Set<PushKind>) -> [String] {

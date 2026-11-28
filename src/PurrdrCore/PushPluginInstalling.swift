@@ -90,7 +90,7 @@ public enum PushTestNotificationError: Error, Equatable {
         case "pairing_not_found", "pairing_revoked": self = .notPaired
         case "subscription_required": self = .subscriptionRequired
         case "rate_limited": self = .rateLimited
-        case "daily_limit_reached": self = .dailyLimitReached
+        case PushKind.dailyLimitReachedCode: self = .dailyLimitReached
         case "apns_failed": self = .apnsFailed
         default: return nil
         }

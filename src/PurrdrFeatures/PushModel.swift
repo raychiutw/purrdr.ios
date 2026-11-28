@@ -991,11 +991,27 @@ public final class PushModel {
             String(localized: "This device is paired read-only with the host service, so it can’t turn on notifications there.")
         case BackendError.unreachable:
             String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")
-        case BackendError.backend(_, "daily_limit_reached", _):
+        case BackendError.backend(_, PushKind.dailyLimitReachedCode, _):
             String(localized: "You’ve reached today’s limit for notification setups. Try again tomorrow.")
         default:
             String(localized: "Couldn’t turn on notifications: \(error.localizedDescription)")
         }
+    }
+}
+
+extension PushService: PushSettingsBacking {
+    func fetchKindCatalog() async throws -> PushKindCatalog {
+        try await session.pushKinds()
+    }
+
+    func syncPairingKinds() async {
+        guard let device = try? device(),
+              let records = try? await session.pushPairings(deviceID: device.id) else { return }
+        noteBackendPairings(records)
+        for record in records where !record.kinds.isEmpty && store.host(forKeyHash: record.keyHash) != nil {
+            store.setKinds(record.kinds, forKeyHash: record.keyHash)
+        }
+        kindsChanged()
     }
 }
 
@@ -1008,7 +1024,7 @@ public struct PushRoute: Equatable, Sendable {
     /// 帳號頁「傳送測試通知」(#328)的 `event`:只開 app,不開任何畫面。
     public static let testEvent = "test"
     /// 每日通知上限通知(#675)的 `event`:會員層級、不屬於哪個 Agent,開帳號頁。
-    public static let dailyLimitEvent = "daily_limit_reached"
+    public static let dailyLimitEvent = PushKind.dailyLimitReachedCode
     /// 方案用量快用完(#707):根層 `agent` 指出哪個 Agent,開方案用量頁。
     public static let usageAlertEvent = "usage_alert"
     /// 主機離線／已恢復(#707,只有 HTTPS 主機):開那台主機的主機頁。

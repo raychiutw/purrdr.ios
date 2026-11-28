@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 // MetricKit 的卡頓診斷(`MXDiagnosticPayload.hangDiagnostics`,#690):保留主執行緒的呼叫堆疊,
 // 沿用閃退報告的堆疊解析——最多 40 列,只記 binary 名稱、UUID 與位移,不含任何內容。
@@ -25,7 +26,7 @@ public struct MetricKitHangReport: Equatable, Sendable {
     /// 去重用的鍵:報告時間與內容。
     var dedupKey: String {
         let content = ["\(count)", "\(longestSeconds)", frames.joined(separator: "|")].joined(separator: "\u{1}")
-        return "hang-\(Int(timestamp.timeIntervalSince1970))-\(MetricKitCrashReport.fnv1a(content))"
+        return "hang-\(Int(timestamp.timeIntervalSince1970))-\(StableHash.fnv1a(content))"
     }
 }
 
