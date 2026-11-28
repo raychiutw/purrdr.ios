@@ -62,6 +62,9 @@ public final class HostUpdates {
     /// 快照讀取進行中又有事件到達：讀完後會再讀一次(期間的事件都併成這一次)。
     package private(set) var hasQueuedResync = false
 
+    /// 訂閱收到(已轉送進觸發合併)的事件總數。事件是非同步送達的，測試要知道「送出的事件都處理完」才不會讓遲到的事件多出一次讀取(#719)。
+    package private(set) var eventsReceived = 0
+
     /// 一個 Agent 的變化：先給目前的值(還沒讀到快照時等第一份),之後快照裡它有變才再給;不在快照裡是 `nil`。
     public func changes(for paneID: String) -> AsyncStream<Agent?> {
         let (stream, continuation) = AsyncStream<Agent?>.makeStream(bufferingPolicy: .bufferingNewest(1))
@@ -297,6 +300,7 @@ public final class HostUpdates {
                     }
                     if case .event(_, let paneID?) = event { self?.pendingNamedPanes.insert(paneID) }
                     if self?.isReading == true { self?.hasQueuedResync = true }
+                    self?.eventsReceived += 1
                     continuation.yield()
                 }
                 continuation.finish()
