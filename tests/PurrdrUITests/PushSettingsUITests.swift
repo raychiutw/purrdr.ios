@@ -68,7 +68,7 @@ final class PushSettingsUITests: XCTestCase {
         XCTAssertFalse(queue.isEnabled, "SSH 主機不該能開只給 HTTPS 的種類")
         XCTAssertTrue(app.element("account.push.\(Self.seededHost).kind.queue_paused.reason").exists, "停用的種類沒有說明原因")
 
-        daily.tap()
+        daily.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()  // 列有多行文字,點開關本體(右緣)
         daily.expectValue("0")
         XCTAssertTrue(app.switches["account.push.\(Self.seededHost).kind.blocked"].isEnabled)
     }
