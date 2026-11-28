@@ -51,11 +51,15 @@ final class UITestingBackendTransport: BackendTransport {
         var keyHashes: Set<String>
         var hostCount: Int
         var lastRegisteredAt: Int
+        /// 種子裝置開了通知的主機(名稱、圖示代號);真的註冊來的裝置改由 `pairingProfiles` 組。
+        var seedHosts: [(name: String, symbol: String)] = []
     }
 
     private let devices = Mutex<[Device]>([
-        Device(id: studioIPadID, name: "Studio iPad", model: "iPad", keyHashes: [], hostCount: 2, lastRegisteredAt: 1_794_729_600_000),
-        Device(id: legacyDeviceID, name: nil, model: nil, keyHashes: [], hostCount: 1, lastRegisteredAt: 1_794_643_200_000),
+        Device(id: studioIPadID, name: "Studio iPad", model: "iPad", keyHashes: [], hostCount: 2, lastRegisteredAt: 1_794_729_600_000,
+               seedHosts: [("Studio Mac", "desktopcomputer"), ("Build Box", "server.rack")]),
+        Device(id: legacyDeviceID, name: nil, model: nil, keyHashes: [], hostCount: 1, lastRegisteredAt: 1_794_643_200_000,
+               seedHosts: [("Old Laptop", "laptopcomputer")]),
     ])
 
     convenience init(isPlusActive: Bool, startsSignedIn: Bool = true) {
@@ -139,7 +143,7 @@ final class UITestingBackendTransport: BackendTransport {
         case ("GET", "/v1/members/me/push-devices"):
             // 清單與關閉不需要 Plus(訂閱到期也能關閉遺失的裝置);改名才要。
             let current = Self.currentDeviceID(request)
-            let listed = devices.withLock { $0 }.filter { $0.hostCount > 0 }.map { Self.json($0, current: current) }
+            let listed = devices.withLock { $0 }.filter { $0.hostCount > 0 }.map { json($0, current: current) }
             return Self.json(#"{"devices":[\#(listed.joined(separator: ","))]}"#)
         case ("PATCH", let path) where path.hasPrefix(Self.devicesPath):
             guard isPlusActive else { return Self.subscriptionRequired }
@@ -151,7 +155,7 @@ final class UITestingBackendTransport: BackendTransport {
                 return devices[index]
             }
             guard let renamed else { return Self.deviceNotFound }
-            return Self.json(#"{"device":\#(Self.json(renamed, current: Self.currentDeviceID(request)))}"#)
+            return Self.json(#"{"device":\#(json(renamed, current: Self.currentDeviceID(request)))}"#)
         case ("DELETE", let path) where path.hasPrefix(Self.devicesPath):
             let id = String(path.dropFirst(Self.devicesPath.count))
             let removed = devices.withLock { devices -> Bool in
@@ -181,12 +185,29 @@ final class UITestingBackendTransport: BackendTransport {
     private static let defaultPairingKinds = ["blocked", "daily_limit_reached"]
     /// 各配對收的種類(雜湊 → 代號);沒記過的用預設。
     private let pairingKinds = Mutex<[String: [String]]>([:])
+    /// 配對的主機名稱與圖示(purrdr.server#45):註冊與 PATCH 帶上來的值,`icon` 是 `{symbol,color}`。
+    private let pairingProfiles = Mutex<[String: (name: String?, icon: [String: String]?)]>([:])
+
+    private func profileFields(_ keyHash: String) -> (name: Any, icon: Any) {
+        let profile = pairingProfiles.withLock { $0[keyHash] }
+        return (profile?.name ?? NSNull(), profile?.icon ?? NSNull())
+    }
+
+    /// 註冊或 PATCH 的 body 帶了 `name`／`icon` 就記下(`icon` 是 `null` 代表清掉)。
+    private func recordProfile(_ keyHash: String, from json: [String: Any]) {
+        pairingProfiles.withLock { profiles in
+            var profile = profiles[keyHash] ?? (name: nil, icon: nil)
+            if let name = json["name"] as? String { profile.name = name }
+            if json["icon"] is NSNull { profile.icon = nil } else if let icon = json["icon"] as? [String: String] { profile.icon = icon }
+            profiles[keyHash] = profile
+        }
+    }
 
     private func pairingsJSON(deviceID: String?) -> String {
         let hashes = devices.withLock { $0 }.filter { deviceID == nil || $0.id == deviceID }.flatMap(\.keyHashes).sorted()
         let kinds = pairingKinds.withLock { $0 }
         let listed = hashes.map { hash -> [String: Any] in
-            ["keyHash": hash, "name": NSNull(), "icon": NSNull(), "kinds": kinds[hash] ?? Self.defaultPairingKinds]
+            ["keyHash": hash, "name": profileFields(hash).name, "icon": profileFields(hash).icon, "kinds": kinds[hash] ?? Self.defaultPairingKinds]
         }
         let data = (try? JSONSerialization.data(withJSONObject: ["pairings": listed])) ?? Data()
         return String(decoding: data, as: UTF8.self)
@@ -195,9 +216,14 @@ final class UITestingBackendTransport: BackendTransport {
     private func patchPairing(_ keyHash: String, body: Data?) -> BackendResponse {
         guard devices.withLock({ $0 }).contains(where: { $0.keyHashes.contains(keyHash) }) else { return Self.error(404, "pairing_not_found") }
         let json = body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-        guard let kinds = json?["kinds"] as? [String], kinds.allSatisfy(Self.knownKindCodes.contains) else { return Self.error(400, "invalid_kind") }
-        pairingKinds.withLock { $0[keyHash] = kinds }
-        let pairing: [String: Any] = ["keyHash": keyHash, "name": NSNull(), "icon": NSNull(), "kinds": kinds]
+        // 只改名稱或圖示的 PATCH 沒有 `kinds`;有就照舊驗證。
+        if let json { recordProfile(keyHash, from: json) }
+        if json?["kinds"] != nil {
+            guard let kinds = json?["kinds"] as? [String], kinds.allSatisfy(Self.knownKindCodes.contains) else { return Self.error(400, "invalid_kind") }
+            pairingKinds.withLock { $0[keyHash] = kinds }
+        }
+        let kinds = pairingKinds.withLock { $0[keyHash] } ?? Self.defaultPairingKinds
+        let pairing: [String: Any] = ["keyHash": keyHash, "name": profileFields(keyHash).name, "icon": profileFields(keyHash).icon, "kinds": kinds]
         let data = (try? JSONSerialization.data(withJSONObject: ["pairing": pairing])) ?? Data()
         return Self.json(String(decoding: data, as: UTF8.self))
     }
@@ -220,6 +246,7 @@ final class UITestingBackendTransport: BackendTransport {
         let fields = json.compactMapValues { $0 as? String }
         guard let keyHash = fields["keyHash"], let id = fields["deviceId"] else { return }
         if let kinds = json["kinds"] as? [String] { pairingKinds.withLock { $0[keyHash] = kinds } }
+        recordProfile(keyHash, from: json)
         devices.withLock { devices in
             if let index = devices.firstIndex(where: { $0.id == id }) {
                 devices[index].keyHashes.insert(keyHash)
@@ -243,10 +270,14 @@ final class UITestingBackendTransport: BackendTransport {
         }
     }
 
-    private static func json(_ device: Device, current: String?) -> String {
+    private func json(_ device: Device, current: String?) -> String {
+        // 開了通知的主機(名稱與圖示,purrdr.server#45):註冊來的裝置由配對的紀錄組,種子裝置用內建的。
+        let hosts: [[String: Any]] = device.keyHashes.isEmpty
+            ? device.seedHosts.map { ["keyHash": "seed-\($0.name)", "name": $0.name, "icon": ["symbol": $0.symbol, "color": "#0B7A5C"]] }
+            : device.keyHashes.sorted().map { ["keyHash": $0, "name": profileFields($0).name, "icon": profileFields($0).icon] }
         let fields: [String: Any] = [
             "deviceId": device.id, "name": device.name ?? NSNull(), "model": device.model ?? NSNull(),
-            "hostCount": device.hostCount, "lastRegisteredAt": device.lastRegisteredAt, "current": device.id == current,
+            "hostCount": device.hostCount, "hosts": hosts, "lastRegisteredAt": device.lastRegisteredAt, "current": device.id == current,
         ]
         let data = (try? JSONSerialization.data(withJSONObject: fields)) ?? Data()
         return String(decoding: data, as: UTF8.self)

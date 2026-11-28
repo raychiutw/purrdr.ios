@@ -48,6 +48,8 @@ final class PushDevicesUITests: XCTestCase {
         XCTAssertTrue(ipad.waitUntilExists(timeout: 10), "沒有 Studio iPad 的列")
         XCTAssertTrue(ipad.label.contains("Studio iPad"), ipad.label)
         XCTAssertTrue(ipad.label.contains("Hosts: 2"), ipad.label)
+        // 後台帶回這支裝置開了通知的主機名稱(#706)。
+        XCTAssertTrue(ipad.label.contains("Studio Mac") && ipad.label.contains("Build Box"), ipad.label)
         XCTAssertFalse(ipad.label.contains("This Device"), ipad.label)
         let legacy = app.element("account.pushDevice.\(Self.legacyDevice)")
         XCTAssertTrue(legacy.waitUntilExists(timeout: 10), "沒有舊版 app 的裝置列")

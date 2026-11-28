@@ -740,7 +740,10 @@ struct AddHostGuideView: View {
         case .failed, .needsUpdate, .restartServerRequired:
             primary("Try Again", id: "guide.retry", enabled: true) { Task { await model.testConnection() } }
         default:
-            primary("Connecting…", id: "guide.connecting", enabled: false) {}
+            // 連線中不放停用的主要按鈕(#726):畫面中間已有進度,底部只留可以按的「取消」。
+            Button("Cancel") { back() }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("guide.connectingCancel")
         }
     }
 

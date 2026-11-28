@@ -14,11 +14,16 @@ extension View {
 }
 
 /// prominent 樣式的字預設是白色，深色模式白字對主色不到 4.5:1,所以字色改 `onProminentFill`。
+/// 停用時不套這組顏色(#726):強制的字色與填色不會跟著停用變淡,深色模式下停用的按鈕會變成看不見的一塊黑;
+/// 停用交給系統的外觀(填色與字一起變淡、仍看得到字)。
 private struct FilledProminentModifier: ViewModifier {
     let isGlass: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     func body(content: Content) -> some View {
-        if isGlass {
+        if !isEnabled {
+            if isGlass { content.buttonStyle(.glassProminent) } else { content.buttonStyle(.borderedProminent) }
+        } else if isGlass {
             content.buttonStyle(.glassProminent).tint(ProminentFillStyle()).foregroundStyle(.onProminentFill)
         } else {
             content.buttonStyle(.borderedProminent).tint(ProminentFillStyle()).foregroundStyle(.onProminentFill)

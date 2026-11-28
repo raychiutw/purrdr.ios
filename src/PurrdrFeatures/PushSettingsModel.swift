@@ -103,6 +103,7 @@ public final class PushSettingsModel {
     func syncPairings() async {
         guard let service, let device = try? service.device(),
               let records = try? await service.session.pushPairings(deviceID: device.id) else { return }
+        service.noteBackendPairings(records)
         for record in records where !record.kinds.isEmpty && service.store.host(forKeyHash: record.keyHash) != nil {
             service.store.setKinds(record.kinds, forKeyHash: record.keyHash)
         }

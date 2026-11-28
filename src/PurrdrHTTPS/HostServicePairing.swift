@@ -19,8 +19,9 @@ public struct HostServicePairing: Sendable {
         let response = try await http.post(address.pairURL, bearerToken: nil, body: body)
         traffic?(.received, response.body.count)
         guard response.status == 200 else { throw Self.error(from: response) }
+        // 200 卻不是配對回應:這個位址上的不是主機服務(例如一般網頁)。
         guard let paired = try? JSONDecoder().decode(HostServiceProtocol.PairResponse.self, from: response.body) else {
-            throw HostServiceError.unexpectedResponse
+            throw HostServiceError.notHostService
         }
         return PairedDevice(deviceID: paired.deviceId, deviceToken: paired.deviceToken, readOnly: paired.readOnly)
     }
@@ -39,7 +40,7 @@ public struct HostServicePairing: Sendable {
     private static func error(from response: HostServiceHTTPResponse) -> any Error {
         guard let message = try? JSONDecoder().decode(HostServiceProtocol.ServerMessage.self, from: response.body),
               case .errorMessage(let error) = message
-        else { return HostServiceError.unexpectedResponse }
+        else { return HostServiceError.notHostService }
         return HTTPSHostConnection.error(for: error)
     }
 }

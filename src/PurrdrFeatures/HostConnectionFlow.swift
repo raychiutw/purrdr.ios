@@ -113,6 +113,8 @@ package final class HostConnectionFlow {
     @ObservationIgnored private let existing: HostConfiguration?
     @ObservationIgnored private let credentials: HostCredentials
     @ObservationIgnored private let hostService: HostServiceAccess
+    /// 連線測試的期限計時用(測試注入)。
+    @ObservationIgnored private let sleep: Sleep
     @ObservationIgnored private let makeChannel:
         @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     /// 新主機在流程開始時就決定 id:同意(以主機 id 記)要對得上儲存後的主機。
@@ -136,8 +138,10 @@ package final class HostConnectionFlow {
     package init(
         store: any HostStore, existing: HostConfiguration? = nil, credentials: HostCredentials = HostCredentials(),
         hostService: HostServiceAccess = HostServiceAccess(),
-        makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
+        makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel,
+        sleep: @escaping Sleep = Sleeping.task
     ) {
+        self.sleep = sleep
         self.store = store
         self.existing = existing
         self.credentials = credentials
@@ -216,12 +220,12 @@ package final class HostConnectionFlow {
         phase = .testing
         let result: Result<HostServiceCheck, any Error>
         do {
-            let testToken = try await deviceToken(address: address, pairingCode: pairingCode)
+            let testToken = try await withTestDeadline { try await self.deviceToken(address: address, pairingCode: pairingCode) }
             let connection = hostService.makeConnection(address) { testToken.deviceToken }
             (connection as? HTTPSHostConnection)?.attachTraffic(recorder)
             let snapshot: HostSnapshot
             do {
-                snapshot = try await HerdrClient(connection: connection).snapshot()
+                snapshot = try await withTestDeadline { try await HerdrClient(connection: connection).snapshot() }
                 await connection.disconnect()
             } catch {
                 await connection.disconnect()
@@ -243,6 +247,31 @@ package final class HostConnectionFlow {
             phase = .needsUpdate(version)
         case .failure(let error):
             fail(error, connection: .https)
+        }
+    }
+
+    /// HTTPS 連線測試每一步(配對、讀 Agent 列表)的期限(#728)。與 `HostCommandDeadline.probe`(10 秒)同風格，
+    /// 但多給 5 秒:配對換權杖與第一次連線都要先完成 TLS 握手,Tailscale 剛喚醒時比一般探測慢。
+    /// 比系統 URLSession 的請求逾時(15 秒)不長，所以系統先逾時時照原本的錯誤，這裡是兜底(DNS 卡住、握手後不回應)。
+    package static let hostServiceTestDeadline: Duration = .seconds(15)
+
+    /// 期限到丟 `HostServiceError.unreachable`;不等 `operation` 配合結束(它可能卡在不會取消的等待)。
+    private func withTestDeadline<Value: Sendable>(_ operation: @escaping @MainActor @Sendable () async throws -> Value) async throws -> Value {
+        let sleep = sleep
+        let race = TestDeadlineRace<Value>()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                race.start(continuation)
+                race.track(Task { @MainActor in
+                    do { race.finish(.success(try await operation())) } catch { race.finish(.failure(error)) }
+                })
+                race.track(Task {
+                    guard (try? await sleep(Self.hostServiceTestDeadline)) != nil, !Task.isCancelled else { return }
+                    race.finish(.failure(HostServiceError.unreachable))
+                })
+            }
+        } onCancel: {
+            race.finish(.failure(CancellationError()))
         }
     }
 
@@ -426,5 +455,42 @@ package final class HostConnectionFlow {
     private struct TestToken {
         var deviceToken: String
         var readOnly: Bool?
+    }
+}
+
+/// `withTestDeadline` 裡先到的一方決定結果，另一方取消。
+private final class TestDeadlineRace<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, any Error>?
+    private var pending: Result<Value, any Error>?
+    private var tasks: [Task<Void, Never>] = []
+    private var done = false
+
+    func start(_ continuation: CheckedContinuation<Value, any Error>) {
+        lock.lock()
+        self.continuation = continuation
+        let early = pending
+        lock.unlock()
+        if let early { finish(early) }
+    }
+
+    func track(_ task: Task<Void, Never>) {
+        lock.lock()
+        let finished = done
+        if !finished { tasks.append(task) }
+        lock.unlock()
+        if finished { task.cancel() }
+    }
+
+    func finish(_ result: Result<Value, any Error>) {
+        lock.lock()
+        guard !done else { lock.unlock(); return }
+        guard let continuation else { pending = result; lock.unlock(); return }
+        done = true
+        let toCancel = tasks
+        self.continuation = nil
+        lock.unlock()
+        toCancel.forEach { $0.cancel() }
+        continuation.resume(with: result)
     }
 }

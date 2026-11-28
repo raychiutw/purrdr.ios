@@ -78,16 +78,19 @@ public struct PushDevice: Sendable, Equatable, Identifiable {
     public var model: PushDeviceModel?
     /// 開了幾台主機的通知。
     public var hostCount: Int
+    /// 開了通知的主機(名稱與圖示;purrdr.server#45,舊後台沒有是空的)。
+    public var hosts: [PushDeviceHost]
     /// 最後一次註冊或更新配對的時間。
     public var lastRegisteredAt: Date
     /// 是不是這支裝置。
     public var isCurrent: Bool
 
-    public init(id: String, name: String?, model: PushDeviceModel?, hostCount: Int, lastRegisteredAt: Date, isCurrent: Bool) {
+    public init(id: String, name: String?, model: PushDeviceModel?, hostCount: Int, hosts: [PushDeviceHost] = [], lastRegisteredAt: Date, isCurrent: Bool) {
         self.id = id
         self.name = name
         self.model = model
         self.hostCount = hostCount
+        self.hosts = hosts
         self.lastRegisteredAt = lastRegisteredAt
         self.isCurrent = isCurrent
     }

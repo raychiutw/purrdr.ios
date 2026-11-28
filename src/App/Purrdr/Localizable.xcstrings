@@ -13688,6 +13688,39 @@
         }
       }
     },
+    "This address answered, but it isn’t Purrdr. Check the Port. On that computer, run purrdr status to see it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個位址有回應，但不是 Purrdr。請檢查 Port。在那台主機上執行 purrdr status 就能看到。"
+          }
+        }
+      }
+    },
+    "This address didn’t answer. Check the address and Port. On that computer, run purrdr status to see them." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個位址沒有回應。請檢查位址和 Port。在那台主機上執行 purrdr status 就能看到。"
+          }
+        }
+      }
+    },
+    "This address isn’t a Purrdr host service. Check the address and Port." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個位址不是 Purrdr 主機服務。請檢查位址和 Port。"
+          }
+        }
+      }
+    },
     "This agent doesn’t support changing the model from Purrdr. Change it in its terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15379,6 +15412,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未命名的裝置"
+          }
+        }
+      }
+    },
+    "Unnamed Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名的主機"
           }
         }
       }
