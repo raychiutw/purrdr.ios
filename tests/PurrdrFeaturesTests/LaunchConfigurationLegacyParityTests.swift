@@ -24,8 +24,8 @@ struct LaunchConfigurationLegacyParityTests {
     /// 原 `makeMemberSession`／`uiTestingMemberBackend` 的判斷順序。
     private static let legacyMemberOrder: [(String, LaunchConfiguration.MemberScenario)] = [
         ("-uiTestingMemberLoading", .loading), ("-uiTestingPlusMember", .plus),
-        ("-uiTestingOwnedByOtherMember", .ownedByOtherMember), ("-uiTestingLinkMerge", .linkMerge),
-        ("-uiTestingUpgradedMember", .upgraded), ("-uiTestingMember", .member), ("-uiTestingNoMember", .noMember),
+        ("-uiTestingLinkMerge", .linkMerge),
+        ("-uiTestingMember", .member), ("-uiTestingNoMember", .noMember),
     ]
 
     @Test("Demo 情境:逐旗標單獨對應,兩兩同時出現時取原順序在前的")
@@ -70,11 +70,9 @@ struct LaunchConfigurationLegacyParityTests {
         ("-uiTestingHostKeyPrompt", [], { $0.promptsHostKey }),
         ("-uiTestingPushTestFails", [], { $0.pushTestFails }),
         ("-uiTestingCrashRecord", ["-uiTesting"], { $0.recordsUITestingCrash }),
-        ("-uiTestingOwnedByOtherMember", [], { $0.storeOwnedByOtherMember }),
         ("-uiTestingPlusOff", ["-uiTesting"], { $0.disablesPlus }),
         ("-uiTestingNoMember", ["-uiTesting"], { $0.usesTestingSignIn }),
         ("-uiTestingLinkMerge", ["-uiTesting"], { $0.usesTestingSignIn }),
-        ("-uiTestingUpgradedMember", ["-uiTesting"], { $0.usesTestingSignIn }),
     ]
 
     @Test("布林旗標:每個旗標帶前提後為真,沒帶旗標時為假,需要 -uiTesting 的沒帶前提不生效")

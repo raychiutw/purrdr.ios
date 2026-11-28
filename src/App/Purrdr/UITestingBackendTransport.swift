@@ -10,7 +10,6 @@ final class UITestingBackendTransport: BackendTransport {
     /// 啟動時就有的更新權杖(MemberSession 以它換成上面的會員)。
     static let refreshToken = "ui-testing-refresh"
     /// 舊版 app 在後台遷移前發的更新權杖(#414):遷移後一律被拒絕(401 `invalid_refresh_token`),使用者要重新登入一次。
-    static let staleRefreshToken = "ui-testing-stale-refresh"
     /// 這支裝置在 UI 測試的 id(composition root 帶給推播)。
     static let thisDeviceID = "5eed0000-0000-4000-8000-0000000000d1"
     static let studioIPadID = "5eed0000-0000-4000-8000-0000000000d2"
@@ -22,24 +21,16 @@ final class UITestingBackendTransport: BackendTransport {
         case none
         /// App Store 訂閱生效中。
         case active
-        /// 這個 Apple 帳號的訂閱屬於另一個會員:提交交易回 `subscription_in_use`,轉移後變成生效中。
-        case ownedByAnotherMember
-        /// 生效中,但升級合併後有另一個待處理的訂閱。
-        case pendingReview
     }
 
     let scenario: Scenario
     var isPlusActive: Bool { Self.entitles(scenario) }
-    /// 轉移成功之後(`.ownedByAnotherMember`)。
-    private let transferred = Mutex(false)
     /// 一開始就有更新權杖(已登入)。`false`(`-uiTestingNoMember`):沒登入,Apple／Google 按鈕直接以固定憑證登入這個假後台(#408)。
     let startsSignedIn: Bool
     /// `-uiTestingLinkMerge`(#410):連結 Google 時發現它已屬於另一個會員(回合併確認摘要);沒帶就直接連結成功。
     let linkFindsAnotherMember: Bool
     /// `-uiTestingNoMember`(#453):沒有會員的帳號。登入頁(`createMember: false`)回 404 `member_not_found`,加入頁照舊新建。
     let hasNoMember: Bool
-    /// `-uiTestingUpgradedMember`(#414):啟動時帶著遷移前的更新權杖(後台拒絕),重新登入後的訂閱是升級合併後有待處理訂閱的情境。
-    let startsWithStaleToken: Bool
     /// 這個會員已綁定 Google(連結或合併成功之後)。
     private let googleLinked = Mutex(false)
 
@@ -66,9 +57,8 @@ final class UITestingBackendTransport: BackendTransport {
         self.init(scenario: isPlusActive ? .active : .none, startsSignedIn: startsSignedIn)
     }
 
-    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, hasNoMember: Bool = false, startsWithStaleToken: Bool = false) {
+    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, hasNoMember: Bool = false) {
         self.hasNoMember = hasNoMember
-        self.startsWithStaleToken = startsWithStaleToken
         self.scenario = scenario
         self.startsSignedIn = startsSignedIn
         self.linkFindsAnotherMember = linkFindsAnotherMember
@@ -76,8 +66,8 @@ final class UITestingBackendTransport: BackendTransport {
 
     private static func entitles(_ scenario: Scenario) -> Bool {
         switch scenario {
-        case .active, .pendingReview: true
-        case .none, .ownedByAnotherMember: false
+        case .active: true
+        case .none: false
         }
     }
 
@@ -91,22 +81,13 @@ final class UITestingBackendTransport: BackendTransport {
             let created = idToken?.contains("new") == true
             return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","memberCreated":\#(created),"autoLinked":false,"member":\#(memberBody)}"#)
         case ("POST", "/v1/sessions/refresh"):
-            let body = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-            if body?["refreshToken"] as? String == Self.staleRefreshToken { return Self.error(401, "invalid_refresh_token") }
             return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","member":\#(memberBody)}"#)
         case ("GET", "/v1/members/me"):
             return Self.json(#"{"member":\#(memberBody)}"#)
         case ("GET", "/v1/members/me/subscription"):
             return Self.json(subscriptionJSON.map { #"{"subscription":\#($0)}"# } ?? #"{"subscription":null}"#)
         case ("POST", "/v1/members/me/subscription/app-store"):
-            // 這個 Apple 帳號的訂閱屬於另一個會員(轉移前)。
-            if scenario == .ownedByAnotherMember, !transferred.withLock({ $0 }) {
-                return BackendResponse(status: 409, body: Data(Self.inUse.utf8))
-            }
             return Self.json(#"{"subscription":\#(Self.subscription())}"#)
-        case ("POST", "/v1/members/me/subscription/transfer"):
-            transferred.withLock { $0 = true }
-            return Self.json(#"{"subscription":\#(Self.subscription()),"appAccountTokenUpdated":true}"#)
         case ("POST", "/v1/members/me/identities"):
             if googleLinked.withLock({ $0 }) { return Self.error(409, "provider_already_linked") }
             if linkFindsAnotherMember { return BackendResponse(status: 409, body: Data(mergeRequired.utf8)) }
@@ -315,17 +296,12 @@ final class UITestingBackendTransport: BackendTransport {
         switch scenario {
         case .none: return nil
         case .active: return Self.subscription()
-        case .ownedByAnotherMember: return transferred.withLock { $0 } ? Self.subscription() : nil
-        case .pendingReview: return Self.subscription(pendingReview: true)
         }
     }
 
-    private static func subscription(pendingReview: Bool = false) -> String {
-        #"{"status":"active","store":"app_store","productId":"com.raychiu.purrdr.plus.yearly","expiresAt":"2099-01-01T00:00:00.000Z","gracePeriodExpiresAt":null,"willAutoRenew":true,"pendingReview":\#(pendingReview)}"#
+    private static func subscription() -> String {
+        #"{"status":"active","store":"app_store","productId":"com.raychiu.purrdr.plus.yearly","expiresAt":"2099-01-01T00:00:00.000Z","gracePeriodExpiresAt":null,"willAutoRenew":true,"pendingReview":false}"#
     }
-
-    private static let inUse =
-        #"{"error":{"code":"subscription_in_use","message":"UI testing backend","details":{"ownerEmail":"r***@example.net","canTransfer":true}}}"#
 
     /// 登入中的裝置:這支與另一支 iPad。
     private static let sessionsJSON = #"""
