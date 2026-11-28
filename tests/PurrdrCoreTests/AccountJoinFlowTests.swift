@@ -34,7 +34,7 @@ struct AccountJoinFlowTests {
         #expect(flow.leadingAction == .close)
     }
 
-    @Test("略過 Plus：通知步驟鎖定、只有開通與稍後再說，跳過同步，完成頁是「會員已建立」")
+    @Test("略過 Plus：通知步驟照常可開(通知不需要 Plus,#675),跳過同步，完成頁是「會員已建立」")
     func skippingPlus() {
         var flow = AccountJoinFlow()
         flow.advance()
@@ -42,7 +42,6 @@ struct AccountJoinFlowTests {
 
         #expect(flow.step == .turnOnNotifications)
         #expect(flow.skippedPlus)
-        #expect(flow.notificationsAction == .locked(offers: [.activatePlus, .finishLater]))
         #expect(!flow.visibleSteps.contains(.syncHosts))
 
         flow.advance()
@@ -57,7 +56,6 @@ struct AccountJoinFlowTests {
         flow.advance()
 
         #expect(!flow.skippedPlus)
-        #expect(flow.notificationsAction == .unlocked)
         #expect(flow.visibleSteps == [.createMember, .activatePlus, .turnOnNotifications, .syncHosts])
     }
 
@@ -70,7 +68,6 @@ struct AccountJoinFlowTests {
 
         #expect(!flow.skippedPlus)
         #expect(flow.step == .turnOnNotifications)
-        #expect(flow.notificationsAction == .unlocked)
         flow.advance()
         #expect(flow.step == .syncHosts)
     }

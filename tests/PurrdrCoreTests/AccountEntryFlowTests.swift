@@ -88,7 +88,7 @@ struct AccountEntryFlowTests {
         #expect(flow.joinedExistingMember)
     }
 
-    @Test("略過 Plus：通知鎖定、仍標 3 / 4，完成頁是「會員已建立」")
+    @Test("略過 Plus：通知不鎖(#675)、仍標 3 / 4，完成頁是「會員已建立」")
     func skipPlusBranch() {
         var flow = AccountEntryFlow()
         flow.chooseJoin()
@@ -96,7 +96,6 @@ struct AccountEntryFlowTests {
         flow.skipPlus()
         #expect(flow.join.step == .turnOnNotifications)
         #expect(flow.stepIndicator == AccountStepIndicator(current: 3, total: 4), "略過 Plus 仍標 3 / 4(設計稿)")
-        #expect(flow.join.notificationsAction == .locked(offers: [.activatePlus, .finishLater]))
 
         flow.advance()
         #expect(flow.join.step == .finished, "略過 Plus 跳過同步")
@@ -125,7 +124,6 @@ struct AccountEntryFlowTests {
         flow.signedIn(memberCreated: true)
         flow.skipPlus()
         flow.plusActivated()
-        #expect(flow.join.notificationsAction == .unlocked)
         flow.advance()
         #expect(flow.join.step == .syncHosts)
     }

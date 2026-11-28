@@ -238,8 +238,6 @@ struct JoinFlowPages: View {
     let signedInMember: Member?
 
     @State private var selectedPlanID: String?
-    @State private var showingPlus = false
-
     var body: some View {
         Group {
             switch step {
@@ -248,15 +246,6 @@ struct JoinFlowPages: View {
             case .syncHosts: syncPage
             case .finished: donePage
             }
-        }
-        .navigationDestination(isPresented: $showingPlus) {
-            PlusView(model: plus, member: model)
-        }
-        // 略過後在通知步驟開通了 Plus(經推入的付費牆):解鎖通知,回到這一步。
-        .onChange(of: plus.isPlusActive) { _, isActive in
-            guard isActive, entry.join.skippedPlus else { return }
-            entry.plusActivated()
-            showingPlus = false
         }
     }
 
@@ -372,14 +361,11 @@ struct JoinFlowPages: View {
     // MARK: 第 3 步:開啟通知
 
     private var notificationsPage: some View {
-        let locked = entry.join.notificationsAction != .unlocked
-        return List {
+        List {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Turn On Notifications").font(.title2.bold())
-                    Text(locked
-                        ? "Notifications need Purrdr Plus. You chose to activate it later, so this step is skipped for now."
-                        : "Get notified when an agent needs you or finishes. Turn it on per host. You can change it later in the Hosts tab.")
+                    Text("Get notified when an agent needs you or finishes. Turn it on per host. You can change it later in the Hosts tab.")
                         .font(.subheadline)
                         .foregroundStyle(.secondaryText)
                 }
@@ -395,37 +381,23 @@ struct JoinFlowPages: View {
                         .accessibilityIdentifier("account.join.noHosts")
                 }
                 ForEach(pushes) { push in
-                    if locked {
-                        LockedHostRow(push: push)
-                    } else {
-                        HostPushRow(push: push, pair: { _ in })
-                    }
+                    HostPushRow(push: push, pair: { _ in })
                 }
             } footer: {
-                if !locked {
-                    Text("Turning on a host installs a notification helper on it. You can remove it completely.")
-                        .foregroundStyle(.secondaryText)
-                }
+                Text("Turning on a host installs a notification helper on it. You can remove it completely.")
+                    .foregroundStyle(.secondaryText)
             }
         }
         .appSheetList()
-        .accessibilityIdentifier(locked ? "account.join.notificationsLocked" : "account.join.notifications")
+        .accessibilityIdentifier("account.join.notifications")
         .hostPushConfirmation(pushes)
         .safeAreaBar(edge: .bottom) {
             VStack(spacing: 2) {
-                if locked {
-                    primaryButton("Activate Purrdr Plus") { showingPlus = true }
-                        .accessibilityIdentifier("account.join.primary")
-                    Button("Done for Now") { entry.advance() }
-                        .frame(minHeight: 44)
-                        .accessibilityIdentifier("account.join.secondary")
-                } else {
-                    primaryButton("Continue") { entry.advance() }
-                        .accessibilityIdentifier("account.join.primary")
-                    Button("Skip") { entry.advance() }
-                        .frame(minHeight: 44)
-                        .accessibilityIdentifier("account.join.secondary")
-                }
+                primaryButton("Continue") { entry.advance() }
+                    .accessibilityIdentifier("account.join.primary")
+                Button("Skip") { entry.advance() }
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("account.join.secondary")
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
@@ -533,28 +505,5 @@ struct JoinFlowPages: View {
         }
         .filledProminentButtonStyle()
         .buttonBorderShape(.capsule)
-    }
-}
-
-/// 沒有 Plus 時的通知列:主機名稱、「需要 Purrdr Plus」與鎖頭(不是開關,不會誤以為已開啟)。
-private struct LockedHostRow: View {
-    let push: HostPush
-
-    var body: some View {
-        HStack(spacing: 12) {
-            HostIconBadge(push.icon)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: push.name)
-                Text("Needs Purrdr Plus")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
-            }
-            Spacer(minLength: 8)
-            Image(systemName: "lock")
-                .foregroundStyle(.secondaryText)
-                .accessibilityHidden(true)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("account.join.locked.\(push.host.storedValue)")
     }
 }
