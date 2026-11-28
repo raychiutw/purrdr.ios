@@ -723,7 +723,7 @@ final class ChatListViewController: UIViewController, UICollectionViewDelegateFl
             distanceFromTop: visibleTop,
             containerHeight: visibleHeight,
             contentHeight: Double(collectionView.contentSize.height),
-            userHasDragged: userHasDragged, autoLoadedPages: autoLoadedPages, autoLoadLimit: ConversationModel.maximumEmptyWindowPages)
+            userHasDragged: userHasDragged, autoLoadedPages: autoLoadedPages, autoLoadLimit: ConversationModel.maximumAutoLoadPages)
         guard wants else { return }
         if !userHasDragged { autoLoadedPages += 1 }
         isLoadingOlder = true

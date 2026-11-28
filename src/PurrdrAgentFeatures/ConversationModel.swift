@@ -1173,8 +1173,10 @@ public final class ConversationModel {
         TranscriptFeed.hasReadableMessage(in: messages)
     }
 
-    /// 開啟視窗沒有訊息時最多往前補讀幾頁(#656;畫面的自動往前讀也以它為上限)。
+    /// 開啟視窗沒有訊息時最多往前補讀幾頁(#656)。
     package static let maximumEmptyWindowPages = TranscriptFeed.maximumEmptyWindowPages
+    /// 畫面在內容還填不滿時自動往前讀的頁數上限(維持 25 頁;每頁受讀取限額的位元組上限約束,#656)。
+    package static let maximumAutoLoadPages = 25
     /// 補讀單頁行數上限。
     package static let maximumBackfillPageLines = TranscriptFeed.maximumBackfillPageLines
 
