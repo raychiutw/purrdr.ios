@@ -352,17 +352,21 @@ extension XCUIApplication {
         guard list.waitUntilExists(timeout: timeout) else { return false }
         _ = target.waitUntilExists(timeout: 3)
         for attempt in 0..<16 {
-            let visible = visibleConversationRange(of: list)
-            if target.exists, target.isHittable, target.frame.minY >= visible.lowerBound, target.frame.maxY <= visible.upperBound {
+            // 每一輪:畫面樹取一次(列表、導覽列、遮蓋元素的位置),目標取一次(存在與位置);
+            // 不再逐項跨行程查 exists／frame(#720)。可點擊只在位置已經在範圍內時才問。
+            let layout = ConversationLayout(app: self, fallbackList: list)
+            let visible = layout.visibleRange
+            let targetFrame = (try? target.snapshot())?.frame
+            if let frame = targetFrame, frame.minY >= visible.lowerBound, frame.maxY <= visible.upperBound, target.isHittable {
                 return true
             }
             // 還沒排出來(LazyVStack 只排可見附近的列):先往下(較新的訊息)找幾次，再往上找(#251)。
-            let isBelow = target.exists ? target.frame.midY > (visible.lowerBound + visible.upperBound) / 2 : attempt < 8
+            let isBelow = targetFrame.map { $0.midY > (visible.lowerBound + visible.upperBound) / 2 } ?? (attempt < 8)
             // 在看得到的範圍裡拖，不從蓋在對話上的卡片開始。
             let height = visible.upperBound - visible.lowerBound
             let origin = coordinate(withNormalizedOffset: .zero)
             func point(_ fraction: CGFloat) -> XCUICoordinate {
-                origin.withOffset(CGVector(dx: list.frame.midX, dy: visible.lowerBound + height * fraction))
+                origin.withOffset(CGVector(dx: layout.listMidX, dy: visible.lowerBound + height * fraction))
             }
             let start = point(isBelow ? 0.8 : 0.2)
             let end = point(isBelow ? 0.3 : 0.7)
@@ -371,18 +375,52 @@ extension XCUIApplication {
         }
         return target.exists && target.isHittable
     }
+}
 
-    /// 對話真正看得到的範圍：導覽列下緣到輸入列上方的元素(建議卡、註記、停止列、輸入框)之間。
-    /// 捲動視圖本身一路延伸到輸入列與導覽列底下，只看它的 frame 會點到蓋在上面的卡片(#251)。
+extension XCUIApplication {
+    /// 對話真正看得到的範圍(一次畫面樹取樣,見 `ConversationLayout`)。
     @MainActor
     func visibleConversationRange(of list: XCUIElement) -> ClosedRange<CGFloat> {
-        let top = max(list.frame.minY, navigationBars.firstMatch.frame.maxY)
-        let covers = ["conversation.suggestion", "youShouldKnow.note", "youShouldKnow.compact", "stopBar.stop", "composer.text"]
-            .map { element($0) }
-            .filter(\.exists)
-            .map { $0.frame.minY - 8 }
-        let bottom = min(list.frame.maxY, covers.min() ?? list.frame.maxY)
-        return top...max(top, bottom)
+        ConversationLayout(app: self, fallbackList: list).visibleRange
+    }
+}
+
+/// 對話畫面一次畫面樹取樣的結果(#720):對話真正看得到的範圍是導覽列下緣到輸入列上方的元素
+/// (建議卡、註記、停止列、輸入框)之間。捲動視圖本身一路延伸到輸入列與導覽列底下，
+/// 只看它的 frame 會點到蓋在上面的卡片(#251)。整棵畫面樹只取一次 snapshot，位置在測試端計算。
+struct ConversationLayout {
+    static let coverIdentifiers = ["conversation.suggestion", "youShouldKnow.note", "youShouldKnow.compact", "stopBar.stop", "composer.text"]
+
+    let visibleRange: ClosedRange<CGFloat>
+    let listMidX: CGFloat
+
+    /// 取一次畫面樹；取不到(畫面正在轉場)時退回只查列表本身。
+    @MainActor
+    init(app: XCUIApplication, fallbackList: XCUIElement) {
+        guard let tree = try? app.snapshot() else {
+            let frame = fallbackList.frame
+            visibleRange = frame.minY...max(frame.minY, frame.maxY)
+            listMidX = frame.midX
+            return
+        }
+        var listFrame: CGRect?
+        var navigationBarMaxY: CGFloat?
+        var coverTops: [CGFloat] = []
+        var seen = Set<String>()
+        func walk(_ node: any XCUIElementSnapshot) {
+            let id = node.identifier
+            if id == "conversation.list", node.elementType == .collectionView, listFrame == nil { listFrame = node.frame }
+            if node.elementType == .navigationBar, navigationBarMaxY == nil { navigationBarMaxY = node.frame.maxY }
+            // 與 `element(id).exists` 一樣，同一個識別碼取第一個。
+            if Self.coverIdentifiers.contains(id), seen.insert(id).inserted { coverTops.append(node.frame.minY - 8) }
+            node.children.forEach(walk)
+        }
+        walk(tree)
+        let list = listFrame ?? fallbackList.frame
+        let top = max(list.minY, navigationBarMaxY ?? list.minY)
+        let bottom = min(list.maxY, coverTops.min() ?? list.maxY)
+        visibleRange = top...max(top, bottom)
+        listMidX = list.midX
     }
 }
 
