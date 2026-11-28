@@ -49,14 +49,14 @@ for rt,ds in json.load(sys.stdin)["devices"].items():
         if d["name"]==name:
             print(d["udid"]); sys.exit()
 ' "$sim")"
-  if [[ -z "$udid" ]]; then echo "找不到模擬器「$sim」" >&2; exit 1; fi
+  if [[ -z "$udid" ]]; then echo "找不到模擬器「${sim}」" >&2; exit 1; fi
   xcrun simctl bootstatus "$udid" -b >/dev/null
   d() { xcrun simctl spawn "$udid" defaults "$@"; }
   d delete com.apple.keyboard.preferences HardwareKeyboardLastSeen 2>/dev/null || true
   d delete com.apple.keyboard.preferences AutomaticMinimizationEnabled 2>/dev/null || true
   d write com.apple.keyboard.preferences KeyboardsCurrentAndNext -array "en_US@sw=QWERTY;hw=Automatic" "en_US@sw=QWERTY;hw=Automatic"
   d write -g AppleKeyboards -array "en_US@sw=QWERTY;hw=Automatic"
-  echo "已重設「$sim」的鍵盤偏好"
+  echo "已重設「${sim}」的鍵盤偏好"
 fi
 
 exec xcodebuild test -project src/App/Purrdr.xcodeproj -scheme Purrdr \
