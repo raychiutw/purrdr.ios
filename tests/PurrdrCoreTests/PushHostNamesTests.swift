@@ -28,6 +28,15 @@ struct PushHostNamesTests {
         #expect(content == .init(title: "ledger", subtitle: "Build Box"))
     }
 
+    @Test("每日上限通知(根層 pairing 與 event,沒有 pane):照常補上主機名稱;對應不到就原樣")
+    func dailyLimitWithoutPane() {
+        let info: [AnyHashable: Any] = ["pairing": "hash-studio", "event": "daily_limit_reached"]
+        #expect(PushNotificationEnrichment.enriched(title: "Daily notification limit reached", subtitle: "", userInfo: info, hostNames: names)
+            == .init(title: "Daily notification limit reached", subtitle: "Studio Mac"))
+        #expect(PushNotificationEnrichment.enriched(title: "Daily notification limit reached", subtitle: "", userInfo: info, hostNames: [:])
+            == .init(title: "Daily notification limit reached", subtitle: ""))
+    }
+
     @Test("沒有 pairing 或對應表是空的:原樣送出,不丟錯")
     func missingPairingOrEmptyMap() {
         #expect(

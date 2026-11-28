@@ -760,6 +760,8 @@ public final class HostsModel {
     @discardableResult
     public func open(_ route: PushRoute, pairings: any PushPairingStore) -> PushDestination? {
         if route.event == PushRoute.testEvent { return nil }
+        // 每日上限是會員層級(不分主機),配對已不認得也要能開帳號頁。
+        if route.event == PushRoute.dailyLimitEvent { return .accountNotifications }
         guard let hostID = pairings.host(forKeyHash: route.keyHash), let id = UUID(uuidString: hostID),
               hosts.contains(where: { $0.id == id }) else { return nil }
         if route.event != nil { return .hostEditor(id) }
@@ -1068,6 +1070,8 @@ public enum PushDestination: Equatable, Sendable {
     case chat(ChatRoute)
     /// 要開這台主機的編輯頁(主機服務通知);由畫面開主機 sheet。
     case hostEditor(UUID)
+    /// 每日通知上限通知(#675):開帳號頁(「通知」區塊有今日用量);由畫面開帳號 sheet。
+    case accountNotifications
 }
 
 /// 一台主機的推播開關(帳號頁「通知」區塊的一列)。

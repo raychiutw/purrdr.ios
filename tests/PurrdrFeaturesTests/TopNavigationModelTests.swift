@@ -166,6 +166,16 @@ struct TopNavigationModelTests {
         #expect(model.sheet == nil)
     }
 
+    @Test("點每日上限通知:收起 sheet 後開帳號頁,不換 tab")
+    func dailyLimitNotificationOpensAccount() {
+        let model = TopNavigationModel()
+        model.tab = .files
+        model.openPushDestination(.accountNotifications)
+        #expect(model.tab == .files)
+        #expect(model.sheet == .member)
+        #expect(model.pendingHostEditor == nil)
+    }
+
     @Test("點主機服務通知走主機編輯頁(#668 不變)")
     func hostServiceNotificationViaDestination() {
         let model = TopNavigationModel()

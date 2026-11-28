@@ -128,11 +128,6 @@ final class UITestingBackendTransport: BackendTransport {
         case ("DELETE", let path) where path.hasPrefix(Self.pairingsPath):
             revokePairing(String(path.dropFirst(Self.pairingsPath.count)))
             return BackendResponse(status: 204, body: Data())
-        case ("GET", "/v1/members/me/push-usage"):
-            // 今日用量(#677):固定 23／100,下次歸零是下一個 UTC 0:00。
-            let seconds = (Date().timeIntervalSince1970 / 86_400).rounded(.down) * 86_400 + 86_400
-            let reset = Date(timeIntervalSince1970: seconds).formatted(.iso8601)
-            return Self.json(#"{"usage":{"limit":100,"sent":23,"resetsAt":"\#(reset)"}}"#)
         case ("GET", "/v1/members/me/push-devices"):
             // 清單與關閉不需要 Plus(訂閱到期也能關閉遺失的裝置);改名才要。
             let current = Self.currentDeviceID(request)
@@ -219,8 +214,17 @@ final class UITestingBackendTransport: BackendTransport {
 
     /// 目前的會員(連結或合併 Google 之後多一種登入方式)。
     private var memberBody: String {
-        guard googleLinked.withLock({ $0 }) else { return Self.memberJSON }
-        return #"{"id":"ui-testing-member","identities":[{"provider":"apple","email":"ray@example.com","linkedAt":"2026-01-01T00:00:00.000Z"},{"provider":"google","email":"ray@example.org","linkedAt":"2026-01-02T00:00:00.000Z"}]}"#
+        let body = googleLinked.withLock({ $0 })
+            ? #"{"id":"ui-testing-member","identities":[{"provider":"apple","email":"ray@example.com","linkedAt":"2026-01-01T00:00:00.000Z"},{"provider":"google","email":"ray@example.org","linkedAt":"2026-01-02T00:00:00.000Z"}]}"#
+            : Self.memberJSON
+        return String(body.dropLast()) + #","pushUsage":\#(Self.pushUsageJSON)}"#
+    }
+
+    /// 今日用量(#677):固定 23／100,下次歸零是下一個 UTC 0:00。併在會員快照(purrdr.server#37)。
+    private static var pushUsageJSON: String {
+        let seconds = (Date().timeIntervalSince1970 / 86_400).rounded(.down) * 86_400 + 86_400
+        let reset = Date(timeIntervalSince1970: seconds).formatted(.iso8601)
+        return #"{"limit":100,"sent":23,"resetsAt":"\#(reset)"}"#
     }
 
     /// 連結時發現已屬另一個會員:合併確認摘要(`error.details`)。

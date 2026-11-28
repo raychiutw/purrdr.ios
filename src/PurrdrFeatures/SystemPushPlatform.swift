@@ -76,6 +76,15 @@ public final class SystemPushPlatform: PushPlatform {
     static let hostServiceRolledBackBody = String(
         localized: "Host service update failed and was rolled back.", comment: "主機服務推播內文：更新失敗已退回(後台 APNs payload 的 loc-key)")
 
+    /// 每日上限通知(#675,`event: "daily_limit_reached"`):標題 `title-loc-key`、內文 `loc-key` 以 `loc-args` 帶入上限數字。
+    static let dailyLimitTitle = String(
+        localized: "Daily notification limit reached", comment: "每日通知上限通知標題(後台 APNs payload 的 title-loc-key)")
+    static func dailyLimitBody(limit: String) -> String {
+        String(
+            localized: "You've reached today's limit of \(limit) notifications. They'll resume at 00:00 UTC.",
+            comment: "每日通知上限通知內文(後台 APNs payload 的 loc-key,%@ 是上限數字;後台以 UTC 0:00 歸零)")
+    }
+
     /// 測試通知(#328,`event: "test"`):標題 `title-loc-key` 帶主機名稱(`loc-args`),沒有名稱時用不帶參數的版本。
     static func testTitle(hostName: String) -> String {
         String(localized: "Test: \(hostName) needs you", comment: "測試通知標題(後台 APNs payload 的 title-loc-key,%@ 是主機清單上的主機名稱)")

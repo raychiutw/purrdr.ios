@@ -887,10 +887,12 @@ public final class PushModel {
 public struct PushRoute: Equatable, Sendable {
     public var keyHash: String
     public var paneID: String?
-    /// 主機服務事件(#293,如 `host_service_updated`);有值時開那台主機的編輯頁，不開聊天。
+    /// 主機服務事件(#293,如 `host_service_updated`);有值時開那台主機的編輯頁，不開聊天(`test` 與 `daily_limit_reached` 例外,見上)。
     public var event: String?
     /// 帳號頁「傳送測試通知」(#328)的 `event`:只開 app,不開任何畫面。
     public static let testEvent = "test"
+    /// 每日通知上限通知(#675)的 `event`:會員層級、不屬於哪個 Agent,開帳號頁。
+    public static let dailyLimitEvent = "daily_limit_reached"
 
     public init(keyHash: String, paneID: String?, event: String? = nil) {
         self.keyHash = keyHash
