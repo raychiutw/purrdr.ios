@@ -73,7 +73,7 @@ struct AgentHostServicesTests {
         var rows: [Row] = []
         for connection in AgentHostConnectionKind.allCases {
             let ssh = connection != .https
-            rows.append(Row(agent: .claude, connection: connection, expected: caps(true, true, true, ssh, false)))
+            rows.append(Row(agent: .claude, connection: connection, expected: caps(true, true, true, true, false)))
             rows.append(Row(agent: .codex, connection: connection, expected: caps(true, false, false, false, ssh)))
             rows.append(Row(agent: .agy, connection: connection, expected: caps(ssh, ssh, ssh, false, false)))
             for other in [AgentID.grok, .gemini, .other("x")] {

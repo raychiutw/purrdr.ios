@@ -73,6 +73,18 @@ enum ConversationListContentBuilder {
 struct ConversationNavigationTitle: ViewModifier {
     let model: ConversationModel
     @Environment(\.paneWindowTitle) private var paneWindowTitle
+    /// 右側 [用量環｜⋯] 膠囊加邊距所佔的寬度;左側返回鈕比它窄。
+    /// 標題膠囊的最大寬度 = 畫面寬 - 2 × 這個值,讓它在兩側等寬的空間裡:principal 項目超過左右工具列留下的對稱空間時,
+    /// UIKit 會把它擠向較窄的一側(貼著返回鈕,#714);不超過就維持正中。
+    /// 右側膠囊的用量環與「⋯」隨字級變大(XXXL 實測右側群組約 130pt,加上與標題之間的間距要約 150pt),所以預留跟著字級放大;
+    /// 放大後最大寬度會縮小,另設下限讓標題一定看得到。
+    @ScaledMetric(relativeTo: .body) private var trailingReserve: CGFloat = 130
+    private static let minimumCapsuleWidth: CGFloat = 100
+    @State private var containerWidth: CGFloat = 0
+
+    private var capsuleMaxWidth: CGFloat? {
+        containerWidth > 0 ? max(Self.minimumCapsuleWidth, containerWidth - 2 * trailingReserve) : nil
+    }
 
     private var title: String { paneWindowTitle ?? ConversationTitle.display(model) }
 
@@ -80,6 +92,7 @@ struct ConversationNavigationTitle: ViewModifier {
         content
             .navigationTitle(title)
             #if os(iOS)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { containerWidth = $0 }
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 0) {
@@ -93,6 +106,7 @@ struct ConversationNavigationTitle: ViewModifier {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 4)
+                    .frame(maxWidth: capsuleMaxWidth)
                     .floatingGlass(in: .capsule)
                     .accessibilityElement(children: .combine)
                     .accessibilityAddTraits(.isHeader)

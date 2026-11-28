@@ -41,7 +41,7 @@ extension HostMember {
             // 列表已有這個 pane 的對話目標:找對話檔與讀主機狀態並行(#661)。
             knownTarget: sessionID == nil ? nil : list.updates.snapshot?.agents.first { $0.paneID == route.paneID }?.transcriptTarget,
             cache: conversationCache, drafts: drafts,
-            slashDiscovery: environment.agentHostServices.slashDiscovery(for: .claude, channel: channel),
+            slashDiscovery: capabilities.slashDiscovery.value,
             haptics: environment.haptics(),
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { environment.hostName(host) },
