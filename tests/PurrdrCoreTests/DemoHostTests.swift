@@ -146,32 +146,6 @@ struct DemoHostTests {
         #expect(window.end == after.size)
     }
 
-    /// #130:大量輸出情境，ledger 的 agent 一次寫出超過 64 KiB;即時追蹤以分段追趕接著讀，開啟時的追蹤照舊回報落後太多。
-    @Test("大量輸出：定位後 agent 一次寫出超過 64 KiB,分段追趕讀得到全部的行")
-    func largeOutputIsReadByCatchUp() async throws {
-        let host = DemoHost(scenario: .largeOutput(after: .zero))
-        let reader = TranscriptReader(channel: host)
-        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
-
-        guard case .tooFarBehind = try await reader.tail(path: before.path, from: before.size) else {
-            Issue.record("開啟時的追蹤應回報落後太多")
-            return
-        }
-        guard case .appended(let chunk) = try await reader.catchUp(path: before.path, from: before.size) else {
-            Issue.record("分段追趕應讀到新的行")
-            return
-        }
-        #expect(chunk.end - chunk.start > 64 << 10)
-        #expect(chunk.lines.count > 300)
-        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
-        guard case .agentText(let text) = items.last else {
-            Issue.record("最後一則應是 agent 的收尾文字")
-            return
-        }
-        #expect(text.markdown == "I read all 160 export logs; every row exported cleanly.")
-        #expect(try await reader.catchUp(path: before.path, from: chunk.end) == .unchanged)
-    }
-
     /// #489:工具步驟情境，ledger 一開始是長對話，定位後 agent 一次接上 20 個工具步驟(呼叫加結果各一行)。
     @Test("工具步驟：長對話開場，定位後一次接上 20 個工具步驟")
     func toolBurstAppendsTwentyToolSteps() async throws {
@@ -329,36 +303,6 @@ struct DemoHostTests {
         giveUp.cancel()
     }
 
-    /// #210 的 UI 測試情境：送出後先只接上使用者那一行，agent 工作中且畫面有即時預覽;時間到才接上回覆並完成。
-    @Test("送出後工作中情境：先接上使用者那一行並工作，時間到才接上回覆")
-    func workingAfterPromptRepliesLater() async throws {
-        let clock = ManualDemoClock()
-        let host = DemoHost(scenario: .workingAfterPrompt(for: .seconds(15)), now: clock.now)
-        let client = HerdrClient(channel: host)
-        let reader = TranscriptReader(channel: host)
-        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
-        let ledger = try #require(try await client.snapshot().agents.first { $0.paneID == "w1:p1" })
-        _ = await PromptDelivery(client: client, sleep: { _ in }).send("Add a header row too?", to: ledger)
-
-        guard case .appended(let sent) = try await reader.tail(path: before.path, from: before.size) else {
-            Issue.record("對話紀錄應先接上使用者那一行")
-            return
-        }
-        #expect(sent.lines.count == 1)
-        #expect(try await client.snapshot().agents.first { $0.paneID == "w1:p1" }?.status == .working)
-        #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w1:p1")) != nil)
-
-        clock.advance(by: .seconds(14))
-        #expect(try await reader.tail(path: before.path, from: sent.end) == .unchanged, "還沒到時間不接上回覆")
-        clock.advance(by: .seconds(1))
-        guard case .appended(let reply) = try await reader.tail(path: before.path, from: sent.end) else {
-            Issue.record("時間到應接上回覆")
-            return
-        }
-        #expect(reply.lines.count == 1)
-        #expect(try await client.snapshot().agents.first { $0.paneID == "w1:p1" }?.status != .working)
-    }
-
     @Test("不認得的指令像 shell 一樣以 exit 127 結束")
     func unknownCommandExitsWith127() async throws {
         let session = try await DemoHost().execute("nonexistent-tool --flag")
@@ -444,21 +388,6 @@ struct DemoHostTests {
         try await connection.send(bytes: Data("s".utf8))
         #expect(Self.text(await events.next()) == "s", "已在底部時往下捲沒有 frame")
         await connection.release()
-    }
-
-    @Test("Pane 終端機:「桌機正在操作」情境下，不帶 --takeover 被拒，接管後就能用")
-    func paneInUseNeedsTakeover() async throws {
-        let client = PaneTerminalClient(channel: DemoHost(scenario: .paneInUse))
-
-        let rejected = try await client.control(target: "w1:p1", columns: 40, rows: 12)
-        var events: [PaneTerminalEvent] = []
-        for await event in rejected.events { events.append(event) }
-        #expect(events == [.closed(.alreadyAttached)])
-
-        let taken = try await client.control(target: "w1:p1", columns: 40, rows: 12, takeover: true)
-        var iterator = taken.events.makeAsyncIterator()
-        #expect(Self.text(await iterator.next()).contains("demo@purrdr ledger % "))
-        await taken.release()
     }
 
     @Test("Pane 終端機：不存在的 Pane 回 not found")
@@ -597,7 +526,7 @@ struct DemoHostTailscaleCheckTests {
 struct DemoHostOfflineStartTests {
     @Test("斷網從第一次定位對話紀錄起算：定位前一直連得上，定位後過了延遲才斷網")
     func offlineCountsFromTranscriptLocate() async throws {
-        let host = DemoHost(scenario: .goesOffline(after: .milliseconds(1), hangs: false))
+        let host = DemoHost(scenario: .goesOffline(after: .milliseconds(1)))
         _ = try await HerdrClient(channel: host).snapshot()
         try await Task.sleep(for: .milliseconds(100))
         _ = try await HerdrClient(channel: host).snapshot()
@@ -607,19 +536,6 @@ struct DemoHostOfflineStartTests {
         try await Task.sleep(for: .milliseconds(100))
 
         await #expect(throws: SSHConnectionError.timedOut) { _ = try await HerdrClient(channel: host).snapshot() }
-    }
-}
-
-/// 手動推進的時間(Demo 主機「送出後工作中」的到期判斷用，不真的等)。
-final class ManualDemoClock: Sendable {
-    private let current = Mutex(ContinuousClock.now)
-
-    var now: @Sendable () -> ContinuousClock.Instant {
-        { self.current.withLock { $0 } }
-    }
-
-    func advance(by duration: Duration) {
-        current.withLock { $0 += duration }
     }
 }
 

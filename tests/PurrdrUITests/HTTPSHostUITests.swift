@@ -17,7 +17,7 @@ final class HTTPSHostUITests: XCTestCase {
     /// 再依序配對唯讀與可寫的主機。
     @MainActor
     func testHTTPSHostPairingFlows() {
-        let app = XCUIApplication.launchUITesting(flags: ["-demoOutdatedHostService"])
+        let app = XCUIApplication.launchUITesting(flags: [.demoOutdatedHostService])
 
         // 配對碼是大寫字母(#236、HIG TF-1):欄位用全大寫鍵盤，小寫鍵入的字變成大寫;過期的配對碼說明原因、不能儲存。
         step("配對碼自動大寫，過期的配對碼說明原因") {

@@ -23,7 +23,7 @@ final class ConversationLayoutUITests: XCTestCase {
     /// 帶動畫從聊天返回列表,tab bar 與列表同時出現;對話裡不能有 tab bar。
     @MainActor
     func testTabBarReturnsTogetherWithListOnBack() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAnimations"])
+        let app = XCUIApplication.launchUITesting(flags: [.uiTestingAnimations])
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitUntilExists(timeout: 10))
         let row = app.descendants(matching: .any)[chatRowID("w1:p1")].firstMatch

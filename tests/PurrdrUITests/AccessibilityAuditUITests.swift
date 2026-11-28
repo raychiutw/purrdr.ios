@@ -28,7 +28,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testAgentListNoHosts() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchAuditing(flags: ["-uiTestingNoHosts"], contentSize: size)
+            let app = XCUIApplication.launchAuditing(flags: [.uiTestingNoHosts], contentSize: size)
             XCTAssertTrue(app.element("agentList.addHost").waitUntilExists(timeout: 15))
             try audit(app, "Agent 列表(沒有主機)", contentSize: size)
             app.terminate()
@@ -178,7 +178,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testHostsEditorAndShare() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchAuditing(flags: ["-seedHost"], contentSize: size)
+            let app = XCUIApplication.launchAuditing(flags: [.seedHost], contentSize: size)
             openMenu("menu.hosts", in: app)
             let share = app.overviewRow("hosts.share")
             XCTAssertTrue(share.exists)
@@ -249,7 +249,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     @MainActor
     func testWelcome() throws {
         for size in [nil, Self.ax5] {
-            let app = XCUIApplication.launchAuditing(flags: ["-showWelcome"], contentSize: size)
+            let app = XCUIApplication.launchAuditing(flags: [.showWelcome], contentSize: size)
             XCTAssertTrue(app.element("sheet.welcome").waitUntilExists(timeout: 10))
             try audit(app, "歡迎頁", contentSize: size)
             app.terminate()

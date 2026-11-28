@@ -174,7 +174,7 @@ final class ConversationUITests: XCTestCase {
     /// 使用者送出的三張圖：兩張經主機取檔讀回縮圖、可點開圖片檢視器;一張已被主機清掉，顯示「主機上已找不到」。
     @MainActor
     func testSentImagesReadBackFromHost() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: [.demoSentImages])
         XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
         let thumbnail = app.element("conversation.sentImage.thumbnail")
         XCTAssertTrue(app.revealInConversation(thumbnail), "已送出的圖片沒有經主機讀回縮圖")
@@ -235,7 +235,7 @@ final class ConversationUITests: XCTestCase {
     /// 超過上限與已刪除的說明在 model 測試(`AgentFileOpenTests.openFailures`)。
     @MainActor
     func testAgentFiles() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoAgentFiles"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: [.demoAgentFiles])
         XCTAssertTrue(app.conversationList.waitUntilExists(timeout: 10), "對話沒有開啟")
         // 這裡看的是對話裡的卡片：先略過輸入列上方的註記，卡片才整張放得進可視區。
         dismissNote(in: app)
@@ -462,7 +462,7 @@ final class ConversationUITests: XCTestCase {
     /// 送出可撤回(#300):送出後訊息先以倒數泡泡出現，撤回把文字放回輸入框;再送一次按「立即送出」就變成回音。
     @MainActor
     func testUndoSendRestoresDraftAndSendNowDelivers() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-uiTestingUndoSend"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: [.uiTestingUndoSend])
         let text = app.element("composer.text")
         let send = app.element("composer.send")
         XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
@@ -539,7 +539,7 @@ final class ConversationUITests: XCTestCase {
 
         // 對話紀錄的讀取有 20 秒期限(HostCommandDeadline.standard),期限到了就離開載入中：下面的等待合計在期限內，
         // 量完再確認仍在載入中，量到的才是載入中的位置。
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoTranscriptPending"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: [.demoTranscriptPending])
         let loading = app.element("conversation.loading")
         XCTAssertTrue(loading.waitUntilExists(timeout: 10), "沒有停在載入中")
         let text = app.element("composer.text")
@@ -563,7 +563,7 @@ final class ConversationUITests: XCTestCase {
     /// (`ConversationHeaderTests`、`ConversationModelTests`、`ConversationDeadlineTests`)。
     @MainActor
     func testGoingOfflineWhileChattingKeepsAppResponsive() {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoGoesOffline"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: [.demoGoesOffline])
         XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "聊天畫面沒有開啟")
         let message = app.descendants(matching: .any).matching(NSPredicate(
             format: "identifier IN %@", ["conversation.user", "conversation.agent", "conversation.toolRun"])).firstMatch
