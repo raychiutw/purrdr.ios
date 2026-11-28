@@ -240,6 +240,8 @@ public enum HostServiceError: Error, Equatable, Sendable {
     case connectionLost
     /// 主機服務的回應讀不懂。
     case unexpectedResponse
+    /// 連得到這個位址，但對方不是 Purrdr 主機服務(例如別的網頁:回 404、HTML、不是協定的內容)。
+    case notHostService
     /// 送出前比對(`expected_session`)不符：對象的對話已變更，什麼都沒送出(#304)。
     case paneChanged
     /// 這個 pane 的 Send When Done 佇列已滿(20 則)。

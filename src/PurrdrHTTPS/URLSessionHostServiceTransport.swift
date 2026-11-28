@@ -52,6 +52,8 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
     /// 所以查不到名稱是這支裝置不在 tailnet;查得到卻連不上是主機離線。
     static func hostServiceError(_ error: any Error, status: Int?, hostName: String?) -> HostServiceError {
         if status == 502 { return .hostServiceNotRunning }
+        // 升級請求拿到一般的 HTTP 回應(網頁、404):對方不是主機服務。401／403 是權杖的事，不在這裡判斷。
+        if let status, (200..<500).contains(status), status != 101, status != 401, status != 403 { return .notHostService }
         guard let urlError = error as? URLError else { return .connectionLost }
         switch urlError.code {
         case .cannotFindHost, .dnsLookupFailed:
