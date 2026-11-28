@@ -152,6 +152,54 @@ jobs:
             exit 1
           fi
 
+  # Windows 取檔腳本(PowerShell)的契約測試:與 POSIX 版(HostFileFetchScriptRulesTests)、app、主機服務共用同一份案例
+  # (vendor/purrdr-host/protocol/host-file-access.json),另以真的 junction／symlink／8.3 短檔名／ADS／UNC 檢查。
+  # 腳本直接從 Swift 原始碼抽出(不需要 Swift 工具鏈,跟 app 送出的是同一份字串),以 stdin stub 在本機啟動 powershell.exe,不需要 sshd。
+  # job 一律啟動、沒有相關改動時只跑偵測步驟就成功:這樣可以列為 required check,又不會卡住沒動到相關檔案的 PR。
+  windows-fetch-contract:
+    name: Windows 取檔腳本契約(共用存取案例)
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: 偵測相關改動
+        id: changes
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # 非 PR 事件(workflow_call)或 workflow 檔本身有改:一律執行。
+          if [ -z "${BASE_SHA:-}" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"; echo "非 PR 事件,執行"; exit 0
+          fi
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$changed"
+          if echo "$changed" | grep -Eq '^(src/[^/]+/(WindowsScripts|WindowsHostChannel|HostScriptTimeLimit|HostServiceProtocol)\.swift|vendor/purrdr-host/protocol/|scripts/windows-(file-fetch|upload)-repro\.py|\.github/workflows/ci\.yml)$'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"; echo "沒有相關改動,略過契約測試"
+          fi
+
+      - name: 工具版本
+        if: steps.changes.outputs.relevant == 'true'
+        shell: pwsh
+        run: |
+          python --version
+          powershell.exe -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+          fsutil 8dot3name query C:
+
+      # PURRDR_WINDOWS_LOCAL=1:不經 sshd,直接啟動 powershell.exe(參數與 app 相同)。contract = shared + access。
+      - name: 執行共用存取案例
+        if: steps.changes.outputs.relevant == 'true'
+        shell: bash
+        env:
+          PURRDR_WINDOWS_LOCAL: "1"
+        run: python -I scripts/windows-file-fetch-repro.py --kind contract
+
   # 升版本號(MARKETING_VERSION)時要同時寫版本說明:目前版本號在 CHANGELOG.md 要有對應的 "## <版本號>" 段落。
   # 發版時 GitHub Release 的「本版更新」就是取這一段(見 testflight.yml)。
   changelog:
