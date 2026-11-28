@@ -116,7 +116,7 @@ public struct SpacesLayout: Equatable, Sendable {
 
         init(id: String, frame: UnitRect, pane: Pane?, agent: Agent?, isFocused: Bool) {
             if let agent {
-                let name = AgentKind.displayName(agent.kind) ?? agent.kind
+                let name = AgentID.displayName(forHerdrName: agent.kind) ?? agent.kind
                 let detail = AgentRowText.sessionTitle(of: agent) ?? agent.name
                 self.init(id: id, frame: frame, content: .agent(name: name, detail: detail, status: agent.effectiveStatus),
                           isFocused: isFocused, target: .chat(paneID: id))

@@ -186,16 +186,16 @@ struct SpacesColorsTests {
 
     @Test("Agent 種類頭像：已知種類各有字母，其他種類用顯示名的首字母")
     func avatarLetters() {
-        let kinds: [AgentKind] = [.claudeCode, .codex, .gemini, .openCode, .copilot, .unknown("grok"), .unknown("pi")]
+        let kinds: [AgentID] = [.claude, .codex, .gemini, .opencode, .copilot, .grok, .pi]
         let letters = kinds.map { AgentKindAvatarStyle(kind: $0).letter }
         #expect(letters == ["C", "X", "G", "O", "P", "G", "P"])
     }
 
     @Test("Agent 種類頭像底色是低飽和多色(#242 方案 B),深淺色共用、高對比更深")
     func avatarColorsAreMutedPalette() {
-        let expected: [(AgentKind, String, String)] = [
-            (.claudeCode, "#8A5A48", "#6D4739"), (.codex, "#55565C", "#4F5056"), (.gemini, "#4A5F86", "#3E5071"),
-            (.openCode, "#8A4F66", "#6D3A4F"), (.copilot, "#6A5884", "#58496E"), (.unknown("grok"), "#5A5A5F", "#505055"),
+        let expected: [(AgentID, String, String)] = [
+            (.claude, "#8A5A48", "#6D4739"), (.codex, "#55565C", "#4F5056"), (.gemini, "#4A5F86", "#3E5071"),
+            (.opencode, "#8A4F66", "#6D3A4F"), (.copilot, "#6A5884", "#58496E"), (.grok, "#5A5A5F", "#505055"),
         ]
         for (kind, normal, highContrast) in expected {
             let palette = AgentKindAvatarStyle(kind: kind).palette
@@ -210,7 +210,7 @@ struct SpacesColorsTests {
 
     @Test("Agent 種類頭像的白色字母：底色深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
     func avatarContrast() {
-        for kind in [AgentKind.claudeCode, .codex, .gemini, .openCode, .copilot, .unknown("grok")] {
+        for kind in [AgentID.claude, .codex, .gemini, .opencode, .copilot, .grok] {
             let palette = AgentKindAvatarStyle(kind: kind).palette
             for (name, color, minimum) in [
                 ("淺色", palette.light, 4.5), ("深色", palette.dark, 4.5),

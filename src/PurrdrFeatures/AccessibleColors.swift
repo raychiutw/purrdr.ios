@@ -143,8 +143,8 @@ struct AgentKindAvatarStyle {
     var letter: String
     var palette: ContrastPalette
 
-    init(kind: AgentKind) {
-        let presentation = AgentCatalog.profile(for: kind.agentID).presentation
+    init(kind: AgentID) {
+        let presentation = AgentCatalog.profile(for: kind).presentation
         let avatar = presentation.avatar
         // 沒有專屬字母的種類：顯示名首字母。
         letter = avatar.letter ?? (presentation.displayName?.first.map { String($0).uppercased() } ?? "?")

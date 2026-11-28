@@ -227,7 +227,7 @@ struct HostAgentSettingsPage: View {
                     ForEach(model.rows) { row in
                         Toggle(isOn: Binding(get: { row.isEnabled }, set: { model.setEnabled(row.agent, $0) })) {
                             HStack(spacing: 12) {
-                                AgentKindAvatar(kind: AgentKind(rawKind: row.agent.canonicalName))
+                                AgentKindAvatar(kind: AgentID(herdrName: row.agent.canonicalName))
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(verbatim: row.name)

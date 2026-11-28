@@ -161,17 +161,17 @@ private struct SpacesSectionHeader: View {
 
 /// Agent 種類頭像：圓角方塊，白色字母。種類由列的 VoiceOver 句子念(`AgentStatusAvatar` 整個隱藏)。
 struct AgentKindAvatar: View {
-    let kind: AgentKind
+    let kind: AgentID
     static let baseSide: CGFloat = 36
     // 方塊隨字級放大但有上限(#314、使用者決定);字母用實際字級(固定字級的字母會被稽核判為 Dynamic Type 不支援)。
     private let size: AvatarBox.Size
 
     /// `compact` 是對話裡每輪開頭的小頭像(#351,20pt);`size: .row` 是聊天列的頭像(#502)。
-    init(kind: AgentKind, compact: Bool = false) {
+    init(kind: AgentID, compact: Bool = false) {
         self.init(kind: kind, size: compact ? .compact : .regular)
     }
 
-    init(kind: AgentKind, size: AvatarBox.Size) {
+    init(kind: AgentID, size: AvatarBox.Size) {
         self.kind = kind
         self.size = size
     }

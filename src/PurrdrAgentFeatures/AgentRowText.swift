@@ -26,7 +26,7 @@ package enum AgentRowText {
            let index = siblings.firstIndex(where: { $0.paneID == agent.paneID }) {
             parts.append(String(localized: "\(index + 1) of \(siblings.count)"))
         }
-        parts.append(AgentKind.displayName(agent.kind) ?? String(localized: "Terminal"))
+        parts.append(AgentID.displayName(forHerdrName: agent.kind) ?? String(localized: "Terminal"))
         if let folder, !folder.isEmpty { parts.append(folder) }
         return parts.joined(separator: " · ")
     }
@@ -57,49 +57,14 @@ package enum AgentRowText {
     }
 }
 
-/// agent 種類。由 herdr 的種類字串解析;沒有專屬樣式的種類保留原文。
-package enum AgentKind: Equatable {
-    case claudeCode
-    case codex
-    case gemini
-    case openCode
-    case copilot
-    case unknown(String)
-
-    package init(rawKind: String) {
-        self.init(agentID: AgentID(herdrName: rawKind))
-    }
-
-    package init(agentID: AgentID) {
-        self = switch agentID {
-        case .claude: .claudeCode
-        case .codex: .codex
-        case .gemini: .gemini
-        case .opencode: .openCode
-        case .copilot: .copilot
-        default: .unknown(agentID.canonicalName)
-        }
-    }
-
-    /// 設定檔的 Agent 種類。
-    package var agentID: AgentID {
-        switch self {
-        case .claudeCode: .claude
-        case .codex: .codex
-        case .gemini: .gemini
-        case .openCode: .opencode
-        case .copilot: .copilot
-        case .unknown(let rawKind): AgentID(herdrName: rawKind)
-        }
-    }
-
+extension AgentID {
     /// 顯示名稱(取自 Agent 設定檔)。不認得的種類照 herdr 原文;沒有種類時 `nil`。
     package var displayName: String? {
-        AgentCatalog.profile(for: agentID).presentation.displayName
+        AgentCatalog.profile(for: self).presentation.displayName
     }
 
     /// herdr 種類字串的顯示名稱。
-    package static func displayName(_ kind: String) -> String? {
-        AgentKind(rawKind: kind).displayName
+    package static func displayName(forHerdrName kind: String) -> String? {
+        AgentID(herdrName: kind).displayName
     }
 }

@@ -8,7 +8,7 @@ import SwiftUI
 /// 顏色之外沒有文字或符號旁證,所以形狀差異只靠實心／空心;狀態由列的 VoiceOver 句子念,這裡不另成元素。
 struct AgentStatusAvatar: View {
     enum Content {
-        case agent(AgentKind)
+        case agent(AgentID)
         case terminal
     }
 
@@ -87,7 +87,7 @@ private struct TerminalAvatar: View {
     @ScaledMetric(relativeTo: .subheadline) private var symbolSize: CGFloat = 20
 
     var body: some View {
-        AvatarBox(fill: AgentKindAvatarStyle(kind: .unknown("")).palette.color, size: .row)
+        AvatarBox(fill: AgentKindAvatarStyle(kind: .other("")).palette.color, size: .row)
             .dynamicTypeSize(...AgentStatusAvatar.largestTypeSize)
             .overlay {
                 Image(systemName: "terminal")
