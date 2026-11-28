@@ -92,6 +92,9 @@ public struct PromptDelivery: Sendable {
             return Self.unconfirmedOutcome(for: agent)
         }
         guard reply.writtenOnly else { return .delivered }
+        // 主機服務 0.17.0 已自己等待並補過 Enter(#734):確認了就是送達,不再自己補。
+        // `false`(補了仍沒反應)與沒有欄位(舊版主機服務、沒帶 wait)照舊規則,app 還可以再補一次。
+        if reply.submitConfirmed == true { return .delivered }
         if !AgentCatalog.profile(forHerdrName: agent.kind).input.givesDeliveryReceipt { return .unconfirmed(.codexNoReceipt) }
         // agent 原本就在工作:prompt 只會排隊，不等(F6.5)。
         if agent.status == .working { return .delivered }

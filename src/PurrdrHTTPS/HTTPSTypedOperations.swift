@@ -169,7 +169,8 @@ extension HTTPSHostConnection {
             .agentPrompt(.init(requestId: $0, paneId: target, text: text, wait: promptWait, expectedSession: expectedSession))
         }
         guard case .agentPromptResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
-        return PromptReply(writtenOnly: result.delivery == "written_to_pty")
+        return PromptReply(
+            writtenOnly: result.delivery == "written_to_pty", submitConfirmed: result.submitConfirmed, enterSent: result.enterSent)
     }
 
     /// 送出一個 herdr method 對應的主機服務訊息:先檢查版本門檻(送出前),再在期限內握手並送出。

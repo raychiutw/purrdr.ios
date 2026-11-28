@@ -94,6 +94,10 @@ final class FakeHostService: Sendable {
         var homeDirectory: String?
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
+        /// `agent.prompt` 成功時回報的 `submit_confirmed`(0.17.0;`nil` 是不回,像舊版主機服務)。
+        var promptSubmitConfirmed: Bool?
+        /// `agent.prompt` 成功時回報的 `enter_sent`(0.17.0;`nil` 是不回)。
+        var promptEnterSent: Bool?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
         var promptHerdrError: String?
         /// `welcome` 回報的主機服務版本;`nil` 是範例的值。
@@ -476,7 +480,11 @@ final class FakeHostService: Sendable {
                 return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
             }
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
-            if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
+            if type == "agent.prompt" {
+                result["delivery"] = settings.promptDelivery
+                result["submit_confirmed"] = settings.promptSubmitConfirmed
+                result["enter_sent"] = settings.promptEnterSent
+            }
             return [.text(Self.json(result))]
         case "workspace.create", "workspace.rename", "tab.rename", "tab.create", "tab.close", "workspace.close", "worktree.create", "agent.start":
             // tab.create／tab.close 與 agent.start 的 launch_pending 是 0.15.0 起(版本沒設定視為最新)。
