@@ -56,7 +56,7 @@ private struct NeedsYouBannerCard: View {
         HStack(spacing: 4) {
             Button(action: open) {
                 HStack(spacing: 12) {
-                    AgentStatusAvatar(content: .agent(AgentKind(agentID: content.kind)), dot: AgentStatus.blocked.statusDot)
+                    AgentStatusAvatar(content: .agent(content.kind), dot: AgentStatus.blocked.statusDot)
                     VStack(alignment: .leading, spacing: 2) {
                         title
                             .font(.subheadline.weight(.semibold))

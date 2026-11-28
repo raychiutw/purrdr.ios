@@ -24,7 +24,7 @@ enum ConversationListContentBuilder {
 
     /// 每輪開頭的頭像與名稱(#351)。
     private static func agentTurnHeader(_ model: ConversationModel) -> AgentTurnHeader {
-        AgentTurnHeader(kind: AgentKind(rawKind: model.agentKind ?? ""), name: model.agentName)
+        AgentTurnHeader(kind: AgentID(herdrName: model.agentKind ?? ""), name: model.agentName)
     }
 
     /// 列表由上而下的列與各列內容。列 id 取自對話時間軸(`model.rows`):回音被確認後 id 不變。

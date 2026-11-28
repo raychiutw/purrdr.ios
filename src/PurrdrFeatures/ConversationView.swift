@@ -593,7 +593,7 @@ struct AgentMessageView: View {
 
 /// 每輪開頭的頭像與名稱(#351)。
 struct AgentTurnHeader: Equatable {
-    var kind: AgentKind
+    var kind: AgentID
     var name: String
 }
 

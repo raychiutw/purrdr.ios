@@ -27,12 +27,8 @@ extension UsageSectionContext {
 
 extension AgentID {
     /// 用量條上的短名稱(Claude · 5 小時)。
-    var planUsageShortName: String {
-        switch self {
-        case .claude: "Claude"
-        case .agy: "Antigravity"
-        default: planUsageName
-        }
+    package var planUsageShortName: String {
+        AgentHostCapabilities.planUsageAgents.contains(self) ? planUsageCopy.shortName : planUsageName
     }
 
     /// 聊天 Agent 種類(herdr 回報的 `kind`)對應的用量 Agent;沒有方案用量的種類不顯示用量區。

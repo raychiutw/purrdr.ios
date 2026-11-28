@@ -41,7 +41,7 @@ struct ChatRowView: View {
 
     private var avatarContent: AgentStatusAvatar.Content {
         switch content.avatar {
-        case .agent(let kind): .agent(AgentKind(rawKind: kind))
+        case .agent(let kind): .agent(AgentID(herdrName: kind))
         case .terminal: .terminal
         }
     }
@@ -127,7 +127,7 @@ struct ChatRowView: View {
         var parts: [String?] = [first, first == tab.contentTitle ? nil : tab.contentTitle]
         switch tab.avatar {
         case .agent(let kind, let status):
-            parts += [AgentKind(rawKind: kind).displayName, String(localized: status.title)]
+            parts += [AgentID(herdrName: kind).displayName, String(localized: status.title)]
         case .terminal:
             parts += [String(localized: "Terminal")]
         }

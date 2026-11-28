@@ -1249,7 +1249,7 @@ public final class ConversationModel {
 
     /// 停止列與強制結束確認裡的 agent 名稱(#220)。
     public var agentName: String {
-        currentAgent.flatMap { AgentKind.displayName($0.kind) } ?? String(localized: "Agent")
+        currentAgent.flatMap { AgentID.displayName(forHerdrName: $0.kind) } ?? String(localized: "Agent")
     }
 
     /// 輸入卡片最上面的停止列(#220):工作中或有停止進度、結果時;唯讀、離線時沒有。

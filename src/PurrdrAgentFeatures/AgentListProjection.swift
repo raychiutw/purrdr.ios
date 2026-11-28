@@ -112,7 +112,7 @@ package enum AgentListProjection {
     /// 種類與顯示名都比對，搜「Antigravity」要找得到 herdr 叫 `agy` 的(行為規格 F2.3)。
     private static func matches(_ needle: String, agent: Agent, row: AgentRow) -> Bool {
         let fields: [String?] = [
-            row.title, row.hostLabel?.name, agent.name, agent.sessionTitle, agent.terminalTitle, agent.kind, AgentKind.displayName(agent.kind),
+            row.title, row.hostLabel?.name, agent.name, agent.sessionTitle, agent.terminalTitle, agent.kind, AgentID.displayName(forHerdrName: agent.kind),
             agent.cwd, agent.workspaceLabel, agent.workspaceID,
         ]
         return contains(needle, in: fields)

@@ -150,6 +150,18 @@ struct AgentStringGuardTests {
         #expect(hits.sorted() == ["1:claude", "10:antigravity", "2:codex", "4:agy", "4:grok"].sorted(), "\(hits)")
     }
 
+    @Test("AgentKind 已退場:程式碼不再出現(註解與文件不算)")
+    func agentKindIsRetired() throws {
+        let pattern = try Regex("\\bAgentKind\\b")
+        for file in Self.sourceFiles where file.lastPathComponent != "HostServiceProtocol.swift" {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            for (index, line) in source.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                let code = line.components(separatedBy: "//").first ?? ""
+                #expect(code.firstMatch(of: pattern) == nil, "\(file.lastPathComponent):\(index + 1) 還在用 AgentKind,改用 AgentID")
+            }
+        }
+    }
+
     @Test("舊的 AgentKindName 已刪除")
     func agentKindNameIsGone() throws {
         for file in Self.sourceFiles {
