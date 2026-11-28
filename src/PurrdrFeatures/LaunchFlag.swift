@@ -39,7 +39,6 @@ public enum LaunchFlag: String, CaseIterable, Sendable {
     case uiTestingNoHosts = "-uiTestingNoHosts"
     case uiTestingNoMember = "-uiTestingNoMember"
     case uiTestingOversizedClipboard = "-uiTestingOversizedClipboard"
-    case uiTestingOwnedByOtherMember = "-uiTestingOwnedByOtherMember"
     case uiTestingPairingScan = "-uiTestingPairingScan"
     case uiTestingPlusMember = "-uiTestingPlusMember"
     case uiTestingPlusOff = "-uiTestingPlusOff"
@@ -48,5 +47,4 @@ public enum LaunchFlag: String, CaseIterable, Sendable {
     case uiTestingSimulatedFileUpload = "-uiTestingSimulatedFileUpload"
     case uiTestingSimulatedVideo = "-uiTestingSimulatedVideo"
     case uiTestingUndoSend = "-uiTestingUndoSend"
-    case uiTestingUpgradedMember = "-uiTestingUpgradedMember"
 }

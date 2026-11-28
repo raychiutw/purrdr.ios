@@ -81,7 +81,6 @@ struct LaunchConfigurationTests {
         #expect(parse(.uiTestingNoMember).member == .noMember)
         #expect(parse(.uiTestingMemberLoading, .uiTestingPlusMember).member == .loading)
         #expect(parse(.uiTestingLinkMerge).member == .linkMerge)
-        #expect(parse(.uiTestingUpgradedMember, .uiTestingMember).member == .upgraded)
     }
 
     @Test("只有假後台的會員情境算「有假後台」")
@@ -94,7 +93,7 @@ struct LaunchConfigurationTests {
     @Test("測試登入只看原始旗標,不受會員情境優先順序影響")
     func testingSignInIgnoresPriority() {
         #expect(parse(.uiTesting, .uiTestingPlusMember, .uiTestingNoMember).usesTestingSignIn)
-        #expect(parse(.uiTesting, .uiTestingUpgradedMember).usesTestingSignIn)
+        #expect(parse(.uiTesting, .uiTestingLinkMerge).usesTestingSignIn)
         #expect(!parse(.uiTesting, .uiTestingMember).usesTestingSignIn)
         #expect(!parse(.uiTestingNoMember).usesTestingSignIn)
     }
@@ -116,13 +115,12 @@ struct LaunchConfigurationTests {
         let config = parse(
             .uiTesting, .demoCompanions, .selectDemo, .demoOutdatedHostService, .uiTestingNoHosts, .seedDataUsage,
             .uiTestingUndoSend, .showWelcome, .uiTestingSimulatedVideo,
-            .uiTestingAppLock, .uiTestingPushTestFails, .uiTestingOwnedByOtherMember,
+            .uiTestingAppLock, .uiTestingPushTestFails,
             .seedPairedHTTPSHost, .uiTestingSimulatedFileUpload, .uiTestingOversizedClipboard, .uiTestingLargeImageClipboard, .uiTestingHostKeyPrompt)
         #expect(config.promptsHostKey)
         #expect(config.showsDemoCompanions && config.selectsDemo && config.hostServiceIsOutdated && config.hasNoHosts)
         #expect(config.seedsDataUsage && config.undoSendCountdown && config.showsWelcome)
         #expect(config.simulatesVideo && config.appLockEnabled && config.pushTestFails)
-        #expect(config.storeOwnedByOtherMember)
         #expect(config.simulatesFileUpload && config.seedsOversizedClipboard && config.seedsLargeImageClipboard)
         #expect(config.seededHosts.contains(.pairedHTTPS))
         let none = parse(.uiTesting)
