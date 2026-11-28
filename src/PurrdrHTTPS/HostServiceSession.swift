@@ -462,7 +462,7 @@ extension HostServiceProtocol.ServerMessage {
              .transcriptSubagentResult,
              .transcriptWorkflowResult,
              .transcriptDelegationResult,
-             .directoryListResult, .usageCodexResult, .usageClaudeResult, .usageSessionContextResult,
+             .directoryListResult, .slashListResult, .usageCodexResult, .usageClaudeResult, .usageSessionContextResult,
              .claudeUsageStatusResult, .claudeUsageInstallResult, .claudeUsageRemoveResult,
              .pushStatusResult,
              .pushInstallResult,
@@ -556,6 +556,7 @@ extension HostServiceProtocol.ServerMessage {
         case .queueRemoveResult(let message): message.requestId
         case .queueReorderResult(let message): message.requestId
         case .directoryListResult(let message): message.requestId
+        case .slashListResult(let message): message.requestId
         case .usageCodexResult(let message): message.requestId
         case .usageClaudeResult(let message): message.requestId
         case .usageSessionContextResult(let message): message.requestId
