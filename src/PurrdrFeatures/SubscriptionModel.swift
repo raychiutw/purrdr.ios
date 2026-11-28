@@ -34,7 +34,7 @@ public final class SubscriptionModel {
 
     /// 這個 Apple 帳號的訂閱屬於另一個會員(購買或恢復時後台回 `subscription_in_use`,#409):帳號頁顯示轉移選項而非「未開通」。
     public struct TransferOffer: Equatable, Sendable {
-        /// 擁有者的遮蔽 email(`r***@icloud.com`);後台沒有時是 `nil`。
+        /// 擁有者的遮蔽 email(`r***@example.net`);後台沒有時是 `nil`。
         public var maskedEmail: String?
         /// 這個會員沒有佔著有效訂閱名額。
         public var canTransfer: Bool

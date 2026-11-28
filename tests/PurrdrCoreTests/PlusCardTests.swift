@@ -51,9 +51,9 @@ struct PlusCardTests {
 
     @Test("訂閱屬於其他會員且可轉移:主按鈕轉移、次按鈕恢復購買")
     func ownedByAnotherMember() {
-        let card = card(.ownedByAnotherMember(maskedEmail: "r***@icloud.com"))
+        let card = card(.ownedByAnotherMember(maskedEmail: "r***@example.net"))
 
-        #expect(card.kind == .ownedByAnotherMember(maskedEmail: "r***@icloud.com", canTransfer: true))
+        #expect(card.kind == .ownedByAnotherMember(maskedEmail: "r***@example.net", canTransfer: true))
         #expect(card.primary == .transferSubscription)
         #expect(card.secondary == .restorePurchases)
     }
