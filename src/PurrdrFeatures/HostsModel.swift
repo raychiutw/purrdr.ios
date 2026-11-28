@@ -86,6 +86,7 @@ public final class HostsModel {
             icons = Dictionary(hosts.map { ($0.id, hostIcons.icon(for: $0.id) ?? .default) }, uniquingKeysWith: { first, _ in first })
             // 通知的副標題要顯示主機名稱(#431):名稱對應表由推播服務寫到 App Group。
             pushService?.updateHostNames(Dictionary(hosts.map { ($0.id.uuidString, $0.name) }, uniquingKeysWith: { first, _ in first }))
+            publishPushProfiles()
         }
     }
     /// 所有主機合併的 Agent 列表。
@@ -541,6 +542,13 @@ public final class HostsModel {
         icons[id] ?? .default
     }
 
+    /// 把每台主機的名稱與圖示交給推播服務,同步到後台的推播配對(ADR-0016、#706)。
+    private func publishPushProfiles() {
+        pushService?.updateHostProfiles(Dictionary(
+            hosts.map { ($0.id.uuidString, PushHostProfile(name: $0.name, icon: icons[$0.id] ?? .default)) },
+            uniquingKeysWith: { first, _ in first }))
+    }
+
     /// 選取中主機的圖示(主機鈕用)。
     public var selectionIcon: HostIcon { icon(of: selection) }
 
@@ -549,7 +557,10 @@ public final class HostsModel {
         let changed = icons[id] != icon && hosts.contains { $0.id == id }
         hostIcons.setIcon(icon, for: id)
         icons[id] = icon
-        if changed { changeRecorder?.hostSaved(id) }
+        if changed {
+            changeRecorder?.hostSaved(id)
+            publishPushProfiles()
+        }
         rebuildMembers()
     }
 
@@ -844,7 +855,10 @@ public final class HostsModel {
         guard let previous = networkPath, previous != signature else { return nil }
         // 網路恢復(#691):重送離線時沒撤銷成功的推播配對。
         if signature.hasPrefix("satisfied"), !previous.hasPrefix("satisfied"), let pushService {
-            Task { await pushService.retryPendingRevocations() }
+            Task {
+                await pushService.retryPendingRevocations()
+                await pushService.syncHostProfiles()
+            }
         }
         let demoChannel = demoChannel
         let disconnectors = sshAdapter.disconnectors() + httpsAdapter.disconnectors() + [{ await demoChannel.disconnect() }]

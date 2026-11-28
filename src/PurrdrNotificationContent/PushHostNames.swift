@@ -5,6 +5,9 @@ import Foundation
 /// 後台永遠不知道主機名稱:通知到達手機後,Notification Service Extension 依 payload 根層的 `pairing`
 /// (配對密鑰雜湊)查 App Group 裡的對應表,把主機名稱填進副標題。
 public enum PushNotificationEnrichment {
+    /// 後台(ADR-0016、#706)記得這組配對的電腦名稱時,會自己把名稱放進 `aps.alert.subtitle`:
+    /// 副標題已有內容就**用後台的、不再補**(不重複顯示,也不被本機對應表蓋掉);沒帶(舊配對、後台沒有名稱)才由本機對應表補上。
+    ///
     /// 補完的通知內容:標題由後台組好(`workspace · Tab` 或只有 workspace),這裡不動它。
     public struct Content: Equatable, Sendable {
         public var title: String
@@ -20,7 +23,8 @@ public enum PushNotificationEnrichment {
     public static func enriched(
         title: String, subtitle: String, userInfo: [AnyHashable: Any], hostNames: [String: String]
     ) -> Content {
-        guard let pairing = userInfo["pairing"] as? String, let name = hostNames[pairing]?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let pairing = userInfo["pairing"] as? String, let name = hostNames[pairing]?.trimmingCharacters(in: .whitespacesAndNewlines),
             !name.isEmpty
         else { return Content(title: title, subtitle: subtitle) }
         return Content(title: title, subtitle: name)

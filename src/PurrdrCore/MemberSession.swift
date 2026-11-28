@@ -187,12 +187,12 @@ public actor MemberSession {
     /// 需要有效訂閱(否則 403 `subscription_required`)。
     public func registerPushPairing(
         keyHash: String, deviceToken: String, environment: PushEnvironment, device: PushDeviceIdentity,
-        kinds: Set<PushKind>? = nil
+        kinds: Set<PushKind>? = nil, profile: PushHostProfile? = nil
     ) async throws {
         let body = try JSONEncoder().encode(Wire.PushPairingRegistration(
             keyHash: keyHash, platform: "apns", deviceToken: deviceToken, environment: environment.rawValue,
             deviceId: device.id.backendValue, deviceName: device.name, model: device.model.rawValue,
-            kinds: kinds.map(PushKind.wireValues)))
+            kinds: kinds.map(PushKind.wireValues), name: profile?.name, icon: profile?.icon.map(Wire.PushIcon.init)))
         _ = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/push-pairings", body: body))
     }
 
@@ -215,6 +215,18 @@ public actor MemberSession {
     @discardableResult
     public func updatePushPairing(keyHash: String, kinds: Set<PushKind>) async throws -> PushPairingRecord {
         let body = try JSONEncoder().encode(Wire.PushPairingUpdate(kinds: PushKind.wireValues(kinds)))
+        let response = try await authorized(BackendRequest(method: "PATCH", path: "/v1/members/me/push-pairings/\(keyHash)", body: body))
+        guard let pairing = try Wire.decode(Wire.PushPairingEnvelope.self, from: response).pairing.value?.domain() else {
+            throw BackendError.invalidResponse
+        }
+        return pairing
+    }
+
+    /// 改一組配對的主機名稱與圖示(`PATCH`,ADR-0016):`name` 沒有就不帶(不清掉);`icon` 一律帶,沒有圖示送 `null` 清掉。
+    /// 欄位已由 `PushHostProfile` 整理成後台接受的格式。不是自己的配對回 404 `pairing_not_found`。
+    @discardableResult
+    public func updatePushPairing(keyHash: String, profile: PushHostProfile) async throws -> PushPairingRecord {
+        let body = try JSONEncoder().encode(Wire.PushPairingProfileUpdate(name: profile.name, icon: profile.icon.map(Wire.PushIcon.init)))
         let response = try await authorized(BackendRequest(method: "PATCH", path: "/v1/members/me/push-pairings/\(keyHash)", body: body))
         guard let pairing = try Wire.decode(Wire.PushPairingEnvelope.self, from: response).pairing.value?.domain() else {
             throw BackendError.invalidResponse
@@ -638,6 +650,35 @@ private enum Wire {
         var deviceName: String
         var model: String
         var kinds: [String]?
+        var name: String?
+        var icon: PushIcon?
+    }
+
+    struct PushIcon: Codable {
+        var symbol: String
+        var color: String
+
+        init(_ icon: PushHostIcon) {
+            symbol = icon.symbol
+            color = icon.color
+        }
+
+        /// 不合格式的圖示讀成沒有(後台日後放寬格式也不讓整組壞掉)。
+        var domain: PushHostIcon? { PushHostIcon(symbol: symbol, color: color) }
+    }
+
+    /// 只改名稱與圖示的 PATCH body:`name` 沒有就不送,`icon` 沒有就送 `null`(清掉)。
+    struct PushPairingProfileUpdate: Encodable {
+        var name: String?
+        var icon: PushIcon?
+
+        enum CodingKeys: String, CodingKey { case name, icon }
+
+        func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(name, forKey: .name)
+            if let icon { try container.encode(icon, forKey: .icon) } else { try container.encodeNil(forKey: .icon) }
+        }
     }
 
     /// 陣列裡讀不懂的項目略過(向前相容:後台新增欄位或新形狀不能讓整份清單失敗)。
@@ -691,11 +732,12 @@ private enum Wire {
     struct PushPairingBody: Decodable {
         var keyHash: String
         var name: String?
+        var icon: PushIcon?
         var kinds: [String]?
 
         /// 沒有 `kinds` 的項目讀不懂(不能當成「什麼都不收」),略過。
         func domain() -> PushPairingRecord? {
-            kinds.map { PushPairingRecord(keyHash: keyHash, name: name, kinds: Set($0.map { PushKind($0) })) }
+            kinds.map { PushPairingRecord(keyHash: keyHash, name: name, icon: icon?.domain, kinds: Set($0.map { PushKind($0) })) }
         }
     }
 
@@ -711,11 +753,21 @@ private enum Wire {
         var device: PushDeviceBody
     }
 
+    struct PushDeviceHostBody: Decodable {
+        var keyHash: String
+        var name: String?
+        var icon: PushIcon?
+
+        func domain() -> PushDeviceHost { PushDeviceHost(id: keyHash, name: name, icon: icon?.domain) }
+    }
+
     struct PushDeviceBody: Decodable {
         var deviceId: String
         var name: String?
         var model: String?
         var hostCount: Int
+        /// 開了通知的主機(purrdr.server#45);舊後台沒有這個欄位。
+        var hosts: [Lossy<PushDeviceHostBody>]?
         /// epoch 毫秒。
         var lastRegisteredAt: Double
         var current: Bool
@@ -723,6 +775,7 @@ private enum Wire {
         func domain() throws -> PushDevice {
             PushDevice(
                 id: deviceId, name: name, model: model.flatMap(PushDeviceModel.init(rawValue:)), hostCount: hostCount,
+                hosts: (hosts ?? []).compactMap { $0.value?.domain() },
                 lastRegisteredAt: Date(timeIntervalSince1970: lastRegisteredAt / 1000), isCurrent: current)
         }
     }

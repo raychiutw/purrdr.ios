@@ -204,6 +204,10 @@ private struct PushDeviceRow: View {
                 details
                     .font(.subheadline)
                     .foregroundStyle(.secondaryText)
+                // 這支裝置開了通知的主機(名稱與圖示來自後台,只看不改;換手機、主機沒存在這支手機上也看得到)。
+                ForEach(device.hosts) { host in
+                    PushDeviceHostRow(host: host)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -214,6 +218,8 @@ private struct PushDeviceRow: View {
         var parts: [String] = []
         if device.isCurrent { parts.append(String(localized: "This Device")) }
         parts.append(String(localized: "Hosts: \(device.hostCount)"))
+        let names = device.hosts.compactMap(\.name)
+        if !names.isEmpty { parts.append(names.formatted()) }
         return parts.joined(separator: ", ")
     }
 
@@ -223,6 +229,26 @@ private struct PushDeviceRow: View {
             return Text("\(model.rawValue) · Hosts: \(device.hostCount) · Last used \(lastUsed)")
         }
         return Text("Hosts: \(device.hostCount) · Last used \(lastUsed)")
+    }
+}
+
+/// 一支裝置開了通知的一台主機:圖示加名稱(後台沒有名稱的舊配對顯示「Unnamed Host」)。
+private struct PushDeviceHostRow: View {
+    let host: PushDeviceHost
+
+    var body: some View {
+        Label {
+            if let name = host.name {
+                Text(verbatim: name)
+            } else {
+                Text("Unnamed Host")
+            }
+        } icon: {
+            Image(systemName: host.icon?.symbol ?? "desktopcomputer")
+                .foregroundStyle(.tint)
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondaryText)
     }
 }
 
