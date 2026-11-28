@@ -1,17 +1,17 @@
 """Windows 主機上傳的回歸檢查(#76):經真正的 sshd 執行 app 實際送出的上傳指令與 stdin stub。
 
-從 `src/*/` 底下的 `WindowsScripts.swift`、`WindowsHostChannel.swift`(常數另讀 `HostScriptTimeLimit.swift`)取出腳本，照 `WindowsScripts.upload`
+從 `src/*/` 底下的 `WindowsScripts.swift`、`WindowsHostChannel.swift`(常數另讀 `HostScriptTimeLimit.swift`、`HostServiceProtocol.swift`)取出腳本，照 `WindowsScripts.upload`
 (stub 照 `WindowsCommand.viaStdin`)組成 `powershell.exe … -EncodedCommand`,經 `ssh` 執行並把 bytes 寫進 stdin。
 腳本以 regex 從 Swift 原始碼抽出：抽不到或有沒展開的插值時直接結束並說明(Swift 寫法改了要同步改這裡)。
 期限內 exit 0、輸出正確、主機檔案 SHA-256 與原檔相同為綠;逾時(卡住)或其他結果為紅。
 
 kind(各跑每個大小):
-  image   圖片上傳
+  image   上傳到主機的 `%TEMP%/purrdr-uploads`(`hostUpload`,圖片與聊天附加檔案共用)
   folder  檔案上傳，identity 傳輸
   gzip    檔案上傳，gzip 傳輸;另加傳輸／原始大小不符(exit 75、不留檔)與
           「傳到一半時已收到的 bytes 已寫到磁碟」(不整個放進記憶體)
   stub    唯讀腳本的 stdin stub:送指定大小的腳本，讀到結束標記就執行
-  stub-eof(隨 stub 一起跑)  stub 只收到半份腳本就 EOF:不執行，exit 74
+  stub-eof(隨 stub 一起跑)  stub 只收到半份腳本就 EOF:不執行，exit 74(Swift 的 `stdinTruncatedExit`)
   limit   自我時限(#92,時限換短，見 `SHORT_LIMITS`):stub 只收到一半腳本、腳本本體卡住、圖片／檔案上傳只送一半，
           都要以 exit 124 結束、程序樹不留程序、上傳不留暫存檔(需要主機預設 shell 是 Git Bash,以 `/proc/$$/winpid` 找根)
 上傳與 stub 的 kind 另跑 100 bytes 的「沒有 `_handle` 欄位」模擬(換掉欄位名，應退回直接讀 console stream)。
@@ -22,7 +22,7 @@ shell:`bash` 直接執行(主機預設 shell,這台是 Git Bash);`cmd` 包成 `c
     python -I scripts/windows-upload-repro.py [大小…] [--kind image|folder|gzip|stub|limit|all] [--shell bash|cmd|all] [--timeout 秒]
   預設大小 100、300000、2500000,kind all,shell all。全部綠 exit 0。
 
-每個案例在主機 `%TEMP%\\purrdr-repro-<亂數>` 裡進行(圖片上傳以 `$env:USERPROFILE` 與 `$env:TEMP` 指過去，檔案上傳的目的資料夾也在裡面),
+每個案例在主機 `%TEMP%\\purrdr-repro-<亂數>` 裡進行(hostUpload 以 `$env:USERPROFILE` 與 `$env:TEMP` 指過去，檔案上傳的目的資料夾也在裡面),
 結束就刪掉。逾時時只結束開著本案例暫存檔的程序(卡住的 PowerShell)。
 """
 import argparse
@@ -43,7 +43,7 @@ LAUNCHER = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand "
 LOCAL = os.environ.get("PURRDR_WINDOWS_LOCAL") == "1"
 
 
-SWIFT_FILES = ("WindowsScripts.swift", "WindowsHostChannel.swift", "HostScriptTimeLimit.swift")
+SWIFT_FILES = ("WindowsScripts.swift", "WindowsHostChannel.swift", "HostScriptTimeLimit.swift", "HostServiceProtocol.swift")
 
 
 def swift_source():
@@ -251,11 +251,11 @@ def on_disk_bytes(folder):
 
 
 def upload_script(source, kind, arguments, workspace, overrides=None):
-    """照 `WindowsScripts.upload` 組成上傳腳本;圖片上傳以 `$env:USERPROFILE`、`$env:TEMP` 指到 `workspace`。"""
+    """照 `WindowsScripts.upload` 組成上傳腳本;hostUpload 以 `$env:USERPROFILE`、`$env:TEMP` 指到 `workspace`。"""
     prelude = swift_literal(source, "prelude")
     receive = resolve(swift_literal(source, "receive"), source, overrides)
     if kind == "image":
-        body = "$env:USERPROFILE=" + quote(workspace) + "\n$env:TEMP=" + quote(workspace) + "\n" + resolve(swift_literal(source, "imageUpload"), source, overrides)
+        body = "$env:USERPROFILE=" + quote(workspace) + "\n$env:TEMP=" + quote(workspace) + "\n" + resolve(swift_literal(source, "hostUpload"), source, overrides)
     else:
         body = resolve(swift_literal(source, "folderUpload"), source, overrides)
     # `$a` 是 `WindowsScripts.arguments` 的參數陣列，所有 Windows 腳本共用;上傳腳本在 cmd 命令列(8,191 字元)裡，名稱維持短。
@@ -298,7 +298,7 @@ SHORT_LIMITS = {"stdinScriptSeconds": "4", "readSeconds": "6", "uploadBytesPerSe
 LIMIT_CASES = {
     "stub-partial": "stdin stub 只收到一半腳本(沒有結束標記)",
     "stub-stuck": "stdin stub 收到完整腳本，腳本本體卡住",
-    "image-stall": "圖片上傳只送一半 bytes",
+    "image-stall": "上傳到主機(hostUpload)只送一半 bytes",
     "folder-stall": "檔案上傳只送一半 bytes",
 }
 
@@ -374,7 +374,8 @@ def run_limit_case(source, case, timeout, shell):
 
 
 def run_stub_eof_case(source, timeout, shell):
-    """stub 只收到半份腳本(沒有結束標記)就遇到 EOF(傳輸被截斷):不執行已讀到的內容，exit 74(`stdinTruncatedExit`)。"""
+    """stub 只收到半份腳本(沒有結束標記)就遇到 EOF(傳輸被截斷):不執行已讀到的內容，exit `stdinTruncatedExit`。"""
+    truncated_exit = int(swift_string(source, "stdinTruncatedExit"))
     command_script = stdin_stub(source)
     truncated = ("[Console]::Out.Write('first-half-ran')\n").encode()
     started = time.monotonic()
@@ -389,9 +390,9 @@ def run_stub_eof_case(source, timeout, shell):
         return False, f"逾時 {timeout}s:EOF 後 stub 還沒結束"
     elapsed = time.monotonic() - started
     printed = stdout.decode("utf-8", errors="replace").strip()
-    if printed or process.returncode != 74:
-        return False, f"exit={process.returncode} {elapsed:.1f}s stdout={printed!r}(預期 exit 74、stdout 空)"
-    return True, f"{elapsed:.1f}s exit 74,沒有執行已讀到的內容"
+    if printed or process.returncode != truncated_exit:
+        return False, f"exit={process.returncode} {elapsed:.1f}s stdout={printed!r}(預期 exit {truncated_exit}、stdout 空)"
+    return True, f"{elapsed:.1f}s exit {truncated_exit},沒有執行已讀到的內容"
 
 
 def run_case(source, kind, size, timeout, shell, variant=None):

@@ -361,8 +361,8 @@ def run_shared(source):
             if not ok:
                 failures.append(f"{case['name']} {verdict}(應為 {case['expected']})")
         posix_only = sum(1 for case in vectors["accessCases"] if case["platform"] != "windows")
-        by_app = sum(1 for case in vectors["accessCases"] if case["platform"] == "windows") - len(cases)
-        skipped = f",略過 {posix_only} 個 POSIX 案例(需要 POSIX 路徑與檔案系統)、{by_app} 個由 app 判斷的案例"
+        app_judged_count = sum(1 for case in vectors["accessCases"] if case["platform"] == "windows") - len(cases)
+        skipped = f",略過 {posix_only} 個 POSIX 案例(需要 POSIX 路徑與檔案系統)、{app_judged_count} 個由 app 判斷的案例"
         return green, f"{len(cases)} 個案例{skipped}" + ("" if green else ":" + " · ".join(failures))
     finally:
         fetcher.close()

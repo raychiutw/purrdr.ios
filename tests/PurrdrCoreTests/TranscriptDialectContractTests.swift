@@ -119,7 +119,7 @@ struct TranscriptDialectContractTests {
     @Test("每個位置規則的 POSIX 與 PowerShell 片段都進了預覽腳本與 Windows 定位腳本;沿用回報路徑的沒有自己的分支")
     func everyLocatorSnippetIsInGeneratedScripts() throws {
         for locator in TranscriptLocator.all {
-            if locator.resolver == "f=$i" {
+            if locator.resolver == TranscriptLocator.reportedPathResolver {
                 #expect(locator.previewBranch == nil && locator.powershellFunction == nil && locator.powershellFindBranch == nil, "\(locator.name)")
                 continue
             }
