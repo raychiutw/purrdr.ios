@@ -67,7 +67,9 @@ extension HostMember {
                 onTranscriptSkips: TranscriptSkipLog.shared.report,
                 onPromptDelivered: { environment.reviewPrompt()?.promptDelivered() },
                 awayStart: { environment.awayStart(route) },
-                operationTimings: environment.operationTimings()),
+                operationTimings: environment.operationTimings(),
+                // 點進聊天的讀取量依這支裝置目前的網路類型(#656);每次讀取當下才問。
+                readLimits: { TranscriptReadLimits.limits(for: environment.trafficMeter()?.currentNetwork) }),
             // 模型目錄(#385):主機快取 → 公開目錄 → 內建對照表。
             modelCatalog: ModelCatalogResolver(host: SSHModelCatalogReader(channel: channel), publicCatalog: environment.publicModelCatalog))
         return model

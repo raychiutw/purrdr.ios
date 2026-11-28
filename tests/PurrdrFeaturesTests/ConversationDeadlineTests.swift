@@ -17,7 +17,7 @@ struct ConversationDeadlineTests {
     /// 聊天開啟時定位加讀視窗的合併指令(#656)。
     static let open = TranscriptCommand.open(
         TranscriptLocation(locator: .claude, reference: .id(sessionID), cwd: cwd),
-        lines: TranscriptReader.openingLines, maxBytes: TranscriptReader.openingMaxBytes)
+        lines: TranscriptReader.openingLines, maxBytes: TranscriptReadLimits.conservative.maxBytes)
     /// fixture 轉成的對話項目數(見 `ClaudeTranscriptParserTests.fixtureBecomesConversationItems`)。
     static let fixtureItemCount = 13
 
@@ -36,7 +36,7 @@ struct ConversationDeadlineTests {
     func stuckLocateShowsReadFailedThenRecovers() async throws {
         let transcript = Fixtures.transcript()
         let host = FakeHost()
-        let sleeper = RecordingSleeper { $0 == HostCommandDeadline.transfer(bytes: TranscriptReader.openingMaxBytes) }
+        let sleeper = RecordingSleeper { $0 == HostCommandDeadline.transfer(bytes: TranscriptReadLimits.conservative.maxBytes) }
         let model = ConversationModel(
             client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host, sleep: sleeper.sleep), paneID: Self.paneID,
             knownSessionID: Self.sessionID, cache: InMemoryConversationCache(), clock: TestClock().clock

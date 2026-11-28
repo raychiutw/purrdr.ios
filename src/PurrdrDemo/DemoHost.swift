@@ -419,7 +419,7 @@ public actor DemoHost: HostChannel {
         guard !largeOutputWritten, let delay = burstDelay else { return }
         let ledger = DemoTranscripts.ledger
         if largeOutputAt == nil,
-           command == ledger.locateCommand || command == ledger.openCommand {
+           command == ledger.locateCommand || ledger.isOpenCommand(command) {
             largeOutputAt = now() + delay
             return
         }

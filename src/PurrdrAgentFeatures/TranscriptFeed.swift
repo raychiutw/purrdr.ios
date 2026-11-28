@@ -73,8 +73,8 @@ package final class TranscriptFeed {
     private let knownSessionID: String?
     private let clock: ConversationClock
     private let timings: ChatOpenTimings
-    private let openLines: Int
-    private let openMaxBytes: Int
+    /// 這一次讀取的限額(#656):每次讀取當下才問,網路換了就用新的。
+    private let readLimits: @MainActor () -> TranscriptReadLimits
     private let pageLines: Int
     private let onSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
 
@@ -94,8 +94,8 @@ package final class TranscriptFeed {
     package static let scrollbackMessageLimit = 4 * CachedConversation.maxMessages
     /// 補讀單頁行數上限。
     package static let maximumBackfillPageLines = 1_600
-    /// 開啟視窗沒有訊息時最多往前讀幾頁(每頁 `pageLines` 行)。
-    package static let maximumEmptyWindowPages = 25
+    /// 開啟視窗沒有訊息時最多往前補讀幾頁(#656;頁大小是限額的 `maxBytes`)。
+    package static let maximumEmptyWindowPages = TranscriptReadLimits.conservative.emptyWindowBackfillPages
     /// 追蹤事件觸發的快取寫入最短間隔(秒);離開聊天時一定補寫(#510)。
     package static let cacheSaveInterval: TimeInterval = 5
 
@@ -153,7 +153,7 @@ package final class TranscriptFeed {
 
     package init(
         reader: TranscriptReader, cache: any ConversationCache, chatKey: String, knownSessionID: String?, clock: ConversationClock,
-        openLines: Int, openMaxBytes: Int, pageLines: Int, timings: OperationTimingSink?,
+        readLimits: @escaping @MainActor () -> TranscriptReadLimits = { .conservative }, pageLines: Int, timings: OperationTimingSink?,
         onSkips: (@Sendable (TranscriptDialect, TranscriptSkips) -> Void)?
     ) {
         self.reader = reader
@@ -161,8 +161,7 @@ package final class TranscriptFeed {
         self.chatKey = chatKey
         self.knownSessionID = knownSessionID
         self.clock = clock
-        self.openLines = openLines
-        self.openMaxBytes = openMaxBytes
+        self.readLimits = readLimits
         self.pageLines = pageLines
         self.timings = ChatOpenTimings(sink: timings)
         self.onSkips = onSkips
@@ -241,14 +240,14 @@ package final class TranscriptFeed {
         discardPrefetchedOpen()
         let reader = reader
         let timings = timings
-        let (openLines, openMaxBytes) = (openLines, openMaxBytes)
-        prefetchedOpen = (target, Task { try await Self.openTranscript(target, reader: reader, timings: timings, lines: openLines, maxBytes: openMaxBytes) })
+        let limits = readLimits()
+        prefetchedOpen = (target, Task { try await Self.openTranscript(target, reader: reader, timings: timings, limits: limits) })
     }
 
     private static func openTranscript(
-        _ target: TranscriptTarget, reader: TranscriptReader, timings: ChatOpenTimings, lines: Int, maxBytes: Int
+        _ target: TranscriptTarget, reader: TranscriptReader, timings: ChatOpenTimings, limits: TranscriptReadLimits
     ) async throws -> TranscriptOpening {
-        try await timings.timed("open") { try await reader.open(target, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil) }
+        try await timings.timed("open") { try await reader.open(target, lines: limits.openLines, maxBytes: limits.maxBytes > 0 ? limits.maxBytes : nil) }
     }
 
     private func discardPrefetchedOpen() {
@@ -290,7 +289,7 @@ package final class TranscriptFeed {
                     opening = try await prefetched.task.value
                 } else {
                     discardPrefetchedOpen()
-                    opening = try await Self.openTranscript(target, reader: reader, timings: timings, lines: openLines, maxBytes: openMaxBytes)
+                    opening = try await Self.openTranscript(target, reader: reader, timings: timings, limits: readLimits())
                 }
                 guard isCurrent(generation) else { return .superseded }
                 try await openWindow(path: opening.file.path, size: opening.file.size, generation: generation, preloaded: opening.chunk)
@@ -329,8 +328,9 @@ package final class TranscriptFeed {
         if let preloaded {
             chunk = preloaded
         } else {
+            let limits = readLimits()
             chunk = try await timings.timed("window") {
-                try await reader.window(path: path, endingAt: size, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
+                try await reader.window(path: path, endingAt: size, lines: limits.openLines, maxBytes: limits.maxBytes > 0 ? limits.maxBytes : nil)
             }
         }
         guard isCurrent(generation) else { return }
@@ -358,19 +358,29 @@ package final class TranscriptFeed {
         try await readEarlierUntilMessages(path: path, generation: generation)
     }
 
+    /// 讀往前一頁(補讀與往上翻):範圍不超過 `maxBytes`;一行都放不下(單行比上限大)時放寬成只讀那一行,否則永遠翻不過去。
+    private func readPage(path: String, endingAt end: Int, lines: Int, maxBytes: Int) async throws -> TranscriptChunk {
+        let page = try await reader.window(path: path, endingAt: end, lines: lines, maxBytes: maxBytes > 0 ? maxBytes : nil)
+        guard page.lines.isEmpty, page.start > 0 else { return page }
+        return try await reader.window(path: path, endingAt: end, lines: 1)
+    }
+
     /// 開啟視窗內沒有任何使用者／Agent 文字(最後幾十行都是 system、api-request-blob、file-history-snapshot 這類不產生訊息的紀錄)
     /// 但檔案前面有:往前一頁一頁讀到有訊息為止，不顯示「還沒有訊息」(#418)。有上限，避免超大檔案讀不完。
     private func readEarlierUntilMessages(path: String, generation: Int) async throws {
         var pages = 0
+        let limits = readLimits()
         // 補讀期間只更新訊息清單,補讀完(或中途失敗)才整份重建時間軸一次(#586);可讀與否看訊息,不看還沒更新的畫面項目。
         defer { if pages > 0, isCurrent(generation) { emitRebuild() } }
         while !Self.hasReadableMessage(in: olderMessages + recent), older == .available, let start = file?.windowStart, start > 0,
-            pages < Self.maximumEmptyWindowPages
+            pages < limits.emptyWindowBackfillPages
         {
             pages += 1
             // 每頁加倍(上限 `maximumBackfillPageLines`):尾端一長串工具步驟時，往返次數是使用者在等的時間(#508)。
             let lines = min(pageLines << min(pages - 1, 4), max(pageLines, Self.maximumBackfillPageLines))
-            let page = try await timings.timed("earlier#\(pages)") { try await reader.window(path: path, endingAt: start, lines: lines) }
+            let page = try await timings.timed("earlier#\(pages)") {
+                try await readPage(path: path, endingAt: start, lines: lines, maxBytes: limits.maxBytes)
+            }
             guard isCurrent(generation) else { return }
             // 補讀的頁屬於「開啟視窗」而不是往上翻的舊頁:要進快取，下次開啟才立刻有可讀訊息(#508)。
             await prepend(page, generation: generation, intoWindow: true)
@@ -533,7 +543,7 @@ package final class TranscriptFeed {
         older = .loading
         emit(.none)
         do {
-            let chunk = try await reader.window(path: file.path, endingAt: file.windowStart, lines: pageLines)
+            let chunk = try await readPage(path: file.path, endingAt: file.windowStart, lines: pageLines, maxBytes: readLimits().maxBytes)
             guard isCurrent(generation) else { return }
             await prepend(chunk, generation: generation)
         } catch {

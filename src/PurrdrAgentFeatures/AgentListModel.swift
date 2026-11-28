@@ -17,7 +17,7 @@ public final class AgentListModel {
     public let updates: HostUpdates
     private let transcripts: TranscriptReader?
 
-    /// 離開期間的輪數(#308):讀這個 Agent 對話紀錄最後一小段(`openingLines`／`openingMaxBytes`),數 `openedAt` 之後的輪數。
+    /// 離開期間的輪數(#308):讀這個 Agent 對話紀錄最後一小段(400 行、256 KiB),數 `openedAt` 之後的輪數。
     /// 讀不到或沒有對話紀錄回 `nil`。
     public func awayTurns(paneID: String, openedAt: Date, now: Date = Date()) async -> Int? {
         guard let transcripts, let target = snapshot?.agents.first(where: { $0.paneID == paneID })?.transcriptTarget,

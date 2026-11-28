@@ -61,10 +61,13 @@ package final class ConversationPrefetcher {
 
     /// 讀一個聊天的開啟視窗並寫進(已加主機範圍的)快取;不開追蹤。回傳是否讀成功(含不值得存的尾端:下次有變化再試)。
     /// 沒有可讀訊息的尾端不寫(#473):不會蓋掉原本可用的快取。
-    package static func read(_ candidate: Candidate, reader: TranscriptReader, cache: any ConversationCache) async -> Bool {
+    package static func read(
+        _ candidate: Candidate, reader: TranscriptReader, cache: any ConversationCache,
+        limits: TranscriptReadLimits = .conservative
+    ) async -> Bool {
         let feed = TranscriptFeed(
             reader: reader, cache: cache, chatKey: candidate.route.paneID, knownSessionID: candidate.target.sessionKey, clock: ConversationClock(),
-            openLines: TranscriptReader.openingLines, openMaxBytes: TranscriptReader.openingMaxBytes, pageLines: 200, timings: nil, onSkips: nil)
+            readLimits: { limits }, pageLines: 200, timings: nil, onSkips: nil)
         _ = await feed.bind(to: candidate.target)
         let result = await feed.read(candidate.target, savesCache: false)
         defer { feed.unbind(keepingDisplay: false) }
