@@ -62,19 +62,30 @@ final class ConversationTitleCenterUITests: XCTestCase {
         XCTAssertLessThanOrEqual(abs(after), Self.tolerance, "重新連線中偏離 \(after)pt")
     }
 
-    /// 字級放大時膠囊變寬,仍須置中(一個字級一個測試:一個測試啟動多次 app 會超過 3 分鐘的時限)。
+    /// 字級放大時膠囊變寬,仍須置中、標題文字仍在(一個字級一個測試、各啟動一次 app)。
+    /// 用列表第一列(w1:p1):AX 字級的列表很長,第二列之後要拖很多次才到得了,進入聊天會因此不穩。
     @MainActor
     private func assertCentered(contentSize: String) {
-        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1", contentSize: contentSize)
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", contentSize: contentSize)
         let worst = maxOffset(app, duration: 1, label: contentSize)
         XCTAssertLessThanOrEqual(abs(worst), Self.tolerance, "\(contentSize):標題膠囊偏離中線 \(worst)pt")
+        let title = app.descendants(matching: .any)["conversation.title"].firstMatch
+        XCTAssertFalse(title.label.isEmpty, "\(contentSize):標題文字消失(label 空白)")
+        XCTAssertGreaterThanOrEqual(title.frame.width, 60, "\(contentSize):標題膠囊被壓到只剩 \(title.frame.width)pt")
+        // 字級確實有套用:預設字級的膠囊高約 42.7pt,放大後 ≥ 50pt(導覽列項目的字級在 XXXL 就到頂,所以三個字級寬度相同)。
+        XCTAssertGreaterThan(title.frame.height, 47, "\(contentSize):字級沒有套用(膠囊高 \(title.frame.height)pt)")
+        print("[TITLE-CENTER] \(contentSize): label=\(title.label) width=\(title.frame.width)")
     }
 
+    /// 使用者的字級(`extraExtraExtraLarge`)。
     @MainActor
-    func testTitleCapsuleCenteredAtXXLText() { assertCentered(contentSize: "UICTContentSizeCategoryXXL") }
+    func testTitleCapsuleCenteredAtXXXLText() { assertCentered(contentSize: "UICTContentSizeCategoryXXXL") }
 
     @MainActor
     func testTitleCapsuleCenteredAtAccessibilityLText() { assertCentered(contentSize: "UICTContentSizeCategoryAccessibilityL") }
+
+    @MainActor
+    func testTitleCapsuleCenteredAtAccessibilityXXXLText() { assertCentered(contentSize: "UICTContentSizeCategoryAccessibilityXXXL") }
 
     /// 開著動畫:推入轉場一結束(返回鈕與標題都停下)到副標題切換(工作中 → 需要你)為止,中心都要在中線。
     /// 轉場進行中的 frame 是動畫中間值,不在斷言內(只印出);穩定後與切換時才算。
@@ -105,12 +116,13 @@ final class ConversationTitleCenterUITests: XCTestCase {
         XCTAssertLessThanOrEqual(abs(worst), Self.tolerance, "動畫開啟、狀態切換後偏離 \(worst)pt")
     }
 
-    /// 很長的 Tab 名稱:膠囊被截斷在可用寬度內,不被推到一邊。
+    /// 把某列的 Tab 改成很長的名稱後開聊天,量膠囊(長名稱被截斷在可用寬度內,不被推到一邊)。
+    /// 大字級的列表很長,所以大字級的測試用第一列(w1:p1)。
     @MainActor
-    func testTitleCapsuleCenteredWithLongTabName() {
-        let app = XCUIApplication.launchUITesting()
-        let tab = app.element(chatRowID("w2:p1"))
-        XCTAssertTrue(app.reveal(tab), "沒有看到 w2:p1")
+    private func assertCenteredWithLongTabName(paneID: String, contentSize: String?, label: String) {
+        let app = XCUIApplication.launchUITesting(contentSize: contentSize)
+        let tab = app.element(chatRowID(paneID))
+        XCTAssertTrue(app.reveal(tab), "沒有看到 \(paneID)")
         tab.press(forDuration: 1.2)
         XCTAssertTrue(app.buttons["menu.renameTab"].waitUntilExists(timeout: 5), "Tab 列沒有跳出選單")
         app.buttons["menu.renameTab"].tap()
@@ -119,12 +131,28 @@ final class ConversationTitleCenterUITests: XCTestCase {
         alert.textFields.firstMatch.typeEnglish(XCUIKeyboardKey.delete.rawValue + "Refactor the whole billing export pipeline overnight")
         alert.buttons["Rename"].tap()
         XCTAssertTrue(alert.waitUntilGone(timeout: 5))
-        XCTAssertTrue(app.reveal(tab), "改名後沒有看到 w2:p1")
+        XCTAssertTrue(app.reveal(tab), "改名後沒有看到 \(paneID)")
         tab.tap()
-        let block = app.buttons["layout.block.w2:p1"]
+        let block = app.buttons["layout.block.\(paneID)"]
         if block.waitUntilExists(timeout: 2) { block.tap() }
-        let worst = maxOffset(app, duration: 1, label: "long-tab-name")
-        XCTAssertLessThanOrEqual(abs(worst), Self.tolerance, "長名稱:標題膠囊偏離中線 \(worst)pt")
+        let worst = maxOffset(app, duration: 1, label: label)
+        print("[TITLE-CENTER] usage=\(app.buttons["conversation.usage"].firstMatch.frame) more=\(app.buttons["conversation.more"].firstMatch.frame) back=\(app.navigationBars.buttons.element(boundBy: 0).frame)")
+        XCTAssertLessThanOrEqual(abs(worst), Self.tolerance, "\(label):標題膠囊偏離中線 \(worst)pt")
+        let title = app.descendants(matching: .any)["conversation.title"].firstMatch
+        XCTAssertFalse(title.label.isEmpty, "\(label):標題文字消失")
+        XCTAssertGreaterThanOrEqual(title.frame.width, 60, "\(label):標題膠囊被壓到只剩 \(title.frame.width)pt")
+        print("[TITLE-CENTER] \(label): label=\(title.label) width=\(title.frame.width)")
+    }
+
+    @MainActor
+    func testTitleCapsuleCenteredWithLongTabName() {
+        assertCenteredWithLongTabName(paneID: "w2:p1", contentSize: nil, label: "long-tab-name")
+    }
+
+    /// 使用者最可能遇到的組合:長 Tab 名稱加他的字級 XXXL。
+    @MainActor
+    func testTitleCapsuleCenteredWithLongTabNameAtXXXLText() {
+        assertCenteredWithLongTabName(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryXXXL", label: "long-tab-name+XXXL")
     }
 
     /// 旋轉後仍置中。

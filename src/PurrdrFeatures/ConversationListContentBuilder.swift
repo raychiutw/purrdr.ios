@@ -76,13 +76,14 @@ struct ConversationNavigationTitle: ViewModifier {
     /// 右側 [用量環｜⋯] 膠囊加邊距所佔的寬度;左側返回鈕比它窄。
     /// 標題膠囊的最大寬度 = 畫面寬 - 2 × 這個值,讓它在兩側等寬的空間裡:principal 項目超過左右工具列留下的對稱空間時,
     /// UIKit 會把它擠向較窄的一側(貼著返回鈕,#714);不超過就維持正中。
-    /// 不隨字級放大(放大後最大寬度會縮到 0、標題消失),另設下限讓標題一定看得到。
-    private static let trailingReserve: CGFloat = 130
+    /// 右側膠囊的用量環與「⋯」隨字級變大(XXXL 實測右側群組約 130pt,加上與標題之間的間距要約 150pt),所以預留跟著字級放大;
+    /// 放大後最大寬度會縮小,另設下限讓標題一定看得到。
+    @ScaledMetric(relativeTo: .body) private var trailingReserve: CGFloat = 130
     private static let minimumCapsuleWidth: CGFloat = 100
     @State private var containerWidth: CGFloat = 0
 
     private var capsuleMaxWidth: CGFloat? {
-        containerWidth > 0 ? max(Self.minimumCapsuleWidth, containerWidth - 2 * Self.trailingReserve) : nil
+        containerWidth > 0 ? max(Self.minimumCapsuleWidth, containerWidth - 2 * trailingReserve) : nil
     }
 
     private var title: String { paneWindowTitle ?? ConversationTitle.display(model) }
