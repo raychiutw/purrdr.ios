@@ -119,13 +119,18 @@ struct TranscriptDialectContractTests {
     @Test("每個位置規則的 POSIX 與 PowerShell 片段都進了預覽腳本與 Windows 定位腳本;沿用回報路徑的沒有自己的分支")
     func everyLocatorSnippetIsInGeneratedScripts() throws {
         for locator in TranscriptLocator.all {
+            let previewBranch = "\(locator.name))
+\(locator.resolver)
+;;"
+            let findBranch = "'\(locator.name)'{\(locator.powershellFindCall ?? "")}"
             if locator.resolver == TranscriptLocator.reportedPathResolver {
-                #expect(locator.previewBranch == nil && locator.powershellFunction == nil && locator.powershellFindBranch == nil, "\(locator.name)")
+                #expect(locator.powershellFunction == nil && locator.powershellFindCall == nil, "\(locator.name)")
+                #expect(!TranscriptCommand.previewsScript.contains(previewBranch), "\(locator.name)")
+                #expect(!WindowsScripts.transcriptFunctions.contains("'\(locator.name)'{"), "\(locator.name)")
                 continue
             }
-            let previewBranch = try #require(locator.previewBranch, "\(locator.name) 沒有預覽分支")
             let function = try #require(locator.powershellFunction, "\(locator.name) 沒有 PowerShell 函式")
-            let findBranch = try #require(locator.powershellFindBranch, "\(locator.name) 沒有 PFind 分支")
+            #expect(locator.powershellFindCall != nil, "\(locator.name) 沒有 PFind 呼叫")
             #expect(TranscriptCommand.previewsScript.contains(previewBranch), "\(locator.name)")
             #expect(WindowsScripts.transcriptFunctions.contains(function), "\(locator.name)")
             #expect(WindowsScripts.transcriptFunctions.contains(findBranch), "\(locator.name)")
