@@ -378,21 +378,6 @@ public enum ComposerKeyboardLayout {
             stopBar: stopBar == nil ? current.stopBar : chosen.stopBar)
     }
 
-    /// 問題卡平常的高度上限(超過在卡片內捲動)。
-    public static let questionCardMaximumHeight = 300.0
-
-    /// 問題卡的高度上限(#680)。鍵盤收起時 300pt;鍵盤出現時依可用空間縮小(選項在卡片內捲動)：
-    /// 對話可見高度加上目前的卡片與間距(兩者加總不隨卡片高度變，所以不會來回跳)，扣掉最小對話可見高度。
-    /// 問題卡不能拿掉，最小保留 `minimumCardHeight`(題目一行加一個選項)。還沒量到時維持 300pt。
-    public static func questionCardMaximumHeight(
-        keyboardShown: Bool, conversationHeight: Double?, displayedCardHeight: Double?,
-        minimumConversationHeight: Double, minimumCardHeight: Double
-    ) -> Double {
-        guard keyboardShown, let conversationHeight, let displayedCardHeight else { return questionCardMaximumHeight }
-        let budget = conversationHeight + displayedCardHeight + spacing - minimumConversationHeight
-        return max(minimumCardHeight, min(questionCardMaximumHeight, budget))
-    }
-
     /// 往回恢復(讓出的空間收回)時要多出來的對話高度:一列觸控目標。
     static let hysteresis = compactHeight
 

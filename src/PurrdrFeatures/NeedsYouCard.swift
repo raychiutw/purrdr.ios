@@ -13,8 +13,7 @@ import SwiftUI
 struct NeedsYouCard: View {
     let model: ConversationModel
     /// 卡片最高 300pt、超過在卡片內捲動;不隨字級放大，否則 AX 字級下卡片會吃掉整個畫面。
-    /// 鍵盤出現時由輸入列依可用空間縮小(`ComposerKeyboardLayout.questionCardMaximumHeight`,#680)。
-    var maximumHeight = ComposerKeyboardLayout.questionCardMaximumHeight
+    private let maximumHeight = 300.0
     @State private var contentHeight = 0.0
 
     static let cornerRadius: CGFloat = 24
