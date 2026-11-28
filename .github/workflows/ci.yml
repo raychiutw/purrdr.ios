@@ -152,10 +152,8 @@ jobs:
             exit 1
           fi
 
-  # Windows 取檔腳本(PowerShell)的契約測試:與 POSIX 版(HostFileFetchScriptRulesTests)、app、主機服務共用同一份案例
-  # (vendor/purrdr-host/protocol/host-file-access.json),另以真的 junction／symlink／8.3 短檔名／ADS／UNC 檢查。
-  # 腳本直接從 Swift 原始碼抽出(不需要 Swift 工具鏈,跟 app 送出的是同一份字串),以 stdin stub 在本機啟動 powershell.exe,不需要 sshd。
-  # job 一律啟動、沒有相關改動時只跑偵測步驟就成功:這樣可以列為 required check,又不會卡住沒動到相關檔案的 PR。
+  # Windows 取檔腳本的契約測試:與 POSIX 版、app、主機服務共用 host-file-access.json,腳本從 Swift 原始碼抽出、本機直接啟動 powershell.exe。
+  # job 一律啟動、無相關改動時只跑偵測就成功,才能列為 required check。
   windows-fetch-contract:
     name: Windows 取檔腳本契約(共用存取案例)
     runs-on: windows-2025
@@ -178,7 +176,7 @@ jobs:
           fi
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$changed"
-          if echo "$changed" | grep -Eq '^(src/[^/]+/(WindowsScripts|WindowsHostChannel|HostScriptTimeLimit|HostServiceProtocol)\.swift|vendor/purrdr-host/protocol/|scripts/windows-(file-fetch|upload)-repro\.py|\.github/workflows/ci\.yml)$'; then
+          if echo "$changed" | grep -Eq '^(src/[^/]+/(WindowsScripts|WindowsHostChannel|HostScriptTimeLimit|HostServiceProtocol|TranscriptLocator)\.swift|vendor/purrdr-host/protocol/.*|scripts/windows-(file-fetch|upload)-repro\.py|\.github/workflows/ci\.yml)$'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"; echo "沒有相關改動,略過契約測試"
